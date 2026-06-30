@@ -460,7 +460,7 @@ export function PoOutstandingPageClient() {
                     <td className="p-2 text-center">
                       <input className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 outline-none" disabled type="checkbox" title="รอออกแบบ cost-pool write/audit" />
                     </td>
-                    <td className="p-2 font-mono text-[11px] text-slate-600 truncate">{row.docNo}</td>
+                    <td className="p-2 font-mono text-xs text-slate-600 truncate">{row.docNo}</td>
                     <td className="p-2 text-slate-800">{formatDateDisplay(row.date)}</td>
                     <td className="p-2 text-slate-800 truncate">{row.partnerName}</td>
                     <td className="p-2 text-slate-800 truncate">{row.productName || '-'}</td>
@@ -619,7 +619,7 @@ export function PoOutstandingPageClient() {
               {!isLoading &&
                 pagedRows.map((row) => (
                   <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="p-2 font-mono text-[11px] text-slate-600 truncate">{row.docNo}</td>
+                    <td className="p-2 font-mono text-xs text-slate-600 truncate">{row.docNo}</td>
                     <td className="p-2 text-slate-800">{formatDateDisplay(row.date)}</td>
                     <td className="p-2 text-slate-800 truncate">{row.partnerName}</td>
                     <td className="p-2 text-slate-800 truncate">{row.productName || '-'}</td>

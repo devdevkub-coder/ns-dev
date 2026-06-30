@@ -347,39 +347,7 @@ export function ProductTrackingPageClient({
               <option value="">ทุกหมวด</option>
               {(data?.filters?.metalGroups ?? []).map((group) => <option key={group} value={group}>{group}</option>)}
             </select>
-            <div className="min-w-[150px]">
-              <SearchCombobox
-                inputId="desktop-product-filter"
-                label="สินค้า"
-                hideLabel
-                placeholder="สินค้าทั้งหมด"
-                options={productSearchOptions}
-                value={productId}
-                onChange={setProductId}
-              />
-            </div>
-            <div className="min-w-[150px]">
-              <SearchCombobox
-                inputId="desktop-supplier-filter"
-                label="Supplier"
-                hideLabel
-                placeholder="ทุก Supplier"
-                options={supplierSearchOptions}
-                value={supplierId}
-                onChange={setSupplierId}
-              />
-            </div>
-            <div className="min-w-[150px]">
-              <SearchCombobox
-                inputId="desktop-customer-filter"
-                label="Customer"
-                hideLabel
-                placeholder="ทุก Customer"
-                options={customerSearchOptions}
-                value={customerId}
-                onChange={setCustomerId}
-              />
-            </div>
+
             <input
               className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm min-w-[150px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-100"
               placeholder="ค้นหา Product"
@@ -449,60 +417,16 @@ export function ProductTrackingPageClient({
                   </select>
                 </label>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="text-xs text-slate-500 font-semibold">
-                  หมวด
-                  <select
-                    className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-100"
-                    value={metalGroup}
-                    onChange={(event) => { setMetalGroup(event.target.value); setProductId('') }}
-                  >
-                    <option value="">ทุกหมวด</option>
-                    {(data?.filters?.metalGroups ?? []).map((group) => <option key={group} value={group}>{group}</option>)}
-                  </select>
-                </label>
-                <label className="text-xs text-slate-500 font-semibold block">
-                  เลือกสินค้า
-                  <div className="mt-1">
-                    <SearchCombobox
-                      inputId="mobile-product-filter"
-                      label="สินค้า"
-                      hideLabel
-                      placeholder="สินค้าทั้งหมด"
-                      options={productSearchOptions}
-                      value={productId}
-                      onChange={setProductId}
-                    />
-                  </div>
-                </label>
-              </div>
-              <label className="text-xs text-slate-500 font-semibold block mt-1">
-                เลือก Supplier
-                <div className="mt-1">
-                  <SearchCombobox
-                    inputId="mobile-supplier-filter"
-                    label="Supplier"
-                    hideLabel
-                    placeholder="ทุก Supplier"
-                    options={supplierSearchOptions}
-                    value={supplierId}
-                    onChange={setSupplierId}
-                  />
-                </div>
-              </label>
-              <label className="text-xs text-slate-500 font-semibold block mt-1">
-                เลือก Customer
-                <div className="mt-1">
-                  <SearchCombobox
-                    inputId="mobile-customer-filter"
-                    label="Customer"
-                    hideLabel
-                    placeholder="ทุก Customer"
-                    options={customerSearchOptions}
-                    value={customerId}
-                    onChange={setCustomerId}
-                  />
-                </div>
+              <label className="text-xs text-slate-500 font-semibold block">
+                หมวด
+                <select
+                  className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-100"
+                  value={metalGroup}
+                  onChange={(event) => { setMetalGroup(event.target.value); setProductId('') }}
+                >
+                  <option value="">ทุกหมวด</option>
+                  {(data?.filters?.metalGroups ?? []).map((group) => <option key={group} value={group}>{group}</option>)}
+                </select>
               </label>
               <div className="flex justify-end pt-1">
                 <button

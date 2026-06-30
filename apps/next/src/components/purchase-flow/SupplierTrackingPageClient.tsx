@@ -264,7 +264,7 @@ export function SupplierTrackingPageClient() {
       </div>
 
       <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
-        <div className="grid gap-2 lg:grid-cols-7">
+        <div className="grid gap-2 lg:grid-cols-5">
           <input className="h-9 rounded-md border border-slate-300 px-3 text-sm outline-none" type="number" value={year} onChange={(event) => setYear(event.target.value)} />
           <select className="h-9 rounded-md border border-slate-300 px-3 text-sm outline-none disabled:opacity-50" value={month} disabled={view === 'yearCompare'} onChange={(event) => setMonth(event.target.value)}>
             <option value="">ทั้งปี</option>
@@ -280,28 +280,6 @@ export function SupplierTrackingPageClient() {
               <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>
-          <div>
-            <SearchCombobox
-              inputId="product-filter-combobox"
-              label="สินค้า"
-              hideLabel
-              placeholder="สินค้าทั้งหมด"
-              options={productSearchOptions}
-              value={productId}
-              onChange={setProductId}
-            />
-          </div>
-          <div>
-            <SearchCombobox
-              inputId="supplier-filter-combobox"
-              label="Supplier"
-              hideLabel
-              placeholder="Supplier ทั้งหมด"
-              options={supplierSearchOptions}
-              value={supplierId}
-              onChange={setSupplierId}
-            />
-          </div>
           <input autoComplete="off" className="h-9 rounded-md border border-slate-300 px-3 text-sm outline-none" placeholder="ค้นหา Supplier" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <a className="inline-flex h-9 items-center justify-center rounded-md bg-blue-700 px-4 text-center text-sm font-bold text-white transition-colors hover:bg-blue-800" href={exportHref}>📥 XLSX</a>
         </div>
@@ -500,16 +478,16 @@ export function SupplierTrackingPageClient() {
                 {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={10}>ไม่มีข้อมูล Supplier Tracking</td></tr> : null}
                 {!isLoading && sortedRows.map((row) => (
                   <tr key={row.id} className="cursor-pointer border-t hover:bg-slate-50/80 transition-colors" onClick={() => void openDetail(row)}>
-                    <td className="p-2 font-mono text-xs text-slate-500 truncate">{row.code || '-'}</td>
-                    <td className="p-2 font-medium truncate">{row.supplierName}</td>
-                    <td className="p-2 text-right">{row.billCount}</td>
-                    <td className="p-2 text-right tabular-nums">{formatMoney(row.qty)}</td>
-                    <td className="p-2 text-right font-semibold text-blue-700 tabular-nums">{formatMoney(row.purchaseAmount)}</td>
-                    <td className="p-2 text-right tabular-nums">{formatMoney(row.avgBuy)}</td>
-                    <td className="p-2 text-right tabular-nums">{formatMoney(row.paidAmount)}</td>
-                    <td className="p-2 text-right text-red-700 tabular-nums">{formatMoney(row.payable)}</td>
-                    <td className="p-2 text-right text-red-700 tabular-nums">{formatMoney(row.overdueApAmount)}</td>
-                    <td className="p-2 pr-4 text-right tabular-nums">{row.paidPct.toFixed(1)}%</td>
+                    <td className="p-2 font-mono text-xs text-slate-500 min-w-0 overflow-hidden"><div className="truncate" title={row.code || ''}>{row.code || '-'}</div></td>
+                    <td className="p-2 font-medium min-w-0 overflow-hidden"><div className="truncate" title={row.supplierName || ''}>{row.supplierName}</div></td>
+                    <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{row.billCount}</td>
+                    <td className="p-2 text-right tabular-nums whitespace-nowrap pl-4">{formatMoney(row.qty)}</td>
+                    <td className="p-2 text-right font-semibold text-blue-700 tabular-nums whitespace-nowrap pl-4">{formatMoney(row.purchaseAmount)}</td>
+                    <td className="p-2 text-right tabular-nums whitespace-nowrap pl-4">{formatMoney(row.avgBuy)}</td>
+                    <td className="p-2 text-right tabular-nums whitespace-nowrap pl-4">{formatMoney(row.paidAmount)}</td>
+                    <td className="p-2 text-right text-red-700 tabular-nums whitespace-nowrap pl-4">{formatMoney(row.payable)}</td>
+                    <td className="p-2 text-right text-red-700 tabular-nums whitespace-nowrap pl-4">{formatMoney(row.overdueApAmount)}</td>
+                    <td className="p-2 pr-4 text-right tabular-nums whitespace-nowrap pl-4">{row.paidPct.toFixed(1)}%</td>
                   </tr>
                 ))}
               </tbody>
@@ -559,12 +537,12 @@ export function SupplierTrackingPageClient() {
               <tbody>
                 {(data?.byProduct ?? []).slice(0, 20).map((row) => (
                   <tr key={row.productName} className="border-t hover:bg-slate-50">
-                    <td className="p-2 font-medium">{row.productName}</td>
-                    <td className="p-2 text-right">{row.suppliers}</td>
-                    <td className="p-2 text-right">{row.billCount}</td>
-                    <td className="p-2 text-right">{formatMoney(row.qty)}</td>
-                    <td className="p-2 text-right font-semibold">{formatMoney(row.amount)}</td>
-                    <td className="p-2 text-right">{formatMoney(row.avgBuy)}</td>
+                    <td className="p-2 font-medium min-w-0 overflow-hidden"><div className="truncate" title={row.productName || ''}>{row.productName}</div></td>
+                    <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{row.suppliers}</td>
+                    <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{row.billCount}</td>
+                    <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{formatMoney(row.qty)}</td>
+                    <td className="p-2 text-right font-semibold whitespace-nowrap tabular-nums pl-4">{formatMoney(row.amount)}</td>
+                    <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{formatMoney(row.avgBuy)}</td>
                   </tr>
                 ))}
                 {!isLoading && (data?.byProduct ?? []).length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={6}>ไม่มี item detail สำหรับ product breakdown</td></tr> : null}

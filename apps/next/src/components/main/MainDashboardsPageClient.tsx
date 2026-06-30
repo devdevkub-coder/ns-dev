@@ -750,12 +750,12 @@ function OwnerDueTable({ rows, title, type }: { rows: Array<{ amount: number; da
           <tbody>
             {rows.map((row) => (
               <tr key={row.docNo} className="border-t border-slate-100 hover:bg-slate-50/50">
-                <td className="p-2 text-xs text-slate-700">{row.name}</td>
-                <td className="p-2 font-mono text-xs text-slate-600">{row.docNo}</td>
-                <td className="p-2 text-xs text-slate-600">{row.due}</td>
-                <td className="p-2 text-right font-bold text-slate-800">{money(row.amount)}</td>
+                <td className="p-2 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.name}>{row.name}</div></td>
+                <td className="p-2 font-mono text-xs text-slate-600 whitespace-nowrap">{row.docNo}</td>
+                <td className="p-2 text-xs text-slate-600 whitespace-nowrap">{row.due}</td>
+                <td className="p-2 text-right font-bold text-slate-800 whitespace-nowrap tabular-nums pl-4">{money(row.amount)}</td>
                 {type === 'ar' ? (
-                  <td className={row.daysOverdue ? 'p-2 text-right font-bold text-red-600' : 'p-2 text-right text-slate-400'}>
+                  <td className={row.daysOverdue ? 'p-2 text-right font-bold text-red-600 whitespace-nowrap tabular-nums pl-4' : 'p-2 text-right text-slate-400 whitespace-nowrap tabular-nums pl-4'}>
                     {row.daysOverdue || '-'}
                   </td>
                 ) : null}
@@ -815,9 +815,9 @@ function OwnerSmallTable({ rows, title }: { rows: Array<{ amount: number; contra
           <tbody>
             {rows.map((row, index) => (
               <tr key={`${row.docNo ?? row.contractNo ?? index}`} className="border-t border-slate-100 hover:bg-slate-50/50">
-                <td className="p-2 font-mono text-slate-600">{row.docNo ?? row.contractNo}</td>
-                <td className="p-2 text-slate-700">{row.name ?? row.installmentNo ?? '-'}</td>
-                <td className="p-2 text-right font-bold text-slate-800">{money(row.amount)}</td>
+                <td className="p-2 font-mono text-slate-600 whitespace-nowrap">{row.docNo ?? row.contractNo}</td>
+                <td className="p-2 text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={String(row.name ?? row.installmentNo ?? '-')}>{row.name ?? row.installmentNo ?? '-'}</div></td>
+                <td className="p-2 text-right font-bold text-slate-800 whitespace-nowrap tabular-nums pl-4">{money(row.amount)}</td>
               </tr>
             ))}
             {rows.length === 0 && (
@@ -952,13 +952,13 @@ function GroupBreakdown({ expandedGroup, groups, setExpandedGroup }: { expandedG
                       <tbody>
                         {group.products.map((row, idx) => (
                           <tr key={`${row.productId}_${idx}`} className="border-t border-slate-100">
-                            <td className="p-2 font-mono text-slate-600">{row.productCode}</td>
-                            <td className="p-2 text-slate-700">{row.productName}</td>
-                            <td className="p-2 text-right">{money(row.buyQty)}</td>
-                            <td className="p-2 text-right text-blue-700 font-bold">{money(row.buyAmt)}</td>
-                            <td className="p-2 text-right">{money(row.sellQty)}</td>
-                            <td className="p-2 text-right text-emerald-700 font-bold">{money(row.sellAmt)}</td>
-                            <td className="p-2 text-right font-bold text-slate-700">{row.sellQty && row.buyQty ? money(row.sellAmt / row.sellQty - row.buyAmt / row.buyQty) : '-'}</td>
+                            <td className="p-2 font-mono text-slate-600 whitespace-nowrap">{row.productCode}</td>
+                            <td className="p-2 text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.productName}>{row.productName}</div></td>
+                            <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{money(row.buyQty)}</td>
+                            <td className="p-2 text-right text-blue-700 font-bold whitespace-nowrap tabular-nums pl-4">{money(row.buyAmt)}</td>
+                            <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{money(row.sellQty)}</td>
+                            <td className="p-2 text-right text-emerald-700 font-bold whitespace-nowrap tabular-nums pl-4">{money(row.sellAmt)}</td>
+                            <td className="p-2 text-right font-bold text-slate-700 whitespace-nowrap tabular-nums pl-4">{row.sellQty && row.buyQty ? money(row.sellAmt / row.sellQty - row.buyAmt / row.buyQty) : '-'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1028,10 +1028,10 @@ function DailyBillTable({ rows, title, tone, total }: { rows: { amount: number; 
           <tbody>
             {rows.map((row) => (
               <tr key={row.docNo} className={`border-t border-slate-100 ${hover}`}>
-                <td className="p-2 font-mono text-xs text-slate-600">{row.docNo}</td>
-                <td className="p-2 text-xs text-slate-700">{row.name}</td>
-                <td className="p-2 text-right text-slate-600">{money(row.qty)}</td>
-                <td className={`p-2 text-right font-bold ${amountColor}`}>{money(row.amount)}</td>
+                <td className="p-2 font-mono text-xs text-slate-600 whitespace-nowrap">{row.docNo}</td>
+                <td className="p-2 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.name}>{row.name}</div></td>
+                <td className="p-2 text-right text-slate-600 whitespace-nowrap tabular-nums pl-4">{money(row.qty)}</td>
+                <td className={`p-2 text-right font-bold whitespace-nowrap tabular-nums pl-4 ${amountColor}`}>{money(row.amount)}</td>
               </tr>
             ))}
             {rows.length === 0 && (
@@ -1229,9 +1229,9 @@ function TopSimpleTable({ rows, title }: { rows: { amount: number; group: string
           <tbody>
             {sortedRows.map((row) => (
               <tr key={row.group} className="border-t border-slate-100 hover:bg-slate-50/30">
-                <td className="p-1.5 font-medium text-slate-700 truncate">{row.group}</td>
-                <td className="p-1.5 text-right text-slate-600">{money(row.qty)}</td>
-                <td className="p-1.5 text-right font-bold text-indigo-600">{money(row.amount)}</td>
+                <td className="p-1.5 font-medium text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.group}>{row.group}</div></td>
+                <td className="p-1.5 text-right text-slate-600 whitespace-nowrap tabular-nums pl-4">{money(row.qty)}</td>
+                <td className="p-1.5 text-right font-bold text-indigo-600 whitespace-nowrap tabular-nums pl-4">{money(row.amount)}</td>
               </tr>
             ))}
             {rows.length === 0 && (
@@ -1346,15 +1346,15 @@ function RankTable({ color, rows, title }: { color: 'blue' | 'emerald'; rows: Ra
           <tbody>
             {sortedRows.map((row, index) => (
               <tr key={`${row.id || 'rank'}-${index}`} className={`border-t border-slate-100 ${hover}`}>
-                <td className={`p-2 font-bold ${text} text-xs`}>{index + 1}</td>
-                <td className="p-2 text-xs text-slate-700 truncate">{row.name}</td>
-                <td className="p-2 text-right text-xs text-slate-600">{row.bills}</td>
-                <td className="p-2 text-right text-xs text-slate-600">{money(row.qty)}</td>
-                <td className={`p-2 text-right font-bold ${text} text-xs`}>{money(row.amount)}</td>
+                <td className={`p-2 font-bold ${text} text-xs whitespace-nowrap`}>{index + 1}</td>
+                <td className="p-2 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.name}>{row.name}</div></td>
+                <td className="p-2 text-right text-xs text-slate-600 whitespace-nowrap tabular-nums pl-4">{row.bills}</td>
+                <td className="p-2 text-right text-xs text-slate-600 whitespace-nowrap tabular-nums pl-4">{money(row.qty)}</td>
+                <td className={`p-2 text-right font-bold ${text} text-xs whitespace-nowrap tabular-nums pl-4`}>{money(row.amount)}</td>
                 {color === 'emerald' && (
                   <>
-                    <td className="p-2 text-right text-xs text-emerald-700 font-semibold">{money(row.gp)}</td>
-                    <td className="p-2 text-right text-xs text-emerald-600">{row.gpPct?.toFixed(2) ?? '0.00'}%</td>
+                    <td className="p-2 text-right text-xs text-emerald-700 font-semibold whitespace-nowrap tabular-nums pl-4">{money(row.gp)}</td>
+                    <td className="p-2 text-right text-xs text-emerald-600 whitespace-nowrap tabular-nums pl-4">{row.gpPct?.toFixed(2) ?? '0.00'}%</td>
                   </>
                 )}
               </tr>
@@ -1482,12 +1482,12 @@ function ProductRank({ rows, title, tone }: { rows: { amount: number; code: stri
           <tbody>
             {sortedRows.map((row, index) => (
               <tr key={`${row.id || 'prod'}-${index}`} className={`border-t border-slate-100 ${hover}`}>
-                <td className={`p-2 font-bold ${text} text-xs`}>{index + 1}</td>
-                <td className="p-2 font-mono text-xs text-slate-600 truncate">{row.code}</td>
-                <td className="p-2 text-xs text-slate-700 truncate">{row.name}</td>
-                <td className="p-2 text-xs text-slate-500 truncate">{row.group}</td>
-                <td className="p-2 text-right text-xs text-slate-600">{money(row.qty)}</td>
-                <td className={`p-2 text-right font-bold ${text} text-xs`}>{money(row.amount)}</td>
+                <td className={`p-2 font-bold ${text} text-xs whitespace-nowrap`}>{index + 1}</td>
+                <td className="p-2 font-mono text-xs text-slate-600 whitespace-nowrap">{row.code}</td>
+                <td className="p-2 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.name}>{row.name}</div></td>
+                <td className="p-2 text-xs text-slate-500 min-w-0 overflow-hidden"><div className="truncate" title={row.group}>{row.group}</div></td>
+                <td className="p-2 text-right text-xs text-slate-600 whitespace-nowrap tabular-nums pl-4">{money(row.qty)}</td>
+                <td className={`p-2 text-right font-bold ${text} text-xs whitespace-nowrap tabular-nums pl-4`}>{money(row.amount)}</td>
               </tr>
             ))}
             {rows.length === 0 && (
@@ -1601,11 +1601,11 @@ function SalespersonTable({ rows }: { rows: { amount: number; bills: number; id:
           <tbody>
             {sortedRows.map((row, index) => (
               <tr key={`${row.id || 'sales'}-${index}`} className="border-t border-slate-100 hover:bg-slate-50/30">
-                <td className="p-2 text-slate-700 font-medium truncate">{row.name}</td>
-                <td className="p-2 text-right text-slate-600">{row.suppliers} supplier</td>
-                <td className="p-2 text-right text-slate-600">{money(row.qty)} กก.</td>
-                <td className="p-2 text-right font-bold text-blue-600">{money(row.amount)}</td>
-                <td className="p-2 text-right text-slate-600">{row.bills} บิล</td>
+                <td className="p-2 text-slate-700 font-medium min-w-0 overflow-hidden"><div className="truncate" title={row.name}>{row.name}</div></td>
+                <td className="p-2 text-right text-slate-600 whitespace-nowrap tabular-nums pl-4">{row.suppliers} supplier</td>
+                <td className="p-2 text-right text-slate-600 whitespace-nowrap tabular-nums pl-4">{money(row.qty)} กก.</td>
+                <td className="p-2 text-right font-bold text-blue-600 whitespace-nowrap tabular-nums pl-4">{money(row.amount)}</td>
+                <td className="p-2 text-right text-slate-600 whitespace-nowrap tabular-nums pl-4">{row.bills} บิล</td>
               </tr>
             ))}
             {rows.length === 0 && (

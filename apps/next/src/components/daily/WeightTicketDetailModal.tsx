@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, RotateCcw, Scale, Share2, SquarePen, XCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, RotateCcw, Scale, Share2, SquarePen, XCircle, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
@@ -113,6 +113,7 @@ export function WeightTicketDetailModal({
   const [isSendingLine, setIsSendingLine] = useState(false)
   const [showStockReturnDialog, setShowStockReturnDialog] = useState(false)
   const [canReturnStock, setCanReturnStock] = useState(false)
+  const [successModalMessage, setSuccessModalMessage] = useState('')
 
   async function loadStockReturnAvailability(documentNo: string) {
     const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(documentNo)}/stock-returns`, { cache: 'no-store' })
@@ -223,7 +224,7 @@ export function WeightTicketDetailModal({
       await notifyWeightTicketLine(ticket.id, { customMessage: shareNote.trim() || undefined })
       setShowShareDialog(false)
       setShareNote('')
-      window.alert('ส่ง LINE พร้อม PDF เรียบร้อยแล้ว')
+      setSuccessModalMessage('ส่ง LINE พร้อม PDF เรียบร้อยแล้ว')
     } catch (caught) {
       setShareError(getErrorMessage(caught, 'ส่ง LINE ใบรับ-ส่งของไม่สำเร็จ'))
     } finally {
@@ -777,6 +778,23 @@ export function WeightTicketDetailModal({
                 <Share2 className="mr-2 size-4" />
                 {isSendingLine ? 'กำลังส่ง...' : 'ส่งเข้ากลุ่มหลัก'}
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!successModalMessage} onOpenChange={(open) => !open && setSuccessModalMessage('')}>
+          <DialogContent hideClose className="max-w-sm">
+            <div className="flex flex-col items-center justify-center p-6 space-y-4">
+              <div className="rounded-full bg-emerald-100 p-3">
+                <CheckCircle2 className="h-8 w-8 text-emerald-600" />
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-slate-800">สำเร็จ</h3>
+                <p className="text-sm text-slate-500 mt-1">{successModalMessage}</p>
+              </div>
+            </div>
+            <DialogFooter className="bg-transparent border-t-0 justify-center">
+              <Button onClick={() => setSuccessModalMessage('')} className="min-w-[120px]">ตกลง</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -67,6 +67,16 @@ export function MobileBottomNavigation({ onOpenSidebar }: MobileBottomNavigation
 
   const candidateTabs = [
     {
+      icon: Menu,
+      label: 'เมนู',
+      isMenuTrigger: true,
+    },
+    {
+      href: '/daily/weight-ticket-list',
+      icon: ClipboardList,
+      label: 'รับ-ส่งของ',
+    },
+    {
       href: '/production/dashboard',
       icon: LayoutDashboard,
       label: 'แดชบอร์ด',
@@ -79,68 +89,21 @@ export function MobileBottomNavigation({ onOpenSidebar }: MobileBottomNavigation
     {
       href: '/production/report',
       icon: BarChart3,
-      label: 'รายงาน Yield',
+      label: 'รายงาน',
     },
     {
-      href: '/daily/weight-ticket-list',
-      icon: ClipboardList,
-      label: 'ตั๋วชั่ง',
-    },
-    {
-      href: '/purchase/bills',
-      icon: Download,
-      label: 'บิลรับซื้อ',
-    },
-    {
-      href: '/sales/bills',
-      icon: Upload,
-      label: 'บิลขาย',
-    },
-    {
-      href: '/stock/balance',
-      icon: Package,
-      label: 'สต๊อกคงเหลือ',
-    },
-    {
-      href: '/stock/transfer',
-      icon: Truck,
-      label: 'โอนสินค้า',
+      href: '/profile',
+      icon: User,
+      label: 'บัญชี',
     },
   ]
 
-  const profileTab = {
-    href: '/profile',
-    icon: User,
-    label: 'บัญชี',
-  }
-
   // Filter allowed tabs based on permissions
-  const permittedTabs = candidateTabs.filter((tab) => {
-    if (!authContext) return false
+  const displayedTabs = candidateTabs.filter((tab) => {
+    if (tab.isMenuTrigger || tab.href === '/profile') return true
+    if (!authContext || !tab.href) return false
     return canAccessPath(tab.href, authContext)
   })
-
-  // Total tabs to display logic
-  let displayedTabs: Array<{
-    href?: string
-    icon: any
-    label: string
-    isMenuTrigger?: boolean
-  }> = []
-
-  if (permittedTabs.length + 1 <= 4) {
-    displayedTabs = [...permittedTabs, profileTab]
-  } else {
-    displayedTabs = [
-      ...permittedTabs.slice(0, 3),
-      {
-        icon: Menu,
-        label: 'เมนู',
-        isMenuTrigger: true,
-      },
-      profileTab,
-    ]
-  }
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 h-16 border-t border-slate-200/80 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.03)] pb-safe md:hidden">
@@ -154,10 +117,10 @@ export function MobileBottomNavigation({ onOpenSidebar }: MobileBottomNavigation
                 key="menu-trigger"
                 onClick={onOpenSidebar}
                 type="button"
-                className="flex flex-col items-center justify-center gap-1 w-16 h-full transition-all duration-200 outline-none text-slate-400 hover:text-slate-600"
+                className="flex flex-col items-center justify-center gap-1 flex-1 h-full transition-all duration-200 outline-none text-slate-400 hover:text-slate-600"
               >
-                <Icon className="size-5 transition-transform stroke-[2px]" />
-                <span className="text-xs font-medium leading-none">
+                <Icon className="size-[22px] transition-transform stroke-[2px]" />
+                <span className="text-[10px] sm:text-xs font-medium leading-none whitespace-nowrap overflow-hidden text-ellipsis w-full text-center">
                   {tab.label}
                 </span>
               </button>
@@ -170,14 +133,14 @@ export function MobileBottomNavigation({ onOpenSidebar }: MobileBottomNavigation
             <Link
               href={tab.href!}
               key={tab.href || idx}
-              className={`flex flex-col items-center justify-center gap-1 w-16 h-full transition-all duration-200 outline-none ${
+              className={`flex flex-col items-center justify-center gap-1 flex-1 h-full transition-all duration-200 outline-none ${
                 isActive
                   ? 'text-blue-600 scale-105'
                   : 'text-slate-400 hover:text-slate-600'
               }`}
             >
-              <Icon className={`size-5 transition-transform ${isActive ? 'stroke-[2.5px]' : 'stroke-[2px]'}`} />
-              <span className={`text-xs font-medium leading-none ${isActive ? 'font-bold' : ''}`}>
+              <Icon className={`size-[22px] transition-transform ${isActive ? 'stroke-[2.5px]' : 'stroke-[2px]'}`} />
+              <span className={`text-[10px] sm:text-xs font-medium leading-none whitespace-nowrap overflow-hidden text-ellipsis w-full text-center ${isActive ? 'font-bold' : ''}`}>
                 {tab.label}
               </span>
             </Link>

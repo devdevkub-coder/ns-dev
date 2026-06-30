@@ -696,14 +696,14 @@ function ReadinessPanel({ isLoading, rows, summary }: { isLoading: boolean; rows
               {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={7}>กำลังโหลดข้อมูล</td></tr> : null}
               {!isLoading && visibleRows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={7}>ยังไม่มี readiness ตามเงื่อนไข</td></tr> : null}
               {visibleRows.map((row) => (
-                <tr key={row.productId} className="hover:bg-slate-50/30 transition-colors">
-                  <td className="p-2.5 font-semibold text-slate-800 overflow-hidden truncate">{row.productName}</td>
-                  <td className="p-2.5 text-right font-medium text-slate-700 overflow-hidden truncate">{formatMoney(row.costPoolQty)} {row.unit}</td>
-                  <td className="p-2.5 text-right text-emerald-700 font-semibold overflow-hidden truncate">{formatMoney(row.costPoolValue)}</td>
-                  <td className="p-2.5 text-right text-blue-700 font-semibold overflow-hidden truncate">{formatMoney(row.poBuyAmount)}</td>
-                  <td className="p-2.5 text-right text-amber-700 font-semibold overflow-hidden truncate">{formatMoney(row.poSellAmount)}</td>
-                  <td className={`p-2.5 text-right font-bold overflow-hidden truncate ${row.netValue >= 0 ? 'text-slate-800' : 'text-red-700'}`}>{formatMoney(row.netValue)}</td>
-                  <td className="p-2.5 text-center overflow-hidden truncate"><ReadinessStatusPill status={row.status} /></td>
+                <tr key={row.productId} className="border-t border-slate-100 hover:bg-slate-50 transition-colors">
+                  <td className="p-2.5 font-semibold text-slate-800 min-w-0 overflow-hidden"><div className="truncate" title={row.productName || ''}>{row.productName}</div></td>
+                  <td className="p-2.5 text-right font-medium text-slate-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.costPoolQty)} {row.unit}</td>
+                  <td className="p-2.5 text-right text-emerald-700 font-semibold whitespace-nowrap tabular-nums pl-4">{formatMoney(row.costPoolValue)}</td>
+                  <td className="p-2.5 text-right text-blue-700 font-semibold whitespace-nowrap tabular-nums pl-4">{formatMoney(row.poBuyAmount)}</td>
+                  <td className="p-2.5 text-right text-amber-700 font-semibold whitespace-nowrap tabular-nums pl-4">{formatMoney(row.poSellAmount)}</td>
+                  <td className={`p-2.5 text-right font-bold whitespace-nowrap tabular-nums pl-4 ${row.netValue >= 0 ? 'text-slate-800' : 'text-red-700'}`}>{formatMoney(row.netValue)}</td>
+                  <td className="p-2.5 text-center whitespace-nowrap"><ReadinessStatusPill status={row.status} /></td>
                 </tr>
               ))}
             </tbody>
@@ -799,12 +799,12 @@ function ProductTable({ isLoading, rows, totals }: { isLoading: boolean; rows: D
             {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={6}>ยังไม่มีข้อมูลตามเงื่อนไข</td></tr> : null}
             {rows.map((row) => (
               <tr key={row.productId} className="hover:bg-slate-50/30 transition-colors">
-                <td className="p-2.5 font-semibold text-slate-800">{row.productName}</td>
-                <td className="p-2.5 text-right font-medium text-slate-700">{formatMoney(row.qty)} {row.unit}</td>
-                <td className="p-2.5 text-right text-emerald-700 font-semibold">{formatMoney(row.sales)}</td>
-                <td className="p-2.5 text-right text-red-700 font-semibold">{formatMoney(row.cost)}</td>
-                <td className={`p-2.5 text-right font-bold ${row.gp >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(row.gp)}</td>
-                <td className="p-2.5 text-right font-medium text-slate-500">{row.gpPct.toFixed(2)}%</td>
+                <td className="p-2.5 font-semibold text-slate-800 min-w-0 overflow-hidden"><div className="truncate" title={row.productName || ''}>{row.productName}</div></td>
+                <td className="p-2.5 text-right font-medium text-slate-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.qty)} {row.unit}</td>
+                <td className="p-2.5 text-right text-emerald-700 font-semibold whitespace-nowrap tabular-nums pl-4">{formatMoney(row.sales)}</td>
+                <td className="p-2.5 text-right text-red-700 font-semibold whitespace-nowrap tabular-nums pl-4">{formatMoney(row.cost)}</td>
+                <td className={`p-2.5 text-right font-bold whitespace-nowrap tabular-nums pl-4 ${row.gp >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(row.gp)}</td>
+                <td className="p-2.5 text-right font-medium text-slate-500 whitespace-nowrap tabular-nums pl-4">{row.gpPct.toFixed(2)}%</td>
               </tr>
             ))}
           </tbody>

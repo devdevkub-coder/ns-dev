@@ -290,17 +290,7 @@ export function CustomerTrackingPageClient() {
               ))}
             </select>
 
-            <div className="min-w-[150px]">
-              <SearchCombobox
-                inputId="desktop-product-filter"
-                label="สินค้า"
-                hideLabel
-                placeholder="สินค้าทั้งหมด"
-                options={productSearchOptions}
-                value={productId}
-                onChange={setProductId}
-              />
-            </div>
+
 
             <input
               className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm min-w-[200px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
@@ -386,18 +376,7 @@ export function CustomerTrackingPageClient() {
                 </select>
               </label>
 
-              <div className="space-y-1">
-                <span className="text-xs text-slate-500 font-semibold">สินค้า</span>
-                <SearchCombobox
-                  inputId="mobile-product-filter"
-                  label="สินค้า"
-                  hideLabel
-                  placeholder="สินค้าทั้งหมด"
-                  options={productSearchOptions}
-                  value={productId}
-                  onChange={setProductId}
-                />
-              </div>
+
 
               <div className="flex justify-end pt-1">
                 <button
@@ -497,19 +476,19 @@ export function CustomerTrackingPageClient() {
               {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-slate-400 text-center" colSpan={13}>ไม่มีข้อมูล Customer Tracking</td></tr> : null}
               {!isLoading && sortedRows.map((row) => (
                 <tr key={row.id} className="cursor-pointer hover:bg-slate-50 transition-colors focus-visible:outline-none" onClick={() => void openDetail(row)}>
-                  <td className="p-3 pl-4 font-mono text-xs text-slate-400 truncate">{row.code || '-'}</td>
-                  <td className="p-3 font-medium text-slate-800 truncate">{row.customerName}</td>
-                  <td className="p-3 text-right text-slate-700">{row.billCount}</td>
-                  <td className="p-3 text-right font-mono text-slate-700">{formatMoney(row.qty)}</td>
-                  <td className="p-3 text-right font-mono font-semibold text-emerald-700">{formatMoney(row.revenue)}</td>
-                  <td className="p-3 text-right font-mono text-slate-700">{formatMoney(row.avgSell)}</td>
-                  <td className="p-3 text-right font-mono text-red-600">{formatMoney(row.cogs)}</td>
-                  <td className={`p-3 text-right font-mono font-semibold ${row.gp >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatMoney(row.gp)}</td>
-                  <td className="p-3 text-right font-mono text-slate-700">{row.gpPct.toFixed(2)}%</td>
-                  <td className="p-3 text-right font-mono text-slate-700">{formatMoney(row.profitPerKg)}</td>
-                  <td className="p-3 text-right font-mono text-slate-700">{formatMoney(row.receivedAmount)}</td>
-                  <td className="p-3 text-right font-mono text-amber-700 font-semibold">{formatMoney(row.receivable)}</td>
-                  <td className="p-3 pr-4 text-right font-mono text-red-600">{formatMoney(row.overdueArAmount)}</td>
+                  <td className="p-3 pl-4 font-mono text-xs text-slate-400 min-w-0 overflow-hidden"><div className="truncate" title={row.code || ''}>{row.code || '-'}</div></td>
+                  <td className="p-3 font-medium text-slate-800 min-w-0 overflow-hidden"><div className="truncate" title={row.customerName || ''}>{row.customerName}</div></td>
+                  <td className="p-3 text-right text-slate-700 whitespace-nowrap tabular-nums pl-4">{row.billCount}</td>
+                  <td className="p-3 text-right font-mono text-slate-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.qty)}</td>
+                  <td className="p-3 text-right font-mono font-semibold text-emerald-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.revenue)}</td>
+                  <td className="p-3 text-right font-mono text-slate-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.avgSell)}</td>
+                  <td className="p-3 text-right font-mono text-red-600 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.cogs)}</td>
+                  <td className={`p-3 text-right font-mono font-semibold whitespace-nowrap tabular-nums pl-4 ${row.gp >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatMoney(row.gp)}</td>
+                  <td className="p-3 text-right font-mono text-slate-700 whitespace-nowrap tabular-nums pl-4">{row.gpPct.toFixed(2)}%</td>
+                  <td className="p-3 text-right font-mono text-slate-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.profitPerKg)}</td>
+                  <td className="p-3 text-right font-mono text-slate-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.receivedAmount)}</td>
+                  <td className="p-3 text-right font-mono text-amber-700 font-semibold whitespace-nowrap tabular-nums pl-4">{formatMoney(row.receivable)}</td>
+                  <td className="p-3 pr-4 text-right font-mono text-red-600 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.overdueArAmount)}</td>
                 </tr>
               ))}
             </tbody>
@@ -902,9 +881,9 @@ function YearCompare({ rows }: { rows: CustomerTrackingRow[] }) {
 
               return (
                 <tr key={row.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="p-3 pl-4 font-medium text-slate-800">
-                    <div>{row.customerName}</div>
-                    <div className="text-xs text-slate-400 font-mono mt-0.5">{row.code}</div>
+                  <td className="p-3 pl-4 font-medium text-slate-800 min-w-0 overflow-hidden">
+                    <div className="truncate" title={row.customerName || ''}>{row.customerName}</div>
+                    <div className="text-xs text-slate-400 font-mono mt-0.5 truncate" title={row.code || ''}>{row.code}</div>
                   </td>
                   {Array.from({ length: 12 }).map((_, monthIdx) => {
                     const mData = row.monthlyData?.[monthIdx]

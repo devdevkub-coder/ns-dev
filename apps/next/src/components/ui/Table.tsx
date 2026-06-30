@@ -27,12 +27,12 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
 TableRow.displayName = 'TableRow'
 
 const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<HTMLTableCellElement>>(
-  ({ className, ...props }, ref) => <th ref={ref} className={cn('p-2 text-left bg-inherit', className)} {...props} />,
+  ({ className, ...props }, ref) => <th ref={ref} className={cn('min-w-0 max-w-full p-2 text-left bg-inherit', className)} {...props} />,
 )
 TableHead.displayName = 'TableHead'
 
 const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttributes<HTMLTableCellElement>>(
-  ({ className, ...props }, ref) => <td ref={ref} className={cn('p-2', className)} {...props} />,
+  ({ className, ...props }, ref) => <td ref={ref} className={cn('min-w-0 max-w-full p-2', className)} {...props} />,
 )
 TableCell.displayName = 'TableCell'
 

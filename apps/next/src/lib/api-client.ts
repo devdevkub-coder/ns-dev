@@ -57,6 +57,7 @@ export async function readJsonResponse<TSchema extends z.ZodTypeAny>(response: R
 
   const parsed = schema.safeParse(payload)
   if (!parsed.success) {
+    console.error('API Response Schema Validation Error:', JSON.stringify(parsed.error.flatten(), null, 2))
     throw new ApiError('รูปแบบข้อมูลจาก server ไม่ถูกต้อง', {
       code: 'INVALID_RESPONSE',
       fieldErrors: parsed.error.flatten().fieldErrors,

@@ -1952,12 +1952,12 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       <td className="p-2 text-xs font-semibold text-slate-700">{row.docNo}</td>
                       <td className="p-2 text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</td>
                       <td className="p-2 text-xs font-semibold">{row.dueDate ? <span className={overdue ? 'text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-xs font-normal text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</td>
-                      <td className="p-2 text-xs font-semibold text-slate-700">{row.refDocNo || '-'}</td>
-                      <td className="p-2 text-xs font-semibold text-slate-700">{row.payee}</td>
-                      <td className="p-2 text-xs font-semibold text-slate-700">{row.categoryName}</td>
-                      <td className="p-2 text-xs font-semibold text-slate-700">{row.accountName}</td>
+                      <td className="p-2 text-xs font-semibold text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.refDocNo || ''}>{row.refDocNo || '-'}</div></td>
+                      <td className="p-2 text-xs font-semibold text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.payee || ''}>{row.payee}</div></td>
+                      <td className="p-2 text-xs font-semibold text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.categoryName || ''}>{row.categoryName}</div></td>
+                      <td className="p-2 text-xs font-semibold text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.accountName || ''}>{row.accountName}</div></td>
                       <td className="p-2 text-center text-xs"><span className={`inline-flex items-center gap-1.5 font-semibold ${expenseStatusTextClass(row.status)}`}><span className={`size-1.5 rounded-full ${expenseStatusDotClass(row.status)}`} />{expenseStatusLabel(row.status)}</span></td>
-                      <td className={`bg-red-50/60 p-2 pr-4 text-right text-xs font-semibold tabular-nums ${row.status === 'paid' ? 'text-emerald-700' : row.status === 'approved' ? 'text-blue-700' : row.status === 'cancelled' ? 'text-slate-500' : 'text-amber-700'}`}>{formatMoney(row.netAmount)}</td>
+                      <td className={`bg-red-50/60 p-2 pl-4 pr-4 text-right text-xs font-semibold tabular-nums whitespace-nowrap ${row.status === 'paid' ? 'text-emerald-700' : row.status === 'approved' ? 'text-blue-700' : row.status === 'cancelled' ? 'text-slate-500' : 'text-amber-700'}`}>{formatMoney(row.netAmount)}</td>
                       <td className="whitespace-nowrap p-2 pr-4 text-right text-xs font-semibold text-slate-700 tabular-nums">
                         <div>ยอด: <b>{formatMoney(row.amount)}</b></div>
                         {row.vat > 0 ? <div className="text-emerald-700">+VAT: {formatMoney(row.vat)}</div> : null}
@@ -2085,12 +2085,12 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
                     const lineNet = line.amount + line.vatAmount - line.whtAmount
                     return (
                       <tr key={line.id} className="hover:bg-slate-50/50">
-                        <td className="p-2.5 align-top font-semibold text-slate-700">{line.categoryName || row.categoryName || '-'}</td>
-                        <td className="p-2.5 align-top text-slate-600">{line.description || '-'}</td>
-                        <td className="p-2.5 text-right font-semibold tabular-nums text-slate-700">{formatMoney(line.amount)}</td>
-                        <td className="p-2.5 text-right font-semibold tabular-nums text-emerald-700">{line.vatAmount > 0 ? formatMoney(line.vatAmount) : '-'}</td>
-                        <td className="p-2.5 text-right font-semibold tabular-nums text-amber-700">{line.whtAmount > 0 ? formatMoney(line.whtAmount) : '-'}</td>
-                        <td className="p-2.5 text-right font-semibold tabular-nums text-red-700">{formatMoney(lineNet)}</td>
+                        <td className="p-2.5 align-top font-semibold text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={line.categoryName || row.categoryName || ''}>{line.categoryName || row.categoryName || '-'}</div></td>
+                        <td className="p-2.5 align-top text-slate-600 min-w-0 overflow-hidden"><div className="line-clamp-2" title={line.description || ''}>{line.description || '-'}</div></td>
+                        <td className="p-2.5 text-right font-semibold tabular-nums text-slate-700 whitespace-nowrap pl-4">{formatMoney(line.amount)}</td>
+                        <td className="p-2.5 text-right font-semibold tabular-nums text-emerald-700 whitespace-nowrap pl-4">{line.vatAmount > 0 ? formatMoney(line.vatAmount) : '-'}</td>
+                        <td className="p-2.5 text-right font-semibold tabular-nums text-amber-700 whitespace-nowrap pl-4">{line.whtAmount > 0 ? formatMoney(line.whtAmount) : '-'}</td>
+                        <td className="p-2.5 text-right font-semibold tabular-nums text-red-700 whitespace-nowrap pl-4">{formatMoney(lineNet)}</td>
                       </tr>
                     )
                   })}

@@ -744,6 +744,7 @@ export function WeightTicketsPageClient({
     if (!form.branchId) next.branchId = 'เลือกสาขา'
     if (!form.partyId) next.partyId = form.type === 'WTI' ? 'เลือกผู้ขาย' : 'เลือกลูกค้า'
     if (form.vehicleNo.trim().length < 2) next.vehicleNo = 'กรอกทะเบียนรถ'
+    if (form.type === 'WTI' && (!form.warehouseName || form.warehouseName.trim().length === 0)) next.warehouseName = 'กรอกโกดัง'
 
     const parentLines = getMainParentLines(form.lines)
 
@@ -1070,6 +1071,7 @@ export function WeightTicketsPageClient({
       branchId: true,
       partyId: true,
       vehicleNo: true,
+      warehouseName: true,
     }
     form.lines.forEach((line) => {
       nextTouched[`line-${line.id}-product`] = true

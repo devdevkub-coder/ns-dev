@@ -291,7 +291,7 @@ export function LoanContractsPageClient() {
               </div>
               <StatusPill status={row.status} />
             </div>
-            <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50">
+            <div className="grid grid-cols-2 gap-2.5 text-xs bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50">
               <div><span className="text-slate-400 block">วงเงิน (Financed)</span><span className="font-semibold text-slate-800">{formatMoney(row.principalAmount)}</span></div>
               <div><span className="text-slate-400 block">ยอดคงเหลือ</span><span className="font-bold text-slate-900">{formatMoney(row.outstanding)}</span></div>
               <div><span className="text-slate-400 block">งวดผ่อนชำระ</span><span className="font-semibold text-slate-800">{formatMoney(row.installmentAmount)}</span></div>
@@ -390,11 +390,11 @@ export function OpeningBalancePageClient() {
             <div className="flex justify-between items-start">
               <div>
                 <span className="font-semibold text-slate-900 text-sm block">{account.name}</span>
-                <span className="font-mono text-slate-500 block text-[10px] mt-0.5">{account.code || '-'} · {account.type}</span>
+                <span className="font-mono text-slate-500 block text-xs mt-0.5">{account.code || '-'} · {account.type}</span>
               </div>
-              <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">{account.currency}</span>
+              <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{account.currency}</span>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50/50 p-2 text-slate-600 rounded">
+            <div className="grid grid-cols-2 gap-2.5 text-xs bg-slate-50/50 p-2.5 text-slate-600 rounded">
               <div><span className="text-slate-400">สาขา/คลัง:</span> {account.branchName || account.branchCode || '-'}</div>
               <div><span className="text-slate-400">OD Limit:</span> {formatMoney(account.odLimit)}</div>
             </div>
@@ -460,7 +460,7 @@ function DisabledButton({ children, strong = false }: { children: ReactNode; str
 }
 
 function InlineDisabledButton({ children }: { children: ReactNode }) {
-  return <button className="whitespace-nowrap text-[11px] font-semibold text-blue-500 hover:text-blue-700 opacity-50 outline-none focus:ring-0" disabled type="button">{children}</button>
+  return <button className="whitespace-nowrap text-xs font-semibold text-blue-500 hover:text-blue-700 opacity-50 outline-none focus:ring-0" disabled type="button">{children}</button>
 }
 
 function FilterPanel({ children }: { children: ReactNode }) {
@@ -490,7 +490,7 @@ function StatCard({ label, tone, value }: { label: string; tone?: 'amber' | 'blu
         {current.icon}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-[10px] sm:text-xs font-semibold text-slate-500 truncate uppercase">{label}</div>
+        <div className="text-xs font-semibold text-slate-500 truncate uppercase">{label}</div>
         <div className="mt-0.5 text-sm sm:text-base font-bold text-slate-900 tracking-tight">{value}</div>
       </div>
     </div>
@@ -501,7 +501,7 @@ function MiniHero({ label, tone, value }: { label: string; tone?: 'amber' | 'red
   const color = tone === 'red' ? 'text-red-600 font-bold' : tone === 'amber' ? 'text-amber-600 font-bold' : 'text-slate-800 font-bold'
   return (
     <div>
-      <div className="text-[10px] text-slate-400 font-medium">{label}</div>
+      <div className="text-xs text-slate-400 font-medium">{label}</div>
       <div className={`text-sm ${color}`}>{value}</div>
     </div>
   )
@@ -560,7 +560,7 @@ function DueTable({ isLoading, rows, title, tone }: { isLoading: boolean; rows: 
               <span className="font-semibold text-slate-900">{row.dueDate}</span>
               <span className="font-mono text-blue-700 font-semibold">{row.contractNo}</span>
             </div>
-            <div className="flex justify-between items-center text-[11px] text-slate-500">
+            <div className="flex justify-between items-center text-xs text-slate-500">
               <span>ผู้ให้กู้: {row.lenderName}</span>
               <span>ยอด: <b className="text-slate-800 font-bold">{formatMoney(row.totalDueAmount - row.paidAmount)}</b></span>
             </div>
@@ -623,7 +623,7 @@ function HistoricalRowsMobile({ isLoading, months, rows }: { isLoading: boolean;
     return (
       <div key={category} className="p-4 space-y-2 text-xs hover:bg-slate-50/50 transition">
         <div className="font-semibold text-slate-900 text-sm">{category}</div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50 text-slate-650">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50 text-slate-650">
           {months.map((month) => {
             const val = rows.find((row) => row.categoryLabel === category && row.month === month.month && row.year === month.year)?.amount
             return (
@@ -673,7 +673,7 @@ function Td({ align = 'left', children, className = '' }: { align?: 'center' | '
 
 function StatusPill({ status }: { status: string }) {
   const color = status === 'Active' ? 'bg-emerald-50 text-emerald-700' : status === 'Closed' ? 'bg-blue-50 text-blue-700' : status === 'Overdue' ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-700'
-  return <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${color}`}>{status}</span>
+  return <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${color}`}>{status}</span>
 }
 
 function EmptyText({ children }: { children: ReactNode }) {

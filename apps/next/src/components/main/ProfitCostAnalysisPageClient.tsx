@@ -363,21 +363,21 @@ function ProductTable({ onSelect, rows }: { onSelect: (row: ProductRow) => void;
           </thead>
           <tbody>
             {rows.map((row) => <tr key={row.id} className="cursor-pointer border-t border-slate-100 hover:bg-purple-50/50" onClick={() => onSelect(row)}>
-              <td className="p-2 font-mono text-xs text-slate-600">{row.code || '-'}</td>
-              <td className="p-2 font-semibold text-slate-800">{row.name}</td>
-              <td className="p-2 text-slate-600">{row.metalGroup || '-'}</td>
-              <td className="p-2 text-right font-mono text-xs">{money(row.buyQty)}</td>
-              <td className="p-2 text-right font-mono text-xs">{money(row.buyAmount)}</td>
-              <td className="p-2 text-right font-mono text-xs">{money(row.avgBuy)}</td>
-              <td className="p-2 text-right font-mono text-xs">{money(row.sellQty)}</td>
-              <td className="p-2 text-right font-mono text-xs">{money(row.revenue)}</td>
-              <td className="p-2 text-right font-mono text-xs">{money(row.avgSell)}</td>
-              <td className="p-2 text-right font-mono text-xs">{money(row.cogs)}</td>
-              <td className={`p-2 text-right font-bold font-mono text-xs ${row.gp >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{money(row.gp)}</td>
-              <td className="p-2 text-right font-mono text-xs">{pct(row.gpPct)}%</td>
-              <td className="p-2 text-right font-mono text-xs">{money(row.profitPerKg)}</td>
-              <td className="p-2 text-right font-mono text-xs">{money(row.stockQty)}</td>
-              <td className="p-2 text-right font-bold font-mono text-xs text-slate-800">{money(row.stockValue)}</td>
+              <td className="p-2 font-mono text-xs text-slate-600 whitespace-nowrap">{row.code || '-'}</td>
+              <td className="p-2 font-semibold text-slate-800 min-w-0 overflow-hidden"><div className="truncate" title={row.name}>{row.name}</div></td>
+              <td className="p-2 text-slate-600 whitespace-nowrap">{row.metalGroup || '-'}</td>
+              <td className="p-2 text-right font-mono text-xs whitespace-nowrap tabular-nums pl-4">{money(row.buyQty)}</td>
+              <td className="p-2 text-right font-mono text-xs whitespace-nowrap tabular-nums pl-4">{money(row.buyAmount)}</td>
+              <td className="p-2 text-right font-mono text-xs whitespace-nowrap tabular-nums pl-4">{money(row.avgBuy)}</td>
+              <td className="p-2 text-right font-mono text-xs whitespace-nowrap tabular-nums pl-4">{money(row.sellQty)}</td>
+              <td className="p-2 text-right font-mono text-xs whitespace-nowrap tabular-nums pl-4">{money(row.revenue)}</td>
+              <td className="p-2 text-right font-mono text-xs whitespace-nowrap tabular-nums pl-4">{money(row.avgSell)}</td>
+              <td className="p-2 text-right font-mono text-xs whitespace-nowrap tabular-nums pl-4">{money(row.cogs)}</td>
+              <td className={`p-2 text-right font-bold font-mono text-xs whitespace-nowrap tabular-nums pl-4 ${row.gp >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{money(row.gp)}</td>
+              <td className="p-2 text-right font-mono text-xs whitespace-nowrap tabular-nums pl-4">{pct(row.gpPct)}%</td>
+              <td className="p-2 text-right font-mono text-xs whitespace-nowrap tabular-nums pl-4">{money(row.profitPerKg)}</td>
+              <td className="p-2 text-right font-mono text-xs whitespace-nowrap tabular-nums pl-4">{money(row.stockQty)}</td>
+              <td className="p-2 text-right font-bold font-mono text-xs text-slate-800 whitespace-nowrap tabular-nums pl-4">{money(row.stockValue)}</td>
             </tr>)}
             {rows.length === 0 ? <tr><td className="py-8 text-center text-slate-400" colSpan={15}>ไม่มีข้อมูล</td></tr> : null}
           </tbody>
@@ -474,7 +474,7 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: string[][] })
         <table className="min-w-[720px] w-full text-sm">
           <thead className="bg-slate-900 text-white text-xs"><tr>{headers.map((header) => <th key={header} className="p-2 text-left font-semibold">{header}</th>)}</tr></thead>
           <tbody>
-            {rows.map((row, index) => <tr key={`${row[0]}-${index}`} className="border-t border-slate-100 hover:bg-purple-50/30">{row.map((cell, cellIndex) => <td key={`${cell}-${cellIndex}`} className={`p-2 ${cellIndex > 1 ? 'text-right font-mono text-xs' : 'text-slate-700 font-medium text-xs'}`}>{cell}</td>)}</tr>)}
+            {rows.map((row, index) => <tr key={`${row[0]}-${index}`} className="border-t border-slate-100 hover:bg-purple-50/30">{row.map((cell, cellIndex) => <td key={`${cell}-${cellIndex}`} className={`p-2 ${cellIndex > 1 ? 'text-right font-mono text-xs whitespace-nowrap tabular-nums pl-4' : 'text-slate-700 font-medium text-xs min-w-0 overflow-hidden'}`}><div className={cellIndex <= 1 ? "truncate" : ""} title={cellIndex <= 1 ? cell : undefined}>{cell}</div></td>)}</tr>)}
             {rows.length === 0 ? <tr><td className="py-8 text-center text-slate-400" colSpan={headers.length}>ไม่มีข้อมูล</td></tr> : null}
           </tbody>
         </table>

@@ -324,24 +324,34 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       
       <section class="bottom-grid">
         <div class="notes-panel">
-          ${(row.supplierBankAccounts && row.supplierBankAccounts.length > 0) ? `
-            <div class="note-box">
-              <div class="note-box-header">เลขที่บัญชี / Bank Account</div>
-              <div class="note-content" style="min-height: 48px; padding: 6px 8px; font-weight: normal; line-height: 1.4;">
-                ${row.supplierBankAccounts.slice(0, 2).map((account, index) => `
-                  <div style="font-size: 11px; ${index > 0 ? 'margin-top: 4px; border-top: 1px dashed #cbd5e1; padding-top: 4px;' : ''}">
-                    <strong>${escapeHtml(account.paymentMethod)}</strong> · ${escapeHtml(account.bankName || '-')} · <span style="font-variant-numeric: tabular-nums;">${escapeHtml(account.accountNo || '-')}</span>
-                    <div style="color: #475569; margin-top: 2px;">ชื่อบัญชี: ${escapeHtml(account.accountName || '-')} ${account.branchCode ? `· สาขา: ${escapeHtml(account.branchCode)}` : ''}</div>
+          ${(() => {
+            if (row.paymentMethod && row.paymentMethod !== 'รับเงินสด') {
+              const selected = row.supplierBankAccounts?.find(account => `${account.paymentMethod} บช.${account.accountNo}` === row.paymentMethod)
+              return `
+                <div class="note-box">
+                  <div class="note-box-header">เลขที่บัญชี / Bank Account</div>
+                  <div class="note-content" style="min-height: 48px; padding: 6px 8px; font-weight: normal; line-height: 1.4;">
+                    ${selected ? `
+                      <div style="font-size: 12px;">
+                        <strong>${escapeHtml(selected.paymentMethod)}</strong> · ${escapeHtml(selected.bankName || '-')} · <span style="font-variant-numeric: tabular-nums;">${escapeHtml(selected.accountNo || '-')}</span>
+                        <div style="color: #475569; margin-top: 2px;">ชื่อบัญชี: ${escapeHtml(selected.accountName || '-')} ${selected.branchCode ? `· สาขา: ${escapeHtml(selected.branchCode)}` : ''}</div>
+                      </div>
+                    ` : `
+                      <div style="font-size: 12px; margin-top: 6px;">
+                        <strong>${escapeHtml(row.paymentMethod)}</strong>
+                      </div>
+                    `}
                   </div>
-                `).join('')}
+                </div>
+              `
+            }
+            return `
+              <div class="note-box">
+                <div class="note-box-header">จำนวนเงิน (ตัวอักษร)</div>
+                <div class="note-content">${escapeHtml(row.amountInWords || '-')}</div>
               </div>
-            </div>
-          ` : `
-            <div class="note-box">
-              <div class="note-box-header">จำนวนเงิน (ตัวอักษร)</div>
-              <div class="note-content">${escapeHtml(row.amountInWords || '-')}</div>
-            </div>
-          `}
+            `
+          })()}
           <div class="note-box">
             <div class="note-box-header">หมายเหตุ</div>
             <div class="note-content-small">${escapeHtml(row.note || 'แนบสำเนาบัตรประชาชนผู้รับเงิน (กรณีบุคคลธรรมดา)')}</div>
@@ -358,11 +368,11 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
             <div style="text-align: right; font-weight: 900; color: #0f172a;">${money(row.totalAmount)}</div>
           </div>
           <div class="summary-row highlight">
-            <div>ยอดรับเงินสด</div>
+            <div>${row.paymentMethod && row.paymentMethod !== 'รับเงินสด' ? 'ยอดสุทธิ' : 'ยอดรับเงินสด'}</div>
             <div style="text-align: right; font-variant-numeric: tabular-nums;">${money(row.totalAmount)}</div>
           </div>
-          ${(row.supplierBankAccounts && row.supplierBankAccounts.length > 0) ? `
-            <div style="padding: 6px 8px; text-align: right; font-size: 11px; font-weight: bold; color: #065f46; background: #ecfdf5; border-top: 1px solid #cbd5e1;">
+          ${(row.paymentMethod && row.paymentMethod !== 'รับเงินสด') ? `
+            <div style="padding: 6px 8px; text-align: right; font-size: 12px; font-weight: bold; color: #065f46; background: #ecfdf5; border-top: 1px solid #cbd5e1;">
               (${escapeHtml(row.amountInWords || '-')})
             </div>
           ` : ''}

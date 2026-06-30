@@ -689,14 +689,15 @@ export const statusLabels: Record<WeightTicketStatus, string> = {
   draft: 'แบบร่าง',
   billed: 'ออกบิลแล้ว',
   cancelled: 'ยกเลิก',
-  draft: 'ร่าง',
   delivered: 'ส่งของแล้ว',
   partially_billed: 'ออกบิลบางส่วน',
   received: 'รับของแล้ว',
 }
 
 export function displayWeightTicketStatus(type: WeightTicketType, status: WeightTicketStatus) {
-  if (status === 'draft') return 'แบบร่าง'
+  if (status === 'draft') {
+    return type === 'WTO' ? 'ร่าง' : 'แบบร่าง'
+  }
   if (type === 'WTI') {
     if (status === 'partially_billed') return 'ออกบิลแล้วบางส่วน'
     if (status === 'billed') return 'เสร็จสิ้น'
@@ -705,7 +706,6 @@ export function displayWeightTicketStatus(type: WeightTicketType, status: Weight
   }
 
   if (type === 'WTO') {
-    if (status === 'draft') return 'ร่าง'
     if (status === 'cancelled') return 'ยกเลิก'
     if (status === 'delivered') return 'ส่งของแล้ว'
     if (status === 'partially_billed') return 'ออกบิลแล้วบางส่วน'
@@ -716,7 +716,9 @@ export function displayWeightTicketStatus(type: WeightTicketType, status: Weight
 }
 
 export function weightTicketStatusBadgeClass(type: WeightTicketType, status: WeightTicketStatus) {
-  if (status === 'draft') return 'text-slate-500'
+  if (status === 'draft') {
+    return type === 'WTO' ? 'text-slate-700' : 'text-slate-500'
+  }
   if (status === 'cancelled') return 'text-rose-700'
   if (type === 'WTI') {
     if (status === 'partially_billed') return 'text-amber-700'
@@ -724,7 +726,6 @@ export function weightTicketStatusBadgeClass(type: WeightTicketType, status: Wei
     return 'text-emerald-700'
   }
   if (type === 'WTO') {
-    if (status === 'draft') return 'text-slate-700'
     if (status === 'delivered') return 'text-amber-700'
     if (status === 'partially_billed') return 'text-orange-700'
     return 'text-blue-700'

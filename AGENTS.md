@@ -4,7 +4,7 @@ This project is an existing NS Scrap ERP system that must be rehabilitated and r
 
 ## Must Follow
 
-- **MANDATORY STARTUP CHECK:** Every time you start a new conversation session, before doing any other work, checking files, or proposing changes, you MUST read the root [Peach.md](file:///c:/new-ns-scrap-erp/Peach.md) and [.agents/rules/peach.md](file:///c:/new-ns-scrap-erp/.agents/rules/peach.md) using the `view_file` tool to ensure all UI standards, developer guidelines, and operation constraints are fully loaded into your context.
+- **TOKEN-LIGHT RULE LOADING:** Do not read root `Peach.md` by default. At the start of a task, read `AGENTS.md` plus only the detailed rule files that match the work. The small router at `.agents/rules/peach.md` exists only to choose the right rule file; it must not pull the old full Peach context into every task.
 - Use Thai for user-facing explanations unless the user explicitly requests another language.
 - Active implementation/deploy target is the Next.js app under `apps/next/`.
 - Treat `old-apps/legacy/` and `old-apps/vue/` as source material only. Do not route to, import, or execute them from the active app.
@@ -99,11 +99,17 @@ Read only the relevant detailed rule files for the task:
 - Project config, MCP, skills, secrets: `docs/agent-rules/configuration.md`
 - Database and Supabase environments: `docs/agent-rules/database.md`
 - Active app, legacy source, migration priority, code organization: `docs/agent-rules/development.md`
+- General task lifecycle and closeout workflow: `docs/agent-rules/workflow.md`
+- UI, layout, dark mode, font, table, modal, and visual QA rules: `docs/agent-rules/ui.md`
 - Forms, API payloads, syntax validation, master data list pattern: `docs/agent-rules/validation.md`
+- LINE, Flex Message, PDF, and share notification rules: `docs/agent-rules/line-notification.md`
+- Plane backlog, issue analysis, comments, attachments, and status workflow: `docs/agent-rules/plane.md`
 - Testing, browser QA, Playwright expectations: `docs/agent-rules/testing.md`
 - Sub agent usage and close rules: `docs/agent-rules/sub-agents.md`
 - Resumable checkpoint docs: `docs/agent-rules/session-handoff.md`
 - Git and communication: `docs/agent-rules/git-communication.md`
+
+Only open root `Peach.md` when the user explicitly asks for old Peach history, or when investigating why a legacy Peach rule existed.
 
 ## Project Goal
 

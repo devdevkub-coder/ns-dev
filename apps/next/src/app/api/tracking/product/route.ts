@@ -453,7 +453,7 @@ export async function GET(request: Request) {
           purchaseBillItemRows(bill).forEach((item) => {
             const product = itemLookupKeys(item).map((k) => productsByKey.get(k)).find(Boolean)
             if (!product) return
-            const key = String(product.id)
+            const key = product.code
             const arr = getProductMonthly(key)
             arr[mIdx].qty += itemQty(item)
             arr[mIdx].buyAmount += itemAmount(item)
@@ -465,7 +465,7 @@ export async function GET(request: Request) {
         .forEach((line) => {
           const product = lineLookupKeys(line).map((k) => productsByKey.get(k)).find(Boolean)
           if (!product) return
-          const key = String(product.id)
+          const key = product.code
           const arr = getProductMonthly(key)
           arr[mIdx].sellQty += line.qty
           arr[mIdx].salesAmount += line.lineAmount

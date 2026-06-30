@@ -997,7 +997,7 @@ function matrixRowValue(row: MatrixRow) {
 function StockDetailField({ className = '', label, mono, value }: { className?: string; label: string; mono?: boolean; value: string }) {
   return (
     <div className={`min-w-0 rounded-md border border-slate-100 bg-slate-50 px-3 py-2 ${className}`}>
-      <div className="text-[10px] text-slate-500">{label}</div>
+      <div className="text-xs text-slate-500">{label}</div>
       <div className={`mt-0.5 truncate text-sm font-medium text-slate-900 ${mono ? 'font-mono' : ''}`} title={value}>{value}</div>
     </div>
   )
@@ -1013,7 +1013,7 @@ function StockMetric({ label, tone, value }: { label: string; tone?: string; val
         : 'text-slate-900'
   return (
     <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
-      <div className="text-[10px] text-slate-500">{label}</div>
+      <div className="text-xs text-slate-500">{label}</div>
       <div className={`mt-0.5 text-sm font-bold tabular-nums ${valueColor}`}>{value}</div>
     </div>
   )
@@ -1094,9 +1094,9 @@ function Metric({
         {emoji}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider truncate">{label}</div>
+        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">{label}</div>
         <div className={`text-base font-bold ${color} mt-0.5 tabular-nums`}>{value}</div>
-        {sub ? <div className="text-[10px] text-slate-400 mt-0.5 truncate leading-tight">{sub}</div> : null}
+        {sub ? <div className="text-xs text-slate-400 mt-0.5 truncate leading-tight">{sub}</div> : null}
       </div>
     </div>
   )
@@ -1116,7 +1116,7 @@ function StatusCard({ item }: { item: StatusSummary }) {
       <div className="flex-1 min-w-0">
         <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{meta.label} — {item.count} รายการ</div>
         <div className={`text-lg font-bold mt-0.5 ${meta.text}`}>{formatMoney(item.qty)} กก.</div>
-        <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+        <div className="text-xs text-slate-400 font-medium mt-0.5">
           มูลค่า {formatMoney(item.value)} บาท {item.qty !== 0 ? `| เฉลี่ย ${formatMoney(item.value / item.qty)} บ./กก.` : ''}
         </div>
       </div>
@@ -1149,30 +1149,30 @@ function ProductPanel({ averageCost, info, onClose, onOpen, rows }: {
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <div className="rounded-lg bg-white border border-slate-200 p-3 shadow-sm">
-          <div className="text-[10px] text-slate-400 font-semibold uppercase">📊 คงเหลือ</div>
+          <div className="text-xs text-slate-400 font-semibold uppercase">📊 คงเหลือ</div>
           <div className={`text-lg font-bold mt-1 tabular-nums ${info.qty > 0 ? 'text-emerald-700' : 'text-red-650'}`}>{formatMoney(info.qty)} <span className="text-xs font-normal">กก.</span></div>
         </div>
         <div className="rounded-lg bg-white border border-slate-200 p-3 shadow-sm">
-          <div className="text-[10px] text-slate-400 font-semibold uppercase">💰 มูลค่ารวม (WAC)</div>
+          <div className="text-xs text-slate-400 font-semibold uppercase">💰 มูลค่ารวม (WAC)</div>
           <div className="text-lg font-bold mt-1 text-blue-700 tabular-nums">{formatMoney(info.value)} <span className="text-xs font-normal">บาท</span></div>
         </div>
         <div className="rounded-lg bg-white border border-slate-200 p-3 shadow-sm">
-          <div className="text-[10px] text-slate-400 font-semibold uppercase">⚖ ราคาเฉลี่ย/กก.</div>
+          <div className="text-xs text-slate-400 font-semibold uppercase">⚖ ราคาเฉลี่ย/กก.</div>
           <div className="text-lg font-bold mt-1 text-amber-700 tabular-nums">{formatMoney(averageCost)} <span className="text-xs font-normal">บ./กก.</span></div>
         </div>
         <div className="rounded-lg bg-white border border-slate-200 p-3 shadow-sm">
-          <div className="text-[10px] text-slate-400 font-semibold uppercase">รอออก</div>
+          <div className="text-xs text-slate-400 font-semibold uppercase">รอออก</div>
           <div className="text-lg font-bold mt-1 text-amber-700 tabular-nums">{formatMoney(info.onHold)} <span className="text-xs font-normal">กก.</span></div>
         </div>
         <div className="rounded-lg bg-white border border-slate-200 p-3 shadow-sm">
-          <div className="text-[10px] text-slate-400 font-semibold uppercase">พร้อมส่ง</div>
+          <div className="text-xs text-slate-400 font-semibold uppercase">พร้อมส่ง</div>
           <div className="text-lg font-bold mt-1 text-emerald-700 tabular-nums">{formatMoney(info.ready)} <span className="text-xs font-normal">กก.</span></div>
         </div>
       </div>
       <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
           <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">📜 รายการสต๊อกของสินค้านี้ ({rows.length} รายการ)</h4>
-          <span className="text-[10px] text-slate-400 font-medium">กดรายการเพื่อดูข้อมูลย่อย</span>
+          <span className="text-xs text-slate-400 font-medium">กดรายการเพื่อดูข้อมูลย่อย</span>
         </div>
         <div className="max-h-[400px] overflow-auto">
           <table className="w-full text-xs text-slate-750">
@@ -1245,8 +1245,8 @@ function StockCharts({ byStatus, matrixRows, totalValue }: { byStatus: StatusSum
         <h3 className="mb-3 font-semibold text-sm text-slate-800 uppercase tracking-wider">🥧 สัดส่วน Stock RM/WIP/FG (มูลค่า)</h3>
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex h-[180px] w-[180px] items-center justify-center rounded-full shadow-inner" style={{ background: totalValue > 0 ? `conic-gradient(#3b82f6 0deg ${rmDeg}deg, #f59e0b ${rmDeg}deg ${rmDeg + wipDeg}deg, #10b981 ${rmDeg + wipDeg}deg 360deg)` : '#e5e7eb' }}>
-            <div className="flex h-24 w-24 flex-col items-center justify-center rounded-full bg-white text-center border border-slate-100 shadow-sm leading-tight">
-              <span className="text-[10px] text-slate-500 font-semibold uppercase">รวม</span>
+            <div className="flex h-[6.5rem] w-[6.5rem] flex-col items-center justify-center rounded-full bg-white text-center border border-slate-100 shadow-sm leading-tight">
+              <span className="text-xs text-slate-500 font-semibold uppercase">รวม</span>
               <span className="text-xs font-extrabold text-slate-900 mt-0.5">{formatMoney(totalValue)}</span>
             </div>
           </div>
@@ -1259,7 +1259,7 @@ function StockCharts({ byStatus, matrixRows, totalValue }: { byStatus: StatusSum
               <div className="text-right">
                 <div>{formatMoney(totalValue)}</div>
                 {byStatus.reduce((sum, item) => sum + item.qty, 0) !== 0 ? (
-                  <span className="text-[10px] font-normal text-slate-400 block leading-none mt-0.5">
+                  <span className="text-xs font-normal text-slate-400 block leading-none mt-0.5">
                     เฉลี่ย {formatMoney(totalValue / byStatus.reduce((sum, item) => sum + item.qty, 0))} บ./กก.
                   </span>
                 ) : null}
@@ -1278,7 +1278,7 @@ function StockCharts({ byStatus, matrixRows, totalValue }: { byStatus: StatusSum
             return (
               <div key={row.group}>
                 <div className="mb-1 flex justify-between text-xs text-slate-700">
-                  <span className="font-semibold text-slate-800">{row.group} <span className="text-[10px] text-slate-400 font-normal">({formatMoney(row.rmQty + row.wipQty + row.fgQty)} กก.)</span></span>
+                  <span className="font-semibold text-slate-800">{row.group} <span className="text-xs text-slate-400 font-normal">({formatMoney(row.rmQty + row.wipQty + row.fgQty)} กก.)</span></span>
                   <span className="font-mono font-bold">{formatMoney(value)}</span>
                 </div>
                 <div className="h-2 w-full rounded-full bg-slate-100">
@@ -1304,7 +1304,7 @@ function LegendRow({ color, label, value, qty }: { color: string; label: string;
       <div className="text-right font-mono">
         <div className="font-bold text-slate-900">{formatMoney(value)}</div>
         {qty && qty !== 0 ? (
-          <span className="text-[10px] font-normal text-slate-400 block leading-none mt-0.5">
+          <span className="text-xs font-normal text-slate-400 block leading-none mt-0.5">
             เฉลี่ย {formatMoney(avg)} บ./กก.
           </span>
         ) : null}
@@ -1392,9 +1392,9 @@ function MatrixTable({
             {!isLoading && matrixRows.map((row) => (
               <Fragment key={row.group}>
                 <tr className="bg-slate-50/70 transition-colors hover:bg-slate-100/70">
-                  <td className="p-3.5 text-slate-855">
-                    <div className="font-bold">{row.group}</div>
-                    <div className="mt-0.5 text-[11px] font-medium text-slate-500">{row.products.length.toLocaleString('th-TH')} รายการสินค้า</div>
+                  <td className="p-3.5 text-slate-855 min-w-0 max-w-0 overflow-hidden">
+                    <div className="truncate font-bold" title={row.group}>{row.group}</div>
+                    <div className="mt-0.5 truncate text-xs font-medium text-slate-500">{row.products.length.toLocaleString('th-TH')} รายการสินค้า</div>
                   </td>
                   <td className="p-3.5 text-right text-blue-700 bg-blue-50/10 border-x border-slate-100">{row.rmQty ? formatMoney(row.rmQty) : '-'}</td>
                   <td className="p-3.5 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100">{row.rmVal ? formatMoney(row.rmVal) : '-'}</td>
@@ -1411,27 +1411,31 @@ function MatrixTable({
                 </tr>
                 {row.products.map((product) => (
                   <tr key={`${row.group}-${product.productId}`} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="p-3.5 pl-8 text-slate-700">
-                      <div className="flex min-w-[240px] items-start gap-2">
+                    <td className="p-3.5 pl-8 text-slate-700 min-w-0 max-w-0 overflow-hidden">
+                      <div className="flex items-start gap-2 min-w-0 w-full">
                         <span className="mt-1.5 h-px w-4 shrink-0 bg-slate-300" />
-                        <div>
-                          <div className="font-semibold text-slate-800">{product.productCode} {product.productName}</div>
-                          <div className="mt-0.5 text-[11px] font-medium text-slate-400">สินค้าในหมวด {row.group}</div>
+                        <div className="min-w-0 flex-1 overflow-hidden">
+                          <div className="truncate font-semibold text-slate-800" title={`${product.productCode} ${product.productName}`}>
+                            {product.productCode} {product.productName}
+                          </div>
+                          <div className="mt-0.5 truncate text-xs font-medium text-slate-400" title={`สินค้าในหมวด ${row.group}`}>
+                            สินค้าในหมวด {row.group}
+                          </div>
                         </div>
                       </div>
                     </td>
-                    <td className="p-3.5 text-right text-blue-700 bg-blue-50/10 border-x border-slate-100">{product.rmQty ? formatMoney(product.rmQty) : '-'}</td>
-                    <td className="p-3.5 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100">{product.rmVal ? formatMoney(product.rmVal) : '-'}</td>
-                    <td className="p-3.5 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100">{product.rmQty !== 0 ? `${formatMoney(product.rmVal / product.rmQty)} บ.` : '-'}</td>
-                    <td className="p-3.5 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100">{product.wipQty ? formatMoney(product.wipQty) : '-'}</td>
-                    <td className="p-3.5 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100">{product.wipVal ? formatMoney(product.wipVal) : '-'}</td>
-                    <td className="p-3.5 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100">{product.wipQty !== 0 ? `${formatMoney(product.wipVal / product.wipQty)} บ.` : '-'}</td>
-                    <td className="p-3.5 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100">{product.fgQty ? formatMoney(product.fgQty) : '-'}</td>
-                    <td className="p-3.5 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100">{product.fgVal ? formatMoney(product.fgVal) : '-'}</td>
-                    <td className="p-3.5 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100">{product.fgQty !== 0 ? `${formatMoney(product.fgVal / product.fgQty)} บ.` : '-'}</td>
-                    <td className="p-3.5 text-right">{formatMoney(matrixProductQty(product))}</td>
-                    <td className="p-3.5 text-right text-emerald-700">{formatMoney(matrixProductValue(product))}</td>
-                    <td className="p-3.5 text-right text-emerald-700">{matrixProductQty(product) !== 0 ? `${formatMoney(matrixProductValue(product) / matrixProductQty(product))} บ.` : '-'}</td>
+                    <td className="p-3.5 text-right text-blue-700 bg-blue-50/10 border-x border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.rmQty ? formatMoney(product.rmQty) : '-'}</td>
+                    <td className="p-3.5 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.rmVal ? formatMoney(product.rmVal) : '-'}</td>
+                    <td className="p-3.5 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.rmQty !== 0 ? `${formatMoney(product.rmVal / product.rmQty)} บ.` : '-'}</td>
+                    <td className="p-3.5 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.wipQty ? formatMoney(product.wipQty) : '-'}</td>
+                    <td className="p-3.5 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.wipVal ? formatMoney(product.wipVal) : '-'}</td>
+                    <td className="p-3.5 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.wipQty !== 0 ? `${formatMoney(product.wipVal / product.wipQty)} บ.` : '-'}</td>
+                    <td className="p-3.5 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.fgQty ? formatMoney(product.fgQty) : '-'}</td>
+                    <td className="p-3.5 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.fgVal ? formatMoney(product.fgVal) : '-'}</td>
+                    <td className="p-3.5 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.fgQty !== 0 ? `${formatMoney(product.fgVal / product.fgQty)} บ.` : '-'}</td>
+                    <td className="p-3.5 text-right whitespace-nowrap pl-4 tabular-nums">{formatMoney(matrixProductQty(product))}</td>
+                    <td className="p-3.5 text-right text-emerald-700 whitespace-nowrap pl-4 tabular-nums">{formatMoney(matrixProductValue(product))}</td>
+                    <td className="p-3.5 text-right text-emerald-700 whitespace-nowrap pl-4 tabular-nums">{matrixProductQty(product) !== 0 ? `${formatMoney(matrixProductValue(product) / matrixProductQty(product))} บ.` : '-'}</td>
                   </tr>
                 ))}
               </Fragment>
@@ -1472,7 +1476,7 @@ function MatrixTable({
             <div key={row.group} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
               <div className="border-b border-slate-100 pb-2">
                 <span className="font-semibold text-slate-800 text-sm">{row.group}</span>
-                <span className="ml-2 text-[11px] font-medium text-slate-400">{row.products.length.toLocaleString('th-TH')} รายการสินค้า</span>
+                <span className="ml-2 text-xs font-medium text-slate-400">{row.products.length.toLocaleString('th-TH')} รายการสินค้า</span>
               </div>
               <div className="space-y-2 text-xs text-slate-600">
                 <div className="flex justify-between items-center bg-blue-50/50 p-2 rounded-lg">
@@ -1480,7 +1484,7 @@ function MatrixTable({
                   <span className="font-semibold text-right text-blue-700 tabular-nums flex flex-col items-end">
                     <span>{row.rmQty ? `${formatMoney(row.rmQty)} กก.` : '-'} {row.rmVal ? `(${formatMoney(row.rmVal)} บ.)` : ''}</span>
                     {row.rmQty && row.rmVal ? (
-                      <span className="text-[10px] text-slate-400 font-normal mt-0.5">เฉลี่ย {formatMoney(row.rmQty !== 0 ? row.rmVal / row.rmQty : 0)} บ./กก.</span>
+                      <span className="text-xs text-slate-400 font-normal mt-0.5">เฉลี่ย {formatMoney(row.rmQty !== 0 ? row.rmVal / row.rmQty : 0)} บ./กก.</span>
                     ) : null}
                   </span>
                 </div>
@@ -1489,7 +1493,7 @@ function MatrixTable({
                   <span className="font-semibold text-right text-amber-700 tabular-nums flex flex-col items-end">
                     <span>{row.wipQty ? `${formatMoney(row.wipQty)} กก.` : '-'} {row.wipVal ? `(${formatMoney(row.wipVal)} บ.)` : ''}</span>
                     {row.wipQty && row.wipVal ? (
-                      <span className="text-[10px] text-slate-400 font-normal mt-0.5">เฉลี่ย {formatMoney(row.wipQty !== 0 ? row.wipVal / row.wipQty : 0)} บ./กก.</span>
+                      <span className="text-xs text-slate-400 font-normal mt-0.5">เฉลี่ย {formatMoney(row.wipQty !== 0 ? row.wipVal / row.wipQty : 0)} บ./กก.</span>
                     ) : null}
                   </span>
                 </div>
@@ -1498,7 +1502,7 @@ function MatrixTable({
                   <span className="font-semibold text-right text-emerald-700 tabular-nums flex flex-col items-end">
                     <span>{row.fgQty ? `${formatMoney(row.fgQty)} กก.` : '-'} {row.fgVal ? `(${formatMoney(row.fgVal)} บ.)` : ''}</span>
                     {row.fgQty && row.fgVal ? (
-                      <span className="text-[10px] text-slate-400 font-normal mt-0.5">เฉลี่ย {formatMoney(row.fgQty !== 0 ? row.fgVal / row.fgQty : 0)} บ./กก.</span>
+                      <span className="text-xs text-slate-400 font-normal mt-0.5">เฉลี่ย {formatMoney(row.fgQty !== 0 ? row.fgVal / row.fgQty : 0)} บ./กก.</span>
                     ) : null}
                   </span>
                 </div>
@@ -1508,20 +1512,22 @@ function MatrixTable({
                 <span className="tabular-nums text-right flex flex-col items-end">
                   <span>{formatMoney(totalRowQty)} กก. | <span className="text-emerald-700">{formatMoney(totalRowVal)} บาท</span></span>
                   {totalRowQty !== 0 ? (
-                    <span className="text-[10px] text-slate-400 font-normal mt-0.5">เฉลี่ย {formatMoney(totalRowVal / totalRowQty)} บ./กก.</span>
+                    <span className="text-xs text-slate-400 font-normal mt-0.5">เฉลี่ย {formatMoney(totalRowVal / totalRowQty)} บ./กก.</span>
                   ) : null}
                 </span>
               </div>
               <div className="space-y-2 border-t border-slate-100 pt-2">
                 {row.products.map((product) => (
-                  <div key={`${row.group}-${product.productId}`} className="rounded-lg bg-slate-50/80 p-2.5 text-xs">
-                    <div className="font-semibold text-slate-800">{product.productCode} {product.productName}</div>
-                    <div className="mt-1 grid grid-cols-3 gap-1.5 text-[11px] font-semibold tabular-nums">
+                  <div key={`${row.group}-${product.productId}`} className="rounded-lg bg-slate-50/80 p-2.5 text-xs min-w-0 overflow-hidden">
+                    <div className="truncate font-semibold text-slate-800" title={`${product.productCode} ${product.productName}`}>
+                      {product.productCode} {product.productName}
+                    </div>
+                    <div className="mt-1 grid grid-cols-3 gap-2 text-xs font-semibold tabular-nums">
                       <div className="rounded-md bg-blue-50 px-2 py-1 text-blue-700">RM {product.rmQty ? formatMoney(product.rmQty) : '-'}</div>
                       <div className="rounded-md bg-amber-50 px-2 py-1 text-amber-700">WIP {product.wipQty ? formatMoney(product.wipQty) : '-'}</div>
                       <div className="rounded-md bg-emerald-50 px-2 py-1 text-emerald-700">FG {product.fgQty ? formatMoney(product.fgQty) : '-'}</div>
                     </div>
-                    <div className="mt-1 text-right text-[11px] font-bold text-emerald-700 tabular-nums">
+                    <div className="mt-1 text-right text-xs font-bold text-emerald-700 tabular-nums">
                       รวม {formatMoney(matrixProductQty(product))} กก. | {formatMoney(matrixProductValue(product))} บ.
                     </div>
                   </div>
@@ -1546,7 +1552,7 @@ function MatrixTable({
                 <span className="font-semibold text-blue-300 tabular-nums text-right flex flex-col items-end">
                   <span>{formatMoney(valueFor('RM').qty)} กก. ({formatMoney(valueFor('RM').value)} บ.)</span>
                   {valueFor('RM').qty !== 0 ? (
-                    <span className="text-[10px] text-slate-500 font-normal mt-0.5">เฉลี่ย {formatMoney(valueFor('RM').value / valueFor('RM').qty)} บ./กก.</span>
+                    <span className="text-xs text-slate-500 font-normal mt-0.5">เฉลี่ย {formatMoney(valueFor('RM').value / valueFor('RM').qty)} บ./กก.</span>
                   ) : null}
                 </span>
               </div>
@@ -1555,7 +1561,7 @@ function MatrixTable({
                 <span className="font-semibold text-amber-300 tabular-nums text-right flex flex-col items-end">
                   <span>{formatMoney(valueFor('WIP').qty)} กก. ({formatMoney(valueFor('WIP').value)} บ.)</span>
                   {valueFor('WIP').qty !== 0 ? (
-                    <span className="text-[10px] text-slate-500 font-normal mt-0.5">เฉลี่ย {formatMoney(valueFor('WIP').value / valueFor('WIP').qty)} บ./กก.</span>
+                    <span className="text-xs text-slate-500 font-normal mt-0.5">เฉลี่ย {formatMoney(valueFor('WIP').value / valueFor('WIP').qty)} บ./กก.</span>
                   ) : null}
                 </span>
               </div>
@@ -1564,7 +1570,7 @@ function MatrixTable({
                 <span className="font-semibold text-emerald-300 tabular-nums text-right flex flex-col items-end">
                   <span>{formatMoney(valueFor('FG').qty)} กก. ({formatMoney(valueFor('FG').value)} บ.)</span>
                   {valueFor('FG').qty !== 0 ? (
-                    <span className="text-[10px] text-slate-500 font-normal mt-0.5">เฉลี่ย {formatMoney(valueFor('FG').value / valueFor('FG').qty)} บ./กก.</span>
+                    <span className="text-xs text-slate-500 font-normal mt-0.5">เฉลี่ย {formatMoney(valueFor('FG').value / valueFor('FG').qty)} บ./กก.</span>
                   ) : null}
                 </span>
               </div>
@@ -1574,7 +1580,7 @@ function MatrixTable({
               <span className="tabular-nums text-right flex flex-col items-end">
                 <span className="text-emerald-400">{formatMoney(totalQty)} กก. | {formatMoney(totalValue)} บาท</span>
                 {totalQty !== 0 ? (
-                  <span className="text-[10px] text-slate-500 font-normal mt-0.5">เฉลี่ย {formatMoney(totalValue / totalQty)} บ./กก.</span>
+                  <span className="text-xs text-slate-500 font-normal mt-0.5">เฉลี่ย {formatMoney(totalValue / totalQty)} บ./กก.</span>
                 ) : null}
               </span>
             </div>
@@ -1637,15 +1643,15 @@ function DetailTable({
           >
             <div className="flex justify-between items-start border-b border-slate-100 pb-2">
               <div>
-                <span className="text-[10px] text-slate-400 block">{row.productCode}</span>
+                <span className="text-xs text-slate-400 block leading-tight">{row.productCode}</span>
                 <span className="font-bold text-slate-800 text-xs">{row.productName}</span>
                 {row.lotNo && row.lotNo !== '-' ? (
-                  <div className="text-[10px] text-slate-400 mt-0.5">Lot: {row.lotNo}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">Lot: {row.lotNo}</div>
                 ) : null}
               </div>
               <StockStatusCell row={row} />
             </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] text-slate-650">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-slate-650">
               <div className="flex justify-between">
                 <span>หมวด:</span>
                 <span className="font-semibold text-slate-800">{row.productMetalGroup || 'อื่นๆ'}</span>
@@ -1678,7 +1684,7 @@ function DetailTable({
             
             <div className="border-t border-slate-100 pt-2 flex justify-between items-center text-xs">
               <span className="font-bold text-slate-855">มูลค่า: <span className="text-emerald-700 font-mono font-bold">{formatMoney(row.value)} บาท</span></span>
-              <span className="text-[10px] text-slate-400">กดเพื่อดูรายละเอียด</span>
+              <span className="text-xs text-slate-400">กดเพื่อดูรายละเอียด</span>
             </div>
           </div>
         ))}
@@ -1732,10 +1738,12 @@ function DetailTable({
                   }
                 }}
               >
-                <td className="p-3.5 text-slate-800 overflow-hidden truncate">
-                  <span className="text-slate-500">{row.productCode}</span> {row.productName}
+                <td className="p-3.5 text-slate-800 min-w-0 overflow-hidden">
+                  <div className="truncate" title={`${row.productCode} ${row.productName}`}>
+                    <span className="text-slate-500">{row.productCode}</span> {row.productName}
+                  </div>
                   {row.lotNo && row.lotNo !== '-' ? (
-                    <div className="mt-0.5 text-xs font-normal text-slate-400">Lot: {row.lotNo}</div>
+                    <div className="mt-0.5 truncate text-xs font-normal text-slate-400" title={`Lot: ${row.lotNo}`}>Lot: {row.lotNo}</div>
                   ) : null}
                 </td>
                 <td className="p-3.5 text-slate-800 overflow-hidden truncate">{row.productMetalGroup || 'อื่นๆ'}</td>

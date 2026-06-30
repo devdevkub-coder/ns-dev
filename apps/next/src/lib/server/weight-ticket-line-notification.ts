@@ -244,6 +244,93 @@ function buildDetailUrl(origin: string, documentNo: string) {
   return new URL(`/daily/weight-ticket-list/${encodeURIComponent(documentNo)}`, origin).toString()
 }
 
+function buildProductDetailRows(ticket: WeightTicketRecord) {
+  const summaries = ticket.productSummaries?.length
+    ? ticket.productSummaries.map((summary) => ({
+      detail: `${summary.lineCount.toLocaleString('th-TH')} รายการ · ชั่ง ${formatWeight(summary.grossWeight)} กก. · หัก ${formatWeight(summary.deductWeight)} กก.`,
+      name: `${summary.productId} ${summary.productName}`.trim(),
+      netWeight: summary.netWeight,
+    }))
+    : ticket.lines.map((line) => ({
+      detail: `${line.warehouseName || '-'} · ชั่ง ${formatWeight(line.grossWeightValue)} กก. · หัก ${formatWeight(line.deductionWeight)} กก.`,
+      name: `${line.productId} ${line.productName}`.trim(),
+      netWeight: line.netWeight,
+    }))
+
+  const visibleSummaries = summaries.slice(0, 3)
+  const rows: any[] = visibleSummaries.map((item, index) => ({
+    type: 'box' as const,
+    layout: 'vertical' as const,
+    spacing: 'xs' as const,
+    margin: index === 0 ? 'sm' as const : 'md' as const,
+    backgroundColor: '#f8fafc',
+    borderColor: '#e2e8f0',
+    borderWidth: '1px',
+    cornerRadius: 'md' as const,
+    paddingAll: '10px',
+    contents: [
+      {
+        type: 'box' as const,
+        layout: 'horizontal' as const,
+        contents: [
+          {
+            type: 'text' as const,
+            text: item.name || '-',
+            color: '#1e293b',
+            size: 'xs' as const,
+            weight: 'bold' as const,
+            flex: 5,
+            wrap: true,
+          },
+          {
+            type: 'text' as const,
+            text: `${formatWeight(item.netWeight)} กก.`,
+            color: '#0ea5e9',
+            size: 'xs' as const,
+            weight: 'bold' as const,
+            align: 'end' as const,
+            flex: 2,
+            wrap: false,
+          },
+        ],
+      },
+      {
+        type: 'text' as const,
+        text: item.detail,
+        color: '#64748b',
+        size: 'xxs' as const,
+        wrap: true,
+      },
+    ],
+  }))
+
+  if (summaries.length > visibleSummaries.length) {
+    rows.push({
+      type: 'box' as const,
+      layout: 'vertical' as const,
+      spacing: 'xs' as const,
+      margin: 'md' as const,
+      backgroundColor: '#f8fafc',
+      borderColor: '#e2e8f0',
+      borderWidth: '1px',
+      cornerRadius: 'md' as const,
+      paddingAll: '10px',
+      contents: [
+        {
+          type: 'text' as const,
+          text: `อีก ${summaries.length - visibleSummaries.length} ชนิด ดูรายการครบในระบบ`,
+          color: '#475569',
+          size: 'xs' as const,
+          weight: 'bold' as const,
+          wrap: true,
+        },
+      ],
+    })
+  }
+
+  return rows
+}
+
 function buildFlexMessage(
   ticket: WeightTicketRecord,
   pdfUrl: string,
@@ -276,6 +363,7 @@ function buildFlexMessage(
   const warehouseDisplay = ticket.warehouseName || (uniqueWarehouses.length > 0 ? uniqueWarehouses.join(', ') : '-')
 
   const productTypesCount = ticket.productSummaries?.length || 1
+  const productDetailRows = buildProductDetailRows(ticket)
 
   // 1. Create Summary Card (Slide 1)
   const summaryBubble = {
@@ -318,92 +406,166 @@ function buildFlexMessage(
     body: {
       type: 'box' as const,
       layout: 'vertical' as const,
-      paddingAll: '20px',
-      spacing: 'md' as const,
+      backgroundColor: '#ffffff',
+      paddingAll: '16px',
+      spacing: 'sm' as const,
       contents: [
         {
           type: 'box' as const,
-          layout: 'horizontal' as const,
+          layout: 'vertical' as const,
+          backgroundColor: '#f8fafc',
+          borderColor: '#e2e8f0',
+          borderWidth: '1px',
+          cornerRadius: 'md' as const,
+          paddingAll: '12px',
+          spacing: 'sm' as const,
+          contents: [
+            {
+              type: 'box' as const,
+              layout: 'horizontal' as const,
+              contents: [
+                {
+                  type: 'text' as const,
+                  text: '🤝 ลูกค้า',
+                  color: '#64748b',
+                  size: 'xs' as const,
+                  flex: 2
+                },
+                {
+                  type: 'text' as const,
+                  text: ticket.partyName || '-',
+                  color: '#0f172a',
+                  size: 'sm' as const,
+                  weight: 'bold' as const,
+                  flex: 5,
+                  wrap: true
+                }
+              ]
+            },
+            {
+              type: 'box' as const,
+              layout: 'horizontal' as const,
+              contents: [
+                {
+                  type: 'text' as const,
+                  text: '📍 โกดัง',
+                  color: '#64748b',
+                  size: 'xs' as const,
+                  flex: 2
+                },
+                {
+                  type: 'text' as const,
+                  text: warehouseDisplay,
+                  color: '#0f172a',
+                  size: 'sm' as const,
+                  weight: 'bold' as const,
+                  flex: 5,
+                  wrap: true
+                }
+              ]
+            },
+            {
+              type: 'box' as const,
+              layout: 'horizontal' as const,
+              margin: 'sm' as const,
+              spacing: 'sm' as const,
+              contents: [
+                {
+                  type: 'box' as const,
+                  layout: 'vertical' as const,
+                  backgroundColor: '#eff6ff',
+                  cornerRadius: 'sm' as const,
+                  paddingAll: '8px',
+                  flex: 1,
+                  contents: [
+                    {
+                      type: 'text' as const,
+                      text: 'สุทธิ',
+                      color: '#64748b',
+                      size: 'xxs' as const
+                    },
+                    {
+                      type: 'text' as const,
+                      text: `${formatWeight(ticket.totals.netWeight)} กก.`,
+                      color: valueColor,
+                      size: 'sm' as const,
+                      weight: 'bold' as const,
+                      wrap: false
+                    }
+                  ]
+                },
+                {
+                  type: 'box' as const,
+                  layout: 'vertical' as const,
+                  backgroundColor: '#f1f5f9',
+                  cornerRadius: 'sm' as const,
+                  paddingAll: '8px',
+                  flex: 1,
+                  contents: [
+                    {
+                      type: 'text' as const,
+                      text: 'รายการ',
+                      color: '#64748b',
+                      size: 'xxs' as const
+                    },
+                    {
+                      type: 'text' as const,
+                      text: `${productTypesCount} ชนิด`,
+                      color: '#0f172a',
+                      size: 'sm' as const,
+                      weight: 'bold' as const
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          type: 'separator' as const,
+          margin: 'md' as const,
+          color: '#e2e8f0'
+        },
+        {
+          type: 'text' as const,
+          text: 'รายละเอียดสินค้า',
+          color: '#334155',
+          size: 'xs' as const,
+          weight: 'bold' as const,
+          margin: 'sm' as const
+        },
+        ...productDetailRows,
+        {
+          type: 'box' as const,
+          layout: 'vertical' as const,
+          spacing: 'xs' as const,
+          margin: 'md' as const,
+          backgroundColor: '#f8fafc',
+          borderColor: '#e2e8f0',
+          borderWidth: '1px',
+          cornerRadius: 'md' as const,
+          paddingAll: '10px',
           contents: [
             {
               type: 'text' as const,
-              text: '🤝 ลูกค้า',
-              color: '#64748b',
-              size: 'sm' as const,
-              flex: 2
+              text: 'สรุปรวม',
+              color: '#334155',
+              size: 'xs' as const,
+              weight: 'bold' as const
             },
             {
               type: 'text' as const,
-              text: ticket.partyName || '-',
-              color: '#1e293b',
-              size: 'sm' as const,
-              weight: 'bold' as const,
-              flex: 5,
+              text: `สุทธิ ${formatWeight(ticket.totals.netWeight)} กก. · ชั่งรวม ${formatWeight(ticket.totals.grossWeight)} กก. · หัก ${formatWeight(ticket.totals.containerDeductionWeight + ticket.totals.deductionWeight)} กก.`,
+              color: '#64748b',
+              size: 'xxs' as const,
               wrap: true
-            }
-          ]
-        },
-        {
-          type: 'box' as const,
-          layout: 'horizontal' as const,
-          contents: [
-            {
-              type: 'text' as const,
-              text: '📍 โกดัง',
-              color: '#64748b',
-              size: 'sm' as const,
-              flex: 2
             },
             {
               type: 'text' as const,
-              text: warehouseDisplay,
-              color: '#1e293b',
-              size: 'sm' as const,
-              weight: 'bold' as const,
-              flex: 5,
+              text: `${ticket.documentNo} · ${formatDateDisplay(ticket.documentDate)} · รูป ${ticket.imageCount.toLocaleString('th-TH')}`,
+              color: '#64748b',
+              size: 'xxs' as const,
               wrap: true
-            }
-          ]
-        },
-        {
-          type: 'box' as const,
-          layout: 'horizontal' as const,
-          contents: [
-            {
-              type: 'text' as const,
-              text: '📦 ผลผลิต',
-              color: '#64748b',
-              size: 'sm' as const,
-              flex: 2
-            },
-            {
-              type: 'text' as const,
-              text: `${formatWeight(ticket.totals.netWeight)} กก.`,
-              color: valueColor,
-              size: 'lg' as const,
-              weight: 'bold' as const,
-              flex: 5
-            }
-          ]
-        },
-        {
-          type: 'box' as const,
-          layout: 'horizontal' as const,
-          contents: [
-            {
-              type: 'text' as const,
-              text: '📋 รายการ',
-              color: '#64748b',
-              size: 'sm' as const,
-              flex: 2
-            },
-            {
-              type: 'text' as const,
-              text: `${productTypesCount} ชนิด`,
-              color: '#1e293b',
-              size: 'sm' as const,
-              weight: 'bold' as const,
-              flex: 5
             }
           ]
         }

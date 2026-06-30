@@ -499,22 +499,66 @@ export async function buildSalesPlan() {
   }
 }
 
-export async function buildSalesCommission() {
-  const periodFrom = new Date(`${new Date().toISOString().slice(0, 7)}-01T00:00:00.000Z`)
-  const periodTo = new Date()
-  const [salespersons, suppliers, purchaseBills] = await Promise.all([
+export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo?: string; branchId?: string }) {
+  const periodFrom = filters?.dateFrom ? new Date(`${filters.dateFrom}T00:00:00.000Z`) : new Date(`${new Date().toISOString().slice(0, 7)}-01T00:00:00.000Z`)
+  const periodTo = filters?.dateTo ? new Date(`${filters.dateTo}T23:59:59.999Z`) : new Date()
+  const year = periodFrom.getFullYear()
+
+  const currentWhere: Prisma.purchase_billsWhereInput = {
+    date: { gte: periodFrom, lte: periodTo },
+    status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] }
+  }
+  if (filters?.branchId) {
+    currentWhere.branch_id = BigInt(filters.branchId)
+  }
+
+  const annualWhere: Prisma.purchase_billsWhereInput = {
+    date: {
+      gte: new Date(`${year}-01-01T00:00:00.000Z`),
+      lte: new Date(`${year}-12-31T23:59:59.999Z`),
+    },
+    status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] }
+  }
+  if (filters?.branchId) {
+    annualWhere.branch_id = BigInt(filters.branchId)
+  }
+
+  const [salespersons, suppliers, currentBills, annualBills, branches] = await Promise.all([
     prisma.salespersons.findMany({ orderBy: [{ name: 'asc' }], where: { active: { not: false } } }),
     prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], where: { active: { not: false } } }),
     prisma.purchase_bills.findMany({
-      include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true },
+      include: {
+        purchase_bill_items: {
+          orderBy: { line_no: 'asc' },
+          where: { item_status: 'active' },
+          include: { products: true }
+        },
+        suppliers: true
+      },
       orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
-      take: 10000,
-      where: { date: { gte: periodFrom, lte: periodTo }, status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] } },
+      where: currentWhere,
     }),
+    prisma.purchase_bills.findMany({
+      include: {
+        purchase_bill_items: {
+          where: { item_status: 'active' }
+        }
+      },
+      where: annualWhere,
+    }),
+    prisma.branches.findMany({ orderBy: [{ code: 'asc' }], where: { active: { not: false } } }),
   ])
+
   const salesById = new Map(salespersons.map((sales) => [String(sales.id), sales]))
   const salesCodeById = new Map(salespersons.map((sales) => [String(sales.id), requireBusinessCode(sales.code, `พนักงานขาย ${sales.id}`)]))
   const supplierSalesById = new Map(suppliers.map((supplier) => [String(supplier.id), supplier.sales_id != null ? (salesCodeById.get(String(supplier.sales_id)) ?? '') : '']))
+
+  const getSalesIdForBill = (bill: { sales_id: bigint | null; supplier_id: bigint | null }) => {
+    return bill.sales_id != null
+      ? (salesCodeById.get(String(bill.sales_id)) ?? '_UNASSIGNED_')
+      : (bill.supplier_id ? (supplierSalesById.get(String(bill.supplier_id)) || '_UNASSIGNED_') : '_UNASSIGNED_')
+  }
+
   const supplierCounts = new Map<string, Set<string>>()
   suppliers.forEach((supplier) => {
     const salesId = supplier.sales_id != null ? (salesCodeById.get(String(supplier.sales_id)) ?? '_UNASSIGNED_') : '_UNASSIGNED_'
@@ -522,58 +566,171 @@ export async function buildSalesCommission() {
     if (supplier.code) set.add(requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`))
     supplierCounts.set(salesId, set)
   })
-  const summary = new Map<string, { billCount: number; id: string; name: string; phone: string; purchaseAmt: number; qty: number; supplierIds: Set<string> }>()
-  const ensure = (id: string) => {
-    if (!summary.has(id)) {
-      const sales = salesById.get(id)
-      summary.set(id, { billCount: 0, id, name: id === '_UNASSIGNED_' ? '(ไม่ได้กำหนด Sales)' : sales?.name ?? '-', phone: sales?.phone ?? '', purchaseAmt: 0, qty: 0, supplierIds: supplierCounts.get(id) ?? new Set<string>() })
+
+  const summary = new Map<string, {
+    billCount: number
+    id: string
+    name: string
+    code: string
+    phone: string
+    commissionEligible: boolean
+    qty: number
+    amount: number
+    commissionableQty: number
+    commissionableAmount: number
+    nonCommissionableQty: number
+    nonCommissionableAmount: number
+    supplierIds: Set<string>
+    annualQty: number
+    annualAmount: number
+  }>()
+
+  const ensure = (salesId: string) => {
+    if (!summary.has(salesId)) {
+      const sales = salespersons.find((s) => requireBusinessCode(s.code, `พนักงานขาย ${s.id}`) === salesId)
+      summary.set(salesId, {
+        billCount: 0,
+        id: salesId,
+        name: salesId === '_UNASSIGNED_' ? '(ไม่ได้กำหนด Sales)' : sales?.name ?? '-',
+        code: salesId === '_UNASSIGNED_' ? '-' : salesId,
+        phone: salesId === '_UNASSIGNED_' ? '' : sales?.phone ?? '',
+        commissionEligible: salesId === '_UNASSIGNED_' ? false : sales?.commission_eligible ?? false,
+        qty: 0,
+        amount: 0,
+        commissionableQty: 0,
+        commissionableAmount: 0,
+        nonCommissionableQty: 0,
+        nonCommissionableAmount: 0,
+        supplierIds: supplierCounts.get(salesId) ?? new Set<string>(),
+        annualQty: 0,
+        annualAmount: 0
+      })
     }
-    return summary.get(id)!
+    return summary.get(salesId)!
   }
-  const billRows = purchaseBills.map((bill) => {
-    const salesId = bill.sales_id != null
-      ? (salesCodeById.get(String(bill.sales_id)) ?? '_UNASSIGNED_')
-      : (bill.supplier_id ? (supplierSalesById.get(String(bill.supplier_id)) || '_UNASSIGNED_') : '_UNASSIGNED_')
-    const items = purchaseBillItemRows(bill).filter(isJsonItem)
-    const qty = items.reduce((sum, item) => sum + itemQty(item), 0)
+
+  // Pre-populate summary mapping for all active salespeople to guarantee they exist on dashboard
+  salespersons.forEach((sales) => {
+    const code = requireBusinessCode(sales.code, `พนักงานขาย ${sales.id}`)
+    ensure(code)
+  })
+  ensure('_UNASSIGNED_')
+
+  const billRows: any[] = []
+
+  for (const bill of currentBills) {
+    const salesId = getSalesIdForBill(bill)
     const row = ensure(salesId)
     row.billCount += 1
-    row.purchaseAmt += toNumber(bill.total_amount)
-    row.qty += qty
-    if (bill.suppliers?.code) row.supplierIds.add(requireBusinessCode(bill.suppliers.code, `ผู้ขายบิลซื้อ ${bill.id}`))
-    return {
-      amount: toNumber(bill.total_amount),
-      date: toDateOnly(bill.date),
-      docNo: bill.doc_no,
-      facePrice: 0,
-      id: bill.doc_no,
-      price: qty > 0 ? toNumber(bill.total_amount) / qty : 0,
-      productName: items.map(itemProductName).filter(Boolean).slice(0, 2).join(', ') || '-',
-      qty,
-      salesId,
-      status: bill.status ?? '',
-      supplierName: bill.suppliers?.name ?? '-',
+    if (bill.suppliers?.code) {
+      row.supplierIds.add(requireBusinessCode(bill.suppliers.code, `ผู้ขายบิลซื้อ ${bill.id}`))
     }
-  })
-  const threshold = 1000000
-  const salesRows = Array.from(summary.values()).map((row) => ({
-    avgPrice: row.qty > 0 ? row.purchaseAmt / row.qty : 0,
-    billCount: row.billCount,
-    code: row.id === '_UNASSIGNED_' ? '-' : (salesById.get(row.id)?.code ? requireBusinessCode(salesById.get(row.id)!.code, `พนักงานขาย ${salesById.get(row.id)!.id}`) : ''),
-    commission: row.purchaseAmt >= threshold ? Math.floor(row.purchaseAmt / 500000) * 500 : 0,
-    eligible: row.purchaseAmt >= threshold,
-    id: row.id,
-    name: row.name,
-    phone: row.phone,
-    progressPct: Math.min(100, Math.round((row.purchaseAmt / threshold) * 100)),
-    purchaseAmt: row.purchaseAmt,
-    qty: row.qty,
-    remainingToTarget: Math.max(0, threshold - row.purchaseAmt),
-    supplierCount: row.supplierIds.size,
-  })).sort((left, right) => right.purchaseAmt - left.purchaseAmt)
+
+    const items = bill.purchase_bill_items || []
+    for (const item of items) {
+      const qty = toNumber(item.qty)
+      const amount = toNumber(item.amount)
+      const price = toNumber(item.price)
+      const salesPrice = toNumber(item.sales_price)
+
+      const isCommissionable = row.commissionEligible && price > 0 && salesPrice > 0 && price <= salesPrice
+
+      row.qty += qty
+      row.amount += amount
+
+      if (isCommissionable) {
+        row.commissionableQty += qty
+        row.commissionableAmount += amount
+      } else {
+        row.nonCommissionableQty += qty
+        row.nonCommissionableAmount += amount
+      }
+
+      billRows.push({
+        id: String(item.id),
+        billId: String(bill.id),
+        docNo: bill.doc_no,
+        date: toDateOnly(bill.date),
+        supplierName: bill.suppliers?.name ?? '-',
+        productName: item.product_name ?? item.display_name ?? '-',
+        productCategory: item.products?.metal_group || 'ทั่วไป',
+        qty,
+        price,
+        salesPrice,
+        amount,
+        salesId,
+        status: bill.status ?? '',
+        isCommissionable
+      })
+    }
+  }
+
+  for (const bill of annualBills) {
+    const salesId = getSalesIdForBill(bill)
+    const row = ensure(salesId)
+
+    const items = bill.purchase_bill_items || []
+    for (const item of items) {
+      const qty = toNumber(item.qty)
+      const amount = toNumber(item.amount)
+
+      row.annualQty += qty
+      row.annualAmount += amount
+    }
+  }
+
+  const calculateCommission = (amount: number) => {
+    if (amount < 1000000) return 0
+    const diff = amount - 1000000
+    const steps = diff > 0 ? Math.floor((diff - 0.001) / 500000) : 0
+    return 1000 + steps * 500
+  }
+
+  const salesRows = Array.from(summary.values()).map((row) => {
+    const commission = calculateCommission(row.commissionableAmount)
+    return {
+      avgPrice: row.qty > 0 ? row.amount / row.qty : 0,
+      billCount: row.billCount,
+      code: row.code,
+      commissionEligible: row.commissionEligible,
+      commission,
+      id: row.id,
+      name: row.name,
+      phone: row.phone,
+      progressPct: Math.min(100, Math.round((row.commissionableAmount / 1000000) * 100)),
+      purchaseAmt: row.amount,
+      qty: row.qty,
+      commissionableQty: row.commissionableQty,
+      commissionableAmount: row.commissionableAmount,
+      nonCommissionableQty: row.nonCommissionableQty,
+      nonCommissionableAmount: row.nonCommissionableAmount,
+      remainingToTarget: Math.max(0, 1000000 - row.commissionableAmount),
+      supplierCount: row.supplierIds.size,
+      annualQty: row.annualQty,
+      annualAmount: row.annualAmount
+    }
+  }).sort((left, right) => right.purchaseAmt - left.purchaseAmt)
+
+  const totals = {
+    bills: salesRows.reduce((sum, row) => sum + row.billCount, 0),
+    qty: salesRows.reduce((sum, row) => sum + row.qty, 0),
+    amount: salesRows.reduce((sum, row) => sum + row.purchaseAmt, 0),
+    commissionableQty: salesRows.reduce((sum, row) => sum + row.commissionableQty, 0),
+    commissionableAmount: salesRows.reduce((sum, row) => sum + row.commissionableAmount, 0),
+    nonCommissionableQty: salesRows.reduce((sum, row) => sum + row.nonCommissionableQty, 0),
+    nonCommissionableAmount: salesRows.reduce((sum, row) => sum + row.nonCommissionableAmount, 0),
+    annualQty: salesRows.reduce((sum, row) => sum + row.annualQty, 0),
+    annualAmount: salesRows.reduce((sum, row) => sum + row.annualAmount, 0),
+  }
+
   return {
     billRows,
-    filters: { dateFrom: toDateOnly(periodFrom), dateTo: toDateOnly(periodTo), periods: ['today', 'week', 'month', 'quarter', 'year'] },
+    filters: {
+      dateFrom: toDateOnly(periodFrom),
+      dateTo: toDateOnly(periodTo),
+      periods: ['today', 'week', 'month', 'quarter', 'year'],
+      branches: branches.map((b) => ({ id: b.id.toString(), name: b.name }))
+    },
     salesRows,
     sourceState: {
       basis: 'Sales Commission read/design baseline from purchase bills, salespersons, and supplier owner assignments.',
@@ -584,10 +741,6 @@ export async function buildSalesCommission() {
       const code = requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`)
       return { code, id: code, name: supplier.name, phone: supplier.phone ?? '', salesId: supplier.sales_id != null ? (salesCodeById.get(String(supplier.sales_id)) ?? '') : '' }
     }),
-    totals: {
-      bills: salesRows.reduce((sum, row) => sum + row.billCount, 0),
-      purchaseAmt: salesRows.reduce((sum, row) => sum + row.purchaseAmt, 0),
-      qty: salesRows.reduce((sum, row) => sum + row.qty, 0),
-    },
+    totals,
   }
 }

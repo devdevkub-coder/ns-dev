@@ -166,9 +166,9 @@ export function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: bool
         rows.push({
           containerDeductionWeight: line.containerDeductionWeightValue,
           deductionWeight: line.deductionWeight,
-          detail: line.note || '-',
+          detail: '',
           grossWeight: line.grossWeightValue,
-          label: 'จากสินค้า',
+          label: '',
           netWeight: line.netWeight,
           productName: line.productName,
           rank: String(lineIndex),
@@ -207,7 +207,7 @@ export function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: bool
       rows.push({
         className: 'product-total',
         containerDeductionWeight: line.containerDeductionWeightValue,
-        deductionWeight: line.deductionWeight,
+        deductionWeight: summary.deductWeight,
         detail: [
           cleanNote(line.note),
           formatImpuritySummaryDetail(impurityLines, summary.productName, allPurchaseLines),
@@ -233,14 +233,16 @@ export function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: bool
 
       if (realLotLines.length > 0) {
         realLotLines.forEach((line, lotIndex) => {
+          const childImpurities = impurityLines.filter((i) => i.parentLineNo === line.lineNo)
+          const childImpurityDeduction = childImpurities.reduce((sum, i) => sum + i.deductionWeight, 0)
           rows.push({
             className: 'lot-row',
             containerDeductionWeight: line.containerDeductionWeightValue,
-            deductionWeight: line.deductionWeight,
+            deductionWeight: line.deductionWeight + childImpurityDeduction,
             detail: cleanNote(line.note),
             grossWeight: line.grossWeightValue,
             label: `เต๋าที่ ${lotIndex + 1}`,
-            netWeight: Math.max(0, line.grossWeightValue - line.containerDeductionWeightValue - line.deductionWeight),
+            netWeight: line.netWeight,
             productName: summary.productName,
           })
         })
@@ -248,7 +250,7 @@ export function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: bool
         rows.push({
           className: 'source-row',
           containerDeductionWeight: realLotTotals.containerDeductionWeight,
-          deductionWeight: impurityTotals.deductionWeight,
+          deductionWeight: realLotTotals.deductionWeight + impurityTotals.deductionWeight,
           detail: [
             `${realLotLines.length.toLocaleString('th-TH')} เต๋า`,
             formatImpuritySummaryDetail(impurityLines, summary.productName, allPurchaseLines),

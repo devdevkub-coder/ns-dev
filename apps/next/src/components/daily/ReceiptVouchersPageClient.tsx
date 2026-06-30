@@ -956,31 +956,34 @@ function ReceiptVoucherFormModal({
               </table>
             </div>
             <div className="mt-2 md:mt-3 grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]">
-              {supplierBankAccounts && supplierBankAccounts.length > 0 ? (
+              {(supplierBankAccounts && supplierBankAccounts.length > 0) || (mode === 'edit' && form.paymentMethod && form.paymentMethod !== 'รับเงินสด') ? (
                 <div className="grid grid-cols-2 gap-2 rounded-md border border-slate-200 bg-white p-2 md:grid-cols-4">
                   <FormField className="col-span-2 md:col-span-1" label="วิธีรับเงิน / เลขบัญชี">
                     <select
                       disabled={mode === 'edit'}
                       className="h-8 md:h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-xs md:text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500"
                       value={(() => {
-                        const matched = supplierBankAccounts.find((account) => `${account.paymentMethod} บช.${account.accountNo}` === (form.paymentMethod === 'รับเงินสด' ? '' : form.paymentMethod))
-                        return matched ? `${matched.paymentMethod} บช.${matched.accountNo}` : supplierBankAccounts[0] ? `${supplierBankAccounts[0].paymentMethod} บช.${supplierBankAccounts[0].accountNo}` : ''
+                        const matched = supplierBankAccounts?.find((account) => `${account.paymentMethod} บช.${account.accountNo}` === (form.paymentMethod === 'รับเงินสด' ? '' : form.paymentMethod))
+                        return matched ? `${matched.paymentMethod} บช.${matched.accountNo}` : supplierBankAccounts?.[0] ? `${supplierBankAccounts[0].paymentMethod} บช.${supplierBankAccounts[0].accountNo}` : form.paymentMethod
                       })()}
                       onChange={(event) => onUpdateForm({ paymentMethod: event.target.value })}
                     >
-                      {supplierBankAccounts.map((account) => (
+                      {supplierBankAccounts && supplierBankAccounts.length > 0 ? supplierBankAccounts.map((account) => (
                         <option key={account.code} value={`${account.paymentMethod} บช.${account.accountNo}`}>
                           {account.paymentMethod}{account.bankName ? ` · ${account.bankName}` : ''}{account.accountNo ? ` · ${account.accountNo}` : ''}
                         </option>
-                      ))}
+                      )) : (
+                        <option value={form.paymentMethod}>{form.paymentMethod}</option>
+                      )}
                     </select>
                   </FormField>
                   {(() => {
-                    const current = supplierBankAccounts.find((account) => `${account.paymentMethod} บช.${account.accountNo}` === (form.paymentMethod === 'รับเงินสด' ? '' : form.paymentMethod)) ?? supplierBankAccounts[0]
+                    const current = supplierBankAccounts?.find((account) => `${account.paymentMethod} บช.${account.accountNo}` === (form.paymentMethod === 'รับเงินสด' ? '' : form.paymentMethod)) ?? supplierBankAccounts?.[0]
+                    const fallbackAcctNo = !current && form.paymentMethod ? form.paymentMethod.split('บช.')[1]?.trim() : null
                     return (
                       <>
                         <FormField label="ธนาคาร"><div className="flex h-8 md:h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 text-xs md:text-sm text-slate-800">{current?.bankName || '-'}</div></FormField>
-                        <FormField label="เลขบัญชี"><div className="flex h-8 md:h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 text-xs md:text-sm font-semibold tabular-nums text-slate-900">{current?.accountNo || '-'}</div></FormField>
+                        <FormField label="เลขบัญชี"><div className="flex h-8 md:h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 text-xs md:text-sm font-semibold tabular-nums text-slate-900">{current?.accountNo || fallbackAcctNo || '-'}</div></FormField>
                         <FormField label="ชื่อบัญชี"><div className="flex h-8 md:h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 text-xs md:text-sm text-slate-800 truncate">{current?.accountName || '-'}</div></FormField>
                       </>
                     )
@@ -1006,7 +1009,7 @@ function ReceiptVoucherFormModal({
               </FormField>
               <FormField label="วิธีรับเงิน">
                 <div className="flex h-8 md:h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 md:px-3 text-xs md:text-sm font-semibold text-slate-800">
-                  รับเงินสด
+                  {form.paymentMethod && form.paymentMethod !== 'รับเงินสด' ? 'โอนเงินบัญชีธนาคาร' : 'รับเงินสด'}
                 </div>
                 <div className="mt-1 text-xs md:text-xs text-slate-500">
                   {form.amountInWords || thaiBahtText(totals.amount) || '-'}
@@ -1147,17 +1150,21 @@ function ReceiptVoucherDetailModal({ onClose, onPrint, row }: { onClose: () => v
             </div>
           ) : null}
 
-          <section className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <DetailField label="วันที่ออกเอกสาร" value={formatDateDisplay(row.date)} />
-            <DetailField label="บิลซื้ออ้างอิง" value={row.purchaseBillDocNo || '-'} />
-            <DetailField label="ผู้รับเงิน" value={row.sellerName || '-'} />
-            <DetailField label="เลขประจำตัวผู้เสียภาษี" value={row.sellerTaxId || '-'} />
-            <DetailField label="ที่อยู่" value={row.sellerAddress || '-'} wide />
-            <DetailField label="เบอร์โทร" value={row.sellerPhone || '-'} />
-            <DetailField label="Sale contact" value={row.salesPerson || '-'} />
-            <DetailField label="ยอดเงิน" value={formatMoney(row.totalAmount)} />
-            <DetailField label="น้ำหนักรวม" value={formatMoney(row.totalQty)} />
-            <DetailField label="หมายเหตุ" value={row.note || '-'} wide />
+          <section className="grid grid-cols-2 gap-3 md:gap-5">
+            <div className="flex flex-col gap-1">
+              <DetailField label="วันที่ออกเอกสาร" value={formatDateDisplay(row.date)} />
+              <DetailField label="บิลซื้ออ้างอิง" value={row.purchaseBillDocNo || '-'} />
+              <DetailField label="ผู้รับเงิน" value={row.sellerName || '-'} />
+              <DetailField label="เลขประจำตัวผู้เสียภาษี" value={row.sellerTaxId || '-'} />
+              <DetailField label="ที่อยู่" value={row.sellerAddress || '-'} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <DetailField label="เบอร์โทร" value={row.sellerPhone || '-'} />
+              <DetailField label="Sale contact" value={row.salesPerson || '-'} />
+              <DetailField label="ยอดเงิน" value={formatMoney(row.totalAmount)} />
+              <DetailField label="น้ำหนักรวม" value={formatMoney(row.totalQty)} />
+              <DetailField label="หมายเหตุ" value={row.note || '-'} />
+            </div>
           </section>
 
           <section className="rounded-md border border-slate-200">

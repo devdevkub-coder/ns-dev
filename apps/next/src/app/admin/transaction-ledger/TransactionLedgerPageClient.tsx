@@ -476,10 +476,10 @@ export function TransactionLedgerPageClient() {
               <tr><td className="py-8 text-center text-slate-400 font-medium" colSpan={10}>กำลังโหลด Transaction Ledger...</td></tr>
             ) : ledger.length > 0 ? ledger.map((row) => (
               <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50">
-                <td className="p-3 text-xs text-slate-600">{row.date ? formatDateDisplay(row.date) : '-'}</td>
-                <td className="p-3 text-xs text-slate-900 font-medium">{row.accountName}</td>
-                <td className="p-3"><span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">{row.refType}</span></td>
-                <td className="p-3 font-mono text-xs text-slate-700">{row.refNo}</td>
+                <td className="p-3 text-xs text-slate-600 whitespace-nowrap">{row.date ? formatDateDisplay(row.date) : '-'}</td>
+                <td className="p-3 text-xs text-slate-900 font-medium min-w-0 overflow-hidden"><div className="truncate" title={row.accountName}>{row.accountName}</div></td>
+                <td className="p-3 whitespace-nowrap"><span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">{row.refType}</span></td>
+                <td className="p-3 font-mono text-xs text-slate-700 whitespace-nowrap">{row.refNo}</td>
                 <td className="p-3 text-xs">
                   {row.linkedBills.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
@@ -487,11 +487,11 @@ export function TransactionLedgerPageClient() {
                     </div>
                   ) : '-'}
                 </td>
-                <td className="p-3 text-xs text-slate-700">{row.payee || '-'}</td>
-                <td className="p-3 text-xs text-slate-600 leading-normal">{row.description || row.note || '-'}</td>
-                <td className="p-3 text-right font-mono font-bold text-emerald-700">{row.amountIn > 0 ? formatMoney(row.amountIn) : '-'}</td>
-                <td className="p-3 text-right font-mono font-bold text-red-600">{row.amountOut > 0 ? formatMoney(row.amountOut) : '-'}</td>
-                <td className="p-3 text-right font-mono text-xs text-slate-600">{row.runningBalance === null ? '-' : formatMoney(row.runningBalance)}</td>
+                <td className="p-3 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.payee || ''}>{row.payee || '-'}</div></td>
+                <td className="p-3 text-xs text-slate-600 leading-normal min-w-0 overflow-hidden"><div className="truncate" title={row.description || row.note || ''}>{row.description || row.note || '-'}</div></td>
+                <td className="p-3 text-right font-mono font-bold text-emerald-700 whitespace-nowrap pl-4 tabular-nums">{row.amountIn > 0 ? formatMoney(row.amountIn) : '-'}</td>
+                <td className="p-3 text-right font-mono font-bold text-red-600 whitespace-nowrap pl-4 tabular-nums">{row.amountOut > 0 ? formatMoney(row.amountOut) : '-'}</td>
+                <td className="p-3 text-right font-mono text-xs text-slate-600 whitespace-nowrap pl-4 tabular-nums">{row.runningBalance === null ? '-' : formatMoney(row.runningBalance)}</td>
               </tr>
             )) : (
               <tr><td className="py-8 text-center text-slate-400" colSpan={10}>ไม่มีรายการ</td></tr>

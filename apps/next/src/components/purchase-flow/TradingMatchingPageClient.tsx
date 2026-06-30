@@ -253,7 +253,7 @@ export function TradingMatchingPageClient() {
                 <button key={row.id} className="block w-full rounded-md border border-slate-200 bg-white p-4 text-left shadow-sm hover:bg-slate-50/50 active:bg-slate-100/50 transition-all outline-none focus:outline-none focus:ring-0 cursor-pointer" type="button" onClick={() => setSelectedDeal(row)}>
                   <div className="flex justify-between gap-3 border-b border-slate-100 pb-2 mb-2">
                     <span className="font-bold text-slate-800 text-sm">{row.salesBillNo || '-'}</span>
-                    <span className="text-[10px] text-slate-400 font-semibold">{formatDateDisplay(row.date)}</span>
+                    <span className="text-xs text-slate-400 font-semibold">{formatDateDisplay(row.date)}</span>
                   </div>
                   <div className="text-xs text-slate-400 font-semibold">Cost source: <span className="font-mono text-slate-600 font-bold">{row.purchaseBillNo || '-'}</span></div>
                   <div className="mt-1 text-xs text-slate-605 font-semibold">{row.supplierName} &rarr; {row.customerName}</div>
@@ -343,7 +343,7 @@ export function TradingMatchingPageClient() {
 }
 
 function HeroMetric({ label, value }: { label: string; value: string }) {
-  return <div><div className="text-[10px] opacity-75 font-semibold">{label}</div><div className="text-lg font-bold">{value}</div></div>
+  return <div><div className="text-xs opacity-75 font-semibold">{label}</div><div className="text-lg font-bold">{value}</div></div>
 }
 
 function FlowLine({ label, value }: { label: string; value: string }) {
@@ -495,7 +495,7 @@ function DealDetailModal({ deal, onClose }: { deal: TradingDealRow; onClose: () 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col py-1">
-      <div className="text-[10px] font-bold uppercase text-slate-400">{label}</div>
+      <div className="text-xs font-bold uppercase text-slate-400">{label}</div>
       <div className="mt-0.5 text-xs font-semibold text-slate-850 sm:text-sm">{value}</div>
     </div>
   )

@@ -342,6 +342,35 @@ td {
   border-color: var(--color-scrap-line) !important;
 }
 
+table {
+  font-variant-numeric: tabular-nums;
+}
+
+th,
+td {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+th > *,
+td > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+th.text-right,
+td.text-right,
+th[class*="text-right"],
+td[class*="text-right"],
+th[class*="tabular-nums"],
+td[class*="tabular-nums"],
+th[class*="font-mono"],
+td[class*="font-mono"] {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
 /* Fix browser-specific sticky table header borders by applying soft border-bottom to th cells */
 thead th {
   border-bottom: 1px solid var(--color-scrap-line) !important;
@@ -359,6 +388,63 @@ textarea:focus {
   border-color: #3b82f6;
   outline: none;
   box-shadow: 0 0 0 2px var(--color-slate-200);
+}
+
+.share-success-modal {
+  animation: share-success-modal-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.share-success-icon-wrap {
+  animation: share-success-pop 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.share-success-icon {
+  animation: share-success-check 620ms ease-out 80ms both;
+}
+
+@keyframes share-success-modal-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 12px)) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes share-success-pop {
+  0% {
+    transform: scale(0.65);
+    box-shadow: 0 0 0 0 rgb(16 185 129 / 0.32);
+  }
+  55% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 14px rgb(16 185 129 / 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgb(16 185 129 / 0);
+  }
+}
+
+@keyframes share-success-check {
+  from {
+    opacity: 0;
+    transform: scale(0.72) rotate(-12deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-success-modal,
+  .share-success-icon-wrap,
+  .share-success-icon {
+    animation: none;
+  }
 }
 
 input.border:not([class*="bg-"]):read-only,
