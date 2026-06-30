@@ -118,6 +118,8 @@ export function AccountsPayablePageClient() {
   const [branchId, setBranchId] = useState('')
   const [from, setFrom] = useState(currentMonthStart())
   const [page, setPage] = useState(1)
+  const [summaryPage, setSummaryPage] = useState(1)
+  const summaryPageSize = 50
   const [q, setQ] = useState('')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [sortKey, setSortKey] = useState<SortKey>('dueDate')
@@ -188,6 +190,10 @@ export function AccountsPayablePageClient() {
     }
   }, [branchId, data?.filters.suppliers, supplierId])
 
+  useEffect(() => {
+    setSummaryPage(1)
+  }, [branchId, bucket, from, q, status, supplierId, to])
+
   function changeSort(nextKey: SortKey) {
     setPage(1)
     if (nextKey === sortKey) {
@@ -229,6 +235,15 @@ export function AccountsPayablePageClient() {
   const overdueAp = data?.summary.overdue ?? 0
   const dueIn7 = data?.summary.dueIn7 ?? 0
   const overduePercent = totalAp > 0 ? ((overdueAp / totalAp) * 100).toFixed(1) : '0.0'
+
+  const summaryRows = useMemo(() => data?.bySupplier ?? [], [data?.bySupplier])
+  const summaryTotalPages = Math.max(1, Math.ceil(summaryRows.length / summaryPageSize))
+  const safeSummaryPage = Math.min(summaryPage, summaryTotalPages)
+
+  const visibleSummaryRows = useMemo(() => {
+    const start = (safeSummaryPage - 1) * summaryPageSize
+    return summaryRows.slice(start, start + summaryPageSize)
+  }, [summaryRows, safeSummaryPage, summaryPageSize])
 
   return (
     <section className="space-y-4">
@@ -481,7 +496,7 @@ export function AccountsPayablePageClient() {
         </div>
       </div>
 
-      {tab === 'summary' ? <SummaryTable buckets={bucketRows} rows={data?.bySupplier ?? []} summary={data?.summary} isLoading={isLoading} /> : null}
+      {tab === 'summary' ? <SummaryTable buckets={bucketRows} rows={visibleSummaryRows} summary={data?.summary} isLoading={isLoading} /> : null}
       {tab === 'detail' && (
         <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mb-3">
           <div>พบทั้งหมด {(data?.pagination.totalRows ?? 0).toLocaleString('th-TH')} รายการ</div>
@@ -494,6 +509,17 @@ export function AccountsPayablePageClient() {
       )}
       {tab === 'detail' ? <DetailTable isLoading={isLoading} onSort={changeSort} rows={data?.rows ?? []} selectedSort={sortKey} sortDirection={sortDirection} summaryTotal={data?.summary.total ?? 0} onOpen={setSelectedRow} /> : null}
 
+      {tab === 'detail' && (
+        <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mt-3">
+          <div>พบทั้งหมด {(data?.pagination.totalRows ?? 0).toLocaleString('th-TH')} รายการ</div>
+          <div className="flex items-center gap-2">
+            <Button disabled={page <= 1 || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+            <span>หน้า {page} / {totalPages}</span>
+            <Button disabled={page >= totalPages || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Card list for Summary tab */}
       {tab === 'summary' && (
         <div className="block lg:hidden space-y-3">
@@ -501,7 +527,7 @@ export function AccountsPayablePageClient() {
             <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-200">กำลังโหลดข้อมูล</div>
           ) : null}
           
-          {!isLoading && (data?.bySupplier ?? []).map((row) => (
+          {!isLoading && visibleSummaryRows.map((row) => (
             <div key={row.supplierName} className="rounded-md border border-slate-200 bg-white p-4 shadow-sm space-y-3">
               <div className="flex justify-between items-start gap-2">
                 <span className="font-bold text-slate-900 text-[15px] leading-snug">{row.supplierName}</span>
@@ -528,11 +554,22 @@ export function AccountsPayablePageClient() {
             </div>
           ))}
 
-          {!isLoading && (data?.bySupplier ?? []).length === 0 ? (
+          {!isLoading && summaryRows.length === 0 ? (
             <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-200">
               ไม่มีเจ้าหนี้คงค้าง
             </div>
           ) : null}
+        </div>
+      )}
+
+      {tab === 'summary' && (
+        <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mt-3">
+          <div>พบทั้งหมด {summaryRows.length.toLocaleString('th-TH')} รายการ</div>
+          <div className="flex items-center gap-2">
+            <Button disabled={safeSummaryPage <= 1 || isLoading} size="xs" type="button" variant="outline" onClick={() => setSummaryPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+            <span>หน้า {safeSummaryPage} / {summaryTotalPages}</span>
+            <Button disabled={safeSummaryPage >= summaryTotalPages || isLoading} size="xs" type="button" variant="outline" onClick={() => setSummaryPage((current) => Math.min(summaryTotalPages, current + 1))}>ถัดไป</Button>
+          </div>
         </div>
       )}
 
@@ -725,15 +762,15 @@ function SummaryTable({
           {!isLoading && rows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={9}>ไม่มีเจ้าหนี้คงค้าง</td></tr> : null}
           {!isLoading && rows.map((row) => (
             <tr key={row.supplierName} className={`border-t border-slate-100 hover:bg-slate-50/30 dark:hover:bg-slate-800/40 ${row.oldest > 30 ? 'bg-red-50/15 dark:bg-red-50/10' : row.oldest > 0 ? 'bg-amber-50/15 dark:bg-amber-50/10' : ''}`}>
-              <td className="p-2 font-medium">{row.supplierName}</td>
-              <td className="p-2 text-right">{row.bills}</td>
-              <td className="p-2 text-right text-slate-600">{moneyOrDash(row.current)}</td>
-              <td className="p-2 text-right text-yellow-700">{moneyOrDash(row.b30)}</td>
-              <td className="p-2 text-right text-amber-700">{moneyOrDash(row.b60)}</td>
-              <td className="p-2 text-right text-orange-700">{moneyOrDash(row.b90)}</td>
-              <td className="p-2 text-right font-bold text-red-700">{moneyOrDash(row.gt90)}</td>
-              <td className="p-2 text-right text-base font-bold text-red-700">{formatMoney(row.total)}</td>
-              <td className={`p-2 text-right ${row.oldest > 30 ? 'font-bold text-red-700' : row.oldest > 0 ? 'text-amber-700' : 'text-slate-500'}`}>{row.oldest > 0 ? `${row.oldest} วัน` : '-'}</td>
+              <td className="p-2 font-medium min-w-0 overflow-hidden"><div className="truncate" title={row.supplierName || ''}>{row.supplierName}</div></td>
+              <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{row.bills}</td>
+              <td className="p-2 text-right text-slate-600 whitespace-nowrap tabular-nums pl-4">{moneyOrDash(row.current)}</td>
+              <td className="p-2 text-right text-yellow-700 whitespace-nowrap tabular-nums pl-4">{moneyOrDash(row.b30)}</td>
+              <td className="p-2 text-right text-amber-700 whitespace-nowrap tabular-nums pl-4">{moneyOrDash(row.b60)}</td>
+              <td className="p-2 text-right text-orange-700 whitespace-nowrap tabular-nums pl-4">{moneyOrDash(row.b90)}</td>
+              <td className="p-2 text-right font-bold text-red-700 whitespace-nowrap tabular-nums pl-4">{moneyOrDash(row.gt90)}</td>
+              <td className="p-2 text-right text-base font-bold text-red-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.total)}</td>
+              <td className={`p-2 text-right whitespace-nowrap tabular-nums pl-4 ${row.oldest > 30 ? 'font-bold text-red-700' : row.oldest > 0 ? 'text-amber-700' : 'text-slate-500'}`}>{row.oldest > 0 ? `${row.oldest} วัน` : '-'}</td>
             </tr>
           ))}
         </tbody>
@@ -818,14 +855,14 @@ function DetailTable({
           {!isLoading && rows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={8}>ไม่มีเจ้าหนี้คงค้าง</td></tr> : null}
           {!isLoading && rows.map((row) => (
             <tr key={row.id} className={`border-t border-slate-100 hover:bg-slate-50/30 dark:hover:bg-slate-800/40 ${row.aging > 30 ? 'bg-red-50/15 dark:bg-red-50/10' : row.aging > 0 ? 'bg-amber-50/15 dark:bg-amber-50/10' : ''}`}>
-              <td className="p-2 overflow-hidden truncate">{row.supplierName}</td>
-              <td className="p-2 overflow-hidden truncate"><button className="font-mono text-xs text-blue-600" type="button" onClick={() => onOpen(row)}>{row.docNo}</button></td>
-              <td className="p-2 overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
-              <td className="p-2 overflow-hidden truncate">{formatDateDisplay(row.dueDate)}</td>
-              <td className="p-2 text-center overflow-hidden truncate"><span className={`rounded-md px-2 py-0.5 text-xs ${bucketClass(row.bucket)}`}>{row.bucket} ({row.aging})</span></td>
-              <td className="p-2 text-right overflow-hidden truncate">{formatMoney(row.totalAmount)}</td>
-              <td className="p-2 text-right text-emerald-600 overflow-hidden truncate">{formatMoney(row.paidAmount)}</td>
-              <td className="p-2 text-right font-bold text-red-700 overflow-hidden truncate">{formatMoney(row.payableBalance)}</td>
+              <td className="p-2 min-w-0 overflow-hidden"><div className="truncate" title={row.supplierName || ''}>{row.supplierName}</div></td>
+              <td className="p-2 whitespace-nowrap"><button className="font-mono text-xs text-blue-600" type="button" onClick={() => onOpen(row)}>{row.docNo}</button></td>
+              <td className="p-2 whitespace-nowrap">{formatDateDisplay(row.date)}</td>
+              <td className="p-2 whitespace-nowrap">{formatDateDisplay(row.dueDate)}</td>
+              <td className="p-2 text-center whitespace-nowrap"><span className={`rounded-md px-2 py-0.5 text-xs ${bucketClass(row.bucket)}`}>{row.bucket} ({row.aging})</span></td>
+              <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{formatMoney(row.totalAmount)}</td>
+              <td className="p-2 text-right text-emerald-600 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.paidAmount)}</td>
+              <td className="p-2 text-right font-bold text-red-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.payableBalance)}</td>
             </tr>
           ))}
         </tbody>

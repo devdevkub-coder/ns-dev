@@ -114,6 +114,12 @@ function WaitingAllocationsView() {
   const [sortKey, setSortKey] = useState<string>('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
 
+  // Pagination states for each tab
+  const [poPage, setPoPage] = useState(1)
+  const [billPage, setBillPage] = useState(1)
+  const [productionPage, setProductionPage] = useState(1)
+  const pageSize = 20
+
   const poColumns = useMemo<Array<ResizableColumnDefinition<string> & { label: string; align?: 'left' | 'right' | 'center' }>>(() => [
     { key: 'docNo', label: 'PO ขาย', defaultWidth: 140 },
     { key: 'date', label: 'วันที่', defaultWidth: 100 },
@@ -190,6 +196,10 @@ function WaitingAllocationsView() {
   }, [rows, sortKey, sortDirection])
 
   const changeSort = (key: string) => {
+    if (activeTab === 'po') setPoPage(1)
+    else if (activeTab === 'bill') setBillPage(1)
+    else setProductionPage(1)
+
     if (sortKey === key) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
     } else {
@@ -197,6 +207,23 @@ function WaitingAllocationsView() {
       setSortDirection('desc')
     }
   }
+
+  useEffect(() => {
+    setPoPage(1)
+    setBillPage(1)
+    setProductionPage(1)
+  }, [category, search, status])
+
+  const currentPage = activeTab === 'po' ? poPage : activeTab === 'bill' ? billPage : productionPage
+  const setPage = activeTab === 'po' ? setPoPage : activeTab === 'bill' ? setBillPage : setProductionPage
+
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize))
+  const safePage = Math.min(currentPage, totalPages)
+
+  const visibleRows = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return sortedRows.slice(start, start + pageSize)
+  }, [sortedRows, safePage, pageSize])
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams()
@@ -444,7 +471,7 @@ function WaitingAllocationsView() {
                 </td>
               </tr>
             ) : null}
-            {!isLoading && sortedRows.map((row) => {
+            {!isLoading && visibleRows.map((row) => {
               let allocatorHref = ''
               if (activeTab === 'po') {
                 allocatorHref = `/dual-costing/cost-allocator?sourceType=po-sell&productId=${encodeURIComponent(row.productId)}&poSellId=${encodeURIComponent(row.id)}`
@@ -456,20 +483,20 @@ function WaitingAllocationsView() {
 
               return (
                 <tr key={row.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="p-3 pl-4 font-mono text-slate-700">{row.docNo}</td>
+                  <td className="p-3 pl-4 font-mono text-slate-700 whitespace-nowrap">{row.docNo}</td>
                   <td className="p-3 whitespace-nowrap text-slate-600">{formatDateDisplay(row.date)}</td>
-                  <td className="p-3 text-slate-800 font-medium">{row.customerName === '-' ? 'ภายในโรงงาน' : row.customerName}</td>
-                  <td className="p-3 text-xs text-slate-700">{row.productName}</td>
-                  <td className="p-3 text-center">
+                  <td className="p-3 text-slate-800 font-medium min-w-0 overflow-hidden"><div className="truncate" title={row.customerName === '-' ? 'ภายในโรงงาน' : row.customerName}>{row.customerName === '-' ? 'ภายในโรงงาน' : row.customerName}</div></td>
+                  <td className="p-3 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.productName || ''}>{row.productName}</div></td>
+                  <td className="p-3 text-center whitespace-nowrap">
                     <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
                       {row.metalGroup}
                     </span>
                   </td>
-                  <td className="p-3 text-right font-mono text-slate-700">{formatMoney(row.qty)}</td>
-                  <td className="p-3 text-right font-mono text-emerald-700 font-semibold">{formatMoney(row.allocatedQty)}</td>
-                  <td className="p-3 text-right font-mono font-bold text-amber-700">{formatMoney(row.remainingQty)}</td>
-                  <td className="p-3 text-right font-mono text-slate-700">{formatMoney(row.unitPrice)}</td>
-                  <td className="p-3 text-right font-mono text-emerald-700 font-medium">{formatMoney(row.revenuePending)}</td>
+                  <td className="p-3 text-right font-mono text-slate-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.qty)}</td>
+                  <td className="p-3 text-right font-mono text-emerald-700 font-semibold whitespace-nowrap tabular-nums pl-4">{formatMoney(row.allocatedQty)}</td>
+                  <td className="p-3 text-right font-mono font-bold text-amber-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.remainingQty)}</td>
+                  <td className="p-3 text-right font-mono text-slate-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.unitPrice)}</td>
+                  <td className="p-3 text-right font-mono text-emerald-700 font-medium whitespace-nowrap tabular-nums pl-4">{formatMoney(row.revenuePending)}</td>
                   <td className="p-3 text-center">
                     <StatusPill status={row.allocationStatus} />
                   </td>
@@ -495,7 +522,7 @@ function WaitingAllocationsView() {
         {!isLoading && sortedRows.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-emerald-700 shadow-sm">ไม่มีรายการค้าง allocate ตามตัวกรอง</div>
         ) : null}
-        {!isLoading && sortedRows.map((row) => {
+        {!isLoading && visibleRows.map((row) => {
           let allocatorHref = ''
           if (activeTab === 'po') {
             allocatorHref = `/dual-costing/cost-allocator?sourceType=po-sell&productId=${encodeURIComponent(row.productId)}&poSellId=${encodeURIComponent(row.id)}`
@@ -548,6 +575,16 @@ function WaitingAllocationsView() {
           )
         })}
       </div>
+
+      {/* Pagination controls */}
+      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mt-4">
+        <div>พบทั้งหมด {sortedRows.length.toLocaleString('th-TH')} รายการ</div>
+        <div className="flex items-center gap-2">
+          <Button disabled={safePage <= 1 || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+          <span>หน้า {safePage} / {totalPages}</span>
+          <Button disabled={safePage >= totalPages || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
+        </div>
+      </div>
     </DualCostingPageSection>
   )
 }
@@ -563,6 +600,23 @@ function AllocationLedgerView() {
   const [targetType, setTargetType] = useState('all')
   const [toDate, setToDate] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+
+  // Pagination states
+  const [page, setPage] = useState(1)
+  const pageSize = 50
+
+  useEffect(() => {
+    setPage(1)
+  }, [category, fromDate, search, status, targetType, toDate])
+
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows])
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+
+  const visibleRows = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return rows.slice(start, start + pageSize)
+  }, [rows, safePage, pageSize])
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams()
@@ -720,7 +774,7 @@ function AllocationLedgerView() {
           <TableBody>
             {isLoading ? <TableRow><TableCell className="py-8 text-center text-slate-500" colSpan={15}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
             {!isLoading && (data?.rows.length ?? 0) === 0 ? <TableRow><TableCell className="py-8 text-center text-slate-500" colSpan={15}>ไม่มี allocation log ตรงกับ filter</TableCell></TableRow> : null}
-            {(data?.rows ?? []).map((row) => (
+            {visibleRows.map((row) => (
               <TableRow key={row.id} className={`border-t border-slate-100 hover:bg-indigo-50/30 transition-colors ${row.status === 'reversed' ? 'opacity-50' : ''}`}>
                 <TableCell className="p-3 pl-4 font-mono text-xs text-slate-700">{row.matchId}</TableCell>
                 <TableCell className="p-3 text-center"><TargetPill type={row.targetType} /></TableCell>
@@ -753,7 +807,7 @@ function AllocationLedgerView() {
         {!isLoading && (data?.rows.length ?? 0) === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">ไม่มี allocation log ตรงกับ filter</div>
         ) : null}
-        {!isLoading && (data?.rows ?? []).map((row) => (
+        {!isLoading && visibleRows.map((row) => (
           <div key={row.id} className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3 ${row.status === 'reversed' ? 'opacity-50' : ''}`}>
             <div className="flex justify-between items-start">
               <div>
@@ -796,6 +850,16 @@ function AllocationLedgerView() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Pagination controls */}
+      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mt-4">
+        <div>พบทั้งหมด {rows.length.toLocaleString('th-TH')} รายการ</div>
+        <div className="flex items-center gap-2">
+          <Button disabled={safePage <= 1 || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+          <span>หน้า {safePage} / {totalPages}</span>
+          <Button disabled={safePage >= totalPages || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
+        </div>
       </div>
     </DualCostingPageSection>
   )

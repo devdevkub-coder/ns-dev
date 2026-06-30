@@ -201,6 +201,8 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
   const [statusConvertPageSize, setStatusConvertPageSize] = useState(20)
   const [adjustPage, setAdjustPage] = useState(1)
   const [adjustPageSize, setAdjustPageSize] = useState(20)
+  const [convertPage, setConvertPage] = useState(1)
+  const [convertPageSize, setConvertPageSize] = useState(20)
 
   // States for Stock Adjust (NSERP-66)
   const [adjustProductFilter, setAdjustProductFilter] = useState('')
@@ -320,6 +322,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
   useEffect(() => {
     if (mode === 'status-convert') setStatusConvertPage(1)
     if (mode === 'adjust') setAdjustPage(1)
+    if (mode === 'convert') setConvertPage(1)
   }, [
     mode,
     rows.length,
@@ -338,6 +341,8 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
     statusFromDateFilter,
     statusToDateFilter,
     statusFlowFilter,
+    sourceTypeFilter,
+    costStatusFilter,
   ])
 
   const statusConvertSortedRows = useMemo(() => {
@@ -360,6 +365,11 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
     return Math.max(1, Math.ceil(operationSortedRows.length / adjustPageSize))
   }, [adjustPageSize, mode, operationSortedRows.length])
 
+  const convertTotalPages = useMemo(() => {
+    if (mode !== 'convert') return 1
+    return Math.max(1, Math.ceil(operationSortedRows.length / convertPageSize))
+  }, [convertPageSize, mode, operationSortedRows.length])
+
   useEffect(() => {
     if (mode !== 'status-convert') return
     setStatusConvertPage((currentPage) => Math.min(currentPage, statusConvertTotalPages))
@@ -370,15 +380,24 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
     setAdjustPage((currentPage) => Math.min(currentPage, adjustTotalPages))
   }, [adjustTotalPages, mode])
 
+  useEffect(() => {
+    if (mode !== 'convert') return
+    setConvertPage((currentPage) => Math.min(currentPage, convertTotalPages))
+  }, [convertTotalPages, mode])
+
   const visibleRows = useMemo(() => {
     if (mode === 'adjust') {
       const startIndex = (adjustPage - 1) * adjustPageSize
       return operationSortedRows.slice(startIndex, startIndex + adjustPageSize)
     }
+    if (mode === 'convert') {
+      const startIndex = (convertPage - 1) * convertPageSize
+      return operationSortedRows.slice(startIndex, startIndex + convertPageSize)
+    }
     if (mode !== 'status-convert') return operationSortedRows
     const startIndex = (statusConvertPage - 1) * statusConvertPageSize
     return statusConvertSortedRows.slice(startIndex, startIndex + statusConvertPageSize)
-  }, [adjustPage, adjustPageSize, mode, operationSortedRows, statusConvertPage, statusConvertPageSize, statusConvertSortedRows])
+  }, [adjustPage, adjustPageSize, convertPage, convertPageSize, mode, operationSortedRows, statusConvertPage, statusConvertPageSize, statusConvertSortedRows])
 
   const hasFilters = useMemo(() => {
     if (mode === 'convert') return Boolean(search.trim() || sourceTypeFilter || costStatusFilter)
@@ -954,6 +973,47 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
           </div>
         </div>
       ) : null}
+      {mode === 'convert' ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-normal text-slate-600">
+          <span>
+            พบทั้งหมด {rows.length} รายการ
+            {rows.length > 0 ? `  แสดง ${(convertPage - 1) * convertPageSize + 1}-${Math.min(convertPage * convertPageSize, rows.length)}` : ''}
+          </span>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <select
+              className="h-9 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-normal text-slate-700"
+              value={String(convertPageSize)}
+              onChange={(event) => {
+                setConvertPageSize(Number(event.target.value))
+                setConvertPage(1)
+              }}
+            >
+              {OPERATION_PAGE_SIZES.map((pageSize) => (
+                <option key={pageSize} value={pageSize}>
+                  {pageSize} / หน้า
+                </option>
+              ))}
+            </select>
+            <button
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={convertPage <= 1}
+              type="button"
+              onClick={() => setConvertPage((currentPage) => Math.max(1, currentPage - 1))}
+            >
+              ก่อนหน้า
+            </button>
+            <span className="px-1 text-sm font-normal text-slate-600">หน้า {convertPage} / {convertTotalPages}</span>
+            <button
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={convertPage >= convertTotalPages}
+              type="button"
+              onClick={() => setConvertPage((currentPage) => Math.min(convertTotalPages, currentPage + 1))}
+            >
+              ถัดไป
+            </button>
+          </div>
+        </div>
+      ) : null}
       <Dialog
         open={formOpen}
         onOpenChange={(open) => {
@@ -990,6 +1050,129 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
         onConvertReverse={mode === 'convert' ? reverseConvert : undefined}
         onStatusConvertReverse={mode === 'status-convert' ? reverseStatusConvert : undefined}
       />
+      {/* Bottom Pagination controls */}
+      <div className="mt-4">
+        {mode === 'status-convert' ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
+            <span>พบทั้งหมด {rows.length} รายการ</span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <select
+                className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700"
+                value={String(statusConvertPageSize)}
+                onChange={(event) => {
+                  setStatusConvertPageSize(Number(event.target.value))
+                  setStatusConvertPage(1)
+                }}
+              >
+                {OPERATION_PAGE_SIZES.map((pageSize) => (
+                  <option key={pageSize} value={pageSize}>
+                    {pageSize} / หน้า
+                  </option>
+                ))}
+              </select>
+              <button
+                className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={statusConvertPage <= 1}
+                type="button"
+                onClick={() => setStatusConvertPage((currentPage) => Math.max(1, currentPage - 1))}
+              >
+                ก่อนหน้า
+              </button>
+              <span className="px-1">หน้า {statusConvertPage} / {statusConvertTotalPages}</span>
+              <button
+                className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={statusConvertPage >= statusConvertTotalPages}
+                type="button"
+                onClick={() => setStatusConvertPage((currentPage) => Math.min(statusConvertTotalPages, currentPage + 1))}
+              >
+                ถัดไป
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {mode === 'adjust' ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-normal text-slate-600">
+            <span>
+              พบทั้งหมด {rows.length} รายการ
+              {rows.length > 0 ? `  แสดง ${(adjustPage - 1) * adjustPageSize + 1}-${Math.min(adjustPage * adjustPageSize, rows.length)}` : ''}
+            </span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <select
+                className="h-9 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-normal text-slate-700"
+                value={String(adjustPageSize)}
+                onChange={(event) => {
+                  setAdjustPageSize(Number(event.target.value))
+                  setAdjustPage(1)
+                }}
+              >
+                {OPERATION_PAGE_SIZES.map((pageSize) => (
+                  <option key={pageSize} value={pageSize}>
+                    {pageSize} / หน้า
+                  </option>
+                ))}
+              </select>
+              <button
+                className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={adjustPage <= 1}
+                type="button"
+                onClick={() => setAdjustPage((currentPage) => Math.max(1, currentPage - 1))}
+              >
+                ก่อนหน้า
+              </button>
+              <span className="px-1 text-sm font-normal text-slate-600">หน้า {adjustPage} / {adjustTotalPages}</span>
+              <button
+                className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={adjustPage >= adjustTotalPages}
+                type="button"
+                onClick={() => setAdjustPage((currentPage) => Math.min(adjustTotalPages, currentPage + 1))}
+              >
+                ถัดไป
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {mode === 'convert' ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-normal text-slate-600">
+            <span>
+              พบทั้งหมด {rows.length} รายการ
+              {rows.length > 0 ? `  แสดง ${(convertPage - 1) * convertPageSize + 1}-${Math.min(convertPage * convertPageSize, rows.length)}` : ''}
+            </span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <select
+                className="h-9 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-normal text-slate-700"
+                value={String(convertPageSize)}
+                onChange={(event) => {
+                  setConvertPageSize(Number(event.target.value))
+                  setConvertPage(1)
+                }}
+              >
+                {OPERATION_PAGE_SIZES.map((pageSize) => (
+                  <option key={pageSize} value={pageSize}>
+                    {pageSize} / หน้า
+                  </option>
+                ))}
+              </select>
+              <button
+                className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={convertPage <= 1}
+                type="button"
+                onClick={() => setConvertPage((currentPage) => Math.max(1, currentPage - 1))}
+              >
+                ก่อนหน้า
+              </button>
+              <span className="px-1 text-sm font-normal text-slate-600">หน้า {convertPage} / {convertTotalPages}</span>
+              <button
+                className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={convertPage >= convertTotalPages}
+                type="button"
+                onClick={() => setConvertPage((currentPage) => Math.min(convertTotalPages, currentPage + 1))}
+              >
+                ถัดไป
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
       {convertDetail ? (
         <ConvertDetailModal
           detail={convertDetail}

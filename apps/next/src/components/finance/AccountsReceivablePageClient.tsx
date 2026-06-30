@@ -120,6 +120,8 @@ export function AccountsReceivablePageClient() {
   }, [branchId, data?.filters.customers])
   const [from, setFrom] = useState(currentMonthStart())
   const [page, setPage] = useState(1)
+  const [summaryPage, setSummaryPage] = useState(1)
+  const summaryPageSize = 50
   const [q, setQ] = useState('')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [sortKey, setSortKey] = useState<SortKey>('dueDate')
@@ -137,6 +139,7 @@ export function AccountsReceivablePageClient() {
     setExpandedCustomers(new Set())
     setCustomerBills({})
     setLoadingCustomers({})
+    setSummaryPage(1)
   }, [branchId, bucket, channelId, customerId, from, q, status, to])
 
   const toggleCustomerExpand = useCallback(async (custCode: string) => {
@@ -262,6 +265,15 @@ export function AccountsReceivablePageClient() {
   const totalPages = data?.pagination.totalPages ?? 1
   const bucketRows = data?.byBucket ?? []
   const topCustomers = (data?.byCustomer ?? []).slice(0, 5)
+
+  const summaryRows = useMemo(() => data?.byCustomer ?? [], [data?.byCustomer])
+  const summaryTotalPages = Math.max(1, Math.ceil(summaryRows.length / summaryPageSize))
+  const safeSummaryPage = Math.min(summaryPage, summaryTotalPages)
+
+  const visibleSummaryRows = useMemo(() => {
+    const start = (safeSummaryPage - 1) * summaryPageSize
+    return summaryRows.slice(start, start + summaryPageSize)
+  }, [summaryRows, safeSummaryPage, summaryPageSize])
   const totalAr = data?.summary.total ?? 0
   const overdueAr = data?.summary.overdue ?? 0
   const overduePercent = totalAr > 0 ? ((overdueAr / totalAr) * 100).toFixed(0) : '0'
@@ -523,7 +535,7 @@ export function AccountsReceivablePageClient() {
       {tab === 'summary' ? (
         <SummaryTable
           buckets={bucketRows}
-          rows={data?.byCustomer ?? []}
+          rows={visibleSummaryRows}
           summary={data?.summary}
           isLoading={isLoading}
           expandedCustomers={expandedCustomers}
@@ -545,6 +557,17 @@ export function AccountsReceivablePageClient() {
       )}
       {tab === 'detail' ? <DetailTable isLoading={isLoading} onSort={changeSort} rows={data?.rows ?? []} selectedSort={sortKey} sortDirection={sortDirection} onOpen={setSelectedRow} /> : null}
 
+      {tab === 'detail' && (
+        <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mt-3">
+          <div>พบทั้งหมด {(data?.pagination.totalRows ?? 0).toLocaleString('th-TH')} รายการ</div>
+          <div className="flex items-center gap-2">
+            <Button disabled={page <= 1 || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+            <span>หน้า {page} / {totalPages}</span>
+            <Button disabled={page >= totalPages || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Card list for Summary tab */}
       {tab === 'summary' && (
         <div className="block lg:hidden space-y-3">
@@ -552,7 +575,7 @@ export function AccountsReceivablePageClient() {
             <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-200">กำลังโหลดข้อมูล</div>
           ) : null}
 
-          {!isLoading && (data?.byCustomer ?? []).map((row) => {
+          {!isLoading && visibleSummaryRows.map((row) => {
             const isExpanded = expandedCustomers.has(row.customerId)
             const bills = customerBills[row.customerId] || []
             const isBillsLoading = loadingCustomers[row.customerId]
@@ -660,11 +683,22 @@ export function AccountsReceivablePageClient() {
             )
           })}
 
-          {!isLoading && (data?.byCustomer ?? []).length === 0 ? (
+          {!isLoading && summaryRows.length === 0 ? (
             <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-200">
               ไม่มีลูกหนี้คงค้าง
             </div>
           ) : null}
+        </div>
+      )}
+
+      {tab === 'summary' && (
+        <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mt-3">
+          <div>พบทั้งหมด {summaryRows.length.toLocaleString('th-TH')} รายการ</div>
+          <div className="flex items-center gap-2">
+            <Button disabled={safeSummaryPage <= 1 || isLoading} size="xs" type="button" variant="outline" onClick={() => setSummaryPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+            <span>หน้า {safeSummaryPage} / {summaryTotalPages}</span>
+            <Button disabled={safeSummaryPage >= summaryTotalPages || isLoading} size="xs" type="button" variant="outline" onClick={() => setSummaryPage((current) => Math.min(summaryTotalPages, current + 1))}>ถัดไป</Button>
+          </div>
         </div>
       )}
 
@@ -778,15 +812,15 @@ function DetailTable({ isLoading, onOpen, onSort, rows, selectedSort, sortDirect
           {!isLoading && rows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={9}>ไม่มีลูกหนี้คงค้าง</td></tr> : null}
           {!isLoading && rows.map((row) => (
             <tr key={row.id} className={`border-t border-slate-100 hover:bg-slate-50/30 dark:hover:bg-slate-800/40 ${row.aging > 30 ? 'bg-red-50/15 dark:bg-red-50/10' : row.aging > 0 ? 'bg-amber-50/15 dark:bg-amber-50/10' : ''}`}>
-              <td className="px-4 py-3.5">{row.customerName}</td>
-              <td className="px-4 py-3.5"><button className="font-mono text-xs text-blue-600" type="button" onClick={() => onOpen(row)}>{row.docNo}</button></td>
-              <td className="px-4 py-3.5">{formatDateDisplay(row.date)}</td>
-              <td className="px-4 py-3.5">{formatDateDisplay(row.dueDate)}</td>
-              <td className={`p-2 text-right ${row.aging > 30 ? 'font-bold text-red-600' : row.aging > 0 ? 'text-amber-600' : ''}`}>{row.aging}</td>
-              <td className="px-4 py-3.5 text-right">{formatMoney(row.totalAmount)}</td>
-              <td className="px-4 py-3.5 text-right text-emerald-600">{formatMoney(row.receivedAmount)}</td>
-              <td className="px-4 py-3.5 text-right font-bold text-amber-700">{formatMoney(row.receivableBalance)}</td>
-              <td className="px-4 py-3.5">{row.channelName}</td>
+              <td className="px-4 py-3.5 min-w-0 overflow-hidden"><div className="truncate" title={row.customerName || ''}>{row.customerName}</div></td>
+              <td className="px-4 py-3.5 whitespace-nowrap"><button className="font-mono text-xs text-blue-600" type="button" onClick={() => onOpen(row)}>{row.docNo}</button></td>
+              <td className="px-4 py-3.5 whitespace-nowrap">{formatDateDisplay(row.date)}</td>
+              <td className="px-4 py-3.5 whitespace-nowrap">{formatDateDisplay(row.dueDate)}</td>
+              <td className={`p-2 text-right whitespace-nowrap tabular-nums ${row.aging > 30 ? 'font-bold text-red-600' : row.aging > 0 ? 'text-amber-600' : ''}`}>{row.aging}</td>
+              <td className="px-4 py-3.5 text-right whitespace-nowrap tabular-nums">{formatMoney(row.totalAmount)}</td>
+              <td className="px-4 py-3.5 text-right text-emerald-600 whitespace-nowrap tabular-nums">{formatMoney(row.receivedAmount)}</td>
+              <td className="px-4 py-3.5 text-right font-bold text-amber-700 whitespace-nowrap tabular-nums">{formatMoney(row.receivableBalance)}</td>
+              <td className="px-4 py-3.5 min-w-0 overflow-hidden"><div className="truncate" title={row.channelName || ''}>{row.channelName}</div></td>
             </tr>
           ))}
         </tbody>
