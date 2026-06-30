@@ -18,6 +18,7 @@ import { salesBillLineFactsForBills, type SalesBillLineFactRow } from '@/lib/ser
 import { consumeActiveWtoPendingOut, releaseConsumedWtoPendingOutForSalesBill, reopenConsumedWtoPendingOutForSalesBill, WtoPendingOutError } from '@/lib/server/stock-holds'
 import { activeVatRatePercent } from '@/lib/server/tax-settings'
 import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
+import { appendWtoPendingOutEventsForHoldKeys, appendWtoPendingOutEventsForSalesBill, appendWtoPendingOutEventsFromHoldIds } from '@/lib/server/weight-ticket-pending-out-events'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION } from '@/lib/server/weight-ticket-usage-history'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
@@ -1928,6 +1929,15 @@ export async function POST(request: Request) {
           }]
         })
         await appendWeightTicketUsageLogs(tx, usageEntries)
+        await appendWtoPendingOutEventsForSalesBill(tx, {
+          actor,
+          eventTypeForHold: () => 'sales_bill_consume',
+          occurredAt: createdAt,
+          referenceDocNo: createdBill.doc_no,
+          referenceDocType: 'SB',
+          salesBillDocNo: createdBill.doc_no,
+          statusSnapshot: 'consumed',
+        })
 
         const summaryUsage = new Map<bigint, number>()
         items.forEach((item) => {
@@ -2457,6 +2467,15 @@ export async function PATCH(request: Request) {
               weightTicketId: stockDeliveryTicket.id,
             })
             stockCostDelta -= releasedLines.reduce((sum, line) => sum + line.valueIn, 0)
+            await appendWtoPendingOutEventsForHoldKeys(tx, {
+              actor,
+              eventTypeForHold: () => 'sales_bill_edit_release',
+              holdKeys: releasedLines.map((line) => line.pendingOutKey),
+              occurredAt: createdAt,
+              referenceDocNo: bill.doc_no,
+              referenceDocType: 'SB',
+              statusSnapshot: 'active',
+            })
           }
           if (consumeAllocations.size > 0) {
             const consumedLines = await consumeActiveWtoPendingOut(tx, {
@@ -2469,6 +2488,15 @@ export async function PATCH(request: Request) {
               weightTicketId: stockDeliveryTicket.id,
             })
             stockCostDelta += consumedLines.reduce((sum, line) => sum + line.valueOut, 0)
+            await appendWtoPendingOutEventsForSalesBill(tx, {
+              actor,
+              eventTypeForHold: () => 'sales_bill_consume',
+              occurredAt: createdAt,
+              referenceDocNo: bill.doc_no,
+              referenceDocType: 'SB',
+              salesBillDocNo: bill.doc_no,
+              statusSnapshot: 'consumed',
+            })
           }
 
           const usageEntries = stockDeltaByLine.flatMap((line) => {
@@ -2985,6 +3013,15 @@ export async function PATCH(request: Request) {
         })
 
         if (reopenedPendingOut.length > 0) {
+          await appendWtoPendingOutEventsFromHoldIds(tx, {
+            actor,
+            eventTypeForHold: () => 'sales_bill_cancel_reopen',
+            holdIds: reopenedPendingOut.map((hold) => hold.id),
+            occurredAt: createdAt,
+            referenceDocNo: bill.doc_no,
+            referenceDocType: 'SB',
+            statusSnapshot: 'active',
+          })
           const usageLogs = await tx.weight_ticket_usage_logs.findMany({
             where: {
               target_id: bill.id,

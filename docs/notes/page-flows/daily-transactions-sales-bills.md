@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-24
+updated: 2026-06-30
 route: /sales/bills
 ---
 
@@ -35,7 +35,7 @@ SB ตั้งลูกหนี้, consume WTO `pending_out`, ตัด stock
 - สำหรับ Trading: Step 3 เป็นแหล่งสินค้าและรายการ โดยค้นหา/เลือก PB Trading ใน combobox และมี selector `ใบส่งของ WTO พ่วงในบิล` อยู่ใน section เดียวกัน; dropdown PB แสดง PB หนึ่งใบเป็นหนึ่ง option ไม่ซ้ำตามสินค้า และแสดงจำนวนรายการสินค้าแทนชื่อสินค้า; label ของ option และค่าที่เลือกแล้วต้องแสดง Supplier ของ PB ด้วยเพื่อให้รู้ว่าซื้อมาจากใคร; เมื่อเลือกแล้ว auto รายการขายจากทุก line ของ PB ที่เลือกทันที; ห้ามใช้ flow หลักแบบเลือก/ดึงสินค้าจาก PB ทีละรายการหรือเพิ่มสินค้า manual, ปุ่มเพิ่มบิลซื้อใช้เพิ่มช่องเลือก PB ถัดไป, PO Sell เป็น optional ต่อ line, ถ้าเลือก PO Sell ต้อง auto ราคาและ lock ราคา, ถ้า PO Sell remaining ไม่พอต้อง auto split ส่วนเกินเป็น Spot Sale, และเลือก WTO พ่วงได้ถ้าต้องมี stock line ใน SB ใบเดียว
 - ตั้ง AR/payable receivable balance และเป็น source ให้ receipt
 - สำหรับ stock sale line เท่านั้น: consume `pending_out` แล้วเขียน stock-out ledger ตอน save SB และใช้ `value_out` จาก stock ledger เป็น COGS เพื่อคำนวณ GP; ถ้าเป็น mixed-source Trading ให้รวม COGS จาก PB Trading allocation กับ WTO stock COGS ใน header เดียวกัน
-- สำหรับ WTO-backed stock sale, SB must use the average-cost snapshot carried by the consumed pending_out portions. It must not recalculate the already-confirmed WTO quantity from current WAC at SB time.
+- สำหรับ WTO-backed stock sale, SB must use the weighted average cost summary and per-portion snapshots prepared by WTO from active pending_out. It must not recalculate the already-confirmed WTO quantity from current WAC at SB time.
 - แสดง detail/source/timeline/print และ receipt status
 
 ## Non-Responsibilities
@@ -82,15 +82,19 @@ SB ตั้งลูกหนี้, consume WTO `pending_out`, ตัด stock
 - POS allocation ต้อง product/unit match และไม่เกิน remaining
 - stock sale ต้อง validate available/pending_out ใน transaction
 - Stock SB ต้องตั้ง `total_cost`/`cogs_amount` จาก `stock_ledger.value_out` ที่เขียนจาก pending_out cost snapshot และตั้ง `gross_profit = total_amount - COGS`; ถ้า Trading SB มี WTO line พ่วง ให้ตั้ง COGS รวมจาก `trading_allocation_facts.matched_cogs + stock_ledger.value_out`
+- WTO-derived item cost shown in SB is read-only and comes from the WTO product-level weighted average cost summary: old unchanged scale portions keep old snapshots, edited/new/increased scale portions use new snapshots, and WTO has already recomputed the combined weighted average before SB consumes it.
+- SB must still consume pending_out at the underlying portion level so `stock_ledger.value_out` remains traceable to each per-scale snapshot even when the item table displays one combined `ราคาต้นทุนเฉลี่ย` for the SKU.
 - Trading PB line ต้องไม่ตัด stock และไม่สร้าง stock ledger แม้เป็นทองเหลือง/ทองแดงหรือผูก PO Sell
 - Trading SB ต้องเลือก PB Trading source ก่อนบันทึกเฉพาะทุก PB-derived row โดย source เป็น `PB:<docNo>:<lineNo>` จาก Trading PB; WTO-derived rows ใน mixed-source Trading ไม่ต้องมี Trading PB/Cost Source เพราะใช้ pending_out/ledger ของ WTO แทน; manual `SRC:<sourceNo>:1` ยังเป็น backend-supported source แต่ไม่ใช่ primary create UX รอบนี้
 - Trading SB mixed-source ที่เลือก WTO ต้อง validate WTO active/same branch/customer/not billed/fully allocated เหมือน Stock SB และ stock side effect ต้องเกิดเฉพาะ WTO-derived rows
+- Stock SB and WTO-derived Trading SB must validate that the selected WTO `customer_id` equals the Sales Bill customer. If the WTO customer was corrected before billing, only the corrected customer can consume that WTO; using the old customer must be rejected.
 - Stock SB item table ต้องไม่แสดง `Gross`; ให้แสดง `น้ำหนักสุทธิที่ส่ง` จาก WTO หลังหักภาชนะแล้ว, `จำนวนที่ขายได้`, `หักสิ่งเจือปน`, `น้ำหนักขายสุทธิ = จำนวนที่ขายได้ - หักสิ่งเจือปน`, และ `ราคาต้นทุนเฉลี่ย` แบบ read-only จาก WTO pending_out cost snapshot หลัง column `อ้างอิง`
 - รายการจาก PB Trading auto จากน้ำหนักคงเหลือซื้อเข้า `น้ำหนักที่ขาย`; ผู้ใช้กรอก `หัก` เอง และระบบคำนวณ `น้ำหนักสุทธิขาย = น้ำหนักที่ขาย - หัก` เป็น read-only; column `อ้างอิง` ใช้เลือก Spot Sale หรือ PO Sell ต่อ line; `ราคาต้นทุนเฉลี่ย` แสดงเฉพาะ WTO-derived line จาก pending_out cost snapshot; `ราคาขาย/หน่วย` เริ่มว่างเมื่อเป็น Spot Sale, ถ้าเลือก PO Sell ต้อง auto ราคาจาก PO Sell และ lock ไม่ให้แก้ไข, ไม่มีหมายเหตุรายสินค้า, ไม่มีส่วนลดรายบรรทัดใน Trading item table, และยอดรายการเป็นค่าคำนวณจาก `น้ำหนักสุทธิขาย x ราคาขาย/หน่วย`
 - รายการจาก PB Trading ที่เลือก PO Sell ต้องตัด PO Sell ไม่เกิน remaining; ถ้าน้ำหนักรายการมากกว่า remaining ระบบต้องแทรกแถว Spot Sale ถัดจากแถวเดิมสำหรับน้ำหนักส่วนที่เหลือ โดยยังอ้าง source PB line เดิมเพื่อคุม cost/source allocation
 - ใน item table ถ้าหลายแถวต่อกันเป็นสินค้าเดียวกันจากบิลซื้อเดียวกัน ให้แสดงเป็นกลุ่มเดียว ไม่ใส่เส้นคั่นหนักระหว่างแถวในกลุ่ม และไม่แสดงชื่อสินค้า/แหล่งสินค้าซ้ำ; column แหล่งสินค้าต้องแสดงเลข PB, น้ำหนักจากบิลซื้อ, และ supplier ของ source นั้น; ถ้าเป็นบิลซื้อคนละใบหรือคนละสินค้าให้เริ่มกลุ่มใหม่และคั่นรายการตามปกติ
 - รายการที่ระบบดึงจาก source เอกสารจริง (`PB Trading` หรือ `WTO`) ห้ามลบรายแถวจาก item table; ต้องลบผ่าน selector/source owner เท่านั้น และถ้าเปลี่ยนแถวที่ผูก PO Sell กลับเป็น Spot Sale ต้อง reset ราคาเป็นว่าง/0 พร้อมรวม child Spot Sale ที่ระบบเคย split กลับเข้ารายการเดิม
 - Sales Bill contracts must use direct WTO source allocation for stock sale lines
+- When editing a WTO-backed Stock SB, the edit form and read model must preserve the original WTO `deliveryLineId` and `deliverySummaryId` from durable allocation facts. The UI must not generate edit-only source ids, because the PATCH validation resolves against the original WTO summary keys before saving price/discount/weight changes.
 - receipt active แล้วต้อง lock cancel/edit field การเงิน ทั้ง legacy `receipts` และ new `customer_receipt_allocations` ที่ parent `customer_receipts` ยัง active
 
 ## Side Effects
@@ -100,6 +104,7 @@ SB ตั้งลูกหนี้, consume WTO `pending_out`, ตัด stock
 - Trading SB เป็น mixed-source ได้: PB Trading lines ไม่เป็น stock movement owner และมีผลต่อ Trading Matching / PO Sell allocation เท่านั้น; WTO lines เป็น stock movement owner ผ่าน Sales Stock flow
 - เขียน `stock_ledger.ref_type = SB-CANCEL` เมื่อ cancel SB เพื่อคืน stock แบบ append-only reversal ด้วย unit cost/value เดิมของ `SB`; หลังคืนแล้ว WAC ปัจจุบันคำนวณใหม่จาก ledger ปัจจุบัน
 - consume WTO `pending_out` when SB is saved, using each pending_out portion's stored cost snapshot for `stock_ledger.unit_cost/value_out`; restore WTO `pending_out` when SB is cancelled only if no return-from-WTO/SB has happened
+- Sales Bill is the first point where WTO customer identity affects stock-source consumption: WTO customer edits before billing affect which customer can consume the source, but do not alter pending_out qty/cost snapshots.
 - update/restore WTO `pending_out` and update WTO/PO Sell usage/status; after a return exists, SB cancel must not reopen holds and must return stock directly through `SB-CANCEL`
 - ส่งต่อไป `/sales/receipts` สำหรับรับเงิน
 

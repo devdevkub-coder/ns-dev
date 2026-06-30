@@ -58,6 +58,30 @@ export type WeightTicketProductSummary = {
   unitCostSnapshot: number | null
 }
 
+export type WeightTicketPendingOutHistory = {
+  costSnapshotAt: string | null
+  costSnapshotNote: string
+  costSnapshotSource: string
+  eventKey?: string
+  eventType?: string
+  heldAt: string | null
+  holdKey: string
+  pendingOutValue: number | null
+  productId: string
+  productName: string
+  qty: number
+  qtyAfter: number | null
+  qtyBefore: number | null
+  referenceDocNo: string
+  releasedAt: string | null
+  sourceLineNo: number | null
+  status: string
+  statusLogEventKey?: string | null
+  unitCostSnapshot: number | null
+  warehouseId: string
+  warehouseName: string
+}
+
 export type WeightTicketDownstreamAllocation = {
   allocatedDeductWeight: number
   allocatedGrossWeight: number
@@ -92,6 +116,8 @@ export type WeightTicketRecord = {
   lines: WeightTicketRecordLine[]
   partyId: string
   partyName: string
+  pendingOutEvents: WeightTicketPendingOutHistory[]
+  pendingOutHistory: WeightTicketPendingOutHistory[]
   productSummaries: WeightTicketProductSummary[]
   remark: string
   status: WeightTicketStatus
@@ -299,6 +325,7 @@ export const weightTicketFormSchema = z.object({
     }
   }
   if (value.type !== 'WTO') return
+  const parentBucketByKey = new Map<string, number>()
   value.lines.forEach((line, index) => {
     if (!line.warehouseId) {
       ctx.addIssue({
@@ -313,6 +340,24 @@ export const weightTicketFormSchema = z.object({
         message: 'ใบส่งของไม่รองรับสิ่งเจือปนแบบสินค้าอื่น',
         path: ['lines', index, 'impurityId'],
       })
+    }
+    if (!line.parentId && line.productId && line.warehouseId) {
+      const key = `${line.productId.trim().toUpperCase()}::${line.warehouseId.trim().toUpperCase()}`
+      const firstIndex = parentBucketByKey.get(key)
+      if (firstIndex != null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'สินค้านี้ในคลังนี้มีรายการหลักอยู่แล้ว ให้เพิ่มเป็นเต๋าในรายการเดิม',
+          path: ['lines', index, 'warehouseId'],
+        })
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'สินค้านี้ในคลังนี้มีรายการหลักอยู่แล้ว',
+          path: ['lines', firstIndex, 'warehouseId'],
+        })
+      } else {
+        parentBucketByKey.set(key, index)
+      }
     }
   })
 })
@@ -394,6 +439,30 @@ const weightTicketProductSummarySchema = z.object({
   unitCostSnapshot: z.number().nullable().default(null),
 })
 
+const weightTicketPendingOutHistorySchema = z.object({
+  costSnapshotAt: z.string().nullable(),
+  costSnapshotNote: z.string(),
+  costSnapshotSource: z.string(),
+  eventKey: z.string().optional(),
+  eventType: z.string().optional(),
+  heldAt: z.string().nullable(),
+  holdKey: z.string(),
+  pendingOutValue: z.number().nullable(),
+  productId: z.string(),
+  productName: z.string(),
+  qty: z.number(),
+  qtyAfter: z.number().nullable().optional().default(null),
+  qtyBefore: z.number().nullable().optional().default(null),
+  referenceDocNo: z.string(),
+  releasedAt: z.string().nullable(),
+  sourceLineNo: z.number().int().positive().nullable(),
+  status: z.string(),
+  statusLogEventKey: z.string().nullable().optional(),
+  unitCostSnapshot: z.number().nullable(),
+  warehouseId: z.string(),
+  warehouseName: z.string(),
+})
+
 const weightTicketDownstreamAllocationSchema = z.object({
   allocatedDeductWeight: z.number(),
   allocatedGrossWeight: z.number(),
@@ -428,6 +497,8 @@ export const weightTicketRecordSchema = z.object({
   lines: z.array(weightTicketRecordLineSchema),
   partyId: z.string(),
   partyName: z.string(),
+  pendingOutEvents: z.array(weightTicketPendingOutHistorySchema).default([]),
+  pendingOutHistory: z.array(weightTicketPendingOutHistorySchema).default([]),
   productSummaries: z.array(weightTicketProductSummarySchema).default([]),
   remark: z.string(),
   status: statusEnum,
@@ -597,7 +668,7 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
       }
     }
   } catch {
-    // fallback to filename-only payload
+    // Keep legacy filename-only payloads readable.
   }
 
   return {

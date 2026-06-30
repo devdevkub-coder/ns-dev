@@ -13,6 +13,7 @@ import {
   correctTradingAllocationsSchema as tradingCorrectionSchema,
   correctTradingSalesBillAllocations as runTradingSalesBillAllocationCorrection,
 } from '@/lib/server/trading-sales-bill-allocation-correction'
+import { appendWtoPendingOutEventsFromHoldIds } from '@/lib/server/weight-ticket-pending-out-events'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION } from '@/lib/server/weight-ticket-usage-history'
 
@@ -132,6 +133,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         })
 
         if (reopenedPendingOut.length === 0) usageLogs = []
+        if (reopenedPendingOut.length > 0) {
+          await appendWtoPendingOutEventsFromHoldIds(tx, {
+            actor,
+            eventTypeForHold: () => 'sales_bill_cancel_reopen',
+            holdIds: reopenedPendingOut.map((hold) => hold.id),
+            occurredAt: cancelledAt,
+            referenceDocNo: bill.doc_no,
+            referenceDocType: 'SB',
+            statusSnapshot: 'active',
+          })
+        }
       }
       if (usageLogs.length > 0) {
         await appendWeightTicketUsageLogs(tx, usageLogs.map((log) => ({

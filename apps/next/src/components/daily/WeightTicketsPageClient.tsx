@@ -47,15 +47,22 @@ type AttachmentPreview = {
 
 type FormWeightTicketLine = WeightTicketLine & {
   imageFiles: AttachmentPreview[]
+  impurityName?: string
   impurityPurchaseAction?: 'none' | 'buy'
   impurityProductId?: string
+  impurityProductName?: string
   impuritySourceLineId?: string
+  productName?: string
+  warehouseName?: string
+  warehouseType?: string
 }
 
 type FormState = {
   branchId: string
+  branchName: string
   lines: FormWeightTicketLine[]
   partyId: string
+  partyName: string
   remark: string
   type: WeightTicketType
   vehicleImageFiles: AttachmentPreview[]
@@ -103,8 +110,10 @@ function createFormWeightTicketLine(id?: string): FormWeightTicketLine {
 function initialForm(type: WeightTicketType = 'WTI'): FormState {
   return {
     branchId: '',
+    branchName: '',
     lines: [createFormWeightTicketLine('line-1')],
     partyId: '',
+    partyName: '',
     remark: '',
     type,
     vehicleImageFiles: [],
@@ -309,34 +318,11 @@ function calculateRealLotSummary(line: FormWeightTicketLine, allLines: FormWeigh
   )
 }
 
-function isStoredPurchaseFromImpurityLine(line: WeightTicketRecord['lines'][number]) {
-  return line.grossWeightValue > 0 && line.note.includes('มาจากสิ่งเจือปน')
-}
-
 function ticketToFormState(ticket: WeightTicketRecord): FormState {
   const lineIdByLineNo = new Map(ticket.lines.map((line) => [line.lineNo, line.id] as const))
-  const productParentMap = new Map<string, string>()
-  let lastParentId: string | undefined = undefined
   const lines: FormWeightTicketLine[] = ticket.lines.map((line) => {
-    const isImpurity = Number(line.grossWeight || 0) === 0 && !!line.impurityId
     const relationSourceLineId = line.impuritySourceLineNo ? lineIdByLineNo.get(line.impuritySourceLineNo) : undefined
     const relationParentId = line.parentLineNo ? lineIdByLineNo.get(line.parentLineNo) : undefined
-    const isPurchaseFromImpurity = Boolean(relationSourceLineId) || isStoredPurchaseFromImpurityLine(line)
-    let parentId: string | undefined = undefined
-
-    if (relationParentId) {
-      parentId = relationParentId
-    } else if (isImpurity) {
-      parentId = lastParentId
-    } else {
-      const existingParentId = !isPurchaseFromImpurity ? productParentMap.get(line.productId) : undefined
-      if (existingParentId) {
-        parentId = existingParentId
-      } else {
-        if (!isPurchaseFromImpurity) productParentMap.set(line.productId, line.id)
-        if (!isPurchaseFromImpurity) lastParentId = line.id
-      }
-    }
     return {
       containerDeductionWeight: line.containerDeductionWeight,
       deductionMode: line.deductionMode,
@@ -346,20 +332,25 @@ function ticketToFormState(ticket: WeightTicketRecord): FormState {
       imageNames: line.imageNames,
       imageFiles: line.imageNames.map(createAttachmentPreview),
       impurityId: line.impurityId,
+      impurityName: line.impurityName,
       impurityProductId: line.impurityProductId || '',
-      impuritySourceLineId: relationSourceLineId ?? (isPurchaseFromImpurity ? '' : undefined),
+      impurityProductName: line.impurityProductName || '',
+      impuritySourceLineId: relationSourceLineId,
       impurityPurchaseAction: 'none',
       note: line.note,
       productId: line.productId,
+      productName: line.productName,
       warehouseId: line.warehouseId,
-      parentId,
+      warehouseName: line.warehouseName,
+      warehouseType: line.warehouseType,
+      parentId: relationParentId,
     }
   })
 
   const assignedSourceIds = new Set<string>()
   const purchaseLineIds = new Set(
     ticket.lines
-      .filter((line) => Boolean(line.impuritySourceLineNo) || isStoredPurchaseFromImpurityLine(line))
+      .filter((line) => Boolean(line.impuritySourceLineNo))
       .map((line) => line.id),
   )
 
@@ -392,50 +383,88 @@ function ticketToFormState(ticket: WeightTicketRecord): FormState {
       return
     }
 
-    const purchaseWeight = Number(purchaseLine.grossWeight || 0)
-    const sourceLine = lines.find((candidate) => {
-      if (assignedSourceIds.has(candidate.id)) return false
-      if (!(Number(candidate.grossWeight || 0) === 0 && candidate.impurityId)) return false
-      if (candidate.productId === purchaseLine.productId) return false
-
-      const deductionMatches = Math.abs(Number(candidate.deductionValue || 0) - purchaseWeight) < 0.001
-        || Math.abs((ticket.lines.find((line) => line.id === candidate.id)?.deductionWeight ?? 0) - purchaseWeight) < 0.001
-      if (!deductionMatches) return false
-
-      const sourceProductName = ticket.lines.find((line) => line.id === candidate.id)?.productName ?? ''
-      return !sourceProductName || purchaseSource.note.includes(sourceProductName) || purchaseSource.note.includes(candidate.productId)
-    })
-
-    if (!sourceLine) return
-
-    assignedSourceIds.add(sourceLine.id)
-    sourceLine.impurityPurchaseAction = 'buy'
-    sourceLine.impurityProductId = purchaseLine.productId
-    purchaseLine.impuritySourceLineId = sourceLine.id
-
-    const existingTargetParentLine = lines.find((line) =>
-      line.id !== purchaseLine.id
-      && !line.parentId
-      && !line.impuritySourceLineId
-      && line.productId === purchaseLine.productId
-    )
-    purchaseLine.parentId = existingTargetParentLine?.id
-    if (purchaseLine.imageFiles.length === 0) {
-      purchaseLine.imageFiles = sourceLine.imageFiles
-      purchaseLine.imageNames = sourceLine.imageNames
-    }
   })
 
   return {
     branchId: ticket.branchId,
+    branchName: ticket.branchName,
     lines,
     partyId: ticket.partyId,
+    partyName: ticket.partyName,
     remark: ticket.remark,
     type: ticket.type,
     vehicleImageFiles: ticket.vehicleImageNames.map(createAttachmentPreview),
     vehicleNo: ticket.vehicleNo,
     warehouseName: ticket.warehouseName ?? '',
   }
+}
+
+function warehouseOptionsForLine(stock: WtoStockOptionsState[string] | undefined, line: FormWeightTicketLine) {
+  const options = stock?.options ?? []
+  if (!line.warehouseId) return options
+  if (options.some((option) => option.id === line.warehouseId)) return options
+
+  const labelParts = [line.warehouseName || line.warehouseId, line.warehouseType].filter(Boolean)
+  return [
+    {
+      id: line.warehouseId,
+      label: labelParts.join(' · '),
+    },
+    ...options.filter((option) => option.id !== line.warehouseId),
+  ]
+}
+
+function selectedWarehouseForLine(stock: WtoStockOptionsState[string] | undefined, line: FormWeightTicketLine) {
+  if (!line.warehouseId) return null
+  return stock?.warehousesById[line.warehouseId] ?? null
+}
+
+function productOptionsForLine(options: OptionItem[], line: FormWeightTicketLine) {
+  if (!line.productId) return options
+  if (options.some((option) => option.id === line.productId)) return options
+  return [
+    {
+      id: line.productId,
+      label: line.productName || line.productId,
+    },
+    ...options,
+  ]
+}
+
+function partyOptionsForForm(options: OptionItem[], form: FormState) {
+  if (!form.partyId) return options
+  if (options.some((option) => option.id === form.partyId)) return options
+  return [
+    {
+      id: form.partyId,
+      label: form.partyName || form.partyId,
+    },
+    ...options,
+  ]
+}
+
+function branchOptionsForForm(options: OptionItem[], form: FormState) {
+  if (!form.branchId) return options
+  if (options.some((option) => option.id === form.branchId)) return options
+  return [
+    {
+      id: form.branchId,
+      label: form.branchName || form.branchId,
+    },
+    ...options,
+  ]
+}
+
+function optionsWithCurrentValue(options: OptionItem[], id: string | null | undefined, label: string | null | undefined) {
+  if (!id) return options
+  if (options.some((option) => option.id === id)) return options
+  return [
+    {
+      id,
+      label: label || id,
+    },
+    ...options,
+  ]
 }
 
 export function WeightTicketsPageClient({
@@ -466,6 +495,7 @@ export function WeightTicketsPageClient({
   const [isSaving, setIsSaving] = useState(false)
   const [isLoadingTicket, setIsLoadingTicket] = useState(Boolean(editingTicketId))
   const [loadError, setLoadError] = useState('')
+  const [mergeNotice, setMergeNotice] = useState('')
   const [previewImage, setPreviewImage] = useState<AttachmentPreview | null>(null)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [activeLineId, setActiveLineId] = useState('')
@@ -882,7 +912,10 @@ export function WeightTicketsPageClient({
               return {
                 ...line,
                 productId: target.productId,
+                productName: target.productName,
                 warehouseId: target.warehouseId,
+                warehouseName: target.warehouseName,
+                warehouseType: target.warehouseType,
               }
             }
             return line
@@ -897,6 +930,7 @@ export function WeightTicketsPageClient({
   }
 
   function changeLineProduct(lineId: string, productId: string) {
+    setMergeNotice('')
     setForm((current) => {
       const targetLine = current.lines.find((line) => line.id === lineId)
       if (!targetLine || targetLine.productId === productId) return current
@@ -907,6 +941,7 @@ export function WeightTicketsPageClient({
       const resetLine = {
         ...createFormWeightTicketLine(lineId),
         productId,
+        productName: products.find((product) => product.id === productId)?.label ?? '',
       }
 
       return {
@@ -919,17 +954,64 @@ export function WeightTicketsPageClient({
   }
 
   function addLine() {
+    setMergeNotice('')
     const nextLine = createFormWeightTicketLine()
     setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
     setActiveLineId(nextLine.id)
   }
 
   function addSameProductLot(sourceLine: FormWeightTicketLine) {
+    setMergeNotice('')
     const nextLine = createFormWeightTicketLine()
     nextLine.productId = sourceLine.productId
     nextLine.warehouseId = sourceLine.warehouseId
     nextLine.parentId = sourceLine.id
     setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
+  }
+
+  function changeLineWarehouse(lineId: string, warehouseId: string, warehouse: WtoStockWarehouseOption | null | undefined) {
+    setMergeNotice('')
+    setForm((current) => {
+      const targetLine = current.lines.find((line) => line.id === lineId)
+      if (!targetLine) return current
+
+      const nextTargetLine = {
+        ...targetLine,
+        warehouseId,
+        warehouseName: warehouse?.name ?? '',
+        warehouseType: warehouse?.type ?? '',
+      }
+      let nextLines = current.lines.map((line) => {
+        if (line.id === lineId) return nextTargetLine
+        if (line.parentId === lineId) {
+          return {
+            ...line,
+            productId: nextTargetLine.productId,
+            productName: nextTargetLine.productName,
+            warehouseId: nextTargetLine.warehouseId,
+            warehouseName: nextTargetLine.warehouseName,
+            warehouseType: nextTargetLine.warehouseType,
+          }
+        }
+        return line
+      })
+
+      if (current.type === 'WTO' && !targetLine.parentId && nextTargetLine.productId && nextTargetLine.warehouseId) {
+        const duplicateParent = nextLines.find((line) =>
+          !line.parentId
+          && line.id !== lineId
+          && line.productId === nextTargetLine.productId
+          && line.warehouseId === nextTargetLine.warehouseId
+        )
+        if (duplicateParent) {
+          nextLines = nextLines.map((line) => line.id === lineId ? { ...line, parentId: duplicateParent.id } : line)
+          setActiveLineId(duplicateParent.id)
+          setMergeNotice('สินค้านี้อยู่ในคลังนี้แล้ว ระบบรวมเป็นเต๋าใหม่ในรายการเดิม')
+        }
+      }
+
+      return { ...current, lines: nextLines }
+    })
   }
 
   function removeLine(lineId: string) {
@@ -1165,8 +1247,9 @@ export function WeightTicketsPageClient({
         ) : (
           <Tabs value={form.type} onValueChange={(value) => setForm((current) => ({
             ...current,
-            lines: current.lines.map((line) => ({ ...line, warehouseId: '' })),
+            lines: current.lines.map((line) => ({ ...line, warehouseId: '', warehouseName: '', warehouseType: '' })),
             partyId: '',
+            partyName: '',
             type: value as WeightTicketType,
           }))}>
             <TabsList className="w-full justify-start" variant="line">
@@ -1180,6 +1263,11 @@ export function WeightTicketsPageClient({
       {loadError ? (
         <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {loadError}
+        </div>
+      ) : null}
+      {mergeNotice ? (
+        <div className="rounded-md border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700">
+          {mergeNotice}
         </div>
       ) : null}
 
@@ -1196,7 +1284,7 @@ export function WeightTicketsPageClient({
             <SectionHeader title="ข้อมูลหัวเอกสาร" subtitle="ผู้ใช้เลือกเฉพาะข้อมูลหน้างาน ส่วนวันที่ เวลา และผู้กรอกเป็นข้อมูลระบบ" />
             <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <BranchSelectCombobox
-                branches={branches.map((branch) => ({
+                branches={branchOptionsForForm(branches, form).map((branch) => ({
                   id: branch.id,
                   name: branch.label,
                 }))}
@@ -1207,30 +1295,46 @@ export function WeightTicketsPageClient({
                 value={form.branchId}
 	                onChange={(value) => {
 	                  markTouched('branchId')
-	                  setForm((current) => ({
-	                    ...current,
-	                    branchId: value ?? '',
-	                    lines: current.lines.map((line) => ({ ...line, warehouseId: '' })),
-	                    partyId: (current.type === 'WTI' ? suppliers : customers)
-	                      .some((option) => option.id === current.partyId && option.branchIds?.includes(value ?? ''))
-	                      ? current.partyId
-	                      : '',
-	                  }))
+	                  setForm((current) => {
+	                    const selectedBranch = branches.find((branch) => branch.id === value)
+	                    const currentParty = (current.type === 'WTI' ? suppliers : customers)
+	                      .find((option) => option.id === current.partyId && option.branchIds?.includes(value ?? ''))
+	                    return {
+	                      ...current,
+	                      branchId: value ?? '',
+	                      branchName: selectedBranch?.label ?? '',
+	                      lines: current.lines.map((line) => ({ ...line, warehouseId: '', warehouseName: '', warehouseType: '' })),
+	                      partyId: currentParty ? current.partyId : '',
+	                      partyName: currentParty?.label ?? '',
+	                    }
+	                  })
 	                }}
               />
-              <SearchCombobox
-                disabled={!form.branchId}
-                error={showError('partyId')}
-                inputId="weight-ticket-party"
-                label={form.type === 'WTI' ? 'ผู้ขาย*' : 'ลูกค้า*'}
-                options={partyOptions}
-                placeholder={!form.branchId ? 'เลือกสาขาก่อน' : form.type === 'WTI' ? 'ค้นหาชื่อหรือรหัสผู้ขาย' : 'ค้นหารหัสหรือชื่อลูกค้า'}
-                value={form.partyId}
-                onChange={(value) => {
-                  markTouched('partyId')
-                  updateForm('partyId', value)
-                }}
-              />
+              {(() => {
+                const displayPartyOptions = partyOptionsForForm(partyOptions, form)
+                const selectedPartyLabel = displayPartyOptions.find((option) => option.id === form.partyId)?.label ?? ''
+                return (
+                  <SearchCombobox
+                    key={`${form.type}:${form.branchId}:${form.partyId}:${selectedPartyLabel}`}
+                    disabled={!form.branchId}
+                    error={showError('partyId')}
+                    inputId="weight-ticket-party"
+                    label={form.type === 'WTI' ? 'ผู้ขาย*' : 'ลูกค้า*'}
+                    options={displayPartyOptions}
+                    placeholder={!form.branchId ? 'เลือกสาขาก่อน' : form.type === 'WTI' ? 'ค้นหาชื่อหรือรหัสผู้ขาย' : 'ค้นหารหัสหรือชื่อลูกค้า'}
+                    value={form.partyId}
+                    onChange={(value) => {
+                      const party = displayPartyOptions.find((option) => option.id === value)
+                      markTouched('partyId')
+                      setForm((current) => ({
+                        ...current,
+                        partyId: value,
+                        partyName: party?.label ?? '',
+                      }))
+                    }}
+                  />
+                )
+              })()}
               <FieldBlock error={showError('vehicleNo')} label="ทะเบียนรถ*">
                 <Input
                   id="weight-ticket-vehicleNo"
@@ -1371,37 +1475,44 @@ export function WeightTicketsPageClient({
                     <div className="space-y-4">
                       <div className={cn("grid gap-4 items-start", form.type === 'WTO' ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")}>
                         <FieldBlock error={showError(`line-${line.id}-product`)} label="สินค้า*">
-                          <div className="flex gap-2 items-center">
-                            <div className="min-w-0 flex-1">
-	                              <SearchCombobox
-	                                hideLabel
-                                inputId={`weight-product-${line.id}`}
-                                label="สินค้า*"
-                                options={isLineProductImpurity ? impurityProducts : normalProducts}
-                                placeholder={isLoadingProducts ? 'กำลังโหลดสินค้า...' : 'เลือกสินค้า'}
-                                disabled={isLoadingProducts || isPurchaseOnlyLine}
-                                value={line.productId}
-                                onChange={(value) => {
-                                  markTouched(`line-${line.id}-product`)
-                                  changeLineProduct(line.id, value)
-                                }}
-                              />
-                            </div>
-                            <div className="shrink-0">
-                              <ProductImagePicker
-                                key={`${form.branchId}:${form.partyId}:${form.type}`}
-                                disabled={isLoadingProducts || isPurchaseOnlyLine}
-                                products={isLineProductImpurity ? impurityProducts : normalProducts}
-                                value={line.productId}
-                                onChange={(value) => {
-                                  markTouched(`line-${line.id}-product`)
-                                  changeLineProduct(line.id, value)
-                                }}
-                                hideSelectedCard
-                                buttonClassName={cn("text-white font-semibold h-10 px-3 flex items-center justify-center gap-1.5 outline-none", ticketTheme.button)}
-                              />
-                            </div>
-                          </div>
+                          {(() => {
+                            const productOptions = productOptionsForLine(isLineProductImpurity ? impurityProducts : normalProducts, line)
+                            const selectedProductLabel = productOptions.find((option) => option.id === line.productId)?.label ?? ''
+                            return (
+                              <div className="flex gap-2 items-center">
+                                <div className="min-w-0 flex-1">
+                                  <SearchCombobox
+                                    hideLabel
+                                    key={`${line.id}:${line.productId}:${selectedProductLabel}`}
+                                    inputId={`weight-product-${line.id}`}
+                                    label="สินค้า*"
+                                    options={productOptions}
+                                    placeholder={isLoadingProducts ? 'กำลังโหลดสินค้า...' : 'เลือกสินค้า'}
+                                    disabled={isLoadingProducts || isPurchaseOnlyLine}
+                                    value={line.productId}
+                                    onChange={(value) => {
+                                      markTouched(`line-${line.id}-product`)
+                                      changeLineProduct(line.id, value)
+                                    }}
+                                  />
+                                </div>
+                                <div className="shrink-0">
+                                  <ProductImagePicker
+                                    key={`${form.branchId}:${form.partyId}:${form.type}`}
+                                    disabled={isLoadingProducts || isPurchaseOnlyLine}
+                                    products={productOptions}
+                                    value={line.productId}
+                                    onChange={(value) => {
+                                      markTouched(`line-${line.id}-product`)
+                                      changeLineProduct(line.id, value)
+                                    }}
+                                    hideSelectedCard
+                                    buttonClassName={cn("text-white font-semibold h-10 px-3 flex items-center justify-center gap-1.5 outline-none", ticketTheme.button)}
+                                  />
+                                </div>
+                              </div>
+                            )
+                          })()}
                           {(() => {
                             const selectedProduct = products.find((p) => p.id === line.productId)
                             if (!selectedProduct) return null
@@ -1438,20 +1549,24 @@ export function WeightTicketsPageClient({
                         {form.type === 'WTO' ? (() => {
                           const stockKey = `${form.branchId}:${line.productId}`
                           const stock = stockOptions[stockKey]
-                          const selectedWarehouse = line.warehouseId ? stock?.warehousesById[line.warehouseId] : null
+                          const warehouseOptions = warehouseOptionsForLine(stock, line)
+                          const selectedWarehouse = selectedWarehouseForLine(stock, line)
+                          const selectedWarehouseLabel = warehouseOptions.find((option) => option.id === line.warehouseId)?.label ?? ''
                           return (
                             <div className="min-w-0">
                               <SearchCombobox
+                                key={`${line.id}:${line.warehouseId}:${selectedWarehouseLabel}`}
                                 disabled={!form.branchId || !line.productId}
                                 error={showError(`line-${line.id}-warehouse`)}
                                 inputId={`weight-warehouse-${line.id}`}
                                 label="คลัง*"
-                                options={stock?.options ?? []}
+                                options={warehouseOptions}
                                 placeholder={!form.branchId ? 'เลือกสาขาก่อน' : !line.productId ? 'เลือกสินค้าก่อน' : 'เลือกคลัง RM/FG'}
                                 value={line.warehouseId}
                                 onChange={(value) => {
                                   markTouched(`line-${line.id}-warehouse`)
-                                  updateLine(line.id, (current) => ({ ...current, warehouseId: value }))
+                                  const warehouse = value ? stock?.warehousesById[value] : null
+                                  changeLineWarehouse(line.id, value, warehouse)
                                 }}
                               />
                               {selectedWarehouse ? (
@@ -1473,7 +1588,7 @@ export function WeightTicketsPageClient({
                         </div>
                         {!hasSelectedProduct ? (
                           <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-                            เลือกสินค้าก่อน จึงจะกรอกน้ำหนัก เพิ่มล็อต และแนบรูปได้
+                            เลือกสินค้าก่อน จึงจะกรอกน้ำหนัก เพิ่มเต๋า และแนบรูปได้
                           </div>
                         ) : null}
                         <div className="space-y-4">
@@ -1610,7 +1725,7 @@ export function WeightTicketsPageClient({
                             className="outline-none flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white disabled:bg-slate-100 disabled:text-slate-400 h-9 px-3 text-sm font-semibold"
                           >
                             <Plus className="size-4" />
-                            เพิ่มล็อต
+                            เพิ่มเต๋า
                           </Button>
                         </div>
                         {(() => {
@@ -1749,7 +1864,14 @@ export function WeightTicketsPageClient({
                                 const selectedImpurityId = getLineImpurityId(child)
                                 const hasSelectedImpurity = Boolean(selectedImpurityId)
                                 const isOtherProductImpurity = isOtherProductImpurityOption(selectedImpurityId)
-                                const impurityPurchaseProducts = normalProducts.filter((product) => product.id !== line.productId)
+                                const impurityOptionsForChild = optionsWithCurrentValue(impurityOptions, selectedImpurityId, child.impurityName)
+                                const impurityPurchaseProducts = optionsWithCurrentValue(
+                                  normalProducts.filter((product) => product.id !== line.productId),
+                                  child.impurityProductId,
+                                  child.impurityProductName || child.impurityProductId,
+                                )
+                                const selectedImpurityLabel = impurityOptionsForChild.find((option) => option.id === selectedImpurityId)?.label ?? ''
+                                const selectedImpurityProductLabel = impurityPurchaseProducts.find((option) => option.id === child.impurityProductId)?.label ?? ''
                                 const mustSelectImpurityProductFirst = isOtherProductImpurity && child.impurityPurchaseAction === 'buy' && !child.impurityProductId
                                 const canEditImpurityDeduction = hasSelectedProduct && hasSelectedImpurity
                                 const calculatedDeductionWeight = calculateAdjustedLineTotals(child, form.lines).deductionWeight
@@ -1761,21 +1883,25 @@ export function WeightTicketsPageClient({
                                     )}>
                                       <FieldBlock label="สิ่งเจือปน*" labelClassName="md:hidden">
                                         <SearchCombobox
+                                          key={`${child.id}:${selectedImpurityId}:${selectedImpurityLabel}`}
                                           disabled={!hasSelectedProduct}
                                           error={showError(`line-${child.id}-impurity`)}
                                           inputId={`weight-impurity-${child.id}`}
                                           hideLabel
                                           label="สิ่งเจือปน*"
-                                          options={impurityOptions}
+                                          options={impurityOptionsForChild}
                                           placeholder={impurityOptions.length > 0 ? 'เลือกสิ่งเจือปน' : 'ยังไม่มีสิ่งเจือปนที่ใช้งาน'}
                                           value={selectedImpurityId}
                                           onChange={(value) => {
+                                            const impurity = impurityOptionsForChild.find((option) => option.id === value)
                                             markTouched(`line-${child.id}-impurity`)
                                             updateLine(child.id, (current) => ({
                                               ...current,
                                               impurityId: value,
+                                              impurityName: impurity?.label ?? '',
                                               impurityPurchaseAction: 'none',
                                               impurityProductId: isOtherProductImpurityOption(value) ? current.impurityProductId ?? '' : '',
+                                              impurityProductName: isOtherProductImpurityOption(value) ? current.impurityProductName ?? '' : '',
                                             }))
                                           }}
                                         />
@@ -1783,6 +1909,7 @@ export function WeightTicketsPageClient({
                                       {isOtherProductImpurity ? (
                                         <FieldBlock error={showError(`line-${child.id}-impurity-product`)} label="สินค้าที่ปนมา" labelClassName="md:hidden">
                                           <SearchCombobox
+                                            key={`${child.id}:${child.impurityProductId ?? ''}:${selectedImpurityProductLabel}`}
                                             disabled={!hasSelectedProduct}
                                             error={showError(`line-${child.id}-impurity-product`)}
                                             hideLabel
@@ -1792,8 +1919,14 @@ export function WeightTicketsPageClient({
                                             placeholder="เลือกเมื่อต้องซื้อเพิ่ม"
                                             value={child.impurityProductId ?? ''}
                                             onChange={(value) => {
+                                              const product = impurityPurchaseProducts.find((option) => option.id === value)
                                               markTouched(`line-${child.id}-impurity-product`)
-                                              updateLine(child.id, (current) => ({ ...current, impurityPurchaseAction: 'none', impurityProductId: value }))
+                                              updateLine(child.id, (current) => ({
+                                                ...current,
+                                                impurityProductId: value,
+                                                impurityProductName: product?.label ?? '',
+                                                impurityPurchaseAction: 'none',
+                                              }))
                                             }}
                                           />
                                         </FieldBlock>
@@ -1909,10 +2042,10 @@ export function WeightTicketsPageClient({
                       </div>
 
                       <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 lg:grid-cols-4">
-                        <MiniMetric label="GROSS" value={`${formatWeight(lineTotals.grossWeight)} กก.`} />
+                        <MiniMetric label="น้ำหนักรวม" value={`${formatWeight(lineTotals.grossWeight)} กก.`} />
                         <MiniMetric label="ภาชนะ" value={`${formatWeight(lineTotals.containerDeductionWeight)} กก.`} />
                         <MiniMetric label="สิ่งเจือปน" value={`${formatWeight(lineTotals.deductionWeight)} กก.`} />
-                        <MiniMetric label="NET" value={`${formatWeight(lineTotals.netWeight)} กก.`} />
+                        <MiniMetric label="น้ำหนักสุทธิ" value={`${formatWeight(lineTotals.netWeight)} กก.`} />
                       </div>
 
                       <div className="mt-4">

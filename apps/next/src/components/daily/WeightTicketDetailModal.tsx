@@ -8,7 +8,11 @@ import { ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, RotateCcw,
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
-import { WeightTicketProductBreakdownTable } from '@/components/daily/WeightTicketProductBreakdownTable'
+import {
+  WeightTicketProductBreakdownTable,
+  WeightTicketTimelinePendingOutChanges,
+  weightTicketTimelinePendingOutChangeCount,
+} from '@/components/daily/WeightTicketProductBreakdownTable'
 import { WeightTicketStockReturnDialog, type StockReturnPayload } from '@/components/daily/WeightTicketStockReturnDialog'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
@@ -32,6 +36,7 @@ function formatDateTime(value?: string | null) {
 function timelineLabel(eventKey: string, action: string) {
   if (action === 'created') return 'สร้างเอกสาร'
   if (action === 'edited') return 'แก้ไขเอกสาร'
+  if (action === 'confirmed') return 'ยืนยันใบส่งของ'
   if (action === 'cancelled') return 'ยกเลิกเอกสาร'
   if (action === 'status_synced') return 'ปรับสถานะปัจจุบัน'
   if (action === 'usage_status_changed') return 'เปลี่ยนสถานะจากการใช้งาน'
@@ -43,7 +48,7 @@ function timelineLabel(eventKey: string, action: string) {
   if (action === 'create') return 'สร้างเอกสาร'
   if (action === 'update') return 'แก้ไขเอกสาร'
   if (action === 'status') return 'เปลี่ยนสถานะเอกสาร'
-  return eventKey
+  return eventKey.startsWith('WTSTATUS-') || eventKey.startsWith('WTUSE-') ? 'อัปเดตเอกสาร' : eventKey
 }
 
 function timelineDotClass(action: string, isLatest: boolean) {
@@ -114,6 +119,7 @@ export function WeightTicketDetailModal({
   const [showStockReturnDialog, setShowStockReturnDialog] = useState(false)
   const [canReturnStock, setCanReturnStock] = useState(false)
   const [successModalMessage, setSuccessModalMessage] = useState('')
+  const [expandedTimelineIds, setExpandedTimelineIds] = useState<Record<string, boolean>>({})
 
   async function loadStockReturnAvailability(documentNo: string) {
     const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(documentNo)}/stock-returns`, { cache: 'no-store' })
@@ -247,7 +253,7 @@ export function WeightTicketDetailModal({
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="weight-ticket-detail-title" className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0">
+      <DialogContent aria-labelledby="weight-ticket-detail-title" className="max-h-[90vh] max-w-[min(96vw,96rem)] rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0">
         <DialogHeader className="p-4 bg-slate-900 text-white shrink-0 rounded-t-md">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -388,7 +394,7 @@ export function WeightTicketDetailModal({
                       onOpenLineGallery={({ images, title }) => setLineGallery({ activeIndex: 0, images, title })}
                     />
                   </Card>
-                </div>
+                  </div>
 
                 <Card className="p-5">
                   <SectionTitle subtitle="สถานะปัจจุบันของเอกสาร" title="สถานะ" />
@@ -545,10 +551,14 @@ export function WeightTicketDetailModal({
                   const toStatus = metadataString(event.metadata, 'toStatus')
                   const targetDocNo = metadataString(event.metadata, 'targetDocNo')
                   const productName = metadataString(event.metadata, 'productName')
-                  const note = metadataString(event.metadata, 'cancelNote') || metadataString(event.metadata, 'note')
+                  const note = metadataString(event.metadata, 'cancelNote')
+                    || metadataString(event.metadata, 'note')
+                    || (event.action === 'edited' ? 'มีการแก้ไขรายการสินค้า/เต๋า' : '')
                   const allocatedNetWeight = metadataNumber(event.metadata, 'allocatedNetWeight')
                   const toRemainingWeight = metadataNumber(event.metadata, 'toRemainingWeight')
                   const isLatest = index === 0
+                  const pendingOutChangeCount = weightTicketTimelinePendingOutChangeCount(ticket, event)
+                  const isExpanded = Boolean(expandedTimelineIds[event.id])
 
                   return (
                     <div key={event.id} className="grid grid-cols-[88px_1fr] gap-3 sm:grid-cols-[128px_1fr]">
@@ -590,6 +600,22 @@ export function WeightTicketDetailModal({
                           ) : null}
                           {!targetDocNo && !productName && allocatedNetWeight == null && !note ? (
                             <div className="text-slate-400">อัปเดตข้อมูล</div>
+                          ) : null}
+                          {pendingOutChangeCount > 0 ? (
+                            <div>
+                              <button
+                                className="font-semibold text-blue-700 hover:underline"
+                                type="button"
+                                onClick={() => setExpandedTimelineIds((current) => ({ ...current, [event.id]: !current[event.id] }))}
+                              >
+                                {isExpanded ? 'ซ่อนรายการเปลี่ยนแปลง' : `ดูรายการเปลี่ยนแปลง ${pendingOutChangeCount.toLocaleString('th-TH')} รายการ`}
+                              </button>
+                              {isExpanded ? (
+                                <div className="mt-2 overflow-hidden rounded-md border border-slate-100">
+                                  <WeightTicketTimelinePendingOutChanges event={event} ticket={ticket} />
+                                </div>
+                              ) : null}
+                            </div>
                           ) : null}
                         </div>
                       </div>

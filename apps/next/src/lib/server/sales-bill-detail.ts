@@ -23,6 +23,7 @@ export type SalesBillDetail = {
   items: Array<{
     amount: number
     deliveryLineId: string
+    deliverySummaryId: string
     deliveryTicketDocNo: string
     deliveryVehicleNo: string
     deductWeight: number
@@ -227,6 +228,16 @@ function itemSnapshots(items: Prisma.JsonValue | null | undefined) {
   return Array.isArray(items) ? items.filter((item) => item && typeof item === 'object' && !Array.isArray(item)) : []
 }
 
+function jsonObject(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {}
+}
+
+function jsonString(value: unknown) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
 function tradingSourceInfo(
   transactionMode: string | null,
   lineNo: number,
@@ -303,6 +314,9 @@ function buildDurableItems(input: {
       ? [tradingSource.label, ...salesSourceLabels]
       : [stockSourceLabel, ...salesSourceLabels]
     const deliveryTicketDocNo = wtoSource?.source_doc_no ?? ''
+    const wtoMeta = jsonObject(wtoSource?.meta)
+    const deliveryLineId = jsonString(wtoMeta.deliveryLineId)
+    const deliverySummaryId = jsonString(wtoMeta.deliverySummaryId)
     const sourceType = input.bill.transaction_mode === 'TRADING'
       ? tradingSource.sourceType
       : Array.from(new Set([
@@ -315,7 +329,8 @@ function buildDurableItems(input: {
 
     return {
       amount: toNumber(line.line_amount),
-      deliveryLineId: firstSourceAllocation?.source_line_no != null ? String(firstSourceAllocation.source_line_no) : '',
+      deliveryLineId,
+      deliverySummaryId,
       deliveryTicketDocNo,
       deliveryVehicleNo: input.vehicleByDeliveryDocNo.get(deliveryTicketDocNo) ?? '',
       deductWeight: toNumber(line.deduct_weight),
@@ -361,6 +376,7 @@ function buildSnapshotItems(input: {
     return {
       amount: snapshotNumber(item, 'amount'),
       deliveryLineId: snapshotString(item, 'deliveryLineId'),
+      deliverySummaryId: snapshotString(item, 'deliverySummaryId'),
       deliveryTicketDocNo,
       deliveryVehicleNo: input.vehicleByDeliveryDocNo.get(deliveryTicketDocNo) ?? '',
       deductWeight: snapshotNumber(item, 'deductWeight'),

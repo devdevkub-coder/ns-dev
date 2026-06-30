@@ -1,21 +1,20 @@
 import { NextResponse } from 'next/server'
 import { parseInternalBigIntId } from '@/lib/business-code'
-import { calculateTicketTotals, isOtherProductImpurityId, isOtherProductImpurityLabel, weightTicketFormSchema } from '@/lib/weight-tickets'
+import { calculateTicketTotals, weightTicketFormSchema } from '@/lib/weight-tickets'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor } from '@/lib/server/daily'
 import { findActiveBranchReferenceByCodeOrId, findActiveBranchReferencesByCodes } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
-import { PartyBranchEligibilityError, assertCustomerEligibleForBranch, assertSupplierEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
+import { getWeightTicketPendingOutEvents } from '@/lib/server/weight-ticket-pending-out-events'
+import { assertWeightTicketImpurityRules, assertWeightTicketPartyForType, WeightTicketWriteValidationError } from '@/lib/server/weight-ticket-write/type-guards'
 import {
-  createActiveWtoPendingOut,
-  resolveWtoWarehousesForLines,
-  validateWtoStockAvailability,
   WtoPendingOutError,
 } from '@/lib/server/stock-holds'
+import { applyWeightTicketCreateSideEffects, resolveWeightTicketWarehousesForWrite, validateWeightTicketStockForWrite, weightTicketPartySnapshot } from '@/lib/server/weight-ticket-write/handlers'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import {
   bangkokDateInput,
@@ -63,13 +62,27 @@ const ticketInclude = {
   },
   stock_holds: {
     select: {
+      cost_snapshot_at: true,
+      cost_snapshot_note: true,
+      cost_snapshot_source: true,
+      consumed_at: true,
+      consumed_by_ref_no: true,
+      hold_key: true,
+      held_at: true,
       product_id: true,
       qty: true,
+      released_at: true,
+      source_doc_no: true,
+      source_line_no: true,
       status: true,
       unit_cost_snapshot: true,
       value_snapshot: true,
+      warehouse_id: true,
+      warehouses: {
+        select: { code: true, id: true, name: true, type: true },
+      },
     },
-    where: { status: 'active' },
+    orderBy: { source_line_no: 'asc' },
   },
 } as const
 
@@ -150,21 +163,10 @@ export async function POST(request: Request) {
     if (!branch || (scopedBranchIds.length && !scopedBranches.some((item) => item.id === branch.id))) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือไม่มีสิทธิ์ใช้งาน', fieldErrors: { branchId: ['เลือกสาขา'] } }, { status: 400 })
     }
-    if (values.type === 'WTI' && !supplier) {
-      return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { partyId: ['เลือกผู้ขาย'] } }, { status: 400 })
-    }
-    if (values.type === 'WTO' && !customer) {
-      return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { partyId: ['เลือกลูกค้า'] } }, { status: 400 })
-    }
     try {
-      if (values.type === 'WTI' && supplier) {
-        await assertSupplierEligibleForBranch({ branchId: branch.id, supplierId: supplier.id })
-      }
-      if (values.type === 'WTO' && customer) {
-        await assertCustomerEligibleForBranch({ branchId: branch.id, customerId: customer.id })
-      }
+      await assertWeightTicketPartyForType({ branchId: branch.id, customer, supplier, type: values.type })
     } catch (caught) {
-      if (caught instanceof PartyBranchEligibilityError) {
+      if (caught instanceof WeightTicketWriteValidationError) {
         return NextResponse.json({
           code: 'BAD_REQUEST',
           error: caught.message,
@@ -199,36 +201,17 @@ export async function POST(request: Request) {
     }
 
     const impurityById = new Map(impurities.map((impurity) => [impurity.id, impurity] as const))
-    const wtoOtherProductImpurityIndex = values.lines.findIndex((line) => isOtherProductImpurityId(line.impurityId) && values.type === 'WTO')
-    if (wtoOtherProductImpurityIndex >= 0) {
-      return NextResponse.json({
-        code: 'BAD_REQUEST',
-        error: `รายการที่ ${wtoOtherProductImpurityIndex + 1}: ใบส่งของไม่รองรับสิ่งเจือปนแบบสินค้าอื่น`,
-        fieldErrors: { [`lines.${wtoOtherProductImpurityIndex}.impurityId`]: ['ใบส่งของไม่รองรับสิ่งเจือปนแบบสินค้าอื่น'] },
-      }, { status: 400 })
-    }
-    const missingImpurityIndex = values.lines.findIndex((line, index) => {
-      const impurityId = parsedImpurityIds[index]
-      return Boolean(line.impurityId) && !isOtherProductImpurityId(line.impurityId) && (impurityId == null || !impurityById.has(impurityId))
-    })
-    if (missingImpurityIndex >= 0) {
-      return NextResponse.json({
-        code: 'BAD_REQUEST',
-        error: `รายการที่ ${missingImpurityIndex + 1}: สิ่งเจือปนไม่ถูกต้องหรือถูกปิดใช้งาน`,
-        fieldErrors: { [`lines.${missingImpurityIndex}.impurityId`]: ['สิ่งเจือปนไม่ถูกต้องหรือถูกปิดใช้งาน'] },
-      }, { status: 400 })
-    }
-    const legacyOtherProductImpurityIndex = values.lines.findIndex((line, index) => {
-      const impurityId = parsedImpurityIds[index]
-      if (!line.impurityId || isOtherProductImpurityId(line.impurityId) || impurityId == null) return false
-      return isOtherProductImpurityLabel(impurityById.get(impurityId)?.name)
-    })
-    if (legacyOtherProductImpurityIndex >= 0) {
-      return NextResponse.json({
-        code: 'BAD_REQUEST',
-        error: `รายการที่ ${legacyOtherProductImpurityIndex + 1}: สินค้าอื่นเป็นตัวเลือกของระบบสำหรับ WTI เท่านั้น ไม่ใช่ master สิ่งเจือปน`,
-        fieldErrors: { [`lines.${legacyOtherProductImpurityIndex}.impurityId`]: ['เลือกตัวเลือกสินค้าอื่นของระบบแทน master data'] },
-      }, { status: 400 })
+    try {
+      assertWeightTicketImpurityRules({ impurityById, parsedImpurityIds, values })
+    } catch (caught) {
+      if (caught instanceof WeightTicketWriteValidationError) {
+        return NextResponse.json({
+          code: caught.code,
+          error: caught.message,
+          fieldErrors: caught.fieldErrors,
+        }, { status: caught.status })
+      }
+      throw caught
     }
 
     const actor = currentActor(context)
@@ -249,11 +232,12 @@ export async function POST(request: Request) {
       await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('weight_tickets.doc_no'))`
       const branchCode = String(branch.code ?? '').replace(/\D/g, '').slice(-2).padStart(2, '0')
       const docNo = await nextWeightTicketDocNo(tx, values.type, branchCode, documentDate)
+      const partySnapshot = weightTicketPartySnapshot({ customer, supplier, type: values.type })
       const createdTicket = await tx.weight_tickets.create({
         data: {
           branch_id: branch.id,
           created_by: actor,
-          customer_id: values.type === 'WTO' ? customer?.id ?? null : null,
+          customer_id: partySnapshot.customerId,
           doc_no: docNo,
           doc_type: values.type,
           document_date: new Date(`${documentDate}T00:00:00.000Z`),
@@ -262,10 +246,10 @@ export async function POST(request: Request) {
           gross_weight: totals.grossWeight,
           image_count: values.vehicleImageNames.length,
           net_weight: totals.netWeight,
-          party_name: values.type === 'WTI' ? supplier?.name ?? '' : customer?.name ?? '',
+          party_name: partySnapshot.partyName,
           remark: values.remark || null,
           status: defaultTicketStatus(values.type),
-          supplier_id: values.type === 'WTI' ? supplier?.id ?? null : null,
+          supplier_id: partySnapshot.supplierId,
           deduct_weight: totals.deductionWeight,
           updated_by: actor,
           vehicle_image_count: values.vehicleImageNames.length,
@@ -273,32 +257,18 @@ export async function POST(request: Request) {
           vehicle_no: values.vehicleNo,
         },
       })
-      const warehouseByCode = values.type === 'WTO'
-        ? await resolveWtoWarehousesForLines(tx, { branchId: branch.id, lines: values.lines })
-        : new Map()
+      const warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: branch.id, lines: values.lines, type: values.type })
       const lineRows = buildWeightTicketLineRows(createdTicket.id, values, productByCode, impurityById, warehouseByCode)
-      if (values.type === 'WTO') {
-        await validateWtoStockAvailability(tx, {
-          branchId: branch.id,
-          lines: lineRows.map((line, index) => ({
-            index,
-            netWeight: Number(line.net_weight),
-            productId: line.product_id,
-            productName: line.product_name,
-            warehouseId: line.warehouse_id,
-          })),
-        })
-      }
+      await validateWeightTicketStockForWrite(tx, { branchId: branch.id, lineRows, type: values.type })
       const createdLines = await Promise.all(lineRows.map((data) => tx.weight_ticket_lines.create({ data })))
-      if (values.type === 'WTO') {
-        await createActiveWtoPendingOut(tx, {
-          actor,
-          branchId: branch.id,
-          documentNo: docNo,
-          lines: createdLines,
-          weightTicketId: createdTicket.id,
-        })
-      }
+      await applyWeightTicketCreateSideEffects(tx, {
+        actor,
+        branchId: branch.id,
+        createdLines,
+        documentNo: docNo,
+        type: values.type,
+        weightTicketId: createdTicket.id,
+      })
       const imageCount = values.vehicleImageNames.length + createdLines.reduce((sum, line) => sum + (line.image_count ?? 0), 0)
       const { summaryRows } = buildWeightTicketProductSummaryRows(createdTicket.id, createdLines)
       const createdSummaries = await Promise.all(summaryRows.map(({ lineIds, ...data }) => tx.weight_ticket_product_summaries.create({ data })))
@@ -389,8 +359,10 @@ export async function POST(request: Request) {
       targetType: 'weight_ticket',
     })
     const timeline = await getWeightTicketTimeline(prisma, created.id)
+    const pendingOutEvents = await getWeightTicketPendingOutEvents(prisma, created.id)
     return NextResponse.json({
       ...mapped,
+      pendingOutEvents,
       timeline,
     })
   } catch (caught) {

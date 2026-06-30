@@ -45,6 +45,7 @@ export async function appendWeightTicketStatusLog(
     throw new Error(`ไม่พบใบรับ-ส่งของสำหรับบันทึกประวัติสถานะ: ${String(entry.weightTicketId)}`)
   }
 
+  const eventKey = `WTSTATUS-${ticket.doc_no}-${randomUUID()}`
   await tx.weight_ticket_status_logs.create({
     data: {
       action: entry.action,
@@ -52,7 +53,7 @@ export async function appendWeightTicketStatusLog(
       created_by: entry.actor ?? null,
       deduct_weight_snapshot: toNumber(ticket.deduct_weight),
       doc_type: ticket.doc_type,
-      event_key: `WTSTATUS-${ticket.doc_no}-${randomUUID()}`,
+      event_key: eventKey,
       from_status: entry.fromStatus ?? null,
       gross_weight_snapshot: toNumber(ticket.gross_weight),
       meta: entry.meta,
@@ -63,4 +64,5 @@ export async function appendWeightTicketStatusLog(
       weight_ticket_id: ticket.id,
     },
   })
+  return eventKey
 }

@@ -97,14 +97,33 @@ export type WeightTicketRow = Prisma.weight_ticketsGetPayload<{
     }
     stock_holds: {
       select: {
+        cost_snapshot_at: true
+        cost_snapshot_note: true
+        cost_snapshot_source: true
+        consumed_at: true
+        consumed_by_ref_no: true
+        hold_key: true
+        held_at: true
         product_id: true
         qty: true
+        released_at: true
+        source_doc_no: true
+        source_line_no: true
         status: true
         unit_cost_snapshot: true
         value_snapshot: true
+        warehouse_id: true
+        warehouses: {
+          select: {
+            code: true
+            id: true
+            name: true
+            type: true
+          }
+        }
       }
-      where: {
-        status: 'active'
+      orderBy: {
+        source_line_no: 'asc'
       }
     }
   }
@@ -743,8 +762,25 @@ export function canMutateWeightTicket(row: { status: string | null }, usage: Wei
 
 export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsage) {
   const canMutate = canMutateWeightTicket(row, usage)
+  const holdWarehouseByLineNo = new Map<number, { code: string | null; name: string; type: string | null }>()
+  ;(row.stock_holds ?? []).forEach((hold) => {
+    if (hold.source_line_no == null || holdWarehouseByLineNo.has(hold.source_line_no)) return
+    holdWarehouseByLineNo.set(hold.source_line_no, {
+      code: hold.warehouses.code,
+      name: hold.warehouses.name,
+      type: hold.warehouses.type,
+    })
+  })
   const lineRows = row.weight_ticket_lines.map((line: WeightTicketRow['weight_ticket_lines'][number]) => ({
     ...parseImpurityProductMeta(line.note),
+    ...(() => {
+      const holdWarehouse = holdWarehouseByLineNo.get(line.line_no)
+      return {
+        warehouseId: line.warehouses?.code ?? holdWarehouse?.code ?? '',
+        warehouseName: line.warehouses?.name ?? holdWarehouse?.name ?? '',
+        warehouseType: line.warehouses?.type ?? holdWarehouse?.type ?? '',
+      }
+    })(),
     containerDeductionWeight: toNumber(line.container_deduction_weight).toString(),
     containerDeductionWeightValue: toNumber(line.container_deduction_weight),
     deductionMode: (line.deduction_mode ?? 'none') as 'none' | 'kg' | 'percent',
@@ -765,9 +801,6 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     parentLineNo: line.parent_line_no ?? null,
     productId: requireBusinessCode(line.products.code, `สินค้า ${line.products.id}`),
     productName: line.product_name,
-    warehouseId: line.warehouses?.code ?? '',
-    warehouseName: line.warehouses?.name ?? '',
-    warehouseType: line.warehouses?.type ?? '',
   }))
   const lineImageNames = lineRows.flatMap((line: { imageNames: string[] }) => line.imageNames)
   const activeHoldsByProductId = new Map<string, { missingCost: boolean; qty: number; value: number }>()
@@ -826,6 +859,41 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     return orderA - orderB
   })
 
+  const lineByLineNo = new Map(lineRows.map((line) => [line.lineNo, line] as const))
+  const firstLineByProductId = new Map<string, typeof lineRows[number]>()
+  lineRows.forEach((line) => {
+    if (!firstLineByProductId.has(line.productId)) firstLineByProductId.set(line.productId, line)
+  })
+  const pendingOutHistory = (row.stock_holds ?? []).filter((hold) => hold.status === 'active').map((hold) => {
+    const sourceLine = hold.source_line_no == null ? undefined : lineByLineNo.get(hold.source_line_no)
+    const productLine = sourceLine ?? firstLineByProductId.get(String(hold.product_id))
+    const unitCostSnapshot = hold.unit_cost_snapshot == null ? null : toNumber(hold.unit_cost_snapshot)
+    const pendingOutValue = hold.value_snapshot == null
+      ? unitCostSnapshot == null ? null : toNumber(hold.qty) * unitCostSnapshot
+      : toNumber(hold.value_snapshot)
+    const qty = toNumber(hold.qty)
+    return {
+      costSnapshotAt: hold.cost_snapshot_at?.toISOString() ?? null,
+      costSnapshotNote: hold.cost_snapshot_note ?? '',
+      costSnapshotSource: hold.cost_snapshot_source ?? '',
+      heldAt: hold.held_at?.toISOString() ?? null,
+      holdKey: hold.hold_key,
+      pendingOutValue,
+      productId: productLine?.productId ?? String(hold.product_id),
+      productName: productLine?.productName ?? '-',
+      qty,
+      qtyAfter: qty,
+      qtyBefore: null,
+      referenceDocNo: hold.consumed_by_ref_no ?? hold.source_doc_no ?? row.doc_no,
+      releasedAt: hold.consumed_at?.toISOString() ?? hold.released_at?.toISOString() ?? null,
+      sourceLineNo: hold.source_line_no ?? null,
+      status: hold.status,
+      unitCostSnapshot,
+      warehouseId: productLine?.warehouseId || hold.warehouses.code || String(hold.warehouse_id ?? ''),
+      warehouseName: productLine?.warehouseName || hold.warehouses.name || '',
+    }
+  })
+
   return {
     branchId: row.branches?.code ?? '',
     branchName: row.branches?.name ?? '-',
@@ -844,6 +912,8 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     lines: lineRows,
     partyId: row.doc_type === 'WTI' ? row.suppliers?.code ?? '' : row.customers?.code ?? '',
     partyName: row.party_name,
+    pendingOutEvents: [],
+    pendingOutHistory,
     productSummaries,
     remark: row.remark ?? '',
     status: (row.status ?? defaultTicketStatus(row.doc_type as WeightTicketType)) as WeightTicketStatus,
@@ -931,13 +1001,32 @@ export const weightTicketInclude = {
   },
   stock_holds: {
     select: {
+      cost_snapshot_at: true,
+      cost_snapshot_note: true,
+      cost_snapshot_source: true,
+      consumed_at: true,
+      consumed_by_ref_no: true,
+      hold_key: true,
+      held_at: true,
       product_id: true,
       qty: true,
+      released_at: true,
+      source_doc_no: true,
+      source_line_no: true,
       status: true,
       unit_cost_snapshot: true,
       value_snapshot: true,
+      warehouse_id: true,
+      warehouses: {
+        select: {
+          code: true,
+          id: true,
+          name: true,
+          type: true,
+        },
+      },
     },
-    where: { status: 'active' },
+    orderBy: { source_line_no: 'asc' },
   },
 } as const
 

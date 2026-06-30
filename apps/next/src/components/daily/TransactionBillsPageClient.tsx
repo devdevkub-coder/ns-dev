@@ -1534,10 +1534,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setShowSalesForm(true)
   }
 
-  function salesEditSummaryId(salesDocNo: string, lineNo: number) {
-    return `${salesDocNo}:edit:${lineNo}`
-  }
-
   function salesDeliverySnapshotFromDetail(detail: SalesBillDetail): DeliveryOption | null {
     const deliveryItems = detail.items.filter((item) => item.deliveryTicketDocNo)
     if (deliveryItems.length === 0) return null
@@ -1569,7 +1565,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         deductWeight: item.deductWeight,
         grossWeight: item.grossWeight,
         hasMixedDeductionProfiles: false,
-        id: salesEditSummaryId(detail.docNo, item.lineNo),
+        id: item.deliverySummaryId,
         lineCount: 1,
         netWeight: item.netWeight,
         productId: item.productCode || item.productId,
@@ -1611,7 +1607,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       hasVat: detail.hasVat,
       items: detail.items.map((item) => ({
         deliveryLineId: item.deliveryLineId || null,
-        deliverySummaryId: item.deliveryTicketDocNo ? salesEditSummaryId(detail.docNo, item.lineNo) : null,
+        deliverySummaryId: item.deliverySummaryId || null,
         deliveryTicketDocNo: item.deliveryTicketDocNo || null,
         deliveryTicketId: item.deliveryTicketDocNo || null,
         deductWeight: item.deductWeight,
@@ -3784,11 +3780,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                     {itemPoSellOptions.map((po) => <option key={`${po.id}-${po.line_id ?? po.product_id ?? 'all'}`} value={po.id}>{po.label ?? po.name}</option>)}
                                   </select>
                                   {poSellVariance ? <div className={`mt-1 text-xs font-semibold ${poSellVariance.className}`}>{poSellVariance.text}</div> : null}
-                                </td>
-                                <td className="p-2">
-                                  <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-right font-semibold tabular-nums text-slate-700">
-                                    {sourceSummary?.unitCostSnapshot == null ? '-' : formatMoney(sourceSummary.unitCostSnapshot)}
-                                  </div>
                                 </td>
                                 <td className="p-2">
                                   <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-right font-semibold tabular-nums text-slate-700">
