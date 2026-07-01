@@ -248,9 +248,9 @@ export function AppShell({ children }: AppShellProps) {
         onMouseEnter={() => setDesktopSidebarExpanded(true)}
         onMouseLeave={handleSidebarMouseLeave}
       >
-        <div className={`flex items-center border-b border-slate-700 p-4 ${desktopSidebarExpanded ? 'gap-4' : 'lg:justify-center lg:gap-0'}`}>
+        <div className={`flex items-center border-b border-slate-700 p-4 ${desktopSidebarExpanded ? 'gap-5' : 'lg:justify-center lg:gap-0'}`}>
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 font-bold text-white">NS</div>
-          <div className={`min-w-0 ${desktopSidebarExpanded ? '' : 'lg:hidden'}`.trim()}>
+          <div className={`min-w-0 pl-1 ${desktopSidebarExpanded ? '' : 'lg:hidden'}`.trim()}>
             <div className="truncate font-bold text-white">NS Scrap ERP</div>
             <div className="truncate text-xs text-slate-400">ระบบบริหารจัดการ</div>
           </div>
