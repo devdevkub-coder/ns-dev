@@ -6,7 +6,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission, type AppAuthContext } from '@/lib/server/auth-context'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
-import { currentActor, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, nextDailyDocNo, normalizeDate, roundMoney, toDateOnly, toNumber } from '@/lib/server/daily'
 import { requireBusinessCode } from '@/lib/business-code'
 import { isCustomerEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { prisma } from '@/lib/server/prisma'
@@ -233,6 +233,7 @@ function billOrderBy(query: BillQuery): Prisma.sales_billsOrderByWithRelationInp
 }
 
 function calculateSalesTotals(values: SalesBillFormValues, vatRatePercent: number) {
+  const grossProfitBase = values.items.reduce((sum, item) => sum + Math.max(0, item.qty * item.price), 0)
   const subtotal = values.items.reduce((sum, item) => sum + Math.max(0, item.qty * item.price - item.discount), 0)
   const afterDiscount = Math.max(0, subtotal - values.discountTotal)
   const rate = Math.max(0, Math.min(100, vatRatePercent))
@@ -242,7 +243,7 @@ function calculateSalesTotals(values: SalesBillFormValues, vatRatePercent: numbe
       ? afterDiscount * rate / (100 + rate)
       : afterDiscount * (rate / 100)
   const totalAmount = values.hasVat && values.vatType === 'EXCLUDE' ? afterDiscount + vatAmount : afterDiscount
-  return { grossProfitBase: afterDiscount, subtotal, totalAmount, vatAmount }
+  return { grossProfitBase, subtotal, totalAmount, vatAmount }
 }
 
 function salesItems(
@@ -1667,7 +1668,7 @@ export async function POST(request: Request) {
       }
     }
     const totalCost = values.transactionMode === 'TRADING'
-      ? Array.from(tradingMatchedCogsByLineIndex.values()).reduce((sum, amount) => sum + amount, 0)
+      ? roundMoney(Array.from(tradingMatchedCogsByLineIndex.values()).reduce((sum, amount) => sum + amount, 0))
       : 0
     const selectedHeaderPoSell = poSells.length === 1 ? poSells[0] : null
 
@@ -1685,7 +1686,7 @@ export async function POST(request: Request) {
           doc_no: docNo,
           cogs_amount: totalCost,
           export_order_no: exportOrderNo,
-          gross_profit: totals.grossProfitBase - totalCost,
+          gross_profit: roundMoney(totals.grossProfitBase - totalCost),
           has_vat: values.hasVat,
           items: items as Prisma.InputJsonValue,
           license_plate: values.licensePlate,
@@ -1889,12 +1890,12 @@ export async function POST(request: Request) {
           salesChannelId: channel.id,
           weightTicketId: stockDeliveryTicket.id,
         })
-        const stockCogs = consumedStockLines.reduce((sum, line) => sum + line.valueOut, 0)
-        const combinedCogs = totalCost + stockCogs
+        const stockCogs = roundMoney(consumedStockLines.reduce((sum, line) => sum + line.valueOut, 0))
+        const combinedCogs = roundMoney(totalCost + stockCogs)
         await tx.sales_bills.update({
           data: {
             cogs_amount: combinedCogs,
-            gross_profit: totals.grossProfitBase - combinedCogs,
+            gross_profit: roundMoney(totals.grossProfitBase - combinedCogs),
             total_cost: combinedCogs,
             updated_at: createdAt,
             updated_by: actor,
@@ -2416,7 +2417,7 @@ export async function PATCH(request: Request) {
       }
 
       const createdAt = new Date()
-      const totalCost = toNumber(bill.total_cost ?? bill.cogs_amount)
+      const totalCost = roundMoney(toNumber(bill.total_cost ?? bill.cogs_amount))
       const headerPoSellDocNo = values.poSellId?.trim() || undefined
       const oldCustomerAdvanceAllocations = bill.sales_bill_customer_advance_allocations.filter((allocation) => allocation.status === 'active')
       const oldCustomerAdvanceAllocatedAmount = oldCustomerAdvanceAllocations.reduce((sum, allocation) => sum + toNumber(allocation.allocated_amount), 0)
@@ -2467,7 +2468,7 @@ export async function PATCH(request: Request) {
               salesChannelId: channel.id,
               weightTicketId: stockDeliveryTicket.id,
             })
-            stockCostDelta -= releasedLines.reduce((sum, line) => sum + line.valueIn, 0)
+            stockCostDelta = roundMoney(stockCostDelta - releasedLines.reduce((sum, line) => sum + line.valueIn, 0))
             await appendWtoPendingOutEventsForHoldKeys(tx, {
               actor,
               eventTypeForHold: () => 'sales_bill_edit_release',
@@ -2488,7 +2489,7 @@ export async function PATCH(request: Request) {
               salesChannelId: channel.id,
               weightTicketId: stockDeliveryTicket.id,
             })
-            stockCostDelta += consumedLines.reduce((sum, line) => sum + line.valueOut, 0)
+            stockCostDelta = roundMoney(stockCostDelta + consumedLines.reduce((sum, line) => sum + line.valueOut, 0))
             await appendWtoPendingOutEventsForSalesBill(tx, {
               actor,
               eventTypeForHold: () => 'sales_bill_consume',
@@ -2678,12 +2679,13 @@ export async function PATCH(request: Request) {
           })
         }
 
+        const updatedTotalCost = roundMoney(totalCost + stockCostDelta)
         await tx.sales_bills.update({
           data: {
             discount: values.discountTotal,
             discount_total: values.discountTotal,
             export_order_no: values.exportOrderNo,
-            gross_profit: totals.grossProfitBase - (totalCost + stockCostDelta),
+            gross_profit: roundMoney(totals.grossProfitBase - updatedTotalCost),
             has_vat: values.hasVat,
             items: items as Prisma.InputJsonValue,
             note: values.note,
@@ -2694,7 +2696,7 @@ export async function PATCH(request: Request) {
             received_amount: customerAdvanceApplied,
             subtotal: totals.subtotal,
             total_amount: totals.totalAmount,
-            total_cost: totalCost + stockCostDelta,
+            total_cost: updatedTotalCost,
             updated_at: createdAt,
             updated_by: actor,
             vat_amount: totals.vatAmount,
@@ -2702,7 +2704,7 @@ export async function PATCH(request: Request) {
             vat_invoice_issued: values.vatInvoiceIssued,
             vat_invoice_no: values.vatInvoiceNo,
             vat_type: values.vatType,
-            cogs_amount: totalCost + stockCostDelta,
+            cogs_amount: updatedTotalCost,
           },
           where: { id: bill.id },
         })

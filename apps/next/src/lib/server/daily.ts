@@ -11,6 +11,10 @@ export function toNumber(value: { toNumber: () => number } | number | null | und
   return typeof value === 'number' ? value : value.toNumber()
 }
 
+export function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
 export function normalizeDate(value: string) {
   return new Date(`${value}T00:00:00.000Z`)
 }

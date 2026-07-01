@@ -1,5 +1,5 @@
 import { requireBusinessCode } from '@/lib/business-code'
-import { toNumber } from '@/lib/server/daily'
+import { roundMoney, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import type { Prisma } from '../../../generated/prisma/client'
 
@@ -835,7 +835,7 @@ export async function consumeActiveWtoPendingOut(tx: TxClient, input: {
       sourceDocNo: hold.source_doc_no,
       sourceLineNo: hold.source_line_no,
       unitCost,
-      valueOut: qty * unitCost,
+      valueOut: roundMoney(qty * unitCost),
       warehouseId: hold.warehouse_id,
       weightTicketLineId: hold.weight_ticket_line_id,
     })
@@ -933,7 +933,7 @@ export async function consumeActiveWtoPendingOut(tx: TxClient, input: {
         product_id: update.hold.product_id,
         qty: update.consumedQty,
         unit_cost_snapshot: update.hold.unit_cost_snapshot,
-        value_snapshot: update.hold.unit_cost_snapshot == null ? null : update.consumedQty * toNumber(update.hold.unit_cost_snapshot),
+        value_snapshot: update.hold.unit_cost_snapshot == null ? null : roundMoney(update.consumedQty * toNumber(update.hold.unit_cost_snapshot)),
         cost_snapshot_at: update.hold.cost_snapshot_at,
         cost_snapshot_source: update.hold.cost_snapshot_source,
         cost_snapshot_note: update.hold.cost_snapshot_note,
