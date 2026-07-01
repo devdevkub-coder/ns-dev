@@ -500,6 +500,7 @@ Expected:
   - Browser QA remains pending.
 - `/dual-costing/deal-margin`
   - After the latest correction, the per-deal desktop table now uses the active lined/resizable table shell with Thai-first business headers, persisted column widths, reset-width control, final status-column auto-stretch, and a shared pagination toolbar.
+  - Follow-up correction after visual feedback: every business header now uses `ResizableTableHead` sorting props, shows inactive/active up/down sort indicators, applies client-side ascending/descending sorting before pagination, and uses fixed table layout so resize handles visibly adjust the columns like `/dual-costing/cost-pool`.
   - The mobile card list now uses the same paged row set as desktop and uses clearer Thai-first labels for revenue, matched cost, deal margin, and match status.
   - Browser QA remains pending.
 - Financial statements finance pages: `/finance-accounting/pl-statement`, `/finance-accounting/balance-sheet`, and `/finance-accounting/cash-flow-statement`
