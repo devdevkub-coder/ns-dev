@@ -40,6 +40,10 @@ export type SalesBillDetail = {
     productId: string
     productName: string
     qty: number
+    sourceDeductWeight: number
+    sourceGrossWeight: number
+    sourceLineCount: number
+    sourceNetWeight: number
     sourceProductCode: string
     sourceProductName: string
     sourceLabel: string
@@ -221,6 +225,10 @@ function jsonString(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+function deliverySummaryOutwardId(ticketDocNo: string, productCode: string, lineCount: number | null | undefined) {
+  return `${ticketDocNo}:${productCode}:${lineCount ?? 0}`
+}
+
 function tradingSourceInfo(
   transactionMode: string | null,
   lineNo: number,
@@ -268,6 +276,14 @@ function buildDurableItems(input: {
   lineFacts: SalesBillLineFact[]
   poSellDocNoSet: Set<string>
   stockUnitCostByLineNo: Map<number, number | null>
+  deliverySummaryById: Map<string, {
+    deductWeight: number
+    grossWeight: number
+    lineCount: number
+    netWeight: number
+    productCode: string
+    productName: string
+  }>
   tradingFactByLineNo: Map<number, Prisma.trading_allocation_factsGetPayload<{
     include: {
       purchase_bills: { select: { doc_no: true } }
@@ -301,6 +317,7 @@ function buildDurableItems(input: {
     const wtoMeta = jsonObject(wtoSource?.meta)
     const deliveryLineId = jsonString(wtoMeta.deliveryLineId)
     const deliverySummaryId = jsonString(wtoMeta.deliverySummaryId)
+    const sourceSummary = deliverySummaryId ? input.deliverySummaryById.get(deliverySummaryId) ?? null : null
     const sourceType = input.bill.transaction_mode === 'TRADING'
       ? tradingSource.sourceType
       : Array.from(new Set([
@@ -310,8 +327,8 @@ function buildDurableItems(input: {
         }),
         ...poAllocations.map((allocation) => allocation.allocation_type === 'PO_SELL' ? 'PO Sell' : 'Spot Sale'),
       ])).join(' / ')
-    const sourceProductCode = wtoSource?.product_code_snapshot || line.product_code_snapshot
-    const sourceProductName = wtoSource?.product_name_snapshot || line.product_name_snapshot || '-'
+    const sourceProductCode = sourceSummary?.productCode || wtoSource?.product_code_snapshot || line.product_code_snapshot
+    const sourceProductName = sourceSummary?.productName || wtoSource?.product_name_snapshot || line.product_name_snapshot || '-'
 
     return {
       amount: toNumber(line.line_amount),
@@ -332,6 +349,10 @@ function buildDurableItems(input: {
       productId: line.product_code_snapshot,
       productName: line.product_name_snapshot || '-',
       qty: toNumber(line.qty),
+      sourceDeductWeight: sourceSummary?.deductWeight ?? toNumber(line.deduct_weight),
+      sourceGrossWeight: sourceSummary?.grossWeight ?? toNumber(line.gross_weight),
+      sourceLineCount: sourceSummary?.lineCount ?? 1,
+      sourceNetWeight: sourceSummary?.netWeight ?? (toNumber(line.net_weight) || toNumber(line.qty)),
       sourceProductCode,
       sourceProductName,
       sourceLabel: sourceParts.filter(Boolean).join(' / '),
@@ -460,6 +481,20 @@ export async function getSalesBillDetail(
           select: {
             doc_no: true,
             vehicle_no: true,
+            weight_ticket_product_summaries: {
+              select: {
+                deduct_weight: true,
+                gross_weight: true,
+                line_count: true,
+                net_weight: true,
+                product_name: true,
+                products: {
+                  select: {
+                    code: true,
+                  },
+                },
+              },
+            },
           },
           where: {
             doc_no: { in: deliveryDocNos },
@@ -498,6 +533,28 @@ export async function getSalesBillDetail(
     : []
 
   const vehicleByDeliveryDocNo = new Map(deliveryTickets.map((ticket) => [ticket.doc_no, ticket.vehicle_no ?? '']))
+  const deliverySummaryById = new Map<string, {
+    deductWeight: number
+    grossWeight: number
+    lineCount: number
+    netWeight: number
+    productCode: string
+    productName: string
+  }>()
+  deliveryTickets.forEach((ticket) => {
+    ticket.weight_ticket_product_summaries.forEach((summary) => {
+      const productCode = summary.products?.code?.trim() ?? ''
+      if (!productCode) return
+      deliverySummaryById.set(deliverySummaryOutwardId(ticket.doc_no, productCode, summary.line_count), {
+        deductWeight: toNumber(summary.deduct_weight),
+        grossWeight: toNumber(summary.gross_weight),
+        lineCount: summary.line_count ?? 0,
+        netWeight: toNumber(summary.net_weight),
+        productCode,
+        productName: summary.product_name ?? '-',
+      })
+    })
+  })
   const poSellDocNoSet = new Set(poSells.map((poSell) => poSell.doc_no))
   const tradingFactByLineNo = new Map<number, (typeof tradingAllocationFacts)[number]>()
   tradingAllocationFacts.forEach((fact) => {
@@ -515,6 +572,7 @@ export async function getSalesBillDetail(
   }))
   const items = buildDurableItems({
     bill,
+    deliverySummaryById,
     lineFacts,
     poSellDocNoSet,
     stockUnitCostByLineNo,

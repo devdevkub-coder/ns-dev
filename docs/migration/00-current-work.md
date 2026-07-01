@@ -2264,3 +2264,7 @@ Tailwind dependency check:
   - In the Sales Bill form, the first row still shows the WTO source product; added split rows default to that product but expose product search so the user can override SKU. If a changed SKU no longer matches the selected PO Sell, the PO Sell reference is cleared instead of silently reusing an invalid PO.
   - Edit hydration now keeps both identities: `sourceProduct*` for the locked WTO snapshot and `product*` for the actual Sales Bill line. This prevents edited bills with split SKUs from rebuilding WTO summaries from the wrong product.
   - Validation now blocks only true over-allocation of the same WTO summary and invalid PO/product combinations. It no longer requires Sales Bill line product to equal the WTO source product.
+- 2026-07-01: Sales Bill edit WTO source-weight hydration fix
+  - Fixed `SB2607-0008`-style edit hydration where the form showed the sold/billed weight (`40`) as the WTO source weight even though the original WTO summary was `50`.
+  - Sales Bill detail now loads the original `weight_ticket_product_summaries` for referenced WTO documents and exposes `sourceGrossWeight/sourceDeductWeight/sourceNetWeight/sourceLineCount`.
+  - The edit form uses these source-weight fields for the locked WTO snapshot/capacity while keeping the Sales Bill line quantity as the actual sold weight. This lets the form correctly show `น้ำหนักสุทธิที่ส่ง = 50`, `จำนวนที่ขายได้ = 40`, and remaining `10` for split/return handling.

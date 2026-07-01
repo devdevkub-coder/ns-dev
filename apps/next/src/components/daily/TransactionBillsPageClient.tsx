@@ -1561,30 +1561,31 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       const sourceProductId = item.sourceProductCode || item.productCode || item.productId
       const sourceProductName = item.sourceProductName || item.productName
       const current = summaryById.get(summaryId)
-      const billedWeight = item.netWeight
-      const grossWeight = detail.transactionMode === 'STOCK' ? Number(((item.qty ?? item.netWeight) + item.deductWeight).toFixed(2)) : item.netWeight
+      const sourceGrossWeight = item.sourceGrossWeight || item.grossWeight
+      const sourceDeductWeight = item.sourceDeductWeight || item.deductWeight
+      const sourceNetWeight = item.sourceNetWeight || item.netWeight
       const sourceLineIds = item.deliveryLineId ? [item.deliveryLineId] : []
       if (current) {
-        current.billedWeight = Number((current.billedWeight + billedWeight).toFixed(2))
-        current.grossWeight = Number((current.grossWeight + grossWeight).toFixed(2))
-        current.netWeight = Number((current.netWeight + item.netWeight).toFixed(2))
-        current.remainingWeight = Number((current.remainingWeight + item.netWeight).toFixed(2))
+        current.billedWeight = Math.max(current.billedWeight, sourceNetWeight)
+        current.grossWeight = Math.max(current.grossWeight, sourceGrossWeight)
+        current.netWeight = Math.max(current.netWeight, sourceNetWeight)
+        current.remainingWeight = Math.max(current.remainingWeight, sourceNetWeight)
         current.sourceLineIds = Array.from(new Set([...current.sourceLineIds, ...sourceLineIds]))
-        current.lineCount = Math.max(1, current.sourceLineIds.length)
+        current.lineCount = Math.max(current.lineCount, item.sourceLineCount || current.sourceLineIds.length || 1)
         if (current.unitCostSnapshot == null && item.unitCostSnapshot != null) current.unitCostSnapshot = item.unitCostSnapshot
         return
       }
       summaryById.set(summaryId, {
-        billedWeight,
-        deductWeight: item.deductWeight,
-        grossWeight,
+        billedWeight: sourceNetWeight,
+        deductWeight: sourceDeductWeight,
+        grossWeight: sourceGrossWeight,
         hasMixedDeductionProfiles: false,
         id: summaryId,
-        lineCount: 1,
-        netWeight: item.netWeight,
+        lineCount: item.sourceLineCount || 1,
+        netWeight: sourceNetWeight,
         productId: sourceProductId,
         productName: sourceProductName,
-        remainingWeight: item.netWeight,
+        remainingWeight: sourceNetWeight,
         sourceLineIds,
         unitCostSnapshot: item.unitCostSnapshot,
       })
@@ -1602,11 +1603,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         grossWeight: item.grossWeight,
         id: item.deliveryLineId || `${documentNo}:${item.lineNo}`,
         lineNo: item.lineNo,
-        netWeight: detail.transactionMode === 'STOCK' ? Number(((item.qty ?? item.netWeight) + item.deductWeight).toFixed(2)) : item.netWeight,
+        netWeight: item.sourceNetWeight || (detail.transactionMode === 'STOCK' ? Number(((item.qty ?? item.netWeight) + item.deductWeight).toFixed(2)) : item.netWeight),
         note: item.note,
         productId: item.sourceProductCode || item.productCode || item.productId,
         productName: item.sourceProductName || item.productName,
-        remainingQty: item.netWeight,
+        remainingQty: item.sourceNetWeight || item.netWeight,
         usedQty: 0,
       })),
       partyName: detail.customerName,
