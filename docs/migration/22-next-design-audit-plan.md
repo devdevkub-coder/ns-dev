@@ -367,7 +367,6 @@ Expected:
 Routes/components with high-confidence table mechanics drift:
 
 - Main dashboard/report pages:
-  - `/business-calendar`
   - `/cash-flow-calendar`
   - `/cash-others-summary`
   - `/sales-plan`
@@ -475,6 +474,10 @@ Expected:
 - `/daily/weight-ticket-list`
   - Remains the primary list/table reference.
   - It has desktop resizable/sortable table, mobile filters, mobile card list, table shell, and pagination/reset controls.
+- `/business-calendar`
+  - After the latest correction, the Combined daily table and Expense, Purchase, and Sales detail tables now use the active lined/resizable table shell with persisted column widths, reset-width controls, sortable up/down headers, fixed table layout, Thai-first business headers, and safer nowrap/tabular numeric alignment.
+  - Mobile cards now render from the same sorted row sets as the desktop tables. Month/mode filters, KPI cards, chart data, purchase/sales/expense/receipt/payment sources, AP/AR values, Actual GP, Net Cash, and read-model behavior were not changed.
+  - Browser QA remains pending.
 - `/production/report`
   - After the latest correction, the report, WIP, and product-summary tables now share the same toolbar/table mechanics and mobile card pattern.
   - Browser QA remains pending.
