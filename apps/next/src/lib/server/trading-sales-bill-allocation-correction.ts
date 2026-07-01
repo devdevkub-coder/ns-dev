@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { normalizeDate, roundMoney, toDateOnly, toNumber } from '@/lib/server/daily'
 import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { isSalesBillActiveForCancel } from '@/lib/server/sales-bill-cancel-policy'
 import type { Prisma } from '../../../generated/prisma/client'
@@ -60,6 +60,10 @@ function itemQty(record: Record<string, unknown>) {
 function itemAmount(record: Record<string, unknown>) {
   const explicitAmount = itemNumber(record, 'amount')
   if (explicitAmount > 0) return explicitAmount
+  return Math.max(0, itemQty(record) * salesItemUnitPrice(record))
+}
+
+function itemGrossAmountBeforeDiscount(record: Record<string, unknown>) {
   return Math.max(0, itemQty(record) * salesItemUnitPrice(record))
 }
 
@@ -385,9 +389,10 @@ export async function correctTradingSalesBillAllocations(
     }),
   })
 
+  const grossProfitBase = roundMoney(billItems.reduce((sum, item) => sum + itemGrossAmountBeforeDiscount(item), 0))
   const updated = await tx.sales_bills.update({
     data: {
-      gross_profit: toNumber(bill.total_amount) - totalCost,
+      gross_profit: roundMoney(grossProfitBase - totalCost),
       total_cost: totalCost,
       updated_at: correctedAt,
       updated_by: params.actor,
