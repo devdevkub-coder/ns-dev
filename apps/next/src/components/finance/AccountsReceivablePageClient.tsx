@@ -54,6 +54,7 @@ type ArPayload = {
 }
 
 type SortKey = 'date' | 'docNo' | 'dueDate' | 'receivableBalance' | 'customerName' | 'aging'
+type SummarySortKey = 'b30' | 'b60' | 'b90' | 'bills' | 'current' | 'customerName' | 'gt90' | 'oldest' | 'total'
 
 function bucketClass(bucket: string) {
   if (bucket === 'Current') return 'bg-emerald-100 text-emerald-700'
@@ -125,6 +126,8 @@ export function AccountsReceivablePageClient() {
   const [q, setQ] = useState('')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [sortKey, setSortKey] = useState<SortKey>('dueDate')
+  const [summarySortDirection, setSummarySortDirection] = useState<'asc' | 'desc'>('desc')
+  const [summarySortKey, setSummarySortKey] = useState<SummarySortKey>('total')
   const [status, setStatus] = useState('')
   const [to, setTo] = useState(todayDateInput())
   const [showMobileFilters, setShowMobileFilters] = useState(false)
@@ -238,6 +241,16 @@ export function AccountsReceivablePageClient() {
     setSortDirection(nextKey === 'receivableBalance' || nextKey === 'aging' ? 'desc' : 'asc')
   }
 
+  function changeSummarySort(nextKey: SummarySortKey) {
+    setSummaryPage(1)
+    if (nextKey === summarySortKey) {
+      setSummarySortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+    setSummarySortKey(nextKey)
+    setSummarySortDirection(nextKey === 'customerName' ? 'asc' : 'desc')
+  }
+
   async function exportXlsx() {
     setIsExporting(true)
     setError(null)
@@ -266,7 +279,15 @@ export function AccountsReceivablePageClient() {
   const bucketRows = data?.byBucket ?? []
   const topCustomers = (data?.byCustomer ?? []).slice(0, 5)
 
-  const summaryRows = useMemo(() => data?.byCustomer ?? [], [data?.byCustomer])
+  const summaryRows = useMemo(() => {
+    const direction = summarySortDirection === 'asc' ? 1 : -1
+    return [...(data?.byCustomer ?? [])].sort((left, right) => {
+      const leftValue = left[summarySortKey]
+      const rightValue = right[summarySortKey]
+      if (typeof leftValue === 'number' && typeof rightValue === 'number') return (leftValue - rightValue) * direction
+      return String(leftValue).localeCompare(String(rightValue), 'th') * direction
+    })
+  }, [data?.byCustomer, summarySortDirection, summarySortKey])
   const summaryTotalPages = Math.max(1, Math.ceil(summaryRows.length / summaryPageSize))
   const safeSummaryPage = Math.min(summaryPage, summaryTotalPages)
 
@@ -553,6 +574,9 @@ export function AccountsReceivablePageClient() {
             loadingCustomers={loadingCustomers}
             onToggleExpand={toggleCustomerExpand}
             onOpenDetail={setSelectedRow}
+            onSort={changeSummarySort}
+            selectedSort={summarySortKey}
+            sortDirection={summarySortDirection}
           />
         </>
       ) : null}
@@ -982,6 +1006,9 @@ function SummaryTable({
   loadingCustomers,
   onToggleExpand,
   onOpenDetail,
+  onSort,
+  selectedSort,
+  sortDirection,
 }: {
   buckets: ArPayload['byBucket']
   isLoading: boolean
@@ -992,6 +1019,9 @@ function SummaryTable({
   loadingCustomers: Record<string, boolean>
   onToggleExpand: (customerCode: string) => void
   onOpenDetail: (row: ArRow) => void
+  onSort: (key: SummarySortKey) => void
+  selectedSort: SummarySortKey
+  sortDirection: 'asc' | 'desc'
 }) {
   const bucketTotal = (bucket: string) => buckets.find((item) => item.bucket === bucket)?.total ?? 0
   const columnResize = useResizableColumns('finance.ar.summary.v5', summaryColumns)
@@ -1013,15 +1043,15 @@ function SummaryTable({
         </colgroup>
         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
           <tr>
-            <ResizableTableHead label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} />
-            <ResizableTableHead align="right" label="จำนวนบิล" resizeProps={columnResize.getResizeHandleProps('bills', 'จำนวนบิล')} />
-            <ResizableTableHead align="right" label="ยังไม่ครบกำหนด" resizeProps={columnResize.getResizeHandleProps('current', 'ยังไม่ครบกำหนด')} />
-            <ResizableTableHead align="right" label="1-30 วัน" resizeProps={columnResize.getResizeHandleProps('b30', '1-30 วัน')} />
-            <ResizableTableHead align="right" label="31-60" resizeProps={columnResize.getResizeHandleProps('b60', '31-60')} />
-            <ResizableTableHead align="right" label="61-90" resizeProps={columnResize.getResizeHandleProps('b90', '61-90')} />
-            <ResizableTableHead align="right" label="&gt;90" resizeProps={columnResize.getResizeHandleProps('gt90', '&gt;90')} />
-            <ResizableTableHead align="right" label="รวมค้างรับ" resizeProps={columnResize.getResizeHandleProps('total', 'รวมค้างรับ')} />
-            <ResizableTableHead align="right" label="เกินกำหนดสุด" resizeProps={columnResize.getResizeHandleProps('oldest', 'เกินกำหนดสุด')} />
+            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} sortKey="customerName" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="จำนวนบิล" resizeProps={columnResize.getResizeHandleProps('bills', 'จำนวนบิล')} sortKey="bills" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="ยังไม่ครบกำหนด" resizeProps={columnResize.getResizeHandleProps('current', 'ยังไม่ครบกำหนด')} sortKey="current" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="1-30 วัน" resizeProps={columnResize.getResizeHandleProps('b30', '1-30 วัน')} sortKey="b30" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="31-60" resizeProps={columnResize.getResizeHandleProps('b60', '31-60')} sortKey="b60" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="61-90" resizeProps={columnResize.getResizeHandleProps('b90', '61-90')} sortKey="b90" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="&gt;90" resizeProps={columnResize.getResizeHandleProps('gt90', '&gt;90')} sortKey="gt90" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="รวมค้างรับ" resizeProps={columnResize.getResizeHandleProps('total', 'รวมค้างรับ')} sortKey="total" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="เกินกำหนดสุด" resizeProps={columnResize.getResizeHandleProps('oldest', 'เกินกำหนดสุด')} sortKey="oldest" onSort={onSort} />
           </tr>
         </thead>
         <tbody>
