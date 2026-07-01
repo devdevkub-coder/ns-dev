@@ -726,9 +726,25 @@ After completing the Foreign Finance table sweep, tracked `apps/next/src` TS/TSX
 - Remaining non-matching hits were classified as intentional/static contexts: print-preview HTML, direct/detail pages, modal/form sub-tables, system-manual field documentation, design mockup playground, and the shared low-level `Table` wrapper. These should not be bulk-converted without a page-specific design decision because resize/sort would add behavior where the user is reading a document, filling line items, or viewing print/detail content rather than operating a primary list table.
 - Browser QA / real-data visual confirmation remains pending because the current instruction is to avoid browser/Computer Use.
 
+### Final Static Table Mechanics Classification - 2026-07-02
+
+After the `/daily/expense-dashboard` follow-up, tracked `apps/next/src` TS/TSX files were rescanned again from code only, with browser/Computer Use intentionally disabled by the latest user instruction.
+
+- Static implementation phases remaining: `0`.
+- High-confidence active sidebar primary/list/dashboard tables still missing Cost Pool-style resize/sort/fixed-layout behavior: `0`.
+- Active primary tables checked in this final static pass include the previously risky families: Finance/Accounting assets and management reports, main dashboards/reports, daily expense/petty/transfer/payment/receipt/bill pages, stock balance/operation pages, production orders/reports, tracking pages, AR/AP, foreign finance, admin support tables, and shared master-data pages.
+- Remaining raw `<table>` scan hits are not target candidates for bulk conversion:
+  - Print and document output templates: company profile sample print, business document print helpers, PDF/weight-ticket document templates.
+  - Direct/detail read pages: purchase/sales bill detail, advance-payment detail, payment-approval detail, weight-ticket detail.
+  - Form/modal/detail sub-tables: transaction bill item editors, money movement allocation/payment detail, daily expense line editors, stock transfer form/preview tables, stock operation source allocation/detail tables, stock balance drilldown mini tables, AR detail drilldown, fixed-asset import/depreciation preview.
+  - Small non-primary support/ranking widgets: tracking top panels and compact internal summary tables.
+  - Non-production/system contexts: design mockup playground, system manual field documentation, shared low-level `Table` wrapper.
+- Rationale: these tables are used for reading a document, filling/editing line items, confirming previews, compact detail drilldowns, print output, or internal examples. Adding sortable/resizable behavior there would be misleading and would diverge from the intended workflow.
+- Browser/real-data visual QA remains a separate pending pass if the user later re-enables browser checks.
+
 ### Updated Suggested Fix Order
 
-1. No remaining high-confidence operational static inconsistency is currently listed after the `/daily/expense-dashboard` follow-up. The listed operational pages are now in browser QA / real-data visual confirmation rather than another static rewrite.
+1. No remaining high-confidence operational static inconsistency is currently listed after the final static table-mechanics classification. The listed operational pages are now in browser QA / real-data visual confirmation rather than another static rewrite.
 2. Normalize shared operational modal surfaces by component family: `TransactionBillsPageClient`, `MoneyMovementPageClient`, `PoBuyPageClient`, `PoSellPageClient`, `StockOperationPageClient`, tracking pages, then trading pages. `DailyExpensePageClient` has a table-mechanics follow-up checkpoint and should move to browser QA rather than another static rewrite.
 3. Foreign-finance static table mechanics sweep is corrected for `/finance/foreign/fx-gain-loss-report`, `/finance/foreign/fcd-ledger`, `/finance/foreign/fx-rate`, `/finance/foreign/intl-transfer`, and `/finance/foreign/overseas-receipt`; remaining work is browser QA / real-data visual confirmation, not another high-confidence static table rewrite.
 4. Review `type="number"` only inside the touched page batch using the design matrix; do not run a broad replacement sweep.
