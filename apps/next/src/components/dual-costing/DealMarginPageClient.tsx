@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Select } from '@/components/ui/Select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { formatDateDisplay } from '@/lib/format'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import {
-  DualCostingCountRow,
   DualCostingErrorBox,
   DualCostingFilterCard,
   DualCostingPageSection,
@@ -41,6 +41,27 @@ type Payload = {
   topDeals: DealMarginRow[]
 }
 
+type DealMarginColumnKey = 'avgCost' | 'channel' | 'customer' | 'date' | 'docNo' | 'margin' | 'marginPct' | 'matchedCost' | 'matchedQty' | 'product' | 'sellQty' | 'statusMatch' | 'totalRevenue' | 'unitPrice'
+
+const dealMarginColumns: Array<ResizableColumnDefinition<DealMarginColumnKey>> = [
+  { key: 'docNo', defaultWidth: 150, minWidth: 125 },
+  { key: 'date', defaultWidth: 115, minWidth: 100 },
+  { key: 'customer', defaultWidth: 210, minWidth: 150 },
+  { key: 'channel', defaultWidth: 145, minWidth: 115 },
+  { key: 'product', defaultWidth: 220, minWidth: 160 },
+  { key: 'sellQty', defaultWidth: 130, minWidth: 105 },
+  { key: 'unitPrice', defaultWidth: 130, minWidth: 105 },
+  { key: 'totalRevenue', defaultWidth: 145, minWidth: 120 },
+  { key: 'matchedQty', defaultWidth: 140, minWidth: 115 },
+  { key: 'avgCost', defaultWidth: 130, minWidth: 105 },
+  { key: 'matchedCost', defaultWidth: 145, minWidth: 120 },
+  { key: 'margin', defaultWidth: 140, minWidth: 115 },
+  { key: 'marginPct', defaultWidth: 105, minWidth: 90 },
+  { key: 'statusMatch', defaultWidth: 145, minWidth: 120 },
+]
+
+const pageSizeOptions = [10, 25, 50, 100] as const
+
 export function DealMarginPageClient() {
   const latestLoadRequestRef = useRef(0)
   const [channel, setChannel] = useState('all')
@@ -50,6 +71,9 @@ export function DealMarginPageClient() {
   const [isLoading, setIsLoading] = useState(true)
   const [toDate, setToDate] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<(typeof pageSizeOptions)[number]>(25)
+  const columnResize = useResizableColumns('dual-costing.deal-margin.main.v1', dealMarginColumns)
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams()
@@ -84,6 +108,19 @@ export function DealMarginPageClient() {
   const exportHref = `/api/dual-costing/deal-margin?${queryString ? `${queryString}&` : ''}format=xlsx`
   const marginPositive = (data?.summary.margin ?? 0) >= 0
   const hasActiveFilters = Boolean(fromDate || toDate || channel !== 'all')
+  const activeFilterCount = [fromDate, toDate, channel !== 'all'].filter(Boolean).length
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows])
+  const totalRows = rows.length
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const pagedRows = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return rows.slice(start, start + pageSize)
+  }, [rows, safePage, pageSize])
+
+  useEffect(() => {
+    setPage(1)
+  }, [channel, fromDate, toDate])
 
   function clearFilters() {
     setChannel('all')
@@ -97,13 +134,13 @@ export function DealMarginPageClient() {
 
       <div className="grid gap-3 md:grid-cols-3">
         <div className={`rounded-xl p-5 text-white shadow ${marginPositive ? 'bg-gradient-to-br from-purple-600 to-pink-700' : 'bg-gradient-to-br from-red-500 to-rose-700'}`}>
-          <div className="text-xs opacity-90 font-semibold">Gross Margin (Deal)</div>
+          <div className="text-xs opacity-90 font-semibold">กำไรดีล (Deal Margin)</div>
           <div className="mt-1 text-4xl font-bold">{formatMoney(data?.summary.margin ?? 0)}</div>
           <div className="mt-2 text-sm opacity-90 font-medium">Margin {(data?.summary.marginPct ?? 0).toFixed(1)}%</div>
           <div className="mt-3 space-y-0.5 text-xs opacity-80 font-mono">
-            <div>Revenue: <b>{formatMoney(data?.summary.revenue ?? 0)}</b></div>
-            <div>Cost: <b>{formatMoney(data?.summary.cost ?? 0)}</b></div>
-            <div className="mt-1">{data?.summary.rows ?? 0} Deals · {data?.summary.fullyMatched ?? 0} Fully Matched</div>
+            <div>รายได้ดีล: <b>{formatMoney(data?.summary.revenue ?? 0)}</b></div>
+            <div>ต้นทุนที่จับคู่: <b>{formatMoney(data?.summary.cost ?? 0)}</b></div>
+            <div className="mt-1">{data?.summary.rows ?? 0} ดีล · {data?.summary.fullyMatched ?? 0} Fully Matched</div>
           </div>
         </div>
 
@@ -134,9 +171,9 @@ export function DealMarginPageClient() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <DualCostingStatCard label="Total Revenue (Deal)" tone="emerald" value={formatMoney(data?.summary.revenue ?? 0)} />
-        <DualCostingStatCard label="Total Matched Cost" tone="red" value={formatMoney(data?.summary.cost ?? 0)} />
-        <DualCostingStatCard label="Gross Margin (Deal)" tone="purple" value={formatMoney(data?.summary.margin ?? 0)} />
+        <DualCostingStatCard label="รายได้ดีลรวม" tone="emerald" value={formatMoney(data?.summary.revenue ?? 0)} />
+        <DualCostingStatCard label="ต้นทุนที่จับคู่รวม" tone="red" value={formatMoney(data?.summary.cost ?? 0)} />
+        <DualCostingStatCard label="กำไรดีลรวม" tone="purple" value={formatMoney(data?.summary.margin ?? 0)} />
         <DualCostingStatCard label="Margin %" tone={marginPositive ? 'emerald' : 'red'} value={`${(data?.summary.marginPct ?? 0).toFixed(2)}%`} />
       </div>
 
@@ -144,7 +181,7 @@ export function DealMarginPageClient() {
         {/* Desktop View */}
         <div className="hidden lg:block">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-slate-500 font-semibold">วันที่:</span>
+            <span className="text-xs font-semibold text-slate-500">วันที่เอกสาร:</span>
             <DatePickerInput id="deal-margin-from" value={fromDate} onChange={setFromDate} />
             <span className="text-slate-400">→</span>
             <DatePickerInput id="deal-margin-to" value={toDate} onChange={setToDate} />
@@ -152,9 +189,9 @@ export function DealMarginPageClient() {
               <option value="all">ทุกช่องทาง</option>
               {(data?.filters.channels ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
             </Select>
-            {hasActiveFilters ? <Button size="xs" type="button" variant="secondary" className="rounded-lg h-9" onClick={clearFilters}>✕ ล้าง</Button> : null}
+            {hasActiveFilters ? <Button size="sm" type="button" variant="secondary" className="h-9 rounded-lg" onClick={clearFilters}>ล้างตัวกรอง</Button> : null}
             <Button asChild size="sm" variant="export" className="ml-auto rounded-lg h-9 px-3 text-xs font-semibold focus-visible:ring-slate-100">
-              <a href={exportHref}>Export XLSX</a>
+              <a href={exportHref}>ส่งออก XLSX</a>
             </Button>
           </div>
         </div>
@@ -169,10 +206,10 @@ export function DealMarginPageClient() {
               type="button"
               onClick={() => setShowMobileFilters(!showMobileFilters)}
             >
-              🔍 ตัวกรอง
+              ตัวกรอง{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
             </button>
             <Button asChild size="sm" variant="export" className="h-10 rounded-md shrink-0">
-              <a href={exportHref}>📥 XLSX</a>
+              <a href={exportHref}>XLSX</a>
             </Button>
           </div>
 
@@ -211,52 +248,89 @@ export function DealMarginPageClient() {
         </div>
       </DualCostingFilterCard>
 
-      <DualCostingCountRow countValue={data?.rows.length ?? 0} />
+      <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {columnResize.hasCustomWidths ? (
+            <Button className="hidden h-9 lg:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
+              คืนค่าเดิมตาราง
+            </Button>
+          ) : null}
+          <Select
+            aria-label="จำนวนรายการต่อหน้า"
+            className="h-9 w-auto px-2 py-1"
+            disabled={isLoading}
+            value={pageSize}
+            onChange={(event) => {
+              setPageSize(Number(event.target.value) as (typeof pageSizeOptions)[number])
+              setPage(1)
+            }}
+          >
+            {pageSizeOptions.map((option) => (
+              <option key={option} value={option}>{option} / หน้า</option>
+            ))}
+          </Select>
+          <Button disabled={safePage <= 1 || isLoading} className="h-9" size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+          <span className="px-1">หน้า {safePage} / {totalPages}</span>
+          <Button disabled={safePage >= totalPages || isLoading} className="h-9" size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
+        </div>
+      </div>
 
       {/* Desktop Table View */}
-      <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-200/80 bg-white shadow-sm">
-        <Table className="text-xs">
-          <TableHeader className="bg-slate-50 border-b border-slate-200/60 font-semibold text-slate-600">
+      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth }}>
+          <colgroup>
+            {dealMarginColumns.map((column, index) => {
+              const style = columnResize.getColumnStyle(column.key)
+              if (index === dealMarginColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />
+              }
+              return <col key={column.key} style={style} />
+            })}
+          </colgroup>
+          <thead className="bg-slate-100">
             <tr>
-              <TableHead className="p-3 pl-4">PO Sell</TableHead>
-              <TableHead className="p-3">วันที่</TableHead>
-              <TableHead className="p-3">Customer</TableHead>
-              <TableHead className="p-3">Channel</TableHead>
-              <TableHead className="p-3">สินค้า</TableHead>
-              <TableHead className="p-3 text-right">Sell Qty</TableHead>
-              <TableHead className="p-3 text-right">ราคา</TableHead>
-              <TableHead className="p-3 text-right">Revenue</TableHead>
-              <TableHead className="p-3 text-right">Matched Qty</TableHead>
-              <TableHead className="p-3 text-right">Avg Cost</TableHead>
-              <TableHead className="p-3 text-right">Cost</TableHead>
-              <TableHead className="p-3 text-right">Margin</TableHead>
-              <TableHead className="p-3 text-right">%</TableHead>
-              <TableHead className="p-3 pr-4 text-center">Match Status</TableHead>
+              <ResizableTableHead label="เลขที่ PO Sell" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ PO Sell')} />
+              <ResizableTableHead label="วันที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
+              <ResizableTableHead label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} />
+              <ResizableTableHead label="ช่องทาง" resizeProps={columnResize.getResizeHandleProps('channel', 'ช่องทาง')} />
+              <ResizableTableHead label="สินค้า" resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} />
+              <ResizableTableHead align="right" label="จำนวนขาย" resizeProps={columnResize.getResizeHandleProps('sellQty', 'จำนวนขาย')} />
+              <ResizableTableHead align="right" label="ราคา/หน่วย" resizeProps={columnResize.getResizeHandleProps('unitPrice', 'ราคา/หน่วย')} />
+              <ResizableTableHead align="right" label="รายได้ดีล" resizeProps={columnResize.getResizeHandleProps('totalRevenue', 'รายได้ดีล')} />
+              <ResizableTableHead align="right" label="จำนวนที่จับคู่" resizeProps={columnResize.getResizeHandleProps('matchedQty', 'จำนวนที่จับคู่')} />
+              <ResizableTableHead align="right" label="ต้นทุนเฉลี่ย" resizeProps={columnResize.getResizeHandleProps('avgCost', 'ต้นทุนเฉลี่ย')} />
+              <ResizableTableHead align="right" label="ต้นทุนที่จับคู่" resizeProps={columnResize.getResizeHandleProps('matchedCost', 'ต้นทุนที่จับคู่')} />
+              <ResizableTableHead align="right" label="กำไรดีล" resizeProps={columnResize.getResizeHandleProps('margin', 'กำไรดีล')} />
+              <ResizableTableHead align="right" label="Margin %" resizeProps={columnResize.getResizeHandleProps('marginPct', 'Margin %')} />
+              <ResizableTableHead align="center" label="สถานะ Match" resizeProps={columnResize.getResizeHandleProps('statusMatch', 'สถานะ Match')} />
             </tr>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={14}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
-            {!isLoading && (data?.rows.length ?? 0) === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-400" colSpan={14}>ยังไม่มี PO Sell</TableCell></TableRow> : null}
-            {!isLoading && (data?.rows ?? []).map((row) => (
-              <TableRow key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors">
-                <TableCell className="p-3 pl-4 font-mono text-slate-700">{row.docNo}</TableCell>
-                <TableCell className="p-3 whitespace-nowrap text-slate-600">{formatDateDisplay(row.date)}</TableCell>
-                <TableCell className="p-3 text-slate-800 font-medium">{row.customer}</TableCell>
-                <TableCell className="p-3 text-slate-600">{row.channel}</TableCell>
-                <TableCell className="p-3 text-xs text-slate-700">{row.product}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.sellQty)}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.unitPrice)}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-emerald-700 font-semibold">{formatMoney(row.totalRevenue)}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.matchedQty)}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.avgCost)}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-red-600 font-semibold">{formatMoney(row.matchedCost)}</TableCell>
-                <TableCell className={`p-3 text-right font-mono font-bold ${row.margin >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatMoney(row.margin)}</TableCell>
-                <TableCell className={`p-3 pr-2 text-right font-mono font-semibold ${row.marginPct >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{row.marginPct.toFixed(2)}%</TableCell>
-                <TableCell className="p-3 pr-4 text-center"><span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${row.statusMatch === 'Fully' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' : row.statusMatch === 'Partial' ? 'bg-amber-50 text-amber-700 border border-amber-200/50' : 'bg-slate-100 text-slate-600 border border-slate-200/50'}`}>{row.statusMatch}</span></TableCell>
-              </TableRow>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={dealMarginColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+            {!isLoading && rows.length === 0 ? <tr><td className="px-3 py-10 text-center text-slate-400" colSpan={dealMarginColumns.length}>ยังไม่มี PO Sell</td></tr> : null}
+            {!isLoading && pagedRows.map((row) => (
+              <tr key={row.id} className="transition-colors hover:bg-slate-50">
+                <td className="whitespace-nowrap px-3 py-3 font-mono text-slate-900">{row.docNo}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatDateDisplay(row.date)}</td>
+                <td className="px-3 py-3 font-medium text-slate-900">{row.customer}</td>
+                <td className="px-3 py-3 text-slate-600">{row.channel}</td>
+                <td className="px-3 py-3 text-slate-700">{row.product}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.sellQty)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.unitPrice)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums text-slate-900">{formatMoney(row.totalRevenue)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.matchedQty)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.avgCost)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums text-slate-900">{formatMoney(row.matchedCost)}</td>
+                <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${row.margin >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatMoney(row.margin)}</td>
+                <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums ${row.marginPct >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{row.marginPct.toFixed(2)}%</td>
+                <td className="px-3 py-3 text-center"><MatchStatusBadge status={row.statusMatch} /></td>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
 
       {/* Mobile Card list */}
@@ -264,17 +338,17 @@ export function DealMarginPageClient() {
         {isLoading ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">กำลังโหลดข้อมูล</div>
         ) : null}
-        {!isLoading && (data?.rows.length ?? 0) === 0 ? (
+        {!isLoading && rows.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-400 shadow-sm">ยังไม่มี PO Sell</div>
         ) : null}
-        {!isLoading && (data?.rows ?? []).map((row) => (
+        {!isLoading && pagedRows.map((row) => (
           <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
             <div className="flex justify-between items-start">
               <div>
                 <div className="font-mono text-xs font-bold text-slate-800">{row.docNo}</div>
                 <div className="text-xs text-slate-500 mt-0.5">{formatDateDisplay(row.date)}</div>
               </div>
-              <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${row.statusMatch === 'Fully' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' : row.statusMatch === 'Partial' ? 'bg-amber-50 text-amber-700 border border-amber-200/50' : 'bg-slate-100 text-slate-600 border border-slate-200/50'}`}>{row.statusMatch}</span>
+              <MatchStatusBadge status={row.statusMatch} />
             </div>
             <div>
               <div className="text-sm font-bold text-slate-800">{row.customer}</div>
@@ -283,24 +357,24 @@ export function DealMarginPageClient() {
             </div>
             <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
               <div>
-                <span className="text-slate-500 block">Sell Qty / ราคา</span>
+                <span className="text-slate-500 block">จำนวนขาย / ราคา</span>
                 <span className="font-mono text-slate-700">{formatMoney(row.sellQty)} / {formatMoney(row.unitPrice)}</span>
               </div>
               <div className="text-right">
-                <span className="text-slate-500 block">Revenue</span>
-                <span className="font-mono text-emerald-700 font-semibold">{formatMoney(row.totalRevenue)}</span>
+                <span className="text-slate-500 block">รายได้ดีล</span>
+                <span className="font-mono text-slate-900 font-semibold">{formatMoney(row.totalRevenue)}</span>
               </div>
               <div>
-                <span className="text-slate-500 block">Matched Qty / Avg Cost</span>
+                <span className="text-slate-500 block">จำนวนที่จับคู่ / ต้นทุนเฉลี่ย</span>
                 <span className="font-mono text-slate-700">{formatMoney(row.matchedQty)} / {formatMoney(row.avgCost)}</span>
               </div>
               <div className="text-right">
-                <span className="text-slate-500 block">Cost</span>
-                <span className="font-mono text-red-600 font-semibold">{formatMoney(row.matchedCost)}</span>
+                <span className="text-slate-500 block">ต้นทุนที่จับคู่</span>
+                <span className="font-mono text-slate-900 font-semibold">{formatMoney(row.matchedCost)}</span>
               </div>
             </div>
             <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-xs">
-              <span className="text-slate-500">Margin (%)</span>
+              <span className="text-slate-500">กำไรดีล (Margin %)</span>
               <span className={`font-mono font-bold ${row.margin >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatMoney(row.margin)} ({row.marginPct.toFixed(2)}%)</span>
             </div>
           </div>
@@ -308,6 +382,17 @@ export function DealMarginPageClient() {
       </div>
     </DualCostingPageSection>
   )
+}
+
+function MatchStatusBadge({ status }: { status: string }) {
+  const className = status === 'Fully'
+    ? 'border-emerald-200/50 bg-emerald-50 text-emerald-700'
+    : status === 'Partial'
+      ? 'border-amber-200/50 bg-amber-50 text-amber-700'
+      : 'border-slate-200/50 bg-slate-100 text-slate-600'
+  const label = status === 'Fully' ? 'Fully Matched' : status === 'Partial' ? 'Partial Match' : 'No Match'
+
+  return <span className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${className}`}>{label}</span>
 }
 
 function MatchStatusDonut({ fully, none, partial, total }: { fully: number; none: number; partial: number; total: number }) {
