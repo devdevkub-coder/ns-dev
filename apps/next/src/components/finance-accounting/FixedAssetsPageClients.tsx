@@ -151,9 +151,11 @@ type DisposalFormState = {
 }
 
 type AssetRegisterColumnKey = 'accumDep' | 'actions' | 'assetName' | 'branchName' | 'category' | 'code' | 'monthlyDep' | 'nbv' | 'netAssetCost' | 'purchaseDate' | 'status'
+type AssetRegisterSortKey = Exclude<AssetRegisterColumnKey, 'actions'>
 type DepreciationColumnKey = 'accumAfter' | 'accumBefore' | 'actions' | 'asset' | 'depreciationAmount' | 'nbvAfter' | 'nbvBefore' | 'period' | 'refNo' | 'status'
 type DisposalColumnKey = 'actions' | 'asset' | 'date' | 'disposalNo' | 'disposalType' | 'gainLoss' | 'nbv' | 'reason' | 'sellingPrice' | 'status'
 type PendingAssetColumnKey = 'accumDep' | 'code' | 'monthlyDep' | 'name' | 'nbv' | 'netAssetCost' | 'status'
+type SortDirection = 'asc' | 'desc'
 
 const assetRegisterColumns: Array<ResizableColumnDefinition<AssetRegisterColumnKey>> = [
   { key: 'code', defaultWidth: 120, minWidth: 105 },
@@ -231,6 +233,8 @@ export function AssetRegisterPageClient() {
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [sortKey, setSortKey] = useState<AssetRegisterSortKey | null>(null)
   const columnResize = useResizableColumns('finance-accounting.asset-register.main.v1', assetRegisterColumns)
 
   useEffect(() => {
@@ -292,13 +296,30 @@ export function AssetRegisterPageClient() {
     })
   }, [category, data?.rows, search, status])
 
-  const totalRows = rows.length
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+    return [...rows].sort((left, right) => {
+      const result = compareSortValues(getAssetRegisterSortValue(left, sortKey), getAssetRegisterSortValue(right, sortKey))
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [rows, sortDirection, sortKey])
+
+  const totalRows = sortedRows.length
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
   const currentPage = Math.min(page, totalPages)
   const pagedRows = useMemo(() => {
     const start = (currentPage - 1) * pageSize
-    return rows.slice(start, start + pageSize)
-  }, [rows, currentPage, pageSize])
+    return sortedRows.slice(start, start + pageSize)
+  }, [sortedRows, currentPage, pageSize])
+
+  const changeSort = (key: AssetRegisterSortKey) => {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setSortKey(key)
+    setSortDirection('asc')
+  }
 
   const openCreate = () => {
     setError(null)
@@ -649,7 +670,7 @@ export function AssetRegisterPageClient() {
       {/* Desktop View Table */}
       <div className="hidden lg:block">
         <TableShell>
-          <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth }}>
+          <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {assetRegisterColumns.map((column, index) => {
                 if (index === assetRegisterColumns.length - 1) {
@@ -660,16 +681,16 @@ export function AssetRegisterPageClient() {
             </colgroup>
             <thead className="bg-slate-100">
               <tr>
-                <ResizableTableHead label="รหัสทรัพย์สิน" resizeProps={columnResize.getResizeHandleProps('code', 'รหัสทรัพย์สิน')} />
-                <ResizableTableHead label="ชื่อทรัพย์สิน / สถานที่" resizeProps={columnResize.getResizeHandleProps('assetName', 'ชื่อทรัพย์สิน / สถานที่')} />
-                <ResizableTableHead label="หมวด" resizeProps={columnResize.getResizeHandleProps('category', 'หมวด')} />
-                <ResizableTableHead label="สาขา" resizeProps={columnResize.getResizeHandleProps('branchName', 'สาขา')} />
-                <ResizableTableHead label="วันที่ซื้อ" resizeProps={columnResize.getResizeHandleProps('purchaseDate', 'วันที่ซื้อ')} />
-                <ResizableTableHead align="right" label="ต้นทุนสุทธิ" resizeProps={columnResize.getResizeHandleProps('netAssetCost', 'ต้นทุนสุทธิ')} />
-                <ResizableTableHead align="right" label="ค่าเสื่อมสะสม" resizeProps={columnResize.getResizeHandleProps('accumDep', 'ค่าเสื่อมสะสม')} />
-                <ResizableTableHead align="right" label="มูลค่าคงเหลือ (NBV)" resizeProps={columnResize.getResizeHandleProps('nbv', 'มูลค่าคงเหลือ')} />
-                <ResizableTableHead align="right" label="ค่าเสื่อม/เดือน" resizeProps={columnResize.getResizeHandleProps('monthlyDep', 'ค่าเสื่อมต่อเดือน')} />
-                <ResizableTableHead align="center" label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="รหัสทรัพย์สิน" resizeProps={columnResize.getResizeHandleProps('code', 'รหัสทรัพย์สิน')} sortKey="code" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="ชื่อทรัพย์สิน / สถานที่" resizeProps={columnResize.getResizeHandleProps('assetName', 'ชื่อทรัพย์สิน / สถานที่')} sortKey="assetName" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="หมวด" resizeProps={columnResize.getResizeHandleProps('category', 'หมวด')} sortKey="category" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="สาขา" resizeProps={columnResize.getResizeHandleProps('branchName', 'สาขา')} sortKey="branchName" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="วันที่ซื้อ" resizeProps={columnResize.getResizeHandleProps('purchaseDate', 'วันที่ซื้อ')} sortKey="purchaseDate" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ต้นทุนสุทธิ" resizeProps={columnResize.getResizeHandleProps('netAssetCost', 'ต้นทุนสุทธิ')} sortKey="netAssetCost" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ค่าเสื่อมสะสม" resizeProps={columnResize.getResizeHandleProps('accumDep', 'ค่าเสื่อมสะสม')} sortKey="accumDep" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="มูลค่าคงเหลือ (NBV)" resizeProps={columnResize.getResizeHandleProps('nbv', 'มูลค่าคงเหลือ')} sortKey="nbv" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ค่าเสื่อม/เดือน" resizeProps={columnResize.getResizeHandleProps('monthlyDep', 'ค่าเสื่อมต่อเดือน')} sortKey="monthlyDep" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
                 <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('actions', 'จัดการ')} />
               </tr>
             </thead>
@@ -1766,6 +1787,17 @@ export function AssetDisposalPageClient() {
       </div>
     </section>
   )
+}
+
+function getAssetRegisterSortValue(row: AssetRegisterRow, key: AssetRegisterSortKey) {
+  if (key === 'assetName') return `${row.name} ${row.location}`
+  if (key === 'status') return row.assetStatus
+  return row[key]
+}
+
+function compareSortValues(left: string | number, right: string | number) {
+  if (typeof left === 'number' && typeof right === 'number') return left - right
+  return String(left ?? '').localeCompare(String(right ?? ''), 'th', { numeric: true, sensitivity: 'base' })
 }
 
 function assetRowToForm(row: AssetRegisterRow): AssetFormState {

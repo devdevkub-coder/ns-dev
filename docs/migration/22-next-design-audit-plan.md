@@ -556,6 +556,7 @@ Expected:
   - Browser QA remains pending.
 - Fixed assets finance pages: `/finance-accounting/asset-register`, `/finance-accounting/depreciation`, `/finance-accounting/asset-disposal`, and `/finance-accounting/asset-overview`
   - After the latest correction, the visible desktop tables in the fixed-assets slice now use the active lined/resizable table shell with Thai-first business headers, persisted column widths, reset-width controls, and safer nowrap/tabular numeric alignment.
+  - Follow-up correction for `/finance-accounting/asset-register`: the main Asset Register table now uses sortable business headers with inactive/active up/down indicators, applies client-side sorting before pagination, shares the sorted paged rows with mobile cards, and uses fixed table layout so column resizing behaves like `/dual-costing/cost-pool`.
   - Covered tables: Asset Register, Depreciation pending-assets, Depreciation History, Asset Disposal History, and Asset Overview Cash & Others. Existing mobile cards were preserved.
   - Browser QA remains pending.
 - Master data shared pages under `/master-data/*`
