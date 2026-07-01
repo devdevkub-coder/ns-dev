@@ -36,6 +36,8 @@ type Payload = {
   topProducts?: Array<{ avgCost?: number; batches: number; code?: string; cost: number; name: string; qty: number }>
   wipRows?: Row[]
 }
+type DashboardTopProduct = NonNullable<Payload['topProducts']>[number]
+type DashboardMachineUtil = NonNullable<Payload['machineUtil']>[number]
 
 type Column = {
   key: string
@@ -202,6 +204,22 @@ const productSummaryColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'unitCost', defaultWidth: 180, minWidth: 150 },
 ]
 
+const dashboardTopProductColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'rank', defaultWidth: 56, minWidth: 48 },
+  { key: 'code', defaultWidth: 90, minWidth: 80 },
+  { key: 'name', defaultWidth: 220, minWidth: 160 },
+  { key: 'batches', defaultWidth: 90, minWidth: 80 },
+  { key: 'qty', defaultWidth: 130, minWidth: 110 },
+  { key: 'cost', defaultWidth: 130, minWidth: 110 },
+  { key: 'avgCost', defaultWidth: 150, minWidth: 130 },
+]
+
+const dashboardMachineColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'name', defaultWidth: 240, minWidth: 160 },
+  { key: 'batches', defaultWidth: 120, minWidth: 100 },
+  { key: 'qty', defaultWidth: 150, minWidth: 120 },
+]
+
 const productSummaryTableColumns: Column[] = [
   { key: 'name', label: 'สินค้า' },
   { key: 'count', label: 'รอบ', type: 'number' },
@@ -250,6 +268,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
   const yieldLossResize = useResizableColumns('production.report.yieldLoss.v5', yieldLossColumns)
   const machineResize = useResizableColumns('production.report.machine.v5', machineColumns)
   const productSummaryResize = useResizableColumns('production.report.productSummary.v1', productSummaryColumns)
+  const dashboardTopProductResize = useResizableColumns('production.dashboard.top-products.v1', dashboardTopProductColumns)
+  const dashboardMachineResize = useResizableColumns('production.dashboard.machine-utilization.v1', dashboardMachineColumns)
   const dummyResize = useResizableColumns('production.report.dummy.v5', emptyColumns)
   const activeResizableColumns = mode === 'wip' ? wipColumns : mode === 'report' ? reportColumns : mode === 'cost' ? costColumns : mode === 'yieldLoss' ? yieldLossColumns : mode === 'machine' ? machineColumns : emptyColumns
   const columnResize = mode === 'wip' ? wipResize : mode === 'report' ? reportResize : mode === 'cost' ? costResize : mode === 'yieldLoss' ? yieldLossResize : mode === 'machine' ? machineResize : dummyResize
@@ -267,6 +287,10 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
   const [reportTab, setReportTab] = useState<'orders' | 'products' | 'wip'>('orders')
   const [sortKey, setSortKey] = useState<string>('date')
   const [sortDir, setSortDir] = useState<SortDirection>('desc')
+  const [dashboardProductSortKey, setDashboardProductSortKey] = useState<string>('qty')
+  const [dashboardProductSortDir, setDashboardProductSortDir] = useState<SortDirection>('desc')
+  const [dashboardMachineSortKey, setDashboardMachineSortKey] = useState<string>('qty')
+  const [dashboardMachineSortDir, setDashboardMachineSortDir] = useState<SortDirection>('desc')
   const [reportRangeFilter, setReportRangeFilter] = useState<ReportRangeFilter>('all')
   const [statusFilter, setStatusFilter] = useState('')
   const isReportAllRange = mode === 'report' && reportRangeFilter === 'all'
@@ -418,6 +442,20 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
     if (!column) return filteredRows
     return [...filteredRows].sort((left, right) => compareTableValues(productionCostBreakdownValue(left, sortKey), productionCostBreakdownValue(right, sortKey), column.type, sortDir))
   }, [filteredRows, sortDir, sortKey])
+  const dashboardTopProducts = useMemo(() => data?.topProducts ?? [], [data?.topProducts])
+  const sortedDashboardTopProducts = useMemo(() => {
+    return [...dashboardTopProducts].sort((left, right) => {
+      const type = dashboardProductSortKey === 'name' || dashboardProductSortKey === 'code' ? 'text' : 'number'
+      return compareTableValues(dashboardTopProductValue(left, dashboardProductSortKey), dashboardTopProductValue(right, dashboardProductSortKey), type, dashboardProductSortDir)
+    })
+  }, [dashboardProductSortDir, dashboardProductSortKey, dashboardTopProducts])
+  const dashboardMachineUtil = useMemo(() => data?.machineUtil ?? [], [data?.machineUtil])
+  const sortedDashboardMachineUtil = useMemo(() => {
+    return [...dashboardMachineUtil].sort((left, right) => {
+      const type = dashboardMachineSortKey === 'name' ? 'text' : 'number'
+      return compareTableValues(dashboardMachineValue(left, dashboardMachineSortKey), dashboardMachineValue(right, dashboardMachineSortKey), type, dashboardMachineSortDir)
+    })
+  }, [dashboardMachineSortDir, dashboardMachineSortKey, dashboardMachineUtil])
   const hasActiveFilters = Boolean(displayedDateFrom || displayedDateTo || productSearch || statusFilter)
 
   function applyReportRange(range: Exclude<ReportRangeFilter, 'custom'>) {
@@ -482,6 +520,28 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         return currentKey
       }
       setSortDir('asc')
+      return nextKey
+    })
+  }
+
+  function toggleDashboardProductSort(nextKey: string) {
+    setDashboardProductSortKey((currentKey) => {
+      if (currentKey === nextKey) {
+        setDashboardProductSortDir((currentDir) => currentDir === 'asc' ? 'desc' : 'asc')
+        return currentKey
+      }
+      setDashboardProductSortDir('asc')
+      return nextKey
+    })
+  }
+
+  function toggleDashboardMachineSort(nextKey: string) {
+    setDashboardMachineSortKey((currentKey) => {
+      if (currentKey === nextKey) {
+        setDashboardMachineSortDir((currentDir) => currentDir === 'asc' ? 'desc' : 'asc')
+        return currentKey
+      }
+      setDashboardMachineSortDir('asc')
       return nextKey
     })
   }
@@ -682,11 +742,11 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
 
   if (mode === 'dashboard') {
     const summary = data?.summary ?? {}
-    const topProducts = data?.topProducts ?? []
+    const topProducts = sortedDashboardTopProducts
     const byStatus = data?.byStatus ?? []
     const daily = data?.daily ?? []
     const monthly = data?.monthly ?? []
-    const machineUtil = data?.machineUtil ?? []
+    const machineUtil = sortedDashboardMachineUtil
     return (
       <section className="space-y-4">
         {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
@@ -847,32 +907,51 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           <div className={`rounded-xl border border-slate-200/60 bg-white shadow-sm lg:col-span-2 flex flex-col overflow-hidden ${
             activeTab === 'products' ? 'flex lg:flex' : 'hidden lg:flex'
           }`}>
-            <div className="border-b border-slate-100 bg-emerald-50/50 p-3"><h3 className="font-bold text-emerald-700 text-sm">Top 10 สินค้าที่ผลิตมากสุด</h3></div>
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-emerald-50/50 p-3">
+              <h3 className="font-bold text-emerald-700 text-sm">Top 10 สินค้าที่ผลิตมากสุด</h3>
+              {dashboardTopProductResize.hasCustomWidths ? (
+                <button
+                  className="hidden rounded-md border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 lg:inline-flex"
+                  type="button"
+                  onClick={dashboardTopProductResize.resetColumnWidths}
+                >
+                  คืนค่าเดิมตาราง
+                </button>
+              ) : null}
+            </div>
 
             {/* Desktop View */}
             <div className="hidden lg:block overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-100 border-b border-slate-200">
-                  <tr className="border-slate-100">
-                    <th className="w-8 p-2 text-left text-xs font-semibold text-slate-500">#</th>
-                    <th className="p-2 text-left text-xs font-semibold text-slate-500">Code</th>
-                    <th className="p-2 text-left text-xs font-semibold text-slate-500">สินค้า</th>
-                    <th className="p-2 text-right text-xs font-semibold text-slate-500">รอบ</th>
-                    <th className="p-2 text-right text-xs font-semibold text-slate-500">น้ำหนัก</th>
-                    <th className="p-2 text-right text-xs font-semibold text-slate-500">ต้นทุนรวม</th>
-                    <th className="p-2 text-right text-xs font-semibold text-slate-500">ต้นทุนผลผลิต ฿/กก.</th>
+              <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: dashboardTopProductResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+                <colgroup>
+                  {dashboardTopProductColumns.map((column, index) => (
+                    <col
+                      key={column.key}
+                      style={index === dashboardTopProductColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : dashboardTopProductResize.getColumnStyle(column.key)}
+                    />
+                  ))}
+                </colgroup>
+                <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
+                  <tr>
+                    <ResizableTableHead align="center" label="#" resizeProps={dashboardTopProductResize.getResizeHandleProps('rank', '#')} />
+                    <ResizableTableHead activeSortKey={dashboardProductSortKey} direction={dashboardProductSortDir} label="Code" resizeProps={dashboardTopProductResize.getResizeHandleProps('code', 'Code')} sortKey="code" onSort={toggleDashboardProductSort} />
+                    <ResizableTableHead activeSortKey={dashboardProductSortKey} direction={dashboardProductSortDir} label="สินค้า" resizeProps={dashboardTopProductResize.getResizeHandleProps('name', 'สินค้า')} sortKey="name" onSort={toggleDashboardProductSort} />
+                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" direction={dashboardProductSortDir} label="รอบ" resizeProps={dashboardTopProductResize.getResizeHandleProps('batches', 'รอบ')} sortKey="batches" onSort={toggleDashboardProductSort} />
+                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" direction={dashboardProductSortDir} label="น้ำหนัก" resizeProps={dashboardTopProductResize.getResizeHandleProps('qty', 'น้ำหนัก')} sortKey="qty" onSort={toggleDashboardProductSort} />
+                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" direction={dashboardProductSortDir} label="ต้นทุนรวม" resizeProps={dashboardTopProductResize.getResizeHandleProps('cost', 'ต้นทุนรวม')} sortKey="cost" onSort={toggleDashboardProductSort} />
+                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" direction={dashboardProductSortDir} label="ต้นทุนผลิต ฿/กก." resizeProps={dashboardTopProductResize.getResizeHandleProps('avgCost', 'ต้นทุนผลิต ฿/กก.')} sortKey="avgCost" onSort={toggleDashboardProductSort} />
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {topProducts.map((item, index) => (
-                    <tr key={item.name} className="border-t border-slate-100 hover:bg-slate-50">
-                      <td className="p-2 font-bold text-emerald-700 text-xs">{index + 1}</td>
-                      <td className="p-2 font-mono text-xs">{item.code || '-'}</td>
-                      <td className="p-2 text-xs">{item.name}</td>
-                      <td className="p-2 text-right text-xs">{item.batches}</td>
-                      <td className="p-2 text-right font-bold text-xs">{formatMoney(item.qty)}</td>
-                      <td className="p-2 text-right text-xs">{formatMoney(item.cost)}</td>
-                      <td className="p-2 text-right text-xs text-slate-600">{formatMoney(item.avgCost ?? (item.qty > 0 ? item.cost / item.qty : 0))}</td>
+                    <tr key={`${item.code || item.name}-${index}`} className="hover:bg-slate-50">
+                      <td className="p-2 text-center text-xs font-bold text-emerald-700 tabular-nums">{index + 1}</td>
+                      <td className="p-2 font-mono text-xs text-slate-600 min-w-0 overflow-hidden"><div className="truncate" title={item.code || '-'}>{item.code || '-'}</div></td>
+                      <td className="p-2 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={item.name}>{item.name}</div></td>
+                      <td className="p-2 text-right text-xs tabular-nums whitespace-nowrap">{item.batches}</td>
+                      <td className="p-2 text-right font-bold text-xs tabular-nums whitespace-nowrap">{formatMoney(item.qty)}</td>
+                      <td className="p-2 text-right text-xs tabular-nums whitespace-nowrap">{formatMoney(item.cost)}</td>
+                      <td className="p-2 text-right text-xs text-slate-600 tabular-nums whitespace-nowrap">{formatMoney(item.avgCost ?? (item.qty > 0 ? item.cost / item.qty : 0))}</td>
                     </tr>
                   ))}
                   {!topProducts.length ? <tr><td className="py-6 text-center text-slate-400" colSpan={7}>ยังไม่มีข้อมูลในช่วงนี้</td></tr> : null}
@@ -883,15 +962,15 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             {/* Mobile View */}
             <div className="lg:hidden p-3 space-y-3 bg-slate-50/30 flex-1">
               {topProducts.map((item, index) => (
-                <div key={item.name} className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-sm space-y-3">
+                <div key={`${item.code || item.name}-${index}`} className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-sm space-y-3">
                   <div className="border-b border-slate-100 pb-2 flex justify-between items-center">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">
                         {index + 1}
                       </span>
-                      <span className="font-bold text-slate-900 text-base">{item.name}</span>
+                      <span className="font-bold text-slate-900 text-base truncate">{item.name}</span>
                     </div>
-                    <span className="font-mono text-sm text-slate-500">{item.code || '-'}</span>
+                    <span className="font-mono text-sm text-slate-500 shrink-0">{item.code || '-'}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
                     <div>
@@ -918,30 +997,47 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               {!topProducts.length ? <div className="py-4 text-center text-sm text-slate-400 bg-white rounded-xl border border-slate-200/60">ยังไม่มีข้อมูลในช่วงนี้</div> : null}
             </div>
           </div>
-        </div>
-
         {/* Machine Utilization Card */}
         <div className={`rounded-xl border border-slate-200/60 bg-white shadow-sm flex flex-col overflow-hidden ${
           activeTab === 'machines' ? 'flex lg:flex' : 'hidden lg:flex'
         }`}>
-          <div className="border-b border-slate-100 bg-indigo-50/50 p-3"><h3 className="font-bold text-indigo-700 text-sm">Machine Utilization (ปริมาณผลิตต่อเครื่อง)</h3></div>
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-indigo-50/50 p-3">
+            <h3 className="font-bold text-indigo-700 text-sm">Machine Utilization (ปริมาณผลิตต่อเครื่อง)</h3>
+            {dashboardMachineResize.hasCustomWidths ? (
+              <button
+                className="hidden rounded-md border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 lg:inline-flex"
+                type="button"
+                onClick={dashboardMachineResize.resetColumnWidths}
+              >
+                คืนค่าเดิมตาราง
+              </button>
+            ) : null}
+          </div>
 
           {/* Desktop View */}
           <div className="hidden lg:block overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-100 border-b border-slate-200">
-                <tr className="border-slate-100">
-                  <th className="p-2 text-left text-xs font-semibold text-slate-500">เครื่องจักร</th>
-                  <th className="p-2 text-right text-xs font-semibold text-slate-500">รอบที่ใช้</th>
-                  <th className="p-2 text-right text-xs font-semibold text-slate-500">น้ำหนักผลิต</th>
+            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: dashboardMachineResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+              <colgroup>
+                {dashboardMachineColumns.map((column, index) => (
+                  <col
+                    key={column.key}
+                    style={index === dashboardMachineColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : dashboardMachineResize.getColumnStyle(column.key)}
+                  />
+                ))}
+              </colgroup>
+              <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
+                <tr>
+                  <ResizableTableHead activeSortKey={dashboardMachineSortKey} direction={dashboardMachineSortDir} label="เครื่องจักร" resizeProps={dashboardMachineResize.getResizeHandleProps('name', 'เครื่องจักร')} sortKey="name" onSort={toggleDashboardMachineSort} />
+                  <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="right" direction={dashboardMachineSortDir} label="รอบที่ใช้" resizeProps={dashboardMachineResize.getResizeHandleProps('batches', 'รอบที่ใช้')} sortKey="batches" onSort={toggleDashboardMachineSort} />
+                  <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="right" direction={dashboardMachineSortDir} label="น้ำหนักผลิต" resizeProps={dashboardMachineResize.getResizeHandleProps('qty', 'น้ำหนักผลิต')} sortKey="qty" onSort={toggleDashboardMachineSort} />
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {machineUtil.map((item) => (
-                  <tr key={item.name} className="border-t border-slate-100 hover:bg-slate-50">
-                    <td className="p-2 text-xs">{item.name}</td>
-                    <td className="p-2 text-right text-xs">{item.batches}</td>
-                    <td className="p-2 text-right font-bold text-indigo-700 text-xs">{formatMoney(item.qty)}</td>
+                  <tr key={item.name} className="hover:bg-slate-50">
+                    <td className="p-2 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={item.name}>{item.name}</div></td>
+                    <td className="p-2 text-right text-xs tabular-nums whitespace-nowrap">{item.batches}</td>
+                    <td className="p-2 text-right font-bold text-indigo-700 text-xs tabular-nums whitespace-nowrap">{formatMoney(item.qty)}</td>
                   </tr>
                 ))}
                 {!machineUtil.length ? <tr><td className="py-6 text-center text-slate-400" colSpan={3}>ยังไม่มีข้อมูล</td></tr> : null}
@@ -954,8 +1050,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             {machineUtil.map((item) => (
               <div key={item.name} className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-sm space-y-3">
                 <div className="border-b border-slate-100 pb-2 flex justify-between items-center">
-                  <span className="font-bold text-slate-900 text-base">{item.name}</span>
-                  <span className="text-base font-bold text-indigo-700">{formatMoney(item.qty)} กก.</span>
+                  <span className="font-bold text-slate-900 text-base truncate">{item.name}</span>
+                  <span className="text-base font-bold text-indigo-700 shrink-0">{formatMoney(item.qty)} กก.</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-slate-500 font-semibold">รอบที่ใช้งาน</span>
@@ -968,7 +1064,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             {!machineUtil.length ? <div className="py-4 text-center text-sm text-slate-400 bg-white rounded-xl border border-slate-200">ยังไม่มีข้อมูล</div> : null}
           </div>
         </div>
-
+        </div>
         {isLoading ? <div className="text-center text-sm text-slate-500">กำลังโหลดข้อมูล</div> : null}
       </section>
     )
@@ -1771,6 +1867,23 @@ function productionCostBreakdownCellClass(column: Column) {
   if (column.key === 'outputQty') return `${align} font-semibold text-emerald-700`
   if (column.key === 'docNo') return `${align} font-mono text-slate-600`
   return `${align} text-slate-700`
+}
+
+function dashboardTopProductValue(row: DashboardTopProduct, key: string) {
+  if (key === 'code') return row.code ?? ''
+  if (key === 'name') return row.name
+  if (key === 'batches') return row.batches
+  if (key === 'qty') return row.qty
+  if (key === 'cost') return row.cost
+  if (key === 'avgCost') return row.avgCost ?? (row.qty > 0 ? row.cost / row.qty : 0)
+  return ''
+}
+
+function dashboardMachineValue(row: DashboardMachineUtil, key: string) {
+  if (key === 'name') return row.name
+  if (key === 'batches') return row.batches
+  if (key === 'qty') return row.qty
+  return ''
 }
 
 function formatDisplayCell(row: Row, column: Column, mode: string) {
