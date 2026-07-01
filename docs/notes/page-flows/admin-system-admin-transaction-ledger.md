@@ -5,7 +5,7 @@ tags:
   - menu
   - admin-system
 status: accepted-baseline
-updated: 2026-06-11
+updated: 2026-07-02
 route: /admin/transaction-ledger
 ---
 
@@ -77,6 +77,14 @@ admin read model for cash/bank transaction ledger and duplicate/account reconcil
 
 - read/export only ไม่มี transaction side effect
 
+## 2026-07-02 Table Mechanics Checkpoint
+
+- Main ledger table now follows the active Cost Pool / Weight Ticket table mechanics: sortable `ResizableTableHead` headers, persisted resizable widths, `colgroup`, fixed table layout, and a reset-width control.
+- Sorting is client-side display sorting after the existing filters. When no column sort is selected, the existing default order remains latest date/id first.
+- Mobile cards and client-side CSV export now use the same sorted row set as the desktop table.
+- No API, ledger source, account balance card, duplicate diagnostic, Excel export, permission, or DB behavior changed.
+- Browser QA remains pending.
+
 ## Current Gap
 
 P3 proof completed from current code. Remaining report/formula proof belongs to finance/bank and payment flows.
@@ -86,4 +94,4 @@ P3 proof completed from current code. Remaining report/formula proof belongs to 
 - [x] Verify current page/component API calls
 - [x] Verify current API route methods and permission boundary
 - [x] Keep business transaction side effects out of this page
-- [ ] Update this file if admin/system code changes
+- [x] Update this file if admin/system code changes
