@@ -49,8 +49,25 @@ type BankPayload = {
   summary: { accounts: number; amountIn: number; amountOut: number; netMovement: number; rows: number }
 }
 
+type BankColumnKey = 'amountIn' | 'amountOut' | 'date' | 'description' | 'odRemaining' | 'odUsed' | 'refNo' | 'runningBalance' | 'type'
+type SortDirection = 'asc' | 'desc'
+
 function currentMonthStart() {
   return `${todayDateInput().slice(0, 8)}01`
+}
+
+function compareSortValues(left: string | number, right: string | number) {
+  if (typeof left === 'number' && typeof right === 'number') return left - right
+  return String(left ?? '').localeCompare(String(right ?? ''), 'th', { numeric: true, sensitivity: 'base' })
+}
+
+function getBankSortValue(row: BankRow, key: BankColumnKey, odLimit: number) {
+  if (key === 'description') return `${row.description} ${row.note}`
+  if (key === 'odRemaining') return Math.max(0, odLimit - Math.max(0, -row.runningBalance))
+  if (key === 'odUsed') return Math.max(0, -row.runningBalance)
+  if (key === 'refNo') return row.refNo || row.refType
+  if (key === 'type') return row.type || row.refType
+  return row[key]
 }
 
 export function BankStatementPageClient() {
@@ -408,16 +425,16 @@ function ChartPanel({ rows, title, variant }: { rows: BankRow[]; title: string; 
   )
 }
 
-const bankColumns: Array<ResizableColumnDefinition<string>> = [
-  { key: 'date', defaultWidth: 100 },
-  { key: 'type', defaultWidth: 100 },
-  { key: 'description', defaultWidth: 250 },
-  { key: 'refNo', defaultWidth: 150 },
-  { key: 'amountIn', defaultWidth: 110 },
-  { key: 'amountOut', defaultWidth: 110 },
-  { key: 'runningBalance', defaultWidth: 140 },
-  { key: 'odUsed', defaultWidth: 110 },
-  { key: 'odRemaining', defaultWidth: 110 },
+const bankColumns: Array<ResizableColumnDefinition<BankColumnKey>> = [
+  { key: 'date', defaultWidth: 100, minWidth: 90 },
+  { key: 'type', defaultWidth: 100, minWidth: 90 },
+  { key: 'description', defaultWidth: 250, minWidth: 180 },
+  { key: 'refNo', defaultWidth: 150, minWidth: 120 },
+  { key: 'amountIn', defaultWidth: 110, minWidth: 100 },
+  { key: 'amountOut', defaultWidth: 110, minWidth: 100 },
+  { key: 'runningBalance', defaultWidth: 140, minWidth: 120 },
+  { key: 'odUsed', defaultWidth: 110, minWidth: 100 },
+  { key: 'odRemaining', defaultWidth: 110, minWidth: 100 },
 ]
 
 function DetailTable({
@@ -440,6 +457,25 @@ function DetailTable({
     return hasOd ? bankColumns : bankColumns.slice(0, 7)
   }, [hasOd])
   const columnResize = useResizableColumns('finance.bank.statement.v5', columns)
+  const [tableSortDirection, setTableSortDirection] = useState<SortDirection>('asc')
+  const [tableSortKey, setTableSortKey] = useState<BankColumnKey | null>(null)
+
+  const sortedRows = useMemo(() => {
+    if (!tableSortKey) return rows
+    return [...rows].sort((left, right) => {
+      const result = compareSortValues(getBankSortValue(left, tableSortKey, odLimit), getBankSortValue(right, tableSortKey, odLimit))
+      return tableSortDirection === 'asc' ? result : -result
+    })
+  }, [odLimit, rows, tableSortDirection, tableSortKey])
+
+  const changeSort = (key: BankColumnKey) => {
+    if (tableSortKey === key) {
+      setTableSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setTableSortKey(key)
+    setTableSortDirection('asc')
+  }
 
   return (
     <div className="overflow-hidden rounded-md bg-white shadow-lg">
@@ -452,7 +488,7 @@ function DetailTable({
         ) : null}
       </div>
       <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200/60 bg-white shadow-sm overflow-hidden">
-        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {columns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -460,25 +496,25 @@ function DetailTable({
           </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
             <tr>
-              <ResizableTableHead label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
-              <ResizableTableHead label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
-              <ResizableTableHead label="รายละเอียด" resizeProps={columnResize.getResizeHandleProps('description', 'รายละเอียด')} />
-              <ResizableTableHead label="อ้างอิง" resizeProps={columnResize.getResizeHandleProps('refNo', 'อ้างอิง')} />
-              <ResizableTableHead align="right" label="📥 เข้า" resizeProps={columnResize.getResizeHandleProps('amountIn', '📥 เข้า')} />
-              <ResizableTableHead align="right" label="📤 ออก" resizeProps={columnResize.getResizeHandleProps('amountOut', '📤 ออก')} />
-              <ResizableTableHead align="right" label="💰 ยอดคงเหลือจริง" resizeProps={columnResize.getResizeHandleProps('runningBalance', '💰 ยอดคงเหลือจริง')} />
+              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} direction={tableSortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} direction={tableSortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} direction={tableSortDirection} label="รายละเอียด" resizeProps={columnResize.getResizeHandleProps('description', 'รายละเอียด')} sortKey="description" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} direction={tableSortDirection} label="อ้างอิง" resizeProps={columnResize.getResizeHandleProps('refNo', 'อ้างอิง')} sortKey="refNo" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="right" direction={tableSortDirection} label="📥 เข้า" resizeProps={columnResize.getResizeHandleProps('amountIn', '📥 เข้า')} sortKey="amountIn" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="right" direction={tableSortDirection} label="📤 ออก" resizeProps={columnResize.getResizeHandleProps('amountOut', '📤 ออก')} sortKey="amountOut" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="right" direction={tableSortDirection} label="💰 ยอดคงเหลือจริง" resizeProps={columnResize.getResizeHandleProps('runningBalance', '💰 ยอดคงเหลือจริง')} sortKey="runningBalance" onSort={changeSort} />
               {hasOd && (
                 <>
-                  <ResizableTableHead align="right" label="OD ใช้ไป" resizeProps={columnResize.getResizeHandleProps('odUsed', 'OD ใช้ไป')} />
-                  <ResizableTableHead align="right" label="OD คงเหลือ" resizeProps={columnResize.getResizeHandleProps('odRemaining', 'OD คงเหลือ')} />
+                  <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="right" direction={tableSortDirection} label="OD ใช้ไป" resizeProps={columnResize.getResizeHandleProps('odUsed', 'OD ใช้ไป')} sortKey="odUsed" onSort={changeSort} />
+                  <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="right" direction={tableSortDirection} label="OD คงเหลือ" resizeProps={columnResize.getResizeHandleProps('odRemaining', 'OD คงเหลือ')} sortKey="odRemaining" onSort={changeSort} />
                 </>
               )}
             </tr>
           </thead>
           <tbody>
             {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={hasOd ? 9 : 7}>กำลังโหลดข้อมูล</td></tr> : null}
-            {!isLoading && rows.length === 0 ? <tr><td className="p-6 text-center text-slate-500" colSpan={hasOd ? 9 : 7}>ไม่มีรายการ</td></tr> : null}
-            {!isLoading && rows.map((row) => {
+            {!isLoading && sortedRows.length === 0 ? <tr><td className="p-6 text-center text-slate-500" colSpan={hasOd ? 9 : 7}>ไม่มีรายการ</td></tr> : null}
+            {!isLoading && sortedRows.map((row) => {
               const isOpening = row.type === 'ยอดยกมา'
               const runningBalance = row.runningBalance
               const odUsed = Math.max(0, -runningBalance)
@@ -512,10 +548,10 @@ function DetailTable({
         {isLoading ? (
           <div className="py-6 text-center text-slate-500 text-xs">กำลังโหลดข้อมูล</div>
         ) : null}
-        {!isLoading && rows.length === 0 ? (
+        {!isLoading && sortedRows.length === 0 ? (
           <div className="py-6 text-center text-slate-400 text-xs">ไม่มีรายการ</div>
         ) : null}
-        {!isLoading && rows.map((row) => {
+        {!isLoading && sortedRows.map((row) => {
           const isOpening = row.type === 'ยอดยกมา'
           const runningBalance = row.runningBalance
           const odUsed = Math.max(0, -runningBalance)

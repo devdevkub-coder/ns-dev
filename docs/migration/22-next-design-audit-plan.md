@@ -483,6 +483,10 @@ Expected:
   - After the latest correction, the Cash Accounts table now uses the active lined/resizable table shell with persisted column widths, reset-width control, sortable up/down headers, fixed table layout, and safer nowrap/tabular numeric alignment for Balance and THB Equivalent.
   - Mobile account cards now render from the same sorted row set as the desktop table. As-of filter, KPIs, Trading Pending cards, asset/debt donut data, AR aging, receivable/debt/stock key rows, and read-model behavior were not changed.
   - Browser QA remains pending.
+- `/finance/bank`
+  - After the latest correction, the Bank Statement detail table now uses sortable `ResizableTableHead` business headers with inactive/active up/down indicators, persisted resizable widths, reset-width control, and fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
+  - Mobile cards now render from the same sorted row set as desktop. Account/date/search/ref/type filters, server date sort query, Excel export, charts, account/OD summaries, detail modal, and API/read-model behavior were not changed.
+  - Browser QA remains pending.
 - `/sales-plan`
   - After the latest correction, the plan table, sales-plan vs stock analysis table, and remaining-stock table now use the active lined/resizable table shell with persisted column widths, reset-width controls, sortable up/down headers, fixed table layout, Thai-first business headers, and safer nowrap/tabular numeric alignment.
   - Mobile cards now render from the same sorted row sets as their desktop tables. LME config, filters, KPI totals, CSV export contents, plan lock/write behavior, stock/WAC source, best-plan price, projected profit, margin formula, and read-model behavior were not changed.
