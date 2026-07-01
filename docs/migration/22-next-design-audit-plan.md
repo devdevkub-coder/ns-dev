@@ -613,6 +613,7 @@ Expected:
   - Browser QA remains pending.
 - `/tracking/customer`
   - After the latest correction, the main Customer Tracking table now uses the active table mechanics: resizable desktop columns, sortable `ResizableTableHead` headers with inactive/active up/down indicators, fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`, and mobile cards backed by the same sorted row set.
+  - Follow-up correction: the Year Compare matrix now also uses sortable `ResizableTableHead` headers with inactive/active up/down indicators, persisted resizable widths, reset-width control, `colgroup`, and fixed table layout; mobile Year Compare renders compact customer/month cards from the same sorted row set instead of a wide horizontal table.
   - Customer filters, export, top customer charts, detail drilldown data, AR aging, GP/receivable formulas, source links, API behavior, and DB state were not changed.
   - Browser QA remains pending.
 - `/tracking/supplier`

@@ -2435,3 +2435,10 @@ Tailwind dependency check:
   - Mobile Year Compare now renders compact product/month cards from the same sorted row set as the desktop table instead of a wide horizontal table.
   - Validation passed: `npm exec --workspace @ns-scrap-erp/next -- eslint src/components/tracking/ProductTrackingPageClient.tsx`, `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`, and `git diff --check`.
   - Browser/computer-use QA was not run per the current instruction to avoid browser verification.
+
+- 2026-07-02: Customer Tracking Year Compare table mechanics checkpoint
+  - `/tracking/customer` received a UI-only table mechanics follow-up for the Year Compare matrix. Runtime API behavior, customer sales/receipt facts, AR aging, GP/receivable formulas, filters, export contract, top panels, detail drilldown data, and DB state were not changed.
+  - The Year Compare matrix now uses sortable `ResizableTableHead` headers with inactive/active up/down indicators, persisted resizable widths, reset-width control, `colgroup`, and `tableLayout: fixed` so resize handles visibly affect columns like `/dual-costing/cost-pool`.
+  - Mobile Year Compare now renders compact customer/month cards from the same sorted row set as the desktop table instead of a wide horizontal table.
+  - Validation passed: `npm exec --workspace @ns-scrap-erp/next -- eslint src/components/tracking/CustomerTrackingPageClient.tsx`, `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`, and `git diff --check`.
+  - Browser/computer-use QA was not run per the current instruction to avoid browser verification.

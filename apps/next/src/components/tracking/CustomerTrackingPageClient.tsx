@@ -101,9 +101,30 @@ type CustomerTrackingDetail = {
 }
 
 type DetailCell = string | { href: string; label: string }
+type CustomerYearCompareColumnKey =
+  | 'customer'
+  | 'm01'
+  | 'm02'
+  | 'm03'
+  | 'm04'
+  | 'm05'
+  | 'm06'
+  | 'm07'
+  | 'm08'
+  | 'm09'
+  | 'm10'
+  | 'm11'
+  | 'm12'
+  | 'total'
+type CustomerYearCompareMode = 'weight' | 'sales'
 
 const monthLabels = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
 const months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
+const customerYearCompareColumns: Array<ResizableColumnDefinition<CustomerYearCompareColumnKey>> = [
+  { key: 'customer', defaultWidth: 240, minWidth: 170 },
+  ...months.map((month) => ({ key: `m${month}` as CustomerYearCompareColumnKey, defaultWidth: 110, minWidth: 90 })),
+  { key: 'total', defaultWidth: 130, minWidth: 110 },
+]
 
 export function CustomerTrackingPageClient() {
   const [productCategory, setProductCategory] = useState('')
@@ -823,22 +844,54 @@ function TopPanel({ color, rows, suffix = '', title }: { color: 'amber' | 'blue'
 }
 
 function YearCompare({ rows }: { rows: CustomerTrackingRow[] }) {
-  const [mode, setMode] = useState<'weight' | 'sales'>('weight')
+  const [mode, setMode] = useState<CustomerYearCompareMode>('weight')
+  const [sortKey, setSortKey] = useState<CustomerYearCompareColumnKey | undefined>(undefined)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const columnResize = useResizableColumns('tracking.customer.year-compare.v1', customerYearCompareColumns)
 
-  // Calculate totals per month
-  const monthlyTotals = Array.from({ length: 12 }, (_, monthIdx) => {
-    return rows.reduce((sum, row) => {
-      const val = row.monthlyData?.[monthIdx]
-      return sum + (mode === 'weight' ? (val?.qty ?? 0) : (val?.revenue ?? 0))
-    }, 0)
-  })
+  const monthValue = useCallback((row: CustomerTrackingRow, monthIdx: number) => {
+    const val = row.monthlyData?.[monthIdx]
+    return mode === 'weight' ? (val?.qty ?? 0) : (val?.revenue ?? 0)
+  }, [mode])
 
+  const rowTotal = useCallback((row: CustomerTrackingRow) => (row.monthlyData ?? []).reduce((sum, val) => {
+    return sum + (mode === 'weight' ? val.qty : val.revenue)
+  }, 0), [mode])
+
+  const sortedRows = useMemo(() => {
+    const result = [...rows]
+    if (!sortKey) return result
+
+    result.sort((left, right) => {
+      const valueA = sortKey === 'customer' ? left.customerName : sortKey === 'total' ? rowTotal(left) : monthValue(left, Number(sortKey.slice(1)) - 1)
+      const valueB = sortKey === 'customer' ? right.customerName : sortKey === 'total' ? rowTotal(right) : monthValue(right, Number(sortKey.slice(1)) - 1)
+
+      if (typeof valueA === 'number' && typeof valueB === 'number') {
+        return sortDirection === 'asc' ? valueA - valueB : valueB - valueA
+      }
+
+      return sortDirection === 'asc'
+        ? String(valueA).localeCompare(String(valueB), 'th', { numeric: true })
+        : String(valueB).localeCompare(String(valueA), 'th', { numeric: true })
+    })
+    return result
+  }, [monthValue, rowTotal, rows, sortDirection, sortKey])
+
+  const monthlyTotals = Array.from({ length: 12 }, (_, monthIdx) => rows.reduce((sum, row) => sum + monthValue(row, monthIdx), 0))
   const grandTotal = monthlyTotals.reduce((sum, val) => sum + val, 0)
+
+  const handleSort = (key: CustomerYearCompareColumnKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
 
   return (
     <div className="space-y-4">
-      {/* Mode Selector Toggle */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-semibold text-slate-500">แสดงผล:</span>
         <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200/60 shadow-sm">
           <button
@@ -848,7 +901,7 @@ function YearCompare({ rows }: { rows: CustomerTrackingRow[] }) {
             type="button"
             onClick={() => setMode('weight')}
           >
-            ⚖️ น้ำหนัก (กก.)
+            น้ำหนัก (กก.)
           </button>
           <button
             className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none ${
@@ -857,64 +910,109 @@ function YearCompare({ rows }: { rows: CustomerTrackingRow[] }) {
             type="button"
             onClick={() => setMode('sales')}
           >
-            💰 ยอดขาย (บาท)
+            ยอดขาย
           </button>
         </div>
+        {columnResize.hasCustomWidths ? (
+          <button
+            className="ml-auto hidden h-8 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 lg:inline-flex"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            คืนค่าเดิมตาราง
+          </button>
+        ) : null}
       </div>
 
-      <div className="overflow-x-auto rounded-xl bg-white border border-slate-200/60 shadow-sm">
-        <table className="w-full text-sm border-collapse text-left">
-          <thead className="bg-slate-100/75 text-slate-700 border-b border-slate-200">
+      <div className="hidden overflow-x-auto rounded-xl bg-white border border-slate-200/60 shadow-sm lg:block">
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <colgroup>
+            {customerYearCompareColumns.map((column, index) => (
+              <col
+                key={column.key}
+                style={index === customerYearCompareColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : columnResize.getColumnStyle(column.key)}
+              />
+            ))}
+          </colgroup>
+          <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
             <tr>
-              <th className="p-3 pl-4 font-semibold">Customer</th>
-              {monthLabels.map((lbl) => (
-                <th key={lbl} className="p-3 text-right font-semibold min-w-[90px]">{lbl}</th>
-              ))}
-              <th className="p-3 pr-4 text-right font-semibold min-w-[100px]">รวม</th>
+              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="Customer" resizeProps={columnResize.getResizeHandleProps('customer', 'Customer')} sortKey="customer" onSort={handleSort} />
+              {monthLabels.map((label, index) => {
+                const key = `m${months[index]}` as CustomerYearCompareColumnKey
+                return (
+                  <ResizableTableHead key={key} activeSortKey={sortKey} align="right" direction={sortDirection} label={label} resizeProps={columnResize.getResizeHandleProps(key, label)} sortKey={key} onSort={handleSort} />
+                )
+              })}
+              <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="รวม" resizeProps={columnResize.getResizeHandleProps('total', 'รวม')} sortKey="total" onSort={handleSort} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
-            {rows.map((row) => {
-              const rowSum = (row.monthlyData ?? []).reduce((sum, m) => {
-                return sum + (mode === 'weight' ? m.qty : m.revenue)
-              }, 0)
+            {sortedRows.map((row) => {
+              const total = rowTotal(row)
 
               return (
                 <tr key={row.id} className="hover:bg-slate-50 transition-colors">
                   <td className="p-3 pl-4 font-medium text-slate-800 min-w-0 overflow-hidden">
                     <div className="truncate" title={row.customerName || ''}>{row.customerName}</div>
-                    <div className="text-xs text-slate-400 font-mono mt-0.5 truncate" title={row.code || ''}>{row.code}</div>
+                    <div className="text-xs text-slate-400 font-mono mt-0.5 truncate" title={row.code || ''}>{row.code || '-'}</div>
                   </td>
                   {Array.from({ length: 12 }).map((_, monthIdx) => {
-                    const mData = row.monthlyData?.[monthIdx]
-                    const val = mode === 'weight' ? (mData?.qty ?? 0) : (mData?.revenue ?? 0)
+                    const val = monthValue(row, monthIdx)
                     return (
-                      <td key={monthIdx} className="p-3 text-right font-mono text-xs">
+                      <td key={monthIdx} className="p-3 text-right font-mono text-xs whitespace-nowrap tabular-nums">
                         {val > 0 ? formatMoney(val) : '-'}
                       </td>
                     )
                   })}
-                  <td className="p-3 pr-4 text-right font-mono font-semibold text-xs text-slate-900">
-                    {rowSum > 0 ? formatMoney(rowSum) : '-'}
+                  <td className="p-3 pr-4 text-right font-mono font-semibold text-xs text-slate-900 whitespace-nowrap tabular-nums">
+                    {total > 0 ? formatMoney(total) : '-'}
                   </td>
                 </tr>
               )
             })}
 
-            {/* Totals Row */}
             <tr className="bg-slate-50 font-bold border-t border-slate-200 text-slate-900">
               <td className="p-3 pl-4 text-slate-800">ยอดรวมทั้งหมด</td>
               {monthlyTotals.map((val, idx) => (
-                <td key={idx} className="p-3 text-right font-mono text-xs">
+                <td key={idx} className="p-3 text-right font-mono text-xs whitespace-nowrap tabular-nums">
                   {val > 0 ? formatMoney(val) : '-'}
                 </td>
               ))}
-              <td className="p-3 pr-4 text-right font-mono text-xs text-slate-900">
+              <td className="p-3 pr-4 text-right font-mono text-xs text-slate-900 whitespace-nowrap tabular-nums">
                 {grandTotal > 0 ? formatMoney(grandTotal) : '-'}
               </td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div className="space-y-3 lg:hidden">
+        {sortedRows.map((row) => {
+          const total = rowTotal(row)
+          return (
+            <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm text-xs">
+              <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-bold text-slate-900">{row.customerName}</div>
+                  <div className="truncate font-mono text-slate-400">{row.code || '-'}</div>
+                </div>
+                <div className="shrink-0 text-right font-mono font-bold text-slate-900">{total > 0 ? formatMoney(total) : '-'}</div>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {monthLabels.map((label, monthIdx) => {
+                  const val = monthValue(row, monthIdx)
+                  return (
+                    <div key={label} className="rounded-md bg-slate-50 p-2 text-right">
+                      <div className="font-semibold text-slate-500">{label}</div>
+                      <div className="font-mono font-semibold text-slate-800">{val > 0 ? formatMoney(val) : '-'}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+        {sortedRows.length === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-xs text-slate-400 shadow-sm">ไม่มีข้อมูลรายปี</div> : null}
       </div>
     </div>
   )
