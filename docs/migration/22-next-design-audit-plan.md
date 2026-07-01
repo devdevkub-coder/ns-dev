@@ -578,6 +578,7 @@ Expected:
   - Browser QA remains pending.
 - Cash-flow planning finance pages: `/finance-accounting/cash-flow-analysis` and `/finance-accounting/cf-forecast-calendar`
   - After the latest correction, the Cash Flow Analysis detail table, Forecast Calendar Top AR/AP insight tables, and day-event detail modal now use the active lined/resizable table shell with Thai-first business headers, persisted column widths, reset-width controls, and safer nowrap/tabular numeric alignment.
+  - Follow-up correction after visual feedback: the Cash Flow Analysis detail table, Forecast Calendar Top AR/AP insight tables, and day-event detail modal now use sortable `ResizableTableHead` business headers with inactive/active up/down indicators, client-side ascending/descending sorting before rendering, fixed table layout so resize handles visibly adjust columns, and the same sorted row sets for mobile cards.
   - Existing charts, cards, calendar grid, filter layout, baseline notice, and mobile card views were preserved.
   - Browser QA remains pending.
 - Loans/equity/opening/historical finance pages: `/finance-accounting/loan-contracts`, `/finance-accounting/loan-dashboard`, `/finance-accounting/equity-maint`, `/finance-accounting/opening-balance`, and `/finance-accounting/historical-data`

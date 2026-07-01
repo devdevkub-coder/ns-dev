@@ -12,6 +12,7 @@ type Insight = { body: string; explain: string; title: string; type: 'danger' | 
 type DetailColumnKey = 'label' | 'value'
 type DayEventColumnKey = 'amount' | 'label' | 'refNo' | 'type'
 type TopPartyColumnKey = 'amount' | 'days' | 'docNo' | 'party'
+type SortDirection = 'asc' | 'desc'
 
 type AnalysisPayload = {
   branches: BranchRow[]
@@ -78,6 +79,36 @@ const dayEventColumns: Array<ResizableColumnDefinition<DayEventColumnKey>> = [
   { key: 'amount', defaultWidth: 170, minWidth: 135 },
 ]
 
+function compareSortValues(left: string | number, right: string | number) {
+  return typeof left === 'number' && typeof right === 'number'
+    ? left - right
+    : String(left).localeCompare(String(right), 'th', { numeric: true })
+}
+
+function useLocalTableSort<TRow, TKey extends string>(rows: TRow[], getSortValue: (row: TRow, key: TKey) => string | number) {
+  const [sortKey, setSortKey] = useState<TKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+
+    return [...rows].sort((left, right) => {
+      const result = compareSortValues(getSortValue(left, sortKey), getSortValue(right, sortKey))
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [getSortValue, rows, sortDirection, sortKey])
+
+  function handleSort(key: TKey) {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(key)
+    setSortDirection('asc')
+  }
+
+  return { handleSort, sortDirection, sortedRows, sortKey }
+}
 function today() {
   return localDateInputValue(new Date())
 }
@@ -402,6 +433,7 @@ function InsightCard({ insight }: { insight: Insight }) {
 
 function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPayload['detailRows'] }) {
   const columnResize = useResizableColumns('finance-accounting.cash-flow-analysis.detail.v1', detailColumns)
+  const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<AnalysisPayload['detailRows'][number], DetailColumnKey>(rows, (row, key) => row[key])
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -419,7 +451,7 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPa
       </div>
       {/* Desktop Table View */}
       <div className="hidden overflow-x-auto lg:block">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth }}>
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {detailColumns.map((column, index) => {
               if (index === detailColumns.length - 1) {
@@ -430,13 +462,13 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPa
           </colgroup>
           <thead className="bg-slate-100">
             <tr>
-              <ResizableTableHead label="รายการ" resizeProps={columnResize.getResizeHandleProps('label', 'รายการ')} />
-              <ResizableTableHead align="right" label="มูลค่า" resizeProps={columnResize.getResizeHandleProps('value', 'มูลค่า')} />
+              <ResizableTableHead label="รายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="label" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('label', 'รายการ')} />
+              <ResizableTableHead align="right" label="มูลค่า" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="value" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('value', 'มูลค่า')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {isLoading ? <tr><td className="py-8 text-center text-slate-400" colSpan={detailColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr key={row.label} className={`transition-colors hover:bg-slate-50 ${row.tone === 'warn' ? 'bg-amber-50/70' : row.tone === 'bad' ? 'bg-red-50/70' : row.label.includes('Projected') ? 'bg-blue-50/70' : ''}`}>
                 <td className="px-3 py-3 text-slate-700">{row.label}</td>
                 <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${row.tone === 'bad' ? 'text-red-700' : row.tone === 'good' ? 'text-emerald-700' : 'text-slate-900'}`}>
@@ -451,7 +483,7 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPa
       {/* Mobile Card List View */}
       <div className="block divide-y divide-slate-100 lg:hidden">
         {isLoading && <div className="py-6 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล</div>}
-        {!isLoading && rows.map((row) => (
+        {!isLoading && sortedRows.map((row) => (
           <div key={row.label} className={`flex justify-between items-center p-3 text-xs ${row.tone === 'warn' ? 'bg-amber-50/50' : row.tone === 'bad' ? 'bg-red-50/50' : row.label.includes('Projected') ? 'bg-blue-50/50' : ''}`}>
             <span className="text-slate-700">{row.label}</span>
             <span className={`font-bold ${row.tone === 'bad' ? 'text-red-700' : row.tone === 'good' ? 'text-emerald-700' : 'text-slate-900'}`}>
@@ -488,6 +520,12 @@ function CalendarGrid({ days, isLoading, onSelect }: { days: ProjectionDay[]; is
 function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
   const headingCls = 'bg-emerald-50 text-emerald-700'
   const columnResize = useResizableColumns('finance-accounting.cash-flow-forecast.top-ar.v1', topPartyColumns)
+  const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<ForecastPayload['insights']['topAR'][number], TopPartyColumnKey>(rows, (row, key) => {
+    if (key === 'party') return row.customerName
+    if (key === 'amount') return row.receivableBalance
+    if (key === 'days') return row.daysOverdue
+    return row.docNo
+  })
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -506,7 +544,7 @@ function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
       
       {/* Desktop Table View */}
       <div className="hidden overflow-x-auto lg:block">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth }}>
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {topPartyColumns.map((column, index) => {
               if (index === topPartyColumns.length - 1) {
@@ -517,14 +555,14 @@ function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
           </colgroup>
           <thead className="bg-slate-100">
             <tr>
-              <ResizableTableHead label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('party', 'ลูกค้า')} />
-              <ResizableTableHead label="เลขที่บิล" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่บิล')} />
-              <ResizableTableHead align="right" label="ยอดค้าง" resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดค้าง')} />
-              <ResizableTableHead align="right" label="ค้างมาแล้ว" resizeProps={columnResize.getResizeHandleProps('days', 'ค้างมาแล้ว')} />
+              <ResizableTableHead label="ลูกค้า" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="party" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('party', 'ลูกค้า')} />
+              <ResizableTableHead label="เลขที่บิล" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่บิล')} />
+              <ResizableTableHead align="right" label="ยอดค้าง" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดค้าง')} />
+              <ResizableTableHead align="right" label="ค้างมาแล้ว" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="days" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('days', 'ค้างมาแล้ว')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50/50">
                 <td className="px-3 py-3 font-medium text-slate-900">{row.customerName}</td>
                 <td className="whitespace-nowrap px-3 py-3 font-mono text-xs font-semibold text-blue-700">{row.docNo}</td>
@@ -542,7 +580,7 @@ function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
         {!rows.length ? (
           <div className="py-4 text-center text-slate-400 text-xs">ไม่มีลูกค้าค้างเกินกำหนด ✓</div>
         ) : (
-          rows.map((row) => (
+          sortedRows.map((row) => (
             <div key={row.id} className="p-3 space-y-1 text-xs hover:bg-slate-50/50 transition">
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-slate-900">{row.customerName}</span>
@@ -563,6 +601,12 @@ function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
 function TopAp({ rows }: { rows: ForecastPayload['insights']['topAP'] }) {
   const headingCls = 'bg-red-50 text-red-700'
   const columnResize = useResizableColumns('finance-accounting.cash-flow-forecast.top-ap.v1', topPartyColumns)
+  const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<ForecastPayload['insights']['topAP'][number], TopPartyColumnKey>(rows, (row, key) => {
+    if (key === 'party') return row.supplierName
+    if (key === 'amount') return row.payableBalance
+    if (key === 'days') return row.daysToDue
+    return row.docNo
+  })
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -581,7 +625,7 @@ function TopAp({ rows }: { rows: ForecastPayload['insights']['topAP'] }) {
       
       {/* Desktop Table View */}
       <div className="hidden overflow-x-auto lg:block">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth }}>
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {topPartyColumns.map((column, index) => {
               if (index === topPartyColumns.length - 1) {
@@ -592,14 +636,14 @@ function TopAp({ rows }: { rows: ForecastPayload['insights']['topAP'] }) {
           </colgroup>
           <thead className="bg-slate-100">
             <tr>
-              <ResizableTableHead label="Supplier" resizeProps={columnResize.getResizeHandleProps('party', 'Supplier')} />
-              <ResizableTableHead label="เลขที่บิล" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่บิล')} />
-              <ResizableTableHead align="right" label="ยอดค้าง" resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดค้าง')} />
-              <ResizableTableHead align="right" label="ครบกำหนดใน" resizeProps={columnResize.getResizeHandleProps('days', 'ครบกำหนดใน')} />
+              <ResizableTableHead label="Supplier" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="party" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('party', 'Supplier')} />
+              <ResizableTableHead label="เลขที่บิล" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่บิล')} />
+              <ResizableTableHead align="right" label="ยอดค้าง" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดค้าง')} />
+              <ResizableTableHead align="right" label="ครบกำหนดใน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="days" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('days', 'ครบกำหนดใน')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50/50">
                 <td className="px-3 py-3 font-medium text-slate-900">{row.supplierName}</td>
                 <td className="whitespace-nowrap px-3 py-3 font-mono text-xs font-semibold text-blue-700">{row.docNo}</td>
@@ -617,7 +661,7 @@ function TopAp({ rows }: { rows: ForecastPayload['insights']['topAP'] }) {
         {!rows.length ? (
           <div className="py-4 text-center text-slate-400 text-xs">ไม่มี AP คงเหลือ</div>
         ) : (
-          rows.map((row) => (
+          sortedRows.map((row) => (
             <div key={row.id} className="p-3 space-y-1 text-xs hover:bg-slate-50/50 transition">
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-slate-900">{row.supplierName}</span>
@@ -637,6 +681,10 @@ function TopAp({ rows }: { rows: ForecastPayload['insights']['topAP'] }) {
 
 function DayModal({ day, onClose }: { day: ProjectionDay; onClose: () => void }) {
   const columnResize = useResizableColumns('finance-accounting.cash-flow-forecast.day-events.v1', dayEventColumns)
+  const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<ForecastEvent, DayEventColumnKey>(day.events, (event, key) => {
+    if (key === 'amount') return event.inOut === 'IN' ? event.amount : -event.amount
+    return event[key]
+  })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
@@ -661,7 +709,7 @@ function DayModal({ day, onClose }: { day: ProjectionDay; onClose: () => void })
         <div className="max-h-[60vh] overflow-auto">
           {/* Desktop Table View */}
           <div className="hidden lg:block">
-            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth }}>
+            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 {dayEventColumns.map((column, index) => {
                   if (index === dayEventColumns.length - 1) {
@@ -672,14 +720,14 @@ function DayModal({ day, onClose }: { day: ProjectionDay; onClose: () => void })
               </colgroup>
               <thead className="sticky top-0 z-10 bg-slate-100">
                 <tr>
-                  <ResizableTableHead label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
-                  <ResizableTableHead label="เลขอ้างอิง" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขอ้างอิง')} />
-                  <ResizableTableHead label="รายการ" resizeProps={columnResize.getResizeHandleProps('label', 'รายการ')} />
-                  <ResizableTableHead align="right" label="จำนวนเงิน" resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวนเงิน')} />
+                  <ResizableTableHead label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="type" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
+                  <ResizableTableHead label="เลขอ้างอิง" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="refNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขอ้างอิง')} />
+                  <ResizableTableHead label="รายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="label" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('label', 'รายการ')} />
+                  <ResizableTableHead align="right" label="จำนวนเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวนเงิน')} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {day.events.map((event) => (
+                {sortedRows.map((event) => (
                   <tr key={`${event.type}-${event.refNo}`} className="transition-colors hover:bg-slate-50">
                     <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-700">{event.type}</td>
                     <td className="whitespace-nowrap px-3 py-3 font-mono text-xs font-semibold text-blue-700">{event.refNo}</td>
@@ -701,7 +749,7 @@ function DayModal({ day, onClose }: { day: ProjectionDay; onClose: () => void })
             {!day.events.length ? (
               <div className="py-5 text-center text-slate-400 text-xs">ไม่มี event ในวันนี้</div>
             ) : (
-              day.events.map((event) => (
+              sortedRows.map((event) => (
                 <div key={`${event.type}-${event.refNo}`} className="p-3.5 space-y-2 text-xs">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-slate-900">{event.type}</span>
