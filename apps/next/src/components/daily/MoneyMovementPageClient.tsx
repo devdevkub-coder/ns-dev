@@ -2219,22 +2219,22 @@ export function MoneyMovementPageClient({
                     >
                       รับเงิน
                     </UiButton>
-                    <UiButton
-                      className="font-normal border-red-200 text-red-700"
-                      disabled={!cancelableReceipt}
-                      size="xs"
-                      title={cancelableReceipt ? `ยกเลิกใบรับเงิน ${cancelableReceipt.docNo}` : 'ยังไม่มีใบรับเงินให้ยกเลิก'}
-                      type="button"
-                      variant="outline"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        if (!cancelableReceipt) return
-                        setCancelReceiptTarget(cancelableReceipt)
-                        setCancelReceiptReason('')
-                      }}
-                    >
-                      ยกเลิก
-                    </UiButton>
+                    {cancelableReceipt ? (
+                      <UiButton
+                        className="font-normal border-red-200 text-red-700"
+                        size="xs"
+                        title={`ยกเลิกใบรับเงิน ${cancelableReceipt.docNo}`}
+                        type="button"
+                        variant="outline"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setCancelReceiptTarget(cancelableReceipt)
+                          setCancelReceiptReason('')
+                        }}
+                      >
+                        ยกเลิก
+                      </UiButton>
+                    ) : null}
                   </div>
                 </div>
               )
@@ -2297,22 +2297,22 @@ export function MoneyMovementPageClient({
                         >
                           รับเงิน
                         </UiButton>
-                        <UiButton
-                          className="font-normal border-red-200 text-red-700"
-                          disabled={!cancelableReceipt}
-                          size="xs"
-                          title={cancelableReceipt ? `ยกเลิกใบรับเงิน ${cancelableReceipt.docNo}` : 'ยังไม่มีใบรับเงินให้ยกเลิก'}
-                          type="button"
-                          variant="outline"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            if (!cancelableReceipt) return
-                            setCancelReceiptTarget(cancelableReceipt)
-                            setCancelReceiptReason('')
-                          }}
-                        >
-                          ยกเลิก
-                        </UiButton>
+                        {cancelableReceipt ? (
+                          <UiButton
+                            className="font-normal border-red-200 text-red-700"
+                            size="xs"
+                            title={`ยกเลิกใบรับเงิน ${cancelableReceipt.docNo}`}
+                            type="button"
+                            variant="outline"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setCancelReceiptTarget(cancelableReceipt)
+                              setCancelReceiptReason('')
+                            }}
+                          >
+                            ยกเลิก
+                          </UiButton>
+                        ) : null}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -3306,10 +3306,9 @@ export function MoneyMovementPageClient({
                         </TableCell>
                         <TableCell className="p-2" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-1 bg-transparent justify-start">
-                            {mode === 'receipt' ? (
+                            {row.status !== 'cancelled' && mode === 'receipt' ? (
                               <>
                                 <UiButton
-                                  disabled={row.status === 'cancelled'}
                                   className="text-xs h-7 px-2 font-semibold bg-slate-900 hover:bg-slate-800 text-white border-0"
                                   size="sm"
                                   type="button"
@@ -3318,7 +3317,6 @@ export function MoneyMovementPageClient({
                                   แก้ไข
                                 </UiButton>
                                 <UiButton
-                                  disabled={row.status === 'cancelled'}
                                   className="text-xs h-7 px-2 font-semibold bg-red-600 hover:bg-red-700 text-white border-0"
                                   size="sm"
                                   type="button"
@@ -3330,10 +3328,10 @@ export function MoneyMovementPageClient({
                                   ยกเลิก
                                 </UiButton>
                               </>
-                            ) : (
+                            ) : null}
+                            {row.status !== 'cancelled' && mode !== 'receipt' ? (
                               <>
                                 <UiButton
-                                  disabled={row.status === 'cancelled'}
                                   className="text-xs h-7 px-2 font-semibold bg-slate-900 hover:bg-slate-800 text-white border-0"
                                   size="sm"
                                   type="button"
@@ -3342,7 +3340,6 @@ export function MoneyMovementPageClient({
                                   แก้ไข
                                 </UiButton>
                                 <UiButton
-                                  disabled={row.status === 'cancelled'}
                                   className="text-xs h-7 px-2 font-semibold bg-red-600 hover:bg-red-700 text-white border-0"
                                   size="sm"
                                   type="button"
@@ -3351,7 +3348,7 @@ export function MoneyMovementPageClient({
                                   ยกเลิก
                                 </UiButton>
                               </>
-                            )}
+                            ) : null}
                           </div>
                         </TableCell>
                         <TableCell className="max-w-56 truncate text-xs font-semibold text-slate-700">{row.notes || '-'}</TableCell>
@@ -3752,16 +3749,17 @@ function PaymentHistoryDetailDialog({
           ) : null}
         </div>
         <DialogFooter className="border-t border-slate-200 bg-white px-5 py-4">
-          <UiButton
-            className="font-normal border-red-200 text-red-700 hover:bg-red-50"
-            disabled={!row || row.status === 'cancelled'}
-            title={row?.status === 'cancelled' ? 'รายการนี้ถูกยกเลิกแล้ว' : 'ยกเลิกรายการจ่ายเงิน'}
-            type="button"
-            variant="outline"
-            onClick={() => row && onCancel(row)}
-          >
-            ยกเลิก
-          </UiButton>
+          {row && row.status !== 'cancelled' ? (
+            <UiButton
+              className="font-normal border-red-200 text-red-700 hover:bg-red-50"
+              title="ยกเลิกรายการจ่ายเงิน"
+              type="button"
+              variant="outline"
+              onClick={() => onCancel(row)}
+            >
+              ยกเลิก
+            </UiButton>
+          ) : null}
           <UiButton className="font-normal text-slate-600" type="button" variant="ghost" onClick={() => onOpenChange(false)}>ปิด</UiButton>
         </DialogFooter>
       </DialogContent>
@@ -3847,16 +3845,17 @@ function ReceivableBillDetailDialog({
         <DialogFooter className="border-t border-slate-200 bg-white px-5 py-4">
           <UiButton className="font-normal border-emerald-200 text-emerald-700 hover:bg-emerald-50" disabled={!bill} type="button" variant="outline" onClick={() => bill && onPrint(bill)}>พิมพ์</UiButton>
           <UiButton className="font-normal" disabled={!bill} type="button" variant="outline" onClick={() => bill && onEdit(bill)}>แก้ไข</UiButton>
-          <UiButton
-            className="font-normal border-red-200 text-red-700"
-            disabled={!cancelableReceipt}
-            title={cancelableReceipt ? `ยกเลิกใบรับเงิน ${cancelableReceipt.docNo}` : 'ยังไม่มีใบรับเงินให้ยกเลิก'}
-            type="button"
-            variant="outline"
-            onClick={() => cancelableReceipt && onCancel(cancelableReceipt)}
-          >
-            ยกเลิก
-          </UiButton>
+          {cancelableReceipt ? (
+            <UiButton
+              className="font-normal border-red-200 text-red-700"
+              title={`ยกเลิกใบรับเงิน ${cancelableReceipt.docNo}`}
+              type="button"
+              variant="outline"
+              onClick={() => onCancel(cancelableReceipt)}
+            >
+              ยกเลิก
+            </UiButton>
+          ) : null}
           <UiButton className="font-normal text-slate-600" type="button" variant="ghost" onClick={() => onOpenChange(false)}>ปิด</UiButton>
         </DialogFooter>
       </DialogContent>
@@ -3984,8 +3983,12 @@ function ReceiptDetailDialog({
           {!readOnly ? (
             <>
               <UiButton className="font-normal border-emerald-200 text-emerald-700 hover:bg-emerald-50" disabled={!row} type="button" variant="outline" onClick={() => row && onPrint(row)}>พิมพ์</UiButton>
-              <UiButton className="font-normal" disabled={!row || isCancelled} type="button" variant="outline" onClick={() => row && onEdit(row)}>แก้ไข</UiButton>
-              <UiButton className="font-normal border-red-200 text-red-700 hover:bg-red-50" disabled={!row || isCancelled} type="button" variant="outline" onClick={() => row && onCancel(row)}>ยกเลิก</UiButton>
+              {row && !isCancelled ? (
+                <>
+                  <UiButton className="font-normal" type="button" variant="outline" onClick={() => onEdit(row)}>แก้ไข</UiButton>
+                  <UiButton className="font-normal border-red-200 text-red-700 hover:bg-red-50" type="button" variant="outline" onClick={() => onCancel(row)}>ยกเลิก</UiButton>
+                </>
+              ) : null}
             </>
           ) : null}
           <UiButton className="font-normal text-slate-600" type="button" variant="ghost" onClick={() => onOpenChange(false)}>ปิด</UiButton>
