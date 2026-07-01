@@ -54,6 +54,7 @@ Status update on 2026-07-01:
 - UAT was backed up before restore, then restored with the dev snapshot for `public` plus the required `auth.users` and `auth.identities` rows needed by public foreign keys and login.
 - Post-restore validation matched the restored snapshot: `public` has 135 tables and 26,171 rows; `auth.users` has 43 rows and `auth.identities` has 42 rows.
 - A later comparison against live dev showed 10 additional rows in dev after the dump time, so UAT matches the dump snapshot, not subsequent dev writes.
+- LINE WTI/WTO Storage was repaired on UAT after finding older notification logs had been generated while the deployment still pointed Storage URLs at the dev Supabase host. The current Vercel `NEXT_PUBLIC_SUPABASE_URL` points to `oolzfvqhovmjhiocfqdw`, and UAT bucket `weight-ticket-pdfs` is now public with allowed MIME types `application/pdf`, `image/jpeg`, `image/png`, and `image/webp`; public read health checks passed for both PNG and PDF on the UAT host.
 
 ### New Production / Target
 

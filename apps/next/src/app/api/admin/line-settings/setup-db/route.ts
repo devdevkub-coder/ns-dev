@@ -199,7 +199,7 @@ export async function GET(request: Request) {
     // 10. Storage Bucket Setup
     await prisma.$executeRawUnsafe(`
       INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-      VALUES ('weight-ticket-pdfs', 'weight-ticket-pdfs', true, 10485760, ARRAY['application/pdf'])
+      VALUES ('weight-ticket-pdfs', 'weight-ticket-pdfs', true, 10485760, ARRAY['application/pdf', 'image/jpeg', 'image/png', 'image/webp'])
       ON CONFLICT (id) DO UPDATE
       SET public = EXCLUDED.public,
           file_size_limit = EXCLUDED.file_size_limit,
