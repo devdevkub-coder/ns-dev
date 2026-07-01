@@ -491,6 +491,10 @@ Expected:
   - After the latest correction, the overview sales/category summary table and selected-sales drilldown tables now use the active lined/resizable table shell with persisted column widths, reset-width controls, sortable up/down headers, fixed table layout, and safer nowrap/tabular numeric alignment.
   - The overview table was flattened from nested mini tables into a real sortable/resizable table. Date/branch filters, salesperson cards, commission eligibility, annual/current totals, supplier grouping, bill detail search, CSV export contents, step-tier commission formula, and read-model behavior were not changed.
   - Browser QA remains pending.
+- `/trading/dashboard`
+  - After the latest correction, the Trading Cost Source modal table, Stock / Cost Source Readiness table, Trading by Product table, Trading Purchase table, and Trading Sales table now use sortable `ResizableTableHead` business headers with inactive/active up/down indicators, persisted resizable widths, reset-width controls, and fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
+  - Product, purchase, sales, and readiness mobile cards now render from the same sorted row sets as desktop. Dashboard filters, KPI totals, aging buckets, cost-source create behavior, allocation facts, GP formulas, and DB/API behavior were not changed.
+  - Browser QA remains pending.
 - `/production/report`
   - After the latest correction, the report, WIP, and product-summary tables now share the same toolbar/table mechanics and mobile card pattern.
   - Browser QA remains pending.
