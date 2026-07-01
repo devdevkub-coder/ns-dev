@@ -490,6 +490,7 @@ Expected:
   - Browser QA remains pending.
 - `/dual-costing/cost-allocator`
   - After the latest correction, the target-sale table, Cost Pool lot table, and Preview table now use the active lined/resizable table shell with Thai-first business headers, reset-width controls, and dense mobile cards.
+  - Follow-up correction after visual feedback: every business header in all three tables now uses `ResizableTableHead` sorting props, shows inactive/active up/down sort indicators, applies client-side ascending/descending sorting before pagination or preview slicing, and uses fixed table layout so resize handles visibly adjust the columns like `/dual-costing/cost-pool`.
   - The page no longer overrides the app font with `font-sans`, and the Manual target-cost field now uses the money input pattern instead of `type="number"`.
   - Browser QA remains pending.
 - `/dual-costing/cost-pool`
