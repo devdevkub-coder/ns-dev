@@ -377,9 +377,10 @@ function sourceAllocationRows(input: {
   actor: string
   billId: bigint
   createdAt: Date
+  deliverySummarySourceMap: Map<string, DeliverySummarySource>
   items: SalesItemSnapshot[]
   lineIdByLineNo: Map<number, bigint>
-  parsedProductIds: bigint[]
+  productCodeById: Map<bigint, string>
   stockDeliveryTicket: DeliveryTicketOptionRow | null
 }) {
   if (!input.stockDeliveryTicket) return []
@@ -388,6 +389,8 @@ function sourceAllocationRows(input: {
     if (!isDeliveryBackedSalesItem(item)) return []
     const lineNo = index + 1
     const stockIssueQty = Math.max(0, item.stockIssueQty)
+    const summarySource = item.deliverySummaryId ? input.deliverySummarySourceMap.get(item.deliverySummaryId) : null
+    const sourceProductCode = summarySource?.product_id != null ? input.productCodeById.get(summarySource.product_id) ?? '' : ''
     return [{
       allocated_deduct_weight: item.deductWeight,
       allocated_gross_weight: item.grossWeight,
@@ -401,11 +404,13 @@ function sourceAllocationRows(input: {
         salesNetWeight: item.qty,
         source: 'sales_bill_create_from_wto',
         stockIssueQty,
+        salesProductCode: item.productCode,
+        salesProductName: item.productName,
       },
       movement_owner: 'SALES_BILL',
-      product_code_snapshot: item.productCode,
-      product_id: input.parsedProductIds[index] ?? null,
-      product_name_snapshot: item.productName,
+      product_code_snapshot: sourceProductCode || item.productCode,
+      product_id: summarySource?.product_id ?? null,
+      product_name_snapshot: summarySource?.product_name ?? item.productName,
       sales_bill_id: input.billId,
       sales_bill_line_id: input.lineIdByLineNo.get(lineNo) ?? null,
       sales_line_no: lineNo,
@@ -781,6 +786,18 @@ async function validateStockDeliverySelection(
   if (ticket.customer_id !== resolvedCustomerId) {
     return { error: 'ใบส่งของต้องเป็นลูกค้าเดียวกับบิลขาย' as const }
   }
+  const missingSourceProductIds = [...new Set(ticket.weight_ticket_product_summaries
+    .map((summary) => summary.product_id)
+    .filter((productId): productId is bigint => productId != null && !productCodeById.has(productId)))]
+  if (missingSourceProductIds.length > 0) {
+    const sourceProducts = await prisma.products.findMany({
+      select: { code: true, id: true },
+      where: { id: { in: missingSourceProductIds } },
+    })
+    sourceProducts.forEach((product) => {
+      productCodeById.set(product.id, requireBusinessCode(product.code, `สินค้า ${product.id}`))
+    })
+  }
 
   const { deliverySummarySourceMap, lineToSummaryRef } = deliveryReferenceMaps(ticket, productCodeById)
   const availableQtyBySummaryId = new Map<string, number>()
@@ -807,9 +824,6 @@ async function validateStockDeliverySelection(
     const itemProduct = productByRef.get(item.productId)
     if (!itemProduct) {
       return { error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' as const }
-    }
-    if (summarySource.product_id !== itemProduct.id) {
-      return { error: 'สินค้าในบิลไม่ตรงกับสินค้าในใบส่งของ' as const }
     }
     const buyerAcceptedWeight = Math.max(0, item.netWeight)
     const expectedNetWeight = Number(Math.max(0, buyerAcceptedWeight - item.deductWeight).toFixed(2))
@@ -1737,9 +1751,10 @@ export async function POST(request: Request) {
           actor,
           billId: createdBill.id,
           createdAt,
+          deliverySummarySourceMap,
           items,
           lineIdByLineNo,
-          parsedProductIds: parsedProductIds as bigint[],
+          productCodeById,
           stockDeliveryTicket,
         })
         if (sourceRows.length) {
@@ -1879,10 +1894,13 @@ export async function POST(request: Request) {
           actor,
           allocations: items
             .filter(isDeliveryBackedSalesItem)
-            .map((item) => ({
-              productId: productByCode.get(item.productId)?.id ?? BigInt(0),
-              qty: item.stockIssueQty,
-            }))
+            .map((item) => {
+              const summary = item.deliverySummaryId ? deliverySummarySourceMap.get(item.deliverySummaryId) : null
+              return {
+                productId: summary?.product_id ?? BigInt(0),
+                qty: item.stockIssueQty,
+              }
+            })
             .filter((allocation) => allocation.productId !== BigInt(0) && allocation.qty > 0.0001),
           billDate: normalizeDate(billDate),
           branchId: branch.id,
@@ -1916,12 +1934,14 @@ export async function POST(request: Request) {
             allocatedQty: item.stockIssueQty,
             meta: {
               reason: 'sales_bill_create',
+              salesProductCode: item.productCode,
+              salesProductName: item.productName,
               salesNetWeight: item.qty,
               stockIssueQty: item.stockIssueQty,
             },
-            productCodeSnapshot: item.productCode,
-            productId: item.productId ? productByCode.get(item.productId)?.id ?? null : null,
-            productNameSnapshot: item.productName,
+            productCodeSnapshot: summary.product_id != null ? productCodeById.get(summary.product_id) ?? item.productCode : item.productCode,
+            productId: summary.product_id,
+            productNameSnapshot: summary.product_name,
             targetDocNo: createdBill.doc_no,
             targetId: createdBill.id,
             targetLineNo: index + 1,
@@ -2189,8 +2209,8 @@ export async function PATCH(request: Request) {
       if (bill.sales_bill_lines.length === 0) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะบิลขายนี้ยังไม่มี line facts สำหรับ correction' }, { status: 400 })
       }
-      if (bill.sales_bill_lines.length !== values.items.length) {
-        return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขจำนวนแถวบิลขายยังไม่เปิดในรอบนี้' }, { status: 400 })
+      if (values.items.length < bill.sales_bill_lines.length) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลบแถวบิลขายเดิมยังไม่เปิดในรอบนี้ ให้แก้จำนวนเป็น 0 หรือปรับข้อมูลในแถวเดิมแทน' }, { status: 400 })
       }
 
       const branch = await findActiveBranchReferenceByCodeOrId(values.branchId)
@@ -2226,6 +2246,7 @@ export async function PATCH(request: Request) {
       }
       const parsedProductIdsByLine = values.items.map((item) => productByCode.get(item.productId)?.id ?? null)
       const productById = new Map(products.map((product) => [product.id, product]))
+      const productCodeById = new Map(products.map((product) => [product.id, requireBusinessCode(product.code, `สินค้า ${product.id}`)] as const))
       const sourceAllocationByLineNo = new Map(bill.sales_bill_source_allocations.map((allocation) => [allocation.sales_line_no, allocation] as const))
 
       let stockDeliveryTicket: DeliveryTicketOptionRow | null = null
@@ -2254,7 +2275,7 @@ export async function PATCH(request: Request) {
           branch.id,
           customer.id,
           new Map(products.map((product) => [requireBusinessCode(product.code, `สินค้า ${product.id}`), product] as const)),
-          new Map(products.map((product) => [product.id, requireBusinessCode(product.code, `สินค้า ${product.id}`)] as const)),
+          productCodeById,
           { excludeSalesBillId: bill.id },
         )
         if ('error' in deliveryValidation) {
@@ -2267,21 +2288,18 @@ export async function PATCH(request: Request) {
 
       for (const [index, item] of values.items.entries()) {
         const line = bill.sales_bill_lines[index]
-        if (!line || line.line_no !== index + 1) {
+        if (line && line.line_no !== index + 1) {
           return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะลำดับรายการบิลขายไม่ตรงกับ line facts' }, { status: 400 })
         }
-        if (line.product_code_snapshot !== item.productId || line.product_id !== parsedProductIdsByLine[index]) {
-          return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขสินค้าในบิลขายยังไม่เปิดในรอบนี้' }, { status: 400 })
-        }
         if (String(bill.transaction_mode ?? 'STOCK') !== 'STOCK'
-          && (Math.abs(toNumber(line.qty) - item.qty) > 0.0001
+          && (!line
+            || line.product_code_snapshot !== item.productId
+            || line.product_id !== parsedProductIdsByLine[index]
+            || Math.abs(toNumber(line.qty) - item.qty) > 0.0001
             || Math.abs(toNumber(line.net_weight) - item.netWeight) > 0.0001
             || Math.abs(toNumber(line.gross_weight) - item.grossWeight) > 0.0001
             || Math.abs(toNumber(line.deduct_weight) - item.deductWeight) > 0.0001)) {
           return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขน้ำหนัก/จำนวนขายของบิล Trading ยังไม่เปิดในรอบนี้ ให้แก้ได้เฉพาะ PO Sell อ้างอิง ราคา ส่วนลด และหมายเหตุ' }, { status: 400 })
-        }
-        if (String(bill.transaction_mode ?? 'STOCK') === 'STOCK' && Math.abs(toNumber(line.gross_weight) - item.grossWeight) > 0.0001) {
-          return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขน้ำหนักสุทธิที่ส่งจาก WTO ยังไม่เปิดในรอบนี้' }, { status: 400 })
         }
         const expectedQty = Number(Math.max(0, item.netWeight - item.deductWeight).toFixed(2))
         if (item.deductWeight > item.netWeight + 0.0001) {
@@ -2380,13 +2398,14 @@ export async function PATCH(request: Request) {
             const sourceAllocation = sourceAllocationByLineNo.get(lineNo)
             const oldStockIssueQty = sourceAllocation ? toNumber(sourceAllocation.allocated_qty) : 0
             const newStockIssueQty = item.stockIssueQty
+            const sourceSummary = item.deliverySummaryId ? deliverySummarySourceMap.get(item.deliverySummaryId) : null
             return {
               deltaQty: Number((newStockIssueQty - oldStockIssueQty).toFixed(2)),
               item,
               lineNo,
               newStockIssueQty,
               oldStockIssueQty,
-              productId: parsedProductIdsByLine[index] ?? null,
+              productId: sourceSummary?.product_id ?? null,
               sourceAllocation,
               summaryId: item.deliverySummaryId,
             }
@@ -2456,6 +2475,27 @@ export async function PATCH(request: Request) {
       if (selectedCustomerAdvance && customerAdvanceApplied <= 0.01) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารรับเงินล่วงหน้านี้ไม่มียอดคงเหลือสำหรับใช้หักบิลแล้ว' }, { status: 400 })
       await prisma.$transaction(async (tx) => {
         let stockCostDelta = 0
+        let activeSalesBillLines = bill.sales_bill_lines
+        if (items.length > bill.sales_bill_lines.length) {
+          const allLineRows = salesBillLineRows({
+            actor,
+            billId: bill.id,
+            createdAt,
+            items,
+            parsedProductIds: parsedProductIdsByLine as bigint[],
+            totals,
+          })
+          await tx.sales_bill_lines.createMany({
+            data: allLineRows.filter((line) => line.line_no > bill.sales_bill_lines.length),
+          })
+          activeSalesBillLines = await tx.sales_bill_lines.findMany({
+            orderBy: { line_no: 'asc' },
+            where: { sales_bill_id: bill.id, status: 'active' },
+          })
+        }
+        const lineIdByLineNo = new Map(activeSalesBillLines.map((line) => [line.line_no, line.id] as const))
+        const activeLineByLineNo = new Map(activeSalesBillLines.map((line) => [line.line_no, line] as const))
+
         if (String(bill.transaction_mode ?? 'STOCK') === 'STOCK' && stockDeliveryTicket) {
           if (releaseAllocations.size > 0) {
             const releasedLines = await releaseConsumedWtoPendingOutForSalesBill(tx, {
@@ -2517,12 +2557,14 @@ export async function PATCH(request: Request) {
                 newStockIssueQty: line.newStockIssueQty,
                 oldStockIssueQty: line.oldStockIssueQty,
                 reason: 'sales_bill_edit_stock_delta',
+                salesProductCode: line.item.productCode,
+                salesProductName: line.item.productName,
                 salesNetWeight: line.item.qty,
               },
               note: values.note,
-              productCodeSnapshot: line.item.productCode,
+              productCodeSnapshot: summary.product_id != null ? productCodeById.get(summary.product_id) ?? line.item.productCode : line.item.productCode,
               productId: line.productId,
-              productNameSnapshot: line.item.productName,
+              productNameSnapshot: summary.product_name,
               targetDocNo: bill.doc_no,
               targetId: bill.id,
               targetLineNo: line.lineNo,
@@ -2557,6 +2599,9 @@ export async function PATCH(request: Request) {
 
           for (const [lineNo, sourceAllocation] of sourceAllocationByLineNo.entries()) {
             const item = items[lineNo - 1]
+            if (!item) continue
+            const summary = item.deliverySummaryId ? deliverySummarySourceMap.get(item.deliverySummaryId) : null
+            const sourceProductCode = summary?.product_id != null ? productCodeById.get(summary.product_id) ?? item.productCode : item.productCode
             await tx.sales_bill_source_allocations.update({
               data: {
                 allocated_deduct_weight: item.deductWeight,
@@ -2567,14 +2612,32 @@ export async function PATCH(request: Request) {
                   deliveryLineId: item.deliveryLineId ?? null,
                   deliverySummaryId: item.deliverySummaryId ?? null,
                   salesNetWeight: item.qty,
+                  salesProductCode: item.productCode,
+                  salesProductName: item.productName,
                   source: 'sales_bill_edit_from_wto',
                   stockIssueQty: item.stockIssueQty,
                 },
+                product_code_snapshot: sourceProductCode,
+                product_id: summary?.product_id ?? sourceAllocation.product_id,
+                product_name_snapshot: summary?.product_name ?? sourceAllocation.product_name_snapshot,
                 updated_at: createdAt,
                 updated_by: actor,
               },
               where: { id: sourceAllocation.id },
             })
+          }
+          const newSourceRows = sourceAllocationRows({
+            actor,
+            billId: bill.id,
+            createdAt,
+            deliverySummarySourceMap,
+            items,
+            lineIdByLineNo,
+            productCodeById,
+            stockDeliveryTicket,
+          }).filter((row) => !sourceAllocationByLineNo.has(row.sales_line_no))
+          if (newSourceRows.length > 0) {
+            await tx.sales_bill_source_allocations.createMany({ data: newSourceRows })
           }
 
           const remainingAfterBilling = await tx.weight_ticket_product_summaries.aggregate({
@@ -2710,6 +2773,9 @@ export async function PATCH(request: Request) {
         })
 
         for (const [index, item] of items.entries()) {
+          const lineNo = index + 1
+          const activeLine = activeLineByLineNo.get(lineNo)
+          if (!activeLine) continue
           await tx.sales_bill_lines.update({
             data: {
               deduct_weight: item.deductWeight,
@@ -2724,18 +2790,21 @@ export async function PATCH(request: Request) {
               },
               net_weight: item.netWeight,
               notes: item.note || null,
+              product_code_snapshot: item.productCode,
+              product_id: parsedProductIdsByLine[index] ?? null,
+              product_name_snapshot: item.productName,
               qty: item.qty,
               unit_price: item.unitPrice,
+              unit_snapshot: item.unit,
               updated_at: createdAt,
               updated_by: actor,
               vat_amount: totals.subtotal > 0 ? totals.vatAmount * (Math.max(0, item.amount) / totals.subtotal) : 0,
               version: { increment: 1 },
             },
-            where: { id: bill.sales_bill_lines[index].id },
+            where: { id: activeLine.id },
           })
         }
 
-        const lineIdByLineNo = new Map(bill.sales_bill_lines.map((line) => [line.line_no, line.id] as const))
         const poSellRows = poSellAllocationRows({
           actor,
           billId: bill.id,
