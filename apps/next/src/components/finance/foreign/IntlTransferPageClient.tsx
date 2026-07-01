@@ -1,7 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 
@@ -20,6 +22,25 @@ type Payload = {
   rows: Row[]
   summary: { postedRows: number; totalThb: number }
 }
+
+type IntlTransferColumnKey = 'action' | 'amountSource' | 'amountThb' | 'bearer' | 'currency' | 'date' | 'description' | 'docNo' | 'fee' | 'fromAccount' | 'fxRate' | 'status' | 'type'
+type SortDirection = 'asc' | 'desc'
+
+const intlTransferColumns: Array<ResizableColumnDefinition<IntlTransferColumnKey>> = [
+  { key: 'docNo', defaultWidth: 150, minWidth: 120 },
+  { key: 'date', defaultWidth: 120, minWidth: 105 },
+  { key: 'description', defaultWidth: 220, minWidth: 150 },
+  { key: 'fromAccount', defaultWidth: 160, minWidth: 120 },
+  { key: 'type', defaultWidth: 180, minWidth: 140 },
+  { key: 'amountSource', defaultWidth: 125, minWidth: 105 },
+  { key: 'currency', defaultWidth: 90, minWidth: 75 },
+  { key: 'fxRate', defaultWidth: 90, minWidth: 75 },
+  { key: 'amountThb', defaultWidth: 140, minWidth: 115 },
+  { key: 'fee', defaultWidth: 110, minWidth: 95 },
+  { key: 'bearer', defaultWidth: 105, minWidth: 90 },
+  { key: 'status', defaultWidth: 135, minWidth: 110 },
+  { key: 'action', defaultWidth: 105, minWidth: 90 },
+]
 
 type FormState = {
   amountSourceCcy: number
@@ -66,6 +87,9 @@ export function IntlTransferPageClient() {
   const [form, setForm] = useState<FormState>(() => initialForm())
   const [isLoading, setIsLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [sortKey, setSortKey] = useState<IntlTransferColumnKey | null>(null)
+  const columnResize = useResizableColumns('finance.foreign.intl-transfer.main.v1', intlTransferColumns)
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -92,6 +116,30 @@ export function IntlTransferPageClient() {
   const amountThb = sourceCurrency === 'THB' ? form.amountSourceCcy : form.amountSourceCcy * fxRate
   const totalFee = form.bankFeeSource + form.bankFeeDest + form.intermediaryFee
   const netReceived = form.amountSourceCcy - (form.chargeBearer === 'BEN' ? totalFee : 0)
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows])
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+
+    return [...rows].sort((a, b) => {
+      const aValue = getIntlTransferSortValue(a, sortKey)
+      const bValue = getIntlTransferSortValue(b, sortKey)
+      const result = typeof aValue === 'number' && typeof bValue === 'number'
+        ? aValue - bValue
+        : String(aValue).localeCompare(String(bValue), 'th', { numeric: true })
+
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [rows, sortDirection, sortKey])
+
+  function handleSort(key: IntlTransferColumnKey) {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(key)
+    setSortDirection('asc')
+  }
 
   function openForm() {
     const next = initialForm()
@@ -116,15 +164,67 @@ export function IntlTransferPageClient() {
         <button className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white" type="button" onClick={openForm}>+ โอนต่างประเทศใหม่</button>
       </div>
 
-      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-100 text-slate-500"><tr><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">เลขที่</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">วันที่</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">ผู้รับ</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">บัญชีต้นทาง</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">ประเภท</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">จำนวน</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">สกุล</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">FX</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">มูลค่า THB</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Fee</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-center">Bearer</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-center">สถานะ</th><th></th></tr></thead>
-          <tbody>
-            {isLoading ? <tr><td className="py-10 text-center text-slate-400" colSpan={13}>กำลังโหลดข้อมูล</td></tr> : null}
-            {!isLoading && (data?.rows.length ?? 0) === 0 ? <tr><td className="py-10 text-center text-slate-400" colSpan={13}>ยังไม่มีรายการโอนต่างประเทศ</td></tr> : null}
-            {data?.rows.map((row) => (
-              <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors">
-                <td className="px-4 py-3.5 font-mono">{row.docNo}</td><td className="px-4 py-3.5">{formatDateDisplay(row.date)}</td><td className="px-4 py-3.5">{row.description || '-'}</td><td className="px-4 py-3.5 text-xs">-</td><td className="px-4 py-3.5 text-xs">{row.type}</td><td className="px-4 py-3.5 text-right font-medium">-</td><td className="px-4 py-3.5">-</td><td className="px-4 py-3.5 text-right">-</td><td className="px-4 py-3.5 text-right">{formatMoney(row.amountThb)}</td><td className="px-4 py-3.5 text-right text-amber-700">{formatMoney(row.fee)}</td><td className="px-4 py-3.5 text-center text-xs">-</td><td className="px-4 py-3.5 text-center"><span className="rounded-md bg-purple-100 px-2 py-0.5 text-xs text-purple-700">{row.status}</span></td><td className="px-4 py-3.5 text-right text-xs text-slate-400">Read-only</td>
+      <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          พบทั้งหมด <span className="font-semibold text-slate-900">{sortedRows.length}</span> รายการ
+        </div>
+        {columnResize.hasCustomWidths ? (
+          <button
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            คืนค่าเดิมตาราง
+          </button>
+        ) : null}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
+          <colgroup>
+            {intlTransferColumns.map((column, index) => {
+              const style = columnResize.getColumnStyle(column.key)
+              if (index === intlTransferColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />
+              }
+              return <col key={column.key} style={style} />
+            })}
+          </colgroup>
+          <thead className="bg-slate-100">
+            <tr>
+              <ResizableTableHead label="เลขที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
+              <ResizableTableHead label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+              <ResizableTableHead label="ผู้รับ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="description" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('description', 'ผู้รับ')} />
+              <ResizableTableHead label="บัญชีต้นทาง" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="fromAccount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('fromAccount', 'บัญชีต้นทาง')} />
+              <ResizableTableHead label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="type" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
+              <ResizableTableHead align="right" label="จำนวน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amountSource" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amountSource', 'จำนวน')} />
+              <ResizableTableHead label="สกุล" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="currency" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('currency', 'สกุล')} />
+              <ResizableTableHead align="right" label="FX" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="fxRate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('fxRate', 'FX')} />
+              <ResizableTableHead align="right" label="มูลค่า THB" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amountThb" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amountThb', 'มูลค่า THB')} />
+              <ResizableTableHead align="right" label="Fee" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="fee" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('fee', 'Fee')} />
+              <ResizableTableHead align="center" label="Bearer" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="bearer" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('bearer', 'Bearer')} />
+              <ResizableTableHead align="center" label="สถานะ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="status" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
+              <ResizableTableHead align="right" label="" resizeProps={columnResize.getResizeHandleProps('action', 'Read-only')} />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-400" colSpan={intlTransferColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+            {!isLoading && !error && sortedRows.length === 0 ? <tr><td className="px-3 py-10 text-center text-slate-400" colSpan={intlTransferColumns.length}>ยังไม่มีรายการโอนต่างประเทศ</td></tr> : null}
+            {!isLoading && sortedRows.map((row) => (
+              <tr key={row.id} className="transition-colors hover:bg-slate-50">
+                <td className="whitespace-nowrap px-3 py-3 font-mono text-xs text-slate-700">{row.docNo}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatDateDisplay(row.date)}</td>
+                <td className="min-w-0 truncate px-3 py-3 text-slate-700">{row.description || '-'}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-xs text-slate-500">-</td>
+                <td className="min-w-0 truncate px-3 py-3 text-xs text-slate-700">{row.type}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-500">-</td>
+                <td className="whitespace-nowrap px-3 py-3 text-slate-500">-</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-500">-</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-900">{formatMoney(row.amountThb)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-amber-700">{formatMoney(row.fee)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center text-xs text-slate-500">-</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center"><span className="rounded-md bg-purple-100 px-2 py-0.5 text-xs text-purple-700">{row.status}</span></td>
+                <td className="whitespace-nowrap px-3 py-3 text-right text-xs text-slate-400">Read-only</td>
               </tr>
             ))}
           </tbody>
@@ -136,10 +236,10 @@ export function IntlTransferPageClient() {
         {isLoading ? (
           <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-100">กำลังโหลดข้อมูล</div>
         ) : null}
-        {!isLoading && (data?.rows.length ?? 0) === 0 ? (
+        {!isLoading && !error && sortedRows.length === 0 ? (
           <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-100">ยังไม่มีรายการโอนต่างประเทศ</div>
         ) : null}
-        {!isLoading && data?.rows.map((row) => (
+        {!isLoading && sortedRows.map((row) => (
           <div
             key={row.id}
             className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2 text-sm"
@@ -234,6 +334,30 @@ export function IntlTransferPageClient() {
       ) : null}
     </section>
   )
+}
+
+function getIntlTransferSortValue(row: Row, key: IntlTransferColumnKey): string | number {
+  if (key === 'date') {
+    const timestamp = Date.parse(row.date)
+    return Number.isNaN(timestamp) ? 0 : timestamp
+  }
+
+  switch (key) {
+    case 'amountThb':
+      return row.amountThb
+    case 'docNo':
+      return row.docNo
+    case 'description':
+      return row.description
+    case 'fee':
+      return row.fee
+    case 'status':
+      return row.status
+    case 'type':
+      return row.type
+    default:
+      return ''
+  }
 }
 
 function Field({ children, label }: { children: React.ReactNode; label: string }) {
