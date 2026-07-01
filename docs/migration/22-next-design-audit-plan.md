@@ -379,6 +379,7 @@ Notes:
 - Dual Costing table mechanics for `/dual-costing/cost-allocator`, `/dual-costing/cost-pool`, `/dual-costing/deal-margin`, `/dual-costing/match-log`, `/dual-costing/cost-allocation-ledger`, `/dual-costing/report`, and `/dual-costing/waiting-allocations` now have local static design checkpoints. Browser QA remains pending for these routes.
 - Finance/accounting table mechanics for cash-flow planning, financial statements, fixed assets, and loans/equity/opening/historical now have local static design checkpoints. Browser QA remains pending for those slices.
 - Daily Petty Advance table mechanics for `/daily/petty-advance` now has a local static design checkpoint: sortable business headers with inactive/active up/down indicators were added on top of the existing resizable fixed-layout table, and mobile cards use the same sorted paged row set. Browser QA remains pending for this route.
+- Stock Transfer table mechanics for `/stock/transfer` now has a local static design checkpoint: sortable business headers with inactive/active up/down indicators were added on top of the existing resizable fixed-layout table, and mobile cards use the same sorted row set as desktop. Browser QA remains pending for this route.
 
 ### P2 Dual Costing Font And Mixed-Language Drift
 
@@ -510,6 +511,10 @@ Expected:
   - Browser QA remains pending.
 - `/production/report`
   - After the latest correction, the report, WIP, and product-summary tables now share the same toolbar/table mechanics and mobile card pattern.
+  - Browser QA remains pending.
+- `/stock/transfer`
+  - After the latest correction, the stock transfer list table now uses sortable `ResizableTableHead` business headers with inactive/active up/down indicators, client-side ascending/descending sorting of the displayed row set before rendering, the same sorted row set for mobile cards, persisted resizable widths, a reset-width control, and fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
+  - ST draft/post/cancel policy, paired stock ledger movement, source-stock preview, ready-stock validation, filters, server pagination, summary KPIs, create/edit/post modal behavior, API behavior, and DB state were not changed.
   - Browser QA remains pending.
 - `/daily/petty-advance`
   - After the latest correction, the petty advance table now uses sortable `ResizableTableHead` business headers with inactive/active up/down indicators, client-side ascending/descending sorting before pagination, the same sorted paged row set for mobile cards, persisted resizable widths, a reset-width control, and fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.

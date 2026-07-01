@@ -50,6 +50,8 @@ type Payload = {
   warehouses: Option[]
 }
 type StockTransferColumnKey = 'action' | 'date' | 'transferDate' | 'docNo' | 'from' | 'itemCount' | 'status' | 'to' | 'totalQty' | 'totalValue' | 'updated'
+type StockTransferSortKey = Exclude<StockTransferColumnKey, 'action'>
+type SortDirection = 'asc' | 'desc'
 
 const numberInputClass = '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
 const stockTransferColumns: Array<ResizableColumnDefinition<StockTransferColumnKey>> = [
@@ -66,6 +68,16 @@ const stockTransferColumns: Array<ResizableColumnDefinition<StockTransferColumnK
   { key: 'action', defaultWidth: 200, minWidth: 170 },
 ]
 
+function compareSortValues(left: string | number, right: string | number) {
+  return typeof left === 'number' && typeof right === 'number'
+    ? left - right
+    : String(left).localeCompare(String(right), 'th', { numeric: true })
+}
+
+function getStockTransferSortValue(row: Row, key: StockTransferSortKey) {
+  if (key === 'updated') return row.updatedAt
+  return row[key]
+}
 const emptyForm: StockTransferFormValues = {
   date: todayDateInput(),
   transferDate: todayDateInput(),
@@ -94,6 +106,8 @@ export function StockTransferPageClient() {
   const [isSaving, setIsSaving] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [sortKey, setSortKey] = useState<StockTransferSortKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [sourceStock, setSourceStock] = useState<SourceStock[]>([])
   const [sourceStockLoading, setSourceStockLoading] = useState(false)
   const [totalQtyFrom, setTotalQtyFrom] = useState('')
@@ -166,6 +180,14 @@ export function StockTransferPageClient() {
 
   const totalPages = Math.max(1, Math.ceil(data.totalRows / pageSize))
   const currentPage = Math.min(page, totalPages)
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return data.rows
+
+    return [...data.rows].sort((left, right) => {
+      const result = compareSortValues(getStockTransferSortValue(left, sortKey), getStockTransferSortValue(right, sortKey))
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [data.rows, sortDirection, sortKey])
   const hasFilters = Boolean(docNo.trim() || dateFrom || dateTo || totalQtyFrom.trim() || totalQtyTo.trim())
 
   function clearFilters() {
@@ -176,6 +198,15 @@ export function StockTransferPageClient() {
     setTotalQtyTo('')
   }
 
+  function handleSort(key: StockTransferSortKey) {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(key)
+    setSortDirection('asc')
+  }
   function updateForm<K extends keyof StockTransferFormValues>(key: K, value: StockTransferFormValues[K]) {
     setForm((current) => {
       const next = { ...current, [key]: value }
@@ -761,7 +792,7 @@ export function StockTransferPageClient() {
 
       <div className="block space-y-3 md:hidden">
         {isLoading ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
-        {!isLoading && data.rows.map((row) => (
+        {!isLoading && sortedRows.map((row) => (
           <div key={row.id} className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-2 flex items-start justify-between">
               <span className="font-bold text-slate-800">{row.docNo}</span>
@@ -802,22 +833,22 @@ export function StockTransferPageClient() {
           </colgroup>
           <TableHeader>
             <tr>
-              <ResizableTableHead label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
-              <ResizableTableHead label="วันที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
-              <ResizableTableHead label="วันที่โอนย้าย" resizeProps={columnResize.getResizeHandleProps('transferDate', 'วันที่โอนย้าย')} />
-              <ResizableTableHead label="จาก" resizeProps={columnResize.getResizeHandleProps('from', 'จาก')} />
-              <ResizableTableHead label="ไป" resizeProps={columnResize.getResizeHandleProps('to', 'ไป')} />
-              <ResizableTableHead align="right" label="รายการ" resizeProps={columnResize.getResizeHandleProps('itemCount', 'รายการ')} />
-              <ResizableTableHead align="right" label="น้ำหนักรวม" resizeProps={columnResize.getResizeHandleProps('totalQty', 'น้ำหนักรวม')} />
-              <ResizableTableHead align="right" label="มูลค่ารวม" resizeProps={columnResize.getResizeHandleProps('totalValue', 'มูลค่ารวม')} />
-              <ResizableTableHead label="วันที่สร้างรายการ" resizeProps={columnResize.getResizeHandleProps('updated', 'วันที่สร้างรายการ')} />
-              <ResizableTableHead label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
+              <ResizableTableHead label="เลขที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
+              <ResizableTableHead label="วันที่เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
+              <ResizableTableHead label="วันที่โอนย้าย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="transferDate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('transferDate', 'วันที่โอนย้าย')} />
+              <ResizableTableHead label="จาก" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="from" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('from', 'จาก')} />
+              <ResizableTableHead label="ไป" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="to" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('to', 'ไป')} />
+              <ResizableTableHead align="right" label="รายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="itemCount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('itemCount', 'รายการ')} />
+              <ResizableTableHead align="right" label="น้ำหนักรวม" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="totalQty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('totalQty', 'น้ำหนักรวม')} />
+              <ResizableTableHead align="right" label="มูลค่ารวม" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="totalValue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('totalValue', 'มูลค่ารวม')} />
+              <ResizableTableHead label="วันที่สร้างรายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="updated" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('updated', 'วันที่สร้างรายการ')} />
+              <ResizableTableHead label="สถานะ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="status" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
               <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
             </tr>
           </TableHeader>
           <TableBody>
             {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={11}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
-            {!isLoading && data.rows.map((row) => (
+            {!isLoading && sortedRows.map((row) => (
               <TableRow key={row.id} className="hover:bg-slate-50">
                 <TableCell className="font-mono text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
                 <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
