@@ -99,6 +99,15 @@ type ReportPayload = {
 type ReportMetric = { cost: number; count: number; gp: number; gpPct: number; qty: number; revenue: number }
 type ReportCategoryRow = ReportPayload['report']['byCategory'][number]
 type ReportColumnKey = 'allocatedQty' | 'category' | 'cost' | 'gp' | 'gpPct' | 'pendingQty' | 'pendingRevenue' | 'revenue'
+type WaitingSummaryRow = WaitingPayload['summary']['byCategory'][number]
+type WaitingSummaryColumnKey = 'count' | 'name' | 'qty' | 'revenue'
+
+const waitingSummaryColumns: Array<ResizableColumnDefinition<WaitingSummaryColumnKey> & { align?: 'center' | 'left' | 'right'; label: string }> = [
+  { key: 'name', label: 'หมวดสินค้า', defaultWidth: 180, minWidth: 140 },
+  { key: 'count', label: 'รายการรอจัดสรร', defaultWidth: 130, minWidth: 110, align: 'right' },
+  { key: 'qty', label: 'น้ำหนักรอจัดสรร', defaultWidth: 150, minWidth: 125, align: 'right' },
+  { key: 'revenue', label: 'มูลค่ารอจัดสรร', defaultWidth: 150, minWidth: 125, align: 'right' },
+]
 
 const reportColumns: Array<ResizableColumnDefinition<ReportColumnKey> & { align?: 'center' | 'left' | 'right'; label: string }> = [
   { key: 'category', label: 'หมวดสินค้า', defaultWidth: 160, minWidth: 130 },
@@ -128,6 +137,8 @@ function WaitingAllocationsView() {
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [sortKey, setSortKey] = useState<string>('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [summarySortKey, setSummarySortKey] = useState<WaitingSummaryColumnKey | null>(null)
+  const [summarySortDirection, setSummarySortDirection] = useState<'asc' | 'desc'>('asc')
 
   // Pagination states for each tab
   const [poPage, setPoPage] = useState(1)
@@ -183,11 +194,13 @@ function WaitingAllocationsView() {
   const poResize = useResizableColumns('dual-costing.waiting.po.v2', poColumns)
   const billResize = useResizableColumns('dual-costing.waiting.bill.v2', billColumns)
   const prodResize = useResizableColumns('dual-costing.waiting.production.v2', productionColumns)
+  const summaryResize = useResizableColumns('dual-costing.waiting.summary.v1', waitingSummaryColumns)
 
   const columnResize = activeTab === 'po' ? poResize : activeTab === 'bill' ? billResize : prodResize
   const currentColumns = activeTab === 'po' ? poColumns : activeTab === 'bill' ? billColumns : productionColumns
   const tabData = data ? (activeTab === 'po' ? data.po : activeTab === 'bill' ? data.bill : data.production) : null
   const rows = useMemo(() => tabData?.rows ?? [], [tabData])
+  const summaryRows = useMemo(() => data?.summary.byCategory ?? [], [data?.summary.byCategory])
 
   const sortedRows = useMemo(() => {
     const nextRows = [...rows]
@@ -209,6 +222,14 @@ function WaitingAllocationsView() {
     })
     return nextRows
   }, [rows, sortKey, sortDirection])
+  const sortedSummaryRows = useMemo(() => {
+    if (!summarySortKey) return summaryRows
+
+    return [...summaryRows].sort((left, right) => {
+      const result = compareSortValues(getWaitingSummarySortValue(left, summarySortKey), getWaitingSummarySortValue(right, summarySortKey))
+      return summarySortDirection === 'asc' ? result : -result
+    })
+  }, [summaryRows, summarySortDirection, summarySortKey])
 
   const changeSort = (key: string) => {
     if (activeTab === 'po') setPoPage(1)
@@ -221,6 +242,16 @@ function WaitingAllocationsView() {
       setSortKey(key)
       setSortDirection('desc')
     }
+  }
+
+  function changeSummarySort(key: WaitingSummaryColumnKey) {
+    if (summarySortKey === key) {
+      setSummarySortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSummarySortKey(key)
+    setSummarySortDirection('asc')
   }
 
   useEffect(() => {
@@ -281,34 +312,55 @@ function WaitingAllocationsView() {
       </div>
 
       <DualCostingPanel title="สรุปตามหมวด">
+        {summaryResize.hasCustomWidths ? (
+          <div className="mb-2 hidden justify-end lg:flex">
+            <Button size="sm" type="button" variant="outline" onClick={summaryResize.resetColumnWidths}>คืนค่าเดิมตารางสรุป</Button>
+          </div>
+        ) : null}
         {/* Desktop View */}
-        <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
-          <Table className="text-xs">
-            <TableHeader className="bg-slate-50 border-b border-slate-100 font-semibold text-slate-600">
+        <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+          <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: summaryResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+            <colgroup>
+              {waitingSummaryColumns.map((column, index) => {
+                if (index === waitingSummaryColumns.length - 1) {
+                  return <col key={column.key} style={{ minWidth: column.minWidth }} />
+                }
+                return <col key={column.key} style={summaryResize.getColumnStyle(column.key)} />
+              })}
+            </colgroup>
+            <TableHeader className="bg-slate-100">
               <tr>
-                <th className="p-3 pl-4 text-left">หมวด</th>
-                <th className="p-3 text-right">รายการ</th>
-                <th className="p-3 text-right">น้ำหนักรอ</th>
-                <th className="p-3 pr-4 text-right">มูลค่ารอ</th>
+                {waitingSummaryColumns.map((column) => (
+                  <ResizableTableHead
+                    key={column.key}
+                    activeSortKey={summarySortKey ?? undefined}
+                    align={column.align}
+                    direction={summarySortDirection}
+                    label={column.label}
+                    sortKey={column.key}
+                    onSort={changeSummarySort}
+                    resizeProps={summaryResize.getResizeHandleProps(column.key, column.label)}
+                  />
+                ))}
               </tr>
             </TableHeader>
-            <TableBody>
-              {(data?.summary.byCategory ?? []).map((row) => (
-                <TableRow key={row.name} className="border-t border-slate-100 hover:bg-slate-50/30 transition-colors">
-                  <TableCell className="p-3 pl-4"><span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">{row.name}</span></TableCell>
-                  <TableCell className="p-3 text-right text-slate-700">{row.count}</TableCell>
-                  <TableCell className="p-3 text-right font-mono font-bold text-slate-800">{formatMoney(row.qty)} กก.</TableCell>
-                  <TableCell className="p-3 pr-4 text-right font-mono font-bold text-emerald-700">{formatMoney(row.revenue)}</TableCell>
+            <TableBody className="divide-y divide-slate-100">
+              {sortedSummaryRows.map((row) => (
+                <TableRow key={row.name} className="transition-colors hover:bg-slate-50">
+                  <TableCell className="px-3 py-3"><span className="block truncate rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800" title={row.name}>{row.name}</span></TableCell>
+                  <TableCell className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{row.count}</TableCell>
+                  <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-slate-800">{formatMoney(row.qty)} กก.</TableCell>
+                  <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-emerald-700">{formatMoney(row.revenue)}</TableCell>
                 </TableRow>
               ))}
-              {!isLoading && (data?.summary.byCategory.length ?? 0) === 0 ? <TableRow><TableCell className="py-6 text-center text-slate-400" colSpan={4}>ไม่มีรายการรอ allocate ตามตัวกรอง</TableCell></TableRow> : null}
+              {!isLoading && summaryRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-400" colSpan={waitingSummaryColumns.length}>ไม่มีรายการรอ allocate ตามตัวกรอง</TableCell></TableRow> : null}
             </TableBody>
           </Table>
         </div>
 
         {/* Mobile View */}
         <div className="block lg:hidden space-y-3">
-          {(data?.summary.byCategory ?? []).map((row) => (
+          {sortedSummaryRows.map((row) => (
             <div key={row.name} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-2">
               <div className="flex justify-between items-center">
                 <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">{row.name}</span>
@@ -326,7 +378,7 @@ function WaitingAllocationsView() {
               </div>
             </div>
           ))}
-          {!isLoading && (data?.summary.byCategory.length ?? 0) === 0 ? (
+          {!isLoading && summaryRows.length === 0 ? (
             <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-slate-400">ไม่มีรายการรอ allocate ตามตัวกรอง</div>
           ) : null}
         </div>
@@ -337,10 +389,10 @@ function WaitingAllocationsView() {
         <div className="hidden lg:block">
           <div className="flex flex-wrap items-center gap-2">
             <Input className="min-w-[240px] flex-1 rounded-md border-slate-300 focus-visible:ring-emerald-100" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-            <Select className="w-auto min-w-[160px] h-9 border-slate-300 focus-visible:ring-emerald-100 font-sans" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">ทุกสถานะ</option>{(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item === 'pending_allocation' ? 'pending' : item === 'partially_allocated' ? 'partial' : item}</option>)}</Select>
-            <Select className="w-auto min-w-[160px] h-9 border-slate-300 focus-visible:ring-emerald-100 font-sans" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
+            <Select className="w-auto min-w-[160px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">ทุกสถานะ</option>{(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item === 'pending_allocation' ? 'pending' : item === 'partially_allocated' ? 'partial' : item}</option>)}</Select>
+            <Select className="w-auto min-w-[160px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
             <Button
-              className="ml-auto rounded-lg h-9 px-3 text-xs font-semibold focus-visible:ring-slate-100 font-sans"
+              className="ml-auto rounded-lg h-9 px-3 text-xs font-semibold focus-visible:ring-slate-100"
               size="sm"
               type="button"
               variant="secondary"
@@ -370,11 +422,11 @@ function WaitingAllocationsView() {
             <div className="grid grid-cols-1 gap-2.5 pt-2 border-t border-slate-100 animate-in slide-in-from-top-2 duration-100">
               <label className="text-xs text-slate-500 font-semibold">
                 สถานะ
-                <Select className="mt-1 w-full h-9 border-slate-300 focus-visible:ring-emerald-100 text-sm font-sans" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">ทุกสถานะ</option>{(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item === 'pending_allocation' ? 'pending' : item === 'partially_allocated' ? 'partial' : item}</option>)}</Select>
+                <Select className="mt-1 w-full h-9 border-slate-300 focus-visible:ring-emerald-100 text-sm" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">ทุกสถานะ</option>{(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item === 'pending_allocation' ? 'pending' : item === 'partially_allocated' ? 'partial' : item}</option>)}</Select>
               </label>
               <label className="text-xs text-slate-500 font-semibold">
                 หมวดสินค้า
-                <Select className="mt-1 w-full h-9 border-slate-300 focus-visible:ring-emerald-100 text-sm font-sans" value={category} onChange={(event) => setCategory(event.target.value)}>
+                <Select className="mt-1 w-full h-9 border-slate-300 focus-visible:ring-emerald-100 text-sm" value={category} onChange={(event) => setCategory(event.target.value)}>
                   <option value="all">ทุกหมวด</option>
                   {(data?.filters.categories ?? []).map((item) => (
                     <option key={item} value={item}>{item}</option>
@@ -526,7 +578,7 @@ function WaitingAllocationsView() {
                     <StatusPill status={row.allocationStatus} />
                   </td>
                   <td className="p-3 pr-4 text-center">
-                    <Button asChild size="xs" type="button" className="rounded-lg font-semibold focus-visible:ring-2 focus-visible:ring-emerald-100 font-sans">
+                    <Button asChild size="xs" type="button" className="rounded-lg font-semibold focus-visible:ring-2 focus-visible:ring-emerald-100">
                       <Link href={allocatorHref}>
                         {row.allocatedQty > 0 ? 'จัดสรรต่อ' : 'จัดสรร'}
                       </Link>
@@ -590,7 +642,7 @@ function WaitingAllocationsView() {
                 </div>
               </div>
               <div className="pt-1">
-                <Button asChild size="sm" type="button" className="w-full rounded-lg font-semibold focus-visible:ring-2 focus-visible:ring-emerald-100 font-sans">
+                <Button asChild size="sm" type="button" className="w-full rounded-lg font-semibold focus-visible:ring-2 focus-visible:ring-emerald-100">
                   <Link href={allocatorHref}>
                     {row.allocatedQty > 0 ? 'จัดสรรต่อ' : 'จัดสรร'}
                   </Link>
@@ -942,6 +994,10 @@ function compareSortValues(left: string | number, right: string | number) {
   }
 
   return String(left).localeCompare(String(right), 'th', { numeric: true })
+}
+
+function getWaitingSummarySortValue(row: WaitingSummaryRow, key: WaitingSummaryColumnKey): string | number {
+  return row[key] ?? ''
 }
 
 function getLedgerSortValue(row: LedgerRow, key: LedgerColumnKey): string | number {
