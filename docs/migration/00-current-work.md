@@ -2,9 +2,11 @@
 
 ## Current Status
 
-Date: 2026-07-01
+Date: 2026-07-02
 Active app: `apps/next`
 Primary remote: `new-origin`
+
+FX Rate table mechanics checkpoint on 2026-07-02: `/finance/foreign/fx-rate` now keeps the existing FX rate read/write baseline while aligning the desktop rate-history table with the Cost Pool / Weight Ticket mechanics. The FX Rate table now uses sortable `ResizableTableHead` headers with inactive/active up/down indicators for date, currency pair, rate type, rate, source, and active state; persisted resizable column widths; a reset-width control; `colgroup`; and fixed table layout so resize handles visibly affect columns. The action column remains presentation-only, and mobile FX Rate cards render from the same sorted row set as desktop. This is a UI/table presentation change only; no `/api/finance/foreign/fx-rate`, FX rate create/edit validation, latest-rate summary cards, date/currency/status filters, permissions, Supabase data, or DB state changed. Browser/computer-use QA was intentionally not run per the latest user instruction to inspect and fix from project code only. Validation passed: targeted ESLint for `FxRatePageClient.tsx`, `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`, and `git diff --check`.
 
 FCD Ledger table mechanics checkpoint on 2026-07-02: `/finance/foreign/fcd-ledger` now keeps the existing conservative FCD read baseline while aligning the desktop ledger table with the Cost Pool / Weight Ticket mechanics. The FCD Ledger table now uses sortable `ResizableTableHead` business headers with inactive/active up/down indicators, client-side ascending/descending sorting, persisted resizable column widths, a reset-width control, `colgroup`, and fixed table layout so resize handles visibly affect columns. Mobile FCD cards render from the same sorted row set as desktop, and visible dates now use the shared date-display formatter while preserving the opening-balance `-` row. This is a UI/table presentation change only; no `/api/finance/foreign/fcd-ledger`, FCD account selector contract, conservative foreign movement rule, FX lookup, permissions, Supabase data, or DB state changed. Browser/computer-use QA was intentionally not run per the latest user instruction to inspect and fix from project code only. Validation passed: targeted ESLint for `FcdLedgerPageClient.tsx`, `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`, and `git diff --check`.
 

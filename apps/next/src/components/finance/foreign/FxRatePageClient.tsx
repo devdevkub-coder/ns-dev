@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 
@@ -54,6 +56,20 @@ type FormState = {
   toCurrency: string
 }
 
+type FxRateColumnKey = 'active' | 'action' | 'fromCurrency' | 'rate' | 'rateDate' | 'rateType' | 'source' | 'toCurrency'
+type SortDirection = 'asc' | 'desc'
+
+const fxRateColumns: Array<ResizableColumnDefinition<FxRateColumnKey>> = [
+  { key: 'rateDate', defaultWidth: 120, minWidth: 105 },
+  { key: 'fromCurrency', defaultWidth: 95, minWidth: 80 },
+  { key: 'toCurrency', defaultWidth: 90, minWidth: 75 },
+  { key: 'rateType', defaultWidth: 155, minWidth: 125 },
+  { key: 'rate', defaultWidth: 130, minWidth: 110 },
+  { key: 'source', defaultWidth: 130, minWidth: 105 },
+  { key: 'active', defaultWidth: 105, minWidth: 90 },
+  { key: 'action', defaultWidth: 105, minWidth: 90 },
+]
+
 const today = new Date().toISOString().slice(0, 10)
 
 function emptyForm(): FormState {
@@ -84,6 +100,9 @@ export function FxRatePageClient() {
   const [showForm, setShowForm] = useState(false)
   const [toDate, setToDate] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [sortKey, setSortKey] = useState<FxRateColumnKey | null>(null)
+  const columnResize = useResizableColumns('finance.foreign.fx-rate.main.v1', fxRateColumns)
   const hasFilters = Boolean(fromDate || toDate || fromCurrency !== 'all' || active !== 'true')
 
   const queryString = useMemo(() => {
@@ -134,6 +153,31 @@ export function FxRatePageClient() {
   const rateTypeOptions = useMemo(() => {
     return Array.from(new Set(['BOT Rate', 'TT Buying', 'TT Selling', ...(data?.filters.rateTypes ?? [])]))
   }, [data?.filters.rateTypes])
+
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows])
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+
+    return [...rows].sort((a, b) => {
+      const aValue = getFxRateSortValue(a, sortKey)
+      const bValue = getFxRateSortValue(b, sortKey)
+      const result = typeof aValue === 'number' && typeof bValue === 'number'
+        ? aValue - bValue
+        : String(aValue).localeCompare(String(bValue), 'th', { numeric: true })
+
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [rows, sortDirection, sortKey])
+
+  function handleSort(key: FxRateColumnKey) {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(key)
+    setSortDirection('asc')
+  }
 
   function openCreate() {
     setForm(emptyForm())
@@ -287,33 +331,57 @@ export function FxRatePageClient() {
         </div>
       </div>
 
-      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
+      <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          พบทั้งหมด <span className="font-semibold text-slate-900">{sortedRows.length}</span> รายการ
+        </div>
+        {columnResize.hasCustomWidths ? (
+          <button
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            คืนค่าเดิมตาราง
+          </button>
+        ) : null}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
+          <colgroup>
+            {fxRateColumns.map((column, index) => {
+              const style = columnResize.getColumnStyle(column.key)
+              if (index === fxRateColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />
+              }
+              return <col key={column.key} style={style} />
+            })}
+          </colgroup>
+          <thead className="bg-slate-100">
             <tr>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">วันที่</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">From</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">To</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">Rate Type</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Rate</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">Source</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-center">Active</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right"></th>
+              <ResizableTableHead label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="rateDate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('rateDate', 'วันที่')} />
+              <ResizableTableHead label="From" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="fromCurrency" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('fromCurrency', 'From')} />
+              <ResizableTableHead label="To" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="toCurrency" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('toCurrency', 'To')} />
+              <ResizableTableHead label="Rate Type" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="rateType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('rateType', 'Rate Type')} />
+              <ResizableTableHead align="right" label="Rate" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="rate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('rate', 'Rate')} />
+              <ResizableTableHead label="Source" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="source" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('source', 'Source')} />
+              <ResizableTableHead align="center" label="Active" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="active" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('active', 'Active')} />
+              <ResizableTableHead align="right" label="" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
             </tr>
           </thead>
-          <tbody>
-            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={8}>กำลังโหลดข้อมูล</td></tr> : null}
-            {!isLoading && (data?.rows.length ?? 0) === 0 ? <tr><td className="p-6 text-center text-slate-500" colSpan={8}>ยังไม่มี FX Rate</td></tr> : null}
-            {!isLoading && data?.rows.map((row) => (
-              <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors">
-                <td className="px-4 py-3.5">{formatDateDisplay(row.rateDate)}</td>
-                <td className="px-4 py-3.5 font-medium">{row.fromCurrency}</td>
-                <td className="px-4 py-3.5 font-medium">{row.toCurrency}</td>
-                <td className="px-4 py-3.5 text-xs">{row.rateType}</td>
-                <td className="px-4 py-3.5 text-right font-bold">{formatRate(row.rate)}</td>
-                <td className="px-4 py-3.5 text-xs">{row.source || '-'}</td>
-                <td className="px-4 py-3.5 text-center text-xs text-slate-500">{row.active ? 'Yes' : 'No'}</td>
-                <td className="px-4 py-3.5 text-right"><button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={() => openEdit(row)}>จัดการ</button></td>
+          <tbody className="divide-y divide-slate-100">
+            {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={fxRateColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+            {!isLoading && !error && sortedRows.length === 0 ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={fxRateColumns.length}>ยังไม่มี FX Rate</td></tr> : null}
+            {!isLoading && sortedRows.map((row) => (
+              <tr key={row.id} className="transition-colors hover:bg-slate-50">
+                <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatDateDisplay(row.rateDate)}</td>
+                <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-800">{row.fromCurrency}</td>
+                <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-800">{row.toCurrency}</td>
+                <td className="min-w-0 truncate px-3 py-3 text-xs text-slate-700">{row.rateType}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-slate-900">{formatRate(row.rate)}</td>
+                <td className="min-w-0 truncate px-3 py-3 text-xs text-slate-700">{row.source || '-'}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center text-xs text-slate-600">{row.active ? 'Yes' : 'No'}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right"><button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={() => openEdit(row)}>จัดการ</button></td>
               </tr>
             ))}
           </tbody>
@@ -325,10 +393,10 @@ export function FxRatePageClient() {
         {isLoading ? (
           <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-100">กำลังโหลดข้อมูล</div>
         ) : null}
-        {!isLoading && (data?.rows.length ?? 0) === 0 ? (
+        {!isLoading && !error && sortedRows.length === 0 ? (
           <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-100">ยังไม่มี FX Rate</div>
         ) : null}
-        {!isLoading && data?.rows.map((row) => (
+        {!isLoading && sortedRows.map((row) => (
           <div
             key={row.id}
             className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2 text-sm"
@@ -388,6 +456,17 @@ export function FxRatePageClient() {
       ) : null}
     </section>
   )
+}
+
+function getFxRateSortValue(row: FxRateRow, key: FxRateColumnKey): string | number {
+  if (key === 'rateDate') {
+    const timestamp = Date.parse(row.rateDate)
+    return Number.isNaN(timestamp) ? 0 : timestamp
+  }
+  if (key === 'active') return row.active ? 1 : 0
+  if (key === 'action') return ''
+
+  return row[key] ?? ''
 }
 
 function formatRate(value: number) {

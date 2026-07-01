@@ -631,7 +631,12 @@ Expected:
 - `/finance/foreign/fcd-ledger`
   - After the latest correction, the FCD Ledger desktop table now uses sortable `ResizableTableHead` business headers with inactive/active up/down indicators, client-side ascending/descending sorting, persisted resizable widths, a reset-width control, `colgroup`, and fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
   - Mobile FCD cards now render from the same sorted row set as desktop, and visible dates use the shared display formatter while preserving the opening-balance `-` row. The FCD read API, account selector contract, conservative foreign movement rule, FX lookup, permissions, and DB state were not changed.
-  - Browser/computer-use QA was not run per the current instruction to avoid browser verification. Remaining high-confidence foreign-finance table candidates still need static pass: `/finance/foreign/fx-rate`, `/finance/foreign/intl-transfer`, and `/finance/foreign/overseas-receipt`.
+  - Browser/computer-use QA was not run per the current instruction to avoid browser verification.
+
+- `/finance/foreign/fx-rate`
+  - After the latest correction, the FX Rate desktop rate-history table now uses sortable `ResizableTableHead` headers with inactive/active up/down indicators, client-side ascending/descending sorting, persisted resizable widths, a reset-width control, `colgroup`, and fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
+  - Mobile FX Rate cards now render from the same sorted row set as desktop. The action column remains a presentation/action surface; FX rate API behavior, create/edit validation, latest-rate cards, date/currency/status filters, permissions, and DB state were not changed.
+  - Browser/computer-use QA was not run per the current instruction to avoid browser verification. Remaining high-confidence foreign-finance table candidates still need static pass: `/finance/foreign/intl-transfer` and `/finance/foreign/overseas-receipt`.
 
 - `/admin/line-settings`
   - After the latest correction, the Targets / Groups, Routing Rules, and Outbox Queue desktop tables now use sortable `ResizableTableHead` business headers with inactive/active up/down indicators, client-side ascending/descending sorting before rendering, persisted resizable widths, reset-width controls, and fixed table layout.
@@ -668,6 +673,6 @@ Expected:
 
 1. No remaining high-confidence operational static inconsistency is currently listed after the `/sales/receipts` follow-up. The listed operational pages are now in browser QA / real-data visual confirmation rather than another static rewrite.
 2. Normalize shared operational modal surfaces by component family: `TransactionBillsPageClient`, `MoneyMovementPageClient`, `PoBuyPageClient`, `PoSellPageClient`, `StockOperationPageClient`, tracking pages, then trading pages. `DailyExpensePageClient` has a static design checkpoint and should move to browser QA rather than another static rewrite.
-3. Continue the foreign-finance static table mechanics sweep page by page; `/finance/foreign/fx-gain-loss-report` and `/finance/foreign/fcd-ledger` are corrected, while FX Rate, International Transfer, and Overseas Receipt still need the same Cost Pool-style check/fix loop.
+3. Continue the foreign-finance static table mechanics sweep page by page; `/finance/foreign/fx-gain-loss-report`, `/finance/foreign/fcd-ledger`, and `/finance/foreign/fx-rate` are corrected, while International Transfer and Overseas Receipt still need the same Cost Pool-style check/fix loop.
 4. Review `type="number"` only inside the touched page batch using the design matrix; do not run a broad replacement sweep.
 5. Run browser QA desktop + mobile for the selected batch before claiming visual completion.
