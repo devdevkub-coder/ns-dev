@@ -2895,22 +2895,24 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     >
                       พิมพ์
                     </button>
-                    <button
-                      className="rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-50 disabled:opacity-50"
-                      disabled={row.canEdit === false}
-                      type="button"
-                      onClick={() => openEditPurchaseForm(row)}
-                    >
-                      แก้ไข
-                    </button>
-                    <button
-                      className="rounded-md border border-red-200 px-2.5 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
-                      disabled={row.canEdit === false}
-                      type="button"
-                      onClick={() => openCancelPurchaseBill(row)}
-                    >
-                      ยกเลิก
-                    </button>
+                    {row.canEdit !== false ? (
+                      <>
+                        <button
+                          className="rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-50"
+                          type="button"
+                          onClick={() => openEditPurchaseForm(row)}
+                        >
+                          แก้ไข
+                        </button>
+                        <button
+                          className="rounded-md border border-red-200 px-2.5 py-1 text-xs text-red-700 hover:bg-red-50"
+                          type="button"
+                          onClick={() => openCancelPurchaseBill(row)}
+                        >
+                          ยกเลิก
+                        </button>
+                      </>
+                    ) : null}
                   </>
                 ) : null}
 
@@ -2924,23 +2926,25 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     >
                       พิมพ์
                     </button>
-                    <button
-                      className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={row.status === 'cancelled' || isDetailLoading}
-                      title={row.status === 'cancelled' ? 'บิลขายที่ยกเลิกแล้วแก้ไขไม่ได้' : 'แก้ไขบิลขายด้วยฟอร์มเดิม'}
-                      type="button"
-                      onClick={() => void openEditSalesForm(row)}
-                    >
-                      แก้ไข
-                    </button>
-                    <button
-                      className="rounded-md border border-red-200 px-2.5 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
-                      disabled={row.canCancel === false}
-                      type="button"
-                      onClick={() => openCancelSalesBill(row)}
-                    >
-                      ยกเลิก
-                    </button>
+                    {row.status !== 'cancelled' ? (
+                      <button
+                        className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-50"
+                        disabled={isDetailLoading}
+                        type="button"
+                        onClick={() => void openEditSalesForm(row)}
+                      >
+                        แก้ไข
+                      </button>
+                    ) : null}
+                    {row.canCancel !== false ? (
+                      <button
+                        className="rounded-md border border-red-200 px-2.5 py-1 text-xs text-red-700 hover:bg-red-50"
+                        type="button"
+                        onClick={() => openCancelSalesBill(row)}
+                      >
+                        ยกเลิก
+                      </button>
+                    ) : null}
                   </>
                 ) : null}
 
@@ -2967,10 +2971,10 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           </colgroup>
           <TableHeader>
             <tr>
-              <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label={mode === 'purchase' ? 'เลขที่บิลซื้อ' : 'เลขที่'} resizeProps={columnResize.getResizeHandleProps('docNo', mode === 'purchase' ? 'เลขที่บิลซื้อ' : 'เลขที่')} sortKey="docNo" onSort={changeSort} />
+              <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label={mode === 'purchase' ? 'เลขที่บิลซื้อ' : 'เลขที่บิลขาย'} resizeProps={columnResize.getResizeHandleProps('docNo', mode === 'purchase' ? 'เลขที่บิลซื้อ' : 'เลขที่บิลขาย')} sortKey="docNo" onSort={changeSort} />
               {mode === 'purchase' ? <ResizableTableHead label="เลขที่ใบรับของ" resizeProps={columnResize.getResizeHandleProps('receiptDocs', 'เลขที่ใบรับของ')} /> : null}
               {mode === 'sales' ? <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="เลขที่อ้างอิง" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่อ้างอิง')} sortKey="refNo" onSort={changeSort} /> : null}
-              <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="สร้างวันที่" resizeProps={columnResize.getResizeHandleProps('date', 'สร้างวันที่')} sortKey="date" onSort={changeSort} />
+              <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="วันที่สร้าง" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่สร้าง')} sortKey="date" onSort={changeSort} />
               <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label={mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')} sortKey="name" onSort={changeSort} />
               {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="สาขา / คลัง" resizeProps={columnResize.getResizeHandleProps('warehouse', 'สาขา / คลัง')} sortKey="warehouse" onSort={changeSort} /> : null}
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('transactionMode', 'ประเภท')} sortKey="transactionMode" onSort={changeSort} />
@@ -3034,24 +3038,24 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                       >
                         {printingBillDocNo === row.docNo ? 'เตรียม...' : 'พิมพ์'}
                       </button>
-                      <button
-                        className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={row.canEdit === false}
-                        title={row.canEdit === false ? (row.lockedReason ?? 'บิลนี้ยังแก้ไขไม่ได้') : undefined}
-                        type="button"
-                        onClick={(event) => { event.stopPropagation(); openEditPurchaseForm(row) }}
-                      >
-                        แก้ไข
-                      </button>
-                      <button
-                        className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={row.canEdit === false}
-                        title={row.canEdit === false ? (row.lockedReason ?? 'บิลนี้ยังยกเลิกไม่ได้') : undefined}
-                        type="button"
-                        onClick={(event) => { event.stopPropagation(); openCancelPurchaseBill(row) }}
-                      >
-                        ยกเลิก
-                      </button>
+                      {row.canEdit !== false ? (
+                        <>
+                          <button
+                            className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
+                            type="button"
+                            onClick={(event) => { event.stopPropagation(); openEditPurchaseForm(row) }}
+                          >
+                            แก้ไข
+                          </button>
+                          <button
+                            className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                            type="button"
+                            onClick={(event) => { event.stopPropagation(); openCancelPurchaseBill(row) }}
+                          >
+                            ยกเลิก
+                          </button>
+                        </>
+                      ) : null}
                     </div>
                   </td>
                 ) : null}
@@ -3066,24 +3070,25 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                       >
                         {printingBillDocNo === row.docNo ? 'เตรียม...' : 'พิมพ์'}
                       </button>
-                      <button
-                        className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={row.status === 'cancelled' || isDetailLoading}
-                        title={row.status === 'cancelled' ? 'บิลขายที่ยกเลิกแล้วแก้ไขไม่ได้' : 'แก้ไขบิลขายด้วยฟอร์มเดิม'}
-                        type="button"
-                        onClick={(event) => { event.stopPropagation(); void openEditSalesForm(row) }}
-                      >
-                        แก้ไข
-                      </button>
-                      <button
-                        className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={row.canCancel === false}
-                        title={row.canCancel === false ? (row.lockedReason ?? 'บิลนี้ยังยกเลิกไม่ได้') : undefined}
-                        type="button"
-                        onClick={(event) => { event.stopPropagation(); openCancelSalesBill(row) }}
-                      >
-                        ยกเลิก
-                      </button>
+                      {row.status !== 'cancelled' ? (
+                        <button
+                          className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-50"
+                          disabled={isDetailLoading}
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); void openEditSalesForm(row) }}
+                        >
+                          แก้ไข
+                        </button>
+                      ) : null}
+                      {row.canCancel !== false ? (
+                        <button
+                          className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); openCancelSalesBill(row) }}
+                        >
+                          ยกเลิก
+                        </button>
+                      ) : null}
                     </div>
                   </td>
                 ) : null}

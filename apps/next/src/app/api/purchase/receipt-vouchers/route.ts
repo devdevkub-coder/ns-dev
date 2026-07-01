@@ -9,6 +9,8 @@ import { isPurchaseBillCancelledStatus, PURCHASE_BILL_CANCELLED_STATUSES } from 
 
 export const runtime = 'nodejs'
 
+const CASH_PAYMENT_METHOD = 'รับเงินสด'
+
 const receiptVoucherItemSchema = z.object({
   description: z.string().trim().min(1, 'กรุณากรอกรายการ'),
   price: z.coerce.number().min(0, 'ราคาต้องไม่ติดลบ'),
@@ -238,7 +240,7 @@ async function buildVoucherWriteData(
     license_plate: purchaseBill ? purchaseBill.license_plate ?? null : values.licensePlate || null,
     note: values.note || null,
     payer_signer_name: payerSignerName,
-    payment_method: values.paymentMethod?.trim() || 'รับเงินสด',
+    payment_method: values.paymentMethod?.trim() || CASH_PAYMENT_METHOD,
     purchase_bill_doc_no: purchaseBill?.doc_no ?? null,
     purchase_bill_id: purchaseBill?.id ?? null,
     receiver_signer_name: sellerName,

@@ -131,6 +131,21 @@ type ReceiptVoucherCompanyProfile = {
   taxId: string
 } | null
 
+const CASH_PAYMENT_METHOD = 'รับเงินสด'
+
+function bankAccountPaymentMethodValue(account: NonNullable<SupplierOption['bankAccounts']>[number]) {
+  return `${account.paymentMethod} บช.${account.accountNo}`
+}
+
+function paymentMethodForSupplier(supplier: SupplierOption | undefined, currentPaymentMethod = '') {
+  const accounts = supplier?.bankAccounts ?? []
+  const current = currentPaymentMethod.trim()
+  if (accounts.length === 0) return current || CASH_PAYMENT_METHOD
+  return accounts.some((account) => bankAccountPaymentMethodValue(account) === current)
+    ? current
+    : bankAccountPaymentMethodValue(accounts[0])
+}
+
 const receiptVoucherColumns: Array<ResizableColumnDefinition<ReceiptVoucherColumnKey>> = [
   { key: 'docNo', defaultWidth: 110, minWidth: 90 },
   { key: 'date', defaultWidth: 90, minWidth: 80 },
@@ -161,7 +176,7 @@ function blankForm(): ReceiptVoucherFormState {
     licensePlate: '',
     note: '',
     payerSignerName: '',
-    paymentMethod: 'รับเงินสด',
+    paymentMethod: CASH_PAYMENT_METHOD,
     purchaseBillDocNo: '',
     salesPerson: '',
     sellerAddress: '',
@@ -229,7 +244,7 @@ function normalizeFormFromRow(row: ReceiptVoucherRow): ReceiptVoucherFormState {
     licensePlate: row.licensePlate || '',
     note: row.note || '',
     payerSignerName: row.payerSignerName || row.createdBy || '',
-    paymentMethod: row.paymentMethod || 'รับเงินสด',
+    paymentMethod: row.paymentMethod || CASH_PAYMENT_METHOD,
     purchaseBillDocNo: row.purchaseBillDocNo || '',
     salesPerson: row.salesPerson || '',
     sellerAddress: row.sellerAddress || '',
@@ -239,12 +254,6 @@ function normalizeFormFromRow(row: ReceiptVoucherRow): ReceiptVoucherFormState {
     supplierCode: '',
   }
   return { ...form, amountInWords: form.amountInWords || thaiBahtText(formTotals(form).amount) }
-}
-
-function supplierPaymentMethodValue(supplier?: SupplierOption | null) {
-  const account = supplier?.bankAccounts?.find((item) => item.isPrimary) ?? supplier?.bankAccounts?.[0]
-  if (!account) return 'รับเงินสด'
-  return `${account.paymentMethod} บช.${account.accountNo}`
 }
 
 export function ReceiptVouchersPageClient() {
@@ -288,6 +297,7 @@ export function ReceiptVouchersPageClient() {
   const [rows, setRows] = useState<ReceiptVoucherRow[]>([])
   const [search, setSearch] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<'active' | 'all' | 'cancelled'>('all')
   const [supplierOptions, setSupplierOptions] = useState<SupplierOption[]>([])
   const [currentActorName, setCurrentActorName] = useState('')
   const columnResize = useResizableColumns('daily.receipt-vouchers.v5', receiptVoucherColumns)
@@ -330,7 +340,7 @@ export function ReceiptVouchersPageClient() {
 
   useEffect(() => {
     setPage(1)
-  }, [dateFrom, dateTo, pageSize, search, sortKey, sortDirection])
+  }, [dateFrom, dateTo, pageSize, search, sortKey, sortDirection, statusFilter])
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -338,6 +348,8 @@ export function ReceiptVouchersPageClient() {
       .filter((row) => {
         const inDateRange = (!dateFrom || row.date >= dateFrom) && (!dateTo || row.date <= dateTo)
         if (!inDateRange) return false
+        if (statusFilter === 'active' && row.status === 'cancelled') return false
+        if (statusFilter === 'cancelled' && row.status !== 'cancelled') return false
         if (!query) return true
         return `${row.docNo} ${row.purchaseBillDocNo} ${row.sellerName} ${row.sellerTaxId} ${row.licensePlate}`.toLowerCase().includes(query)
       })
@@ -364,7 +376,7 @@ export function ReceiptVouchersPageClient() {
         }
         return sortDirection === 'asc' ? comparison : -comparison
       })
-  }, [dateFrom, dateTo, rows, search, sortKey, sortDirection])
+  }, [dateFrom, dateTo, rows, search, sortKey, sortDirection, statusFilter])
 
   const supplierSearchOptions = useMemo<SearchComboboxOption[]>(() => supplierOptions.map((supplier) => ({
     description: supplier.taxId ? `เลขประจำตัวผู้เสียภาษี ${supplier.taxId}` : supplier.address,
@@ -383,21 +395,17 @@ export function ReceiptVouchersPageClient() {
     searchText: `${bill.docNo} ${bill.sellerCode} ${bill.sellerName} ${bill.date} ${bill.licensePlate}`.toLowerCase(),
   })), [filteredPurchaseBillOptions])
 
-  const totals = useMemo(() => ({
-    amount: filteredRows.filter((row) => row.status !== 'cancelled').reduce((sum, row) => sum + row.totalAmount, 0),
-    qty: filteredRows.filter((row) => row.status !== 'cancelled').reduce((sum, row) => sum + row.totalQty, 0),
-  }), [filteredRows])
-
   const totalRows = filteredRows.length
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
   const currentPage = Math.min(page, totalPages)
   const pagedRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
-  const hasActiveFilter = Boolean(search || dateFrom || dateTo)
+  const hasActiveFilter = Boolean(search || dateFrom || dateTo || statusFilter !== 'all')
 
   function clearFilters() {
     setSearch('')
     setDateFrom('')
     setDateTo('')
+    setStatusFilter('all')
   }
 
   function openCreateForm() {
@@ -430,13 +438,13 @@ export function ReceiptVouchersPageClient() {
       return
     }
     updateForm({
-      paymentMethod: supplierPaymentMethodValue(supplier),
       purchaseBillDocNo: '',
       sellerAddress: supplier.address,
       sellerName: supplier.name,
       sellerPhone: supplier.phone,
       sellerTaxId: supplier.taxId,
       supplierCode: supplier.code,
+      paymentMethod: paymentMethodForSupplier(supplier),
     })
   }
 
@@ -465,8 +473,8 @@ export function ReceiptVouchersPageClient() {
       sellerName: bill.sellerName,
       sellerPhone: bill.sellerPhone,
       sellerTaxId: bill.sellerTaxId,
-      paymentMethod: supplierPaymentMethodValue(supplier),
       supplierCode: bill.sellerCode,
+      paymentMethod: paymentMethodForSupplier(supplier, form.paymentMethod),
     })
   }
 
@@ -500,7 +508,7 @@ export function ReceiptVouchersPageClient() {
           })),
           licensePlate: form.licensePlate,
           note: form.note,
-          paymentMethod: form.paymentMethod,
+          paymentMethod: paymentMethodForSupplier(supplierOptions.find((supplier) => supplier.code === form.supplierCode), form.paymentMethod),
           purchaseBillDocNo: form.purchaseBillDocNo,
           salesPerson: form.salesPerson,
           sellerAddress: form.sellerAddress,
@@ -549,13 +557,6 @@ export function ReceiptVouchersPageClient() {
       <section className="space-y-4 print:hidden">
         {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-        <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
-          <KpiCard label="จำนวนเอกสาร" tone="slate" value={totalRows.toLocaleString('th-TH')} />
-          <KpiCard label="น้ำหนัก active (กก.)" tone="blue" value={formatMoney(totals.qty)} />
-          <KpiCard label="ยอด active" tone="emerald" value={formatMoney(totals.amount)} />
-          <KpiCard label="ยกเลิก" tone="violet" value={filteredRows.filter((row) => row.status === 'cancelled').length.toLocaleString('th-TH')} />
-        </div>
-
         {/* Desktop Toolbar (Hidden on Mobile) */}
         <div className="hidden lg:block rounded-md bg-white p-3 shadow">
           <div className="flex flex-wrap items-center gap-2">
@@ -576,6 +577,23 @@ export function ReceiptVouchersPageClient() {
 
             {hasActiveFilter ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
             <Button type="button" onClick={openCreateForm}>+ สร้างใบสำคัญรับเงิน</Button>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-500">สถานะ:</span>
+            {[
+              ['all', 'ทุกสถานะ'],
+              ['active', 'ใช้งาน'],
+              ['cancelled', 'ยกเลิก'],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                className={`rounded-md border px-3 py-1 text-xs font-medium ${statusFilter === value ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`}
+                type="button"
+                onClick={() => setStatusFilter(value as typeof statusFilter)}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -616,6 +634,25 @@ export function ReceiptVouchersPageClient() {
               </div>
 
               <div className="space-y-4">
+                <div>
+                  <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะ</span>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      ['all', 'ทุกสถานะ'],
+                      ['active', 'ใช้งาน'],
+                      ['cancelled', 'ยกเลิก'],
+                    ].map(([value, label]) => (
+                      <button
+                        key={value}
+                        className={`rounded-md border px-3 py-1 text-xs font-medium ${statusFilter === value ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`}
+                        type="button"
+                        onClick={() => setStatusFilter(value as typeof statusFilter)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div>
                   <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                   <div className="flex items-center gap-2">
@@ -720,8 +757,8 @@ export function ReceiptVouchersPageClient() {
             </colgroup>
             <TableHeader>
               <tr>
-                <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขที่ RV" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ RV')} sortKey="docNo" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="วันที่ออกเอกสาร" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่ออกเอกสาร')} sortKey="date" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ผู้รับเงิน" resizeProps={columnResize.getResizeHandleProps('sellerName', 'ผู้รับเงิน')} sortKey="sellerName" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขประจำตัวผู้เสียภาษี" resizeProps={columnResize.getResizeHandleProps('sellerTaxId', 'เลขประจำตัวผู้เสียภาษี')} sortKey="sellerTaxId" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="บิลซื้อ" resizeProps={columnResize.getResizeHandleProps('purchaseBillDocNo', 'บิลซื้อ')} sortKey="purchaseBillDocNo" onSort={changeSort} />
@@ -750,8 +787,12 @@ export function ReceiptVouchersPageClient() {
                       <button className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60" type="button" disabled={printingDocNo === row.docNo} onClick={(event) => { event.stopPropagation(); void printReceiptVoucher(row) }}>
                         {printingDocNo === row.docNo ? 'กำลังพิมพ์...' : 'พิมพ์'}
                       </button>
-                      <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" disabled={row.status === 'cancelled'} type="button" onClick={(event) => { event.stopPropagation(); openEditForm(row) }}>แก้ไข</button>
-                      <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled={row.status === 'cancelled'} type="button" onClick={(event) => { event.stopPropagation(); setCancelingRow(row); setCancelNote(''); setCancelError(null) }}>ยกเลิก</button>
+                      {row.status !== 'cancelled' ? (
+                        <>
+                          <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={(event) => { event.stopPropagation(); openEditForm(row) }}>แก้ไข</button>
+                          <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50" type="button" onClick={(event) => { event.stopPropagation(); setCancelingRow(row); setCancelNote(''); setCancelError(null) }}>ยกเลิก</button>
+                        </>
+                      ) : null}
                     </div>
                   </td>
                 </TableRow>
@@ -1048,59 +1089,6 @@ function ReadOnlyInfo({ label, value, wide = false }: { label: string; value?: s
     <div className={wide ? 'md:col-span-2' : ''}>
       <div className="text-xs font-medium text-slate-500">{label}</div>
       <div className="mt-0.5 min-h-5 font-semibold text-slate-800">{value || '-'}</div>
-    </div>
-  )
-}
-
-function KpiCard({ label, tone, value }: { label: string; tone: 'blue' | 'emerald' | 'slate' | 'violet'; value: string }) {
-  const configs = {
-    slate: {
-      bg: 'bg-slate-100 text-slate-600',
-      emoji: '📋',
-      labelColor: 'text-slate-500',
-      valueColor: 'text-slate-900',
-    },
-    blue: {
-      bg: 'bg-blue-100 text-blue-600',
-      emoji: '⚖️',
-      labelColor: 'text-blue-600',
-      valueColor: 'text-blue-700',
-    },
-    emerald: {
-      bg: 'bg-emerald-100 text-emerald-600',
-      emoji: '✅',
-      labelColor: 'text-emerald-600',
-      valueColor: 'text-emerald-700',
-    },
-    violet: {
-      bg: 'bg-violet-100 text-violet-600',
-      emoji: '🚨',
-      labelColor: 'text-violet-600',
-      valueColor: 'text-violet-700',
-    },
-  }
-
-  const numericValue = parseFloat(value.replace(/[^0-9.-]/g, ''))
-  const isZero = isNaN(numericValue) ? false : numericValue === 0
-
-  const config = isZero
-    ? {
-        bg: 'bg-slate-100 text-slate-600',
-        emoji: configs[tone].emoji,
-        labelColor: 'text-slate-500',
-        valueColor: 'text-slate-900',
-      }
-    : configs[tone]
-
-  return (
-    <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 flex-1">
-      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-        {config.emoji}
-      </div>
-      <div>
-        <div className={`text-xs ${config.labelColor}`}>{label}</div>
-        <div className={`font-bold ${config.valueColor}`}>{value}</div>
-      </div>
     </div>
   )
 }
