@@ -355,7 +355,7 @@ Suggested fix:
 
 Resolved:
 
-- `/finance-accounting/accounting-periods` now has a direct FA5 policy/readiness page with period states, readiness checks, close/freeze impact, and pending hardening work. Browser QA remains pending.
+- `/finance-accounting/accounting-periods` now has a direct FA5 policy/readiness page with period states, readiness checks, close/freeze impact, pending hardening work, and a Cost Pool-style sortable/resizable fixed-layout lock impact table. Browser QA remains pending.
 - `/finance-accounting/posting-rules` now has a direct FA5 source-to-account mapping readiness page with rule groups, mapping controls, GL/report boundaries, pending hardening work, and a Cost Pool-style sortable/resizable fixed-layout target rule groups table. Browser QA remains pending.
 
 ### P2 Table Mechanics Still Older Than The Design Reference
@@ -599,6 +599,10 @@ Expected:
   - Follow-up correction for `/finance-accounting/asset-disposal`: the Asset Disposal History table now uses sortable business headers with inactive/active up/down indicators, applies client-side sorting before pagination, shares the sorted paged rows with mobile cards, and uses fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
   - Follow-up correction for `/finance-accounting/asset-overview`: the Cash & Others table now uses sortable business headers with inactive/active up/down indicators, applies client-side sorting before rendering, shares the sorted row set with mobile cards, and uses fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
   - Covered tables: Asset Register, Depreciation pending-assets, Depreciation History, Asset Disposal History, and Asset Overview Cash & Others. Existing mobile cards were preserved.
+  - Browser QA remains pending.
+- `/finance-accounting/accounting-periods`
+  - After the latest correction, the Close / freeze impact matrix now uses sortable `ResizableTableHead` business headers with inactive/active up/down indicators, persisted resizable widths, reset-width control, fixed table layout, and mobile cards from the same sorted row set.
+  - Accounting Period DB model, write guards, readiness calculations, snapshot rebuild flow, year-close policy, report behavior, and DB state were not changed.
   - Browser QA remains pending.
 - `/finance-accounting/posting-rules`
   - After the latest correction, the Target rule groups readiness matrix now uses sortable `ResizableTableHead` business headers with inactive/active up/down indicators, persisted resizable widths, reset-width control, fixed table layout, and mobile cards from the same sorted row set.

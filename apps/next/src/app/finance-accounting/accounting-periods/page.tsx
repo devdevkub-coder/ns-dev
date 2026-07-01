@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { AccountingPeriodsLockImpactTable } from './AccountingPeriodsLockImpactTable'
 
 export const metadata: Metadata = {
   title: 'Accounting Periods | NS Scrap ERP',
@@ -149,30 +150,7 @@ export default function AccountingPeriodsPage() {
       </section>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
-        <section className="overflow-hidden rounded-md bg-white shadow">
-          <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-            <h3 className="text-sm font-bold text-slate-900">Close / freeze impact matrix</h3>
-            <p className="mt-1 text-xs text-slate-500">การ lock ต้องอิง document/business date ไม่ใช่ created_at</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-100">
-                <tr>
-                  <th className="w-44 p-2 text-left font-semibold text-slate-700">Area</th>
-                  <th className="p-2 text-left font-semibold text-slate-700">Target lock impact</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
-                {lockImpacts.map(([area, impact]) => (
-                  <tr key={area}>
-                    <td className="p-2 align-top font-semibold text-slate-900">{area}</td>
-                    <td className="p-2 align-top text-slate-700">{impact}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <AccountingPeriodsLockImpactTable rows={lockImpacts} />
 
         <section className="rounded-md bg-white p-4 shadow">
           <h3 className="text-sm font-bold text-slate-900">งานที่ยังต้องออกแบบก่อนเปิดใช้</h3>
