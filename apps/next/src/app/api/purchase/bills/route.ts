@@ -30,7 +30,7 @@ import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-r
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION, type WeightTicketUsageAction } from '@/lib/server/weight-ticket-usage-history'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
-import type { Prisma } from '../../../../../generated/prisma/client'
+import { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
 
@@ -115,6 +115,11 @@ type PurchaseBillWarehouseRefRow = {
   id: bigint
   name: string
   type: string | null
+}
+
+type SupplierBranchMappingRow = {
+  branch_code: string | null
+  supplier_id: bigint
 }
 
 type PoBuyRefRow = {
@@ -1569,6 +1574,29 @@ function supplierSnapshotFields(supplier: {
   }
 }
 
+async function supplierBranchCodeMap(supplierIds: bigint[]) {
+  const result = new Map<bigint, string[]>()
+  if (supplierIds.length === 0) return result
+  try {
+    const rows = await prisma.$queryRaw<SupplierBranchMappingRow[]>`
+      select sb.supplier_id, b.code as branch_code
+      from public.supplier_branches sb
+      join public.branches b on b.id = sb.branch_id
+      where sb.active is true
+        and sb.supplier_id in (${Prisma.join(supplierIds)})
+    `
+    for (const row of rows) {
+      if (!row.branch_code) continue
+      const current = result.get(row.supplier_id) ?? []
+      current.push(row.branch_code)
+      result.set(row.supplier_id, current)
+    }
+  } catch {
+    return result
+  }
+  return result
+}
+
 async function optionsPayload(allowedBranchCodes?: string[] | null) {
   let allowedBranchIds: bigint[] | undefined = undefined
   if (allowedBranchCodes) {
@@ -1632,12 +1660,6 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
           where: { active: true },
           orderBy: [{ is_primary: 'desc' }, { code: 'asc' }],
         },
-        supplier_branches: {
-          select: {
-            branches: { select: { code: true } },
-          },
-          where: { active: true },
-        },
       },
     }),
     prisma.warehouses.findMany({
@@ -1673,6 +1695,7 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
   const productNameById = new Map(products.map((product) => [product.id, product.name]))
   const salespersonCodeById = new Map(salespersons.map((salesperson) => [salesperson.id, requireBusinessCode(salesperson.code, `พนักงานขาย ${salesperson.id}`)]))
   const supplierCodeById = new Map(suppliers.map((supplier) => [supplier.id, requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`)]))
+  const supplierBranchCodesBySupplierId = await supplierBranchCodeMap(suppliers.map((supplier) => supplier.id))
 
   return {
     advancePayments: advancePayments.map((advance) => ({
@@ -1740,9 +1763,7 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
         isPrimary: Boolean(account.is_primary),
         paymentMethod: account.payment_method ?? 'เงินโอน',
       })),
-      branchIds: supplier.supplier_branches
-        .map((mapping) => mapping.branches?.code)
-        .filter((branchCode): branchCode is string => Boolean(branchCode)),
+      branchIds: supplierBranchCodesBySupplierId.get(supplier.id) ?? [],
       code: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),
       id: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),
       name: supplier.name,
