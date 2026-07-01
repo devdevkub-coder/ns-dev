@@ -4,6 +4,8 @@ import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage, readJsonResponse } from '@/lib/api-client'
 import { z } from 'zod'
 
@@ -128,6 +130,10 @@ const saveUserResultSchema = z.object({
 
 type TabKey = 'users' | 'roles'
 type AdminUser = AdminUsersPayload['users'][number]
+type AdminRole = AdminUsersPayload['roles'][number]
+type UserColumnKey = 'action' | 'active' | 'branches' | 'contact' | 'email' | 'lastLoginAt' | 'name' | 'password' | 'roles' | 'username'
+type RoleColumnKey = 'active' | 'branchScope' | 'canEditOpeningBalance' | 'canSeeCash' | 'canSeeCost' | 'canSeeFinancials' | 'canSeeProfit' | 'description' | 'name' | 'type' | 'users'
+type SortDirection = 'asc' | 'desc'
 
 type AdminUsersPageClientProps = {
   mode?: TabKey
@@ -149,6 +155,33 @@ type UserFormState = {
   roleIds: string[]
   username: string
 }
+
+const userColumns: Array<ResizableColumnDefinition<UserColumnKey>> = [
+  { key: 'username', defaultWidth: 145, minWidth: 115 },
+  { key: 'name', defaultWidth: 230, minWidth: 170 },
+  { key: 'contact', defaultWidth: 180, minWidth: 130 },
+  { key: 'email', defaultWidth: 225, minWidth: 160 },
+  { key: 'roles', defaultWidth: 190, minWidth: 140 },
+  { key: 'branches', defaultWidth: 210, minWidth: 150 },
+  { key: 'active', defaultWidth: 130, minWidth: 115 },
+  { key: 'password', defaultWidth: 125, minWidth: 105 },
+  { key: 'lastLoginAt', defaultWidth: 175, minWidth: 135 },
+  { key: 'action', defaultWidth: 110, minWidth: 90 },
+]
+
+const roleColumns: Array<ResizableColumnDefinition<RoleColumnKey>> = [
+  { key: 'name', defaultWidth: 200, minWidth: 150 },
+  { key: 'description', defaultWidth: 320, minWidth: 190 },
+  { key: 'type', defaultWidth: 120, minWidth: 95 },
+  { key: 'branchScope', defaultWidth: 170, minWidth: 125 },
+  { key: 'users', defaultWidth: 115, minWidth: 95 },
+  { key: 'canSeeCost', defaultWidth: 105, minWidth: 90 },
+  { key: 'canSeeProfit', defaultWidth: 105, minWidth: 90 },
+  { key: 'canSeeCash', defaultWidth: 105, minWidth: 90 },
+  { key: 'canSeeFinancials', defaultWidth: 105, minWidth: 90 },
+  { key: 'canEditOpeningBalance', defaultWidth: 125, minWidth: 100 },
+  { key: 'active', defaultWidth: 120, minWidth: 95 },
+]
 
 const emptyUserForm: UserFormState = {
   active: true,
@@ -196,6 +229,38 @@ function userInitials(user: Pick<AdminUser, 'displayName' | 'firstName' | 'usern
   return label.trim().slice(0, 2).toUpperCase()
 }
 
+function compareSortValue(left: number | string, right: number | string) {
+  if (typeof left === 'number' && typeof right === 'number') return left - right
+  return String(left).localeCompare(String(right), 'th', { numeric: true })
+}
+
+function getUserSortValue(user: AdminUser, key: UserColumnKey) {
+  if (key === 'username') return user.username
+  if (key === 'name') return fullName(user)
+  if (key === 'contact') return [user.contactPhone, user.contactLineId, user.contactNote].filter(Boolean).join(' ')
+  if (key === 'email') return user.email ?? ''
+  if (key === 'roles') return user.roles.map((role) => role.name).join(' ')
+  if (key === 'branches') return user.branches.length ? user.branches.map((branch) => branch.name).join(' ') : 'ทุกสาขา'
+  if (key === 'active') return user.active ? 1 : 0
+  if (key === 'password') return (user.authUserId ? 'reset' : 'invite') + ' ' + (user.mustChangePassword ? 'must-change' : '')
+  if (key === 'lastLoginAt') return user.lastLoginAt ? Date.parse(user.lastLoginAt) || 0 : 0
+  return ''
+}
+
+function getRoleSortValue(role: AdminRole, key: RoleColumnKey, roleUserCounts: Map<string, number>) {
+  if (key === 'name') return role.name
+  if (key === 'description') return role.description ?? ''
+  if (key === 'type') return role.isSystem ? 'SYSTEM' : 'CUSTOM'
+  if (key === 'branchScope') return branchScopeText(role.branchScope)
+  if (key === 'users') return roleUserCounts.get(role.id) ?? 0
+  if (key === 'canSeeCost') return role.canSeeCost ? 1 : 0
+  if (key === 'canSeeProfit') return role.canSeeProfit ? 1 : 0
+  if (key === 'canSeeCash') return role.canSeeCash ? 1 : 0
+  if (key === 'canSeeFinancials') return role.canSeeFinancials ? 1 : 0
+  if (key === 'canEditOpeningBalance') return role.canEditOpeningBalance ? 1 : 0
+  return role.active ? 1 : 0
+}
+
 export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const [data, setData] = useState<AdminUsersPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -210,6 +275,12 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const [form, setForm] = useState<UserFormState>(emptyUserForm)
   const [formError, setFormError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [roleSortDirection, setRoleSortDirection] = useState<SortDirection>('asc')
+  const [roleSortKey, setRoleSortKey] = useState<RoleColumnKey | null>(null)
+  const [userSortDirection, setUserSortDirection] = useState<SortDirection>('asc')
+  const [userSortKey, setUserSortKey] = useState<UserColumnKey | null>(null)
+  const roleColumnResize = useResizableColumns('admin.users-permissions.roles.v1', roleColumns)
+  const userColumnResize = useResizableColumns('admin.users-permissions.users.v1', userColumns)
 
   async function loadData() {
     setIsLoading(true)
@@ -285,6 +356,24 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     }
     return counts
   }, [data?.users])
+
+  const sortedUsers = useMemo(() => {
+    if (!userSortKey) return filteredUsers
+
+    return [...filteredUsers].sort((left, right) => {
+      const result = compareSortValue(getUserSortValue(left, userSortKey), getUserSortValue(right, userSortKey))
+      return userSortDirection === 'asc' ? result : -result
+    })
+  }, [filteredUsers, userSortDirection, userSortKey])
+
+  const sortedRoles = useMemo(() => {
+    if (!roleSortKey) return filteredRoles
+
+    return [...filteredRoles].sort((left, right) => {
+      const result = compareSortValue(getRoleSortValue(left, roleSortKey, roleUserCounts), getRoleSortValue(right, roleSortKey, roleUserCounts))
+      return roleSortDirection === 'asc' ? result : -result
+    })
+  }, [filteredRoles, roleSortDirection, roleSortKey, roleUserCounts])
 
   const userSummary = useMemo(() => {
     const users = data?.users ?? []
@@ -439,6 +528,26 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     }
   }
 
+  function handleUserSort(key: UserColumnKey) {
+    if (userSortKey === key) {
+      setUserSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setUserSortKey(key)
+    setUserSortDirection('asc')
+  }
+
+  function handleRoleSort(key: RoleColumnKey) {
+    if (roleSortKey === key) {
+      setRoleSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setRoleSortKey(key)
+    setRoleSortDirection('asc')
+  }
+
   return (
     <section className="space-y-4">
       {/* Desktop Toolbar (Hidden on Mobile) */}
@@ -449,6 +558,13 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
             <p className="text-sm text-slate-500">{pageDescription}</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <button
+              className="hidden h-9 shrink-0 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 xl:inline-flex xl:items-center"
+              type="button"
+              onClick={currentTab === 'users' ? userColumnResize.resetColumnWidths : roleColumnResize.resetColumnWidths}
+            >
+              คืนค่าเดิมตาราง
+            </button>
             <input
               className="w-72 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 h-9"
               onChange={(event) => setSearch(event.target.value)}
@@ -663,25 +779,34 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         {!isLoading && currentTab === 'users' ? (
           <>
             {/* Desktop Table View (Hidden on Mobile) */}
-            <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-              <table className="w-full text-sm min-w-[1000px]">
-                <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
+            <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+              <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: userColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
+                <colgroup>
+                  {userColumns.map((column, index) => {
+                    const style = userColumnResize.getColumnStyle(column.key)
+                    if (index === userColumns.length - 1) {
+                      return <col key={column.key} style={{ minWidth: column.minWidth }} />
+                    }
+                    return <col key={column.key} style={style} />
+                  })}
+                </colgroup>
+                <thead className="bg-slate-100">
                   <tr>
-                    <th className="p-3 text-left font-semibold">Username</th>
-                    <th className="p-3 text-left font-semibold">ชื่อ</th>
-                    <th className="p-3 text-left font-semibold">Contact</th>
-                    <th className="p-3 text-left font-semibold">Email</th>
-                    <th className="p-3 text-left font-semibold">Role</th>
-                    <th className="p-3 text-left font-semibold">สาขา</th>
-                    <th className="p-3 text-center font-semibold">สถานะ</th>
-                    <th className="p-3 text-center font-semibold">ตั้งรหัส</th>
-                    <th className="p-3 text-left font-semibold">Login ล่าสุด</th>
-                    <th className="p-3 text-center font-semibold">แก้ไข</th>
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} direction={userSortDirection} label="Username" resizeProps={userColumnResize.getResizeHandleProps('username', 'Username')} sortKey="username" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} direction={userSortDirection} label="ชื่อ" resizeProps={userColumnResize.getResizeHandleProps('name', 'ชื่อ')} sortKey="name" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} direction={userSortDirection} label="Contact" resizeProps={userColumnResize.getResizeHandleProps('contact', 'Contact')} sortKey="contact" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} direction={userSortDirection} label="Email" resizeProps={userColumnResize.getResizeHandleProps('email', 'Email')} sortKey="email" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} direction={userSortDirection} label="Role" resizeProps={userColumnResize.getResizeHandleProps('roles', 'Role')} sortKey="roles" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} direction={userSortDirection} label="สาขา" resizeProps={userColumnResize.getResizeHandleProps('branches', 'สาขา')} sortKey="branches" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="สถานะ" resizeProps={userColumnResize.getResizeHandleProps('active', 'สถานะ')} sortKey="active" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="ตั้งรหัส" resizeProps={userColumnResize.getResizeHandleProps('password', 'ตั้งรหัส')} sortKey="password" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} direction={userSortDirection} label="Login ล่าสุด" resizeProps={userColumnResize.getResizeHandleProps('lastLoginAt', 'Login ล่าสุด')} sortKey="lastLoginAt" onSort={handleUserSort} />
+                    <ResizableTableHead align="center" label="แก้ไข" resizeProps={userColumnResize.getResizeHandleProps('action', 'แก้ไข')} />
                   </tr>
                 </thead>
-                <tbody>
-                  {filteredUsers.map((user) => (
-                    <tr key={user.id} className="border-t border-slate-100 hover:bg-slate-50">
+                <tbody className="divide-y divide-slate-100">
+                  {sortedUsers.map((user) => (
+                    <tr key={user.id} className="hover:bg-slate-50">
                       <td className="p-3 font-mono text-xs">{user.username}</td>
                       <td className="p-3">
                         <div className="flex items-center gap-2">
@@ -724,9 +849,9 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                       </td>
                     </tr>
                   ))}
-                  {filteredUsers.length === 0 ? (
+                  {sortedUsers.length === 0 ? (
                     <tr>
-                      <td className="p-8 text-center text-sm text-slate-500" colSpan={10}>ไม่พบผู้ใช้</td>
+                      <td className="p-8 text-center text-sm text-slate-500" colSpan={userColumns.length}>ไม่พบผู้ใช้</td>
                     </tr>
                   ) : null}
                 </tbody>
@@ -735,7 +860,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
 
             {/* Mobile View: Dense Card List (Hidden on Desktop) */}
             <div className="lg:hidden divide-y divide-slate-100">
-              {filteredUsers.map((user) => (
+              {sortedUsers.map((user) => (
                 <div key={user.id} className="p-4 bg-white space-y-3 animate-fade-in">
                   <div className="flex items-start justify-between">
                     <div>
@@ -787,7 +912,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                   </div>
                 </div>
               ))}
-              {filteredUsers.length === 0 ? (
+              {sortedUsers.length === 0 ? (
                 <div className="p-8 text-center text-sm text-slate-400">ไม่พบผู้ใช้</div>
               ) : null}
             </div>
@@ -798,26 +923,35 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         {!isLoading && currentTab === 'roles' ? (
           <>
             {/* Desktop Table View (Hidden on Mobile) */}
-            <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-              <table className="w-full text-sm min-w-[1000px]">
-                <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
+            <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+              <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: roleColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
+                <colgroup>
+                  {roleColumns.map((column, index) => {
+                    const style = roleColumnResize.getColumnStyle(column.key)
+                    if (index === roleColumns.length - 1) {
+                      return <col key={column.key} style={{ minWidth: column.minWidth }} />
+                    }
+                    return <col key={column.key} style={style} />
+                  })}
+                </colgroup>
+                <thead className="bg-slate-100">
                   <tr>
-                    <th className="p-3 text-left font-semibold">Role</th>
-                    <th className="p-3 text-left font-semibold">รายละเอียด</th>
-                    <th className="p-3 text-left font-semibold">ประเภท</th>
-                    <th className="p-3 text-left font-semibold">สาขา</th>
-                    <th className="p-3 text-right font-semibold">ผู้ใช้</th>
-                    <th className="p-3 text-center font-semibold">ต้นทุน</th>
-                    <th className="p-3 text-center font-semibold">กำไร</th>
-                    <th className="p-3 text-center font-semibold">เงินสด</th>
-                    <th className="p-3 text-center font-semibold">งบ</th>
-                    <th className="p-3 text-center font-semibold">Opening</th>
-                    <th className="p-3 text-center font-semibold">สถานะ</th>
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} direction={roleSortDirection} label="Role" resizeProps={roleColumnResize.getResizeHandleProps('name', 'Role')} sortKey="name" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} direction={roleSortDirection} label="รายละเอียด" resizeProps={roleColumnResize.getResizeHandleProps('description', 'รายละเอียด')} sortKey="description" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} direction={roleSortDirection} label="ประเภท" resizeProps={roleColumnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} direction={roleSortDirection} label="สาขา" resizeProps={roleColumnResize.getResizeHandleProps('branchScope', 'สาขา')} sortKey="branchScope" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="right" direction={roleSortDirection} label="ผู้ใช้" resizeProps={roleColumnResize.getResizeHandleProps('users', 'ผู้ใช้')} sortKey="users" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="center" direction={roleSortDirection} label="ต้นทุน" resizeProps={roleColumnResize.getResizeHandleProps('canSeeCost', 'ต้นทุน')} sortKey="canSeeCost" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="center" direction={roleSortDirection} label="กำไร" resizeProps={roleColumnResize.getResizeHandleProps('canSeeProfit', 'กำไร')} sortKey="canSeeProfit" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="center" direction={roleSortDirection} label="เงินสด" resizeProps={roleColumnResize.getResizeHandleProps('canSeeCash', 'เงินสด')} sortKey="canSeeCash" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="center" direction={roleSortDirection} label="งบ" resizeProps={roleColumnResize.getResizeHandleProps('canSeeFinancials', 'งบ')} sortKey="canSeeFinancials" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="center" direction={roleSortDirection} label="Opening" resizeProps={roleColumnResize.getResizeHandleProps('canEditOpeningBalance', 'Opening')} sortKey="canEditOpeningBalance" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="center" direction={roleSortDirection} label="สถานะ" resizeProps={roleColumnResize.getResizeHandleProps('active', 'สถานะ')} sortKey="active" onSort={handleRoleSort} />
                   </tr>
                 </thead>
-                <tbody>
-                  {filteredRoles.map((role) => (
-                    <tr key={role.id} className="border-t border-slate-100 align-top hover:bg-slate-50">
+                <tbody className="divide-y divide-slate-100">
+                  {sortedRoles.map((role) => (
+                    <tr key={role.id} className="align-top hover:bg-slate-50">
                       <td className="p-3">
                         <div className="font-bold text-slate-900">{role.name}</div>
                         <div className="mt-0.5 font-mono text-xs text-slate-500">{role.code}</div>
@@ -842,9 +976,9 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                       </td>
                     </tr>
                   ))}
-                  {filteredRoles.length === 0 ? (
+                  {sortedRoles.length === 0 ? (
                     <tr>
-                      <td className="p-8 text-center text-sm text-slate-500" colSpan={11}>ไม่พบ role</td>
+                      <td className="p-8 text-center text-sm text-slate-500" colSpan={roleColumns.length}>ไม่พบ role</td>
                     </tr>
                   ) : null}
                 </tbody>
@@ -853,7 +987,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
 
             {/* Mobile View: Dense Card List (Hidden on Desktop) */}
             <div className="lg:hidden divide-y divide-slate-100">
-              {filteredRoles.map((role) => (
+              {sortedRoles.map((role) => (
                 <div key={role.id} className="p-4 bg-white space-y-3 animate-fade-in">
                   <div className="flex items-start justify-between">
                     <div>
@@ -895,7 +1029,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                   </div>
                 </div>
               ))}
-              {filteredRoles.length === 0 ? (
+              {sortedRoles.length === 0 ? (
                 <div className="p-8 text-center text-sm text-slate-400">ไม่พบ role</div>
               ) : null}
             </div>

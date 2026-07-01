@@ -5,7 +5,7 @@ tags:
   - menu
   - admin-system
 status: accepted-baseline
-updated: 2026-06-23
+updated: 2026-07-02
 route: /admin/users, /admin/roles-permissions
 ---
 
@@ -102,6 +102,10 @@ Profile/contact fields are stored on `app_users` as application profile data:
 - may call Supabase Auth invite/reset
 - records auth audit events
 - ไม่มี business transaction side effect
+
+## UI Table Mechanics
+
+As of 2026-07-02, the Users and Roles desktop tables follow the active Cost Pool / Weight Ticket table mechanics: sortable `ResizableTableHead` business headers, persisted resizable column widths, reset-width control, `colgroup`, fixed table layout, and mobile card lists rendered from the same sorted row sets as desktop. This is presentation-only; admin user APIs, Supabase Auth invite/reset flow, permission checks, role matrix semantics, branch access writes, audit events, and DB state remain unchanged.
 
 ## Current Gap
 
