@@ -3169,12 +3169,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       {showForm && mode === 'purchase' ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4">
           <div className="mx-auto my-4 flex max-h-[94vh] max-w-5xl flex-col rounded-md bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
+            <div className="sticky top-0 z-10 flex items-center rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
               <div>
                 <h3 className="text-xl font-bold">📥 {editingBillId ? 'แก้ไขบิลรับซื้อ' : 'สร้างบิลรับซื้อใหม่'}</h3>
                 <p className="mt-1 text-xs opacity-80">{editingBillId ? 'แก้ไขได้เฉพาะบิลที่ยังไม่อนุมัติโอนเงินและยังไม่มีการชำระเงิน' : 'บันทึก header และรายการสินค้าในบิลรับซื้อ'}</p>
               </div>
-              <button className="text-3xl leading-none text-white/80 hover:text-white outline-none focus:outline-none" type="button" onClick={() => { setError(null); setSupplierSwapMode(false); setSupplierSwapSupplierId(''); setLockedReceiptSnapshot(null); setShowForm(false) }}>&times;</button>
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-6 text-sm">
               {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
@@ -3382,18 +3381,21 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                   })()}
                                 </td>
                                 <td className="p-2">
-                                  <input data-error-key={`items.${index}.price`} className={`w-full rounded-md border px-2 py-2 text-right tabular-nums ${fieldErrors[`items.${index}.price`] ? 'border-red-400 bg-red-50 text-red-700' : ''} ${numberInputClass} ${selectedPo ? 'bg-slate-100 text-slate-500' : ''}`} disabled={Boolean(selectedPo)} min="0" step="0.01" type="number" value={item.price || ''} onChange={(event) => updateItem(index, 'price', Number(event.target.value || 0))} />
-                                  {fieldErrors[`items.${index}.price`] ? <div className="mt-1 text-xs text-red-600">{fieldErrors[`items.${index}.price`]}</div> : null}
+                                  <InlineMoneyInput
+                                    disabled={Boolean(selectedPo)}
+                                    error={fieldErrors[`items.${index}.price`]}
+                                    errorKey={`items.${index}.price`}
+                                    inputClassName={selectedPo ? 'bg-slate-100 text-slate-500' : ''}
+                                    value={item.price}
+                                    onChange={(value) => updateItem(index, 'price', value)}
+                                  />
                                 </td>
                                 <td className="p-2">
-                                  <input
-                                    className={`w-full rounded-md border px-2 py-2 text-right tabular-nums ${numberInputClass} ${salesPriceEditable ? 'bg-purple-50' : 'bg-slate-100 text-slate-500'}`}
+                                  <InlineMoneyInput
                                     disabled={!salesPriceEditable}
-                                    min="0"
-                                    step="0.01"
-                                    type="number"
-                                    value={item.salesPrice || ''}
-                                    onChange={(event) => updateItem(index, 'salesPrice', Number(event.target.value || 0))}
+                                    inputClassName={salesPriceEditable ? 'bg-purple-50' : 'bg-slate-100 text-slate-500'}
+                                    value={item.salesPrice}
+                                    onChange={(value) => updateItem(index, 'salesPrice', value)}
                                   />
                                 </td>
                                 <td className="p-2">
@@ -3478,19 +3480,20 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                               </td>
                               <td className="p-2">
                                 <div className="mb-1 text-xs font-semibold text-slate-500">ราคา/กก.</div>
-                                <input data-error-key={`items.${index}.price`} className={`w-full rounded-md border px-2 py-2 text-right tabular-nums ${fieldErrors[`items.${index}.price`] ? 'border-red-400 bg-red-50 text-red-700' : ''} ${numberInputClass}`} min="0" step="0.01" type="number" value={item.price || ''} onChange={(event) => updateItem(index, 'price', Number(event.target.value || 0))} />
-                                {fieldErrors[`items.${index}.price`] ? <div className="mt-1 text-xs text-red-600">{fieldErrors[`items.${index}.price`]}</div> : null}
+                                <InlineMoneyInput
+                                  error={fieldErrors[`items.${index}.price`]}
+                                  errorKey={`items.${index}.price`}
+                                  value={item.price}
+                                  onChange={(value) => updateItem(index, 'price', value)}
+                                />
                               </td>
                               <td className="p-2">
                                 <div className="mb-1 text-xs font-semibold text-purple-700">ราคาหน้าใบ</div>
-                                <input
-                                  className={`w-full rounded-md border px-2 py-2 text-right tabular-nums ${numberInputClass} ${salesPriceEditable ? 'bg-purple-50' : 'bg-slate-100 text-slate-500'}`}
+                                <InlineMoneyInput
                                   disabled={!salesPriceEditable}
-                                  min="0"
-                                  step="0.01"
-                                  type="number"
-                                  value={item.salesPrice || ''}
-                                  onChange={(event) => updateItem(index, 'salesPrice', Number(event.target.value || 0))}
+                                  inputClassName={salesPriceEditable ? 'bg-purple-50' : 'bg-slate-100 text-slate-500'}
+                                  value={item.salesPrice}
+                                  onChange={(value) => updateItem(index, 'salesPrice', value)}
                                 />
                               </td>
                               <td className="p-2">
@@ -4298,24 +4301,18 @@ function PurchaseBillDetailModal({
   onClose: () => void
   onPrint: (detail: PurchaseBillDetail) => void
 }) {
+  const detailTitle = detail?.docNo ?? docNo
+  const detailPartyName = detail ? `${detail.supplierCode ? `[${detail.supplierCode}] ` : ''}${detail.supplierName}` : '-'
   return (
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="purchase-bill-detail-title" className="max-h-[90vh] max-w-6xl rounded-2xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
-        <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-2xl flex flex-row items-center justify-between shrink-0">
+      <DialogContent aria-labelledby="purchase-bill-detail-title" className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 shadow-2xl outline-none focus:outline-none" hideClose>
+        <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-md shrink-0">
           <div>
-            <DialogTitle id="purchase-bill-detail-title" className="text-white">รายละเอียดบิลรับซื้อ</DialogTitle>
-            <DialogDescription className="font-mono text-xs text-slate-300">{detail?.docNo ?? docNo}</DialogDescription>
+            <DialogTitle id="purchase-bill-detail-title" className="text-white">รายละเอียดบิลรับซื้อ {detailTitle}</DialogTitle>
+            <DialogDescription className="text-xs text-slate-300">{detailPartyName}</DialogDescription>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 transition-colors outline-none focus:outline-none focus:ring-0 text-xl leading-none"
-            aria-label="Close"
-          >
-            &times;
-          </button>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto bg-slate-50">
@@ -4334,7 +4331,6 @@ function PurchaseBillDetailModal({
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
                 <DetailItem label="เลขที่บิล" value={detail.docNo} />
                 <DetailItem label="วันที่สร้างรายการ" value={formatDateDisplay(detail.date)} />
-                <DetailItem className="col-span-2 sm:col-span-3" label="ผู้ขาย" value={`${detail.supplierCode ? `[${detail.supplierCode}] ` : ''}${detail.supplierName}`} />
                 <DetailItem label="สาขา/คลัง" value={detail.branchName || '-'} />
                 <DetailItem label="ประเภทบิล" value={detail.transactionMode || '-'} />
                 <DetailItem label="ผู้ทำรายการ" value={detail.createdBy || '-'} />
@@ -4482,7 +4478,7 @@ function PurchaseBillDetailModal({
 
         </div>
 
-        <DialogFooter className="flex flex-wrap gap-2 justify-end p-4 border-t bg-slate-50/50 rounded-b-2xl shrink-0">
+        <DialogFooter className="flex flex-wrap gap-2 justify-end p-4 border-t bg-slate-50/50 rounded-b-md shrink-0">
           {detail ? (
             <Button className="rounded-md border border-slate-300 bg-white text-slate-700 font-medium hover:bg-slate-50 transition-colors outline-none focus:ring-0 px-4 py-2 gap-2 flex items-center justify-center font-normal" disabled={isPrinting} type="button" onClick={() => onPrint(detail)}>
               <Printer className="size-4" />

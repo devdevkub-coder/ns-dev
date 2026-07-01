@@ -264,6 +264,11 @@ The absence of a static finding is not a visual pass. These still need browser r
 
 - 2026-07-01 implementation checkpoint: the Sales Bill list now uses page-specific table wording (`เลขที่บิลขาย`, `วันที่สร้าง`, `รายการ`, `สถานะรับเงิน`), hides unavailable edit/cancel row actions, keeps the compact VAT invoice indicator (`vatInvoiceNo` or `ยังไม่ออก`), uses normal clear-filter sizing, shows mobile filter count for date/type/status filters, uses dense mobile cards, and lets the desktop final action column auto-stretch like `/daily/weight-ticket-list`. The Sales Bill detail modal now follows the dark-header `rounded-md` baseline, moves the SB number/customer into the header/title/subtitle, avoids repeating customer inside the document card, and uses white grouped cards for the main document/status/item sections. The cancel dialog keeps the mobile bottom sheet but uses desktop `rounded-md` modal radius. Browser QA remains pending because this batch was local code/layout validation only.
 
+### `/purchase/bills`
+
+- 2026-07-01 implementation checkpoint: the Purchase Bill create/edit modal header now keeps the dark `rounded-md` shell but no longer renders a corner close control; the footer cancel action is the close path. PB item `ราคา/กก.` and `ราคาหน้าใบ` fields now use the existing `InlineMoneyInput` money pattern on both desktop table and mobile card layouts, while quantity/weight fields remain valid number exceptions. The PB detail modal now follows the dark-header `rounded-md` baseline, moves the PB number/supplier into the header title/subtitle, removes the repeated supplier row from the inner document card, and avoids outer/focus outline leakage. Browser QA remains pending because this batch was local code/layout validation only.
+- Remaining follow-up: run desktop/mobile browser QA for `/purchase/bills` create/edit/detail/cancel visual confirmation when the selected visual batch reaches browser verification.
+
 ### `/sales/po-sell`
 
 - 2026-07-01 implementation checkpoint: the PO Sell list already had the page-specific Thai headers and hidden unavailable edit/cancel actions; this pass finished the remaining table/modal drift by aligning the desktop table shell with the lined table baseline, letting the final action column auto-stretch, replacing fixed `colSpan={15}` with the column definition count, and normalizing the create/edit, cancel, and detail dialogs to the `rounded-md` dark-header modal baseline with no outer border/outline leakage. The detail subtitle now keeps readable slate-300 contrast in dark mode. Browser QA remains pending because this batch was local code/layout validation only.
@@ -405,7 +410,7 @@ High-impact route families:
 
 - `/purchase/bills` and `/sales/bills`
   - `/sales/bills` has a 2026-07-01 local design checkpoint for table wording/actions, mobile filter count, final-column auto-stretch, Sales Bill detail grouped cards, and Sales Bill/cancel modal radius normalization.
-  - `/purchase/bills` shares the transaction list/action table mechanics, but its purchase detail/form modal surfaces still need a separate page pass before marking the purchase side visually complete.
+  - `/purchase/bills` has a 2026-07-01 local design checkpoint for purchase form corner-close removal, PB item money fields, and PB detail modal radius/header/detail-card normalization.
 - `/purchase/payments` and `/sales/receipts`
   - `/purchase/payments` has a 2026-07-01 local design checkpoint for table shell/colgroup/colSpan cleanup, hidden unavailable PMA cancel actions, PMT form/cancel/detail modal radius normalization, and money-pattern confirmation.
   - `/sales/receipts` has a 2026-07-01 local design checkpoint for RCP queue table shell/colgroup/colSpan cleanup, receipt queue reset-width state, receipt cancel/detail modal radius normalization, and receipt line money fields through the Field Input Decision Matrix.
