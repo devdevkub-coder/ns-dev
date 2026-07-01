@@ -2317,3 +2317,7 @@ Tailwind dependency check:
   - The target-sale table, Cost Pool lot table, and Preview table now use `ResizableTableHead` sort indicators/handlers, persisted resizable widths, and `tableLayout: fixed` so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
   - Target rows are sorted before pagination; Cost Pool lot and Preview rows are sorted before desktop/mobile rendering, including the 12-lot Cost Pool preview slice.
   - Validation passed: `npm exec --workspace @ns-scrap-erp/next -- eslint src/components/dual-costing/CostAllocatorPageClient.tsx`, `npm run type-check --workspace @ns-scrap-erp/next`, and `git diff --check`.
+- 2026-07-01: Deal Margin table mechanics checkpoint
+  - `/dual-costing/deal-margin` received a UI-only table mechanics pass. Runtime API behavior, margin calculation, export contract, and DB contracts were not changed.
+  - The desktop deal table now uses `ResizableTableHead` sort indicators/handlers, persisted resizable widths, and `tableLayout: fixed`; rows are sorted before pagination so desktop table and mobile cards share the same order.
+  - Validation passed: `npm exec --workspace @ns-scrap-erp/next -- eslint src/components/dual-costing/DealMarginPageClient.tsx`, `npm run type-check --workspace @ns-scrap-erp/next`, and `git diff --check`.
