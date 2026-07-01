@@ -679,6 +679,16 @@ Expected:
   - Aggregate mobile cards use the same sorted row set as desktop, catalog mobile cards use the same sorted filtered row set as desktop, and CSV export follows the displayed aggregate sort order. Report formulas, catalog routes, filters, API behavior, permissions, and DB state were not changed.
   - Browser QA remains pending.
 
+### Static Table Mechanics Rescan - 2026-07-02
+
+After completing the Foreign Finance table sweep, tracked `apps/next/src` TS/TSX files were rescanned for table mechanics without using browser/Computer Use.
+
+- Scope: tracked app source only; scratch/untracked tool files were excluded.
+- Result: 80 tracked files contain `<table>`.
+- High-confidence remaining primary sidebar list tables without Cost Pool-style resize/sort/fixed-layout mechanics: none found in this static pass.
+- Remaining non-matching hits were classified as intentional/static contexts: print-preview HTML, direct/detail pages, modal/form sub-tables, system-manual field documentation, design mockup playground, and the shared low-level `Table` wrapper. These should not be bulk-converted without a page-specific design decision because resize/sort would add behavior where the user is reading a document, filling line items, or viewing print/detail content rather than operating a primary list table.
+- Browser QA / real-data visual confirmation remains pending because the current instruction is to avoid browser/Computer Use.
+
 ### Updated Suggested Fix Order
 
 1. No remaining high-confidence operational static inconsistency is currently listed after the `/sales/receipts` follow-up. The listed operational pages are now in browser QA / real-data visual confirmation rather than another static rewrite.
