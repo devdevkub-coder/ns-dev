@@ -65,6 +65,8 @@ type LedgerRow = {
   totalCost: number
 }
 
+type LedgerColumnKey = 'allocatedBy' | 'allocatedQty' | 'costPerKg' | 'costPoolNo' | 'gpPct' | 'grossProfit' | 'matchId' | 'productCategory' | 'productName' | 'saleDocNo' | 'saleQty' | 'allocatedRevenue' | 'status' | 'targetType' | 'totalCost'
+
 type TabPayload = {
   rows: WaitingRow[]
   count: number
@@ -591,6 +593,7 @@ function WaitingAllocationsView() {
 }
 
 function AllocationLedgerView() {
+  const pageSizeOptions = [10, 25, 50, 100] as const
   const [category, setCategory] = useState('all')
   const [data, setData] = useState<LedgerPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -604,11 +607,30 @@ function AllocationLedgerView() {
 
   // Pagination states
   const [page, setPage] = useState(1)
-  const pageSize = 50
+  const [pageSize, setPageSize] = useState<(typeof pageSizeOptions)[number]>(50)
+
+  const ledgerColumns = useMemo<Array<ResizableColumnDefinition<LedgerColumnKey> & { align?: 'center' | 'left' | 'right'; label: string }>>(() => [
+    { key: 'matchId', label: 'Match ID', defaultWidth: 190, minWidth: 160 },
+    { key: 'targetType', label: 'Type', defaultWidth: 88, minWidth: 78, align: 'center' },
+    { key: 'saleDocNo', label: 'Sale Doc', defaultWidth: 130, minWidth: 120 },
+    { key: 'productName', label: 'สินค้า', defaultWidth: 230, minWidth: 180 },
+    { key: 'productCategory', label: 'หมวด', defaultWidth: 110, minWidth: 95, align: 'center' },
+    { key: 'saleQty', label: 'Sale Qty', defaultWidth: 115, minWidth: 105, align: 'right' },
+    { key: 'allocatedQty', label: 'Allocated', defaultWidth: 115, minWidth: 105, align: 'right' },
+    { key: 'costPoolNo', label: 'Cost Pool', defaultWidth: 145, minWidth: 130 },
+    { key: 'costPerKg', label: 'บาท/กก.', defaultWidth: 95, minWidth: 85, align: 'right' },
+    { key: 'totalCost', label: 'Total Cost', defaultWidth: 125, minWidth: 110, align: 'right' },
+    { key: 'allocatedRevenue', label: 'Revenue', defaultWidth: 125, minWidth: 110, align: 'right' },
+    { key: 'grossProfit', label: 'GP', defaultWidth: 115, minWidth: 100, align: 'right' },
+    { key: 'gpPct', label: 'GP%', defaultWidth: 80, minWidth: 70, align: 'right' },
+    { key: 'allocatedBy', label: 'By', defaultWidth: 135, minWidth: 115 },
+    { key: 'status', label: 'Status', defaultWidth: 115, minWidth: 100, align: 'center' },
+  ], [])
+  const ledgerResize = useResizableColumns('dual-costing.allocation-ledger.v1', ledgerColumns)
 
   useEffect(() => {
     setPage(1)
-  }, [category, fromDate, search, status, targetType, toDate])
+  }, [category, fromDate, pageSize, search, status, targetType, toDate])
 
   const rows = useMemo(() => data?.rows ?? [], [data?.rows])
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
@@ -646,9 +668,6 @@ function AllocationLedgerView() {
 
   return (
     <DualCostingPageSection>
-      <DualCostingHint tone="indigo">
-        Cost Allocation Ledger เป็น audit trail ของการ allocate ต้นทุนจริงต่อดีล ใช้ตรวจสอบย้อนกลับได้ แต่ reverse/write flow ยังปิดไว้
-      </DualCostingHint>
       <DualCostingErrorBox error={error} />
       <DualCostingWorkflowStrip active="ledger" />
       
@@ -665,7 +684,7 @@ function AllocationLedgerView() {
         {/* Desktop View */}
         <div className="hidden xl:block">
           <div className="flex flex-wrap items-center gap-2">
-            <Input className="min-w-[200px] flex-1 rounded-md border-slate-300 focus-visible:ring-emerald-100" placeholder="ค้นหา match id / doc / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Input className="h-9 min-w-[260px] flex-1 rounded-md border-slate-300 focus-visible:ring-emerald-100" placeholder="ค้นหา match id / doc / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <span className="text-xs text-slate-500 font-semibold">วันที่:</span>
             <DatePickerInput id="allocation-ledger-from" value={fromDate} onChange={setFromDate} />
             <span className="text-slate-400">→</span>
@@ -680,15 +699,15 @@ function AllocationLedgerView() {
         {/* Mobile / Tablet View */}
         <div className="block xl:hidden space-y-2">
           <div className="flex gap-2">
-            <Input className="flex-1 h-10 rounded-md border-slate-300 focus-visible:ring-emerald-100 text-sm" placeholder="ค้นหา match id / doc / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Input className="h-9 flex-1 rounded-md border-slate-300 text-sm focus-visible:ring-emerald-100" placeholder="ค้นหา match id / doc / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <button
-              className={`h-10 rounded-md border px-3 text-sm font-semibold transition-colors flex items-center gap-1 shrink-0 ${
+              className={`h-9 shrink-0 rounded-md border px-3 text-sm font-semibold transition-colors ${
                 showMobileFilters ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-700 border-slate-200'
               }`}
               type="button"
               onClick={() => setShowMobileFilters(!showMobileFilters)}
             >
-              🔍 ตัวกรอง
+              ตัวกรอง
             </button>
           </div>
 
@@ -750,58 +769,70 @@ function AllocationLedgerView() {
         </div>
       </DualCostingFilterCard>
 
-      {/* Pagination controls */}
-      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mt-3 mb-3">
+      <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-2 px-1 py-1 text-sm text-slate-600">
         <div>พบทั้งหมด {rows.length.toLocaleString('th-TH')} รายการ</div>
-        <div className="flex items-center gap-2">
-          <Button disabled={safePage <= 1 || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
-          <span>หน้า {safePage} / {totalPages}</span>
-          <Button disabled={safePage >= totalPages || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {ledgerResize.hasCustomWidths ? <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={ledgerResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
+          <Select
+            aria-label="จำนวนรายการต่อหน้า"
+            className="h-9 w-auto px-2 py-1"
+            disabled={isLoading}
+            value={pageSize}
+            onChange={(event) => {
+              setPageSize(Number(event.target.value) as (typeof pageSizeOptions)[number])
+              setPage(1)
+            }}
+          >
+            {pageSizeOptions.map((option) => (
+              <option key={option} value={option}>{option} / หน้า</option>
+            ))}
+          </Select>
+          <Button disabled={safePage <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+          <span className="px-1">หน้า {safePage} / {totalPages}</span>
+          <Button disabled={safePage >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
         </div>
       </div>
 
       {/* Desktop View */}
-      <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
-        <Table className="text-xs">
-          <TableHeader className="bg-slate-50 border-b border-slate-100 font-semibold text-slate-600">
+      <div className="hidden overflow-x-auto rounded-md bg-white shadow lg:block">
+        <Table className="text-sm" style={{ minWidth: ledgerResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <colgroup>
+            {ledgerColumns.map((column) => (
+              <col key={column.key} style={ledgerResize.getColumnStyle(column.key)} />
+            ))}
+          </colgroup>
+          <TableHeader className="bg-slate-100">
             <tr>
-              <TableHead className="p-3 pl-4">Match ID</TableHead>
-              <TableHead className="p-3 text-center">Type</TableHead>
-              <TableHead className="p-3">Sale Doc</TableHead>
-              <TableHead className="p-3">สินค้า</TableHead>
-              <TableHead className="p-3 text-center">หมวด</TableHead>
-              <TableHead className="p-3 text-right">Sale Qty</TableHead>
-              <TableHead className="p-3 text-right">Allocated</TableHead>
-              <TableHead className="p-3">Cost Pool</TableHead>
-              <TableHead className="p-3 text-right">฿/กก.</TableHead>
-              <TableHead className="p-3 text-right">Total Cost</TableHead>
-              <TableHead className="p-3 text-right">Revenue</TableHead>
-              <TableHead className="p-3 text-right">GP</TableHead>
-              <TableHead className="p-3 text-right">GP%</TableHead>
-              <TableHead className="p-3">By</TableHead>
-              <TableHead className="p-3 pr-4 text-center">Status</TableHead>
+              {ledgerColumns.map((column) => (
+                <ResizableTableHead
+                  key={column.key}
+                  align={column.align}
+                  label={column.label}
+                  resizeProps={ledgerResize.getResizeHandleProps(column.key, column.label)}
+                />
+              ))}
             </tr>
           </TableHeader>
-          <TableBody>
-            {isLoading ? <TableRow><TableCell className="py-8 text-center text-slate-500" colSpan={15}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
-            {!isLoading && (data?.rows.length ?? 0) === 0 ? <TableRow><TableCell className="py-8 text-center text-slate-500" colSpan={15}>ไม่มี allocation log ตรงกับ filter</TableCell></TableRow> : null}
+          <TableBody className="divide-y divide-slate-100">
+            {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={15}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+            {!isLoading && (data?.rows.length ?? 0) === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={15}>ยังไม่มีรายการ</TableCell></TableRow> : null}
             {visibleRows.map((row) => (
-              <TableRow key={row.id} className={`border-t border-slate-100 hover:bg-indigo-50/30 transition-colors ${row.status === 'reversed' ? 'opacity-50' : ''}`}>
-                <TableCell className="p-3 pl-4 font-mono text-xs text-slate-700">{row.matchId}</TableCell>
-                <TableCell className="p-3 text-center"><TargetPill type={row.targetType} /></TableCell>
-                <TableCell className="p-3 font-mono text-xs text-slate-700">{row.saleDocNo}</TableCell>
-                <TableCell className="p-3 text-xs text-slate-800">{row.productName}</TableCell>
-                <TableCell className="p-3 text-center"><span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{row.productCategory}</span></TableCell>
-                <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.saleQty)}</TableCell>
-                <TableCell className="p-3 text-right font-mono font-medium text-blue-700">{formatMoney(row.allocatedQty)}</TableCell>
-                <TableCell className="p-3 font-mono text-xs text-slate-600">{row.costPoolNo}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.costPerKg)}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-red-700">{formatMoney(row.totalCost)}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-emerald-700">{formatMoney(row.allocatedRevenue)}</TableCell>
-                <TableCell className={`p-3 text-right font-mono font-bold ${row.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.grossProfit)}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-xs text-slate-700">{row.gpPct.toFixed(2)}%</TableCell>
-                <TableCell className="p-3 text-xs text-slate-700">{row.allocatedBy}</TableCell>
-                <TableCell className="p-3 pr-4 text-center"><span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${row.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' : 'bg-slate-100 text-slate-600 border border-slate-200/50'}`}>{row.status}</span></TableCell>
+              <TableRow key={row.id} className={`hover:bg-indigo-50/30 ${row.status === 'reversed' ? 'opacity-50' : ''}`}>
+                <TableCell className="p-2 font-mono text-xs text-slate-700"><span className="block truncate" title={row.matchId}>{row.matchId}</span></TableCell>
+                <TableCell className="p-2 text-center"><TargetPill type={row.targetType} /></TableCell>
+                <TableCell className="p-2 font-mono text-xs text-slate-700"><span className="block truncate" title={row.saleDocNo}>{row.saleDocNo}</span></TableCell>
+                <TableCell className="p-2 text-sm text-slate-800"><span className="block truncate" title={row.productName}>{row.productName}</span></TableCell>
+                <TableCell className="p-2 text-center"><span className="whitespace-nowrap text-xs font-semibold text-slate-600">{row.productCategory}</span></TableCell>
+                <TableCell className="p-2 text-right font-mono text-slate-700">{formatMoney(row.saleQty)}</TableCell>
+                <TableCell className="p-2 text-right font-mono font-medium text-blue-700">{formatMoney(row.allocatedQty)}</TableCell>
+                <TableCell className="p-2 font-mono text-xs text-slate-600"><span className="block truncate" title={row.costPoolNo}>{row.costPoolNo}</span></TableCell>
+                <TableCell className="p-2 text-right font-mono text-slate-700">{formatMoney(row.costPerKg)}</TableCell>
+                <TableCell className="p-2 text-right font-mono text-red-700">{formatMoney(row.totalCost)}</TableCell>
+                <TableCell className="p-2 text-right font-mono text-emerald-700">{formatMoney(row.allocatedRevenue)}</TableCell>
+                <TableCell className={`p-2 text-right font-mono font-bold ${row.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.grossProfit)}</TableCell>
+                <TableCell className="p-2 text-right font-mono text-xs text-slate-700">{row.gpPct.toFixed(2)}%</TableCell>
+                <TableCell className="p-2 text-xs text-slate-700"><span className="block truncate" title={row.allocatedBy}>{row.allocatedBy}</span></TableCell>
+                <TableCell className="p-2 text-center"><LedgerStatusText status={row.status} /></TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -1002,8 +1033,18 @@ function StatusPill({ status }: { status: string }) {
     : <span className="rounded border border-amber-200/50 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">partial</span>
 }
 
+function LedgerStatusText({ status }: { status: string }) {
+  const active = status === 'approved'
+  return (
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold ${active ? 'text-emerald-700' : 'text-slate-600'}`}>
+      <span className={`size-1.5 rounded-full ${active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+      {status}
+    </span>
+  )
+}
+
 function TargetPill({ type }: { type: string }) {
-  return <span className={`rounded border px-2 py-0.5 text-xs font-semibold ${type === 'PO_SELL' ? 'bg-blue-50 text-blue-700 border-blue-200/50' : 'bg-purple-50 text-purple-700 border-purple-200/50'}`}>{type === 'PO_SELL' ? 'PO' : 'Spot'}</span>
+  return <span className={`inline-flex whitespace-nowrap rounded border px-2 py-0.5 text-xs font-semibold ${type === 'PO_SELL' ? 'bg-blue-50 text-blue-700 border-blue-200/50' : 'bg-purple-50 text-purple-700 border-purple-200/50'}`}>{type === 'PO_SELL' ? 'PO' : 'Spot'}</span>
 }
 
 function HeroMetric({ label, value }: { label: string; value: string }) {

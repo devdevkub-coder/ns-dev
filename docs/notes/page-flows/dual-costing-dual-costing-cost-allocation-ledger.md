@@ -127,6 +127,7 @@ Target future: reverse/edit actions must create auditable reversal behavior and 
 
 - Current API/page is implemented and protected by `finance.cash.view`.
 - Current route reads `trading_deals` as the available read source until durable allocation ledger exists.
+- 2026-07-01 UI alignment: removed the explanatory hint banner from the page body, aligned filter control height/search width with the shared list-page baseline, added a page-size selector to the pagination row, changed pagination buttons to the `h-9` baseline, and converted the desktop ledger table to resizable columns with fixed column widths so `Type`, `หมวด`, `By`, and `Status` do not collapse into vertical text.
 
 ## Current Gap
 
