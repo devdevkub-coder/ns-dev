@@ -155,6 +155,7 @@ type AssetRegisterSortKey = Exclude<AssetRegisterColumnKey, 'actions'>
 type DepreciationColumnKey = 'accumAfter' | 'accumBefore' | 'actions' | 'asset' | 'depreciationAmount' | 'nbvAfter' | 'nbvBefore' | 'period' | 'refNo' | 'status'
 type DepreciationSortKey = Exclude<DepreciationColumnKey, 'actions'>
 type DisposalColumnKey = 'actions' | 'asset' | 'date' | 'disposalNo' | 'disposalType' | 'gainLoss' | 'nbv' | 'reason' | 'sellingPrice' | 'status'
+type DisposalSortKey = Exclude<DisposalColumnKey, 'actions'>
 type PendingAssetColumnKey = 'accumDep' | 'code' | 'monthlyDep' | 'name' | 'nbv' | 'netAssetCost' | 'status'
 type PendingAssetSortKey = PendingAssetColumnKey
 type SortDirection = 'asc' | 'desc'
@@ -1433,6 +1434,8 @@ export function AssetDisposalPageClient() {
   const [reverseRow, setReverseRow] = useState<DisposalPayload['rows'][number] | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [sortKey, setSortKey] = useState<DisposalSortKey | null>(null)
   const columnResize = useResizableColumns('finance-accounting.asset-disposal.history.v1', disposalColumns)
 
   useEffect(() => {
@@ -1458,13 +1461,29 @@ export function AssetDisposalPageClient() {
   useEffect(() => loadData(), [loadData])
 
   const rows = useMemo(() => data?.rows ?? [], [data?.rows])
-  const totalRows = rows.length
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+    return [...rows].sort((left, right) => {
+      const result = compareSortValues(getDisposalSortValue(left, sortKey), getDisposalSortValue(right, sortKey))
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [rows, sortDirection, sortKey])
+  const totalRows = sortedRows.length
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
   const currentPage = Math.min(page, totalPages)
   const pagedRows = useMemo(() => {
     const start = (currentPage - 1) * pageSize
-    return rows.slice(start, start + pageSize)
-  }, [rows, currentPage, pageSize])
+    return sortedRows.slice(start, start + pageSize)
+  }, [sortedRows, currentPage, pageSize])
+
+  const changeSort = (key: DisposalSortKey) => {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setSortKey(key)
+    setSortDirection('asc')
+  }
 
   const selectedAsset = data?.assetOptions.find((asset) => asset.id === form.assetId)
   const sellingPrice = decimalValue(form.sellingPrice)
@@ -1614,7 +1633,7 @@ export function AssetDisposalPageClient() {
               </button>
             </div>
           ) : null}
-          <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth }}>
+          <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {disposalColumns.map((column, index) => {
                 if (index === disposalColumns.length - 1) {
@@ -1625,15 +1644,15 @@ export function AssetDisposalPageClient() {
             </colgroup>
             <thead className="bg-slate-100">
               <tr>
-                <ResizableTableHead label="เลขที่จำหน่าย" resizeProps={columnResize.getResizeHandleProps('disposalNo', 'เลขที่จำหน่าย')} />
-                <ResizableTableHead label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
-                <ResizableTableHead label="สินทรัพย์" resizeProps={columnResize.getResizeHandleProps('asset', 'สินทรัพย์')} />
-                <ResizableTableHead label="ประเภท" resizeProps={columnResize.getResizeHandleProps('disposalType', 'ประเภท')} />
-                <ResizableTableHead align="right" label="ราคาขาย" resizeProps={columnResize.getResizeHandleProps('sellingPrice', 'ราคาขาย')} />
-                <ResizableTableHead align="right" label="NBV ณ วันจำหน่าย" resizeProps={columnResize.getResizeHandleProps('nbv', 'NBV ณ วันจำหน่าย')} />
-                <ResizableTableHead align="right" label="กำไร/(ขาดทุน)" resizeProps={columnResize.getResizeHandleProps('gainLoss', 'กำไรหรือขาดทุน')} />
-                <ResizableTableHead label="เหตุผล" resizeProps={columnResize.getResizeHandleProps('reason', 'เหตุผล')} />
-                <ResizableTableHead align="center" label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="เลขที่จำหน่าย" resizeProps={columnResize.getResizeHandleProps('disposalNo', 'เลขที่จำหน่าย')} sortKey="disposalNo" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="สินทรัพย์" resizeProps={columnResize.getResizeHandleProps('asset', 'สินทรัพย์')} sortKey="asset" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('disposalType', 'ประเภท')} sortKey="disposalType" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ราคาขาย" resizeProps={columnResize.getResizeHandleProps('sellingPrice', 'ราคาขาย')} sortKey="sellingPrice" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="NBV ณ วันจำหน่าย" resizeProps={columnResize.getResizeHandleProps('nbv', 'NBV ณ วันจำหน่าย')} sortKey="nbv" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="กำไร/(ขาดทุน)" resizeProps={columnResize.getResizeHandleProps('gainLoss', 'กำไรหรือขาดทุน')} sortKey="gainLoss" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="เหตุผล" resizeProps={columnResize.getResizeHandleProps('reason', 'เหตุผล')} sortKey="reason" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
                 <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('actions', 'จัดการ')} />
               </tr>
             </thead>
@@ -1817,6 +1836,11 @@ function getAssetRegisterSortValue(row: AssetRegisterRow, key: AssetRegisterSort
 }
 
 function getDepreciationSortValue(row: DepreciationPayload['rows'][number], key: DepreciationSortKey) {
+  if (key === 'asset') return `${row.assetCode} ${row.assetName}`
+  return row[key]
+}
+
+function getDisposalSortValue(row: DisposalPayload['rows'][number], key: DisposalSortKey) {
   if (key === 'asset') return `${row.assetCode} ${row.assetName}`
   return row[key]
 }
