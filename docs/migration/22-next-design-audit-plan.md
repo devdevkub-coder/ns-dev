@@ -510,6 +510,10 @@ Expected:
 - `/production/report`
   - After the latest correction, the report, WIP, and product-summary tables now share the same toolbar/table mechanics and mobile card pattern.
   - Browser QA remains pending.
+- `/production/reconciliation`
+  - After the latest correction, the reconciliation issue table now uses sortable `ResizableTableHead` business headers with inactive/active up/down indicators, client-side ascending/descending sorting before rendering, the same sorted row set for mobile cards, persisted resizable widths, a reset-width control, and fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
+  - Reconciliation issue detection, PI/PO2 ledger checks, WIP calculation, filters, summary KPIs, API behavior, and DB state were not changed.
+  - Browser QA remains pending.
 - `/profit-cost-analysis`
   - After the latest correction, the product, supplier, customer, channel, trend, and alert tables now use the active lined/resizable table shell with persisted column widths, reset-width controls, sortable up/down headers, fixed table layout, and safer nowrap/tabular numeric alignment.
   - Mobile cards now render from the same sorted row sets as the desktop tables. Profit/Cost formulas, filters, summary cards, top-product charts, AP/AR values, stock values, and read-model behavior were not changed.

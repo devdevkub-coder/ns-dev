@@ -29,6 +29,18 @@ type ProductionReconciliationPayload = {
   }
 }
 
+type ReconciliationColumnKey =
+  | 'actualQty'
+  | 'actualValue'
+  | 'details'
+  | 'docNo'
+  | 'expectedQty'
+  | 'expectedValue'
+  | 'issue'
+  | 'orderDocNo'
+  | 'refType'
+type SortDirection = 'asc' | 'desc'
+
 const issueLabels: Record<string, { label: string; note: string }> = {
   completed_wip_mismatch: {
     label: 'Completed แต่ WIP ไม่เป็นศูนย์',
@@ -72,7 +84,35 @@ function detailsText(details: Record<string, unknown>) {
   return entries.map(([key, value]) => `${key}: ${String(value)}`).join(' · ')
 }
 
-const reconciliationColumns: Array<ResizableColumnDefinition<string>> = [
+function compareSortValues(left: number | string, right: number | string) {
+  if (typeof left === 'number' && typeof right === 'number') return left - right
+  return String(left).localeCompare(String(right), 'th', { numeric: true, sensitivity: 'base' })
+}
+
+function getReconciliationSortValue(row: ProductionReconciliationIssue, key: ReconciliationColumnKey) {
+  switch (key) {
+    case 'actualQty':
+      return row.actualQty
+    case 'actualValue':
+      return row.actualValue
+    case 'details':
+      return detailsText(row.details)
+    case 'docNo':
+      return row.docNo
+    case 'expectedQty':
+      return row.expectedQty
+    case 'expectedValue':
+      return row.expectedValue
+    case 'issue':
+      return issueLabel(row.issue)
+    case 'orderDocNo':
+      return row.orderDocNo
+    case 'refType':
+      return row.refType
+  }
+}
+
+const reconciliationColumns: Array<ResizableColumnDefinition<ReconciliationColumnKey>> = [
   { key: 'issue', defaultWidth: 200 },
   { key: 'refType', defaultWidth: 100 },
   { key: 'orderDocNo', defaultWidth: 120 },
@@ -92,6 +132,8 @@ export function ProductionReconciliationPageClient() {
   const [issueFilter, setIssueFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [sortKey, setSortKey] = useState<ReconciliationColumnKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -130,6 +172,27 @@ export function ProductionReconciliationPageClient() {
         ].join(' ').toLowerCase().includes(normalizedQuery)
       })
   }, [data?.issues, issueFilter, query])
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+
+    return [...rows].sort((left, right) => {
+      const result = compareSortValues(
+        getReconciliationSortValue(left, sortKey),
+        getReconciliationSortValue(right, sortKey),
+      )
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [rows, sortDirection, sortKey])
+
+  function handleSort(nextKey: ReconciliationColumnKey) {
+    if (sortKey === nextKey) {
+      setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+    setSortKey(nextKey)
+    setSortDirection('asc')
+  }
 
   const totalIssues = data?.summary.issueCount ?? 0
   const byRefType = data?.summary.byRefType ?? {}
@@ -278,7 +341,7 @@ export function ProductionReconciliationPageClient() {
       ) : null}
 
       {/* Desktop Table View (Hidden on Mobile) */}
-      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
+      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
         <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
           {columnResize.hasCustomWidths ? (
             <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
@@ -287,28 +350,31 @@ export function ProductionReconciliationPageClient() {
           ) : null}
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
-              {reconciliationColumns.map((col) => (
-                <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
-              ))}
+              {reconciliationColumns.map((col, index) => {
+                if (index === reconciliationColumns.length - 1) {
+                  return <col key={col.key} style={{ minWidth: col.minWidth }} />
+                }
+                return <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+              })}
             </colgroup>
-            <thead className="bg-slate-50 border-b border-slate-100 text-left text-slate-500">
+            <thead className="bg-slate-100 border-b border-slate-100 text-left text-slate-500">
               <tr>
-                <ResizableTableHead label="ประเภท issue" resizeProps={columnResize.getResizeHandleProps('issue', 'ประเภท issue')} />
-                <ResizableTableHead label="Ref Type" resizeProps={columnResize.getResizeHandleProps('refType', 'Ref Type')} />
-                <ResizableTableHead label="Order No" resizeProps={columnResize.getResizeHandleProps('orderDocNo', 'Order No')} />
-                <ResizableTableHead label="Doc No" resizeProps={columnResize.getResizeHandleProps('docNo', 'Doc No')} />
-                <ResizableTableHead align="right" label="Expected Qty" resizeProps={columnResize.getResizeHandleProps('expectedQty', 'Expected Qty')} />
-                <ResizableTableHead align="right" label="Actual Qty" resizeProps={columnResize.getResizeHandleProps('actualQty', 'Actual Qty')} />
-                <ResizableTableHead align="right" label="Expected Value" resizeProps={columnResize.getResizeHandleProps('expectedValue', 'Expected Value')} />
-                <ResizableTableHead align="right" label="Actual Value" resizeProps={columnResize.getResizeHandleProps('actualValue', 'Actual Value')} />
-                <ResizableTableHead label="Details" resizeProps={columnResize.getResizeHandleProps('details', 'Details')} />
+                <ResizableTableHead label="ประเภท issue" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="issue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('issue', 'ประเภท issue')} />
+                <ResizableTableHead label="Ref Type" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="refType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('refType', 'Ref Type')} />
+                <ResizableTableHead label="Order No" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="orderDocNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('orderDocNo', 'Order No')} />
+                <ResizableTableHead label="Doc No" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'Doc No')} />
+                <ResizableTableHead align="right" label="Expected Qty" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="expectedQty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('expectedQty', 'Expected Qty')} />
+                <ResizableTableHead align="right" label="Actual Qty" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="actualQty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('actualQty', 'Actual Qty')} />
+                <ResizableTableHead align="right" label="Expected Value" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="expectedValue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('expectedValue', 'Expected Value')} />
+                <ResizableTableHead align="right" label="Actual Value" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="actualValue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('actualValue', 'Actual Value')} />
+                <ResizableTableHead label="Details" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="details" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('details', 'Details')} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={9}>กำลังตรวจข้อมูล</td></tr> : null}
-              {!isLoading && rows.map((issue, index) => (
+              {!isLoading && sortedRows.map((issue, index) => (
                 <tr key={`${issue.issue}-${issue.refType}-${issue.docNo}-${index}`} className="hover:bg-slate-50">
                   <td className="px-3 py-2 align-top overflow-hidden truncate">
                     <div className="font-semibold text-slate-900">{issueLabel(issue.issue)}</div>
@@ -324,16 +390,16 @@ export function ProductionReconciliationPageClient() {
                   <td className="px-3 py-2 align-top text-slate-600 overflow-hidden truncate">{detailsText(issue.details)}</td>
                 </tr>
               ))}
-              {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-500" colSpan={9}>ไม่พบ issue ตามเงื่อนไข</td></tr> : null}
+              {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-500" colSpan={9}>ไม่พบ issue ตามเงื่อนไข</td></tr> : null}
             </tbody>
           </table>
         </div>
       </div>
 
       {/* Mobile View: Dense Card List (Hidden on Desktop) */}
-      {!isLoading && rows.length > 0 ? (
+      {!isLoading && sortedRows.length > 0 ? (
         <div className="space-y-3 lg:hidden">
-          {rows.map((issue, index) => (
+          {sortedRows.map((issue, index) => (
             <div key={`${issue.issue}-${issue.refType}-${issue.docNo}-${index}`} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3 animate-fade-in">
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -371,7 +437,7 @@ export function ProductionReconciliationPageClient() {
         </div>
       ) : null}
 
-      {!isLoading && rows.length === 0 ? (
+      {!isLoading && sortedRows.length === 0 ? (
         <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-400 shadow-sm lg:hidden">
           ไม่พบ issue ตามเงื่อนไข
         </div>
