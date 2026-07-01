@@ -624,6 +624,11 @@ Expected:
   - The mobile target/rule/job cards render from the same sorted row sets as desktop. LINE credential save, target sync/test/default/delete, rule save/delete/simulate, outbox retry/cancel/process, analytics, API behavior, and DB state were not changed.
   - Browser QA remains pending.
 
+- `/admin/transaction-ledger`
+  - After the latest correction, the main read-only ledger table now uses sortable `ResizableTableHead` business headers with inactive/active up/down indicators, client-side ascending/descending sorting after filters, persisted resizable widths, a reset-width control, `colgroup`, and fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
+  - Mobile ledger cards now render from the same sorted row set as desktop, and current client-side CSV export follows that sorted display order. Ledger read API, Excel export API, account cards, duplicate diagnostics, filters, permissions, and DB state were not changed.
+  - Browser QA remains pending.
+
 - `/admin/audit`
   - After the latest correction, the main Audit & Activity Log table now uses sortable `ResizableTableHead` business headers with inactive/active up/down indicators, client-side ascending/descending sorting of the current page rows, persisted resizable widths, a reset-width control, and fixed table layout.
   - Mobile audit cards render from the same sorted row set as desktop, and current-page CSV export follows that sorted order. `/api/admin/auth-events`, audit source, permission boundary, filters, pagination, and detail modal facts were not changed.

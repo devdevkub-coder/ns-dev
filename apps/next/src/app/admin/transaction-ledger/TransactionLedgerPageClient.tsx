@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { z } from 'zod'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage, readBlobResponse, readJsonResponse } from '@/lib/api-client'
 import { formatDateDisplay } from '@/lib/format'
-import { Filter, SlidersHorizontal } from 'lucide-react'
+import { SlidersHorizontal } from 'lucide-react'
 
 const transactionLedgerPayloadSchema = z.object({
   accounts: z.array(z.object({
@@ -54,6 +56,8 @@ const transactionLedgerPayloadSchema = z.object({
 type AccountRow = z.infer<typeof transactionLedgerPayloadSchema>['accounts'][number]
 type DuplicateGroup = z.infer<typeof transactionLedgerPayloadSchema>['duplicateGroups'][number]
 type LedgerRow = z.infer<typeof transactionLedgerPayloadSchema>['rows'][number]
+type LedgerColumnKey = 'accountName' | 'amountIn' | 'amountOut' | 'date' | 'description' | 'linkedBills' | 'payee' | 'refNo' | 'refType' | 'runningBalance'
+type SortDirection = 'asc' | 'desc'
 
 const refTypeOptions = [
   { label: 'PMT — จ่ายเงิน', value: 'PMT' },
@@ -62,6 +66,19 @@ const refTypeOptions = [
   { label: 'TRF — โอนระหว่างบัญชี', value: 'TRF' },
   { label: 'OPEN — ยอดยกมา', value: 'OPEN' },
   { label: 'BANK — Bank Statement', value: 'BANK' },
+]
+
+const ledgerColumns: Array<ResizableColumnDefinition<LedgerColumnKey>> = [
+  { key: 'date', defaultWidth: 130, minWidth: 110 },
+  { key: 'accountName', defaultWidth: 210, minWidth: 150 },
+  { key: 'refType', defaultWidth: 110, minWidth: 90 },
+  { key: 'refNo', defaultWidth: 155, minWidth: 120 },
+  { key: 'linkedBills', defaultWidth: 190, minWidth: 135 },
+  { key: 'payee', defaultWidth: 190, minWidth: 130 },
+  { key: 'description', defaultWidth: 300, minWidth: 180 },
+  { key: 'amountIn', defaultWidth: 145, minWidth: 115 },
+  { key: 'amountOut', defaultWidth: 145, minWidth: 115 },
+  { key: 'runningBalance', defaultWidth: 150, minWidth: 120 },
 ]
 
 function formatMoney(value: number) {
@@ -113,6 +130,9 @@ export function TransactionLedgerPageClient() {
   const [rows, setRows] = useState<LedgerRow[]>([])
   const [search, setSearch] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [sortKey, setSortKey] = useState<LedgerColumnKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const columnResize = useResizableColumns('admin.transaction-ledger.main.v1', ledgerColumns)
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -166,6 +186,20 @@ export function TransactionLedgerPageClient() {
       .sort((left, right) => right.date.localeCompare(left.date) || right.id.localeCompare(left.id))
   }, [dateFrom, dateTo, filterAccount, filterRefType, rows, search])
 
+  const sortedLedger = useMemo(() => {
+    if (!sortKey) return ledger
+
+    return [...ledger].sort((left, right) => {
+      const leftValue = getLedgerSortValue(left, sortKey)
+      const rightValue = getLedgerSortValue(right, sortKey)
+      const result = typeof leftValue === 'number' && typeof rightValue === 'number'
+        ? leftValue - rightValue
+        : String(leftValue).localeCompare(String(rightValue), 'th', { numeric: true })
+
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [ledger, sortDirection, sortKey])
+
   const summary = useMemo(() => ({
     count: ledger.length,
     net: ledger.reduce((sum, row) => sum + row.amountIn - row.amountOut, 0),
@@ -180,7 +214,7 @@ export function TransactionLedgerPageClient() {
   const selectedDiff = selectedAccount && selectedComputedBalance !== null ? selectedAccount.balance - selectedComputedBalance : null
 
   function exportCsv() {
-    const csv = buildCsv(ledger)
+    const csv = buildCsv(sortedLedger)
     const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -213,6 +247,16 @@ export function TransactionLedgerPageClient() {
     } finally {
       setIsExporting(false)
     }
+  }
+
+  function handleSort(key: LedgerColumnKey) {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(key)
+    setSortDirection('asc')
   }
 
   function clearFilters() {
@@ -330,6 +374,9 @@ export function TransactionLedgerPageClient() {
             <option value="">📋 ทุกประเภท</option>
             {refTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
+          {columnResize.hasCustomWidths ? (
+            <button className="hidden h-9 shrink-0 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 xl:inline-flex xl:items-center" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+          ) : null}
           <button className="rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 h-9 flex items-center shrink-0" disabled={ledger.length === 0 || isExporting} type="button" onClick={() => void exportExcel()}>{isExporting ? 'กำลัง Export...' : '📊 Excel'}</button>
           <button className="rounded-md bg-white px-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-60 h-9 flex items-center shrink-0" disabled={ledger.length === 0} type="button" onClick={exportCsv}>ส่งออก CSV</button>
         </div>
@@ -455,55 +502,64 @@ export function TransactionLedgerPageClient() {
       ) : null}
 
       {/* Desktop Table View (Hidden on Mobile) */}
-      <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="w-full text-sm min-w-[1000px]">
-          <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 text-left">
+      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {ledgerColumns.map((column, index) => {
+              const style = columnResize.getColumnStyle(column.key)
+              if (index === ledgerColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />
+              }
+              return <col key={column.key} style={style} />
+            })}
+          </colgroup>
+          <thead className="bg-slate-100">
             <tr>
-              <th className="p-3 text-left font-semibold">วันที่</th>
-              <th className="p-3 text-left font-semibold">บัญชี</th>
-              <th className="p-3 text-left font-semibold">ประเภท</th>
-              <th className="p-3 text-left font-semibold">เลขที่</th>
-              <th className="p-3 text-left font-semibold">บิลที่เกี่ยวข้อง</th>
-              <th className="p-3 text-left font-semibold">ผู้รับ/ส่ง</th>
-              <th className="p-3 text-left font-semibold">รายละเอียด</th>
-              <th className="p-3 text-right font-semibold text-emerald-700">เงินเข้า</th>
-              <th className="p-3 text-right font-semibold text-red-600">เงินออก</th>
-              <th className="p-3 text-right font-semibold">คงเหลือ</th>
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="บัญชี" resizeProps={columnResize.getResizeHandleProps('accountName', 'บัญชี')} sortKey="accountName" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('refType', 'ประเภท')} sortKey="refType" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่')} sortKey="refNo" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="บิลที่เกี่ยวข้อง" resizeProps={columnResize.getResizeHandleProps('linkedBills', 'บิลที่เกี่ยวข้อง')} sortKey="linkedBills" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="ผู้รับ/ส่ง" resizeProps={columnResize.getResizeHandleProps('payee', 'ผู้รับ/ส่ง')} sortKey="payee" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="รายละเอียด" resizeProps={columnResize.getResizeHandleProps('description', 'รายละเอียด')} sortKey="description" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="เงินเข้า" resizeProps={columnResize.getResizeHandleProps('amountIn', 'เงินเข้า')} sortKey="amountIn" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="เงินออก" resizeProps={columnResize.getResizeHandleProps('amountOut', 'เงินออก')} sortKey="amountOut" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="คงเหลือ" resizeProps={columnResize.getResizeHandleProps('runningBalance', 'คงเหลือ')} sortKey="runningBalance" onSort={handleSort} />
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-100">
             {isLoading ? (
-              <tr><td className="py-8 text-center text-slate-400 font-medium" colSpan={10}>กำลังโหลด Transaction Ledger...</td></tr>
-            ) : ledger.length > 0 ? ledger.map((row) => (
-              <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50">
-                <td className="p-3 text-xs text-slate-600 whitespace-nowrap">{row.date ? formatDateDisplay(row.date) : '-'}</td>
-                <td className="p-3 text-xs text-slate-900 font-medium min-w-0 overflow-hidden"><div className="truncate" title={row.accountName}>{row.accountName}</div></td>
-                <td className="p-3 whitespace-nowrap"><span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">{row.refType}</span></td>
-                <td className="p-3 font-mono text-xs text-slate-700 whitespace-nowrap">{row.refNo}</td>
-                <td className="p-3 text-xs">
+              <tr><td className="px-3 py-10 text-center font-medium text-slate-400" colSpan={ledgerColumns.length}>กำลังโหลด Transaction Ledger...</td></tr>
+            ) : sortedLedger.length > 0 ? sortedLedger.map((row) => (
+              <tr key={row.id} className="transition-colors hover:bg-slate-50">
+                <td className="whitespace-nowrap px-3 py-3 text-xs text-slate-600">{row.date ? formatDateDisplay(row.date) : '-'}</td>
+                <td className="min-w-0 px-3 py-3 text-xs font-medium text-slate-900"><div className="truncate" title={row.accountName}>{row.accountName}</div></td>
+                <td className="whitespace-nowrap px-3 py-3"><span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">{row.refType}</span></td>
+                <td className="whitespace-nowrap px-3 py-3 font-mono text-xs text-slate-700">{row.refNo}</td>
+                <td className="min-w-0 px-3 py-3 text-xs">
                   {row.linkedBills.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
-                      {row.linkedBills.map((bill) => <span key={`${row.id}-${bill.type}-${bill.docNo}`} className="rounded bg-blue-50 px-2 py-0.5 font-mono text-blue-700">{bill.type}:{bill.docNo}</span>)}
+                      {row.linkedBills.map((bill) => <span key={row.id + '-' + bill.type + '-' + bill.docNo} className="rounded bg-blue-50 px-2 py-0.5 font-mono text-blue-700">{bill.type}:{bill.docNo}</span>)}
                     </div>
                   ) : '-'}
                 </td>
-                <td className="p-3 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.payee || ''}>{row.payee || '-'}</div></td>
-                <td className="p-3 text-xs text-slate-600 leading-normal min-w-0 overflow-hidden"><div className="truncate" title={row.description || row.note || ''}>{row.description || row.note || '-'}</div></td>
-                <td className="p-3 text-right font-mono font-bold text-emerald-700 whitespace-nowrap pl-4 tabular-nums">{row.amountIn > 0 ? formatMoney(row.amountIn) : '-'}</td>
-                <td className="p-3 text-right font-mono font-bold text-red-600 whitespace-nowrap pl-4 tabular-nums">{row.amountOut > 0 ? formatMoney(row.amountOut) : '-'}</td>
-                <td className="p-3 text-right font-mono text-xs text-slate-600 whitespace-nowrap pl-4 tabular-nums">{row.runningBalance === null ? '-' : formatMoney(row.runningBalance)}</td>
+                <td className="min-w-0 px-3 py-3 text-xs text-slate-700"><div className="truncate" title={row.payee || ''}>{row.payee || '-'}</div></td>
+                <td className="min-w-0 px-3 py-3 text-xs leading-normal text-slate-600"><div className="truncate" title={row.description || row.note || ''}>{row.description || row.note || '-'}</div></td>
+                <td className="whitespace-nowrap px-3 py-3 pl-4 text-right font-mono font-bold tabular-nums text-emerald-700">{row.amountIn > 0 ? formatMoney(row.amountIn) : '-'}</td>
+                <td className="whitespace-nowrap px-3 py-3 pl-4 text-right font-mono font-bold tabular-nums text-red-600">{row.amountOut > 0 ? formatMoney(row.amountOut) : '-'}</td>
+                <td className="whitespace-nowrap px-3 py-3 pl-4 text-right font-mono text-xs tabular-nums text-slate-600">{row.runningBalance === null ? '-' : formatMoney(row.runningBalance)}</td>
               </tr>
             )) : (
-              <tr><td className="py-8 text-center text-slate-400" colSpan={10}>ไม่มีรายการ</td></tr>
+              <tr><td className="px-3 py-10 text-center text-slate-400" colSpan={ledgerColumns.length}>ไม่มีรายการ</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
       {/* Mobile View: Dense Card List (Hidden on Desktop) */}
-      {!isLoading && ledger.length > 0 ? (
+      {!isLoading && sortedLedger.length > 0 ? (
         <div className="space-y-3 lg:hidden">
-          {ledger.map((row) => (
+          {sortedLedger.map((row) => (
             <div key={row.id} className="rounded-lg border border-slate-100 bg-white p-3.5 shadow-sm space-y-2.5 animate-fade-in">
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -552,7 +608,7 @@ export function TransactionLedgerPageClient() {
         </div>
       ) : null}
 
-      {!isLoading && ledger.length === 0 ? (
+      {!isLoading && sortedLedger.length === 0 ? (
         <div className="rounded-lg border border-slate-100 bg-white p-12 text-center text-slate-400 shadow-sm lg:hidden">
           ไม่มีรายการ
         </div>
@@ -569,4 +625,16 @@ export function TransactionLedgerPageClient() {
       </div>
     </section>
   )
+}
+
+function getLedgerSortValue(row: LedgerRow, key: LedgerColumnKey): number | string {
+  if (key === 'date') {
+    const timestamp = Date.parse(row.date)
+    return Number.isNaN(timestamp) ? 0 : timestamp
+  }
+  if (key === 'linkedBills') return row.linkedBills.map((bill) => `${bill.type}:${bill.docNo}`).join(' ')
+  if (key === 'description') return row.description || row.note || ''
+  if (key === 'runningBalance') return row.runningBalance ?? 0
+
+  return row[key]
 }
