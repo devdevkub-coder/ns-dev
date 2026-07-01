@@ -165,6 +165,7 @@ export function DailyTransferPageClient() {
   const currentPage = Math.min(page, totalPages)
   const pagedRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const activeAccounts = useMemo(() => accounts.filter((account) => account.active), [accounts])
+  const activeMobileFilterCount = [dateFrom || dateTo, fromAccountId, toAccountId].filter(Boolean).length
 
   useEffect(() => {
     setPage(1)
@@ -301,7 +302,7 @@ export function DailyTransferPageClient() {
       <div className="space-y-2 rounded-md bg-white p-3 shadow">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-1 flex-wrap items-center gap-2">
-            <Input className="h-9 min-w-[260px] flex-1" placeholder="ค้นหาเลขที่ / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Input className="h-9 min-w-[260px] flex-1" placeholder="ค้นหาเลขที่ TRF / ผู้ทำรายการ / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
 
             {/* Mobile Filter Button */}
             <button
@@ -309,7 +310,7 @@ export function DailyTransferPageClient() {
               className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 lg:hidden"
               onClick={() => setShowMobileFilters(true)}
             >
-              <span className="text-slate-500">🔍</span> ตัวกรอง {(dateFrom || dateTo || fromAccountId || toAccountId) ? '(1)' : ''}
+              ตัวกรอง{activeMobileFilterCount ? ` (${activeMobileFilterCount})` : ''}
             </button>
 
             {/* Desktop Filters */}
@@ -325,19 +326,19 @@ export function DailyTransferPageClient() {
                 <option value="">ทุกบัญชีปลายทาง</option>
                 {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
               </select>
-              {search || dateFrom || dateTo || fromAccountId || toAccountId ? <Button size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้าง</Button> : null}
+              {search || dateFrom || dateTo || fromAccountId || toAccountId ? <Button size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้างตัวกรอง</Button> : null}
             </div>
           </div>
-          <Button className="hidden lg:inline-flex ml-auto" size="sm" type="button" onClick={openCreateForm}>+ โอนใหม่</Button>
+          <Button className="hidden lg:inline-flex ml-auto" size="sm" type="button" onClick={openCreateForm}>+ โอนเงินใหม่</Button>
         </div>
 
         {/* Desktop Period Buttons */}
         <div className="hidden lg:flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-500">ช่วง:</span>
-          <PeriodButton active={period === ''} label="ทั้งหมด" tone="slate" onClick={() => applyPeriod('')} />
-          <PeriodButton active={period === 'today'} label="วันนี้" tone="blue" onClick={() => applyPeriod('today')} />
-          <PeriodButton active={period === 'week'} label="7 วัน" tone="emerald" onClick={() => applyPeriod('week')} />
-          <PeriodButton active={period === 'month'} label="เดือนนี้" tone="amber" onClick={() => applyPeriod('month')} />
+          <span className="text-xs text-slate-500">ช่วงเวลา:</span>
+          <PeriodButton active={period === ''} label="ทั้งหมด" onClick={() => applyPeriod('')} />
+          <PeriodButton active={period === 'today'} label="วันนี้" onClick={() => applyPeriod('today')} />
+          <PeriodButton active={period === 'week'} label="7 วัน" onClick={() => applyPeriod('week')} />
+          <PeriodButton active={period === 'month'} label="เดือนนี้" onClick={() => applyPeriod('month')} />
         </div>
       </div>
 
@@ -473,7 +474,7 @@ export function DailyTransferPageClient() {
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
         <div>
           พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
-          <span className="ml-2 text-slate-500">· รวม <span className="font-semibold text-blue-700">{formatMoney(totalAmount)}</span></span>
+          <span className="ml-2 text-slate-500">· ยอดโอนรวม <span className="font-semibold text-slate-900">{formatMoney(totalAmount)}</span></span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {columnResize.hasCustomWidths ? <Button className="font-normal" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
@@ -493,10 +494,9 @@ export function DailyTransferPageClient() {
 
       {formOpen ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-[1px] p-4">
-          <form noValidate className="mx-auto my-4 w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-xl animate-in fade-in zoom-in-95 duration-150" onSubmit={saveForm}>
-            <div className="sticky top-0 z-10 flex items-center justify-between bg-slate-900 text-white px-5 py-4">
+          <form noValidate className="mx-auto my-4 w-full max-w-3xl overflow-hidden rounded-md bg-white shadow-xl animate-in fade-in zoom-in-95 duration-150" onSubmit={saveForm}>
+            <div className="sticky top-0 z-10 flex items-center rounded-t-md bg-slate-900 text-white px-5 py-4">
               <h3 className="font-bold text-white">{form.id ? 'แก้ไขรายการโอนเงิน' : 'โอนเงินระหว่างบัญชี'}</h3>
-              <button className="text-2xl text-white/80 hover:text-white outline-none" type="button" onClick={() => setFormOpen(false)}>&times;</button>
             </div>
             {error ? <div className="mx-5 mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div> : null}
             <div className="grid grid-cols-2 gap-3 p-5">
@@ -552,11 +552,11 @@ export function DailyTransferPageClient() {
 
       {selectedRow ? (
         <Dialog open={true} onOpenChange={(open) => { if (!open) closeDetail() }}>
-          <DialogContent className="max-h-[90vh] max-w-3xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0">
-            <DialogHeader className="p-4 bg-slate-900 text-white shrink-0 flex flex-row items-start justify-between gap-3">
+          <DialogContent className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 shadow-2xl outline-none focus:outline-none" hideClose>
+            <DialogHeader className="p-4 bg-slate-900 text-white rounded-t-md shrink-0">
               <div>
-                <DialogTitle className="text-lg font-bold text-white">รายละเอียดรายการโอนเงิน</DialogTitle>
-                <DialogDescription className="mt-1 font-mono text-xs text-slate-400">{selectedRow.docNo}</DialogDescription>
+                <DialogTitle className="text-lg font-bold text-white">รายละเอียด {selectedRow.docNo}</DialogTitle>
+                <DialogDescription className="mt-1 text-xs text-slate-300">{selectedRow.fromAccountName} → {selectedRow.toAccountName}</DialogDescription>
               </div>
             </DialogHeader>
             <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4 text-sm">
@@ -623,7 +623,7 @@ export function DailyTransferPageClient() {
             </div>
             <div className="text-xs text-slate-600 mb-3 flex items-center gap-1.5 flex-wrap">
               <span className="font-semibold text-red-600">{row.fromAccountName}</span>
-              <span className="text-slate-400">➡️</span>
+              <span className="text-slate-400">→</span>
               <span className="font-semibold text-emerald-700">{row.toAccountName}</span>
             </div>
             {row.notes ? (
@@ -649,22 +649,25 @@ export function DailyTransferPageClient() {
         ) : null}
       </div>
 
-      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-        <Table className="text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+        <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
-            {transferColumns.map((column) => {
+            {transferColumns.map((column, index) => {
               const style = columnResize.getColumnStyle(column.key);
+              if (index === transferColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
+              }
               return <col key={column.key} style={style} />;
             })}
           </colgroup>
           <TableHeader>
             <tr>
               <ResizableTableHead label="ลำดับ" resizeProps={columnResize.getResizeHandleProps('index', 'ลำดับ')} />
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="จาก" resizeProps={columnResize.getResizeHandleProps('from', 'จาก')} sortKey="from" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เข้า" resizeProps={columnResize.getResizeHandleProps('to', 'เข้า')} sortKey="to" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} align="right" label="จำนวน" resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวน')} sortKey="amount" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขที่ TRF" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ TRF')} sortKey="docNo" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="วันที่โอน" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่โอน')} sortKey="date" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="บัญชีต้นทาง" resizeProps={columnResize.getResizeHandleProps('from', 'บัญชีต้นทาง')} sortKey="from" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="บัญชีปลายทาง" resizeProps={columnResize.getResizeHandleProps('to', 'บัญชีปลายทาง')} sortKey="to" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} align="right" label="ยอดโอน" resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดโอน')} sortKey="amount" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} align="right" label="ค่าธรรมเนียม" resizeProps={columnResize.getResizeHandleProps('fee', 'ค่าธรรมเนียม')} sortKey="fee" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ผู้ทำรายการ" resizeProps={columnResize.getResizeHandleProps('byPerson', 'ผู้ทำรายการ')} sortKey="byPerson" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="หมายเหตุ" resizeProps={columnResize.getResizeHandleProps('notes', 'หมายเหตุ')} sortKey="notes" onSort={changeSort} />
@@ -672,7 +675,7 @@ export function DailyTransferPageClient() {
             </tr>
           </TableHeader>
           <TableBody className="divide-y divide-slate-100">
-            {isLoading ? <TableRow><td className="p-8 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</td></TableRow> : null}
+            {isLoading ? <TableRow><td className="p-8 text-center text-slate-500" colSpan={transferColumns.length}>กำลังโหลดข้อมูล</td></TableRow> : null}
             {!isLoading && pagedRows.map((row, index) => (
               <TableRow
                 key={row.id}
@@ -697,11 +700,10 @@ export function DailyTransferPageClient() {
                 <TableCell className="text-xs font-semibold text-slate-700 truncate max-w-[200px]" title={row.notes ?? ''}>{row.notes || '-'}</TableCell>
                 <TableCell className="space-x-2 whitespace-nowrap text-right">
                   <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={(event) => { event.stopPropagation(); openEditForm(row) }}>แก้ไข</button>
-                  <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled type="button" onClick={(event) => event.stopPropagation()}>ยกเลิก</button>
                 </TableCell>
               </TableRow>
             ))}
-            {!isLoading && pagedRows.length === 0 ? <TableRow><td className="p-8 text-center text-slate-400" colSpan={10}>ยังไม่มีรายการ</td></TableRow> : null}
+            {!isLoading && pagedRows.length === 0 ? <TableRow><td className="p-8 text-center text-slate-400" colSpan={transferColumns.length}>ยังไม่มีรายการ</td></TableRow> : null}
           </TableBody>
         </Table>
       </div>
@@ -709,13 +711,8 @@ export function DailyTransferPageClient() {
   )
 }
 
-function PeriodButton(props: { active: boolean; label: string; onClick: () => void; tone: 'amber' | 'blue' | 'emerald' | 'slate' }) {
-  const activeClass = {
-    amber: 'border-amber-600 bg-amber-600 text-white',
-    blue: 'border-blue-600 bg-blue-600 text-white',
-    emerald: 'border-emerald-600 bg-emerald-600 text-white',
-    slate: 'border-slate-700 bg-slate-700 text-white',
-  }[props.tone]
+function PeriodButton(props: { active: boolean; label: string; onClick: () => void }) {
+  const activeClass = 'border-slate-700 bg-slate-700 text-white'
   return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${props.active ? activeClass : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'}`} type="button" onClick={props.onClick}>{props.label}</button>
 }
 
