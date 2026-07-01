@@ -77,6 +77,20 @@ admin maintenance UI; current code has page component but no page-specific API r
 
 P3 proof completed from current code. Gap is intentional: no page-specific API route today.
 
+## Table Mechanics Checkpoint - 2026-07-02
+
+What is what:
+- Snapshot auto-backup is the only table-like surface on this support page today. It represents browser-local backup snapshots once the future write flow is approved.
+- Current runtime state is still an empty-state table; no snapshot row action is live.
+
+Why it has to be like this:
+- The table must share the active Cost Pool table mechanics so admin/support pages do not look or behave like a separate legacy UI.
+- Backup, restore, sync, migration, and reset actions are high-risk operations, so this checkpoint intentionally changes only table presentation and keeps destructive behavior disabled until a separate runbook/API/audit design exists.
+
+Implementation note:
+- The Snapshot table now uses sortable `ResizableTableHead` headers, persisted resizable column widths, a reset-width control, `colgroup`, and fixed table layout.
+- No page-specific API, permission, localStorage write/delete, cloud sync, Supabase, or DB behavior changed.
+
 ## Implementation Checklist
 
 - [x] Verify current page/component API calls

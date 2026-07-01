@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 
 type StorageInfo = {
   dbSizeMB: string
@@ -9,6 +11,24 @@ type StorageInfo = {
   snapshotCount: number
   warningLevel: 'critical' | 'normal' | 'warning'
 }
+
+type SnapshotColumnKey = 'action' | 'date' | 'sizeKb'
+type SortDirection = 'asc' | 'desc'
+
+type SnapshotRow = {
+  actionLabel: string
+  date: string
+  id: string
+  sizeKb: number
+}
+
+const snapshotColumns: Array<ResizableColumnDefinition<SnapshotColumnKey>> = [
+  { key: 'date', defaultWidth: 190, minWidth: 150 },
+  { key: 'sizeKb', defaultWidth: 140, minWidth: 120 },
+  { key: 'action', defaultWidth: 170, minWidth: 140 },
+]
+
+const snapshotRows: SnapshotRow[] = []
 
 const recordStats = [
   ['บิลซื้อ', 0],
@@ -82,6 +102,9 @@ function DisabledActionButton({ children, tone = 'slate' }: { children: string; 
 
 export function MigrationToolsPageClient() {
   const [storageInfo, setStorageInfo] = useState<StorageInfo>(() => ({ dbSizeMB: '0.00', pctUsed: 0, sizeMB: '0.00', snapshotCount: 0, warningLevel: 'normal' }))
+  const [snapshotSortKey, setSnapshotSortKey] = useState<SnapshotColumnKey | null>(null)
+  const [snapshotSortDirection, setSnapshotSortDirection] = useState<SortDirection>('asc')
+  const snapshotColumnResize = useResizableColumns('admin.migration-tools.snapshots.v1', snapshotColumns)
 
   useEffect(() => {
     setStorageInfo(readStorageInfo())
@@ -92,6 +115,30 @@ export function MigrationToolsPageClient() {
     if (storageInfo.warningLevel === 'warning') return 'bg-amber-500'
     return 'bg-emerald-500'
   }, [storageInfo.warningLevel])
+
+  const sortedSnapshotRows = useMemo(() => {
+    if (!snapshotSortKey) return snapshotRows
+
+    return [...snapshotRows].sort((left, right) => {
+      const leftValue = getSnapshotSortValue(left, snapshotSortKey)
+      const rightValue = getSnapshotSortValue(right, snapshotSortKey)
+      const result = typeof leftValue === 'number' && typeof rightValue === 'number'
+        ? leftValue - rightValue
+        : String(leftValue).localeCompare(String(rightValue), 'th', { numeric: true })
+
+      return snapshotSortDirection === 'asc' ? result : -result
+    })
+  }, [snapshotSortDirection, snapshotSortKey])
+
+  function handleSnapshotSort(key: SnapshotColumnKey) {
+    if (snapshotSortKey === key) {
+      setSnapshotSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSnapshotSortKey(key)
+    setSnapshotSortDirection('asc')
+  }
 
   return (
     <section className="space-y-4">
@@ -161,14 +208,50 @@ export function MigrationToolsPageClient() {
       </div>
 
       <div className="rounded-md bg-white p-4 shadow border border-slate-100">
-        <h2 className="mb-2.5 font-bold text-slate-700">🗂 Snapshot อัตโนมัติ (Browser นี้ — เก็บ 7 วันล่าสุด)</h2>
-        <div className="overflow-x-auto rounded border border-slate-100">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
-              <tr><th className="p-2 text-left font-semibold text-xs">วันที่</th><th className="p-2 text-right font-semibold text-xs">ขนาด (KB)</th><th className="p-2 text-center font-semibold text-xs">การกระทำ</th></tr>
+        <div className="mb-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="font-bold text-slate-700">🗂 Snapshot อัตโนมัติ (Browser นี้ — เก็บ 7 วันล่าสุด)</h2>
+          {snapshotColumnResize.hasCustomWidths ? (
+            <button className="h-8 rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={snapshotColumnResize.resetColumnWidths}>
+              คืนค่าเดิมตาราง
+            </button>
+          ) : null}
+        </div>
+        <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
+          <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: snapshotColumnResize.tableMinWidth }}>
+            <colgroup>
+              {snapshotColumns.map((column, index) => {
+                const style = snapshotColumnResize.getColumnStyle(column.key)
+                if (index === snapshotColumns.length - 1) {
+                  return <col key={column.key} style={{ minWidth: column.minWidth }} />
+                }
+                return <col key={column.key} style={style} />
+              })}
+            </colgroup>
+            <thead className="bg-slate-100">
+              <tr>
+                <ResizableTableHead label="วันที่ Snapshot" activeSortKey={snapshotSortKey ?? undefined} direction={snapshotSortDirection} sortKey="date" onSort={handleSnapshotSort} resizeProps={snapshotColumnResize.getResizeHandleProps('date', 'วันที่ Snapshot')} />
+                <ResizableTableHead align="right" label="ขนาด (KB)" activeSortKey={snapshotSortKey ?? undefined} direction={snapshotSortDirection} sortKey="sizeKb" onSort={handleSnapshotSort} resizeProps={snapshotColumnResize.getResizeHandleProps('sizeKb', 'ขนาด (KB)')} />
+                <ResizableTableHead align="center" label="การกระทำ" activeSortKey={snapshotSortKey ?? undefined} direction={snapshotSortDirection} sortKey="action" onSort={handleSnapshotSort} resizeProps={snapshotColumnResize.getResizeHandleProps('action', 'การกระทำ')} />
+              </tr>
             </thead>
-            <tbody>
-              <tr><td className="py-6 text-center text-slate-400 text-xs" colSpan={3}>ยังไม่มี snapshot — เปิด Auto-backup หลังออกแบบ write flow</td></tr>
+            <tbody className="divide-y divide-slate-100">
+              {sortedSnapshotRows.length === 0 ? (
+                <tr>
+                  <td className="px-3 py-10 text-center text-xs text-slate-400" colSpan={snapshotColumns.length}>
+                    ยังไม่มี snapshot — เปิด Auto-backup หลังออกแบบ write flow
+                  </td>
+                </tr>
+              ) : sortedSnapshotRows.map((row) => (
+                <tr className="hover:bg-slate-50" key={row.id}>
+                  <td className="px-3 py-3 font-medium text-slate-800">{row.date}</td>
+                  <td className="px-3 py-3 text-right tabular-nums text-slate-700">{row.sizeKb.toLocaleString('th-TH')}</td>
+                  <td className="px-3 py-3 text-center">
+                    <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 opacity-70" disabled type="button">
+                      {row.actionLabel}
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -225,4 +308,13 @@ export function MigrationToolsPageClient() {
       </div>
     </section>
   )
+}
+
+function getSnapshotSortValue(row: SnapshotRow, key: SnapshotColumnKey): number | string {
+  if (key === 'date') {
+    const timestamp = Date.parse(row.date)
+    return Number.isNaN(timestamp) ? row.date : timestamp
+  }
+  if (key === 'sizeKb') return row.sizeKb
+  return row.actionLabel
 }
