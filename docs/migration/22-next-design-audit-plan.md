@@ -574,6 +574,7 @@ Expected:
   - Browser QA remains pending.
 - Financial statements finance pages: `/finance-accounting/pl-statement`, `/finance-accounting/balance-sheet`, and `/finance-accounting/cash-flow-statement`
   - After the latest correction, the shared Statement tables and drilldown detail modal now use the active lined/resizable table shell with Thai-first business headers, persisted column widths, reset-width controls, and safer nowrap/tabular numeric alignment.
+  - Follow-up correction after visual feedback: the shared Statement tables and drilldown detail modal now use sortable `ResizableTableHead` business headers with inactive/active up/down indicators, client-side ascending/descending sorting before rendering, fixed table layout so resize handles visibly adjust columns, and the same sorted row sets for mobile cards.
   - KPI/report cards, management baseline notice, disabled Excel affordance, and existing mobile card views were preserved.
   - Browser QA remains pending.
 - Cash-flow planning finance pages: `/finance-accounting/cash-flow-analysis` and `/finance-accounting/cf-forecast-calendar`

@@ -12,6 +12,7 @@ type StatementLine = { amount: number; details?: DetailRow[]; label: string; lev
 type SourceState = { basis: string; limitations: string[]; writeActionsEnabled: false }
 type DrillColumnKey = 'amount' | 'date' | 'description' | 'refNo'
 type StatementColumnKey = 'amount' | 'drill' | 'label' | 'section'
+type SortDirection = 'asc' | 'desc'
 
 type PlPayload = {
   branches: BranchRow[]
@@ -61,6 +62,46 @@ const drillColumns: Array<ResizableColumnDefinition<DrillColumnKey>> = [
   { key: 'description', defaultWidth: 330, minWidth: 200 },
   { key: 'amount', defaultWidth: 170, minWidth: 135 },
 ]
+
+function compareSortValues(left: string | number, right: string | number) {
+  return typeof left === 'number' && typeof right === 'number'
+    ? left - right
+    : String(left).localeCompare(String(right), 'th', { numeric: true })
+}
+
+function getStatementSortValue(line: StatementLine, key: StatementColumnKey) {
+  if (key === 'drill') return line.details?.length ?? 0
+  return line[key]
+}
+
+function getDrillSortValue(row: DetailRow, key: DrillColumnKey) {
+  return row[key]
+}
+
+function useLocalTableSort<TRow, TKey extends string>(rows: TRow[], getSortValue: (row: TRow, key: TKey) => string | number) {
+  const [sortKey, setSortKey] = useState<TKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+
+    return [...rows].sort((left, right) => {
+      const result = compareSortValues(getSortValue(left, sortKey), getSortValue(right, sortKey))
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [getSortValue, rows, sortDirection, sortKey])
+
+  function handleSort(key: TKey) {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(key)
+    setSortDirection('asc')
+  }
+
+  return { handleSort, sortDirection, sortedRows, sortKey }
+}
 
 function today() {
   return localDateInputValue(new Date())
@@ -660,6 +701,7 @@ function Waterfall({ rows }: { rows: Array<[string, number]> }) {
 
 function StatementTable({ isLoading, onDrill, rows, tableKey, title = 'Statement' }: { isLoading: boolean; onDrill: (line: StatementLine) => void | undefined; rows: StatementLine[]; tableKey: string; title?: string }) {
   const columnResize = useResizableColumns(`finance-accounting.financial-statements.${tableKey}.v1`, statementColumns)
+  const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<StatementLine, StatementColumnKey>(rows, getStatementSortValue)
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -677,7 +719,7 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title = 'Statement
       </div>
       <div className="max-h-[62vh] overflow-auto">
         {/* Desktop Table View */}
-        <table className="hidden min-w-full divide-y divide-slate-200 text-sm lg:table" style={{ minWidth: columnResize.tableMinWidth }}>
+        <table className="hidden min-w-full divide-y divide-slate-200 text-sm lg:table" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {statementColumns.map((column, index) => {
               if (index === statementColumns.length - 1) {
@@ -688,15 +730,15 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title = 'Statement
           </colgroup>
           <thead className="sticky top-0 z-10 bg-slate-100">
             <tr>
-              <ResizableTableHead label="รายการ" resizeProps={columnResize.getResizeHandleProps('label', 'รายการ')} />
-              <ResizableTableHead label="หมวดรายงาน" resizeProps={columnResize.getResizeHandleProps('section', 'หมวดรายงาน')} />
-              <ResizableTableHead align="right" label="จำนวนเงิน" resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวนเงิน')} />
-              <ResizableTableHead align="center" label="รายละเอียด" resizeProps={columnResize.getResizeHandleProps('drill', 'รายละเอียด')} />
+              <ResizableTableHead label="รายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="label" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('label', 'รายการ')} />
+              <ResizableTableHead label="หมวดรายงาน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="section" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('section', 'หมวดรายงาน')} />
+              <ResizableTableHead align="right" label="จำนวนเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวนเงิน')} />
+              <ResizableTableHead align="center" label="รายละเอียด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="drill" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('drill', 'รายละเอียด')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             <LoadingOrEmpty colSpan={statementColumns.length} isLoading={isLoading} rows={rows.length} />
-            {rows.map((line) => (
+            {sortedRows.map((line) => (
               <tr key={`${line.section}-${line.label}`} className={`transition-colors hover:bg-slate-50 ${line.tone === 'total' ? 'bg-slate-50/50 font-bold' : ''}`}>
                 <td className="px-3 py-3 text-slate-900"><span className={line.level ? 'pl-5' : ''}>{line.label}</span></td>
                 <td className="px-3 py-3"><span className="rounded-md bg-slate-100/80 px-2 py-0.5 text-xs font-medium text-slate-500">{line.section}</span></td>
@@ -720,7 +762,7 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title = 'Statement
         {/* Mobile Card List View */}
         <div className="block lg:hidden divide-y divide-slate-100">
           <LoadingOrEmptyMobile isLoading={isLoading} rows={rows.length} />
-          {!isLoading && rows.map((line) => (
+          {!isLoading && sortedRows.map((line) => (
             <div key={`${line.section}-${line.label}`} className={`p-4 transition ${line.tone === 'total' ? 'bg-slate-50/50 font-bold' : ''}`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="space-y-1">
@@ -752,6 +794,7 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title = 'Statement
 
 function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: DetailRow[]; title: string }) {
   const columnResize = useResizableColumns('finance-accounting.financial-statements.drill.v1', drillColumns)
+  const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<DetailRow, DrillColumnKey>(rows, getDrillSortValue)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
@@ -775,7 +818,7 @@ function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: Detai
         ) : null}
         <div className="max-h-[60vh] overflow-auto">
           {/* Desktop Table View */}
-          <table className="hidden min-w-full divide-y divide-slate-200 text-sm lg:table" style={{ minWidth: columnResize.tableMinWidth }}>
+          <table className="hidden min-w-full divide-y divide-slate-200 text-sm lg:table" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {drillColumns.map((column, index) => {
                 if (index === drillColumns.length - 1) {
@@ -786,14 +829,14 @@ function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: Detai
             </colgroup>
             <thead className="sticky top-0 z-10 bg-slate-100">
               <tr>
-                <ResizableTableHead label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
-                <ResizableTableHead label="เลขที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่เอกสาร')} />
-                <ResizableTableHead label="รายละเอียด" resizeProps={columnResize.getResizeHandleProps('description', 'รายละเอียด')} />
-                <ResizableTableHead align="right" label="จำนวนเงิน" resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวนเงิน')} />
+                <ResizableTableHead label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+                <ResizableTableHead label="เลขที่เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="refNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่เอกสาร')} />
+                <ResizableTableHead label="รายละเอียด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="description" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('description', 'รายละเอียด')} />
+                <ResizableTableHead align="right" label="จำนวนเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวนเงิน')} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rows.map((row, index) => (
+              {sortedRows.map((row, index) => (
                 <tr key={`${row.refNo}-${index}`} className="transition-colors hover:bg-slate-50">
                   <td className="whitespace-nowrap px-3 py-3 text-slate-600">{row.date}</td>
                   <td className="whitespace-nowrap px-3 py-3 font-mono font-semibold text-blue-700">{row.refNo}</td>
@@ -806,7 +849,7 @@ function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: Detai
 
           {/* Mobile Card List View */}
           <div className="block lg:hidden divide-y divide-slate-100">
-            {rows.map((row, index) => (
+            {sortedRows.map((row, index) => (
               <div key={`${row.refNo}-${index}`} className="p-4 space-y-2 text-xs">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">{row.date}</span>
