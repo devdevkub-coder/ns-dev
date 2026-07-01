@@ -697,6 +697,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     filterMode !== '' ||
     statusFilter.length > 0
   )
+  const mobileFilterCount =
+    (mode === 'purchase' && branchFilter ? 1 : 0) +
+    (dateFrom || dateTo ? 1 : 0) +
+    (filterMode ? 1 : 0) +
+    (statusFilter.length > 0 ? 1 : 0)
 
   const loadData = useCallback(async () => {
     const requestId = latestLoadRequestRef.current + 1
@@ -2722,7 +2727,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               onChange={(branchId) => setBranchFilter(branchId ?? '')}
             />
           ) : null}
-          {(search || branchFilter || dateFrom || dateTo || filterMode || statusFilter.length > 0) ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
+          {activeFilters ? <Button size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้างตัวกรอง</Button> : null}
           {mode === 'purchase' ? <ExportButton isExporting={isExporting} onClick={() => void exportExcel()} /> : null}
           {mode === 'purchase' ? <Button type="button" className="hidden lg:inline-flex" onClick={openPurchaseForm}>+ บิลรับซื้อใหม่</Button> : null}
           {mode === 'sales' ? <ExportButton isExporting={isExporting} onClick={() => void exportExcel()} /> : null}
@@ -2757,7 +2762,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
             className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
             onClick={() => setShowMobileFilters(true)}
           >
-            ตัวกรอง {activeFilters ? '(มี)' : ''}
+            ตัวกรอง {mobileFilterCount > 0 ? `(${mobileFilterCount})` : ''}
           </button>
         </div>
       </div>
@@ -3005,8 +3010,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
         <Table className="text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
-            {tableColumns.map((column) => {
+            {tableColumns.map((column, index) => {
               const style = columnResize.getColumnStyle(column.key);
+              if (index === tableColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
+              }
               return <col key={column.key} style={style} />;
             })}
           </colgroup>
@@ -4215,8 +4223,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           setCancelNote('')
           setCancelNoteError('')
         }}>
-          <DialogContent aria-labelledby={`${mode}-bill-cancel-title`} hideClose className="top-auto bottom-0 w-full max-w-lg translate-x-[-50%] translate-y-0 rounded-t-2xl md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-2xl border-0 shadow-2xl p-0 overflow-hidden">
-            <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-2xl flex flex-row items-center justify-between shrink-0">
+          <DialogContent aria-labelledby={`${mode}-bill-cancel-title`} hideClose className="top-auto bottom-0 w-full max-w-lg translate-x-[-50%] translate-y-0 rounded-t-2xl md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-md border-0 shadow-2xl !p-0 overflow-hidden outline-none focus:outline-none">
+            <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-2xl md:rounded-t-md flex flex-row items-center justify-between shrink-0">
               <div>
                 <DialogTitle id={`${mode}-bill-cancel-title`} className="text-white">ยกเลิก{mode === 'sales' ? 'บิลขาย' : 'บิลรับซื้อ'} {cancelingBill.docNo}</DialogTitle>
                 <DialogDescription className="text-slate-300">{cancelDialogPartyName}</DialogDescription>
@@ -4229,7 +4237,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   setCancelNote('')
                   setCancelNoteError('')
                 }}
-                className="rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 transition-colors outline-none focus:outline-none focus:ring-0 text-xl leading-none"
+                className="rounded-md text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 transition-colors outline-none focus:outline-none focus:ring-0 text-xl leading-none"
                 aria-label="Close"
               >
                 &times;
@@ -4239,7 +4247,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <label className="block text-xs font-medium text-slate-600" htmlFor={`${mode}-bill-cancel-note`}>หมายเหตุการยกเลิก *</label>
               <textarea
                 id={`${mode}-bill-cancel-note`}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:ring-0 outline-none transition-colors"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:ring-0 outline-none transition-colors"
                 maxLength={500}
                 rows={3}
                 value={cancelNote}
@@ -4250,7 +4258,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               />
               {cancelNoteError ? <div className="text-xs text-red-600">{cancelNoteError}</div> : null}
             </div>
-            <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0 rounded-b-2xl">
+            <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0 rounded-b-2xl md:rounded-b-md">
               <Button disabled={isSaving} type="button" variant="ghost" className="font-normal border-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors outline-none focus:ring-0" onClick={() => {
                 if (isSaving) return
                 setCancelingBill(null)
@@ -4561,16 +4569,18 @@ function SalesBillDetailModal({
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="sales-bill-detail-title" className="max-h-[90vh] max-w-6xl overflow-hidden rounded-2xl p-0 flex flex-col border-0" hideClose>
-        <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-2xl flex flex-row items-center justify-between shrink-0">
+      <DialogContent aria-labelledby="sales-bill-detail-title" className="max-h-[90vh] max-w-6xl overflow-hidden rounded-md !p-0 flex flex-col bg-slate-900 border-0 outline-none focus:outline-none" hideClose>
+        <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-md flex flex-row items-center justify-between shrink-0">
           <div>
-            <DialogTitle id="sales-bill-detail-title" className="text-white">รายละเอียดบิลขาย</DialogTitle>
-            <DialogDescription className="font-mono text-xs text-slate-300">{detail?.docNo ?? docNo}</DialogDescription>
+            <DialogTitle id="sales-bill-detail-title" className="text-white">รายละเอียดบิลขาย {detail?.docNo ?? docNo}</DialogTitle>
+            <DialogDescription className="text-xs text-slate-300">
+              {detail ? `${detail.customerCode ? `[${detail.customerCode}] ` : ''}${detail.customerName}` : docNo}
+            </DialogDescription>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 transition-colors outline-none focus:outline-none focus:ring-0 text-xl leading-none"
+            className="rounded-md text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 transition-colors outline-none focus:outline-none focus:ring-0 text-xl leading-none"
             aria-label="Close"
           >
             &times;
@@ -4586,13 +4596,12 @@ function SalesBillDetailModal({
             </div>
           ) : detail ? (
             <div className="space-y-4 p-4 text-sm">
-            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-              <div className="mb-3 border-b border-slate-100/80 pb-1 text-xs font-bold uppercase tracking-wider text-slate-500">ข้อมูลเอกสาร</div>
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">ข้อมูลเอกสาร</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
                 <DetailItem label="เลขที่บิล" value={detail.docNo} />
                 <DetailItem label="วันที่เอกสาร" value={formatDateDisplay(detail.date)} />
                 <DetailItem label="วันที่ครบกำหนด" value={detail.dueDate ? formatDateDisplay(detail.dueDate) : '-'} />
-                <DetailItem className="col-span-2 sm:col-span-3" label="ลูกค้า" value={`${detail.customerCode ? `[${detail.customerCode}] ` : ''}${detail.customerName}`} />
                 <DetailItem label="สาขา/คลัง" value={[detail.branchName, detail.warehouseName].filter((value) => value && value !== '-').join(' / ') || '-'} />
                 <DetailItem label="ช่องทางขาย" value={detail.channelName || '-'} />
                 {detail.exportOrderNo ? <DetailItem label="เลขที่ order ส่งออก" value={detail.exportOrderNo} /> : null}
@@ -4603,8 +4612,8 @@ function SalesBillDetailModal({
               </div>
             </div>
 
-            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-              <div className="mb-3 border-b border-slate-100/80 pb-1 text-xs font-bold uppercase tracking-wider text-slate-500">สถานะและการรับเงิน</div>
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">สถานะและการรับเงิน</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
                 <div className="flex flex-col py-1">
                   <div className="text-xs font-medium uppercase tracking-wider text-slate-400">สถานะรับเงิน</div>
@@ -4630,9 +4639,9 @@ function SalesBillDetailModal({
               </div>
             ) : null}
 
-            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">รายการสินค้า / Source</div>
+                <div className="text-sm font-bold text-slate-800">รายการสินค้า / Source</div>
                 {detail.transactionMode === 'TRADING' ? (
                   <Button className="h-8 px-3 text-xs font-normal" type="button" variant="outline" onClick={() => setShowCorrection((current) => !current)}>
                     {showCorrection ? 'ซ่อนแก้ allocation' : 'แก้ Trading allocation'}
@@ -4819,7 +4828,7 @@ function SalesBillDetailModal({
         ) : null}
         </div>
 
-        <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0 rounded-b-2xl">
+        <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0 rounded-b-md">
           {detail ? (
             <Button className="gap-2 font-normal" disabled={isPrinting} type="button" variant="outline" onClick={() => onPrint(detail)}>
               <Printer className="size-4" />

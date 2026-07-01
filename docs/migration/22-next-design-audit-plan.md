@@ -246,7 +246,7 @@ Evidence:
 ### Suggested Fix Order
 
 1. Resolve the two active placeholder sidebar routes: implement minimal policy pages or remove from sidebar until ready.
-2. Finish the remaining high-confidence operational findings already drafted below: `/sales/bills`, `/sales/po-sell`, `/purchase/payments`, and `/sales/receipts`; `/purchase/receipt-vouchers` and `/production/report` have local code/layout checkpoints and still need browser QA.
+2. Finish the remaining high-confidence operational findings already drafted below: `/sales/po-sell`, `/purchase/payments`, and `/sales/receipts`; `/sales/bills`, `/purchase/receipt-vouchers`, and `/production/report` have local code/layout checkpoints and still need browser QA.
 3. Normalize shared modal surfaces in one batch per component family: transaction bills, PO Buy/Sell, daily expense, money movement, stock operation, then tracking/trading.
 4. Review the field input matrix only inside the touched form batch; do not blanket-convert all `type="number"` hits.
 5. Polish finance/accounting report filter/card styling after operational transaction pages are stable.
@@ -262,15 +262,7 @@ The absence of a static finding is not a visual pass. These still need browser r
 
 ### `/sales/bills`
 
-- Rename table headers:
-  - `เลขที่` -> `เลขที่บิลขาย`.
-  - `สร้างวันที่` -> `วันที่สร้าง`.
-  - truncated `ราย...` -> `รายการ`.
-- Keep the existing type/status segmented filters, but make the status label match the filtered meaning. If the current filter controls receipt state, use `สถานะรับเงิน:`.
-- Hide unavailable row actions on rows where edit/cancel cannot be used; keep only usable actions.
-- Review VAT column wording/layout. If the column mixes VAT issue state and tax invoice number, split or relabel it so the meaning is clear.
-- Tune table column widths and spacing so the table is dense but readable: no clipped headers, no overly wide empty columns, and no cramped numeric/action columns.
-- Mobile must use dense card list instead of relying on a wide table.
+- 2026-07-01 implementation checkpoint: the Sales Bill list now uses page-specific table wording (`เลขที่บิลขาย`, `วันที่สร้าง`, `รายการ`, `สถานะรับเงิน`), hides unavailable edit/cancel row actions, keeps the compact VAT invoice indicator (`vatInvoiceNo` or `ยังไม่ออก`), uses normal clear-filter sizing, shows mobile filter count for date/type/status filters, uses dense mobile cards, and lets the desktop final action column auto-stretch like `/daily/weight-ticket-list`. The Sales Bill detail modal now follows the dark-header `rounded-md` baseline, moves the SB number/customer into the header/title/subtitle, avoids repeating customer inside the document card, and uses white grouped cards for the main document/status/item sections. The cancel dialog keeps the mobile bottom sheet but uses desktop `rounded-md` modal radius. Browser QA remains pending because this batch was local code/layout validation only.
 
 ### `/sales/po-sell`
 
@@ -411,9 +403,8 @@ Suggested fix:
 High-impact route families:
 
 - `/purchase/bills` and `/sales/bills`
-  - Tables use resizable mechanics, but row actions still show disabled edit/cancel buttons in some states.
-  - Sales table still has vague `เลขที่` on the Sales Bill branch and wording like `สร้างวันที่`.
-  - Detail/form modal surfaces are close but still use mixed radius conventions (`rounded-2xl`/bottom-sheet variants) that should be normalized when touched.
+  - `/sales/bills` has a 2026-07-01 local design checkpoint for table wording/actions, mobile filter count, final-column auto-stretch, Sales Bill detail grouped cards, and Sales Bill/cancel modal radius normalization.
+  - `/purchase/bills` shares the transaction list/action table mechanics, but its purchase detail/form modal surfaces still need a separate page pass before marking the purchase side visually complete.
 - `/purchase/payments` and `/sales/receipts`
   - Tables are mostly resizable and have mobile cards.
   - Money/WHT/discount fields still use `type="number"` in payment/receipt entry rows; review through the Field Input Decision Matrix before changing.
@@ -473,6 +464,9 @@ Expected:
 - `/purchase/receipt-vouchers`
   - After the latest correction, the list table/action/filter wording and RV modal surfaces follow the active baseline more closely.
   - Browser QA remains pending.
+- `/sales/bills`
+  - After the latest correction, the Sales Bill list table/action/filter and detail/cancel modal surfaces follow the active baseline more closely.
+  - Browser QA remains pending.
 - Master data shared pages under `/master-data/*`
   - Most shared pages use `MasterDataPageClient`, which already has resizable desktop table, mobile toolbar/filter bottom sheet, mobile card list, and dark-header form modal.
   - Remaining work is mostly modal polish, wording cleanup, and field-specific validation/presentation, not a full table rewrite.
@@ -483,7 +477,7 @@ Expected:
 ### Updated Suggested Fix Order
 
 1. Fix the two scaffold sidebar routes: `/finance-accounting/accounting-periods` and `/finance-accounting/posting-rules`.
-2. Finish remaining high-confidence operational inconsistencies users will notice immediately: `/sales/bills`, `/sales/po-sell`, `/purchase/payments`, and `/sales/receipts` (RV static findings are fixed; browser QA still pending).
+2. Finish remaining high-confidence operational inconsistencies users will notice immediately: `/sales/po-sell`, `/purchase/payments`, and `/sales/receipts` (Sales Bills and RV static findings are fixed; browser QA still pending).
 3. Normalize shared operational modal surfaces by component family: `TransactionBillsPageClient`, `MoneyMovementPageClient`, `PoBuyPageClient`, `PoSellPageClient`, `DailyExpensePageClient`, `StockOperationPageClient`, tracking pages, then trading pages.
 4. Bring Dual Costing tables up to the table reference, starting with `/dual-costing/cost-allocator` and `/dual-costing/cost-pool` because they combine table mechanics drift with mobile/table density risk.
 5. Normalize Finance / Accounting table mechanics in shared component batches: fixed assets, financial statements, cash-flow planning, loans/equity.
