@@ -61,11 +61,20 @@ type BusinessPayload = {
 type Mode = 'combined' | 'expense' | 'purchase' | 'sales'
 type SortDirection = 'asc' | 'desc'
 type TableColumn<TKey extends string> = ResizableColumnDefinition<TKey> & { align?: 'center' | 'left' | 'right'; label: string }
+type CashEntryColumnKey = 'account' | 'cashIn' | 'cashOut' | 'description' | 'refNo' | 'type'
 type BusinessCombinedColumnKey = 'apIncrease' | 'arIncrease' | 'cogs' | 'date' | 'expenseAmount' | 'gp' | 'netCash' | 'paymentAmount' | 'purchaseAmount' | 'receiptAmount' | 'saleAmount'
 type BusinessModeColumnKey = 'amount' | 'category' | 'cogs' | 'date' | 'docNo' | 'gp' | 'payee' | 'qty'
 type BusinessModeRow = BusinessDoc & { date: string }
 
 const weekdays = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์']
+const cashEntryColumns: Array<TableColumn<CashEntryColumnKey>> = [
+  { key: 'type', label: 'ประเภท', defaultWidth: 130, minWidth: 110 },
+  { key: 'description', label: 'รายละเอียด', defaultWidth: 240, minWidth: 170 },
+  { key: 'account', label: 'บัญชี', defaultWidth: 180, minWidth: 140 },
+  { key: 'refNo', label: 'เลขอ้างอิง', defaultWidth: 150, minWidth: 120 },
+  { key: 'cashIn', label: 'เงินเข้า', defaultWidth: 130, minWidth: 115, align: 'right' },
+  { key: 'cashOut', label: 'เงินออก', defaultWidth: 130, minWidth: 115, align: 'right' },
+]
 const businessCombinedColumns: Array<TableColumn<BusinessCombinedColumnKey>> = [
   { key: 'date', label: 'วัน', defaultWidth: 100, minWidth: 90 },
   { key: 'purchaseAmount', label: 'ซื้อ', defaultWidth: 125, minWidth: 110, align: 'right' },
@@ -133,6 +142,12 @@ function getBusinessCombinedSortValue(day: BusinessDay, key: BusinessCombinedCol
 
 function getBusinessModeSortValue(row: BusinessModeRow, key: BusinessModeColumnKey): string | number {
   return row[key] ?? ''
+}
+
+function getCashEntrySortValue(entry: CashEntry, key: CashEntryColumnKey): string | number {
+  if (key === 'cashIn') return entry.in
+  if (key === 'cashOut') return entry.out
+  return entry[key]
 }
 
 function pct(value: number, max: number) {
@@ -631,6 +646,28 @@ function businessModeCellTone(mode: Exclude<Mode, 'combined'>, row: BusinessMode
 }
 
 function CashDayModal({ day, onClose }: { day: CashDay; onClose: () => void }) {
+  const [sortKey, setSortKey] = useState<CashEntryColumnKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const columnResize = useResizableColumns('main.cash-flow-calendar.day-entries.v1', cashEntryColumns)
+  const sortedEntries = useMemo(() => {
+    if (!sortKey) return day.entries
+
+    return [...day.entries].sort((left, right) => {
+      const result = compareSortValues(getCashEntrySortValue(left, sortKey), getCashEntrySortValue(right, sortKey))
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [day.entries, sortDirection, sortKey])
+
+  function changeSort(key: CashEntryColumnKey) {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(key)
+    setSortDirection('asc')
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="max-h-[85vh] w-full max-w-4xl overflow-hidden rounded-xl bg-white shadow-2xl border-none">
@@ -646,21 +683,50 @@ function CashDayModal({ day, onClose }: { day: CashDay; onClose: () => void }) {
           </div>
           
           {/* Desktop Table View */}
-          <div className="hidden sm:block overflow-x-auto">
-            <table className="w-full min-w-[760px] text-xs">
-              <thead className="bg-slate-50 text-slate-500 text-xs">
-                <tr>{['ประเภท', 'รายละเอียด', 'บัญชี', 'Ref', 'เข้า', 'ออก'].map((header) => <th key={header} className="p-2 text-left font-semibold">{header}</th>)}</tr>
+          {columnResize.hasCustomWidths ? (
+            <div className="mb-2 hidden justify-end sm:flex">
+              <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+            </div>
+          ) : null}
+          <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm sm:block">
+            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+              <colgroup>
+                {cashEntryColumns.map((column) => (
+                  <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+                ))}
+              </colgroup>
+              <thead className="bg-slate-100">
+                <tr>
+                  {cashEntryColumns.map((column) => (
+                    <ResizableTableHead
+                      key={column.key}
+                      activeSortKey={sortKey ?? undefined}
+                      align={column.align}
+                      direction={sortDirection}
+                      label={column.label}
+                      sortKey={column.key}
+                      onSort={changeSort}
+                      resizeProps={columnResize.getResizeHandleProps(column.key, column.label)}
+                    />
+                  ))}
+                </tr>
               </thead>
-              <tbody>
-                {day.entries.map((entry) => <tr key={entry.id} className="border-t border-slate-100 hover:bg-slate-50/30"><td className="p-2 text-slate-700">{entry.type}</td><td className="p-2 text-slate-700">{entry.description}</td><td className="p-2 text-slate-600">{entry.account}</td><td className="p-2 font-mono text-slate-500">{entry.refNo}</td><td className="p-2 text-right font-mono text-emerald-600 font-semibold">{money(entry.in)}</td><td className="p-2 text-right font-mono text-red-600 font-semibold">{money(entry.out)}</td></tr>)}
-                {day.entries.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={6}>ไม่มีรายการ</td></tr> : null}
+              <tbody className="divide-y divide-slate-100">
+                {sortedEntries.map((entry) => <tr key={entry.id} className="transition-colors hover:bg-slate-50">
+                  {cashEntryColumns.map((column) => (
+                    <td key={column.key} className={`px-3 py-3 ${column.align === 'right' ? 'text-right font-mono tabular-nums' : 'text-left'} ${cashEntryCellTone(column.key)}`}>
+                      <div className={column.align === 'right' ? 'whitespace-nowrap' : 'truncate'} title={String(formatCashEntryCell(entry, column.key))}>{formatCashEntryCell(entry, column.key)}</div>
+                    </td>
+                  ))}
+                </tr>)}
+                {sortedEntries.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={cashEntryColumns.length}>ไม่มีรายการ</td></tr> : null}
               </tbody>
             </table>
           </div>
 
           {/* Mobile view inside Modal */}
           <div className="block sm:hidden divide-y divide-slate-100 bg-slate-50/30 p-2 max-h-[300px] overflow-y-auto rounded-lg">
-            {day.entries.map((entry) => (
+            {sortedEntries.map((entry) => (
               <div key={entry.id} className="p-2.5 bg-white rounded-lg border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
                 <div className="flex justify-between items-start">
                   <span className="font-bold text-slate-800">{entry.description || entry.type}</span>
@@ -678,6 +744,19 @@ function CashDayModal({ day, onClose }: { day: CashDay; onClose: () => void }) {
       </div>
     </div>
   )
+}
+
+function formatCashEntryCell(entry: CashEntry, key: CashEntryColumnKey) {
+  if (key === 'cashIn') return money(entry.in)
+  if (key === 'cashOut') return money(entry.out)
+  return entry[key]
+}
+
+function cashEntryCellTone(key: CashEntryColumnKey) {
+  if (key === 'cashIn') return 'font-semibold text-emerald-700'
+  if (key === 'cashOut') return 'font-semibold text-red-700'
+  if (key === 'refNo') return 'font-mono text-slate-600'
+  return 'text-slate-700'
 }
 
 function Metric({ label, tone, value }: { label: string; tone: string; value: string }) {
