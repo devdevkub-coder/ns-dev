@@ -618,7 +618,8 @@ Expected:
   - Remaining work is mostly modal polish, wording cleanup, and field-specific validation/presentation, not a full table rewrite.
 - `/finance/ar` and `/finance/ap`
   - Both have resizable desktop tables and mobile card lists.
-  - Remaining work is mostly wording (`Customer`/`Supplier`, `วันที่`, `Due`, `Current`) and AP/AR-specific detail/modal/card polish already tracked in the implementation tasklist.
+  - `/finance/ar` wording checkpoint on 2026-07-02: AR summary/detail table headers, customer filter, aging bucket display, export copy, mobile summary card labels, and drilldown labels now use Thai-first, business-specific wording (`ลูกค้า`, `เลขที่บิลขาย`, `วันที่ออกบิล`, `วันครบกำหนด`, `ยังไม่ครบกำหนด`, `ช่องทางขาย`) while keeping the existing resizable/fixed-layout table mechanics. AR API, aging formulas, filters, export payload, pagination, sort keys, and DB state were not changed.
+  - Remaining AP work is mostly wording (`Supplier`, `วันที่`, `Current`, `Aging`) and AP-specific detail/modal/card polish already tracked in the implementation tasklist.
 
 - `/admin/line-settings`
   - After the latest correction, the Targets / Groups, Routing Rules, and Outbox Queue desktop tables now use sortable `ResizableTableHead` business headers with inactive/active up/down indicators, client-side ascending/descending sorting before rendering, persisted resizable widths, reset-width controls, and fixed table layout.
