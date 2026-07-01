@@ -432,7 +432,8 @@ High-impact route families:
   - Remaining: browser QA for desktop/mobile visual confirmation.
 - `/production/orders`, stock operation pages, tracking pages, and trading pages
   - `/production/orders` has a 2026-07-01 local design checkpoint for list table wording/shell, pagination sizing, mobile filter count, dark-header modal surfaces, grouped detail cards, hidden unavailable complete/cancel actions, and movement/stock-preview table shells.
-  - Remaining stock operation, tracking, and trading pages are mainly modal-surface review items: normalize detail/form dialog header, border/radius, grouped card layout, and avoid border leakage.
+  - `/tracking/customer` main table has a 2026-07-01 table-mechanics checkpoint: sortable `ResizableTableHead` headers with inactive/active up/down indicators, persisted column widths, fixed table layout, and mobile cards rendering from the same sorted row set as desktop.
+  - Remaining stock operation, tracking, and trading pages are mainly modal-surface or secondary-detail-table review items: normalize detail/form dialog header, border/radius, grouped card layout, avoid border leakage, and review plain detail tables only when that page batch is selected.
   - Do not change business behavior during these visual passes.
 
 ### P2 Field Input Matrix Review Queue
@@ -598,6 +599,10 @@ Expected:
   - Follow-up correction for `/finance-accounting/asset-disposal`: the Asset Disposal History table now uses sortable business headers with inactive/active up/down indicators, applies client-side sorting before pagination, shares the sorted paged rows with mobile cards, and uses fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
   - Follow-up correction for `/finance-accounting/asset-overview`: the Cash & Others table now uses sortable business headers with inactive/active up/down indicators, applies client-side sorting before rendering, shares the sorted row set with mobile cards, and uses fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
   - Covered tables: Asset Register, Depreciation pending-assets, Depreciation History, Asset Disposal History, and Asset Overview Cash & Others. Existing mobile cards were preserved.
+  - Browser QA remains pending.
+- `/tracking/customer`
+  - After the latest correction, the main Customer Tracking table now uses the active table mechanics: resizable desktop columns, sortable `ResizableTableHead` headers with inactive/active up/down indicators, fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`, and mobile cards backed by the same sorted row set.
+  - Customer filters, export, top customer charts, detail drilldown data, AR aging, GP/receivable formulas, source links, API behavior, and DB state were not changed.
   - Browser QA remains pending.
 - Master data shared pages under `/master-data/*`
   - Most shared pages use `MasterDataPageClient`, which already has resizable desktop table, mobile toolbar/filter bottom sheet, mobile card list, and dark-header form modal.

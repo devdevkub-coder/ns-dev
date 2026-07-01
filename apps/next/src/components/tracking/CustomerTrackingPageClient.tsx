@@ -192,7 +192,7 @@ export function CustomerTrackingPageClient() {
     }
   }, [queryString])
 
-  const rows = data?.rows ?? []
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows])
 
   const sortedRows = useMemo(() => {
     const result = [...rows]
@@ -427,8 +427,8 @@ export function CustomerTrackingPageClient() {
         <>
         <div className="space-y-3 lg:hidden">
           {isLoading ? <div className="rounded-xl border border-slate-100 bg-white p-8 text-center text-slate-500 shadow-sm">กำลังโหลดข้อมูล</div> : null}
-          {!isLoading && rows.length === 0 ? <div className="rounded-xl border border-slate-100 bg-white p-8 text-center text-slate-400 shadow-sm">ไม่มีข้อมูล Customer Tracking</div> : null}
-          {!isLoading && rows.map((row) => (
+          {!isLoading && sortedRows.length === 0 ? <div className="rounded-xl border border-slate-100 bg-white p-8 text-center text-slate-400 shadow-sm">ไม่มีข้อมูล Customer Tracking</div> : null}
+          {!isLoading && sortedRows.map((row) => (
             <div key={row.id} className="space-y-3 rounded-xl border border-slate-100 bg-white p-4 shadow-sm active:bg-slate-50/50 cursor-pointer transition-colors focus-visible:outline-none" role="button" tabIndex={0} onClick={() => void openDetail(row)} onKeyDown={(event) => { if (event.key === 'Enter') void openDetail(row) }}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -448,7 +448,7 @@ export function CustomerTrackingPageClient() {
           ))}
         </div>
         <div className="hidden overflow-x-auto rounded-xl bg-white border border-slate-200/60 shadow-sm lg:block">
-          <table className="w-full text-sm border-collapse" style={{ minWidth: columnResize.tableMinWidth }}>
+          <table className="w-full text-sm border-collapse" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {trackingColumns.map((col) => (
                 <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
