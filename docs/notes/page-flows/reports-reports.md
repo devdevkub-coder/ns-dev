@@ -95,6 +95,20 @@ route: /reports
 - CSV export is client-side and may not suit large datasets
 - source drilldown from aggregate rows is not complete
 
+## Table Mechanics Checkpoint - 2026-07-02
+
+What is what:
+- The aggregate report table shows loaded PB/SB summary rows for the active legacy tab and date range.
+- The report catalog table is the route directory for active report pages and supports search/category filtering.
+
+Why it has to be like this:
+- `/reports` is a read-model/report hub, so users compare numbers across tabs and need the same sortable/resizable table behavior used by Cost Pool and other active report tables.
+- Mobile cards must come from the same sorted row sets as desktop so row order does not change between devices.
+
+Implementation note:
+- Both desktop tables now use `ResizableTableHead`, persisted resizable column widths, reset-width controls, `colgroup`, and fixed table layout.
+- Client CSV export uses the displayed sorted aggregate row order. No aggregate API, report formula, catalog route, source drilldown, permission, or DB behavior changed.
+
 ## Implementation Checklist
 
 - [x] Verify `/api/reports/aggregate` and report catalog source

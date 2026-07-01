@@ -3,9 +3,13 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 
 type CatalogTab = 'accounting' | 'all' | 'daily' | 'finance' | 'main' | 'production' | 'stock' | 'tracking'
+type CatalogColumnKey = 'action' | 'owner' | 'report' | 'status' | 'summary'
 type LegacyTab = 'purchase-channel' | 'purchase-product' | 'purchase-supplier' | 'sales-channel' | 'sales-customer'
+type SortDirection = 'asc' | 'desc'
 
 type ReportLink = {
   category: Exclude<CatalogTab, 'all'>
@@ -48,6 +52,16 @@ type Column = {
   tone?: 'amount' | 'cost' | 'profit'
   type?: 'currency' | 'number' | 'percent' | 'weight'
 }
+
+type AggregateColumnKey = Column['key']
+
+const catalogColumns: Array<ResizableColumnDefinition<CatalogColumnKey>> = [
+  { key: 'report', defaultWidth: 240, minWidth: 190 },
+  { key: 'owner', defaultWidth: 145, minWidth: 120 },
+  { key: 'status', defaultWidth: 150, minWidth: 125 },
+  { key: 'summary', defaultWidth: 360, minWidth: 240 },
+  { key: 'action', defaultWidth: 115, minWidth: 100 },
+]
 
 const catalogTabs: Array<{ k: CatalogTab; l: string }> = [
   { k: 'all', l: 'ทั้งหมด' },
@@ -183,7 +197,11 @@ function downloadCsv(filename: string, columns: Column[], rows: AggregateRow[]) 
 
 export function ReportsIndexPageClient() {
   const latestLoadRequestRef = useRef(0)
+  const [aggregateSortKey, setAggregateSortKey] = useState<AggregateColumnKey | null>(null)
+  const [aggregateSortDirection, setAggregateSortDirection] = useState<SortDirection>('asc')
   const [catalogTab, setCatalogTab] = useState<CatalogTab>('all')
+  const [catalogSortKey, setCatalogSortKey] = useState<CatalogColumnKey | null>(null)
+  const [catalogSortDirection, setCatalogSortDirection] = useState<SortDirection>('asc')
   const [legacyTab, setLegacyTab] = useState<LegacyTab>('purchase-channel')
   const [query, setQuery] = useState('')
   const [fromDate, setFromDate] = useState('')
@@ -239,6 +257,33 @@ export function ReportsIndexPageClient() {
   }, [data, legacyTab])
 
   const columns = columnsByTab[legacyTab]
+  const aggregateColumns = useMemo<Array<ResizableColumnDefinition<AggregateColumnKey>>>(() => (
+    columns.map((column) => ({
+      key: column.key,
+      defaultWidth: column.key === 'name' ? 240 : 140,
+      minWidth: column.key === 'name' ? 180 : 115,
+    }))
+  ), [columns])
+  const aggregateColumnResize = useResizableColumns(`reports.aggregate.${legacyTab}.v1`, aggregateColumns)
+  const catalogColumnResize = useResizableColumns('reports.catalog.v1', catalogColumns)
+  const sortedRows = useMemo(() => {
+    if (!aggregateSortKey) return rows
+
+    return [...rows].sort((left, right) => compareSortValues(
+      getAggregateSortValue(left, aggregateSortKey),
+      getAggregateSortValue(right, aggregateSortKey),
+      aggregateSortDirection,
+    ))
+  }, [aggregateSortDirection, aggregateSortKey, rows])
+  const sortedFiltered = useMemo(() => {
+    if (!catalogSortKey) return filtered
+
+    return [...filtered].sort((left, right) => compareSortValues(
+      getCatalogSortValue(left, catalogSortKey),
+      getCatalogSortValue(right, catalogSortKey),
+      catalogSortDirection,
+    ))
+  }, [catalogSortDirection, catalogSortKey, filtered])
   const summary = useMemo(() => ({
     amount: rows.reduce((sum, row) => sum + row.amount, 0),
     cost: rows.reduce((sum, row) => sum + (row.cost ?? 0), 0),
@@ -255,8 +300,28 @@ export function ReportsIndexPageClient() {
 
   const exportActiveTab = () => {
     const tabLabel = legacyTabs.find((tab) => tab.k === legacyTab)?.l ?? 'report'
-    downloadCsv(`reports-${legacyTab}-${fromDate || 'all'}-${toDate || 'all'}.csv`, columns, rows)
-    setError(rows.length ? '' : `${tabLabel} ไม่มีข้อมูลให้ export`)
+    downloadCsv(`reports-${legacyTab}-${fromDate || 'all'}-${toDate || 'all'}.csv`, columns, sortedRows)
+    setError(sortedRows.length ? '' : `${tabLabel} ไม่มีข้อมูลให้ export`)
+  }
+
+  function changeAggregateSort(key: AggregateColumnKey) {
+    if (aggregateSortKey === key) {
+      setAggregateSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setAggregateSortKey(key)
+    setAggregateSortDirection('asc')
+  }
+
+  function changeCatalogSort(key: CatalogColumnKey) {
+    if (catalogSortKey === key) {
+      setCatalogSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setCatalogSortKey(key)
+    setCatalogSortDirection('asc')
   }
 
   return (
@@ -308,22 +373,46 @@ export function ReportsIndexPageClient() {
 
       {/* Main Table Panel */}
       <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+        <div className="hidden items-center justify-between border-b border-slate-100 bg-slate-50/40 px-3 py-2 text-xs font-semibold text-slate-500 lg:flex">
+          <span>{legacyTabs.find((tab) => tab.k === legacyTab)?.l ?? 'Report'} - {sortedRows.length.toLocaleString('th-TH')} รายการ</span>
+          {aggregateColumnResize.hasCustomWidths ? (
+            <button className="h-8 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={aggregateColumnResize.resetColumnWidths}>
+              คืนค่าเดิมตาราง
+            </button>
+          ) : null}
+        </div>
         {/* Desktop View */}
-        <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-          <table className="w-full min-w-[760px] text-sm text-slate-700">
-            <thead className="bg-slate-50/80">
+        <div className="hidden overflow-x-auto rounded-md border border-slate-100 bg-white shadow-sm lg:block">
+          <table className="min-w-full divide-y divide-slate-200 text-sm text-slate-700" style={{ tableLayout: 'fixed', minWidth: aggregateColumnResize.tableMinWidth }}>
+            <colgroup>
+              {aggregateColumns.map((column, index) => {
+                const style = aggregateColumnResize.getColumnStyle(column.key)
+                if (index === aggregateColumns.length - 1) {
+                  return <col key={column.key} style={{ minWidth: column.minWidth }} />
+                }
+                return <col key={column.key} style={style} />
+              })}
+            </colgroup>
+            <thead className="bg-slate-100">
               <tr>
                 {columns.map((column) => (
-                  <th className={`p-3 text-slate-600 font-bold border-b border-slate-100 ${column.key === 'name' ? 'text-left' : 'text-right'}`} key={column.key}>
-                    {column.label}
-                  </th>
+                  <ResizableTableHead
+                    activeSortKey={aggregateSortKey ?? undefined}
+                    align={column.key === 'name' ? 'left' : 'right'}
+                    direction={aggregateSortDirection}
+                    key={column.key}
+                    label={column.label}
+                    resizeProps={aggregateColumnResize.getResizeHandleProps(column.key, column.label)}
+                    sortKey={column.key}
+                    onSort={changeAggregateSort}
+                  />
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr><td className="py-8 text-center text-slate-400 font-medium" colSpan={columns.length}>กำลังโหลดรายงาน...</td></tr>
-              ) : rows.length ? rows.map((row) => (
+              ) : sortedRows.length ? sortedRows.map((row) => (
                 <tr className="hover:bg-slate-50/30 transition-colors" key={row.name}>
                   {columns.map((column) => (
                     <td className={`p-3 ${column.key === 'name' ? 'font-semibold text-slate-900' : `text-right font-mono font-bold ${column.tone === 'amount' ? 'text-blue-600' : column.tone === 'cost' ? 'text-red-600' : column.tone === 'profit' ? 'text-emerald-600' : 'text-slate-800'}`}`} key={column.key}>
@@ -335,7 +424,7 @@ export function ReportsIndexPageClient() {
                 <tr><td className="py-8 text-center text-slate-400 font-medium" colSpan={columns.length}>ไม่พบข้อมูลตามเงื่อนไข</td></tr>
               )}
             </tbody>
-            {rows.length && !loading ? (
+            {sortedRows.length > 0 && !loading ? (
               <tfoot className="border-t border-slate-100 bg-slate-50/50 font-bold text-slate-900">
                 <tr>
                   {columns.map((column) => (
@@ -353,9 +442,9 @@ export function ReportsIndexPageClient() {
         <div className="block lg:hidden">
           {loading ? (
             <div className="py-8 text-center text-slate-400 font-medium text-sm">กำลังโหลดรายงาน...</div>
-          ) : rows.length ? (
+          ) : sortedRows.length ? (
             <div className="divide-y divide-slate-100">
-              {rows.map((row) => (
+              {sortedRows.map((row) => (
                 <div className="p-4 hover:bg-slate-50/30 transition-colors" key={row.name}>
                   <div className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-1.5 mb-2">{row.name}</div>
                   <div className="grid grid-cols-2 gap-2">
@@ -440,20 +529,37 @@ export function ReportsIndexPageClient() {
         </div>
 
         <div className="mt-4 overflow-hidden rounded-xl border border-slate-100">
+          <div className="hidden items-center justify-between border-b border-slate-100 bg-slate-50/40 px-3 py-2 text-xs font-semibold text-slate-500 lg:flex">
+            <span>{sortedFiltered.length.toLocaleString('th-TH')} รายการ</span>
+            {catalogColumnResize.hasCustomWidths ? (
+              <button className="h-8 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={catalogColumnResize.resetColumnWidths}>
+                คืนค่าเดิมตาราง
+              </button>
+            ) : null}
+          </div>
           {/* Desktop View */}
-          <div className="hidden lg:block overflow-x-auto bg-white">
-            <table className="w-full min-w-[760px] text-sm text-slate-700">
-              <thead className="bg-slate-50/80">
+          <div className="hidden overflow-x-auto bg-white lg:block">
+            <table className="min-w-full divide-y divide-slate-200 text-sm text-slate-700" style={{ tableLayout: 'fixed', minWidth: catalogColumnResize.tableMinWidth }}>
+              <colgroup>
+                {catalogColumns.map((column, index) => {
+                  const style = catalogColumnResize.getColumnStyle(column.key)
+                  if (index === catalogColumns.length - 1) {
+                    return <col key={column.key} style={{ minWidth: column.minWidth }} />
+                  }
+                  return <col key={column.key} style={style} />
+                })}
+              </colgroup>
+              <thead className="bg-slate-100">
                 <tr>
-                  <th className="p-3 text-left font-bold text-slate-600 border-b border-slate-100">รายงาน</th>
-                  <th className="p-3 text-left font-bold text-slate-600 border-b border-slate-100">หมวด</th>
-                  <th className="p-3 text-left font-bold text-slate-600 border-b border-slate-100">สถานะ</th>
-                  <th className="p-3 text-left font-bold text-slate-600 border-b border-slate-100">รายละเอียด</th>
-                  <th className="p-3 text-right font-bold text-slate-600 border-b border-slate-100">เปิด</th>
+                  <ResizableTableHead activeSortKey={catalogSortKey ?? undefined} direction={catalogSortDirection} label="รายงาน" resizeProps={catalogColumnResize.getResizeHandleProps('report', 'รายงาน')} sortKey="report" onSort={changeCatalogSort} />
+                  <ResizableTableHead activeSortKey={catalogSortKey ?? undefined} direction={catalogSortDirection} label="หมวด" resizeProps={catalogColumnResize.getResizeHandleProps('owner', 'หมวด')} sortKey="owner" onSort={changeCatalogSort} />
+                  <ResizableTableHead activeSortKey={catalogSortKey ?? undefined} direction={catalogSortDirection} label="สถานะ" resizeProps={catalogColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeCatalogSort} />
+                  <ResizableTableHead activeSortKey={catalogSortKey ?? undefined} direction={catalogSortDirection} label="รายละเอียด" resizeProps={catalogColumnResize.getResizeHandleProps('summary', 'รายละเอียด')} sortKey="summary" onSort={changeCatalogSort} />
+                  <ResizableTableHead align="right" label="เปิด" resizeProps={catalogColumnResize.getResizeHandleProps('action', 'เปิด')} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map((report) => (
+                {sortedFiltered.map((report) => (
                   <tr className="hover:bg-slate-50/30 transition-colors" key={report.href}>
                     <td className="p-3">
                       <div className="font-semibold text-slate-900">{report.label}</div>
@@ -473,8 +579,8 @@ export function ReportsIndexPageClient() {
                     </td>
                   </tr>
                 ))}
-                {!filtered.length ? (
-                  <tr><td className="py-8 text-center text-slate-400 font-medium" colSpan={5}>ไม่พบรายงานตามเงื่อนไข</td></tr>
+                {!sortedFiltered.length ? (
+                  <tr><td className="py-8 text-center text-slate-400 font-medium" colSpan={catalogColumns.length}>ไม่พบรายงานตามเงื่อนไข</td></tr>
                 ) : null}
               </tbody>
             </table>
@@ -482,7 +588,7 @@ export function ReportsIndexPageClient() {
 
           {/* Mobile View */}
           <div className="block lg:hidden bg-white divide-y divide-slate-100">
-            {filtered.map((report) => (
+            {sortedFiltered.map((report) => (
               <div className="p-4 hover:bg-slate-50/30 transition-colors" key={report.href}>
                 <div className="flex justify-between items-start gap-2 mb-1.5">
                   <div>
@@ -502,7 +608,7 @@ export function ReportsIndexPageClient() {
                 </div>
               </div>
             ))}
-            {!filtered.length ? (
+            {!sortedFiltered.length ? (
               <div className="py-8 text-center text-slate-400 font-medium text-sm">ไม่พบรายงานตามเงื่อนไข</div>
             ) : null}
           </div>
@@ -510,6 +616,27 @@ export function ReportsIndexPageClient() {
       </div>
     </section>
   )
+}
+
+function compareSortValues(left: number | string, right: number | string, direction: SortDirection) {
+  const result = typeof left === 'number' && typeof right === 'number'
+    ? left - right
+    : String(left).localeCompare(String(right), 'th', { numeric: true })
+
+  return direction === 'asc' ? result : -result
+}
+
+function getAggregateSortValue(row: AggregateRow, key: AggregateColumnKey): number | string {
+  const value = row[key]
+  return typeof value === 'number' ? value : String(value ?? '')
+}
+
+function getCatalogSortValue(report: ReportLink, key: CatalogColumnKey): string {
+  if (key === 'action') return report.href
+  if (key === 'owner') return report.owner
+  if (key === 'report') return `${report.label} ${report.href}`
+  if (key === 'status') return report.status
+  return report.summary
 }
 
 function MetricCard({ icon, label, tone, value }: { icon: string; label: string; tone: string; value: string }) {

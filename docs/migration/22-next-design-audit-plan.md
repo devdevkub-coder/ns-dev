@@ -640,6 +640,12 @@ Expected:
   - The table remains a small support-page empty-state table; no separate mobile card layer was added in this pass. Backup/restore/reset/cloud sync behavior, permissions, API behavior, and DB state were not changed.
   - Browser QA remains pending.
 
+
+- `/reports`
+  - After the latest correction, the aggregate report table and report catalog table now use sortable `ResizableTableHead` business headers with inactive/active up/down indicators, persisted resizable widths, reset-width controls, `colgroup`, and fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
+  - Aggregate mobile cards use the same sorted row set as desktop, catalog mobile cards use the same sorted filtered row set as desktop, and CSV export follows the displayed aggregate sort order. Report formulas, catalog routes, filters, API behavior, permissions, and DB state were not changed.
+  - Browser QA remains pending.
+
 ### Updated Suggested Fix Order
 
 1. Finish remaining high-confidence operational inconsistencies users will notice immediately: `/sales/receipts` (`/purchase/payments`, PO Sell, Sales Bills, and RV static findings are fixed; browser QA still pending).
