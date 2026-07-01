@@ -11,7 +11,7 @@ export default function CostAllocatorPage() {
   return (
     <>
       <PageTitleOverride subtitle="เลือกดีลขายและ preview การหยิบต้นทุนจาก Cost Pool" title="Cost Allocator" />
-      <Suspense fallback={<div className="p-8 text-center text-xs text-slate-500 font-sans">กำลังโหลด...</div>}>
+      <Suspense fallback={<div className="p-8 text-center text-xs text-slate-500">กำลังโหลด...</div>}>
         <CostAllocatorPageClient />
       </Suspense>
     </>

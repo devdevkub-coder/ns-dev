@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Select } from '@/components/ui/Select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import type { SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import {
   DualCostingErrorBox,
@@ -88,6 +89,42 @@ type Payload = {
   writeDeferred: boolean
 }
 
+type TargetColumnKey = 'action' | 'customerName' | 'date' | 'docNo' | 'matchedQty' | 'productName' | 'qty' | 'remainingQty' | 'unitPrice'
+type PoolColumnKey = 'availableQty' | 'availableValue' | 'counterparty' | 'date' | 'sourceNo' | 'sourceType' | 'unitCost'
+type PreviewColumnKey = 'availableQty' | 'counterparty' | 'qtyToUse' | 'sourceNo' | 'sourceType' | 'totalCostUse' | 'unitCost'
+
+const targetColumns: Array<ResizableColumnDefinition<TargetColumnKey>> = [
+  { key: 'docNo', defaultWidth: 150, minWidth: 125 },
+  { key: 'date', defaultWidth: 115, minWidth: 100 },
+  { key: 'customerName', defaultWidth: 220, minWidth: 160 },
+  { key: 'productName', defaultWidth: 210, minWidth: 150 },
+  { key: 'qty', defaultWidth: 130, minWidth: 105 },
+  { key: 'matchedQty', defaultWidth: 130, minWidth: 105 },
+  { key: 'remainingQty', defaultWidth: 135, minWidth: 110 },
+  { key: 'unitPrice', defaultWidth: 130, minWidth: 105 },
+  { key: 'action', defaultWidth: 115, minWidth: 100 },
+]
+
+const poolColumns: Array<ResizableColumnDefinition<PoolColumnKey>> = [
+  { key: 'sourceType', defaultWidth: 120, minWidth: 105 },
+  { key: 'sourceNo', defaultWidth: 150, minWidth: 125 },
+  { key: 'date', defaultWidth: 115, minWidth: 100 },
+  { key: 'counterparty', defaultWidth: 230, minWidth: 160 },
+  { key: 'availableQty', defaultWidth: 140, minWidth: 115 },
+  { key: 'unitCost', defaultWidth: 130, minWidth: 105 },
+  { key: 'availableValue', defaultWidth: 155, minWidth: 130 },
+]
+
+const previewColumns: Array<ResizableColumnDefinition<PreviewColumnKey>> = [
+  { key: 'sourceType', defaultWidth: 120, minWidth: 105 },
+  { key: 'sourceNo', defaultWidth: 150, minWidth: 125 },
+  { key: 'counterparty', defaultWidth: 230, minWidth: 160 },
+  { key: 'availableQty', defaultWidth: 140, minWidth: 115 },
+  { key: 'unitCost', defaultWidth: 140, minWidth: 115 },
+  { key: 'qtyToUse', defaultWidth: 135, minWidth: 110 },
+  { key: 'totalCostUse', defaultWidth: 155, minWidth: 130 },
+]
+
 export function CostAllocatorPageClient() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -105,6 +142,9 @@ export function CostAllocatorPageClient() {
   const [reloadTrigger, setReloadTrigger] = useState(0)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const targetColumnResize = useResizableColumns('dual-costing.cost-allocator.targets.v1', targetColumns)
+  const poolColumnResize = useResizableColumns('dual-costing.cost-allocator.pool.v1', poolColumns)
+  const previewColumnResize = useResizableColumns('dual-costing.cost-allocator.preview.v1', previewColumns)
 
   useEffect(() => {
     setPage(1)
@@ -328,18 +368,24 @@ export function CostAllocatorPageClient() {
                 <div className="flex-1 min-w-[200px]">
                   <label className="mb-1 block text-xs font-semibold text-slate-500">ราคาต้นทุนเป้าหมาย (บาท/กก.) *</label>
                   <Input
-                    className="h-10 rounded-md border-slate-300 focus-visible:ring-emerald-100 text-sm font-mono [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                    type="number"
+                    className="h-10 rounded-md border-slate-300 text-sm font-mono tabular-nums focus-visible:ring-emerald-100"
+                    inputMode="decimal"
                     placeholder="0.00"
+                    type="text"
                     value={targetCostInput}
-                    onChange={(event) => setTargetCostInput(event.target.value)}
+                    onChange={(event) => {
+                      const sanitized = event.target.value
+                        .replace(/[^\d.]/g, '')
+                        .replace(/(\..*)\./g, '$1')
+                      setTargetCostInput(sanitized)
+                    }}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') handleCalculateManualMatch()
                     }}
                   />
                 </div>
                 <Button
-                  className="rounded-lg h-10 px-4 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white transition-colors focus-visible:outline-none font-sans"
+                  className="rounded-lg h-10 px-4 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white transition-colors focus-visible:outline-none"
                   type="button"
                   onClick={handleCalculateManualMatch}
                 >
@@ -358,6 +404,11 @@ export function CostAllocatorPageClient() {
               พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {targetColumnResize.hasCustomWidths ? (
+                <Button className="h-8 text-xs" size="sm" type="button" variant="outline" onClick={targetColumnResize.resetColumnWidths}>
+                  คืนค่าเดิมตาราง
+                </Button>
+              ) : null}
               <select
                 aria-label="จำนวนรายการต่อหน้า"
                 className="h-8 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
@@ -386,37 +437,42 @@ export function CostAllocatorPageClient() {
             </div>
           </div>
 
-          <div className="mt-4 overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
-            <Table className="text-xs">
-              <TableHeader className="bg-slate-50 border-b border-slate-100 font-semibold text-slate-600">
+          <div className="mt-4 hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm md:block">
+            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: targetColumnResize.tableMinWidth }}>
+              <colgroup>
+                {targetColumns.map((column) => (
+                  <col key={column.key} style={targetColumnResize.getColumnStyle(column.key)} />
+                ))}
+              </colgroup>
+              <thead className="bg-slate-100">
                 <tr>
-                  <TableHead className="p-3 pl-4">{sourceType === 'production' ? 'ใบสั่งผลิต' : 'เอกสารขาย'}</TableHead>
-                  <TableHead className="p-3">วันที่</TableHead>
-                  <TableHead className="p-3">{sourceType === 'production' ? 'ผู้ผลิต' : 'Customer'}</TableHead>
-                  <TableHead className="p-3">สินค้า</TableHead>
-                  <TableHead className="p-3 text-right">{sourceType === 'production' ? 'ผลิต (กก.)' : 'ขาย (กก.)'}</TableHead>
-                  <TableHead className="p-3 text-right">Matched</TableHead>
-                  <TableHead className="p-3 text-right">ค้าง Match</TableHead>
-                  <TableHead className="p-3 text-right">{sourceType === 'production' ? 'ต้นทุน/กก.' : 'ราคา/หน่วย'}</TableHead>
-                  <TableHead className="p-3 pr-4 text-center">เลือก</TableHead>
+                  <ResizableTableHead label={sourceType === 'production' ? 'เลขที่ใบสั่งผลิต' : 'เลขที่เอกสารขาย'} resizeProps={targetColumnResize.getResizeHandleProps('docNo', sourceType === 'production' ? 'เลขที่ใบสั่งผลิต' : 'เลขที่เอกสารขาย')} />
+                  <ResizableTableHead label="วันที่เอกสาร" resizeProps={targetColumnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
+                  <ResizableTableHead label={sourceType === 'production' ? 'ผู้ผลิต' : 'ลูกค้า'} resizeProps={targetColumnResize.getResizeHandleProps('customerName', sourceType === 'production' ? 'ผู้ผลิต' : 'ลูกค้า')} />
+                  <ResizableTableHead label="สินค้า" resizeProps={targetColumnResize.getResizeHandleProps('productName', 'สินค้า')} />
+                  <ResizableTableHead align="right" label={sourceType === 'production' ? 'จำนวนผลิต (กก.)' : 'จำนวนขาย (กก.)'} resizeProps={targetColumnResize.getResizeHandleProps('qty', sourceType === 'production' ? 'จำนวนผลิต' : 'จำนวนขาย')} />
+                  <ResizableTableHead align="right" label="จับคู่แล้ว" resizeProps={targetColumnResize.getResizeHandleProps('matchedQty', 'จับคู่แล้ว')} />
+                  <ResizableTableHead align="right" label="ค้างจับคู่" resizeProps={targetColumnResize.getResizeHandleProps('remainingQty', 'ค้างจับคู่')} />
+                  <ResizableTableHead align="right" label={sourceType === 'production' ? 'ต้นทุน/กก.' : 'ราคา/หน่วย'} resizeProps={targetColumnResize.getResizeHandleProps('unitPrice', sourceType === 'production' ? 'ต้นทุนต่อกิโลกรัม' : 'ราคาต่อหน่วย')} />
+                  <ResizableTableHead align="center" label="เลือก" resizeProps={targetColumnResize.getResizeHandleProps('action', 'เลือก')} />
                 </tr>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? <TableRow><TableCell className="py-6 text-center text-slate-500" colSpan={9}>กำลังโหลด target candidates</TableCell></TableRow> : null}
-                {!isLoading && (data?.poSells.length ?? 0) === 0 ? <TableRow><TableCell className="py-6 text-center text-slate-400" colSpan={9}>ไม่มี {sourceTypeLabel} ของสินค้านี้ที่ยังไม่ match</TableCell></TableRow> : null}
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={targetColumns.length}>กำลังโหลด target candidates</td></tr> : null}
+                {!isLoading && (data?.poSells.length ?? 0) === 0 ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={targetColumns.length}>ไม่มี {sourceTypeLabel} ของสินค้านี้ที่ยังไม่ match</td></tr> : null}
                 {pagedPoSells.map((target) => {
                   const active = selectedPoSellId === target.id
                   return (
-                    <TableRow key={target.id} className={active ? 'bg-purple-50/50 border-t border-slate-100 hover:bg-purple-50/60 transition-colors' : 'border-t border-slate-100 hover:bg-slate-50/30 transition-colors'}>
-                      <TableCell className="p-3 pl-4 font-mono text-xs text-slate-700">{target.docNo}</TableCell>
-                      <TableCell className="p-3 whitespace-nowrap text-xs text-slate-600">{target.date}</TableCell>
-                      <TableCell className="p-3 text-slate-800 font-medium">{target.customerName === '-' ? 'ภายในโรงงาน' : target.customerName}</TableCell>
-                      <TableCell className="p-3 text-xs text-slate-700">{target.productName}</TableCell>
-                      <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(target.qty)}</TableCell>
-                      <TableCell className="p-3 text-right font-mono text-emerald-700 font-semibold">{formatMoney(target.matchedQty)}</TableCell>
-                      <TableCell className="p-3 text-right font-mono font-bold text-amber-700">{formatMoney(target.remainingQty)}</TableCell>
-                      <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(target.unitPrice)}</TableCell>
-                      <TableCell className="p-3 pr-4 text-center">
+                    <tr key={target.id} className={active ? 'bg-blue-50/50 hover:bg-blue-50' : 'hover:bg-slate-50'}>
+                      <td className="whitespace-nowrap px-3 py-3 font-mono text-slate-900">{target.docNo}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-slate-600">{target.date}</td>
+                      <td className="px-3 py-3 font-medium text-slate-900">{target.customerName === '-' ? 'ภายในโรงงาน' : target.customerName}</td>
+                      <td className="px-3 py-3 text-slate-700">{target.productName}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(target.qty)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums text-slate-700">{formatMoney(target.matchedQty)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-amber-700">{formatMoney(target.remainingQty)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(target.unitPrice)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-center">
                         <Button
                           size="xs"
                           type="button"
@@ -429,19 +485,56 @@ export function CostAllocatorPageClient() {
                         >
                           {active ? 'เลือกแล้ว' : 'เลือก'}
                         </Button>
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   )
                 })}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-4 space-y-3 md:hidden">
+            {isLoading ? <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">กำลังโหลด target candidates</div> : null}
+            {!isLoading && (data?.poSells.length ?? 0) === 0 ? <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">ไม่มี {sourceTypeLabel} ของสินค้านี้ที่ยังไม่ match</div> : null}
+            {pagedPoSells.map((target) => {
+              const active = selectedPoSellId === target.id
+              return (
+                <div key={target.id} className={`rounded-lg border p-4 shadow-sm ${active ? 'border-blue-200 bg-blue-50/50' : 'border-slate-200 bg-white'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="font-mono text-base font-bold text-slate-900">{target.docNo}</div>
+                    <div className="shrink-0 text-sm font-medium text-slate-500">{target.date}</div>
+                  </div>
+                  <div className="mt-3 space-y-1.5 rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">
+                    <div><span className="font-semibold text-slate-500">{sourceType === 'production' ? 'ผู้ผลิต' : 'ลูกค้า'}: </span><span className="text-slate-900">{target.customerName === '-' ? 'ภายในโรงงาน' : target.customerName}</span></div>
+                    <div><span className="font-semibold text-slate-500">สินค้า: </span><span className="text-slate-900">{target.productName}</span></div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3 text-sm">
+                    <div><span className="block text-xs text-slate-500">{sourceType === 'production' ? 'จำนวนผลิต' : 'จำนวนขาย'}</span><span className="mt-0.5 block font-bold tabular-nums text-slate-900">{formatMoney(target.qty)} กก.</span></div>
+                    <div className="text-right"><span className="block text-xs text-slate-500">ค้างจับคู่</span><span className="mt-0.5 block font-bold tabular-nums text-amber-700">{formatMoney(target.remainingQty)} กก.</span></div>
+                    <div><span className="block text-xs text-slate-500">จับคู่แล้ว</span><span className="mt-0.5 block font-bold tabular-nums text-slate-900">{formatMoney(target.matchedQty)} กก.</span></div>
+                    <div className="text-right"><span className="block text-xs text-slate-500">{sourceType === 'production' ? 'ต้นทุน/กก.' : 'ราคา/หน่วย'}</span><span className="mt-0.5 block font-bold tabular-nums text-slate-900">{formatMoney(target.unitPrice)}</span></div>
+                  </div>
+                  <Button
+                    className="mt-3 w-full"
+                    type="button"
+                    variant={active ? 'default' : 'secondary'}
+                    onClick={() => {
+                      setSelectedPoSellId(target.id)
+                      setShowPreview(false)
+                    }}
+                  >
+                    {active ? 'เลือกแล้ว' : 'เลือก'}
+                  </Button>
+                </div>
+              )
+            })}
           </div>
 
 
 
           {hasPoSell ? (
             <div className="grid grid-cols-2 gap-3 md:grid-cols-5 mt-3">
-              <DualCostingStatCard icon="👥" label={sourceType === 'production' ? 'ผู้ผลิต' : 'Customer'} tone="slate" value={data?.selectedPoSell?.customerName === '-' ? 'ภายในโรงงาน' : (data?.selectedPoSell?.customerName ?? '-')} />
+              <DualCostingStatCard icon="👥" label={sourceType === 'production' ? 'ผู้ผลิต' : 'ลูกค้า'} tone="slate" value={data?.selectedPoSell?.customerName === '-' ? 'ภายในโรงงาน' : (data?.selectedPoSell?.customerName ?? '-')} />
               <DualCostingStatCard icon="📦" label="สินค้า" tone="slate" value={selectedProduct?.name ?? data?.selectedPoSell?.productName ?? '-'} />
               <DualCostingStatCard icon="⚖️" label="จำนวนรวม" tone="slate" value={`${formatMoney(data?.selectedPoSell?.qty ?? 0)} กก.`} />
               <DualCostingStatCard icon="💰" label={sourceType === 'production' ? 'ต้นทุน/กก.' : 'ราคาขาย'} tone="emerald" value={formatMoney(data?.selectedPoSell?.unitPrice ?? 0)} />
@@ -451,84 +544,156 @@ export function CostAllocatorPageClient() {
 
           {hasPoSell ? (
             <div className="mt-3 flex justify-end">
-              <Button type="button" className="rounded-lg h-10 px-4 text-sm font-semibold focus-visible:ring-emerald-100" onClick={() => setShowPreview(true)}>Preview Auto Match</Button>
+              <Button type="button" className="rounded-lg h-10 px-4 text-sm font-semibold focus-visible:ring-emerald-100" onClick={() => setShowPreview(true)}>Preview การจับคู่ต้นทุน</Button>
             </div>
           ) : null}
         </DualCostingPanel>
       ) : null}
 
       {hasSelection ? (
-        <DualCostingPanel title="③ Cost Pool Lots ของสินค้าที่เลือก">
-          <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
-            <Table className="[&_tbody_tr]:border-slate-100 text-xs">
-              <TableHeader className="bg-slate-50 border-b border-slate-100 font-semibold text-slate-600">
-                <tr>
-                  <TableHead className="p-3 pl-4">Source</TableHead>
-                  <TableHead className="p-3">เลขที่</TableHead>
-                  <TableHead className="p-3">วันที่</TableHead>
-                  <TableHead className="p-3">Counterparty</TableHead>
-                  <TableHead className="p-3 text-right bg-emerald-50/50">Available</TableHead>
-                  <TableHead className="p-3 text-right">฿/หน่วย</TableHead>
-                  <TableHead className="p-3 pr-4 text-right bg-emerald-50/50">Available Value</TableHead>
-                </tr>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? <TableRow><TableCell className="py-6 text-center text-slate-500" colSpan={7}>กำลังโหลด Cost Pool</TableCell></TableRow> : null}
-                {!isLoading && (data?.pool.length ?? 0) === 0 ? <TableRow><TableCell className="py-6 text-center text-amber-700" colSpan={7}>ยังไม่มี Cost Pool lot สำหรับสินค้านี้</TableCell></TableRow> : null}
-                {(data?.pool ?? []).slice(0, 12).map((row) => (
-                  <TableRow key={row.costPoolId} className="hover:bg-slate-50/30 transition-colors border-t border-slate-100">
-                    <TableCell className="p-3 pl-4"><span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span></TableCell>
-                    <TableCell className="p-3 font-mono text-xs text-slate-700">{row.sourceNo}</TableCell>
-                    <TableCell className="p-3 whitespace-nowrap text-xs text-slate-600">{row.date}</TableCell>
-                    <TableCell className="p-3 text-xs text-slate-800 font-medium">{row.counterparty}</TableCell>
-                    <TableCell className="p-3 bg-emerald-50/20 text-right font-mono font-bold text-emerald-700">{formatMoney(row.availableQty)}</TableCell>
-                    <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.unitCost)}</TableCell>
-                    <TableCell className="p-3 pr-4 bg-emerald-50/20 text-right font-mono font-semibold text-emerald-700">{formatMoney(row.availableValue)}</TableCell>
-                  </TableRow>
+        <DualCostingPanel title="③ Lot ต้นทุนใน Cost Pool ของสินค้าที่เลือก">
+          {poolColumnResize.hasCustomWidths ? (
+            <div className="mb-3 flex justify-end">
+              <Button className="h-8 text-xs" size="sm" type="button" variant="outline" onClick={poolColumnResize.resetColumnWidths}>
+                คืนค่าเดิมตาราง
+              </Button>
+            </div>
+          ) : null}
+          <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm md:block">
+            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: poolColumnResize.tableMinWidth }}>
+              <colgroup>
+                {poolColumns.map((column) => (
+                  <col key={column.key} style={poolColumnResize.getColumnStyle(column.key)} />
                 ))}
-              </TableBody>
-            </Table>
+              </colgroup>
+              <thead className="bg-slate-100">
+                <tr>
+                  <ResizableTableHead label="แหล่งต้นทุน" resizeProps={poolColumnResize.getResizeHandleProps('sourceType', 'แหล่งต้นทุน')} />
+                  <ResizableTableHead label="เลขที่เอกสารต้นทุน" resizeProps={poolColumnResize.getResizeHandleProps('sourceNo', 'เลขที่เอกสารต้นทุน')} />
+                  <ResizableTableHead label="วันที่เอกสาร" resizeProps={poolColumnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
+                  <ResizableTableHead label="คู่ค้า" resizeProps={poolColumnResize.getResizeHandleProps('counterparty', 'คู่ค้า')} />
+                  <ResizableTableHead align="right" label="คงเหลือพร้อมใช้" resizeProps={poolColumnResize.getResizeHandleProps('availableQty', 'คงเหลือพร้อมใช้')} />
+                  <ResizableTableHead align="right" label="ต้นทุน/หน่วย" resizeProps={poolColumnResize.getResizeHandleProps('unitCost', 'ต้นทุนต่อหน่วย')} />
+                  <ResizableTableHead align="right" label="มูลค่าคงเหลือ" resizeProps={poolColumnResize.getResizeHandleProps('availableValue', 'มูลค่าคงเหลือ')} />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={poolColumns.length}>กำลังโหลด Cost Pool</td></tr> : null}
+                {!isLoading && (data?.pool.length ?? 0) === 0 ? <tr><td className="px-3 py-10 text-center text-amber-700" colSpan={poolColumns.length}>ยังไม่มี Cost Pool lot สำหรับสินค้านี้</td></tr> : null}
+                {(data?.pool ?? []).slice(0, 12).map((row) => (
+                  <tr key={row.costPoolId} className="hover:bg-slate-50">
+                    <td className="whitespace-nowrap px-3 py-3"><span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span></td>
+                    <td className="whitespace-nowrap px-3 py-3 font-mono text-slate-900">{row.sourceNo}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-slate-600">{row.date}</td>
+                    <td className="px-3 py-3 font-medium text-slate-900">{row.counterparty}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-emerald-700">{formatMoney(row.availableQty)}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.unitCost)}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums text-slate-900">{formatMoney(row.availableValue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="space-y-3 md:hidden">
+            {isLoading ? <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">กำลังโหลด Cost Pool</div> : null}
+            {!isLoading && (data?.pool.length ?? 0) === 0 ? <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm text-amber-700 shadow-sm">ยังไม่มี Cost Pool lot สำหรับสินค้านี้</div> : null}
+            {(data?.pool ?? []).slice(0, 12).map((row) => (
+              <div key={row.costPoolId} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span>
+                    <div className="mt-2 font-mono text-base font-bold text-slate-900">{row.sourceNo}</div>
+                  </div>
+                  <div className="shrink-0 text-sm font-medium text-slate-500">{row.date}</div>
+                </div>
+                <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">
+                  <span className="font-semibold text-slate-500">คู่ค้า: </span>
+                  <span className="text-slate-900">{row.counterparty}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3 text-sm">
+                  <div><span className="block text-xs text-slate-500">คงเหลือพร้อมใช้</span><span className="mt-0.5 block font-bold tabular-nums text-emerald-700">{formatMoney(row.availableQty)} กก.</span></div>
+                  <div className="text-right"><span className="block text-xs text-slate-500">ต้นทุน/หน่วย</span><span className="mt-0.5 block font-bold tabular-nums text-slate-900">{formatMoney(row.unitCost)}</span></div>
+                  <div className="col-span-2 text-right"><span className="block text-xs text-slate-500">มูลค่าคงเหลือ</span><span className="mt-0.5 block font-bold tabular-nums text-slate-900">{formatMoney(row.availableValue)}</span></div>
+                </div>
+              </div>
+            ))}
           </div>
           {(data?.pool.length ?? 0) > 12 ? <div className="mt-2 text-xs text-slate-500">แสดง 12 lot แรกตาม sort ปัจจุบันจากทั้งหมด {data?.pool.length ?? 0} lot</div> : null}
         </DualCostingPanel>
       ) : null}
 
       {showPreview && hasCandidates ? (
-        <DualCostingPanel title="④ Preview การ Match">
-          <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
-            <Table className="[&_tbody_tr]:border-slate-100 text-xs">
-              <TableHeader className="bg-slate-50 border-b border-slate-100 font-semibold text-slate-600">
-                <tr>
-                  <TableHead className="p-3 pl-4">Source</TableHead>
-                  <TableHead className="p-3">เลขที่</TableHead>
-                  <TableHead className="p-3">Counterparty</TableHead>
-                  <TableHead className="p-3 text-right">Available</TableHead>
-                  <TableHead className="p-3 text-right">ต้นทุน/หน่วย</TableHead>
-                  <TableHead className="p-3 text-right bg-blue-50/50">qty ที่ใช้</TableHead>
-                  <TableHead className="p-3 pr-4 text-right bg-emerald-50/50">มูลค่าใช้</TableHead>
-                </tr>
-              </TableHeader>
-              <TableBody>
-                {(data?.candidates ?? []).map((row) => (
-                  <TableRow key={row.costPoolId} className="hover:bg-slate-50/30 transition-colors border-t border-slate-100">
-                    <TableCell className="p-3 pl-4"><span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span></TableCell>
-                    <TableCell className="p-3 font-mono text-xs text-slate-700">{row.sourceNo}</TableCell>
-                    <TableCell className="p-3 text-slate-800 font-medium">{row.counterparty}</TableCell>
-                    <TableCell className="p-3 text-right font-mono text-slate-600">{formatMoney(row.availableQty)}</TableCell>
-                    <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.unitCost)}</TableCell>
-                    <TableCell className="p-3 bg-blue-50/20 text-right font-mono font-bold text-blue-700">{formatMoney(row.qtyToUse)}</TableCell>
-                    <TableCell className="p-3 pr-4 bg-emerald-50/20 text-right font-mono font-semibold text-emerald-700">{formatMoney(row.totalCostUse)}</TableCell>
-                  </TableRow>
+        <DualCostingPanel title="④ Preview การจับคู่ต้นทุน">
+          {previewColumnResize.hasCustomWidths ? (
+            <div className="mb-3 flex justify-end">
+              <Button className="h-8 text-xs" size="sm" type="button" variant="outline" onClick={previewColumnResize.resetColumnWidths}>
+                คืนค่าเดิมตาราง
+              </Button>
+            </div>
+          ) : null}
+          <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm md:block">
+            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: previewColumnResize.tableMinWidth }}>
+              <colgroup>
+                {previewColumns.map((column) => (
+                  <col key={column.key} style={previewColumnResize.getColumnStyle(column.key)} />
                 ))}
-              </TableBody>
-            </Table>
+              </colgroup>
+              <thead className="bg-slate-100">
+                <tr>
+                  <ResizableTableHead label="แหล่งต้นทุน" resizeProps={previewColumnResize.getResizeHandleProps('sourceType', 'แหล่งต้นทุน')} />
+                  <ResizableTableHead label="เลขที่เอกสารต้นทุน" resizeProps={previewColumnResize.getResizeHandleProps('sourceNo', 'เลขที่เอกสารต้นทุน')} />
+                  <ResizableTableHead label="คู่ค้า" resizeProps={previewColumnResize.getResizeHandleProps('counterparty', 'คู่ค้า')} />
+                  <ResizableTableHead align="right" label="คงเหลือพร้อมใช้" resizeProps={previewColumnResize.getResizeHandleProps('availableQty', 'คงเหลือพร้อมใช้')} />
+                  <ResizableTableHead align="right" label="ต้นทุน/หน่วย" resizeProps={previewColumnResize.getResizeHandleProps('unitCost', 'ต้นทุนต่อหน่วย')} />
+                  <ResizableTableHead align="right" label="จำนวนที่ใช้" resizeProps={previewColumnResize.getResizeHandleProps('qtyToUse', 'จำนวนที่ใช้')} />
+                  <ResizableTableHead align="right" label="มูลค่าที่ใช้" resizeProps={previewColumnResize.getResizeHandleProps('totalCostUse', 'มูลค่าที่ใช้')} />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {(data?.candidates ?? []).map((row) => (
+                  <tr key={row.costPoolId} className="hover:bg-slate-50">
+                    <td className="whitespace-nowrap px-3 py-3"><span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span></td>
+                    <td className="whitespace-nowrap px-3 py-3 font-mono text-slate-900">{row.sourceNo}</td>
+                    <td className="px-3 py-3 font-medium text-slate-900">{row.counterparty}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.availableQty)}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.unitCost)}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-blue-700">{formatMoney(row.qtyToUse)}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums text-slate-900">{formatMoney(row.totalCostUse)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="space-y-3 md:hidden">
+            {(data?.candidates ?? []).map((row) => (
+              <div key={row.costPoolId} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span>
+                    <div className="mt-2 font-mono text-base font-bold text-slate-900">{row.sourceNo}</div>
+                  </div>
+                </div>
+                <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">
+                  <span className="font-semibold text-slate-500">คู่ค้า: </span>
+                  <span className="text-slate-900">{row.counterparty}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3 text-sm">
+                  <div><span className="block text-xs text-slate-500">คงเหลือพร้อมใช้</span><span className="mt-0.5 block font-bold tabular-nums text-slate-900">{formatMoney(row.availableQty)} กก.</span></div>
+                  <div className="text-right"><span className="block text-xs text-slate-500">จำนวนที่ใช้</span><span className="mt-0.5 block font-bold tabular-nums text-blue-700">{formatMoney(row.qtyToUse)} กก.</span></div>
+                  <div><span className="block text-xs text-slate-500">ต้นทุน/หน่วย</span><span className="mt-0.5 block font-bold tabular-nums text-slate-900">{formatMoney(row.unitCost)}</span></div>
+                  <div className="text-right"><span className="block text-xs text-slate-500">มูลค่าที่ใช้</span><span className="mt-0.5 block font-bold tabular-nums text-slate-900">{formatMoney(row.totalCostUse)}</span></div>
+                </div>
+              </div>
+            ))}
           </div>
           
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mt-4">
             <DualCostingStatCard icon="🔗" label="รวมที่จะ Match" tone="blue" value={`${formatMoney(data?.summary.totalToMatch ?? 0)} กก.`} />
             <DualCostingStatCard icon="💰" label="รายได้คาดการณ์" tone="emerald" value={formatMoney(data?.summary.expectedRevenue ?? 0)} />
             <DualCostingStatCard icon="💳" label="ต้นทุนที่จะตัด" tone="red" value={formatMoney(data?.summary.totalCostMatch ?? 0)} />
-            <DualCostingStatCard icon="📈" label="Expected Margin" tone={(data?.summary.expectedMargin ?? 0) >= 0 ? 'purple' : 'red'} value={formatMoney(data?.summary.expectedMargin ?? 0)} />
+            <DualCostingStatCard icon="📈" label="กำไรคาดการณ์" tone={(data?.summary.expectedMargin ?? 0) >= 0 ? 'purple' : 'red'} value={formatMoney(data?.summary.expectedMargin ?? 0)} />
           </div>
           <div className="mt-4 flex justify-end gap-2">
             <Button className="rounded-lg h-10 px-4 text-sm font-semibold focus-visible:ring-slate-100" type="button" variant="secondary" onClick={() => setShowPreview(false)} disabled={isSubmitting}>ปิด Preview</Button>
@@ -538,7 +703,7 @@ export function CostAllocatorPageClient() {
               onClick={handleConfirmMatch}
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'กำลังบันทึก...' : 'ยืนยัน Match'}
+              {isSubmitting ? 'กำลังบันทึก...' : 'ยืนยันการจับคู่'}
             </Button>
           </div>
         </DualCostingPanel>

@@ -504,6 +504,10 @@ Expected:
 - `/sales/po-sell`
   - After the latest correction, the PO Sell list table/action and form/cancel/detail modal surfaces follow the active baseline more closely.
   - Browser QA remains pending.
+- `/dual-costing/cost-allocator`
+  - After the latest correction, the target-sale table, Cost Pool lot table, and Preview table now use the active lined/resizable table shell with Thai-first business headers, reset-width controls, and dense mobile cards.
+  - The page no longer overrides the app font with `font-sans`, and the Manual target-cost field now uses the money input pattern instead of `type="number"`.
+  - Browser QA remains pending.
 - Master data shared pages under `/master-data/*`
   - Most shared pages use `MasterDataPageClient`, which already has resizable desktop table, mobile toolbar/filter bottom sheet, mobile card list, and dark-header form modal.
   - Remaining work is mostly modal polish, wording cleanup, and field-specific validation/presentation, not a full table rewrite.
@@ -515,7 +519,7 @@ Expected:
 
 1. Finish remaining high-confidence operational inconsistencies users will notice immediately: `/sales/receipts` (`/purchase/payments`, PO Sell, Sales Bills, and RV static findings are fixed; browser QA still pending).
 2. Normalize shared operational modal surfaces by component family: `TransactionBillsPageClient`, `MoneyMovementPageClient`, `PoBuyPageClient`, `PoSellPageClient`, `StockOperationPageClient`, tracking pages, then trading pages. `DailyExpensePageClient` has a static design checkpoint and should move to browser QA rather than another static rewrite.
-3. Bring Dual Costing tables up to the table reference, starting with `/dual-costing/cost-allocator` and `/dual-costing/cost-pool` because they combine table mechanics drift with mobile/table density risk.
+3. Continue Dual Costing table normalization with `/dual-costing/cost-pool` next. `/dual-costing/cost-allocator` now has a local static design checkpoint; `/dual-costing/cost-pool` and `/dual-costing/deal-margin` still combine table mechanics drift with mobile/table density risk.
 4. Normalize Finance / Accounting table mechanics in shared component batches: fixed assets, financial statements, cash-flow planning, loans/equity.
 5. Review `type="number"` only inside the touched page batch using the design matrix; do not run a broad replacement sweep.
 6. Run browser QA desktop + mobile for the selected batch before claiming visual completion.
