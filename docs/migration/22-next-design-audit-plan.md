@@ -374,11 +374,7 @@ Routes/components with high-confidence table mechanics drift:
   - `/sales-plan`
   - `/sales-commission`
 - Finance / Accounting:
-  - `/finance-accounting/equity-maint`
-  - `/finance-accounting/historical-data`
-  - `/finance-accounting/loan-contracts`
-  - `/finance-accounting/loan-dashboard`
-  - `/finance-accounting/opening-balance`
+  - None remaining in this static table-mechanics queue after the A2, A5, A6, and A7 design checkpoints. Browser QA remains pending.
 - Lower-priority playground:
   - `/daily/design-mockup`
 
@@ -386,7 +382,7 @@ Notes:
 
 - Many finance-accounting pages already have mobile card/list alternates, so the primary issue is desktop table mechanics and old compact `text-xs` table style, not only mobile behavior.
 - Dual Costing table mechanics for `/dual-costing/cost-allocator`, `/dual-costing/cost-pool`, and `/dual-costing/deal-margin` now have local static design checkpoints. Browser QA remains pending for all three.
-- Finance/accounting table mechanics for cash-flow planning, financial statements, and fixed assets now have local static design checkpoints. Browser QA remains pending for those slices.
+- Finance/accounting table mechanics for cash-flow planning, financial statements, fixed assets, and loans/equity/opening/historical now have local static design checkpoints. Browser QA remains pending for those slices.
 
 ### P2 Dual Costing Font And Mixed-Language Drift
 
@@ -512,6 +508,10 @@ Expected:
   - After the latest correction, the Cash Flow Analysis detail table, Forecast Calendar Top AR/AP insight tables, and day-event detail modal now use the active lined/resizable table shell with Thai-first business headers, persisted column widths, reset-width controls, and safer nowrap/tabular numeric alignment.
   - Existing charts, cards, calendar grid, filter layout, baseline notice, and mobile card views were preserved.
   - Browser QA remains pending.
+- Loans/equity/opening/historical finance pages: `/finance-accounting/loan-contracts`, `/finance-accounting/loan-dashboard`, `/finance-accounting/equity-maint`, `/finance-accounting/opening-balance`, and `/finance-accounting/historical-data`
+  - After the latest correction, the Loan Contracts desktop table, Loan Dashboard upcoming/overdue due tables, Opening Balance accounts table, and Historical Data dynamic month table now use the active lined/resizable table shell with Thai-first business headers, persisted column widths, reset-width controls, and safer nowrap/tabular numeric alignment.
+  - Existing KPI cards, tabs, disabled write/import actions, mobile card views, and the Equity read card/form layout were preserved.
+  - Browser QA remains pending.
 - Fixed assets finance pages: `/finance-accounting/asset-register`, `/finance-accounting/depreciation`, `/finance-accounting/asset-disposal`, and `/finance-accounting/asset-overview`
   - After the latest correction, the visible desktop tables in the fixed-assets slice now use the active lined/resizable table shell with Thai-first business headers, persisted column widths, reset-width controls, and safer nowrap/tabular numeric alignment.
   - Covered tables: Asset Register, Depreciation pending-assets, Depreciation History, Asset Disposal History, and Asset Overview Cash & Others. Existing mobile cards were preserved.
@@ -527,6 +527,6 @@ Expected:
 
 1. Finish remaining high-confidence operational inconsistencies users will notice immediately: `/sales/receipts` (`/purchase/payments`, PO Sell, Sales Bills, and RV static findings are fixed; browser QA still pending).
 2. Normalize shared operational modal surfaces by component family: `TransactionBillsPageClient`, `MoneyMovementPageClient`, `PoBuyPageClient`, `PoSellPageClient`, `StockOperationPageClient`, tracking pages, then trading pages. `DailyExpensePageClient` has a static design checkpoint and should move to browser QA rather than another static rewrite.
-3. Continue with Finance / Accounting table mechanics in the remaining loans/equity shared component batch. Cash-flow planning, fixed assets, and financial statements now have local code/layout checkpoints; browser QA is still pending.
+3. Treat Finance / Accounting table mechanics static checkpoints as complete for the selected slices. Next Finance / Accounting design work should be browser QA desktop/mobile, not another static table rewrite, unless a new issue is found.
 4. Review `type="number"` only inside the touched page batch using the design matrix; do not run a broad replacement sweep.
 5. Run browser QA desktop + mobile for the selected batch before claiming visual completion.

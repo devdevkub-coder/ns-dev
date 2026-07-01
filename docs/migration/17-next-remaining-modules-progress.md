@@ -1745,6 +1745,14 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Validation: `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`, and `git diff --check` passed. OpenAPI remains valid with existing catalog warnings.
 - Browser QA: subagent unauth sweep confirmed protected pages redirect to login and APIs return `401`; authenticated main Playwright smoke confirmed the five A7 APIs return `200`, Loan Contracts and Opening Balance render without desktop overflow, Opening Balance and Historical Data render without mobile overflow, and write controls are disabled. The main authenticated smoke also checked Loan Contracts disabled Template/Import/Add/Schedule actions, Opening Save/Push disabled, and Historical Clear/Save disabled.
 
+#### A7 Design Polish Checkpoint
+
+- Date: 2026-07-01.
+- Routes covered: `/finance-accounting/loan-contracts`, `/finance-accounting/loan-dashboard`, `/finance-accounting/equity-maint`, `/finance-accounting/opening-balance`, and `/finance-accounting/historical-data`.
+- UI changes: converted the Loan Contracts desktop table, Loan Dashboard upcoming/overdue due tables, Opening Balance accounts table, and Historical Data dynamic month table to the active lined/resizable table baseline with Thai-first headers, persisted widths, reset-width controls, and safer numeric alignment. Existing KPI cards, tabs, disabled write/import actions, and mobile card views were preserved. Equity has no desktop table in this read baseline.
+- Boundary: UI/layout only; no loan schedule/payment generation, equity save, opening balance apply/lock, historical clear/save/sync, GL, period close, bank, asset, stock, AP/AR, API, or business behavior changed.
+- Validation: targeted ESLint for `LoansEquityPageClients.tsx`, full Next lint, full Next type-check, and full Next build passed. Browser QA remains pending because this was a local code/layout checkpoint only.
+
 ### A8: Accounting QA Batch
 
 - [x] QA checker
