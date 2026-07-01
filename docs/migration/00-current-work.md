@@ -2312,3 +2312,8 @@ Tailwind dependency check:
   - The desktop list table now uses the current lined table shell more closely and lets the final action column auto-stretch instead of forcing the action column width; empty/loading rows now use the column definition count instead of a fixed colSpan.
   - The create/edit, cancel, and detail dialogs now use the `rounded-md` dark-header modal baseline with `border-0`, no focus outline leakage, sticky header/body/footer structure where applicable, and readable detail subtitle contrast in dark mode.
   - Browser QA is still pending; this checkpoint covers static code/layout validation only.
+- 2026-07-01: Cost Allocator table mechanics checkpoint
+  - `/dual-costing/cost-allocator` received a UI-only table mechanics pass. Runtime API behavior, allocation logic, match formula, status lifecycle, and DB contracts were not changed.
+  - The target-sale table, Cost Pool lot table, and Preview table now use `ResizableTableHead` sort indicators/handlers, persisted resizable widths, and `tableLayout: fixed` so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
+  - Target rows are sorted before pagination; Cost Pool lot and Preview rows are sorted before desktop/mobile rendering, including the 12-lot Cost Pool preview slice.
+  - Validation passed: `npm exec --workspace @ns-scrap-erp/next -- eslint src/components/dual-costing/CostAllocatorPageClient.tsx`, `npm run type-check --workspace @ns-scrap-erp/next`, and `git diff --check`.
