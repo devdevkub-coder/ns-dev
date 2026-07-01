@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import { XLSX } from '@/lib/server/xlsx'
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { requireBusinessCode } from '@/lib/business-code'
 import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
@@ -109,14 +109,14 @@ function branchScopedGradeAdjustmentWhere(allowedBranchIds: bigint[] | null): Pr
   }
 }
 
-function buildWorkbook(rows: Array<Record<string, string | number>>, sheetName: string) {
+async function buildWorkbook(rows: Array<Record<string, string | number>>, sheetName: string) {
   const workbook = XLSX.utils.book_new()
   const sheet = XLSX.utils.json_to_sheet(rows)
   const headers = rows[0] ? Object.keys(rows[0]) : []
   sheet['!cols'] = headers.map((header) => ({ wch: Math.max(12, header.length + 4) }))
   applyWorksheetTableLayout(sheet, headers.length, rows.length + 1)
   XLSX.utils.book_append_sheet(workbook, sheet, sheetName)
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 function xlsxResponse(body: Buffer, filename: string) {
@@ -565,7 +565,7 @@ export async function GET(request: Request) {
     })() : null
 
     if (url.searchParams.get('format') === 'xlsx') {
-      return xlsxResponse(buildWorkbook(supplierRows.map((row) => ({
+      return xlsxResponse(await buildWorkbook(supplierRows.map((row) => ({
         AvgBuy: row.avgBuy,
         Bills: row.billCount,
         Code: row.code,

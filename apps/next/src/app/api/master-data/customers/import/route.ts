@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import { type WorkBook, XLSX } from '@/lib/server/xlsx'
 import { CUSTOMER_LEGAL_ENTITY_TYPES, customerFormSchema, type CustomerFormValues } from '@/lib/customer'
 import { toCustomerWriteInput } from '@/lib/domain/customer'
 import { apiErrorResponse } from '@/lib/server/api-error'
@@ -200,7 +200,7 @@ async function syncCustomerBranches(
   }
 }
 
-function findCustomerSheet(workbook: XLSX.WorkBook) {
+function findCustomerSheet(workbook: WorkBook) {
   const namedSheet = workbook.Sheets['ลูกค้า']
   if (namedSheet) return namedSheet
 
@@ -210,7 +210,7 @@ function findCustomerSheet(workbook: XLSX.WorkBook) {
   })
 }
 
-function parseRows(workbook: XLSX.WorkBook) {
+function parseRows(workbook: WorkBook) {
   const sheet = findCustomerSheet(workbook)
   if (!sheet) throw new Error('ไม่พบ sheet ลูกค้า หรือ header รหัสลูกค้า')
   return XLSX.utils.sheet_to_json<ImportRow>(sheet, { defval: '' })
@@ -254,7 +254,7 @@ export async function POST(request: Request) {
 
     let rows: ImportRow[]
     try {
-      const workbook = XLSX.read(Buffer.from(await file.arrayBuffer()), { type: 'buffer' })
+      const workbook = await XLSX.read(Buffer.from(await file.arrayBuffer()))
       rows = parseRows(workbook).filter((row) => Object.values(row).some((value) => String(value ?? '').trim()))
     } catch (caught) {
       return NextResponse.json({

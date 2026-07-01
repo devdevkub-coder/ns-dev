@@ -1,22 +1,22 @@
 import { NextResponse } from 'next/server'
 import { parseInternalBigIntId } from '@/lib/business-code'
-import { calculateTicketTotals, isOtherProductImpurityId, isOtherProductImpurityLabel, weightTicketCancelSchema, weightTicketConfirmSchema, weightTicketFormSchema } from '@/lib/weight-tickets'
+import { calculateTicketTotals, weightTicketCancelSchema, weightTicketConfirmSchema, weightTicketFormSchema } from '@/lib/weight-tickets'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { currentActor, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, toDateOnly } from '@/lib/server/daily'
 import { findActiveBranchReferencesByCodes } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
-import { PartyBranchEligibilityError, assertCustomerEligibleForBranch, assertSupplierEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
+import { appendWtoPendingOutEventsFromHolds, getWeightTicketPendingOutEvents } from '@/lib/server/weight-ticket-pending-out-events'
+import { buildWeightTicketEditChanges } from '@/lib/server/weight-ticket-write/edit-audit'
+import { assertWeightTicketImpurityRules, assertWeightTicketPartyForType, WeightTicketWriteValidationError } from '@/lib/server/weight-ticket-write/type-guards'
+import { applyWeightTicketEditSideEffects, resolveWeightTicketWarehousesForWrite, validateWeightTicketStockForWrite, weightTicketPartySnapshot } from '@/lib/server/weight-ticket-write/handlers'
+import { buildWtoEditTimelineNote, prepareWtoEditPendingOutPlan } from '@/lib/server/weight-ticket-write/wto'
 import {
   releaseActiveWtoPendingOut,
-  createActiveWtoPendingOut,
-  resolveWtoWarehousesForLines,
   snapshotActiveWtoPendingOutCosts,
-  validateWtoStockAvailability,
-  type WtoPreservedCostSnapshot,
   WtoPendingOutError,
 } from '@/lib/server/stock-holds'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
@@ -66,13 +66,27 @@ const ticketInclude = {
   },
   stock_holds: {
     select: {
+      cost_snapshot_at: true,
+      cost_snapshot_note: true,
+      cost_snapshot_source: true,
+      consumed_at: true,
+      consumed_by_ref_no: true,
+      hold_key: true,
+      held_at: true,
       product_id: true,
       qty: true,
+      released_at: true,
+      source_doc_no: true,
+      source_line_no: true,
       status: true,
       unit_cost_snapshot: true,
       value_snapshot: true,
+      warehouse_id: true,
+      warehouses: {
+        select: { code: true, id: true, name: true, type: true },
+      },
     },
-    where: { status: 'active' },
+    orderBy: { source_line_no: 'asc' },
   },
 } as const
 
@@ -97,14 +111,16 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     const usage = await getWeightTicketUsageCounts(prisma, ticket.id)
     const mapped = mapWeightTicketRow(ticket as WeightTicketRow, usage)
-    const [timeline, usageTimeline, downstreamAllocations] = await Promise.all([
+    const [timeline, usageTimeline, downstreamAllocations, pendingOutEvents] = await Promise.all([
       getWeightTicketTimeline(prisma, ticket.id),
       getWeightTicketUsageTimeline(prisma, ticket.id),
       getWeightTicketDownstreamAllocations(prisma, ticket.id),
+      getWeightTicketPendingOutEvents(prisma, ticket.id),
     ])
     return NextResponse.json({
       ...mapped,
       downstreamAllocations,
+      pendingOutEvents,
       timeline,
       usageTimeline,
     })
@@ -168,26 +184,15 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     if (!branch || (scopedBranchIds.length && !scopedBranches.some((item) => item.id === branch.id))) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือไม่มีสิทธิ์ใช้งาน', fieldErrors: { branchId: ['เลือกสาขา'] } }, { status: 400 })
     }
-    if (values.type === 'WTI' && !supplier) {
-      return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { partyId: ['เลือกผู้ขาย'] } }, { status: 400 })
-    }
-    if (values.type === 'WTO' && !customer) {
-      return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { partyId: ['เลือกลูกค้า'] } }, { status: 400 })
-    }
     try {
-      if (values.type === 'WTI' && supplier) {
-        await assertSupplierEligibleForBranch({ branchId: branch.id, supplierId: supplier.id })
-      }
-      if (values.type === 'WTO' && customer) {
-        await assertCustomerEligibleForBranch({ branchId: branch.id, customerId: customer.id })
-      }
+      await assertWeightTicketPartyForType({ branchId: branch.id, customer, supplier, type: values.type })
     } catch (caught) {
-      if (caught instanceof PartyBranchEligibilityError) {
+      if (caught instanceof WeightTicketWriteValidationError) {
         return NextResponse.json({
-          code: 'BAD_REQUEST',
+          code: caught.code,
           error: caught.message,
-          fieldErrors: { partyId: [caught.message] },
-        }, { status: 400 })
+          fieldErrors: caught.fieldErrors,
+        }, { status: caught.status })
       }
       throw caught
     }
@@ -217,36 +222,17 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     }
 
     const impurityById = new Map(impurities.map((impurity) => [impurity.id, impurity] as const))
-    const wtoOtherProductImpurityIndex = values.lines.findIndex((line) => isOtherProductImpurityId(line.impurityId) && values.type === 'WTO')
-    if (wtoOtherProductImpurityIndex >= 0) {
-      return NextResponse.json({
-        code: 'BAD_REQUEST',
-        error: `รายการที่ ${wtoOtherProductImpurityIndex + 1}: ใบส่งของไม่รองรับสิ่งเจือปนแบบสินค้าอื่น`,
-        fieldErrors: { [`lines.${wtoOtherProductImpurityIndex}.impurityId`]: ['ใบส่งของไม่รองรับสิ่งเจือปนแบบสินค้าอื่น'] },
-      }, { status: 400 })
-    }
-    const missingImpurityIndex = values.lines.findIndex((line, index) => {
-      const impurityId = parsedImpurityIds[index]
-      return Boolean(line.impurityId) && !isOtherProductImpurityId(line.impurityId) && (impurityId == null || !impurityById.has(impurityId))
-    })
-    if (missingImpurityIndex >= 0) {
-      return NextResponse.json({
-        code: 'BAD_REQUEST',
-        error: `รายการที่ ${missingImpurityIndex + 1}: สิ่งเจือปนไม่ถูกต้องหรือถูกปิดใช้งาน`,
-        fieldErrors: { [`lines.${missingImpurityIndex}.impurityId`]: ['สิ่งเจือปนไม่ถูกต้องหรือถูกปิดใช้งาน'] },
-      }, { status: 400 })
-    }
-    const legacyOtherProductImpurityIndex = values.lines.findIndex((line, index) => {
-      const impurityId = parsedImpurityIds[index]
-      if (!line.impurityId || isOtherProductImpurityId(line.impurityId) || impurityId == null) return false
-      return isOtherProductImpurityLabel(impurityById.get(impurityId)?.name)
-    })
-    if (legacyOtherProductImpurityIndex >= 0) {
-      return NextResponse.json({
-        code: 'BAD_REQUEST',
-        error: `รายการที่ ${legacyOtherProductImpurityIndex + 1}: สินค้าอื่นเป็นตัวเลือกของระบบสำหรับ WTI เท่านั้น ไม่ใช่ master สิ่งเจือปน`,
-        fieldErrors: { [`lines.${legacyOtherProductImpurityIndex}.impurityId`]: ['เลือกตัวเลือกสินค้าอื่นของระบบแทน master data'] },
-      }, { status: 400 })
+    try {
+      assertWeightTicketImpurityRules({ impurityById, parsedImpurityIds, values })
+    } catch (caught) {
+      if (caught instanceof WeightTicketWriteValidationError) {
+        return NextResponse.json({
+          code: caught.code,
+          error: caught.message,
+          fieldErrors: caught.fieldErrors,
+        }, { status: caught.status })
+      }
+      throw caught
     }
 
     const actor = currentActor(auth)
@@ -274,6 +260,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           return nextWeightTicketDocNo(tx, values.type, branchCode, documentDate)
         })()
         : existing.doc_no
+      const partySnapshot = weightTicketPartySnapshot({ customer, supplier, type: values.type })
 
       await tx.weight_tickets.update({
         data: {
@@ -282,17 +269,17 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           cancelled_at: null,
           cancelled_by: null,
           container_deduction_weight: totals.containerDeductionWeight,
-          customer_id: values.type === 'WTO' ? customer?.id ?? null : null,
+          customer_id: partySnapshot.customerId,
           deduct_weight: totals.deductionWeight,
           doc_no: docNo,
           doc_type: values.type,
           gross_weight: totals.grossWeight,
           image_count: values.vehicleImageNames.length,
           net_weight: totals.netWeight,
-          party_name: values.type === 'WTI' ? supplier?.name ?? '' : customer?.name ?? '',
+          party_name: partySnapshot.partyName,
           remark: values.remark || null,
           status: nextStatus,
-          supplier_id: values.type === 'WTI' ? supplier?.id ?? null : null,
+          supplier_id: partySnapshot.supplierId,
           updated_at: new Date(),
           updated_by: actor,
           vehicle_image_count: values.vehicleImageNames.length,
@@ -308,48 +295,29 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           },
         },
       })
-      const preservedCostSnapshots: WtoPreservedCostSnapshot[] = []
-      if (values.type === 'WTO' && existing.status === 'delivered') {
-        const activeHolds = await tx.stock_holds.findMany({
-          orderBy: [{ source_line_no: 'asc' }, { id: 'asc' }],
-          select: {
-            cost_snapshot_at: true,
-            cost_snapshot_note: true,
-            cost_snapshot_source: true,
-            hold_key: true,
-            lot_no: true,
-            not_available_for_sale: true,
-            output_category: true,
-            product_id: true,
-            qty: true,
-            unit_cost_snapshot: true,
-            value_snapshot: true,
-            warehouse_id: true,
-          },
-          where: {
-            status: 'active',
-            weight_ticket_id: existing.id,
-          },
-        })
-        for (const hold of activeHolds) {
-          if (hold.unit_cost_snapshot == null) {
-            throw new WtoPendingOutError(`pending_out ${hold.hold_key} ยังไม่มีราคาต้นทุนเฉลี่ย snapshot ไม่สามารถแก้ไขใบส่งของหลังยืนยันได้`)
-          }
-          preservedCostSnapshots.push({
-            costSnapshotAt: hold.cost_snapshot_at,
-            costSnapshotNote: hold.cost_snapshot_note,
-            costSnapshotSource: hold.cost_snapshot_source,
-            lotNo: hold.lot_no,
-            notAvailableForSale: hold.not_available_for_sale,
-            outputCategory: hold.output_category,
-            productId: hold.product_id,
-            qty: toNumber(hold.qty),
-            unitCostSnapshot: hold.unit_cost_snapshot,
-            valueSnapshot: hold.value_snapshot,
-            warehouseId: hold.warehouse_id,
-          })
-        }
-      }
+      const warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: branch.id, lines: values.lines, type: values.type })
+      const warehouseNameById = new Map([...warehouseByCode.values()].map((warehouse) => [warehouse.id, warehouse.name] as const))
+      const lineRows = buildWeightTicketLineRows(existing.id, values, productByCode, impurityById, warehouseByCode)
+      const editChanges = buildWeightTicketEditChanges({
+        branchName: branch.name,
+        customerName: customer?.name ?? '',
+        docNo,
+        existing: existing as WeightTicketRow,
+        lineRows,
+        supplierName: supplier?.name ?? '',
+        totals,
+        values,
+        warehouseNameById,
+      })
+      const {
+        auditLineEventTypeByLineNo,
+        auditQtyBeforeByLineNo,
+        preservedCostSnapshots,
+      } = await prepareWtoEditPendingOutPlan(tx, {
+        existing: existing as WeightTicketRow,
+        lineRows,
+        type: values.type,
+      })
 
       await releaseActiveWtoPendingOut(tx, {
         actor,
@@ -358,35 +326,18 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       })
       await tx.weight_ticket_product_summaries.deleteMany({ where: { weight_ticket_id: existing.id } })
       await tx.weight_ticket_lines.deleteMany({ where: { weight_ticket_id: existing.id } })
-      const warehouseByCode = values.type === 'WTO'
-        ? await resolveWtoWarehousesForLines(tx, { branchId: branch.id, lines: values.lines })
-        : new Map()
-      const lineRows = buildWeightTicketLineRows(existing.id, values, productByCode, impurityById, warehouseByCode)
-      if (values.type === 'WTO') {
-        await validateWtoStockAvailability(tx, {
-          branchId: branch.id,
-          lines: lineRows.map((line, index) => ({
-            index,
-            netWeight: Number(line.net_weight),
-            productId: line.product_id,
-            productName: line.product_name,
-            warehouseId: line.warehouse_id,
-          })),
-        })
-      }
+      await validateWeightTicketStockForWrite(tx, { branchId: branch.id, lineRows, type: values.type })
       const createdLines = await Promise.all(lineRows.map((data) => tx.weight_ticket_lines.create({ data })))
-      if (values.type === 'WTO') {
-        await createActiveWtoPendingOut(tx, {
-          actor,
-          branchId: branch.id,
-          documentNo: docNo,
-          lines: createdLines,
-          preservedCostSnapshots,
-          snapshotCost: existing.status === 'delivered',
-          snapshotSource: 'WTO_EDIT_INCREASE',
-          weightTicketId: existing.id,
-        })
-      }
+      const createdPendingOutHoldIds = await applyWeightTicketEditSideEffects(tx, {
+        actor,
+        branchId: branch.id,
+        createdLines,
+        documentNo: docNo,
+        preservedCostSnapshots,
+        shouldSnapshotCost: existing.status === 'delivered',
+        type: values.type,
+        weightTicketId: existing.id,
+      })
       const imageCount = values.vehicleImageNames.length + createdLines.reduce((sum, line) => sum + (line.image_count ?? 0), 0)
       const { summaryRows } = buildWeightTicketProductSummaryRows(existing.id, createdLines)
       const createdSummaries = await Promise.all(summaryRows.map(({ lineIds, ...data }) => tx.weight_ticket_product_summaries.create({ data })))
@@ -412,18 +363,42 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         },
         where: { id: existing.id },
       })
-      await appendWeightTicketStatusLog(tx, {
+      const statusLogEventKey = await appendWeightTicketStatusLog(tx, {
         action: WEIGHT_TICKET_STATUS_ACTION.EDITED,
         actor,
         fromStatus: existing.status,
         meta: {
+          changes: editChanges,
           previousDocumentNo: existing.doc_no,
           reason: 'weight_ticket_edit',
           type: values.type,
         },
+        note: buildWtoEditTimelineNote({
+          newLines: lineRows,
+          oldLines: existing.weight_ticket_lines,
+        }),
         toStatus: nextStatus,
         weightTicketId: existing.id,
       })
+      if (values.type === 'WTO' && existing.status === 'delivered' && createdPendingOutHoldIds.length && auditLineEventTypeByLineNo.size) {
+        const auditHoldIds = (await tx.stock_holds.findMany({
+          select: { id: true },
+          where: {
+            id: { in: createdPendingOutHoldIds },
+            source_line_no: { in: [...auditLineEventTypeByLineNo.keys()] },
+            weight_ticket_id: existing.id,
+          },
+        })).map((hold) => hold.id)
+        await appendWtoPendingOutEventsFromHolds(tx, {
+          actor,
+          eventTypeForHold: (hold) => hold.source_line_no == null ? 'edit_update_scale' : auditLineEventTypeByLineNo.get(hold.source_line_no) ?? 'edit_update_scale',
+          holdIds: auditHoldIds,
+          occurredAt: new Date(),
+          qtyBeforeForHold: (hold) => (hold.source_line_no == null ? null : auditQtyBeforeByLineNo.get(hold.source_line_no) ?? null),
+          statusLogEventKey,
+          weightTicketId: existing.id,
+        })
+      }
 
       return tx.weight_tickets.findUniqueOrThrow({
         include: ticketInclude,
@@ -479,9 +454,13 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       }
     }
 
-    const timeline = await getWeightTicketTimeline(prisma, updated.id)
+    const [timeline, pendingOutEvents] = await Promise.all([
+      getWeightTicketTimeline(prisma, updated.id),
+      getWeightTicketPendingOutEvents(prisma, updated.id),
+    ])
     return NextResponse.json({
       ...mapped,
+      pendingOutEvents,
       timeline,
     })
   } catch (caught) {
@@ -521,7 +500,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
       const confirmedAt = new Date()
       const updated = await prisma.$transaction(async (tx) => {
-        await snapshotActiveWtoPendingOutCosts(tx, {
+        const confirmedHoldIds = await snapshotActiveWtoPendingOutCosts(tx, {
           actor,
           branchId: existing.branch_id,
           source: 'WTO_CONFIRM',
@@ -535,7 +514,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           },
           where: { id: existing.id },
         })
-        await appendWeightTicketStatusLog(tx, {
+        const statusLogEventKey = await appendWeightTicketStatusLog(tx, {
           action: WEIGHT_TICKET_STATUS_ACTION.CONFIRMED,
           actor,
           createdAt: confirmedAt,
@@ -544,6 +523,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
             reason: 'wto_confirm_cost_snapshot',
           },
           toStatus: 'delivered',
+          weightTicketId: existing.id,
+        })
+        await appendWtoPendingOutEventsFromHolds(tx, {
+          actor,
+          eventTypeForHold: () => 'confirm_snapshot',
+          holdIds: confirmedHoldIds,
+          occurredAt: confirmedAt,
+          statusLogEventKey,
           weightTicketId: existing.id,
         })
         return tx.weight_tickets.findUniqueOrThrow({
@@ -573,9 +560,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         targetLabel: updated.doc_no,
         targetType: 'weight_ticket',
       })
-      const timeline = await getWeightTicketTimeline(prisma, updated.id)
+      const [timeline, pendingOutEvents] = await Promise.all([
+        getWeightTicketTimeline(prisma, updated.id),
+        getWeightTicketPendingOutEvents(prisma, updated.id),
+      ])
       return NextResponse.json({
         ...mapped,
+        pendingOutEvents,
         timeline,
       })
     }
@@ -583,6 +574,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const values = weightTicketCancelSchema.parse(rawValues)
     const cancelledAt = new Date()
     const updated = await prisma.$transaction(async (tx) => {
+      const cancellingHoldIds = existing.doc_type === 'WTO'
+        ? (await tx.stock_holds.findMany({
+          select: { id: true },
+          where: {
+            status: 'active',
+            weight_ticket_id: existing.id,
+          },
+        })).map((hold) => hold.id)
+        : []
       await releaseActiveWtoPendingOut(tx, {
         actor,
         reason: 'cancel',
@@ -599,7 +599,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         },
         where: { id: existing.id },
       })
-      await appendWeightTicketStatusLog(tx, {
+      const statusLogEventKey = await appendWeightTicketStatusLog(tx, {
         action: WEIGHT_TICKET_STATUS_ACTION.CANCELLED,
         actor,
         createdAt: cancelledAt,
@@ -611,6 +611,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         toStatus: 'cancelled',
         weightTicketId: existing.id,
       })
+      if (cancellingHoldIds.length) {
+        await appendWtoPendingOutEventsFromHolds(tx, {
+          actor,
+          eventTypeForHold: () => 'cancel_release',
+          holdIds: cancellingHoldIds,
+          occurredAt: cancelledAt,
+          statusLogEventKey,
+          statusSnapshot: 'released',
+          weightTicketId: existing.id,
+        })
+      }
       return tx.weight_tickets.findUniqueOrThrow({
         include: ticketInclude,
         where: { id: existing.id },
@@ -639,9 +650,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       targetLabel: updated.doc_no,
       targetType: 'weight_ticket',
     })
-    const timeline = await getWeightTicketTimeline(prisma, updated.id)
+    const [timeline, pendingOutEvents] = await Promise.all([
+      getWeightTicketTimeline(prisma, updated.id),
+      getWeightTicketPendingOutEvents(prisma, updated.id),
+    ])
     return NextResponse.json({
       ...mapped,
+      pendingOutEvents,
       timeline,
     })
   } catch (caught) {

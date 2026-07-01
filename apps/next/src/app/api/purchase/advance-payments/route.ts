@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx'
+import { XLSX } from '@/lib/server/xlsx'
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
@@ -104,7 +104,7 @@ function orderByFor(sortKey: string, direction: Prisma.SortOrder): Prisma.suppli
   return [primary, { created_at: 'desc' }, { doc_no: direction }]
 }
 
-function buildWorkbook(rows: ReturnType<typeof rowJson>[]) {
+async function buildWorkbook(rows: ReturnType<typeof rowJson>[]) {
   const workbookRows = rows.map((row) => ({
     เลขที่: row.docNo,
     วันที่: row.advanceDate,
@@ -127,7 +127,7 @@ function buildWorkbook(rows: ReturnType<typeof rowJson>[]) {
   sheet['!cols'] = headers.map((header) => ({ wch: Math.max(12, header.length + 4) }))
   applyWorksheetTableLayout(sheet, headers.length, workbookRows.length + 1)
   XLSX.utils.book_append_sheet(workbook, sheet, 'Advance Payments')
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 function xlsxResponse(body: Buffer, filename: string) {
@@ -321,7 +321,7 @@ export async function GET(request: Request) {
         take: 10000,
         where,
       })
-      return xlsxResponse(buildWorkbook(exportRows.map(rowJson)), `purchase_advance_payments_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      return xlsxResponse(await buildWorkbook(exportRows.map(rowJson)), `purchase_advance_payments_${new Date().toISOString().slice(0, 10)}.xlsx`)
     }
 
     return NextResponse.json({

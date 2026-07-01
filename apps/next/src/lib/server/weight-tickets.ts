@@ -1,4 +1,4 @@
-import type { Prisma } from '../../../generated/prisma/client'
+import { Prisma } from '../../../generated/prisma/client'
 import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import {
   appendImpurityProductMeta,
@@ -36,12 +36,19 @@ type WeightTicketUsage = {
   salesDocNos: string[]
 }
 
+type WeightTicketUsageCountRow = {
+  bill_count: number
+  doc_nos: string[] | null
+  weight_ticket_id: bigint
+}
+
 type WeightTicketDownstreamAllocationRow = {
   allocated_deduct_weight: Prisma.Decimal | number
   allocated_gross_weight: Prisma.Decimal | number
   allocated_qty: Prisma.Decimal | number
   created_at: Date | null
   created_by: string | null
+  meta?: Prisma.JsonValue | null
   product_code: string | null
   product_name: string | null
   status: string | null
@@ -97,14 +104,33 @@ export type WeightTicketRow = Prisma.weight_ticketsGetPayload<{
     }
     stock_holds: {
       select: {
+        cost_snapshot_at: true
+        cost_snapshot_note: true
+        cost_snapshot_source: true
+        consumed_at: true
+        consumed_by_ref_no: true
+        hold_key: true
+        held_at: true
         product_id: true
         qty: true
+        released_at: true
+        source_doc_no: true
+        source_line_no: true
         status: true
         unit_cost_snapshot: true
         value_snapshot: true
+        warehouse_id: true
+        warehouses: {
+          select: {
+            code: true
+            id: true
+            name: true
+            type: true
+          }
+        }
       }
-      where: {
-        status: 'active'
+      orderBy: {
+        source_line_no: 'asc'
       }
     }
   }
@@ -482,39 +508,84 @@ export function buildWeightTicketProductSummaryRows(
   return { summaryRows }
 }
 
-export async function getWeightTicketUsageCounts(tx: Prisma.TransactionClient | PrismaClientLike, ticketId: bigint) {
+function emptyWeightTicketUsage(): WeightTicketUsage {
+  return {
+    purchaseCount: 0,
+    purchaseDocNos: [],
+    salesCount: 0,
+    salesDocNos: [],
+  }
+}
+
+function normalizeUsageCountRows(rows: WeightTicketUsageCountRow[], field: 'purchase' | 'sales') {
+  const usageMap = new Map<string, WeightTicketUsage>()
+  rows.forEach((row) => {
+    const key = row.weight_ticket_id.toString()
+    const current = usageMap.get(key) ?? emptyWeightTicketUsage()
+    const docNos = [...(row.doc_nos ?? [])].sort((left, right) => left.localeCompare(right, 'th'))
+    if (field === 'purchase') {
+      current.purchaseCount = row.bill_count ?? 0
+      current.purchaseDocNos = docNos
+    } else {
+      current.salesCount = row.bill_count ?? 0
+      current.salesDocNos = docNos
+    }
+    usageMap.set(key, current)
+  })
+  return usageMap
+}
+
+export async function getWeightTicketUsageCountsByTicketIds(
+  tx: Prisma.TransactionClient | PrismaClientLike,
+  ticketIds: bigint[],
+) {
+  const uniqueTicketIds = [...new Set(ticketIds.map((ticketId) => ticketId.toString()))]
+    .map((ticketId) => BigInt(ticketId))
+  const usageMap = new Map<string, WeightTicketUsage>()
+  if (uniqueTicketIds.length === 0) return usageMap
+
   const [purchaseRows, salesRows] = await Promise.all([
-    tx.$queryRaw<Array<{ bill_count: number; doc_nos: string[] | null }>>`
+    tx.$queryRaw<WeightTicketUsageCountRow[]>`
       select count(distinct pb.id)::int as bill_count
            , array_remove(array_agg(distinct pb.doc_no), null) as doc_nos
+           , pbra.weight_ticket_id
       from public.purchase_bill_receipt_allocations pbra
       join public.purchase_bills pb on pb.id = pbra.purchase_bill_id
       where lower(coalesce(pb.status, '')) not in ('cancelled', 'cancelled_supplier_swap')
         and pbra.allocation_status = 'active'
-        and pbra.weight_ticket_id = ${ticketId}
+        and pbra.weight_ticket_id in (${Prisma.join(uniqueTicketIds)})
+      group by pbra.weight_ticket_id
     `,
-    tx.$queryRaw<Array<{ bill_count: number; doc_nos: string[] | null }>>`
+    tx.$queryRaw<WeightTicketUsageCountRow[]>`
       select count(distinct sb.id)::int as bill_count
            , array_remove(array_agg(distinct sb.doc_no), null) as doc_nos
-      from public.sales_bills sb
-      join public.weight_tickets wt on wt.id = ${ticketId}
-      cross join lateral jsonb_array_elements(
-        case
-          when jsonb_typeof(coalesce(sb.items::jsonb, '[]'::jsonb)) = 'array' then coalesce(sb.items::jsonb, '[]'::jsonb)
-          else '[]'::jsonb
-        end
-      ) as item
+           , sba.weight_ticket_id
+      from public.sales_bill_source_allocations sba
+      join public.sales_bills sb on sb.id = sba.sales_bill_id
       where lower(coalesce(sb.status, '')) not in ('cancelled', 'void', 'voided')
-        and coalesce(item ->> 'deliveryTicketId', '') = wt.doc_no
+        and sba.status = 'active'
+        and sba.source_type = 'WTO'
+        and sba.weight_ticket_id in (${Prisma.join(uniqueTicketIds)})
+      group by sba.weight_ticket_id
     `,
   ])
 
-  return {
-    purchaseCount: purchaseRows[0]?.bill_count ?? 0,
-    purchaseDocNos: [...(purchaseRows[0]?.doc_nos ?? [])].sort((left, right) => left.localeCompare(right, 'th')),
-    salesCount: salesRows[0]?.bill_count ?? 0,
-    salesDocNos: [...(salesRows[0]?.doc_nos ?? [])].sort((left, right) => left.localeCompare(right, 'th')),
-  }
+  const purchaseMap = normalizeUsageCountRows(purchaseRows, 'purchase')
+  const salesMap = normalizeUsageCountRows(salesRows, 'sales')
+  uniqueTicketIds.forEach((ticketId) => {
+    const key = ticketId.toString()
+    usageMap.set(key, {
+      ...emptyWeightTicketUsage(),
+      ...(purchaseMap.get(key) ?? {}),
+      ...(salesMap.get(key) ?? {}),
+    })
+  })
+  return usageMap
+}
+
+export async function getWeightTicketUsageCounts(tx: Prisma.TransactionClient | PrismaClientLike, ticketId: bigint) {
+  const usageMap = await getWeightTicketUsageCountsByTicketIds(tx, [ticketId])
+  return usageMap.get(ticketId.toString()) ?? emptyWeightTicketUsage()
 }
 
 export async function getWeightTicketDownstreamAllocations(tx: Prisma.TransactionClient | PrismaClientLike, ticketId: bigint) {
@@ -553,35 +624,39 @@ export async function getWeightTicketDownstreamAllocations(tx: Prisma.Transactio
       select
         'SALES_BILL'::text as target_type,
         sb.doc_no as target_doc_no,
-        item_ordinality::int as target_line_no,
+        sba.sales_line_no as target_line_no,
         sb.status,
-        coalesce(nullif(item ->> 'qty', ''), '0')::numeric as allocated_qty,
-        coalesce(nullif(item ->> 'grossWeight', ''), '0')::numeric as allocated_gross_weight,
-        coalesce(nullif(item ->> 'deductWeight', ''), '0')::numeric as allocated_deduct_weight,
-        sb.created_at,
-        sb.created_by,
-        item ->> 'productId' as product_code,
-        item ->> 'productName' as product_name,
-        split_part(coalesce(item ->> 'deliverySummaryId', ''), ':', 2) as summary_code,
-        nullif(split_part(coalesce(item ->> 'deliverySummaryId', ''), ':', 3), '')::int as summary_line_count,
-        item ->> 'productName' as summary_product_name,
+        sba.allocated_qty,
+        sba.allocated_gross_weight,
+        sba.allocated_deduct_weight,
+        sba.created_at,
+        sba.created_by,
+        sba.product_code_snapshot as product_code,
+        sba.product_name_snapshot as product_name,
+        split_part(coalesce(sba.meta ->> 'deliverySummaryId', ''), ':', 2) as summary_code,
+        nullif(split_part(coalesce(sba.meta ->> 'deliverySummaryId', ''), ':', 3), '')::int as summary_line_count,
+        sba.product_name_snapshot as summary_product_name,
+        sba.meta,
         wt.doc_no as weight_ticket_doc_no
-      from public.sales_bills sb
-      join public.weight_tickets wt on wt.id = ${ticketId}
-      cross join lateral jsonb_array_elements(
-        case
-          when jsonb_typeof(coalesce(sb.items::jsonb, '[]'::jsonb)) = 'array' then coalesce(sb.items::jsonb, '[]'::jsonb)
-          else '[]'::jsonb
-        end
-      ) with ordinality as item(item, item_ordinality)
+      from public.sales_bill_source_allocations sba
+      join public.sales_bills sb on sb.id = sba.sales_bill_id
+      join public.weight_tickets wt on wt.id = sba.weight_ticket_id
       where lower(coalesce(sb.status, '')) not in ('cancelled', 'void', 'voided')
-        and coalesce(item ->> 'deliveryTicketId', '') = wt.doc_no
-      order by sb.created_at desc, sb.doc_no desc, item_ordinality asc
+        and sba.status = 'active'
+        and sba.source_type = 'WTO'
+        and sba.weight_ticket_id = ${ticketId}
+      order by sba.created_at desc, sb.doc_no desc, sba.sales_line_no asc
     `,
   ])
 
   return [...purchaseRows, ...salesRows].map((row) => {
-    const summaryCode = requireBusinessCode(row.summary_code, `สรุปสินค้าเอกสาร ${row.summary_product_name ?? row.product_name ?? ''}`)
+    const meta = row.meta && typeof row.meta === 'object' && !Array.isArray(row.meta)
+      ? row.meta as Record<string, unknown>
+      : null
+    const deliverySummaryId = typeof meta?.deliverySummaryId === 'string' ? meta.deliverySummaryId : ''
+    const summaryCode = deliverySummaryId
+      ? ''
+      : requireBusinessCode(row.summary_code, `สรุปสินค้าเอกสาร ${row.summary_product_name ?? row.product_name ?? ''}`)
     return {
       allocatedDeductWeight: toNumber(row.allocated_deduct_weight),
       allocatedGrossWeight: toNumber(row.allocated_gross_weight),
@@ -589,11 +664,11 @@ export async function getWeightTicketDownstreamAllocations(tx: Prisma.Transactio
       allocatedQty: toNumber(row.allocated_qty),
       createdAt: row.created_at?.toISOString() ?? null,
       createdBy: row.created_by ?? '-',
-      id: `${row.target_type}:${row.target_doc_no ?? ''}:${row.target_line_no ?? 0}:${summaryCode}`,
+      id: `${row.target_type}:${row.target_doc_no ?? ''}:${row.target_line_no ?? 0}:${deliverySummaryId || summaryCode}`,
       productCode: row.product_code ?? '',
       productName: row.product_name ?? row.summary_product_name ?? '-',
       status: row.status ?? '',
-      summaryId: `${row.weight_ticket_doc_no}:${summaryCode}:${row.summary_line_count ?? 0}`,
+      summaryId: deliverySummaryId || `${row.weight_ticket_doc_no}:${summaryCode}:${row.summary_line_count ?? 0}`,
       targetDocNo: row.target_doc_no ?? '',
       targetLineNo: row.target_line_no,
       targetType: row.target_type,
@@ -743,8 +818,25 @@ export function canMutateWeightTicket(row: { status: string | null }, usage: Wei
 
 export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsage) {
   const canMutate = canMutateWeightTicket(row, usage)
+  const holdWarehouseByLineNo = new Map<number, { code: string | null; name: string; type: string | null }>()
+  ;(row.stock_holds ?? []).forEach((hold) => {
+    if (hold.source_line_no == null || holdWarehouseByLineNo.has(hold.source_line_no)) return
+    holdWarehouseByLineNo.set(hold.source_line_no, {
+      code: hold.warehouses.code,
+      name: hold.warehouses.name,
+      type: hold.warehouses.type,
+    })
+  })
   const lineRows = row.weight_ticket_lines.map((line: WeightTicketRow['weight_ticket_lines'][number]) => ({
     ...parseImpurityProductMeta(line.note),
+    ...(() => {
+      const holdWarehouse = holdWarehouseByLineNo.get(line.line_no)
+      return {
+        warehouseId: line.warehouses?.code ?? holdWarehouse?.code ?? '',
+        warehouseName: line.warehouses?.name ?? holdWarehouse?.name ?? '',
+        warehouseType: line.warehouses?.type ?? holdWarehouse?.type ?? '',
+      }
+    })(),
     containerDeductionWeight: toNumber(line.container_deduction_weight).toString(),
     containerDeductionWeightValue: toNumber(line.container_deduction_weight),
     deductionMode: (line.deduction_mode ?? 'none') as 'none' | 'kg' | 'percent',
@@ -765,38 +857,48 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     parentLineNo: line.parent_line_no ?? null,
     productId: requireBusinessCode(line.products.code, `สินค้า ${line.products.id}`),
     productName: line.product_name,
-    warehouseId: line.warehouses?.code ?? '',
-    warehouseName: line.warehouses?.name ?? '',
-    warehouseType: line.warehouses?.type ?? '',
   }))
   const lineImageNames = lineRows.flatMap((line: { imageNames: string[] }) => line.imageNames)
   const activeHoldsByProductId = new Map<string, { missingCost: boolean; qty: number; value: number }>()
+  const costSnapshotHoldsByProductId = new Map<string, { missingCost: boolean; qty: number; value: number }>()
   ;(row.stock_holds ?? []).forEach((hold) => {
-    if (hold.status !== 'active') return
     const key = String(hold.product_id)
-    const current = activeHoldsByProductId.get(key) ?? { missingCost: false, qty: 0, value: 0 }
     const qty = toNumber(hold.qty)
     const unitCost = hold.unit_cost_snapshot == null ? null : toNumber(hold.unit_cost_snapshot)
-    current.qty += qty
-    if (unitCost == null) {
-      current.missingCost = true
-    } else {
-      current.value += hold.value_snapshot == null ? qty * unitCost : toNumber(hold.value_snapshot)
+    if (hold.status === 'active') {
+      const current = activeHoldsByProductId.get(key) ?? { missingCost: false, qty: 0, value: 0 }
+      current.qty += qty
+      if (unitCost == null) {
+        current.missingCost = true
+      } else {
+        current.value += hold.value_snapshot == null ? qty * unitCost : toNumber(hold.value_snapshot)
+      }
+      activeHoldsByProductId.set(key, current)
     }
-    activeHoldsByProductId.set(key, current)
+    if (hold.status === 'active' || hold.status === 'consumed') {
+      const current = costSnapshotHoldsByProductId.get(key) ?? { missingCost: false, qty: 0, value: 0 }
+      current.qty += qty
+      if (unitCost == null) {
+        current.missingCost = true
+      } else {
+        current.value += hold.value_snapshot == null ? qty * unitCost : toNumber(hold.value_snapshot)
+      }
+      costSnapshotHoldsByProductId.set(key, current)
+    }
   })
 
   const productSummaries = row.weight_ticket_product_summaries.map((summary) => {
     const activeHold = activeHoldsByProductId.get(String(summary.product_id))
+    const costSnapshotHold = activeHold ?? costSnapshotHoldsByProductId.get(String(summary.product_id))
     const pendingOutQty = activeHold?.qty ?? 0
     const pendingOutValue = activeHold?.value ?? 0
-    const unitCostSnapshot = activeHold && pendingOutQty > 0 && !activeHold.missingCost
-      ? pendingOutValue / pendingOutQty
+    const unitCostSnapshot = costSnapshotHold && costSnapshotHold.qty > 0 && !costSnapshotHold.missingCost
+      ? costSnapshotHold.value / costSnapshotHold.qty
       : null
     return {
       billedWeight: toNumber(summary.billed_weight),
       containerDeductionWeight: toNumber(summary.container_deduction_weight),
-      costSnapshotStatus: activeHold?.missingCost ? 'pending' as const : unitCostSnapshot == null ? 'none' as const : 'locked' as const,
+      costSnapshotStatus: costSnapshotHold?.missingCost ? 'pending' as const : unitCostSnapshot == null ? 'none' as const : 'locked' as const,
       deductWeight: toNumber(summary.deduct_weight),
       grossWeight: toNumber(summary.gross_weight),
       hasMixedDeductionProfiles: summary.has_mixed_deduction_profiles ?? false,
@@ -826,6 +928,41 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     return orderA - orderB
   })
 
+  const lineByLineNo = new Map(lineRows.map((line) => [line.lineNo, line] as const))
+  const firstLineByProductId = new Map<string, typeof lineRows[number]>()
+  lineRows.forEach((line) => {
+    if (!firstLineByProductId.has(line.productId)) firstLineByProductId.set(line.productId, line)
+  })
+  const pendingOutHistory = (row.stock_holds ?? []).filter((hold) => hold.status === 'active').map((hold) => {
+    const sourceLine = hold.source_line_no == null ? undefined : lineByLineNo.get(hold.source_line_no)
+    const productLine = sourceLine ?? firstLineByProductId.get(String(hold.product_id))
+    const unitCostSnapshot = hold.unit_cost_snapshot == null ? null : toNumber(hold.unit_cost_snapshot)
+    const pendingOutValue = hold.value_snapshot == null
+      ? unitCostSnapshot == null ? null : toNumber(hold.qty) * unitCostSnapshot
+      : toNumber(hold.value_snapshot)
+    const qty = toNumber(hold.qty)
+    return {
+      costSnapshotAt: hold.cost_snapshot_at?.toISOString() ?? null,
+      costSnapshotNote: hold.cost_snapshot_note ?? '',
+      costSnapshotSource: hold.cost_snapshot_source ?? '',
+      heldAt: hold.held_at?.toISOString() ?? null,
+      holdKey: hold.hold_key,
+      pendingOutValue,
+      productId: productLine?.productId ?? String(hold.product_id),
+      productName: productLine?.productName ?? '-',
+      qty,
+      qtyAfter: qty,
+      qtyBefore: null,
+      referenceDocNo: hold.consumed_by_ref_no ?? hold.source_doc_no ?? row.doc_no,
+      releasedAt: hold.consumed_at?.toISOString() ?? hold.released_at?.toISOString() ?? null,
+      sourceLineNo: hold.source_line_no ?? null,
+      status: hold.status,
+      unitCostSnapshot,
+      warehouseId: productLine?.warehouseId || hold.warehouses.code || String(hold.warehouse_id ?? ''),
+      warehouseName: productLine?.warehouseName || hold.warehouses.name || '',
+    }
+  })
+
   return {
     branchId: row.branches?.code ?? '',
     branchName: row.branches?.name ?? '-',
@@ -844,6 +981,8 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     lines: lineRows,
     partyId: row.doc_type === 'WTI' ? row.suppliers?.code ?? '' : row.customers?.code ?? '',
     partyName: row.party_name,
+    pendingOutEvents: [],
+    pendingOutHistory,
     productSummaries,
     remark: row.remark ?? '',
     status: (row.status ?? defaultTicketStatus(row.doc_type as WeightTicketType)) as WeightTicketStatus,
@@ -931,13 +1070,32 @@ export const weightTicketInclude = {
   },
   stock_holds: {
     select: {
+      cost_snapshot_at: true,
+      cost_snapshot_note: true,
+      cost_snapshot_source: true,
+      consumed_at: true,
+      consumed_by_ref_no: true,
+      hold_key: true,
+      held_at: true,
       product_id: true,
       qty: true,
+      released_at: true,
+      source_doc_no: true,
+      source_line_no: true,
       status: true,
       unit_cost_snapshot: true,
       value_snapshot: true,
+      warehouse_id: true,
+      warehouses: {
+        select: {
+          code: true,
+          id: true,
+          name: true,
+          type: true,
+        },
+      },
     },
-    where: { status: 'active' },
+    orderBy: { source_line_no: 'asc' },
   },
 } as const
 

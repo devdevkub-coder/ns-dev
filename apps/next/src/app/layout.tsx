@@ -5,6 +5,9 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'NS Scrap ERP',
   description: 'NS Scrap ERP Next.js application shell',
+  icons: {
+    icon: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({

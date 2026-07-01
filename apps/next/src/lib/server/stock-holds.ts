@@ -68,9 +68,11 @@ export type WtoPreservedCostSnapshot = {
   outputCategory: string | null
   productId: bigint
   qty: number
+  sourceLineNo: number | null
   unitCostSnapshot: Prisma.Decimal | number | null
   valueSnapshot: Prisma.Decimal | number | null
   warehouseId: bigint
+  weightTicketLineId: bigint | null
 }
 
 type TxClient = Prisma.TransactionClient
@@ -108,6 +110,7 @@ export type ConsumedWtoPendingOutLine = {
 export type ReturnedWtoPendingOutResult = {
   branchId: bigint
   pendingOutKey: string
+  lossPendingOutKey: string | null
   lossQty: number
   lossUnitCost: number
   lossValueOut: number
@@ -157,6 +160,27 @@ function bucketKey(input: {
     input.lotNo ?? '-',
     input.notAvailableForSale ? 'NA' : 'A',
   ].join('|')
+}
+
+function lineBucketKey(input: {
+  lotNo: string | null
+  notAvailableForSale: boolean | null
+  outputCategory: string | null
+  productId: bigint | null
+  sourceLineNo: number | null
+  warehouseId: bigint | null
+}) {
+  return [
+    input.sourceLineNo ?? '-',
+    bucketKey(input),
+  ].join('|')
+}
+
+function assertPositiveWtoAverageCost(value: number | null | undefined, message: string) {
+  if (value == null || !Number.isFinite(value) || value <= 0) {
+    throw new WtoPendingOutError(message)
+  }
+  return value
 }
 
 export async function loadWtoStockOptions(input: {
@@ -475,18 +499,25 @@ async function loadAverageCostByBucketKey(tx: TxClient, input: {
     },
   })
 
+  const totalsByBucket = new Map<string, { qty: number; value: number }>()
+  ledgerSums.forEach((row) => {
+    const key = bucketKey({
+      lotNo: row.lot_no,
+      notAvailableForSale: row.not_available_for_sale,
+      outputCategory: row.output_category,
+      productId: row.product_id,
+      warehouseId: row.warehouse_id,
+    })
+    const current = totalsByBucket.get(key) ?? { qty: 0, value: 0 }
+    current.qty += toNumber(row._sum.qty_in) - toNumber(row._sum.qty_out)
+    current.value += toNumber(row._sum.value_in) - toNumber(row._sum.value_out)
+    totalsByBucket.set(key, current)
+  })
+
   return new Map(
-    ledgerSums.map((row) => {
-      const qty = toNumber(row._sum.qty_in) - toNumber(row._sum.qty_out)
-      const value = toNumber(row._sum.value_in) - toNumber(row._sum.value_out)
-      return [bucketKey({
-        lotNo: row.lot_no,
-        notAvailableForSale: row.not_available_for_sale,
-        outputCategory: row.output_category,
-        productId: row.product_id,
-        warehouseId: row.warehouse_id,
-      }), qty > 0 ? value / qty : 0] as const
-    }),
+    [...totalsByBucket.entries()]
+      .filter(([, total]) => total.qty > 0 && total.value > 0)
+      .map(([key, total]) => [key, total.value / total.qty] as const),
   )
 }
 
@@ -563,16 +594,17 @@ export async function createActiveWtoPendingOut(tx: TxClient, input: {
     })
     : new Map<string, number>()
   const now = new Date()
-  const preservedByBucket = new Map<string, WtoPreservedCostSnapshot[]>()
+  const preservedByLineBucket = new Map<string, WtoPreservedCostSnapshot[]>()
   for (const snapshot of input.preservedCostSnapshots ?? []) {
-    const key = bucketKey({
+    const key = lineBucketKey({
       lotNo: snapshot.lotNo,
       notAvailableForSale: snapshot.notAvailableForSale,
       outputCategory: snapshot.outputCategory,
       productId: snapshot.productId,
+      sourceLineNo: snapshot.sourceLineNo,
       warehouseId: snapshot.warehouseId,
     })
-    preservedByBucket.set(key, [...(preservedByBucket.get(key) ?? []), { ...snapshot }])
+    preservedByLineBucket.set(key, [...(preservedByLineBucket.get(key) ?? []), { ...snapshot }])
   }
 
   const rows: Prisma.stock_holdsCreateManyInput[] = []
@@ -622,18 +654,29 @@ export async function createActiveWtoPendingOut(tx: TxClient, input: {
 
       let remainingQty = allocation.qty
       const key = bucketKey(allocation)
-      const preserved = preservedByBucket.get(key) ?? []
+      const preserved = preservedByLineBucket.get(lineBucketKey({
+        lotNo: allocation.lotNo,
+        notAvailableForSale: allocation.notAvailableForSale,
+        outputCategory: allocation.outputCategory,
+        productId: allocation.productId,
+        sourceLineNo: line.line_no,
+        warehouseId: allocation.warehouseId,
+      })) ?? []
       while (remainingQty > 0.0001 && preserved.length) {
         const snapshot = preserved[0]
         if (snapshot.unitCostSnapshot == null) {
-          throw new WtoPendingOutError(`pending_out เดิมของ ${input.documentNo} ยังไม่มีราคาต้นทุนเฉลี่ย snapshot ไม่สามารถแก้ไขหลังยืนยันได้`)
+          throw new WtoPendingOutError(`pending_out เดิมของ ${input.documentNo} ยังไม่มีราคาต้นทุนเฉลี่ยที่บันทึกไว้ ไม่สามารถแก้ไขหลังยืนยันได้`)
         }
+        const unitCostSnapshot = assertPositiveWtoAverageCost(
+          toNumber(snapshot.unitCostSnapshot),
+          `pending_out เดิมของ ${input.documentNo} มีราคาต้นทุนเฉลี่ยไม่ถูกต้อง ไม่สามารถแก้ไขหลังยืนยันได้`,
+        )
         const preservedQty = Math.min(remainingQty, snapshot.qty)
         pushRow(preservedQty, {
           costSnapshotAt: snapshot.costSnapshotAt,
           costSnapshotNote: snapshot.costSnapshotNote,
           costSnapshotSource: snapshot.costSnapshotSource,
-          unitCostSnapshot: toNumber(snapshot.unitCostSnapshot),
+          unitCostSnapshot,
         })
         snapshot.qty = Number((snapshot.qty - preservedQty).toFixed(6))
         remainingQty = Number((remainingQty - preservedQty).toFixed(6))
@@ -642,20 +685,29 @@ export async function createActiveWtoPendingOut(tx: TxClient, input: {
 
       if (remainingQty > 0.0001) {
         const unitCostSnapshot = costByBucketKey.get(key)
-        if (unitCostSnapshot == null) {
-          throw new WtoPendingOutError(`ไม่พบราคาต้นทุนเฉลี่ยสำหรับ pending_out ${input.documentNo} line ${line.line_no}`)
-        }
+        const positiveUnitCostSnapshot = assertPositiveWtoAverageCost(
+          unitCostSnapshot,
+          `ไม่พบราคาต้นทุนเฉลี่ยสำหรับ pending_out ${input.documentNo} line ${line.line_no}`,
+        )
         pushRow(remainingQty, {
           costSnapshotAt: now,
-          costSnapshotNote: `snapshot ${input.documentNo} line ${line.line_no}`,
+          costSnapshotNote: `เต๋าที่ ${line.line_no}`,
           costSnapshotSource: input.snapshotSource ?? 'WTO_CONFIRM',
-          unitCostSnapshot,
+          unitCostSnapshot: positiveUnitCostSnapshot,
         })
       }
     }
   }
-  if (!rows.length) return
+  if (!rows.length) return [] as bigint[]
   await tx.stock_holds.createMany({ data: rows })
+  const createdHolds = await tx.stock_holds.findMany({
+    select: { id: true },
+    where: {
+      held_at: now,
+      weight_ticket_id: input.weightTicketId,
+    },
+  })
+  return createdHolds.map((hold) => hold.id)
 }
 
 export async function snapshotActiveWtoPendingOutCosts(tx: TxClient, input: {
@@ -671,7 +723,7 @@ export async function snapshotActiveWtoPendingOutCosts(tx: TxClient, input: {
       weight_ticket_id: input.weightTicketId,
     },
   })
-  if (!holds.length) return
+  if (!holds.length) return [] as bigint[]
 
   const costByBucketKey = await loadAverageCostByBucketKey(tx, {
     branchId: input.branchId,
@@ -680,6 +732,7 @@ export async function snapshotActiveWtoPendingOutCosts(tx: TxClient, input: {
   })
   const now = new Date()
 
+  const updatedHoldIds: bigint[] = []
   for (const hold of holds) {
     const unitCostSnapshot = costByBucketKey.get(bucketKey({
       lotNo: hold.lot_no,
@@ -688,22 +741,25 @@ export async function snapshotActiveWtoPendingOutCosts(tx: TxClient, input: {
       productId: hold.product_id,
       warehouseId: hold.warehouse_id,
     }))
-    if (unitCostSnapshot == null) {
-      throw new WtoPendingOutError(`ไม่พบราคาต้นทุนเฉลี่ยสำหรับ pending_out ${hold.hold_key} กรุณาตรวจสอบ stock ก่อนยืนยันใบส่งของ`)
-    }
+    const positiveUnitCostSnapshot = assertPositiveWtoAverageCost(
+      unitCostSnapshot,
+      `ไม่พบราคาต้นทุนเฉลี่ยสำหรับ pending_out ${hold.hold_key} กรุณาตรวจสอบ stock ก่อนยืนยันใบส่งของ`,
+    )
     await tx.stock_holds.update({
       data: {
         cost_snapshot_at: now,
-        cost_snapshot_note: `snapshot ${hold.source_doc_no}${hold.source_line_no ? ` line ${hold.source_line_no}` : ''}`,
+        cost_snapshot_note: hold.source_line_no ? `เต๋าที่ ${hold.source_line_no}` : null,
         cost_snapshot_source: input.source,
-        unit_cost_snapshot: unitCostSnapshot,
+        unit_cost_snapshot: positiveUnitCostSnapshot,
         updated_at: now,
         updated_by: input.actor,
-        value_snapshot: toNumber(hold.qty) * unitCostSnapshot,
+        value_snapshot: toNumber(hold.qty) * positiveUnitCostSnapshot,
       },
       where: { id: hold.id },
     })
+    updatedHoldIds.push(hold.id)
   }
+  return updatedHoldIds
 }
 
 export async function releaseActiveWtoPendingOut(tx: TxClient, input: {
@@ -766,7 +822,7 @@ export async function consumeActiveWtoPendingOut(tx: TxClient, input: {
     if (requestedQty <= 0.0001) continue
     const qty = Math.min(holdQty, requestedQty)
     if (hold.unit_cost_snapshot == null) {
-      throw new WtoPendingOutError(`pending_out ${hold.hold_key} ยังไม่มีราคาต้นทุนเฉลี่ย snapshot กรุณายืนยันใบส่งของก่อนเปิดบิลขาย`)
+      throw new WtoPendingOutError(`pending_out ${hold.hold_key} ยังไม่มีราคาต้นทุนเฉลี่ยที่บันทึกไว้ กรุณายืนยันใบส่งของก่อนเปิดบิลขาย`)
     }
     const unitCost = toNumber(hold.unit_cost_snapshot)
     consumedLines.push({
@@ -1047,7 +1103,7 @@ export async function releaseConsumedWtoPendingOutForSalesBill(tx: TxClient, inp
     const holdQty = toNumber(hold.qty)
     const releaseQty = Math.min(holdQty, requestedQty)
     if (hold.unit_cost_snapshot == null) {
-      throw new WtoPendingOutError(`pending_out ${hold.hold_key} ยังไม่มีราคาต้นทุนเฉลี่ย snapshot ไม่สามารถคืน stock จากการแก้ไขบิลขายได้`)
+      throw new WtoPendingOutError(`pending_out ${hold.hold_key} ยังไม่มีราคาต้นทุนเฉลี่ยที่บันทึกไว้ ไม่สามารถคืน stock จากการแก้ไขบิลขายได้`)
     }
     const unitCost = toNumber(hold.unit_cost_snapshot)
 
@@ -1219,11 +1275,21 @@ export async function closeActiveWtoPendingOutForSalesBillReturn(tx: TxClient, i
   }
 
   const now = new Date()
+  let returnedUnitCost = 0
+  let returnedValueIn = 0
   let lossUnitCost = 0
   let lossValueOut = 0
+  let lossPendingOutKey: string | null = null
+  if (normalizedReturnedQty > 0.0001) {
+    if (hold.unit_cost_snapshot == null) {
+      throw new WtoPendingOutError(`pending_out ${hold.hold_key} ยังไม่มีราคาต้นทุนเฉลี่ยที่บันทึกไว้ ไม่สามารถบันทึกรับคืนเข้าคลังได้`)
+    }
+    returnedUnitCost = toNumber(hold.unit_cost_snapshot)
+    returnedValueIn = normalizedReturnedQty * returnedUnitCost
+  }
   if (lossQty > 0.0001) {
     if (hold.unit_cost_snapshot == null) {
-      throw new WtoPendingOutError(`pending_out ${hold.hold_key} ยังไม่มีราคาต้นทุนเฉลี่ย snapshot ไม่สามารถบันทึกของขาดได้`)
+      throw new WtoPendingOutError(`pending_out ${hold.hold_key} ยังไม่มีราคาต้นทุนเฉลี่ยที่บันทึกไว้ ไม่สามารถบันทึกของขาดได้`)
     }
     lossUnitCost = toNumber(hold.unit_cost_snapshot)
     lossValueOut = lossQty * lossUnitCost
@@ -1246,7 +1312,7 @@ export async function closeActiveWtoPendingOutForSalesBillReturn(tx: TxClient, i
     if (released.count !== 1) {
       throw new WtoPendingOutError('pending_out นี้ถูกเปลี่ยนสถานะไปแล้ว กรุณาโหลดข้อมูลใหม่')
     }
-    await tx.stock_holds.create({
+    const lostHold = await tx.stock_holds.create({
       data: {
         branch_id: hold.branch_id,
         created_at: now,
@@ -1272,7 +1338,9 @@ export async function closeActiveWtoPendingOutForSalesBillReturn(tx: TxClient, i
         weight_ticket_id: hold.weight_ticket_id,
         weight_ticket_line_id: hold.weight_ticket_line_id,
       },
+      select: { hold_key: true },
     })
+    lossPendingOutKey = lostHold.hold_key
   } else {
     const status = lossQty > 0.0001 ? 'lost' : 'released'
     const closed = await tx.stock_holds.updateMany({
@@ -1290,6 +1358,34 @@ export async function closeActiveWtoPendingOutForSalesBillReturn(tx: TxClient, i
     if (closed.count !== 1) {
       throw new WtoPendingOutError('pending_out นี้ถูกเปลี่ยนสถานะไปแล้ว กรุณาโหลดข้อมูลใหม่')
     }
+  }
+
+  if (normalizedReturnedQty > 0.0001) {
+    await tx.stock_ledger.create({
+      data: {
+        branch_id: hold.branch_id,
+        created_by: input.actor,
+        date: input.returnDate,
+        lot_no: hold.lot_no,
+        movement_type: 'รับคืนจากใบส่งของ WTO',
+        note: input.note ?? `รับคืน pending_out จาก WTO ${hold.source_doc_no}`,
+        notes: `รับคืน pending_out ${hold.hold_key} จาก SB ${input.salesBillDocNo}`,
+        not_available_for_sale: hold.not_available_for_sale,
+        output_category: hold.output_category,
+        product_id: hold.product_id,
+        qty_in: normalizedReturnedQty,
+        qty_out: 0,
+        ref_id: input.salesBillDocNo,
+        ref_no: input.salesBillDocNo,
+        ref_type: 'WTO-RETURN',
+        return_reason: input.reason ?? null,
+        sales_channel_id: input.salesChannelId ?? null,
+        unit_cost: returnedUnitCost,
+        value_in: returnedValueIn,
+        value_out: 0,
+        warehouse_id: hold.warehouse_id,
+      },
+    })
   }
 
   if (lossQty > 0.0001) {
@@ -1323,6 +1419,7 @@ export async function closeActiveWtoPendingOutForSalesBillReturn(tx: TxClient, i
   return {
     branchId: hold.branch_id,
     pendingOutKey: hold.hold_key,
+    lossPendingOutKey,
     lossQty,
     lossUnitCost,
     lossValueOut,

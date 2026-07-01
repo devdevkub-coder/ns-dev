@@ -1,6 +1,6 @@
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import { XLSX } from '@/lib/server/xlsx'
 import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
@@ -74,14 +74,14 @@ function billWhere(query: ArQuery, branchId: bigint | null, channelId: bigint | 
   }
 }
 
-function buildWorkbook(rows: Array<Record<string, string | number>>) {
+async function buildWorkbook(rows: Array<Record<string, string | number>>) {
   const workbook = XLSX.utils.book_new()
   const sheet = XLSX.utils.json_to_sheet(rows)
   const headers = rows[0] ? Object.keys(rows[0]) : []
   sheet['!cols'] = headers.map((header) => ({ wch: Math.max(12, header.length + 4) }))
   applyWorksheetTableLayout(sheet, headers.length, rows.length + 1)
   XLSX.utils.book_append_sheet(workbook, sheet, 'AR Aging')
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 function xlsxResponse(body: Buffer, filename: string) {
@@ -257,7 +257,7 @@ export async function GET(request: Request) {
         Status: row.status,
         Total: row.totalAmount,
       }))
-      return xlsxResponse(buildWorkbook(workbookRows), `finance_ar_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      return xlsxResponse(await buildWorkbook(workbookRows), `finance_ar_${new Date().toISOString().slice(0, 10)}.xlsx`)
     }
 
     const totalRows = allRows.length

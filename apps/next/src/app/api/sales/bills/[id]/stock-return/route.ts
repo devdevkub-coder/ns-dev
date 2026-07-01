@@ -6,6 +6,7 @@ import { currentActor, normalizeDate, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { closeActiveWtoPendingOutForSalesBillReturn, WtoPendingOutError } from '@/lib/server/stock-holds'
+import { appendWtoPendingOutEventsForHoldKeys } from '@/lib/server/weight-ticket-pending-out-events'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION } from '@/lib/server/weight-ticket-usage-history'
 
@@ -180,6 +181,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         })
       }
       await appendWeightTicketUsageLogs(tx, usageEntries)
+      await appendWtoPendingOutEventsForHoldKeys(tx, {
+        actor,
+        eventTypeForHold: (hold) => (closed.lossPendingOutKey && hold.hold_key === closed.lossPendingOutKey ? 'sales_bill_return_loss' : 'sales_bill_return'),
+        holdKeys: [closed.pendingOutKey, closed.lossPendingOutKey].filter((key): key is string => Boolean(key)),
+        occurredAt: returnedAt,
+        referenceDocNo: bill.doc_no,
+        referenceDocType: 'SB',
+      })
 
       await tx.weight_ticket_product_summaries.update({
         data: {

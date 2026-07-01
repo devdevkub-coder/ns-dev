@@ -46,37 +46,34 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (holds.length === 0) return NextResponse.json({ options: [] })
 
     const productIds = [...new Set(holds.map((hold) => hold.product_id))]
-    const usageLogs = await prisma.weight_ticket_usage_logs.findMany({
+    const salesBillAllocations = await prisma.sales_bill_source_allocations.findMany({
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       select: {
         product_id: true,
-        target_doc_no: true,
+        sales_bills: {
+          select: {
+            doc_no: true,
+          },
+        },
       },
       where: {
-        action: 'allocated_to_sales_bill',
         product_id: { in: productIds },
-        target_doc_no: { not: null },
-        target_type: 'SALES_BILL',
+        sales_bills: {
+          status: { notIn: ['cancelled', 'canceled'] },
+        },
+        source_doc_no: ticket.doc_no,
+        source_type: 'WTO',
+        status: 'active',
         weight_ticket_id: ticket.id,
       },
     })
-    const salesBillDocNos = [...new Set(usageLogs.map((log) => log.target_doc_no).filter((docNo): docNo is string => Boolean(docNo)))]
-    const activeSalesBills = salesBillDocNos.length
-      ? await prisma.sales_bills.findMany({
-          select: { doc_no: true, status: true },
-          where: {
-            doc_no: { in: salesBillDocNos },
-            status: { notIn: ['cancelled', 'canceled'] },
-          },
-        })
-      : []
-    const activeSalesBillDocNoSet = new Set(activeSalesBills.map((bill) => bill.doc_no))
     const salesBillDocNosByProductId = new Map<bigint, string[]>()
-    for (const log of usageLogs) {
-      if (!log.product_id || !log.target_doc_no || !activeSalesBillDocNoSet.has(log.target_doc_no)) continue
-      const current = salesBillDocNosByProductId.get(log.product_id) ?? []
-      if (!current.includes(log.target_doc_no)) current.push(log.target_doc_no)
-      salesBillDocNosByProductId.set(log.product_id, current)
+    for (const allocation of salesBillAllocations) {
+      if (!allocation.product_id) continue
+      const docNo = allocation.sales_bills.doc_no
+      const current = salesBillDocNosByProductId.get(allocation.product_id) ?? []
+      if (!current.includes(docNo)) current.push(docNo)
+      salesBillDocNosByProductId.set(allocation.product_id, current)
     }
 
     return NextResponse.json({

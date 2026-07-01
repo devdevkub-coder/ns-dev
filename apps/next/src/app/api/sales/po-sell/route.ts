@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import * as XLSX from 'xlsx'
+import { XLSX } from '@/lib/server/xlsx'
 import { poSellFormSchema, type PoSellFormValues } from '@/lib/sales'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission, type AppAuthContext } from '@/lib/server/auth-context'
@@ -174,14 +174,14 @@ function matchStatusLabel(status: string) {
   return MATCH_STATUS_OPTIONS.find((option) => option.value === status)?.label ?? status
 }
 
-function buildWorkbook(rows: Array<Record<string, string | number>>) {
+async function buildWorkbook(rows: Array<Record<string, string | number>>) {
   const workbook = XLSX.utils.book_new()
   const sheet = XLSX.utils.json_to_sheet(rows)
   const headers = rows[0] ? Object.keys(rows[0]) : []
   sheet['!cols'] = headers.map((header) => ({ wch: Math.max(12, header.length + 4) }))
   applyWorksheetTableLayout(sheet, headers.length, rows.length + 1)
   XLSX.utils.book_append_sheet(workbook, sheet, 'PO Sell')
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 function xlsxResponse(body: Buffer, filename: string) {
@@ -456,7 +456,7 @@ export async function GET(request: Request) {
       .filter((row) => !q || `${row.docNo} ${row.customerName} ${row.channelName} ${row.branchName} ${row.productName} ${row.documentStatusLabel} ${row.status} ${row.matchStatus} ${row.matchStatusLabel}`.toLowerCase().includes(q))
 
     if (url.searchParams.get('format') === 'xlsx') {
-      return xlsxResponse(buildWorkbook(rows.map((row) => ({
+      return xlsxResponse(await buildWorkbook(rows.map((row) => ({
         Branch: row.branchName,
         Channel: row.channelName,
         Customer: stringifyBusinessValue(row.customerName),

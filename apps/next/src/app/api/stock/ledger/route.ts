@@ -313,7 +313,7 @@ export async function GET(request: Request) {
     if (query.negativeOnly) payloadRows = payloadRows.filter((row) => row.runningBalanceByProduct < 0)
 
     if (query.format === 'xlsx') {
-      const body = buildStockWorkbook('Stock Ledger', payloadRows.map((row) => ({
+      const body = await buildStockWorkbook('Stock Ledger', payloadRows.map((row) => ({
         วันที่: row.date,
         Ref: `${row.refType}:${row.refNo}`,
         Movement: stockMovementTypeLabel(row.movementType),

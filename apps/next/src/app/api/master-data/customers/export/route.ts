@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import { XLSX } from '@/lib/server/xlsx'
 import { mapPrismaCustomer } from '@/lib/domain/customer'
 import { formatPhoneDisplay } from '@/lib/format'
 import { apiErrorResponse } from '@/lib/server/api-error'
@@ -132,7 +132,7 @@ function formatCellValue(customer: Customer, key: keyof Customer) {
   return String(value)
 }
 
-function buildWorkbook(customers: Customer[], total: number, filters: { customerType: string; marketScope: string; q: string }) {
+async function buildWorkbook(customers: Customer[], total: number, filters: { customerType: string; marketScope: string; q: string }) {
   const generatedAt = new Date()
   const summaryRows = [
     ['Export ณ', generatedAt.toLocaleString('th-TH')],
@@ -157,7 +157,7 @@ function buildWorkbook(customers: Customer[], total: number, filters: { customer
   applyWorksheetTableLayout(customerSheet, customerColumns.length, dataRows.length + 1)
   XLSX.utils.book_append_sheet(workbook, summarySheet, 'สรุป')
   XLSX.utils.book_append_sheet(workbook, customerSheet, 'ลูกค้า')
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 export async function GET(request: Request) {
@@ -181,7 +181,7 @@ export async function GET(request: Request) {
     const customers = rows.map((row) => mapPrismaCustomer(row as any, {
       salesId: salespersonReferences.get(String(row.sales_id ?? ''))?.code ?? null,
     }))
-    const body = buildWorkbook(customers, total, { customerType, marketScope, q })
+    const body = await buildWorkbook(customers, total, { customerType, marketScope, q })
     const filename = `customers_${new Date().toISOString().slice(0, 10)}.xlsx`
 
     return new NextResponse(new Uint8Array(body), {

@@ -1,5 +1,6 @@
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { salesBillLineFactsForBills } from '@/lib/server/sales-bill-line-facts'
 import type { Prisma } from '../../../generated/prisma/client'
 
 export type SalesBillDetail = {
@@ -23,6 +24,7 @@ export type SalesBillDetail = {
   items: Array<{
     amount: number
     deliveryLineId: string
+    deliverySummaryId: string
     deliveryTicketDocNo: string
     deliveryVehicleNo: string
     deductWeight: number
@@ -42,6 +44,7 @@ export type SalesBillDetail = {
     sourceType: string
     tradingSourceDocNo: string
     tradingSourceLineNo: number | null
+    unitCostSnapshot: number | null
     unit: string
   }>
   note: string
@@ -206,25 +209,14 @@ function customerAddress(customer: SalesBillDetailRow['customers']) {
   return customer.address || customer.address_line1 || structured
 }
 
-function snapshotString(item: unknown, key: string) {
-  if (!item || typeof item !== 'object' || Array.isArray(item)) return ''
-  const value = (item as Record<string, unknown>)[key]
+function jsonObject(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {}
+}
+
+function jsonString(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
-}
-
-function snapshotNumber(item: unknown, key: string) {
-  if (!item || typeof item !== 'object' || Array.isArray(item)) return 0
-  const value = (item as Record<string, unknown>)[key]
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
-  if (typeof value === 'string') {
-    const parsed = Number(value.replace(/,/g, ''))
-    return Number.isFinite(parsed) ? parsed : 0
-  }
-  return 0
-}
-
-function itemSnapshots(items: Prisma.JsonValue | null | undefined) {
-  return Array.isArray(items) ? items.filter((item) => item && typeof item === 'object' && !Array.isArray(item)) : []
 }
 
 function tradingSourceInfo(
@@ -273,6 +265,7 @@ function buildDurableItems(input: {
   bill: SalesBillDetailRow
   lineFacts: SalesBillLineFact[]
   poSellDocNoSet: Set<string>
+  stockUnitCostByLineNo: Map<number, number | null>
   tradingFactByLineNo: Map<number, Prisma.trading_allocation_factsGetPayload<{
     include: {
       purchase_bills: { select: { doc_no: true } }
@@ -303,6 +296,9 @@ function buildDurableItems(input: {
       ? [tradingSource.label, ...salesSourceLabels]
       : [stockSourceLabel, ...salesSourceLabels]
     const deliveryTicketDocNo = wtoSource?.source_doc_no ?? ''
+    const wtoMeta = jsonObject(wtoSource?.meta)
+    const deliveryLineId = jsonString(wtoMeta.deliveryLineId)
+    const deliverySummaryId = jsonString(wtoMeta.deliverySummaryId)
     const sourceType = input.bill.transaction_mode === 'TRADING'
       ? tradingSource.sourceType
       : Array.from(new Set([
@@ -315,7 +311,8 @@ function buildDurableItems(input: {
 
     return {
       amount: toNumber(line.line_amount),
-      deliveryLineId: firstSourceAllocation?.source_line_no != null ? String(firstSourceAllocation.source_line_no) : '',
+      deliveryLineId,
+      deliverySummaryId,
       deliveryTicketDocNo,
       deliveryVehicleNo: input.vehicleByDeliveryDocNo.get(deliveryTicketDocNo) ?? '',
       deductWeight: toNumber(line.deduct_weight),
@@ -335,52 +332,8 @@ function buildDurableItems(input: {
       sourceType,
       tradingSourceDocNo: tradingSource.sourceDocNo,
       tradingSourceLineNo: tradingSource.sourceLineNo,
+      unitCostSnapshot: input.stockUnitCostByLineNo.get(line.line_no) ?? null,
       unit: line.unit_snapshot || 'กก.',
-    }
-  })
-}
-
-function buildSnapshotItems(input: {
-  bill: SalesBillDetailRow
-  snapshots: unknown[]
-  tradingFactByLineNo: Map<number, Prisma.trading_allocation_factsGetPayload<{
-    include: {
-      purchase_bills: { select: { doc_no: true } }
-      trading_cost_sources: { select: { source_no: true; source_type: true } }
-    }
-  }>>
-  vehicleByDeliveryDocNo: Map<string, string>
-}): SalesBillDetail['items'] {
-  return input.snapshots.map((item, index) => {
-    const lineNo = index + 1
-    const deliveryTicketDocNo = snapshotString(item, 'deliveryTicketDocNo')
-    const tradingSource = tradingSourceInfo(input.bill.transaction_mode, lineNo, input.tradingFactByLineNo)
-    const sourceParts = input.bill.transaction_mode === 'TRADING'
-      ? [tradingSource.label, 'รอ sales allocation facts']
-      : ['รอ migration allocation facts']
-    return {
-      amount: snapshotNumber(item, 'amount'),
-      deliveryLineId: snapshotString(item, 'deliveryLineId'),
-      deliveryTicketDocNo,
-      deliveryVehicleNo: input.vehicleByDeliveryDocNo.get(deliveryTicketDocNo) ?? '',
-      deductWeight: snapshotNumber(item, 'deductWeight'),
-      discount: snapshotNumber(item, 'discount'),
-      grossWeight: snapshotNumber(item, 'grossWeight'),
-      lineNo,
-      matchedCogs: tradingSource.matchedCogs,
-      netWeight: snapshotNumber(item, 'netWeight') || snapshotNumber(item, 'qty'),
-      note: snapshotString(item, 'note'),
-      poSellDocNo: '',
-      price: snapshotNumber(item, 'unitPrice') || snapshotNumber(item, 'price'),
-      productCode: snapshotString(item, 'productCode'),
-      productId: snapshotString(item, 'productId'),
-      productName: snapshotString(item, 'productName') || '-',
-      qty: snapshotNumber(item, 'qty'),
-      sourceLabel: sourceParts.filter(Boolean).join(' / '),
-      sourceType: input.bill.transaction_mode === 'TRADING' ? tradingSource.sourceType : 'Migration Gap',
-      tradingSourceDocNo: tradingSource.sourceDocNo,
-      tradingSourceLineNo: tradingSource.sourceLineNo,
-      unit: snapshotString(item, 'unit') || 'กก.',
     }
   })
 }
@@ -406,7 +359,6 @@ export async function getSalesBillDetail(
   if (!bill) return null
 
   const factStatuses = ['active', 'cancelled']
-  const snapshots = itemSnapshots(bill.items)
   const [lineFacts, salesperson, customerAdvanceAllocations, tradingAllocationFacts, statusLogs, weightTicketUsageLogs, poSellAllocationLogs] = await Promise.all([
     prisma.sales_bill_lines.findMany({
       include: {
@@ -486,16 +438,15 @@ export async function getSalesBillDetail(
     }),
   ])
 
-  const hasDurableLineFacts = lineFacts.length > 0
-  const deliveryDocNos = hasDurableLineFacts
-    ? Array.from(new Set(lineFacts.flatMap((line) => line.sales_bill_source_allocations
-      .filter((allocation) => allocation.source_type === 'WTO')
-      .map((allocation) => allocation.source_doc_no)).filter(Boolean)))
-    : Array.from(new Set(snapshots.map((item) => snapshotString(item, 'deliveryTicketDocNo')).filter(Boolean)))
-  const poSellDocNos = hasDurableLineFacts
-    ? Array.from(new Set(lineFacts.flatMap((line) => line.sales_bill_po_sell_allocations
-      .map((allocation) => allocation.po_sell_doc_no ?? allocation.po_sells?.doc_no ?? '')).filter(Boolean)))
-    : []
+  if (lineFacts.length === 0) {
+    throw new Error(`บิลขาย ${bill.doc_no} ยังไม่มี durable line facts จึงเปิดหน้ารายละเอียดไม่ได้`)
+  }
+
+  const deliveryDocNos = Array.from(new Set(lineFacts.flatMap((line) => line.sales_bill_source_allocations
+    .filter((allocation) => allocation.source_type === 'WTO')
+    .map((allocation) => allocation.source_doc_no)).filter(Boolean)))
+  const poSellDocNos = Array.from(new Set(lineFacts.flatMap((line) => line.sales_bill_po_sell_allocations
+    .map((allocation) => allocation.po_sell_doc_no ?? allocation.po_sells?.doc_no ?? '')).filter(Boolean)))
 
   const [deliveryTickets, poSells] = await Promise.all([
     deliveryDocNos.length
@@ -547,9 +498,39 @@ export async function getSalesBillDetail(
     if (fact.sales_line_no == null) return
     tradingFactByLineNo.set(fact.sales_line_no, fact)
   })
-  const items = hasDurableLineFacts
-    ? buildDurableItems({ bill, lineFacts, poSellDocNoSet, tradingFactByLineNo, vehicleByDeliveryDocNo })
-    : buildSnapshotItems({ bill, snapshots, tradingFactByLineNo, vehicleByDeliveryDocNo })
+  const stockLineFacts = await salesBillLineFactsForBills([bill.id], {
+    lineStatuses: factStatuses,
+    tradingStatuses: factStatuses,
+  })
+  const stockCogsByLineNo = new Map(stockLineFacts.map((line) => [line.lineNo, line.cogs] as const))
+  const stockUnitCostByLineNo = new Map(stockLineFacts.map((line) => {
+    const qty = toNumber(line.qty) || toNumber(line.netWeight)
+    return [line.lineNo, qty > 0 && line.cogs > 0 ? line.cogs / qty : null] as const
+  }))
+  const items = buildDurableItems({
+    bill,
+    lineFacts,
+    poSellDocNoSet,
+    stockUnitCostByLineNo,
+    tradingFactByLineNo,
+    vehicleByDeliveryDocNo,
+  })
+  const allocatedUsageQtyByLineNo = new Map<number, number>()
+  weightTicketUsageLogs.forEach((log) => {
+    if (log.action !== 'allocated_to_sales_bill' || log.target_line_no == null) return
+    const qty = toNumber(log.allocated_net_weight) || toNumber(log.allocated_qty)
+    allocatedUsageQtyByLineNo.set(log.target_line_no, (allocatedUsageQtyByLineNo.get(log.target_line_no) ?? 0) + qty)
+  })
+  const stockCogsByUsageLogId = new Map<bigint, number>()
+  weightTicketUsageLogs.forEach((log) => {
+    if (log.target_line_no == null) return
+    const lineCogs = stockCogsByLineNo.get(log.target_line_no) ?? 0
+    if (lineCogs <= 0) return
+    const lineUsageQty = allocatedUsageQtyByLineNo.get(log.target_line_no) ?? 0
+    const usageQty = toNumber(log.allocated_net_weight) || toNumber(log.allocated_qty)
+    if (lineUsageQty <= 0 || usageQty <= 0) return
+    stockCogsByUsageLogId.set(log.id, lineCogs * (usageQty / lineUsageQty))
+  })
   const timeline = statusLogs.map((log) => {
     const customerReceiptDocNo = historyMetaValue(log.meta, 'customerReceiptDocNo')
     const allocationLineNo = historyMetaValue(log.meta, 'allocationLineNo')
@@ -583,7 +564,7 @@ export async function getSalesBillDetail(
   }).reverse()
   const sourceUsageFacts: SalesBillDetail['sourceUsageFacts'] = [
     ...weightTicketUsageLogs.map((log) => ({
-      amount: 0,
+      amount: stockCogsByUsageLogId.get(log.id) ?? 0,
       createdAt: log.created_at.toISOString(),
       docNo: log.weight_ticket_doc_no,
       id: log.event_key ?? `wto-usage:${String(log.id)}`,
@@ -663,12 +644,6 @@ export async function getSalesBillDetail(
     const dateCompare = Date.parse(right.createdAt) - Date.parse(left.createdAt)
     return dateCompare || left.id.localeCompare(right.id)
   })
-  const readModelWarning = hasDurableLineFacts
-    ? ''
-    : snapshots.length > 0
-      ? 'บิลนี้ยังไม่มี durable Sales Bill allocation facts จึงแสดงได้เฉพาะ snapshot พื้นฐาน และไม่เดา PO/Stock/Customer advance allocation จาก JSON'
-      : ''
-
   return {
     billDate: bill.bill_date ? toDateOnly(bill.bill_date) : '',
     branchId: bill.branches?.code ?? '',
@@ -691,7 +666,7 @@ export async function getSalesBillDetail(
     note: bill.note ?? bill.notes ?? '',
     paidAmount: toNumber(bill.paid_amount),
     receivableBalance: toNumber(bill.receivable_balance),
-    readModelWarning,
+    readModelWarning: '',
     receivedAmount: toNumber(bill.received_amount),
     salesName: salesperson?.name ?? bill.salesman ?? '-',
     status: bill.status ?? '',

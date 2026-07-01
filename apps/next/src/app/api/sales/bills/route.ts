@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import * as XLSX from 'xlsx'
+import { XLSX } from '@/lib/server/xlsx'
 import { salesBillFormSchema, type SalesBillFormValues } from '@/lib/sales'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission, type AppAuthContext } from '@/lib/server/auth-context'
@@ -18,10 +18,11 @@ import { salesBillLineFactsForBills, type SalesBillLineFactRow } from '@/lib/ser
 import { consumeActiveWtoPendingOut, releaseConsumedWtoPendingOutForSalesBill, reopenConsumedWtoPendingOutForSalesBill, WtoPendingOutError } from '@/lib/server/stock-holds'
 import { activeVatRatePercent } from '@/lib/server/tax-settings'
 import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
+import { appendWtoPendingOutEventsForHoldKeys, appendWtoPendingOutEventsForSalesBill, appendWtoPendingOutEventsFromHoldIds } from '@/lib/server/weight-ticket-pending-out-events'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION } from '@/lib/server/weight-ticket-usage-history'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
-import type { Prisma } from '../../../../../generated/prisma/client'
+import { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
 
@@ -455,28 +456,29 @@ function deliverySummaryUsageKey(ticketId: bigint, summaryId: bigint) {
 
 async function buildDeliveryTicketUsageMap(tickets: DeliveryTicketOptionRow[]) {
   if (tickets.length === 0) return new Map<string, number>()
-  const ticketDocNos = new Set(tickets.map((ticket) => ticket.doc_no))
-  const rows = await prisma.sales_bills.findMany({
-    select: {
-      items: true,
-      status: true,
-    },
-    where: {
-      status: { notIn: ['cancelled', 'Cancelled', 'void', 'voided'] },
-    },
-  })
+  const ticketIds = [...new Set(tickets.map((ticket) => ticket.id.toString()))].map((ticketId) => BigInt(ticketId))
+  const rows = await prisma.$queryRaw<Array<{
+    allocated_qty: Prisma.Decimal | number
+    delivery_summary_id: string | null
+    weight_ticket_id: bigint
+  }>>`
+    select
+      sba.allocated_qty,
+      sba.meta ->> 'deliverySummaryId' as delivery_summary_id,
+      sba.weight_ticket_id
+    from public.sales_bill_source_allocations sba
+    join public.sales_bills sb on sb.id = sba.sales_bill_id
+    where lower(coalesce(sb.status, '')) not in ('cancelled', 'void', 'voided')
+      and sba.status = 'active'
+      and sba.source_type = 'WTO'
+      and sba.weight_ticket_id in (${Prisma.join(ticketIds)})
+  `
   const usageMap = new Map<string, number>()
   rows.forEach((row) => {
-    if (!Array.isArray(row.items)) return
-    row.items.forEach((item) => {
-      if (!item || typeof item !== 'object' || Array.isArray(item)) return
-      const record = item as Record<string, unknown>
-      const ticketDocNo = typeof record.deliveryTicketId === 'string' ? record.deliveryTicketId : null
-      const summaryId = typeof record.deliverySummaryId === 'string' ? record.deliverySummaryId : null
-      const qty = Number(record.qty ?? 0)
-      if (!ticketDocNo || !summaryId || !ticketDocNos.has(ticketDocNo) || !Number.isFinite(qty) || qty <= 0) return
-      usageMap.set(summaryId, (usageMap.get(summaryId) ?? 0) + qty)
-    })
+    const summaryId = row.delivery_summary_id
+    const qty = toNumber(row.allocated_qty)
+    if (!summaryId || qty <= 0.0001) return
+    usageMap.set(summaryId, (usageMap.get(summaryId) ?? 0) + qty)
   })
   return usageMap
 }
@@ -1190,7 +1192,7 @@ function salesBillStatusLabel(status?: string | null) {
   return labels[status.toLowerCase()] ?? status
 }
 
-function buildWorkbook(summaryRows: any[], lineRows: SalesBillLineFactRow[]) {
+async function buildWorkbook(summaryRows: any[], lineRows: SalesBillLineFactRow[]) {
   const summaryData = summaryRows.map((row) => ({
     'เลขที่': row.docNo,
     'อ้างอิง': row.refNo || '-',
@@ -1246,7 +1248,7 @@ function buildWorkbook(summaryRows: any[], lineRows: SalesBillLineFactRow[]) {
   applyWorksheetTableLayout(sheet2, 14, detailData.length + 1)
   XLSX.utils.book_append_sheet(workbook, sheet2, 'รายละเอียดสินค้า')
 
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 export async function GET(request: Request) {
@@ -1286,7 +1288,7 @@ export async function GET(request: Request) {
     const jsonRows = rows.map((row) => billJson(row, activeReceiptCountByBillId.get(row.id) ?? 0, lineCountByBillId.get(row.id)))
 
     if (url.searchParams.get('format') === 'xlsx') {
-      const body = buildWorkbook(jsonRows, await salesBillLineFactsForBills(billIds, { lineStatuses: ['active', 'cancelled'], tradingStatuses: ['active', 'cancelled'] }))
+      const body = await buildWorkbook(jsonRows, await salesBillLineFactsForBills(billIds, { lineStatuses: ['active', 'cancelled'], tradingStatuses: ['active', 'cancelled'] }))
       const filename = `sales_bills_${new Date().toISOString().slice(0, 10)}.xlsx`
 
       return new NextResponse(new Uint8Array(body), {
@@ -1929,6 +1931,15 @@ export async function POST(request: Request) {
           }]
         })
         await appendWeightTicketUsageLogs(tx, usageEntries)
+        await appendWtoPendingOutEventsForSalesBill(tx, {
+          actor,
+          eventTypeForHold: () => 'sales_bill_consume',
+          occurredAt: createdAt,
+          referenceDocNo: createdBill.doc_no,
+          referenceDocType: 'SB',
+          salesBillDocNo: createdBill.doc_no,
+          statusSnapshot: 'consumed',
+        })
 
         const summaryUsage = new Map<bigint, number>()
         items.forEach((item) => {
@@ -2458,6 +2469,15 @@ export async function PATCH(request: Request) {
               weightTicketId: stockDeliveryTicket.id,
             })
             stockCostDelta = roundMoney(stockCostDelta - releasedLines.reduce((sum, line) => sum + line.valueIn, 0))
+            await appendWtoPendingOutEventsForHoldKeys(tx, {
+              actor,
+              eventTypeForHold: () => 'sales_bill_edit_release',
+              holdKeys: releasedLines.map((line) => line.pendingOutKey),
+              occurredAt: createdAt,
+              referenceDocNo: bill.doc_no,
+              referenceDocType: 'SB',
+              statusSnapshot: 'active',
+            })
           }
           if (consumeAllocations.size > 0) {
             const consumedLines = await consumeActiveWtoPendingOut(tx, {
@@ -2470,6 +2490,15 @@ export async function PATCH(request: Request) {
               weightTicketId: stockDeliveryTicket.id,
             })
             stockCostDelta = roundMoney(stockCostDelta + consumedLines.reduce((sum, line) => sum + line.valueOut, 0))
+            await appendWtoPendingOutEventsForSalesBill(tx, {
+              actor,
+              eventTypeForHold: () => 'sales_bill_consume',
+              occurredAt: createdAt,
+              referenceDocNo: bill.doc_no,
+              referenceDocType: 'SB',
+              salesBillDocNo: bill.doc_no,
+              statusSnapshot: 'consumed',
+            })
           }
 
           const usageEntries = stockDeltaByLine.flatMap((line) => {
@@ -2987,6 +3016,15 @@ export async function PATCH(request: Request) {
         })
 
         if (reopenedPendingOut.length > 0) {
+          await appendWtoPendingOutEventsFromHoldIds(tx, {
+            actor,
+            eventTypeForHold: () => 'sales_bill_cancel_reopen',
+            holdIds: reopenedPendingOut.map((hold) => hold.id),
+            occurredAt: createdAt,
+            referenceDocNo: bill.doc_no,
+            referenceDocType: 'SB',
+            statusSnapshot: 'active',
+          })
           const usageLogs = await tx.weight_ticket_usage_logs.findMany({
             where: {
               target_id: bill.id,

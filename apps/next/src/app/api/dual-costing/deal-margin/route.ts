@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import { XLSX } from '@/lib/server/xlsx'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
@@ -26,7 +26,7 @@ type DealMarginRow = {
   unitPrice: number
 }
 
-function buildWorkbook(rows: DealMarginRow[]) {
+async function buildWorkbook(rows: DealMarginRow[]) {
   const workbook = XLSX.utils.book_new()
   const dataRows = rows.map((row) => ({
     AvgCost: row.avgCost,
@@ -49,7 +49,7 @@ function buildWorkbook(rows: DealMarginRow[]) {
   sheet['!cols'] = headers.map((header) => ({ wch: Math.max(12, String(header).length + 4) }))
   applyWorksheetTableLayout(sheet, headers.length, rows.length + 1)
   XLSX.utils.book_append_sheet(workbook, sheet, 'Deal Margin')
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 function xlsxResponse(body: Buffer, filename: string) {
@@ -121,7 +121,7 @@ export async function GET(request: Request) {
       .filter((row) => !channel || channel === 'all' || row.channel === channel)
 
     if (url.searchParams.get('format') === 'xlsx') {
-      return xlsxResponse(buildWorkbook(rows), 'deal_margin.xlsx')
+      return xlsxResponse(await buildWorkbook(rows), 'deal_margin.xlsx')
     }
 
     const revenue = rows.reduce((sum, row) => sum + row.totalRevenue, 0)

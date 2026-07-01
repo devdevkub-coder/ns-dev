@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import { XLSX } from '@/lib/server/xlsx'
 import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { poBuyCancelSchema, poBuyFormSchema, poBuyShortCloseSchema, poBuyUpdateSchema, type PoBuyFormValues } from '@/lib/po-buy'
 import { apiErrorResponse } from '@/lib/server/api-error'
@@ -105,14 +105,14 @@ function itemsFromPo(row: {
   }]
 }
 
-function buildWorkbook(rows: Array<Record<string, string | number>>) {
+async function buildWorkbook(rows: Array<Record<string, string | number>>) {
   const workbook = XLSX.utils.book_new()
   const sheet = XLSX.utils.json_to_sheet(rows)
   const headers = rows[0] ? Object.keys(rows[0]) : []
   sheet['!cols'] = headers.map((header) => ({ wch: Math.max(12, header.length + 4) }))
   applyWorksheetTableLayout(sheet, headers.length, rows.length + 1)
   XLSX.utils.book_append_sheet(workbook, sheet, 'PO ซื้อ')
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 function xlsxResponse(body: Buffer, filename: string) {
@@ -621,7 +621,7 @@ export async function GET(request: Request) {
       })
 
     if (url.searchParams.get('format') === 'xlsx') {
-      return xlsxResponse(buildWorkbook(rows.map((row) => ({
+      return xlsxResponse(await buildWorkbook(rows.map((row) => ({
         เลขที่: row.docNo,
         วันที่: row.date,
         ผู้ขาย: row.supplierName,

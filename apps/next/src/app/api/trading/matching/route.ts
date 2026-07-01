@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import { XLSX } from '@/lib/server/xlsx'
 import { stringifyBusinessValue } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
@@ -18,14 +18,14 @@ function addAmount<TKey>(map: Map<TKey, number>, key: TKey | null | undefined, a
   map.set(key, (map.get(key) ?? 0) + amount)
 }
 
-function buildWorkbook(rows: Array<Record<string, string | number>>) {
+async function buildWorkbook(rows: Array<Record<string, string | number>>) {
   const workbook = XLSX.utils.book_new()
   const sheet = XLSX.utils.json_to_sheet(rows)
   const headers = rows[0] ? Object.keys(rows[0]) : []
   sheet['!cols'] = headers.map((header) => ({ wch: Math.max(12, header.length + 4) }))
   applyWorksheetTableLayout(sheet, headers.length, rows.length + 1)
   XLSX.utils.book_append_sheet(workbook, sheet, 'Trading Matching')
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 function xlsxResponse(body: Buffer, filename: string) {
@@ -161,7 +161,7 @@ export async function GET(request: Request) {
       })
 
     if (url.searchParams.get('format') === 'xlsx') {
-      return xlsxResponse(buildWorkbook(dealRows.map((deal) => ({
+      return xlsxResponse(await buildWorkbook(dealRows.map((deal) => ({
         Cost: deal.matchedPurchaseAmount,
         Customer: stringifyBusinessValue(deal.customerName),
         Date: deal.date,

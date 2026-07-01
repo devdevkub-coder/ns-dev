@@ -97,6 +97,19 @@ Index minimum:
 - `sales_bill_lines(sales_bill_id, line_no)` unique
 - `sales_bill_source_allocations(sales_bill_id, sales_line_no, status)`
 - `sales_bill_source_allocations(source_type, source_doc_no, status)`
+
+## Read Model Contract
+
+- Sales Bill detail, print, line-level export, WTO usage summary, และ WTO downstream drilldown ต้องอ่านจาก durable facts เท่านั้น:
+  - `sales_bill_lines`
+  - `sales_bill_source_allocations`
+  - `sales_bill_po_sell_allocations`
+  - `sales_bill_customer_advance_allocations`
+  - `trading_allocation_facts`
+  - `weight_ticket_usage_logs`
+- ห้าม reconstruct รายการจาก `sales_bills.items` JSON snapshot เพื่อเปิด detail/print หรือคำนวณ usage อีกต่อไป
+- ถ้า SB เก่า/ข้อมูลเสีย ไม่มี `sales_bill_lines` หรือ allocation facts ที่จำเป็น ให้ถือเป็น data-contract error และส่งกลับให้แก้ข้อมูล/ล้าง test data ไม่ใช่ fallback UI warning
+- `GET /api/sales/bills/{docNo}` จึงสามารถตอบ `409 CONFLICT` ได้สำหรับกรณีนี้
 - `sales_bill_po_sell_allocations(po_sell_id, status)`
 - `sales_bill_po_sell_allocations(sales_bill_id, sales_line_no, status)`
 - `po_sell_allocation_logs(po_sell_id, created_at desc)`
@@ -222,6 +235,7 @@ PO Sell
 - `หักสิ่งเจือปน` เป็นน้ำหนักที่ Customer ไม่รับซื้อเพราะคุณภาพ/สิ่งเจือปน และใช้เฉพาะกรณี Customer ซื้อครบหรือซื้อเกินน้ำหนักที่ส่ง; `น้ำหนักขายสุทธิ = จำนวนที่ขายได้ - หักสิ่งเจือปน`
 - ถ้า `จำนวนที่ขายได้ < น้ำหนักสุทธิที่ส่ง` ถือเป็นกรณีขายไม่ครบ/ออกบิลบางส่วนของของที่ส่งออก ไม่ใช่กรณีหักสิ่งเจือปน; UI ต้องปิดหรือ clear ช่อง `หักสิ่งเจือปน` สำหรับ line นั้น และให้ process ส่วนที่เหลือผ่านปุ่ม `รับของคืน`
 - ยอดขายและ AR คิดจาก `น้ำหนักขายสุทธิ`; แต่ stock consume/COGS จาก `WTO pending_out` ต้องตัดไม่เกินน้ำหนักที่ส่งออกจาก `WTO` ตาม source ไม่ใช่ตัดตามน้ำหนักชั่งปลายทางที่อาจเกิน
+- GP ของบิลขายต้องคิดเหมือน legacy: ฐานกำไรคือ `ยอดก่อน VAT หลังหักส่วนลดทั้งหมด` ไม่ใช่ยอดรวม VAT. สูตรคือ `grossProfitBase = subtotal หลังหักส่วนลดรายสินค้า - ส่วนลดท้ายบิล`, แล้ว `gross_profit = grossProfitBase - COGS`. สำหรับ VAT แบบ `EXCLUDE` ห้ามเอา `vat_amount` หรือ `total_amount` ไปบวกใน GP.
 - Source-of-truth order ของ line `STOCK` คือ:
   1. `WTO pending_out` = source of truth ฝั่ง stock และเป็น stock cap
   2. `จำนวนที่ขายได้` = สิ่งที่ลูกค้าชั่ง/ยอมซื้อจริงทางการค้า

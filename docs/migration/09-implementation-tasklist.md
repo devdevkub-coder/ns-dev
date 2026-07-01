@@ -728,8 +728,9 @@ Reporting rule:
   - [x] Logged-in browser QA Trading SB allocation correction: open `แก้ต้นทุน`, change multiple line sources, save, verify revised Matched COGS/GP, and confirm no stock ledger side effect
 - [x] Define sales bill allocation tables/rules for `sales bill -> WTO`, `sales bill -> PO Sell/Spot Sale`, and `Customer advance -> sales bill`; Trading cost continues through `trading_allocation_facts`. `PSALE/direct stock` are not target runtime sources.
 - [x] Implement the durable Sales Bill allocation tables/write path after the design above: `sales_bill_lines`, `sales_bill_source_allocations`, `sales_bill_po_sell_allocations`, and `sales_bill_customer_advance_allocations`
-- [x] Switch Stock SB detail/print/list item-count read models from `sales_bills.items` snapshots to durable Sales Bill allocation facts, with no-fallback warning for legacy rows without facts
-- [ ] Decide legacy SB reconciliation/backfill policy before removing the legacy snapshot display path entirely
+- [x] Switch Stock SB detail/print/list item-count read models from `sales_bills.items` snapshots to durable Sales Bill allocation facts only; legacy rows without durable facts now return an explicit contract error instead of warning/fallback display
+- [x] Decide legacy SB reconciliation/backfill policy before removing the legacy snapshot display path entirely
+  - [x] policy = no runtime snapshot fallback and no mandatory backfill; legacy/test rows without durable facts are treated as data-repair rows and may return explicit contract errors
 - [x] Remove/supersede `/sales/stock-issue` pending sale write flow from target runtime
   - [x] active route/API `/sales/stock-issue` and `/api/sales/stock-issue` removed
   - [x] active report/API `/pending-sales` and `/api/pending-sales` removed

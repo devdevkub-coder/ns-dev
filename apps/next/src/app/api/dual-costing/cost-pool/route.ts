@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import { XLSX } from '@/lib/server/xlsx'
 import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
@@ -178,7 +178,7 @@ function sortRows(rows: CostPoolRow[], sort: string | null) {
   return nextRows.sort(incomingAsc)
 }
 
-function buildWorkbook(rows: CostPoolRow[]) {
+async function buildWorkbook(rows: CostPoolRow[]) {
   const workbook = XLSX.utils.book_new()
   const dataRows = rows.map((row) => ({
     AvailableQty: row.availableQty,
@@ -202,7 +202,7 @@ function buildWorkbook(rows: CostPoolRow[]) {
   sheet['!cols'] = headers.map((header) => ({ wch: Math.max(12, String(header).length + 4) }))
   applyWorksheetTableLayout(sheet, headers.length, rows.length + 1)
   XLSX.utils.book_append_sheet(workbook, sheet, 'Cost Pool')
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 function xlsxResponse(body: Buffer, filename: string) {
@@ -448,7 +448,7 @@ export async function GET(request: Request) {
     })
 
     if (url.searchParams.get('format') === 'xlsx') {
-      return xlsxResponse(buildWorkbook(filteredRows), 'cost_pool.xlsx')
+      return xlsxResponse(await buildWorkbook(filteredRows), 'cost_pool.xlsx')
     }
 
     return NextResponse.json({

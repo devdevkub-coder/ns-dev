@@ -6,7 +6,7 @@ import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } fr
 import { prisma } from '@/lib/server/prisma'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import { toNumber } from '@/lib/server/master-data'
-import * as XLSX from 'xlsx'
+import { XLSX } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
 
@@ -259,7 +259,7 @@ async function ledgerPayload(limit: number) {
   }
 }
 
-function buildWorkbook(payload: Awaited<ReturnType<typeof ledgerPayload>>) {
+async function buildWorkbook(payload: Awaited<ReturnType<typeof ledgerPayload>>) {
   const generatedAt = new Date()
   const summaryRows = [
     ['Export ณ', generatedAt.toLocaleString('th-TH')],
@@ -298,7 +298,7 @@ function buildWorkbook(payload: Awaited<ReturnType<typeof ledgerPayload>>) {
   applyWorksheetTableLayout(ledgerSheet, 10, dataRows.length + 1)
   XLSX.utils.book_append_sheet(workbook, summarySheet, 'สรุป')
   XLSX.utils.book_append_sheet(workbook, ledgerSheet, 'Transaction Ledger')
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 export async function GET(request: Request) {
@@ -313,7 +313,7 @@ export async function GET(request: Request) {
     const payload = await ledgerPayload(values.limit)
 
     if (url.searchParams.get('format') === 'xlsx') {
-      const body = buildWorkbook(payload)
+      const body = await buildWorkbook(payload)
       const filename = `transaction_ledger_${new Date().toISOString().slice(0, 10)}.xlsx`
 
       return new NextResponse(new Uint8Array(body), {

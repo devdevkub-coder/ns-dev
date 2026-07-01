@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import { XLSX } from '@/lib/server/xlsx'
 import { mapPrismaSupplier } from '@/lib/domain/supplier'
 import { supplierPaymentMethodGroup, type SupplierPaymentMethodRecord } from '@/lib/supplier'
 import { formatAccountNoDisplay, formatPhoneDisplay } from '@/lib/format'
@@ -186,7 +186,7 @@ function formatCellValue(supplier: Supplier, key: SupplierExportKey, paymentMeth
   return String(value)
 }
 
-function buildWorkbook(
+async function buildWorkbook(
   suppliers: Supplier[],
   paymentMethods: SupplierPaymentMethodRecord[],
   total: number,
@@ -218,7 +218,7 @@ function buildWorkbook(
   applyWorksheetTableLayout(supplierSheet, supplierColumns.length, dataRows.length + 1)
   XLSX.utils.book_append_sheet(workbook, summarySheet, 'สรุป')
   XLSX.utils.book_append_sheet(workbook, supplierSheet, 'ผู้ขาย')
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 export async function GET(request: Request) {
@@ -263,7 +263,7 @@ export async function GET(request: Request) {
     const suppliers = visibleRows.map((row) => mapPrismaSupplier(row as any, paymentMethods, {
       salesId: salespersonReferences.get(String(row.sales_id ?? ''))?.code ?? null,
     }))
-    const body = buildWorkbook(suppliers, paymentMethods, visibleTotal, { active, supplierType, marketScope, q, salesId })
+    const body = await buildWorkbook(suppliers, paymentMethods, visibleTotal, { active, supplierType, marketScope, q, salesId })
     const filename = `suppliers_${new Date().toISOString().slice(0, 10)}.xlsx`
 
     return new NextResponse(new Uint8Array(body), {

@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     ])
 
     if (query.format === 'xlsx') {
-      const body = buildStockWorkbook('Stock Balance', snapshot.rows.map((row) => ({
+      const body = await buildStockWorkbook('Stock Balance', snapshot.rows.map((row) => ({
         สินค้า: `${row.productCode} ${row.productName}`.trim(),
         ประเภทคลัง: row.status,
         สถานะสินค้า: row.onHoldQty > 0

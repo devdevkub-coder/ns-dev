@@ -4,7 +4,7 @@ import type { FocusEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Search, Sun, Moon } from 'lucide-react'
+import { Menu, Search, Sun, Moon } from 'lucide-react'
 import { AppNavigation } from '@/components/layout/AppNavigation'
 import { AuthStatus } from '@/components/layout/AuthStatus'
 import { MobileBottomNavigation } from '@/components/layout/MobileBottomNavigation'
@@ -248,12 +248,56 @@ export function AppShell({ children }: AppShellProps) {
         onMouseEnter={() => setDesktopSidebarExpanded(true)}
         onMouseLeave={handleSidebarMouseLeave}
       >
-        <div className={`flex items-center border-b border-slate-700 p-4 ${desktopSidebarExpanded ? 'gap-3' : 'lg:justify-center lg:gap-0'}`}>
-          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 font-bold text-white">NS</div>
-          <div className={desktopSidebarExpanded ? '' : 'lg:hidden'}>
-            <div className="font-bold text-white">NS Scrap ERP</div>
-            <div className="text-xs text-slate-400">ระบบบริหารจัดการ</div>
+        <div className={`flex items-center border-b border-slate-700 p-4 ${desktopSidebarExpanded ? 'gap-5' : 'lg:justify-center lg:gap-0'}`}>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 font-bold text-white">NS</div>
+          <div className={`min-w-0 pl-1 ${desktopSidebarExpanded ? '' : 'lg:hidden'}`.trim()}>
+            <div className="truncate font-bold text-white">NS Scrap ERP</div>
+            <div className="truncate text-xs text-slate-400">ระบบบริหารจัดการ</div>
           </div>
+        </div>
+
+        <div className="relative border-b border-slate-800 p-3 lg:hidden" onBlur={handleMenuSearchBlur}>
+          <label className="relative block">
+            <span className="sr-only">ค้นหาเมนู</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
+            <input
+              className="h-10 w-full rounded-md border border-slate-700 bg-slate-950/60 pl-9 pr-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-blue-400 focus:bg-slate-950 focus:ring-2 focus:ring-blue-400/20 disabled:cursor-wait disabled:text-slate-500"
+              disabled={!authContext}
+              placeholder={authContext ? 'ค้นหาเมนู...' : 'กำลังโหลดเมนู...'}
+              type="search"
+              value={menuSearch}
+              onChange={(event) => {
+                setMenuSearch(event.target.value)
+                setMenuSearchFocused(true)
+              }}
+              onFocus={() => setMenuSearchFocused(true)}
+            />
+          </label>
+          {menuSearchFocused && menuSearch.trim() ? (
+            <div className="absolute left-3 right-3 top-full z-50 mt-2 max-h-[min(60vh,24rem)] overflow-y-auto rounded-md border border-slate-700 bg-slate-950 py-1 shadow-xl">
+              {!authContext ? (
+                <div className="px-3 py-4 text-center text-sm text-slate-400">กำลังโหลดเมนู</div>
+              ) : menuSearchResults.length ? menuSearchResults.map((item) => (
+                <Link
+                  className="flex min-w-0 items-center gap-3 px-3 py-2 text-sm text-slate-200 transition hover:bg-slate-800 hover:text-white focus:bg-slate-800 focus:outline-none"
+                  href={item.href}
+                  key={`${item.href}-${item.label}-mobile`}
+                  onClick={() => {
+                    clearMenuSearch()
+                    setSidebarOpen(false)
+                  }}
+                >
+                  <span className="w-5 shrink-0 text-center">{item.icon}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{item.label}</span>
+                    <span className="block truncate text-xs text-slate-500">{item.parentLabel ? `${item.parentLabel} / ` : ''}{item.sectionLabel}</span>
+                  </span>
+                </Link>
+              )) : (
+                <div className="px-3 py-4 text-center text-sm text-slate-400">ไม่พบเมนูที่ค้นหา</div>
+              )}
+            </div>
+          ) : null}
         </div>
 
         <AppNavigation compact={!desktopSidebarExpanded} onNavigate={() => setSidebarOpen(false)} />
@@ -275,8 +319,13 @@ export function AppShell({ children }: AppShellProps) {
         <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:px-6">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             {!showMobileBottomNav && (
-              <button aria-label="เปิดเมนู" className="text-xl text-slate-600 lg:hidden" type="button" onClick={() => setSidebarOpen(!sidebarOpen)}>
-                ☰
+              <button
+                aria-label="เปิดเมนู"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100 lg:hidden"
+                type="button"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+              >
+                <Menu aria-hidden="true" className="h-7 w-7 stroke-[2.4]" />
               </button>
             )}
             <div className="min-w-0">

@@ -651,6 +651,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [salesForm, setSalesForm] = useState<SalesBillFormValues>(initialSalesForm())
   const [tradingPurchaseSelectorIds, setTradingPurchaseSelectorIds] = useState<string[]>([''])
   const [lockedDeliverySnapshot, setLockedDeliverySnapshot] = useState<DeliveryOption | null>(null)
+  const [lockedPoSellOptions, setLockedPoSellOptions] = useState<Option[]>([])
   const [showSalesForm, setShowSalesForm] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
@@ -823,7 +824,20 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     return true
   })
   const selectedSalesPoSellIds = new Set(salesForm.items.map((item) => item.poSellId).filter((poSellId): poSellId is string => Boolean(poSellId)))
-  const activePoSells = (options.poSells ?? []).filter((option) => {
+  const poSellOptionsByKey = new Map<string, Option>()
+  const allPoSellOptions = [...lockedPoSellOptions, ...(options.poSells ?? [])]
+  allPoSellOptions.forEach((option) => {
+    const key = `${option.id}:${option.product_id ?? ''}`
+    const current = poSellOptionsByKey.get(key)
+    if (!current) {
+      poSellOptionsByKey.set(key, { ...option })
+      return
+    }
+    current.remainingAmount = (current.remainingAmount ?? 0) + (option.remainingAmount ?? 0)
+    current.remainingQty = (current.remainingQty ?? 0) + (option.remainingQty ?? 0)
+    current.active = current.active !== false || option.active !== false
+  })
+  const activePoSells = [...poSellOptionsByKey.values()].filter((option) => {
     if (salesForm.customerId && option.customer_id && option.customer_id !== salesForm.customerId) return false
     if (salesForm.branchId && option.branch_id && option.branch_id !== salesForm.branchId) return false
     return selectedSalesPoSellIds.has(option.id) || (option.active !== false && (option.remainingQty ?? 0) > 0.0001)
@@ -1150,6 +1164,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     const customerId = delivery.customerId ?? ''
     setEditingSalesBillId(null)
     setLockedDeliverySnapshot(delivery)
+    setLockedPoSellOptions([])
     setLockedReceiptSnapshot(null)
     setSalesForm({
       ...initialSalesForm(),
@@ -1319,11 +1334,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     return selectedDelivery.productSummaries.flatMap((summary) => {
       const state = salesStockSummaryDraft.get(summary.id)
       const acceptedQty = state?.allocatedQty ?? 0
-      const variance = salesStockQtyVariance(summary.remainingWeight, acceptedQty)
-      if (Math.abs(summary.remainingWeight - acceptedQty) < 0.001) return []
+      const overQty = acceptedQty - summary.remainingWeight
+      if (overQty <= 0.001) return []
       return [{
-        className: variance.className,
-        message: `${summary.productName}: ${variance.text}`,
+        className: 'text-red-700',
+        message: `${summary.productName}: ขายเกินใบส่งของ ${formatMoney(overQty)} กก.`,
         rowIndex: state?.rowIndices[0] ?? null,
         summaryId: summary.id,
       }]
@@ -1526,16 +1541,13 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   function openSalesForm() {
     setEditingSalesBillId(null)
     setLockedDeliverySnapshot(null)
+    setLockedPoSellOptions([])
     setLockedReceiptSnapshot(null)
     setSalesForm({ ...initialSalesForm(), branchId: resolvedPreferredBranchId ?? '' })
     setTradingPurchaseSelectorIds([''])
     setSalesFieldErrors({})
     setError(null)
     setShowSalesForm(true)
-  }
-
-  function salesEditSummaryId(salesDocNo: string, lineNo: number) {
-    return `${salesDocNo}:edit:${lineNo}`
   }
 
   function salesDeliverySnapshotFromDetail(detail: SalesBillDetail): DeliveryOption | null {
@@ -1569,17 +1581,52 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         deductWeight: item.deductWeight,
         grossWeight: item.grossWeight,
         hasMixedDeductionProfiles: false,
-        id: salesEditSummaryId(detail.docNo, item.lineNo),
+        id: item.deliverySummaryId,
         lineCount: 1,
         netWeight: item.netWeight,
         productId: item.productCode || item.productId,
         productName: item.productName,
         remainingWeight: item.netWeight,
         sourceLineIds: item.deliveryLineId ? [item.deliveryLineId] : [],
+        unitCostSnapshot: item.unitCostSnapshot,
       })),
       status: '',
       vehicleNo: deliveryItems[0]?.deliveryVehicleNo ?? '',
     }
+  }
+
+  function salesPoSellOptionsFromDetail(detail: SalesBillDetail): Option[] {
+    const optionsByKey = new Map<string, Option>()
+    detail.items.forEach((item) => {
+      const poSellDocNo = item.poSellDocNo?.trim()
+      if (!poSellDocNo) return
+      const productId = item.productCode || item.productId || null
+      const key = `${poSellDocNo}:${productId ?? ''}`
+      const current = optionsByKey.get(key)
+      const qty = item.qty
+      const amount = item.amount || item.price * qty
+      if (current) {
+        current.remainingAmount = (current.remainingAmount ?? 0) + amount
+        current.remainingQty = (current.remainingQty ?? 0) + qty
+        return
+      }
+      optionsByKey.set(key, {
+        active: true,
+        branch_id: detail.branchId,
+        customer_id: detail.customerCode === '-' ? null : detail.customerCode,
+        id: poSellDocNo,
+        label: `${poSellDocNo} · เดิม ${qty.toLocaleString('th-TH')} · ${item.price.toLocaleString('th-TH')} บาท`,
+        line_id: `${poSellDocNo}:locked:${productId ?? 'all'}`,
+        name: poSellDocNo,
+        product_id: productId,
+        remainingAmount: amount,
+        remainingQty: qty,
+        status: 'locked',
+        unit: item.unit || 'กก.',
+        unitPrice: item.price,
+      })
+    })
+    return [...optionsByKey.values()]
   }
 
   function salesFormFromDetail(detail: SalesBillDetail, row: BillRow): SalesBillFormValues {
@@ -1611,7 +1658,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       hasVat: detail.hasVat,
       items: detail.items.map((item) => ({
         deliveryLineId: item.deliveryLineId || null,
-        deliverySummaryId: item.deliveryTicketDocNo ? salesEditSummaryId(detail.docNo, item.lineNo) : null,
+        deliverySummaryId: item.deliverySummaryId || null,
         deliveryTicketDocNo: item.deliveryTicketDocNo || null,
         deliveryTicketId: item.deliveryTicketDocNo || null,
         deductWeight: item.deductWeight,
@@ -1652,6 +1699,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       const detail = await dailyFetchJson<SalesBillDetail>(`/api/sales/bills/${encodeURIComponent(docNo)}`)
       setEditingSalesBillId(docNo)
       setLockedDeliverySnapshot(salesDeliverySnapshotFromDetail(detail))
+      setLockedPoSellOptions(salesPoSellOptionsFromDetail(detail))
       setSalesForm(salesFormFromDetail(detail, row))
       setTradingPurchaseSelectorIds([''])
       setSalesFieldErrors({})
@@ -2502,11 +2550,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           errors[`items.${issue.rowIndex}.qty`] = issue.message
         }
         return errors
-      }, { items: 'ใบส่งของ WTO ที่เลือกต้องจัดสรรน้ำหนักคงเหลือให้ครบก่อนบันทึก' })
+      }, { items: 'รายการจากใบส่งของ WTO ต้องไม่ขายเกินน้ำหนักคงเหลือ' })
       const firstIssue = salesStockAllocationIssues[0]
       const firstErrorKey = firstIssue?.rowIndex != null ? `items.${firstIssue.rowIndex}.qty` : 'items'
       setSalesFieldErrors(nextFieldErrors)
-      setError(firstIssue?.message ?? 'ใบส่งของ WTO ที่เลือกต้องจัดสรรน้ำหนักคงเหลือให้ครบก่อนบันทึก')
+      setError(firstIssue?.message ?? 'รายการจากใบส่งของ WTO ต้องไม่ขายเกินน้ำหนักคงเหลือ')
       focusFieldError(firstErrorKey)
       return
     }
@@ -2520,6 +2568,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       })
       setEditingSalesBillId(null)
       setLockedDeliverySnapshot(null)
+      setLockedPoSellOptions([])
       setShowSalesForm(false)
       await loadData()
     } catch (caught) {
@@ -2921,7 +2970,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label={mode === 'purchase' ? 'เลขที่บิลซื้อ' : 'เลขที่'} resizeProps={columnResize.getResizeHandleProps('docNo', mode === 'purchase' ? 'เลขที่บิลซื้อ' : 'เลขที่')} sortKey="docNo" onSort={changeSort} />
               {mode === 'purchase' ? <ResizableTableHead label="เลขที่ใบรับของ" resizeProps={columnResize.getResizeHandleProps('receiptDocs', 'เลขที่ใบรับของ')} /> : null}
               {mode === 'sales' ? <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="เลขที่อ้างอิง" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่อ้างอิง')} sortKey="refNo" onSort={changeSort} /> : null}
-              <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label={mode === 'purchase' ? 'วันที่สร้างรายการ' : 'วันที่'} resizeProps={columnResize.getResizeHandleProps('date', mode === 'purchase' ? 'วันที่สร้างรายการ' : 'วันที่')} sortKey="date" onSort={changeSort} />
+              <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="สร้างวันที่" resizeProps={columnResize.getResizeHandleProps('date', 'สร้างวันที่')} sortKey="date" onSort={changeSort} />
               <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label={mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')} sortKey="name" onSort={changeSort} />
               {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="สาขา / คลัง" resizeProps={columnResize.getResizeHandleProps('warehouse', 'สาขา / คลัง')} sortKey="warehouse" onSort={changeSort} /> : null}
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('transactionMode', 'ประเภท')} sortKey="transactionMode" onSort={changeSort} />
@@ -3534,7 +3583,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <h3 className="text-xl font-bold">{editingSalesBillId ? `แก้ไขบิลขาย ${editingSalesBillId}` : 'สร้างบิลขายใหม่'}</h3>
                 <p className="mt-1 text-xs opacity-80">{editingSalesBillId ? 'ตรวจและแก้ข้อมูลด้วยฟอร์มเดียวกับตอนสร้างบิลขาย' : 'บันทึกบิลขายแบบ Stock / Trading พร้อม VAT และข้อมูลรับเงิน'}</p>
               </div>
-              <button className="text-3xl leading-none text-white/80 hover:text-white outline-none focus:outline-none" type="button" onClick={() => { setError(null); setShowSalesForm(false) }}>&times;</button>
+              <button className="text-3xl leading-none text-white/80 hover:text-white outline-none focus:outline-none" type="button" onClick={() => { setError(null); setLockedPoSellOptions([]); setShowSalesForm(false) }}>&times;</button>
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-6 text-sm">
               {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
@@ -3767,12 +3816,16 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                                </td>
 	                                <td className="p-2 text-right tabular-nums text-emerald-700">{isFirstRowOfSummary ? formatMoney(sourceSummary?.remainingWeight ?? item.netWeight ?? item.qty) : ''}</td>
 	                                <td className="p-2">
-	                                  <input data-error-key={`items.${index}.netWeight`} className={`w-full rounded-md border bg-slate-50 px-2 py-2 text-right font-bold tabular-nums text-slate-700 ${salesFieldErrors[`items.${index}.netWeight`] || salesFieldErrors[`items.${index}.qty`] ? 'border-red-400 bg-red-50 text-red-700' : ''} ${numberInputClass}`} min="0" step="0.01" type="number" value={item.netWeight || ''} onChange={(event) => updateSalesStockSaleWeight(index, 'netWeight', Number(event.target.value || 0))} />
+	                                  <div className="ml-auto w-28">
+	                                    <input data-error-key={`items.${index}.netWeight`} className={`w-full rounded-md border bg-slate-50 px-2 py-2 text-right font-bold tabular-nums text-slate-700 ${salesFieldErrors[`items.${index}.netWeight`] || salesFieldErrors[`items.${index}.qty`] ? 'border-red-400 bg-red-50 text-red-700' : ''} ${numberInputClass}`} min="0" step="0.01" type="number" value={item.netWeight || ''} onChange={(event) => updateSalesStockSaleWeight(index, 'netWeight', Number(event.target.value || 0))} />
+	                                  </div>
 	                                  {salesFieldErrors[`items.${index}.netWeight`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.netWeight`]}</div> : null}
 	                                  {salesFieldErrors[`items.${index}.qty`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.qty`]}</div> : null}
 	                                </td>
 	                                <td className="p-2">
-	                                  <input data-error-key={`items.${index}.deductWeight`} className={`w-full rounded-md border bg-amber-50 px-2 py-2 text-right font-bold tabular-nums text-amber-700 ${salesFieldErrors[`items.${index}.deductWeight`] ? 'border-red-400 bg-red-50 text-red-700' : ''} ${numberInputClass}`} min="0" step="0.01" type="number" value={item.deductWeight || ''} onChange={(event) => updateSalesStockSaleWeight(index, 'deductWeight', Number(event.target.value || 0))} />
+	                                  <div className="ml-auto w-28">
+	                                    <input data-error-key={`items.${index}.deductWeight`} className={`w-full rounded-md border bg-amber-50 px-2 py-2 text-right font-bold tabular-nums text-amber-700 ${salesFieldErrors[`items.${index}.deductWeight`] ? 'border-red-400 bg-red-50 text-red-700' : ''} ${numberInputClass}`} min="0" step="0.01" type="number" value={item.deductWeight || ''} onChange={(event) => updateSalesStockSaleWeight(index, 'deductWeight', Number(event.target.value || 0))} />
+	                                  </div>
 	                                  {salesFieldErrors[`items.${index}.deductWeight`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.deductWeight`]}</div> : null}
 	                                </td>
 	                                <td className="p-2">
@@ -3791,15 +3844,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                   </div>
                                 </td>
                                 <td className="p-2">
-                                  <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-right font-semibold tabular-nums text-slate-700">
-                                    {sourceSummary?.unitCostSnapshot == null ? '-' : formatMoney(sourceSummary.unitCostSnapshot)}
-                                  </div>
-                                </td>
-                                <td className="p-2">
                                   <InlineMoneyInput
                                     disabled={hasSelectedPoSell}
                                     error={salesFieldErrors[`items.${index}.price`]}
                                     errorKey={`items.${index}.price`}
+                                    inputClassName="ml-auto w-32"
                                     value={item.price}
                                     onChange={(value) => updateSalesItem(index, 'price', value)}
                                   />
@@ -3808,6 +3857,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                   <InlineMoneyInput
                                     error={salesFieldErrors[`items.${index}.discount`]}
                                     errorKey={`items.${index}.discount`}
+                                    inputClassName="ml-auto w-28"
                                     value={item.discount}
                                     onChange={(value) => updateSalesItem(index, 'discount', value)}
                                   />
@@ -4057,7 +4107,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               </div>
             </div>
             <div className="flex justify-end gap-2 rounded-b-md border-t border-slate-100 bg-white p-4">
-              <button className="rounded-md px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-50 outline-none" disabled={isSaving} type="button" onClick={() => { setError(null); setShowSalesForm(false) }}>ยกเลิก</button>
+              <button className="rounded-md px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-50 outline-none" disabled={isSaving} type="button" onClick={() => { setError(null); setLockedPoSellOptions([]); setShowSalesForm(false) }}>ยกเลิก</button>
               <button className="rounded-md bg-blue-600 hover:bg-blue-700 px-5 py-2 text-sm font-bold text-white disabled:opacity-60 outline-none" disabled={isSaving} type="button" onClick={() => void saveSalesBill()}>{isSaving ? 'กำลังบันทึก...' : editingSalesBillId ? 'บันทึกการแก้ไข' : 'บันทึกบิลขาย'}</button>
             </div>
           </div>

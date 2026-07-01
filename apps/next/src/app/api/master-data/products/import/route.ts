@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import { type WorkBook, XLSX } from '@/lib/server/xlsx'
 import { productFormSchema } from '@/lib/product'
 import { toProductWriteInput } from '@/lib/domain/product'
 import { apiErrorResponse } from '@/lib/server/api-error'
@@ -68,7 +68,7 @@ async function nextProductCodeSequence(blankCodeCount: number) {
   return Array.from({ length: blankCodeCount }, (_, index) => `SKU${String(startNumber + index).padStart(3, '0')}`)
 }
 
-function findProductSheet(workbook: XLSX.WorkBook) {
+function findProductSheet(workbook: WorkBook) {
   const namedSheet = workbook.Sheets['สินค้า']
   if (namedSheet) return namedSheet
 
@@ -78,7 +78,7 @@ function findProductSheet(workbook: XLSX.WorkBook) {
   })
 }
 
-function parseRows(workbook: XLSX.WorkBook) {
+function parseRows(workbook: WorkBook) {
   const sheet = findProductSheet(workbook)
   if (!sheet) throw new Error('ไม่พบ sheet สินค้า หรือ header รหัสสินค้า')
   return XLSX.utils.sheet_to_json<ImportRow>(sheet, { defval: '' })
@@ -135,7 +135,7 @@ export async function POST(request: Request) {
 
     let rows: ImportRow[]
     try {
-      const workbook = XLSX.read(Buffer.from(await file.arrayBuffer()), { type: 'buffer' })
+      const workbook = await XLSX.read(Buffer.from(await file.arrayBuffer()))
       rows = parseRows(workbook).filter((row) => Object.values(row).some((value) => String(value ?? '').trim()))
     } catch (caught) {
       return NextResponse.json({

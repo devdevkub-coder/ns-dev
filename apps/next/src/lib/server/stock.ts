@@ -5,7 +5,7 @@ import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
-import * as XLSX from 'xlsx'
+import { XLSX } from '@/lib/server/xlsx'
 
 export type StockBalanceKey = {
   branchId: string | bigint | null
@@ -679,14 +679,14 @@ export async function quantityForStock(input: { asOf?: string | null; branchId?:
   return snapshot.rows.reduce((sum, row) => sum + row[field], 0)
 }
 
-export function buildStockWorkbook(sheetName: string, rows: Array<Record<string, string | number | boolean | null>>) {
+export async function buildStockWorkbook(sheetName: string, rows: Array<Record<string, string | number | boolean | null>>) {
   const workbook = XLSX.utils.book_new()
   const sheet = XLSX.utils.json_to_sheet(rows)
   const headers = rows[0] ? Object.keys(rows[0]) : []
   sheet['!cols'] = headers.map((header) => ({ wch: Math.max(12, header.length + 4) }))
   applyWorksheetTableLayout(sheet, headers.length, rows.length + 1)
   XLSX.utils.book_append_sheet(workbook, sheet, sheetName)
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 export function xlsxResponse(body: Buffer, filename: string) {

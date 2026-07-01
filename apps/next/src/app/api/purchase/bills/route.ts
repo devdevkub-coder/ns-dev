@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
-import * as XLSX from 'xlsx'
+import { XLSX } from '@/lib/server/xlsx'
 import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { purchaseBillCancelSchema, purchaseBillFormSchema, type PurchaseBillFormValues } from '@/lib/purchase-bill'
 import {
@@ -2046,7 +2046,7 @@ async function rowsPayload(
   }
 }
 
-function buildWorkbook(rows: Array<any>) {
+async function buildWorkbook(rows: Array<any>) {
   const summaryData = rows.map((row) => ({
     'เลขที่': row.docNo,
     'เลขที่ใบรับของ': row.receiptDocNos?.join(', ') || '-',
@@ -2103,7 +2103,7 @@ function buildWorkbook(rows: Array<any>) {
   applyWorksheetTableLayout(sheet2, 14, detailData.length + 1)
   XLSX.utils.book_append_sheet(workbook, sheet2, 'รายละเอียดสินค้า')
 
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 export async function GET(request: Request) {
@@ -2117,7 +2117,7 @@ export async function GET(request: Request) {
     const payload = await rowsPayload(query, allowedBranchCodes, url.searchParams.get('format') !== 'xlsx')
 
     if (url.searchParams.get('format') === 'xlsx') {
-      const body = buildWorkbook(payload.rows)
+      const body = await buildWorkbook(payload.rows)
       const filename = `purchase_bills_${new Date().toISOString().slice(0, 10)}.xlsx`
 
       return new NextResponse(new Uint8Array(body), {

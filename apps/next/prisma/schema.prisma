@@ -3018,6 +3018,46 @@ model weight_ticket_usage_logs {
   @@schema("public")
 }
 
+model weight_ticket_pending_out_events {
+  id                     BigInt    @id @default(autoincrement())
+  event_key              String    @unique @default(dbgenerated("('WTPEND-'::text || (gen_random_uuid())::text)"))
+  weight_ticket_id       BigInt
+  weight_ticket_doc_no   String
+  status_log_event_key   String?
+  usage_log_event_key    String?
+  event_type             String
+  source_hold_key        String?
+  source_line_no         Int?
+  weight_ticket_line_id  BigInt?
+  product_id             BigInt?
+  product_code_snapshot  String?
+  product_name_snapshot  String  @default("")
+  warehouse_id           BigInt?
+  warehouse_code_snapshot String?
+  warehouse_name_snapshot String @default("")
+  qty                    Decimal @default(0) @db.Decimal
+  qty_before             Decimal? @db.Decimal
+  qty_after              Decimal? @db.Decimal
+  unit_cost_snapshot     Decimal? @db.Decimal
+  value_snapshot         Decimal? @db.Decimal
+  cost_snapshot_at       DateTime? @db.Timestamptz(6)
+  cost_snapshot_source   String?
+  status_snapshot        String @default("active")
+  reference_doc_no       String?
+  reference_doc_type     String?
+  occurred_at            DateTime @default(now()) @db.Timestamptz(6)
+  actor                  String?
+  note                   String?
+  meta                   Json @default("{}")
+  created_at             DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([weight_ticket_id, occurred_at(sort: Desc), id(sort: Desc)], map: "idx_weight_ticket_pending_out_events_ticket_time")
+  @@index([status_log_event_key], map: "idx_weight_ticket_pending_out_events_status_log")
+  @@index([usage_log_event_key], map: "idx_weight_ticket_pending_out_events_usage_log")
+  @@index([source_hold_key], map: "idx_weight_ticket_pending_out_events_hold")
+  @@schema("public")
+}
+
 model weight_ticket_product_summary_lines {
   created_at                      DateTime                        @default(now()) @db.Timestamptz(6)
   id                              BigInt                          @id @default(autoincrement())

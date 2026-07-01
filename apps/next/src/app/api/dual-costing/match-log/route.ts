@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import { XLSX } from '@/lib/server/xlsx'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
@@ -25,7 +25,7 @@ type MatchLogRow = {
   unitCost: number
 }
 
-function buildWorkbook(rows: MatchLogRow[]) {
+async function buildWorkbook(rows: MatchLogRow[]) {
   const workbook = XLSX.utils.book_new()
   const dataRows = rows.map((row) => ({
     AllocationMode: row.allocationMode,
@@ -47,7 +47,7 @@ function buildWorkbook(rows: MatchLogRow[]) {
   sheet['!cols'] = headers.map((header) => ({ wch: Math.max(12, String(header).length + 4) }))
   applyWorksheetTableLayout(sheet, headers.length, rows.length + 1)
   XLSX.utils.book_append_sheet(workbook, sheet, 'Match Log')
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 function xlsxResponse(body: Buffer, filename: string) {
@@ -114,7 +114,7 @@ export async function GET(request: Request) {
       .filter((row) => !q || `${row.matchId} ${row.target} ${row.sourceNo} ${row.product} ${row.status}`.toLowerCase().includes(q))
 
     if (url.searchParams.get('format') === 'xlsx') {
-      return xlsxResponse(buildWorkbook(rows), 'match_log.xlsx')
+      return xlsxResponse(await buildWorkbook(rows), 'match_log.xlsx')
     }
 
     const activeRows = rows.filter((row) => row.status !== 'reversed')

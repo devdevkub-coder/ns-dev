@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import { XLSX } from '@/lib/server/xlsx'
 import { expenseFormSchema } from '@/lib/daily'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
@@ -243,7 +243,7 @@ function expenseStatusLabel(status: string) {
   return 'ยังไม่อนุมัติ'
 }
 
-function buildWorkbook(rows: ReturnType<typeof expenseJson>[]) {
+async function buildWorkbook(rows: ReturnType<typeof expenseJson>[]) {
   const workbookRows = rows.map((row) => ({
     DocNo: row.docNo,
     Date: row.date,
@@ -267,7 +267,7 @@ function buildWorkbook(rows: ReturnType<typeof expenseJson>[]) {
   sheet['!cols'] = headers.map((header) => ({ wch: Math.max(12, header.length + 4) }))
   applyWorksheetTableLayout(sheet, headers.length, workbookRows.length + 1)
   XLSX.utils.book_append_sheet(workbook, sheet, 'Expenses')
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 function xlsxResponse(body: Buffer, filename: string) {
@@ -379,7 +379,7 @@ export async function GET(request: Request) {
     ])
 
     if (url.searchParams.get('format') === 'xlsx') {
-      return xlsxResponse(buildWorkbook(mappedRows), `daily_expenses_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      return xlsxResponse(await buildWorkbook(mappedRows), `daily_expenses_${new Date().toISOString().slice(0, 10)}.xlsx`)
     }
 
     return NextResponse.json({

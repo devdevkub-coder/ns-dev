@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import { XLSX } from '@/lib/server/xlsx'
 import { mapPrismaProduct } from '@/lib/domain/product'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
@@ -93,7 +93,7 @@ function formatCellValue(product: Product, key: keyof Product) {
   return String(value)
 }
 
-function buildWorkbook(products: Product[], total: number, filters: { active: string; productType: string; q: string }) {
+async function buildWorkbook(products: Product[], total: number, filters: { active: string; productType: string; q: string }) {
   const generatedAt = new Date()
   const summaryRows = [
     ['Export ณ', generatedAt.toLocaleString('th-TH')],
@@ -118,7 +118,7 @@ function buildWorkbook(products: Product[], total: number, filters: { active: st
   applyWorksheetTableLayout(productSheet, productColumns.length, dataRows.length + 1)
   XLSX.utils.book_append_sheet(workbook, summarySheet, 'สรุป')
   XLSX.utils.book_append_sheet(workbook, productSheet, 'สินค้า')
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
 }
 
 export async function GET(request: Request) {
@@ -139,7 +139,7 @@ export async function GET(request: Request) {
     ])
 
     const products = rows.map(mapPrismaProduct)
-    const body = buildWorkbook(products, total, { active, productType, q })
+    const body = await buildWorkbook(products, total, { active, productType, q })
     const filename = `products_${new Date().toISOString().slice(0, 10)}.xlsx`
 
     return new NextResponse(new Uint8Array(body), {

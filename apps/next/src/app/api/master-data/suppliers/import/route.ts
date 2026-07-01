@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import { type WorkBook, XLSX } from '@/lib/server/xlsx'
 import { z } from 'zod'
 import {
   defaultSupplierPaymentMethodName,
@@ -307,7 +307,7 @@ function parseBankAccounts(
   }))
 }
 
-function findSupplierSheet(workbook: XLSX.WorkBook) {
+function findSupplierSheet(workbook: WorkBook) {
   const namedSheet = workbook.Sheets['ผู้ขาย']
   if (namedSheet) return namedSheet
 
@@ -317,7 +317,7 @@ function findSupplierSheet(workbook: XLSX.WorkBook) {
   })
 }
 
-function parseRows(workbook: XLSX.WorkBook) {
+function parseRows(workbook: WorkBook) {
   const sheet = findSupplierSheet(workbook)
   if (!sheet) throw new Error('ไม่พบ sheet ผู้ขาย หรือ header รหัสผู้ขาย')
   return XLSX.utils.sheet_to_json<ImportRow>(sheet, { defval: '' })
@@ -361,7 +361,7 @@ export async function POST(request: Request) {
 
     let rows: ImportRow[]
     try {
-      const workbook = XLSX.read(Buffer.from(await file.arrayBuffer()), { type: 'buffer' })
+      const workbook = await XLSX.read(Buffer.from(await file.arrayBuffer()))
       rows = parseRows(workbook).filter((row) => Object.values(row).some((value) => String(value ?? '').trim()))
     } catch (caught) {
       return NextResponse.json({
