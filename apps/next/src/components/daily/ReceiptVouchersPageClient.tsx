@@ -401,6 +401,7 @@ export function ReceiptVouchersPageClient() {
   const currentPage = Math.min(page, totalPages)
   const pagedRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const hasActiveFilter = Boolean(search || dateFrom || dateTo || statusFilter !== 'all')
+  const mobileFilterCount = (dateFrom || dateTo ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
 
   function clearFilters() {
     setSearch('')
@@ -564,21 +565,23 @@ export function ReceiptVouchersPageClient() {
           <div className="flex flex-wrap items-center gap-2">
             <Input
               className="min-w-[260px] flex-1 rounded-md"
-              placeholder="ค้นเลขที่ / ชื่อผู้รับ / เลขบิลซื้อ / ทะเบียน..."
+              placeholder="ค้นเลขที่ RV / ผู้รับเงิน / บิลซื้อ / ทะเบียนรถ..."
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
 
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">วันที่:</span>
+              <span className="text-xs text-slate-500">วันที่ออกเอกสาร:</span>
               <DatePickerInput id="receipt-vouchers-date-from" value={dateFrom} onChange={setDateFrom} />
               <span className="text-slate-400">→</span>
               <DatePickerInput id="receipt-vouchers-date-to" value={dateTo} onChange={setDateTo} />
             </div>
 
-            {hasActiveFilter ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
-            <Button type="button" onClick={openCreateForm}>+ สร้างใบสำคัญรับเงิน</Button>
+            {hasActiveFilter ? <Button size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้างตัวกรอง</Button> : null}
+            <div className="ml-auto">
+              <Button size="sm" type="button" onClick={openCreateForm}>+ สร้างใบสำคัญรับเงิน</Button>
+            </div>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className="text-xs text-slate-500">สถานะ:</span>
@@ -614,9 +617,9 @@ export function ReceiptVouchersPageClient() {
               className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 shrink-0"
               onClick={() => setShowMobileFilters(true)}
             >
-              <span>🔍</span> ตัวกรอง {(dateFrom || dateTo) ? '(1)' : ''}
+              ตัวกรอง {mobileFilterCount > 0 ? `(${mobileFilterCount})` : ''}
             </button>
-            {hasActiveFilter ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕</Button> : null}
+            {hasActiveFilter ? <Button size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้าง</Button> : null}
           </div>
         </div>
 
@@ -752,8 +755,11 @@ export function ReceiptVouchersPageClient() {
         <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
           <Table className="[&_tbody_tr]:border-slate-100" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
-              {receiptVoucherColumns.map((column) => {
+              {receiptVoucherColumns.map((column, index) => {
                 const style = columnResize.getColumnStyle(column.key);
+                if (index === receiptVoucherColumns.length - 1) {
+                  return <col key={column.key} style={{ minWidth: column.minWidth }} />;
+                }
                 return <col key={column.key} style={style} />;
               })}
             </colgroup>
@@ -890,12 +896,12 @@ function ReceiptVoucherFormModal({
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950/40 md:p-3 print:hidden flex items-stretch md:items-start justify-center">
       <div className="w-full md:max-w-6xl rounded-none md:rounded-md bg-white shadow-xl flex flex-col h-screen md:h-auto md:max-h-[calc(100vh-80px)] my-0 md:my-4 overflow-hidden">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 md:px-5 py-3 shrink-0">
+        <div className="flex items-center justify-between bg-slate-900 px-4 md:px-5 py-3 text-white shrink-0">
           <div>
-            <h3 className="text-base font-bold text-slate-900">{mode === 'edit' ? 'แก้ไข' : 'สร้าง'}ใบสำคัญรับเงิน</h3>
-            <p className="hidden lg:block text-xs text-slate-500">ใช้สำหรับ Supplier รับเงินสดจากบริษัท กรณีไม่มีใบเสร็จจาก Supplier</p>
+            <h3 className="text-base font-bold text-white">{mode === 'edit' ? 'แก้ไข' : 'สร้าง'}ใบสำคัญรับเงิน</h3>
+            <p className="hidden lg:block text-xs text-slate-300">ใช้สำหรับ Supplier รับเงินสดจากบริษัท กรณีไม่มีใบเสร็จจาก Supplier</p>
           </div>
-          <button className="text-2xl leading-none text-slate-400 hover:text-slate-600" type="button" onClick={onClose}>&times;</button>
+          <button className="text-2xl leading-none text-slate-300 hover:text-white" type="button" onClick={onClose}>&times;</button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 md:p-5 space-y-3 md:space-y-4">
@@ -1114,16 +1120,16 @@ function ReceiptVoucherDetailModal({ onClose, onPrint, row }: { onClose: () => v
   const timeline = row.timeline ?? []
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 p-3 print:hidden">
-      <div className="mx-auto my-4 max-w-4xl rounded-md bg-white shadow-xl">
-        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-3">
+      <div className="mx-auto my-4 max-w-4xl overflow-hidden rounded-md bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-3 bg-slate-900 px-5 py-4 text-white">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-base font-bold text-slate-900">รายละเอียดใบสำคัญรับเงิน {row.docNo}</h3>
+              <h3 className="text-base font-bold text-white">รายละเอียดใบสำคัญรับเงิน {row.docNo}</h3>
               <StatusPill status={row.status} />
             </div>
-            <p className="mt-1 text-xs text-slate-500">เอกสารหลักฐานรับเงินสดจาก Supplier ไม่กระทบ PMT/BST/AP/stock</p>
+            <p className="mt-1 text-xs text-slate-300">เอกสารหลักฐานรับเงินสดจาก Supplier ไม่กระทบ PMT/BST/AP/stock</p>
           </div>
-          <button className="text-2xl leading-none text-slate-400 hover:text-slate-600" type="button" onClick={onClose}>&times;</button>
+          <button className="text-2xl leading-none text-slate-300 hover:text-white" type="button" onClick={onClose}>&times;</button>
         </div>
 
         <div className="max-h-[calc(100vh-150px)] space-y-4 overflow-y-auto p-5">
@@ -1135,20 +1141,26 @@ function ReceiptVoucherDetailModal({ onClose, onPrint, row }: { onClose: () => v
             </div>
           ) : null}
 
-          <section className="grid grid-cols-2 gap-3 md:gap-5">
-            <div className="flex flex-col gap-1">
-              <DetailField label="วันที่ออกเอกสาร" value={formatDateDisplay(row.date)} />
-              <DetailField label="บิลซื้ออ้างอิง" value={row.purchaseBillDocNo || '-'} />
-              <DetailField label="ผู้รับเงิน" value={row.sellerName || '-'} />
-              <DetailField label="เลขประจำตัวผู้เสียภาษี" value={row.sellerTaxId || '-'} />
-              <DetailField label="ที่อยู่" value={row.sellerAddress || '-'} />
+          <section className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+              <h4 className="mb-3 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">ข้อมูลเอกสาร</h4>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <DetailField label="วันที่ออกเอกสาร" value={formatDateDisplay(row.date)} />
+                <DetailField label="บิลซื้ออ้างอิง" value={row.purchaseBillDocNo || '-'} />
+                <DetailField label="ผู้รับเงิน" value={row.sellerName || '-'} />
+                <DetailField label="เลขประจำตัวผู้เสียภาษี" value={row.sellerTaxId || '-'} />
+                <DetailField label="ที่อยู่" value={row.sellerAddress || '-'} />
+              </div>
             </div>
-            <div className="flex flex-col gap-1">
-              <DetailField label="เบอร์โทร" value={row.sellerPhone || '-'} />
-              <DetailField label="Sale contact" value={row.salesPerson || '-'} />
-              <DetailField label="ยอดเงิน" value={formatMoney(row.totalAmount)} />
-              <DetailField label="น้ำหนักรวม" value={formatMoney(row.totalQty)} />
-              <DetailField label="หมายเหตุ" value={row.note || '-'} />
+            <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+              <h4 className="mb-3 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">ยอดและผู้ติดต่อ</h4>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <DetailField label="เบอร์โทร" value={row.sellerPhone || '-'} />
+                <DetailField label="Sale contact" value={row.salesPerson || '-'} />
+                <DetailField label="ยอดเงิน" value={formatMoney(row.totalAmount)} />
+                <DetailField label="น้ำหนักรวม" value={formatMoney(row.totalQty)} />
+                <DetailField label="หมายเหตุ" value={row.note || '-'} />
+              </div>
             </div>
           </section>
 
@@ -1186,7 +1198,7 @@ function ReceiptVoucherDetailModal({ onClose, onPrint, row }: { onClose: () => v
 function DetailField({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
   return (
     <div className={`flex flex-col py-1 ${wide ? 'md:col-span-2' : ''}`}>
-      <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">{label}</div>
+      <div className="text-xs font-medium text-slate-500">{label}</div>
       <div className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">{value}</div>
     </div>
   )
@@ -1211,10 +1223,10 @@ function CancelReceiptVoucherDialog({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-3 print:hidden">
-      <div className="w-full max-w-lg rounded-md bg-white shadow-xl">
-        <div className="border-b border-slate-200 px-5 py-3">
-          <h3 className="text-base font-bold text-slate-900">ยกเลิกใบสำคัญรับเงิน {row.docNo}</h3>
-          <p className="mt-1 text-xs text-slate-500">{row.sellerName || '-'}</p>
+      <div className="w-full max-w-lg overflow-hidden rounded-md bg-white shadow-xl">
+        <div className="bg-slate-900 px-5 py-3 text-white">
+          <h3 className="text-base font-bold text-white">ยกเลิกใบสำคัญรับเงิน {row.docNo}</h3>
+          <p className="mt-1 text-xs text-slate-300">{row.sellerName || '-'}</p>
         </div>
         <div className="space-y-3 p-5">
           <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">

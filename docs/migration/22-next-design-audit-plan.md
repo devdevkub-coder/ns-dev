@@ -246,7 +246,7 @@ Evidence:
 ### Suggested Fix Order
 
 1. Resolve the two active placeholder sidebar routes: implement minimal policy pages or remove from sidebar until ready.
-2. Finish the existing high-confidence operational findings already drafted below: `/purchase/receipt-vouchers`, `/sales/bills`, `/sales/po-sell`, and `/production/report`.
+2. Finish the remaining high-confidence operational findings already drafted below: `/sales/bills`, `/sales/po-sell`, `/purchase/payments`, and `/sales/receipts`; `/purchase/receipt-vouchers` and `/production/report` have local code/layout checkpoints and still need browser QA.
 3. Normalize shared modal surfaces in one batch per component family: transaction bills, PO Buy/Sell, daily expense, money movement, stock operation, then tracking/trading.
 4. Review the field input matrix only inside the touched form batch; do not blanket-convert all `type="number"` hits.
 5. Polish finance/accounting report filter/card styling after operational transaction pages are stable.
@@ -258,12 +258,7 @@ The absence of a static finding is not a visual pass. These still need browser r
 
 ### `/purchase/receipt-vouchers`
 
-- Remove top KPI cards when they only duplicate the table summary or simple aggregates.
-- Add page-specific status segmented filter, expected initial set: `ทุกสถานะ / ใช้งาน / ยกเลิก`.
-- Rename vague table headers:
-  - `เลขที่` -> `เลขที่ RV` or `เลขที่ใบสำคัญรับเงิน`.
-  - `วันที่` -> the real date meaning from the flow, such as `วันที่เอกสาร` or `วันที่สร้าง`.
-- Hide unavailable row actions such as disabled edit/cancel on cancelled rows; keep only usable actions such as print.
+- 2026-07-01 implementation checkpoint: the RV list now uses page-specific filter/search wording (`เลขที่ RV`, `วันที่ออกเอกสาร`), status segmented filters (`ทุกสถานะ / ใช้งาน / ยกเลิก`), resizable desktop table with final action-column auto-stretch, dense mobile cards, normal-sized clear-filter controls, and right-aligned desktop create action. Cancelled rows keep print available while unavailable edit/cancel actions are hidden. The create/edit, detail, and cancel modal headers now follow the dark-header baseline, and the detail modal groups document and amount/contact facts into cards. Browser QA remains pending because this batch was local code/layout validation only.
 
 ### `/sales/bills`
 
@@ -424,10 +419,8 @@ High-impact route families:
   - Money/WHT/discount fields still use `type="number"` in payment/receipt entry rows; review through the Field Input Decision Matrix before changing.
   - History actions still show disabled buttons for cancelled rows in some places.
 - `/purchase/receipt-vouchers`
-  - Table mechanics and mobile cards exist.
-  - Still has KPI cards including `จำนวนเอกสาร`, which duplicates the table count and should be removed or demoted to toolbar text.
-  - Headers remain generic: `เลขที่`, `วันที่`.
-  - Cancelled rows still render disabled edit/cancel buttons instead of hiding unavailable actions.
+  - 2026-07-01 design polish completed for the high-confidence static findings: page-specific headers/filter wording, final-column auto-stretch, desktop action alignment, hidden unavailable edit/cancel actions, and dark-header modal surfaces.
+  - Remaining: browser QA for desktop/mobile visual confirmation.
 - `/sales/po-sell`
   - Table mechanics and mobile cards exist.
   - Headers still need business wording cleanup: `เลขที่` -> `เลขที่จองขาย`, `Customer` -> `ลูกค้า`, `สถานะ Match` -> `สถานะจับคู่ต้นทุน`.
@@ -477,6 +470,9 @@ Expected:
 - `/production/report`
   - After the latest correction, the report, WIP, and product-summary tables now share the same toolbar/table mechanics and mobile card pattern.
   - Browser QA remains pending.
+- `/purchase/receipt-vouchers`
+  - After the latest correction, the list table/action/filter wording and RV modal surfaces follow the active baseline more closely.
+  - Browser QA remains pending.
 - Master data shared pages under `/master-data/*`
   - Most shared pages use `MasterDataPageClient`, which already has resizable desktop table, mobile toolbar/filter bottom sheet, mobile card list, and dark-header form modal.
   - Remaining work is mostly modal polish, wording cleanup, and field-specific validation/presentation, not a full table rewrite.
@@ -487,7 +483,7 @@ Expected:
 ### Updated Suggested Fix Order
 
 1. Fix the two scaffold sidebar routes: `/finance-accounting/accounting-periods` and `/finance-accounting/posting-rules`.
-2. Finish high-confidence operational inconsistencies users will notice immediately: `/purchase/receipt-vouchers`, `/sales/bills`, `/sales/po-sell`, `/purchase/payments`, and `/sales/receipts`.
+2. Finish remaining high-confidence operational inconsistencies users will notice immediately: `/sales/bills`, `/sales/po-sell`, `/purchase/payments`, and `/sales/receipts` (RV static findings are fixed; browser QA still pending).
 3. Normalize shared operational modal surfaces by component family: `TransactionBillsPageClient`, `MoneyMovementPageClient`, `PoBuyPageClient`, `PoSellPageClient`, `DailyExpensePageClient`, `StockOperationPageClient`, tracking pages, then trading pages.
 4. Bring Dual Costing tables up to the table reference, starting with `/dual-costing/cost-allocator` and `/dual-costing/cost-pool` because they combine table mechanics drift with mobile/table density risk.
 5. Normalize Finance / Accounting table mechanics in shared component batches: fixed assets, financial statements, cash-flow planning, loans/equity.
