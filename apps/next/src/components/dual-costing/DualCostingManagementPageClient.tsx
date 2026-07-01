@@ -608,6 +608,8 @@ function AllocationLedgerView() {
   // Pagination states
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<(typeof pageSizeOptions)[number]>(50)
+  const [sortKey, setSortKey] = useState<LedgerColumnKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   const ledgerColumns = useMemo<Array<ResizableColumnDefinition<LedgerColumnKey> & { align?: 'center' | 'left' | 'right'; label: string }>>(() => [
     { key: 'matchId', label: 'Match ID', defaultWidth: 190, minWidth: 160 },
@@ -633,13 +635,21 @@ function AllocationLedgerView() {
   }, [category, fromDate, pageSize, search, status, targetType, toDate])
 
   const rows = useMemo(() => data?.rows ?? [], [data?.rows])
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+
+    return [...rows].sort((left, right) => {
+      const result = compareSortValues(getLedgerSortValue(left, sortKey), getLedgerSortValue(right, sortKey))
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [rows, sortDirection, sortKey])
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize))
   const safePage = Math.min(page, totalPages)
 
   const visibleRows = useMemo(() => {
     const start = (safePage - 1) * pageSize
-    return rows.slice(start, start + pageSize)
-  }, [rows, safePage, pageSize])
+    return sortedRows.slice(start, start + pageSize)
+  }, [sortedRows, safePage, pageSize])
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams()
@@ -665,6 +675,17 @@ function AllocationLedgerView() {
   }, [queryString])
 
   useEffect(() => { void loadData() }, [loadData])
+
+  function handleLedgerSort(key: LedgerColumnKey) {
+    setPage(1)
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(key)
+    setSortDirection('asc')
+  }
 
   return (
     <DualCostingPageSection>
@@ -770,7 +791,7 @@ function AllocationLedgerView() {
       </DualCostingFilterCard>
 
       <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-2 px-1 py-1 text-sm text-slate-600">
-        <div>พบทั้งหมด {rows.length.toLocaleString('th-TH')} รายการ</div>
+        <div>พบทั้งหมด {sortedRows.length.toLocaleString('th-TH')} รายการ</div>
         <div className="flex flex-wrap items-center gap-2">
           {ledgerResize.hasCustomWidths ? <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={ledgerResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
           <Select
@@ -806,16 +827,20 @@ function AllocationLedgerView() {
               {ledgerColumns.map((column) => (
                 <ResizableTableHead
                   key={column.key}
+                  activeSortKey={sortKey ?? undefined}
                   align={column.align}
+                  direction={sortDirection}
                   label={column.label}
+                  sortKey={column.key}
+                  onSort={handleLedgerSort}
                   resizeProps={ledgerResize.getResizeHandleProps(column.key, column.label)}
                 />
               ))}
             </tr>
           </TableHeader>
           <TableBody className="divide-y divide-slate-100">
-            {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={15}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
-            {!isLoading && (data?.rows.length ?? 0) === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={15}>ยังไม่มีรายการ</TableCell></TableRow> : null}
+            {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={ledgerColumns.length}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+            {!isLoading && (data?.rows.length ?? 0) === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={ledgerColumns.length}>ยังไม่มีรายการ</TableCell></TableRow> : null}
             {visibleRows.map((row) => (
               <TableRow key={row.id} className={`hover:bg-indigo-50/30 ${row.status === 'reversed' ? 'opacity-50' : ''}`}>
                 <TableCell className="p-2 font-mono text-xs text-slate-700"><span className="block truncate" title={row.matchId}>{row.matchId}</span></TableCell>
@@ -896,6 +921,18 @@ function AllocationLedgerView() {
 
     </DualCostingPageSection>
   )
+}
+
+function compareSortValues(left: string | number, right: string | number) {
+  if (typeof left === 'number' && typeof right === 'number') {
+    return left - right
+  }
+
+  return String(left).localeCompare(String(right), 'th', { numeric: true })
+}
+
+function getLedgerSortValue(row: LedgerRow, key: LedgerColumnKey): string | number {
+  return row[key] ?? ''
 }
 
 function DualCostingReportView() {
