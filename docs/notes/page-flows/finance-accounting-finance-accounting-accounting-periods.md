@@ -19,7 +19,7 @@ route: /finance-accounting/accounting-periods
 | Menu section | Finance Accounting |
 | Route | `/finance-accounting/accounting-periods` |
 | Page | Accounting Periods |
-| Current Next | FA5 policy UI baseline |
+| Current Next | direct FA5 policy/readiness page baseline |
 
 ## Canonical References
 
@@ -86,6 +86,7 @@ route: /finance-accounting/accounting-periods
 ## Implementation Checklist
 
 - [x] Document page purpose and close/freeze target
+- [x] Add direct Next route that explains period states, readiness domains, close/freeze impact, and pending hardening work without enabling write/enforcement actions
 - [ ] Define DB period state model and audit table
 - [ ] Define closed-period write API guard contract
 - [ ] Define readiness checks per source domain
