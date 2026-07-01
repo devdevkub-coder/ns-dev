@@ -101,6 +101,16 @@ function summarizeQuantityByUnit(items: ReceiptVoucherPrintItem[]) {
   return [...byUnit.entries()].map(([unit, qty]) => `${money(qty)} ${unit}`).join(' / ')
 }
 
+function selectedSupplierBankAccount(row: ReceiptVoucherPrintDocument) {
+  const paymentMethod = row.paymentMethod?.trim()
+  if (!paymentMethod || paymentMethod === CASH_PAYMENT_METHOD) return null
+  return row.supplierBankAccounts?.find((account) => {
+    const accountNo = account.accountNo.trim()
+    const methodWithAccount = `${account.paymentMethod} บช.${accountNo}`
+    return paymentMethod === methodWithAccount || Boolean(accountNo && paymentMethod.includes(accountNo))
+  }) ?? null
+}
+
 function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile: CompanyProfilePrintValues) {
   const items = normalizeItems(row.items)
   const printItems = items.length
@@ -114,8 +124,7 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
   const companyTaxId = profile.taxId || 'ไม่มีข้อมูล'
 
   const isCancelled = row.status === 'cancelled'
-  const selectedBankAccount = row.supplierBankAccounts?.find(account => `${account.paymentMethod} บช.${account.accountNo}` === row.paymentMethod)
-    ?? row.supplierBankAccounts?.[0]
+  const selectedBankAccount = selectedSupplierBankAccount(row)
 
   const itemsHtml = printItems.map((item, index) => {
     return `
