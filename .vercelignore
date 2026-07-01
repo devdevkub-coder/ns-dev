@@ -1,0 +1,37 @@
+# Documentation and agent context
+**/*.md
+docs/
+.agents/
+.claude/
+.codex/
+.obsidian/
+.omx/
+codex/
+
+# Legacy/reference apps and local-only tooling
+old-apps/
+reports/
+scripts/
+supabase/
+dist/
+apps/next/scratch/
+
+# Local runtime/tool state
+.env*
+!.env.example
+.mcp.json
+.playwright-mcp/
+.vite/
+.vercel/
+node_modules/
+
+# Local reports, exports, and screenshots
+*.csv
+*.html
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.xlsx
+*.docx
+*.pdf
