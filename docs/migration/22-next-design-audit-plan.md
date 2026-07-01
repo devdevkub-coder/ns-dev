@@ -635,6 +635,11 @@ Expected:
   - Mobile audit cards render from the same sorted row set as desktop, and current-page CSV export follows that sorted order. `/api/admin/auth-events`, audit source, permission boundary, filters, pagination, and detail modal facts were not changed.
   - Browser QA remains pending.
 
+- `/admin/migration-tools`
+  - After the latest correction, the Snapshot auto-backup table now uses sortable `ResizableTableHead` business headers with inactive/active up/down indicators, persisted resizable widths, a reset-width control, `colgroup`, and fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
+  - The table remains a small support-page empty-state table; no separate mobile card layer was added in this pass. Backup/restore/reset/cloud sync behavior, permissions, API behavior, and DB state were not changed.
+  - Browser QA remains pending.
+
 ### Updated Suggested Fix Order
 
 1. Finish remaining high-confidence operational inconsistencies users will notice immediately: `/sales/receipts` (`/purchase/payments`, PO Sell, Sales Bills, and RV static findings are fixed; browser QA still pending).
