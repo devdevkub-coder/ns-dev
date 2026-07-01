@@ -68,6 +68,8 @@ type HistoricalPayload = {
 type DueColumnKey = 'amount' | 'contractNo' | 'dueDate' | 'lenderName'
 type LoanContractColumnKey = 'actions' | 'asset' | 'contractNo' | 'duePaid' | 'installment' | 'lenderName' | 'loanType' | 'nextDue' | 'outstanding' | 'overdue' | 'principalAmount' | 'status'
 type OpeningAccountColumnKey = 'branch' | 'code' | 'currency' | 'name' | 'odLimit' | 'openingBalance' | 'type'
+type SortDirection = 'asc' | 'desc'
+type HistoricalDisplayRow = { category: string; total: number; values: Record<string, number> }
 
 const loanContractColumns: Array<ResizableColumnDefinition<LoanContractColumnKey>> = [
   { key: 'contractNo', defaultWidth: 145, minWidth: 120 },
@@ -101,6 +103,72 @@ const openingAccountColumns: Array<ResizableColumnDefinition<OpeningAccountColum
   { key: 'odLimit', defaultWidth: 145, minWidth: 120 },
 ]
 
+function compareSortValues(left: string | number, right: string | number) {
+  return typeof left === 'number' && typeof right === 'number'
+    ? left - right
+    : String(left).localeCompare(String(right), 'th', { numeric: true })
+}
+
+function useLocalTableSort<TRow, TKey extends string>(rows: TRow[], getSortValue: (row: TRow, key: TKey) => string | number) {
+  const [sortKey, setSortKey] = useState<TKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+
+    return [...rows].sort((left, right) => {
+      const result = compareSortValues(getSortValue(left, sortKey), getSortValue(right, sortKey))
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [getSortValue, rows, sortDirection, sortKey])
+
+  function handleSort(key: TKey) {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(key)
+    setSortDirection('asc')
+  }
+
+  return { handleSort, sortDirection, sortedRows, sortKey }
+}
+
+function getLoanContractSortValue(row: LoanContractRow, key: LoanContractColumnKey) {
+  if (key === 'asset' || key === 'actions') return ''
+  if (key === 'duePaid') return row.duePaid
+  if (key === 'installment') return row.installmentAmount
+  return row[key]
+}
+
+function getDueSortValue(row: DueRow, key: DueColumnKey) {
+  if (key === 'amount') return row.totalDueAmount - row.paidAmount
+  return row[key]
+}
+
+function getOpeningAccountSortValue(row: OpeningPayload['accounts'][number], key: OpeningAccountColumnKey) {
+  if (key === 'branch') return row.branchName || row.branchCode || ''
+  return row[key]
+}
+
+function getHistoricalSortValue(row: HistoricalDisplayRow, key: string) {
+  if (key === 'category') return row.category
+  if (key === 'total') return row.total
+  return row.values[key] ?? 0
+}
+
+function buildHistoricalDisplayRows(rows: HistoricalPayload['rows'], months: HistoricalPayload['months']): HistoricalDisplayRow[] {
+  return Array.from(new Set(rows.map((row) => row.categoryLabel))).sort().map((category) => {
+    const values = Object.fromEntries(months.map((month) => {
+      const key = historicalMonthKey(month)
+      const amount = rows.find((row) => row.categoryLabel === category && row.month === month.month && row.year === month.year)?.amount ?? 0
+      return [key, amount]
+    }))
+    const total = Object.values(values).reduce((sum, value) => sum + value, 0)
+    return { category, total, values }
+  })
+}
+
 export function LoanContractsPageClient() {
   const { data, error, isLoading } = useApi<LoanContractsPayload>('/api/finance-accounting/loan-contracts')
   const [search, setSearch] = useState('')
@@ -121,14 +189,15 @@ export function LoanContractsPageClient() {
       return matchesSearch && (status === 'all' || row.status === status) && (type === 'all' || row.loanType === type)
     })
   }, [data?.rows, search, status, type])
+  const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<LoanContractRow, LoanContractColumnKey>(rows, getLoanContractSortValue)
 
-  const totalRows = rows.length
+  const totalRows = sortedRows.length
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
   const currentPage = Math.min(page, totalPages)
   const pagedRows = useMemo(() => {
     const start = (currentPage - 1) * pageSize
-    return rows.slice(start, start + pageSize)
-  }, [rows, currentPage, pageSize])
+    return sortedRows.slice(start, start + pageSize)
+  }, [sortedRows, currentPage, pageSize])
 
   return (
     <section className="space-y-4">
@@ -316,7 +385,7 @@ export function LoanContractsPageClient() {
       <div className="hidden lg:block">
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="max-h-[60vh] overflow-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth }}>
+            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 {loanContractColumns.map((column, index) => {
                   if (index === loanContractColumns.length - 1) {
@@ -327,17 +396,17 @@ export function LoanContractsPageClient() {
               </colgroup>
               <thead className="sticky top-0 z-10 bg-slate-100">
                 <tr>
-                  <ResizableTableHead label="เลขสัญญา" resizeProps={columnResize.getResizeHandleProps('contractNo', 'เลขสัญญา')} />
-                  <ResizableTableHead label="ผู้ให้กู้" resizeProps={columnResize.getResizeHandleProps('lenderName', 'ผู้ให้กู้')} />
-                  <ResizableTableHead label="ประเภท" resizeProps={columnResize.getResizeHandleProps('loanType', 'ประเภท')} />
-                  <ResizableTableHead label="Asset" resizeProps={columnResize.getResizeHandleProps('asset', 'Asset')} />
-                  <ResizableTableHead align="right" label="วงเงิน" resizeProps={columnResize.getResizeHandleProps('principalAmount', 'วงเงิน')} />
-                  <ResizableTableHead align="right" label="หนี้คงเหลือ" resizeProps={columnResize.getResizeHandleProps('outstanding', 'หนี้คงเหลือ')} />
-                  <ResizableTableHead align="right" label="งวดผ่อน" resizeProps={columnResize.getResizeHandleProps('installment', 'งวดผ่อน')} />
-                  <ResizableTableHead align="center" label="จ่ายแล้ว" resizeProps={columnResize.getResizeHandleProps('duePaid', 'จ่ายแล้ว')} />
-                  <ResizableTableHead label="งวดถัดไป" resizeProps={columnResize.getResizeHandleProps('nextDue', 'งวดถัดไป')} />
-                  <ResizableTableHead align="right" label="เกินกำหนด" resizeProps={columnResize.getResizeHandleProps('overdue', 'เกินกำหนด')} />
-                  <ResizableTableHead align="center" label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
+                  <ResizableTableHead label="เลขสัญญา" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="contractNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('contractNo', 'เลขสัญญา')} />
+                  <ResizableTableHead label="ผู้ให้กู้" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="lenderName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('lenderName', 'ผู้ให้กู้')} />
+                  <ResizableTableHead label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="loanType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('loanType', 'ประเภท')} />
+                  <ResizableTableHead label="Asset" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="asset" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('asset', 'Asset')} />
+                  <ResizableTableHead align="right" label="วงเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="principalAmount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('principalAmount', 'วงเงิน')} />
+                  <ResizableTableHead align="right" label="หนี้คงเหลือ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="outstanding" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('outstanding', 'หนี้คงเหลือ')} />
+                  <ResizableTableHead align="right" label="งวดผ่อน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="installment" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('installment', 'งวดผ่อน')} />
+                  <ResizableTableHead align="center" label="จ่ายแล้ว" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="duePaid" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('duePaid', 'จ่ายแล้ว')} />
+                  <ResizableTableHead label="งวดถัดไป" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="nextDue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('nextDue', 'งวดถัดไป')} />
+                  <ResizableTableHead align="right" label="เกินกำหนด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="overdue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('overdue', 'เกินกำหนด')} />
+                  <ResizableTableHead align="center" label="สถานะ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="status" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
                   <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('actions', 'จัดการ')} />
                 </tr>
               </thead>
@@ -456,6 +525,8 @@ export function EquityMaintenancePageClient() {
 export function OpeningBalancePageClient() {
   const { data, error } = useApi<OpeningPayload>('/api/finance-accounting/opening-balance')
   const columnResize = useResizableColumns('finance-accounting.opening-balance.accounts.v1', openingAccountColumns)
+  const accounts = useMemo(() => data?.accounts ?? [], [data?.accounts])
+  const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<OpeningPayload['accounts'][number], OpeningAccountColumnKey>(accounts, getOpeningAccountSortValue)
   const tabs = ['⚙️ Setup', '💵 Cash/Bank/FCD/OD', '📥 AR ลูกหนี้', '📦 AP ต้นทุน', '💸 AP ค่าใช้จ่าย', '📦 Stock', '🏗️ Fixed Asset', '🏦 Loan', '🧾 VAT/WHT', '➕ Other', '👑 Equity/YTD', '⚖️ BS Check + Lock']
   return (
     <section className="space-y-4">
@@ -478,7 +549,7 @@ export function OpeningBalancePageClient() {
             </div>
           ) : null}
           <div className="max-h-[60vh] overflow-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth }}>
+            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 {openingAccountColumns.map((column, index) => {
                   if (index === openingAccountColumns.length - 1) {
@@ -489,18 +560,18 @@ export function OpeningBalancePageClient() {
               </colgroup>
               <thead className="sticky top-0 z-10 bg-slate-100">
                 <tr>
-                  <ResizableTableHead label="เลขที่บัญชี" resizeProps={columnResize.getResizeHandleProps('code', 'เลขที่บัญชี')} />
-                  <ResizableTableHead label="ชื่อบัญชี" resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อบัญชี')} />
-                  <ResizableTableHead label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
-                  <ResizableTableHead label="สาขา/คลัง" resizeProps={columnResize.getResizeHandleProps('branch', 'สาขาหรือคลัง')} />
-                  <ResizableTableHead label="สกุลเงิน" resizeProps={columnResize.getResizeHandleProps('currency', 'สกุลเงิน')} />
-                  <ResizableTableHead align="right" label="ยอดเปิดบัญชี" resizeProps={columnResize.getResizeHandleProps('openingBalance', 'ยอดเปิดบัญชี')} />
-                  <ResizableTableHead align="right" label="OD Limit" resizeProps={columnResize.getResizeHandleProps('odLimit', 'OD Limit')} />
+                  <ResizableTableHead label="เลขที่บัญชี" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="code" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('code', 'เลขที่บัญชี')} />
+                  <ResizableTableHead label="ชื่อบัญชี" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="name" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อบัญชี')} />
+                  <ResizableTableHead label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="type" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
+                  <ResizableTableHead label="สาขา/คลัง" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="branch" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('branch', 'สาขาหรือคลัง')} />
+                  <ResizableTableHead label="สกุลเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="currency" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('currency', 'สกุลเงิน')} />
+                  <ResizableTableHead align="right" label="ยอดเปิดบัญชี" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="openingBalance" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('openingBalance', 'ยอดเปิดบัญชี')} />
+                  <ResizableTableHead align="right" label="OD Limit" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="odLimit" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('odLimit', 'OD Limit')} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                <LoadingOrEmpty colSpan={openingAccountColumns.length} isLoading={false} rows={data?.accounts.length ?? 0} />
-                {(data?.accounts ?? []).map((account) => (
+                <LoadingOrEmpty colSpan={openingAccountColumns.length} isLoading={false} rows={accounts.length} />
+                {sortedRows.map((account) => (
                   <tr key={`${account.code || account.name}-${account.name}`} className="transition-colors hover:bg-slate-50/50">
                     <td className="whitespace-nowrap px-3 py-3 font-mono text-slate-700">{account.code || '-'}</td>
                     <td className="px-3 py-3 font-medium text-slate-900">{account.name}</td>
@@ -520,8 +591,8 @@ export function OpeningBalancePageClient() {
       {/* Mobile Card List View */}
       <div className="block lg:hidden divide-y divide-slate-100 bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
         <div className="p-4 text-xs font-semibold text-slate-500 bg-slate-50">บัญชีและยอดเปิดบัญชี</div>
-        {(!data?.accounts || data.accounts.length === 0) && <div className="p-4 text-center text-slate-400 text-xs">ไม่มีข้อมูล</div>}
-        {(data?.accounts ?? []).map((account) => (
+        {accounts.length === 0 && <div className="p-4 text-center text-slate-400 text-xs">ไม่มีข้อมูล</div>}
+        {sortedRows.map((account) => (
           <div key={`${account.code || account.name}-${account.name}`} className="p-4 space-y-2 text-xs">
             <div className="flex justify-between items-start">
               <div>
@@ -553,7 +624,9 @@ export function HistoricalDataPageClient() {
   const { data, error, isLoading } = useApi<HistoricalPayload>('/api/finance-accounting/historical-data')
   const [tab, setTab] = useState<'expense' | 'pnl' | 'cashflow'>('expense')
   const months = useMemo(() => data?.months ?? [], [data?.months])
-  const rows = (data?.rows ?? []).filter((row) => row.metricType === tab)
+  const rows = useMemo(() => (data?.rows ?? []).filter((row) => row.metricType === tab), [data?.rows, tab])
+  const historicalRows = useMemo(() => buildHistoricalDisplayRows(rows, months), [months, rows])
+  const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<HistoricalDisplayRow, string>(historicalRows, getHistoricalSortValue)
   const historicalColumns = useMemo<Array<ResizableColumnDefinition<string>>>(() => [
     { key: 'category', defaultWidth: 260, minWidth: 170 },
     ...months.map((month) => ({ key: historicalMonthKey(month), defaultWidth: 130, minWidth: 105 })),
@@ -586,7 +659,7 @@ export function HistoricalDataPageClient() {
             </div>
           ) : null}
           <div className="max-h-[60vh] overflow-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth }}>
+            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 {historicalColumns.map((column, index) => {
                   if (index === historicalColumns.length - 1) {
@@ -597,15 +670,15 @@ export function HistoricalDataPageClient() {
               </colgroup>
               <thead className="sticky top-0 z-10 bg-slate-100">
                 <tr>
-                  <ResizableTableHead label="รายการ" resizeProps={columnResize.getResizeHandleProps('category', 'รายการ')} />
+                  <ResizableTableHead label="รายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="category" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('category', 'รายการ')} />
                   {months.map((month) => (
-                    <ResizableTableHead key={month.label} align="right" label={month.label} resizeProps={columnResize.getResizeHandleProps(historicalMonthKey(month), month.label)} />
+                    <ResizableTableHead key={month.label} align="right" label={month.label} activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey={historicalMonthKey(month)} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps(historicalMonthKey(month), month.label)} />
                   ))}
-                  <ResizableTableHead align="right" label="รวม 4 เดือน" resizeProps={columnResize.getResizeHandleProps('total', 'รวม 4 เดือน')} />
+                  <ResizableTableHead align="right" label="รวม 4 เดือน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="total" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('total', 'รวม 4 เดือน')} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                <HistoricalRows isLoading={isLoading} months={months} rows={rows} />
+                <HistoricalRows isLoading={isLoading} months={months} rows={sortedRows} />
               </tbody>
             </table>
           </div>
@@ -615,7 +688,7 @@ export function HistoricalDataPageClient() {
       {/* Mobile Card List View */}
       <div className="block lg:hidden divide-y divide-slate-100 bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
         <div className="p-4 text-xs font-semibold text-slate-500 bg-slate-50">ประวัติข้อมูลย้อนหลัง</div>
-        <HistoricalRowsMobile isLoading={isLoading} months={months} rows={rows} />
+        <HistoricalRowsMobile isLoading={isLoading} months={months} rows={sortedRows} />
       </div>
     </section>
   )
@@ -703,6 +776,7 @@ function Bar({ color, label, max, value }: { color: string; label: string; max: 
 function DueTable({ isLoading, rows, title, tone }: { isLoading: boolean; rows: DueRow[]; title: string; tone: 'amber' | 'red' }) {
   const heading = tone === 'red' ? 'border-red-105 bg-red-50/50 text-red-700' : 'border-amber-105 bg-amber-50/50 text-amber-700'
   const columnResize = useResizableColumns(`finance-accounting.loan-dashboard.due-${tone}.v1`, dueColumns)
+  const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<DueRow, DueColumnKey>(rows, getDueSortValue)
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
@@ -721,7 +795,7 @@ function DueTable({ isLoading, rows, title, tone }: { isLoading: boolean; rows: 
       
       {/* Desktop Table View */}
       <div className="hidden lg:block max-h-96 overflow-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth }}>
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {dueColumns.map((column, index) => {
               if (index === dueColumns.length - 1) {
@@ -732,15 +806,15 @@ function DueTable({ isLoading, rows, title, tone }: { isLoading: boolean; rows: 
           </colgroup>
           <thead className="sticky top-0 z-10 bg-slate-100">
             <tr>
-              <ResizableTableHead label="วันครบกำหนด" resizeProps={columnResize.getResizeHandleProps('dueDate', 'วันครบกำหนด')} />
-              <ResizableTableHead label="เลขสัญญา" resizeProps={columnResize.getResizeHandleProps('contractNo', 'เลขสัญญา')} />
-              <ResizableTableHead label="ผู้ให้กู้" resizeProps={columnResize.getResizeHandleProps('lenderName', 'ผู้ให้กู้')} />
-              <ResizableTableHead align="right" label="ยอดต้องจ่าย" resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดต้องจ่าย')} />
+              <ResizableTableHead label="วันครบกำหนด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="dueDate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('dueDate', 'วันครบกำหนด')} />
+              <ResizableTableHead label="เลขสัญญา" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="contractNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('contractNo', 'เลขสัญญา')} />
+              <ResizableTableHead label="ผู้ให้กู้" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="lenderName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('lenderName', 'ผู้ให้กู้')} />
+              <ResizableTableHead align="right" label="ยอดต้องจ่าย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดต้องจ่าย')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             <LoadingOrEmpty colSpan={dueColumns.length} isLoading={isLoading} rows={rows.length} emptyText="ไม่มี" />
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50/50">
                 <td className="whitespace-nowrap px-3 py-3 text-slate-700">{row.dueDate}</td>
                 <td className="whitespace-nowrap px-3 py-3 font-mono font-semibold text-blue-700">{row.contractNo}</td>
@@ -756,7 +830,7 @@ function DueTable({ isLoading, rows, title, tone }: { isLoading: boolean; rows: 
       <div className="block lg:hidden divide-y divide-slate-100 max-h-96 overflow-auto">
         {isLoading && <div className="p-4 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล</div>}
         {!isLoading && rows.length === 0 && <div className="p-4 text-center text-slate-400 text-xs">ไม่มีงวดที่ต้องชำระ</div>}
-        {!isLoading && rows.map((row) => (
+        {!isLoading && sortedRows.map((row) => (
           <div key={row.id} className="p-3 space-y-1.5 text-xs hover:bg-slate-50/50 transition">
             <div className="flex justify-between items-center">
               <span className="font-semibold text-slate-900">{row.dueDate}</span>
@@ -798,51 +872,40 @@ function ReadField({ label, value }: { label: string; value: string }) {
   )
 }
 
-function HistoricalRows({ isLoading, months, rows }: { isLoading: boolean; months: HistoricalPayload['months']; rows: HistoricalPayload['rows'] }) {
-  const categories = Array.from(new Set(rows.map((row) => row.categoryLabel))).sort()
+function HistoricalRows({ isLoading, months, rows }: { isLoading: boolean; months: HistoricalPayload['months']; rows: HistoricalDisplayRow[] }) {
   if (isLoading) return <tr><td className="py-8 text-center text-slate-400" colSpan={months.length + 2}>กำลังโหลดข้อมูล</td></tr>
-  if (categories.length === 0) return <tr><td className="py-8 text-center text-slate-400" colSpan={months.length + 2}>ยังไม่มีข้อมูลย้อนหลัง</td></tr>
-  return categories.map((category) => {
-    const total = months.reduce((sum, month) => sum + (rows.find((row) => row.categoryLabel === category && row.month === month.month && row.year === month.year)?.amount ?? 0), 0)
-    return (
-      <tr key={category} className="transition-colors hover:bg-slate-50/50">
-        <td className="px-3 py-3 font-medium text-slate-900">{category}</td>
-        {months.map((month) => (
-          <td key={month.label} className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(rows.find((row) => row.categoryLabel === category && row.month === month.month && row.year === month.year)?.amount)}</td>
-        ))}
-        <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-slate-900">{formatMoney(total)}</td>
-      </tr>
-    )
-  })
+  if (rows.length === 0) return <tr><td className="py-8 text-center text-slate-400" colSpan={months.length + 2}>ยังไม่มีข้อมูลย้อนหลัง</td></tr>
+  return rows.map((row) => (
+    <tr key={row.category} className="transition-colors hover:bg-slate-50/50">
+      <td className="px-3 py-3 font-medium text-slate-900">{row.category}</td>
+      {months.map((month) => (
+        <td key={month.label} className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.values[historicalMonthKey(month)])}</td>
+      ))}
+      <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-slate-900">{formatMoney(row.total)}</td>
+    </tr>
+  ))
 }
 
-function HistoricalRowsMobile({ isLoading, months, rows }: { isLoading: boolean; months: HistoricalPayload['months']; rows: HistoricalPayload['rows'] }) {
-  const categories = Array.from(new Set(rows.map((row) => row.categoryLabel))).sort()
+function HistoricalRowsMobile({ isLoading, months, rows }: { isLoading: boolean; months: HistoricalPayload['months']; rows: HistoricalDisplayRow[] }) {
   if (isLoading) return <div className="p-8 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล</div>
-  if (categories.length === 0) return <div className="p-8 text-center text-slate-400 text-xs">ยังไม่มีข้อมูลย้อนหลัง</div>
-  return categories.map((category) => {
-    const total = months.reduce((sum, month) => sum + (rows.find((row) => row.categoryLabel === category && row.month === month.month && row.year === month.year)?.amount ?? 0), 0)
-    return (
-      <div key={category} className="p-4 space-y-2 text-xs hover:bg-slate-50/50 transition">
-        <div className="font-semibold text-slate-900 text-sm">{category}</div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50 text-slate-650">
-          {months.map((month) => {
-            const val = rows.find((row) => row.categoryLabel === category && row.month === month.month && row.year === month.year)?.amount
-            return (
-              <div key={month.label} className="flex justify-between">
-                <span>{month.label}:</span>
-                <span className="font-medium text-slate-800">{formatMoney(val)}</span>
-              </div>
-            )
-          })}
-        </div>
-        <div className="flex justify-between items-center pt-1.5 border-t border-slate-100/50">
-          <span className="text-slate-400 font-medium">รวม 4 เดือน</span>
-          <span className="font-bold text-slate-950">{formatMoney(total)}</span>
-        </div>
+  if (rows.length === 0) return <div className="p-8 text-center text-slate-400 text-xs">ยังไม่มีข้อมูลย้อนหลัง</div>
+  return rows.map((row) => (
+    <div key={row.category} className="p-4 space-y-2 text-xs hover:bg-slate-50/50 transition">
+      <div className="font-semibold text-slate-900 text-sm">{row.category}</div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50 text-slate-650">
+        {months.map((month) => (
+          <div key={month.label} className="flex justify-between">
+            <span>{month.label}:</span>
+            <span className="font-medium text-slate-800">{formatMoney(row.values[historicalMonthKey(month)])}</span>
+          </div>
+        ))}
       </div>
-    )
-  })
+      <div className="flex justify-between items-center pt-1.5 border-t border-slate-100/50">
+        <span className="text-slate-400 font-medium">รวม 4 เดือน</span>
+        <span className="font-bold text-slate-950">{formatMoney(row.total)}</span>
+      </div>
+    </div>
+  ))
 }
 
 function TabButton({ active, children, onClick }: { active: boolean; children: ReactNode; onClick: () => void }) {

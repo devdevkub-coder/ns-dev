@@ -584,6 +584,7 @@ Expected:
   - Browser QA remains pending.
 - Loans/equity/opening/historical finance pages: `/finance-accounting/loan-contracts`, `/finance-accounting/loan-dashboard`, `/finance-accounting/equity-maint`, `/finance-accounting/opening-balance`, and `/finance-accounting/historical-data`
   - After the latest correction, the Loan Contracts desktop table, Loan Dashboard upcoming/overdue due tables, Opening Balance accounts table, and Historical Data dynamic month table now use the active lined/resizable table shell with Thai-first business headers, persisted column widths, reset-width controls, and safer nowrap/tabular numeric alignment.
+  - Follow-up correction after visual feedback: Loan Contracts, Loan Dashboard upcoming/overdue due tables, Opening Balance accounts, and Historical Data dynamic month tables now use sortable `ResizableTableHead` business headers with inactive/active up/down indicators, client-side ascending/descending sorting before pagination or rendering, fixed table layout so resize handles visibly adjust columns, and the same sorted row sets for mobile cards. `/finance-accounting/equity-maint` has no main table in this slice.
   - Existing KPI cards, tabs, disabled write/import actions, mobile card views, and the Equity read card/form layout were preserved.
   - Browser QA remains pending.
 - Fixed assets finance pages: `/finance-accounting/asset-register`, `/finance-accounting/depreciation`, `/finance-accounting/asset-disposal`, and `/finance-accounting/asset-overview`
