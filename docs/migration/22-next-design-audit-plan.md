@@ -169,14 +169,12 @@ Evidence:
      - `/sales/bills`
      - `/purchase/po-buy`
      - `/sales/po-sell`
-     - `/daily/expense`
      - `/purchase/payments`
      - `/sales/receipts`
    - Typical source files:
      - `apps/next/src/components/daily/TransactionBillsPageClient.tsx`
      - `apps/next/src/components/purchase-flow/PoBuyPageClient.tsx`
      - `apps/next/src/components/sales/PoSellPageClient.tsx`
-     - `apps/next/src/components/daily/DailyExpensePageClient.tsx`
      - `apps/next/src/components/daily/MoneyMovementPageClient.tsx`
    - Expected: `DialogContent` baseline should use `rounded-md`, `border-0`, `!p-0`/`p-0`, `overflow-hidden`, dark header where applicable, and no outer/focus border leakage.
 
@@ -247,7 +245,7 @@ Evidence:
 
 1. Resolve the two active placeholder sidebar routes: implement minimal policy pages or remove from sidebar until ready.
 2. Finish the remaining high-confidence operational findings already drafted below: `/sales/receipts`; `/purchase/payments`, `/sales/po-sell`, `/sales/bills`, `/purchase/receipt-vouchers`, and `/production/report` have local code/layout checkpoints and still need browser QA.
-3. Normalize shared modal surfaces in one batch per component family: transaction bills, PO Buy/Sell, daily expense, money movement, stock operation, then tracking/trading.
+3. Normalize shared modal surfaces in one batch per component family: transaction bills, PO Buy/Sell, money movement, stock operation, then tracking/trading. `/daily/expense` has a local static design checkpoint; keep it in the browser-QA queue instead of reworking it again from the same static finding.
 4. Review the field input matrix only inside the touched form batch; do not blanket-convert all `type="number"` hits.
 5. Polish finance/accounting report filter/card styling after operational transaction pages are stable.
 6. Run browser QA per selected batch on desktop and mobile before claiming visual completion.
@@ -282,6 +280,11 @@ The absence of a static finding is not a visual pass. These still need browser r
 
 - 2026-07-01 implementation checkpoint: the RCP waiting-receipt table now aligns more closely with the `/daily/weight-ticket-list` lined/resizable table baseline. The desktop table uses `border-slate-200`, `min-w-full divide-y divide-slate-200 text-sm`, final-column auto-stretch, column-definition based loading/empty `colSpan` values, and its reset-width button now reads/writes the receipt queue column state instead of the payment queue state. Receipt line `receiptAmount`, `withholdingTaxAmount`, and `discountAmount` fields now follow the Field Input Decision Matrix money-input pattern on both desktop and mobile layouts. The receipt cancel, receivable bill detail, and receipt history detail dialogs now use the `rounded-md` dark-header modal baseline with hidden corner close controls; detail headers put the RCP document number in the title and customer name in the subtitle. Browser QA remains pending because this batch was local code/layout validation only.
 - Remaining follow-up: run desktop/mobile browser QA for `/sales/receipts` create/edit/cancel/detail visual confirmation when the selected visual batch reaches browser verification.
+
+### `/daily/expense`
+
+- 2026-07-01 implementation checkpoint: the EXP list now aligns more closely with the `/daily/weight-ticket-list` lined/resizable table baseline. The desktop table uses `border-slate-200`, `min-w-full divide-y divide-slate-200 text-sm`, final-column auto-stretch, and column-definition based loading/empty `colSpan` values. Table wording is page-specific (`เลขที่ EXP`, `วันที่จ่าย`, `เลขอ้างอิง`, `ผู้รับเงิน`, `หมวดค่าใช้จ่าย`, `บัญชีจ่าย`, `สถานะเอกสาร`, `ยอดจ่ายจริง`) instead of generic list labels. The mobile filter button now shows the real count for date/category/account/status filters, the clear-filter action uses `ล้างตัวกรอง`, and unavailable edit/cancel row actions are hidden instead of rendered as a dash. The create/edit form and detail dialog now use the `rounded-md` dark-header modal baseline with hidden corner close controls; the detail header puts the EXP document number in the title and payee in the subtitle. Browser QA remains pending because this batch was local code/layout validation only.
+- Remaining follow-up: run desktop/mobile browser QA for `/daily/expense` list, mobile filters, create/edit form, and detail dialog when the selected visual batch reaches browser verification.
 
 ### `/production/report`
 
@@ -417,13 +420,16 @@ High-impact route families:
 - `/daily/transfer`
   - 2026-07-01 design polish completed for the high-confidence static findings: transfer table shell/final-column auto-stretch, page-specific TRF/date/account/amount headers, mobile filter count, neutral quick-range filters, hidden unavailable cancel action, and rounded-md dark-header transfer form/detail surfaces.
   - Remaining: browser QA for desktop/mobile visual confirmation.
+- `/daily/expense`
+  - 2026-07-01 design polish completed for the high-confidence static findings: EXP table shell/final-column auto-stretch, page-specific EXP/date/payee/category/account/status/amount headers, mobile filter count, hidden unavailable edit/cancel action, and rounded-md dark-header expense form/detail surfaces.
+  - Remaining: browser QA for desktop/mobile visual confirmation.
 - `/purchase/receipt-vouchers`
   - 2026-07-01 design polish completed for the high-confidence static findings: page-specific headers/filter wording, final-column auto-stretch, desktop action alignment, hidden unavailable edit/cancel actions, and dark-header modal surfaces.
   - Remaining: browser QA for desktop/mobile visual confirmation.
 - `/sales/po-sell`
   - 2026-07-01 design polish completed for the high-confidence static findings: table wording/action visibility is aligned, the final action column auto-stretches, and create/edit, cancel, and detail dialogs now follow the `rounded-md` dark-header modal baseline.
   - Remaining: browser QA for desktop/mobile visual confirmation.
-- `/daily/expense`, `/daily/transfer`, `/daily/payment-approval`, `/production/orders`, stock operation pages, tracking pages, and trading pages
+- `/daily/payment-approval`, `/production/orders`, stock operation pages, tracking pages, and trading pages
   - These are mainly modal-surface review items: normalize detail/form dialog header, border/radius, grouped card layout, and avoid border leakage.
   - Do not change business behavior during these visual passes.
 
@@ -488,7 +494,7 @@ Expected:
 
 1. Fix the two scaffold sidebar routes: `/finance-accounting/accounting-periods` and `/finance-accounting/posting-rules`.
 2. Finish remaining high-confidence operational inconsistencies users will notice immediately: `/sales/receipts` (`/purchase/payments`, PO Sell, Sales Bills, and RV static findings are fixed; browser QA still pending).
-3. Normalize shared operational modal surfaces by component family: `TransactionBillsPageClient`, `MoneyMovementPageClient`, `PoBuyPageClient`, `PoSellPageClient`, `DailyExpensePageClient`, `StockOperationPageClient`, tracking pages, then trading pages.
+3. Normalize shared operational modal surfaces by component family: `TransactionBillsPageClient`, `MoneyMovementPageClient`, `PoBuyPageClient`, `PoSellPageClient`, `StockOperationPageClient`, tracking pages, then trading pages. `DailyExpensePageClient` has a static design checkpoint and should move to browser QA rather than another static rewrite.
 4. Bring Dual Costing tables up to the table reference, starting with `/dual-costing/cost-allocator` and `/dual-costing/cost-pool` because they combine table mechanics drift with mobile/table density risk.
 5. Normalize Finance / Accounting table mechanics in shared component batches: fixed assets, financial statements, cash-flow planning, loans/equity.
 6. Review `type="number"` only inside the touched page batch using the design matrix; do not run a broad replacement sweep.

@@ -535,6 +535,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
   const currentPage = Math.min(page, totalPages)
   const pagedRows = useMemo(() => filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize), [currentPage, filteredRows, pageSize])
+  const activeMobileFilterCount = [dateFrom || dateTo, categoryId, accountId, statusFilter.length > 0].filter(Boolean).length
 
   useEffect(() => {
     setPage(1)
@@ -1430,7 +1431,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                 className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 lg:hidden"
                 onClick={() => setShowMobileFilters(true)}
               >
-                <span>🔍</span> ตัวกรอง {(dateFrom || dateTo || categoryId || accountId || statusFilter.length > 0) ? '(1)' : ''}
+                ตัวกรอง{activeMobileFilterCount ? ` (${activeMobileFilterCount})` : ''}
               </button>
 
               <div className="hidden lg:flex flex-wrap items-center gap-2">
@@ -1449,7 +1450,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
               </div>
 
               {search || dateFrom || dateTo || categoryId || accountId || statusFilter.length > 0 ? (
-                <Button className="h-9" size="sm" type="button" variant="outline" onClick={() => { setSearch(''); setDateFrom(''); setDateTo(''); setCategoryId(''); setAccountId(''); setStatusFilter([]) }}>ล้าง</Button>
+                <Button className="h-9" size="sm" type="button" variant="outline" onClick={() => { setSearch(''); setDateFrom(''); setDateTo(''); setCategoryId(''); setAccountId(''); setStatusFilter([]) }}>ล้างตัวกรอง</Button>
               ) : null}
               <Button className="hidden lg:inline-flex ml-auto h-9" size="sm" type="button" onClick={openCreateForm}>+ เพิ่มค่าใช้จ่าย</Button>
               <a className="hidden lg:inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700" href={exportHref}>
@@ -1593,17 +1594,9 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
 
           {formOpen ? (
             <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
-              <form ref={formRef} noValidate className="w-full max-w-6xl overflow-hidden rounded-2xl bg-white shadow-xl" onSubmit={saveForm}>
-                <div className="flex items-center justify-between bg-slate-900 text-white px-5 py-4 rounded-t-2xl shrink-0">
+              <form ref={formRef} noValidate className="w-full max-w-6xl overflow-hidden rounded-md bg-white shadow-xl" onSubmit={saveForm}>
+                <div className="flex items-center bg-slate-900 text-white px-5 py-4 rounded-t-md shrink-0">
                   <h3 className="font-bold text-white text-base">{form.id ? 'แก้ไขค่าใช้จ่าย' : 'เพิ่มค่าใช้จ่าย'}</h3>
-                  <button
-                    type="button"
-                    onClick={() => setFormOpen(false)}
-                    className="rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 transition-colors outline-none focus:outline-none focus:ring-0 text-xl leading-none"
-                    aria-label="Close"
-                  >
-                    &times;
-                  </button>
                 </div>
                 <div className="space-y-4 bg-slate-50 p-4">
                   <div className="rounded-md bg-white p-4 shadow">
@@ -1833,7 +1826,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                     ) : null}
                   </div>
                 </div>
-                <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 shrink-0 rounded-b-2xl">
+                <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 shrink-0 rounded-b-md">
                   <Button className="h-9 font-normal border-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors outline-none focus:ring-0" type="button" variant="ghost" onClick={() => setFormOpen(false)}>ยกเลิก</Button>
                   <Button className="h-9 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors outline-none focus:ring-0 px-5" disabled={isSaving} type="submit">{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
                 </div>
@@ -1909,31 +1902,34 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
             ) : null}
           </div>
 
-          <div className="hidden lg:block overflow-x-auto rounded-md bg-white shadow">
-            <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
+            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
-                {expenseColumns.map((column) => {
+                {expenseColumns.map((column, index) => {
                   const style = columnResize.getColumnStyle(column.key);
+                  if (index === expenseColumns.length - 1) {
+                    return <col key={column.key} style={{ minWidth: column.minWidth }} />;
+                  }
                   return <col key={column.key} style={style} />;
                 })}
               </colgroup>
-              <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
+              <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 font-medium">
                 <tr>
-                  <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={changeSort} />
+                  <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขที่ EXP" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ EXP')} sortKey="docNo" onSort={changeSort} />
                   <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="วันที่จ่าย" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่จ่าย')} sortKey="date" onSort={changeSort} />
                   <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ครบกำหนด" resizeProps={columnResize.getResizeHandleProps('dueDate', 'ครบกำหนด')} sortKey="dueDate" onSort={changeSort} />
-                  <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="อ้างอิง" resizeProps={columnResize.getResizeHandleProps('refDocNo', 'อ้างอิง')} sortKey="refDocNo" onSort={changeSort} />
-                  <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ผู้รับ" resizeProps={columnResize.getResizeHandleProps('payee', 'ผู้รับ')} sortKey="payee" onSort={changeSort} />
-                  <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="หมวด" resizeProps={columnResize.getResizeHandleProps('category', 'หมวด')} sortKey="category" onSort={changeSort} />
-                  <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="บัญชี" resizeProps={columnResize.getResizeHandleProps('account', 'บัญชี')} sortKey="account" onSort={changeSort} />
-                  <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
-                  <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label={<span className="text-red-700">Net Pay<br /><span className="text-xs font-normal">ยอดจ่ายจริง</span></span>} resizeProps={columnResize.getResizeHandleProps('netAmount', 'Net Pay')} sortKey="netAmount" onSort={changeSort} />
+                  <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขอ้างอิง" resizeProps={columnResize.getResizeHandleProps('refDocNo', 'เลขอ้างอิง')} sortKey="refDocNo" onSort={changeSort} />
+                  <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ผู้รับเงิน" resizeProps={columnResize.getResizeHandleProps('payee', 'ผู้รับเงิน')} sortKey="payee" onSort={changeSort} />
+                  <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="หมวดค่าใช้จ่าย" resizeProps={columnResize.getResizeHandleProps('category', 'หมวดค่าใช้จ่าย')} sortKey="category" onSort={changeSort} />
+                  <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="บัญชีจ่าย" resizeProps={columnResize.getResizeHandleProps('account', 'บัญชีจ่าย')} sortKey="account" onSort={changeSort} />
+                  <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="สถานะเอกสาร" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะเอกสาร')} sortKey="status" onSort={changeSort} />
+                  <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ยอดจ่ายจริง" resizeProps={columnResize.getResizeHandleProps('netAmount', 'ยอดจ่ายจริง')} sortKey="netAmount" onSort={changeSort} />
                   <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ยอด/VAT/WHT" resizeProps={columnResize.getResizeHandleProps('amountSummary', 'ยอด/VAT/WHT')} sortKey="amountSummary" onSort={changeSort} />
-                  <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'การกระทำ')} />
+                  <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={11}>กำลังโหลดข้อมูล</td></tr> : null}
+                {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={expenseColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
                 {!isLoading && pagedRows.map((row) => {
                   const overdue = row.status !== 'paid' && row.status !== 'cancelled' && row.dueDate ? row.dueDate < todayDateInput() : false
                   return (
@@ -1969,14 +1965,12 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                             <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={(event) => { event.stopPropagation(); openEditForm(row) }}>แก้ไข</button>
                             <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50" type="button" onClick={(event) => { event.stopPropagation(); void cancelExpense(row) }}>ยกเลิก</button>
                           </div>
-                        ) : (
-                          <span className="text-xs text-slate-300">-</span>
-                        )}
+                        ) : null}
                       </td>
                     </tr>
                   )
                 })}
-                {!isLoading && filteredRows.length === 0 ? <tr><td className="p-8 text-center text-slate-500" colSpan={11}>ยังไม่มีรายการ</td></tr> : null}
+                {!isLoading && filteredRows.length === 0 ? <tr><td className="p-8 text-center text-slate-500" colSpan={expenseColumns.length}>ยังไม่มีรายการ</td></tr> : null}
               </tbody>
             </table>
           </div>
@@ -2004,26 +1998,18 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
 
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent hideClose className="max-h-[90vh] max-w-4xl rounded-2xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 shadow-2xl">
-        <DialogHeader className="px-5 py-4 bg-slate-900 text-white shrink-0 flex flex-row items-center justify-between gap-3 rounded-t-2xl">
+      <DialogContent hideClose className="max-h-[90vh] max-w-4xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 shadow-2xl outline-none focus:outline-none">
+        <DialogHeader className="px-5 py-4 bg-slate-900 text-white shrink-0 rounded-t-md">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <DialogTitle id="expense-detail-title" className="text-lg font-bold text-white">รายละเอียดค่าใช้จ่าย {row.docNo}</DialogTitle>
-              <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${expenseStatusTextClass(row.status)} bg-white/10 px-2 py-0.5 rounded`}>
+              <DialogTitle id="expense-detail-title" className="text-lg font-bold text-white">รายละเอียด {row.docNo}</DialogTitle>
+              <span className="inline-flex items-center gap-1.5 rounded bg-white/10 px-2 py-0.5 text-xs font-semibold text-white">
                 <span className={`size-1.5 rounded-full ${expenseStatusDotClass(row.status)}`} />
                 {expenseStatusLabel(row.status)}
               </span>
             </div>
-            <DialogDescription className="mt-1 text-xs text-slate-400">อ่านอย่างเดียวจากรายการค่าใช้จ่ายที่แสดงในตาราง</DialogDescription>
+            <DialogDescription className="mt-1 text-xs text-slate-300">{row.payee || 'ไม่ระบุผู้รับเงิน'}</DialogDescription>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 transition-colors outline-none focus:outline-none focus:ring-0 text-2xl leading-none"
-            aria-label="Close"
-          >
-            &times;
-          </button>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4 text-sm">
@@ -2115,7 +2101,7 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
           </div>
         </div>
 
-        <DialogFooter className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 shrink-0 rounded-b-2xl">
+        <DialogFooter className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 shrink-0 rounded-b-md">
           <Button className="gap-2 h-9 font-normal border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors outline-none focus:ring-0 px-5 rounded-md" disabled={isPrinting} type="button" variant="outline" onClick={handlePrint}>
             <Printer className="size-4" />
             {isPrinting ? 'กำลังเตรียม...' : 'พิมพ์'}
