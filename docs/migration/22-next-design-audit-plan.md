@@ -381,7 +381,7 @@ Routes/components with high-confidence table mechanics drift:
 Notes:
 
 - Many finance-accounting pages already have mobile card/list alternates, so the primary issue is desktop table mechanics and old compact `text-xs` table style, not only mobile behavior.
-- Dual Costing table mechanics for `/dual-costing/cost-allocator`, `/dual-costing/cost-pool`, `/dual-costing/deal-margin`, `/dual-costing/match-log`, and `/dual-costing/cost-allocation-ledger` now have local static design checkpoints. Browser QA remains pending for these routes.
+- Dual Costing table mechanics for `/dual-costing/cost-allocator`, `/dual-costing/cost-pool`, `/dual-costing/deal-margin`, `/dual-costing/match-log`, `/dual-costing/cost-allocation-ledger`, and `/dual-costing/report` now have local static design checkpoints. Browser QA remains pending for these routes.
 - Finance/accounting table mechanics for cash-flow planning, financial statements, fixed assets, and loans/equity/opening/historical now have local static design checkpoints. Browser QA remains pending for those slices.
 
 ### P2 Dual Costing Font And Mixed-Language Drift
@@ -512,6 +512,11 @@ Expected:
   - After the latest correction, the per-deal desktop table now uses the active lined/resizable table shell with Thai-first business headers, persisted column widths, reset-width control, final status-column auto-stretch, and a shared pagination toolbar.
   - Follow-up correction after visual feedback: every business header now uses `ResizableTableHead` sorting props, shows inactive/active up/down sort indicators, applies client-side ascending/descending sorting before pagination, and uses fixed table layout so resize handles visibly adjust the columns like `/dual-costing/cost-pool`.
   - The mobile card list now uses the same paged row set as desktop and uses clearer Thai-first labels for revenue, matched cost, deal margin, and match status.
+  - Browser QA remains pending.
+- `/dual-costing/report`
+  - After the latest correction, the category summary report table now uses the active lined/resizable table shell with Thai-first business headers, persisted column widths, reset-width control, and column-definition based empty `colSpan` values.
+  - Every business header now uses `ResizableTableHead` sorting props, shows inactive/active up/down sort indicators, applies client-side ascending/descending sorting before rendering, and uses fixed table layout so resize handles visibly adjust the columns like `/dual-costing/cost-pool`.
+  - The mobile category cards now use the same sorted row set as the desktop report table. Report formulas, Deal Cost/WAC boundary, API behavior, and DB state were not changed.
   - Browser QA remains pending.
 - Financial statements finance pages: `/finance-accounting/pl-statement`, `/finance-accounting/balance-sheet`, and `/finance-accounting/cash-flow-statement`
   - After the latest correction, the shared Statement tables and drilldown detail modal now use the active lined/resizable table shell with Thai-first business headers, persisted column widths, reset-width controls, and safer nowrap/tabular numeric alignment.

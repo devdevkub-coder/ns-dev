@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -97,6 +97,19 @@ type ReportPayload = {
 }
 
 type ReportMetric = { cost: number; count: number; gp: number; gpPct: number; qty: number; revenue: number }
+type ReportCategoryRow = ReportPayload['report']['byCategory'][number]
+type ReportColumnKey = 'allocatedQty' | 'category' | 'cost' | 'gp' | 'gpPct' | 'pendingQty' | 'pendingRevenue' | 'revenue'
+
+const reportColumns: Array<ResizableColumnDefinition<ReportColumnKey> & { align?: 'center' | 'left' | 'right'; label: string }> = [
+  { key: 'category', label: 'หมวดสินค้า', defaultWidth: 160, minWidth: 130 },
+  { key: 'allocatedQty', label: 'น้ำหนักจัดสรรแล้ว', defaultWidth: 140, minWidth: 120, align: 'right' },
+  { key: 'revenue', label: 'รายได้จัดสรร', defaultWidth: 130, minWidth: 115, align: 'right' },
+  { key: 'cost', label: 'ต้นทุน Deal Cost', defaultWidth: 130, minWidth: 115, align: 'right' },
+  { key: 'gp', label: 'กำไรขั้นต้น', defaultWidth: 120, minWidth: 110, align: 'right' },
+  { key: 'gpPct', label: 'GP%', defaultWidth: 90, minWidth: 80, align: 'right' },
+  { key: 'pendingQty', label: 'น้ำหนักรอจัดสรร', defaultWidth: 135, minWidth: 120, align: 'right' },
+  { key: 'pendingRevenue', label: 'มูลค่าขายรอจัดสรร', defaultWidth: 150, minWidth: 130, align: 'right' },
+]
 
 export function DualCostingManagementPageClient({ mode }: { mode: Mode }) {
   if (mode === 'waiting') return <WaitingAllocationsView />
@@ -935,10 +948,17 @@ function getLedgerSortValue(row: LedgerRow, key: LedgerColumnKey): string | numb
   return row[key] ?? ''
 }
 
+function getReportSortValue(row: ReportCategoryRow, key: ReportColumnKey): string | number {
+  return row[key] ?? ''
+}
+
 function DualCostingReportView() {
   const [data, setData] = useState<ReportPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [sortKey, setSortKey] = useState<ReportColumnKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const reportResize = useResizableColumns('dual-costing.report.by-category.v1', reportColumns)
 
   useEffect(() => {
     let mounted = true
@@ -959,6 +979,25 @@ function DualCostingReportView() {
   }, [])
 
   const report = data?.report
+  const reportRows = useMemo(() => report?.byCategory ?? [], [report?.byCategory])
+  const sortedReportRows = useMemo(() => {
+    if (!sortKey) return reportRows
+
+    return [...reportRows].sort((left, right) => {
+      const result = compareSortValues(getReportSortValue(left, sortKey), getReportSortValue(right, sortKey))
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [reportRows, sortDirection, sortKey])
+
+  function handleReportSort(key: ReportColumnKey) {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(key)
+    setSortDirection('asc')
+  }
 
   return (
     <DualCostingPageSection>
@@ -986,32 +1025,50 @@ function DualCostingReportView() {
             <DualCostingStatCard icon="💰" label="มูลค่าขายค้าง" tone="emerald" value={formatMoney(report?.waiting.revenue ?? 0)} />
           </div>
           <DualCostingPanel title="สรุปตามหมวดสินค้า">
+            {reportResize.hasCustomWidths ? (
+              <div className="mb-2 hidden justify-end lg:flex">
+                <Button size="sm" type="button" variant="outline" onClick={reportResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button>
+              </div>
+            ) : null}
             {/* Desktop View */}
-            <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
-              <Table className="text-xs">
-                <TableHeader className="bg-slate-50 border-b border-slate-100 font-semibold text-slate-600">
+            <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+              <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: reportResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+                <colgroup>
+                  {reportColumns.map((column, index) => {
+                    if (index === reportColumns.length - 1) {
+                      return <col key={column.key} style={{ minWidth: column.minWidth }} />
+                    }
+                    return <col key={column.key} style={reportResize.getColumnStyle(column.key)} />
+                  })}
+                </colgroup>
+                <TableHeader className="bg-slate-100">
                   <tr>
-                    <TableHead className="p-3 pl-4">หมวด</TableHead>
-                    <TableHead className="p-3 text-right">Allocated Qty</TableHead>
-                    <TableHead className="p-3 text-right">Revenue</TableHead>
-                    <TableHead className="p-3 text-right">Cost</TableHead>
-                    <TableHead className="p-3 text-right">GP</TableHead>
-                    <TableHead className="p-3 text-right">GP%</TableHead>
-                    <TableHead className="p-3 text-right">Pending Qty</TableHead>
-                    <TableHead className="p-3 pr-4 text-right">Pending Revenue</TableHead>
+                    {reportColumns.map((column) => (
+                      <ResizableTableHead
+                        key={column.key}
+                        activeSortKey={sortKey ?? undefined}
+                        align={column.align}
+                        direction={sortDirection}
+                        label={column.label}
+                        sortKey={column.key}
+                        onSort={handleReportSort}
+                        resizeProps={reportResize.getResizeHandleProps(column.key, column.label)}
+                      />
+                    ))}
                   </tr>
                 </TableHeader>
-                <TableBody>
-                  {(report?.byCategory ?? []).map((row) => (
-                    <TableRow key={row.category} className="border-t border-slate-100 hover:bg-slate-50/30 transition-colors">
-                      <TableCell className="p-3 pl-4"><span className="rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">{row.category}</span></TableCell>
-                      <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.allocatedQty)}</TableCell>
-                      <TableCell className="p-3 text-right font-mono text-blue-700 font-semibold">{formatMoney(row.revenue)}</TableCell>
-                      <TableCell className="p-3 text-right font-mono text-red-600">{formatMoney(row.cost)}</TableCell>
-                      <TableCell className={`p-3 text-right font-mono font-bold ${row.gp >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.gp)}</TableCell>
-                      <TableCell className="p-3 text-right font-mono text-slate-700">{row.gpPct.toFixed(2)}%</TableCell>
-                      <TableCell className="p-3 text-right font-mono text-amber-700">{formatMoney(row.pendingQty)}</TableCell>
-                      <TableCell className="p-3 pr-4 text-right font-mono text-amber-700 font-semibold">{formatMoney(row.pendingRevenue)}</TableCell>
+                <TableBody className="divide-y divide-slate-100">
+                  {sortedReportRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={reportColumns.length}>ยังไม่มีข้อมูลสรุปตามหมวดสินค้า</TableCell></TableRow> : null}
+                  {sortedReportRows.map((row) => (
+                    <TableRow key={row.category} className="transition-colors hover:bg-slate-50">
+                      <TableCell className="px-3 py-3"><span className="block truncate rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800" title={row.category}>{row.category}</span></TableCell>
+                      <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.allocatedQty)}</TableCell>
+                      <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums text-blue-700">{formatMoney(row.revenue)}</TableCell>
+                      <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-red-600">{formatMoney(row.cost)}</TableCell>
+                      <TableCell className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${row.gp >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.gp)}</TableCell>
+                      <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{row.gpPct.toFixed(2)}%</TableCell>
+                      <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-amber-700">{formatMoney(row.pendingQty)}</TableCell>
+                      <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums text-amber-700">{formatMoney(row.pendingRevenue)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -1020,7 +1077,10 @@ function DualCostingReportView() {
 
             {/* Mobile View */}
             <div className="block lg:hidden space-y-3">
-              {(report?.byCategory ?? []).map((row) => (
+              {sortedReportRows.length === 0 ? (
+                <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-slate-400 shadow-sm">ยังไม่มีข้อมูลสรุปตามหมวดสินค้า</div>
+              ) : null}
+              {sortedReportRows.map((row) => (
                 <div key={row.category} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-2.5">
                   <div className="flex justify-between items-center">
                     <span className="rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">{row.category}</span>

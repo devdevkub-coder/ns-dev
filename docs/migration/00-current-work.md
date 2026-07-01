@@ -2330,3 +2330,8 @@ Tailwind dependency check:
   - The desktop allocation ledger table now uses `ResizableTableHead` sort indicators/handlers on every business column, persisted resizable widths, reset-width control, `tableLayout: fixed`, and column-definition based loading/empty `colSpan` values.
   - Rows are sorted before pagination so the desktop table and mobile cards use the same ordered page slice.
   - Validation passed: `npm exec --workspace @ns-scrap-erp/next -- eslint src/components/dual-costing/DualCostingManagementPageClient.tsx`, `npm run type-check --workspace @ns-scrap-erp/next`, and `git diff --check`.
+- 2026-07-01: Dual Costing Report table mechanics checkpoint
+  - `/dual-costing/report` received a UI-only table mechanics pass for the category summary report table. Runtime API behavior, Deal Cost report formulas, allocation status, ledger reads, and DB contracts were not changed.
+  - The desktop category summary table now uses `ResizableTableHead` sort indicators/handlers on every business column, persisted resizable widths, reset-width control, `tableLayout: fixed`, lined table shell, Thai-first table headers, and column-definition based empty `colSpan`.
+  - Category rows are sorted client-side before desktop/mobile rendering so the mobile cards follow the same ordered row set as the desktop table.
+  - Validation passed: `npm exec --workspace @ns-scrap-erp/next -- eslint src/components/dual-costing/DualCostingManagementPageClient.tsx`, `npm run type-check --workspace @ns-scrap-erp/next`, and `git diff --check`.
