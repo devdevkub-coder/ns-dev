@@ -378,6 +378,7 @@ Notes:
 - Many finance-accounting pages already have mobile card/list alternates, so the primary issue is desktop table mechanics and old compact `text-xs` table style, not only mobile behavior.
 - Dual Costing table mechanics for `/dual-costing/cost-allocator`, `/dual-costing/cost-pool`, `/dual-costing/deal-margin`, `/dual-costing/match-log`, `/dual-costing/cost-allocation-ledger`, `/dual-costing/report`, and `/dual-costing/waiting-allocations` now have local static design checkpoints. Browser QA remains pending for these routes.
 - Finance/accounting table mechanics for cash-flow planning, financial statements, fixed assets, and loans/equity/opening/historical now have local static design checkpoints. Browser QA remains pending for those slices.
+- Daily Petty Advance table mechanics for `/daily/petty-advance` now has a local static design checkpoint: sortable business headers with inactive/active up/down indicators were added on top of the existing resizable fixed-layout table, and mobile cards use the same sorted paged row set. Browser QA remains pending for this route.
 
 ### P2 Dual Costing Font And Mixed-Language Drift
 
@@ -509,6 +510,10 @@ Expected:
   - Browser QA remains pending.
 - `/production/report`
   - After the latest correction, the report, WIP, and product-summary tables now share the same toolbar/table mechanics and mobile card pattern.
+  - Browser QA remains pending.
+- `/daily/petty-advance`
+  - After the latest correction, the petty advance table now uses sortable `ResizableTableHead` business headers with inactive/active up/down indicators, client-side ascending/descending sorting before pagination, the same sorted paged row set for mobile cards, persisted resizable widths, a reset-width control, and fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
+  - PADV/PRET business behavior, bank statement timing, recipient account snapshots, return-money validation, filters, summary KPIs, create/edit/return modal behavior, API behavior, and DB state were not changed.
   - Browser QA remains pending.
 - `/production/reconciliation`
   - After the latest correction, the reconciliation issue table now uses sortable `ResizableTableHead` business headers with inactive/active up/down indicators, client-side ascending/descending sorting before rendering, the same sorted row set for mobile cards, persisted resizable widths, a reset-width control, and fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
