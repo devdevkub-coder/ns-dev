@@ -272,7 +272,11 @@ The absence of a static finding is not a visual pass. These still need browser r
 ### `/purchase/payments`
 
 - 2026-07-01 implementation checkpoint: the PMA waiting-payment table and PMT history table now align more closely with the `/daily/weight-ticket-list` lined/resizable table baseline. Both desktop tables use `border-slate-200`, `min-w-full divide-y divide-slate-200 text-sm`, final-column auto-stretch, and column-definition based loading/empty `colSpan` values. PMA cancel actions now hide when unavailable instead of rendering disabled controls. The create PMT modal, payment cancel dialog, waiting-payment cancel dialog, and PMT history detail dialog now use the `rounded-md` dark-header modal baseline with hidden corner close controls; the PMT detail header puts the document number in the title and the supplier/party name in the subtitle. Payment money fields already use the money input pattern, so no `type="number"` conversion was needed. Browser QA remains pending because this batch was local code/layout validation only.
-- Remaining follow-up: `/sales/receipts` still needs its receipt-specific detail/cancel/form review in the next page pass because it shares `MoneyMovementPageClient`.
+
+### `/sales/receipts`
+
+- 2026-07-01 implementation checkpoint: the RCP waiting-receipt table now aligns more closely with the `/daily/weight-ticket-list` lined/resizable table baseline. The desktop table uses `border-slate-200`, `min-w-full divide-y divide-slate-200 text-sm`, final-column auto-stretch, column-definition based loading/empty `colSpan` values, and its reset-width button now reads/writes the receipt queue column state instead of the payment queue state. Receipt line `receiptAmount`, `withholdingTaxAmount`, and `discountAmount` fields now follow the Field Input Decision Matrix money-input pattern on both desktop and mobile layouts. The receipt cancel, receivable bill detail, and receipt history detail dialogs now use the `rounded-md` dark-header modal baseline with hidden corner close controls; detail headers put the RCP document number in the title and customer name in the subtitle. Browser QA remains pending because this batch was local code/layout validation only.
+- Remaining follow-up: run desktop/mobile browser QA for `/sales/receipts` create/edit/cancel/detail visual confirmation when the selected visual batch reaches browser verification.
 
 ### `/production/report`
 
@@ -404,7 +408,7 @@ High-impact route families:
   - `/purchase/bills` shares the transaction list/action table mechanics, but its purchase detail/form modal surfaces still need a separate page pass before marking the purchase side visually complete.
 - `/purchase/payments` and `/sales/receipts`
   - `/purchase/payments` has a 2026-07-01 local design checkpoint for table shell/colgroup/colSpan cleanup, hidden unavailable PMA cancel actions, PMT form/cancel/detail modal radius normalization, and money-pattern confirmation.
-  - `/sales/receipts` still needs a dedicated pass for receipt-specific detail/cancel/form modal surfaces and receipt line money fields through the Field Input Decision Matrix.
+  - `/sales/receipts` has a 2026-07-01 local design checkpoint for RCP queue table shell/colgroup/colSpan cleanup, receipt queue reset-width state, receipt cancel/detail modal radius normalization, and receipt line money fields through the Field Input Decision Matrix.
 - `/purchase/receipt-vouchers`
   - 2026-07-01 design polish completed for the high-confidence static findings: page-specific headers/filter wording, final-column auto-stretch, desktop action alignment, hidden unavailable edit/cancel actions, and dark-header modal surfaces.
   - Remaining: browser QA for desktop/mobile visual confirmation.

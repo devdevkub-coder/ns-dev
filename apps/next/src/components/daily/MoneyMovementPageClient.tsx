@@ -8,7 +8,7 @@ import { Field, SelectField } from '@/components/daily/MoneyMovementFieldHelpers
 import { PaymentLinesSection, PaymentSplitsSection } from '@/components/daily/MoneyMovementFormSections'
 import { Button as UiButton } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input as UiInput } from '@/components/ui/Input'
 import { CollapsedList } from '@/components/ui/CollapsedList'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -209,6 +209,10 @@ function newReceiptSplit(): ReceiptSplit {
 
 function newReceiptLine(): ReceiptLine {
   return { discountAmount: 0, id: `RL-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, receiptAmount: 0, salesBillDocNo: '', withholdingTaxAmount: 0 }
+}
+
+function receiptLineMoneyKey(line: ReceiptLine, index: number, field: 'discountAmount' | 'receiptAmount' | 'withholdingTaxAmount') {
+  return `receipt-line:${line.id ?? index}:${field}`
 }
 
 function roundMoney(value: number) {
@@ -2154,7 +2158,7 @@ export function MoneyMovementPageClient({
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
             <div>พบ <span className="font-semibold text-slate-900">{receiptBillTotalRows}</span> รายการ</div>
             <div className="flex flex-wrap items-center gap-2">
-              {paymentQueueColumnResize.hasCustomWidths ? <UiButton className="h-9 font-normal" size="sm" type="button" variant="outline" onClick={paymentQueueColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</UiButton> : null}
+              {receiptQueueColumnResize.hasCustomWidths ? <UiButton className="h-9 font-normal" size="sm" type="button" variant="outline" onClick={receiptQueueColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</UiButton> : null}
               <UiSelect
                 aria-label="จำนวนรายการต่อหน้า"
                 className="h-9 w-auto min-w-[96px] px-2"
@@ -2246,10 +2250,13 @@ export function MoneyMovementPageClient({
           </div>
 
           <div className="hidden lg:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-            <Table className="text-xs" style={{ minWidth: receiptQueueColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
+            <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: receiptQueueColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
-                {receiptQueueColumns.map((column) => {
+                {receiptQueueColumns.map((column, index) => {
                   const style = receiptQueueColumnResize.getColumnStyle(column.key)
+                  if (index === receiptQueueColumns.length - 1) {
+                    return <col key={column.key} style={{ minWidth: column.minWidth }} />
+                  }
                   return <col key={column.key} style={style} />
                 })}
               </colgroup>
@@ -2266,7 +2273,7 @@ export function MoneyMovementPageClient({
                 </tr>
               </TableHeader>
               <TableBody className="divide-y divide-slate-100">
-                {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={8}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+                {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={receiptQueueColumns.length}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
                 {!isLoading && receiptBillPageRows.map((bill) => {
                   const balance = bill.receivableBalance ?? 0
                   const receivedAmount = Math.max(0, (bill.totalAmount ?? 0) - balance)
@@ -2319,7 +2326,7 @@ export function MoneyMovementPageClient({
                     </TableRow>
                   )
                 })}
-                {!isLoading && receiptBillPageRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={8}>ไม่พบใบรับเงินรอดำเนินการตามเงื่อนไข</TableCell></TableRow> : null}
+                {!isLoading && receiptBillPageRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={receiptQueueColumns.length}>ไม่พบใบรับเงินรอดำเนินการตามเงื่อนไข</TableCell></TableRow> : null}
               </TableBody>
             </Table>
           </div>
@@ -2688,6 +2695,9 @@ export function MoneyMovementPageClient({
                         <tbody>
                           {receiptLines.map((line, index) => {
                             const selectedLineBill = billMap.get(line.salesBillDocNo)
+                            const receiptAmountKey = receiptLineMoneyKey(line, index, 'receiptAmount')
+                            const withholdingTaxAmountKey = receiptLineMoneyKey(line, index, 'withholdingTaxAmount')
+                            const discountAmountKey = receiptLineMoneyKey(line, index, 'discountAmount')
                             return (
                               <tr key={line.id ?? `${index}-${line.salesBillDocNo}`} className="border-t border-slate-100">
                                 <td className="p-2">
@@ -2707,32 +2717,38 @@ export function MoneyMovementPageClient({
                                 <td className="p-2 text-right font-semibold tabular-nums text-amber-700">{formatMoney(selectedLineBill?.receivableBalance ?? 0)}</td>
                                 <td className="p-2">
                                   <UiInput
-                                    className="h-9 text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                    min="0"
-                                    step="0.01"
-                                    type="number"
-                                    disabled={Boolean(form.id)} value={String(line.receiptAmount)}
-                                    onChange={(event) => updateReceiptLine(index, { receiptAmount: Number(event.target.value) })}
+                                    className="h-9 text-right tabular-nums"
+                                    disabled={Boolean(form.id)}
+                                    inputMode="decimal"
+                                    type="text"
+                                    value={moneyInputValue(receiptAmountKey, line.receiptAmount)}
+                                    onBlur={() => finishMoneyInput(receiptAmountKey)}
+                                    onChange={(event) => changeMoneyInput(receiptAmountKey, event.target.value, (value) => updateReceiptLine(index, { receiptAmount: value }))}
+                                    onFocus={() => startMoneyInput(receiptAmountKey, line.receiptAmount)}
                                   />
                                 </td>
                                 <td className="p-2">
                                   <UiInput
-                                    className="h-9 text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                    min="0"
-                                    step="0.01"
-                                    type="number"
-                                    disabled={Boolean(form.id)} value={String(line.withholdingTaxAmount)}
-                                    onChange={(event) => updateReceiptLine(index, { withholdingTaxAmount: Number(event.target.value) })}
+                                    className="h-9 text-right tabular-nums"
+                                    disabled={Boolean(form.id)}
+                                    inputMode="decimal"
+                                    type="text"
+                                    value={moneyInputValue(withholdingTaxAmountKey, line.withholdingTaxAmount)}
+                                    onBlur={() => finishMoneyInput(withholdingTaxAmountKey)}
+                                    onChange={(event) => changeMoneyInput(withholdingTaxAmountKey, event.target.value, (value) => updateReceiptLine(index, { withholdingTaxAmount: value }))}
+                                    onFocus={() => startMoneyInput(withholdingTaxAmountKey, line.withholdingTaxAmount)}
                                   />
                                 </td>
                                 <td className="p-2">
                                   <UiInput
-                                    className="h-9 text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                    min="0"
-                                    step="0.01"
-                                    type="number"
-                                    disabled={Boolean(form.id)} value={String(line.discountAmount)}
-                                    onChange={(event) => updateReceiptLine(index, { discountAmount: Number(event.target.value) })}
+                                    className="h-9 text-right tabular-nums"
+                                    disabled={Boolean(form.id)}
+                                    inputMode="decimal"
+                                    type="text"
+                                    value={moneyInputValue(discountAmountKey, line.discountAmount)}
+                                    onBlur={() => finishMoneyInput(discountAmountKey)}
+                                    onChange={(event) => changeMoneyInput(discountAmountKey, event.target.value, (value) => updateReceiptLine(index, { discountAmount: value }))}
+                                    onFocus={() => startMoneyInput(discountAmountKey, line.discountAmount)}
                                   />
                                 </td>
                                 <td className="p-2 text-center">
@@ -2751,6 +2767,9 @@ export function MoneyMovementPageClient({
                     <div className="block lg:hidden p-4 space-y-4 border-t border-slate-100">
                       {receiptLines.map((line, index) => {
                         const selectedLineBill = billMap.get(line.salesBillDocNo)
+                        const receiptAmountKey = receiptLineMoneyKey(line, index, 'receiptAmount')
+                        const withholdingTaxAmountKey = receiptLineMoneyKey(line, index, 'withholdingTaxAmount')
+                        const discountAmountKey = receiptLineMoneyKey(line, index, 'discountAmount')
                         return (
                           <div key={line.id ?? `${index}-${line.salesBillDocNo}`} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
                             <div className="flex justify-between items-center">
@@ -2793,12 +2812,14 @@ export function MoneyMovementPageClient({
                               <div>
                                 <span className="mb-1 block text-xs font-medium text-slate-600">ยอดรับ</span>
                                 <UiInput
-                                  className="h-9 w-full text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none text-xs"
-                                  min="0"
-                                  step="0.01"
-                                  type="number"
-                                  disabled={Boolean(form.id)} value={String(line.receiptAmount)}
-                                  onChange={(event) => updateReceiptLine(index, { receiptAmount: Number(event.target.value) })}
+                                  className="h-9 w-full text-right tabular-nums text-xs"
+                                  disabled={Boolean(form.id)}
+                                  inputMode="decimal"
+                                  type="text"
+                                  value={moneyInputValue(receiptAmountKey, line.receiptAmount)}
+                                  onBlur={() => finishMoneyInput(receiptAmountKey)}
+                                  onChange={(event) => changeMoneyInput(receiptAmountKey, event.target.value, (value) => updateReceiptLine(index, { receiptAmount: value }))}
+                                  onFocus={() => startMoneyInput(receiptAmountKey, line.receiptAmount)}
                                 />
                               </div>
                             </div>
@@ -2807,23 +2828,27 @@ export function MoneyMovementPageClient({
                               <div>
                                 <span className="mb-1 block text-xs font-medium text-slate-600">WHT</span>
                                 <UiInput
-                                  className="h-9 w-full text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none text-xs"
-                                  min="0"
-                                  step="0.01"
-                                  type="number"
-                                  disabled={Boolean(form.id)} value={String(line.withholdingTaxAmount)}
-                                  onChange={(event) => updateReceiptLine(index, { withholdingTaxAmount: Number(event.target.value) })}
+                                  className="h-9 w-full text-right tabular-nums text-xs"
+                                  disabled={Boolean(form.id)}
+                                  inputMode="decimal"
+                                  type="text"
+                                  value={moneyInputValue(withholdingTaxAmountKey, line.withholdingTaxAmount)}
+                                  onBlur={() => finishMoneyInput(withholdingTaxAmountKey)}
+                                  onChange={(event) => changeMoneyInput(withholdingTaxAmountKey, event.target.value, (value) => updateReceiptLine(index, { withholdingTaxAmount: value }))}
+                                  onFocus={() => startMoneyInput(withholdingTaxAmountKey, line.withholdingTaxAmount)}
                                 />
                               </div>
                               <div>
                                 <span className="mb-1 block text-xs font-medium text-slate-600">ส่วนลด</span>
                                 <UiInput
-                                  className="h-9 w-full text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none text-xs"
-                                  min="0"
-                                  step="0.01"
-                                  type="number"
-                                  disabled={Boolean(form.id)} value={String(line.discountAmount)}
-                                  onChange={(event) => updateReceiptLine(index, { discountAmount: Number(event.target.value) })}
+                                  className="h-9 w-full text-right tabular-nums text-xs"
+                                  disabled={Boolean(form.id)}
+                                  inputMode="decimal"
+                                  type="text"
+                                  value={moneyInputValue(discountAmountKey, line.discountAmount)}
+                                  onBlur={() => finishMoneyInput(discountAmountKey)}
+                                  onChange={(event) => changeMoneyInput(discountAmountKey, event.target.value, (value) => updateReceiptLine(index, { discountAmount: value }))}
+                                  onFocus={() => startMoneyInput(discountAmountKey, line.discountAmount)}
                                 />
                               </div>
                             </div>
@@ -3436,8 +3461,8 @@ export function MoneyMovementPageClient({
         <Dialog open onOpenChange={(open) => {
           if (!open && !isCancellingReceipt) setCancelReceiptTarget(null)
         }}>
-          <DialogContent className="max-w-md !p-0 overflow-hidden bg-slate-900 border-0 shadow-2xl">
-            <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-2xl">
+          <DialogContent className="max-w-md rounded-md !p-0 overflow-hidden bg-slate-900 border-0 shadow-2xl outline-none focus:outline-none" hideClose>
+            <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-md">
               <DialogTitle className="font-bold text-white">ยกเลิก Receipt Voucher</DialogTitle>
             </DialogHeader>
             <div className="space-y-3 text-sm bg-slate-50 p-5">
@@ -3787,20 +3812,12 @@ function ReceivableBillDetailDialog({
   const receiptDocNo = bill ? receiptQueueDocNo(bill) : '-'
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-hidden rounded-2xl !p-0 flex flex-col bg-slate-900 border-0 shadow-2xl" fallbackTitle="รายละเอียดใบรับเงิน Customer" hideClose>
-        <DialogHeader className="flex-row items-center justify-between gap-3 bg-slate-900 px-5 py-4 text-white">
+      <DialogContent className="max-h-[90vh] max-w-4xl overflow-hidden rounded-md !p-0 flex flex-col bg-slate-900 border-0 shadow-2xl outline-none focus:outline-none" fallbackTitle="รายละเอียดใบรับเงิน Customer" hideClose>
+        <DialogHeader className="bg-slate-900 px-5 py-4 text-white rounded-t-md">
           <div className="min-w-0">
-            <DialogTitle className="truncate text-base font-bold text-white">รายละเอียดใบรับเงิน Customer</DialogTitle>
-            <div className="mt-1 truncate font-mono text-xs text-slate-300">{receiptDocNo}</div>
+            <DialogTitle className="truncate text-base font-bold text-white">{receiptDocNo}</DialogTitle>
+            <DialogDescription className="mt-1 truncate text-xs text-slate-300">{customerName || '-'}</DialogDescription>
           </div>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 transition-colors outline-none focus:outline-none focus:ring-0 text-2xl leading-none"
-            aria-label="Close"
-          >
-            &times;
-          </button>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto space-y-4 bg-slate-50 p-5 text-sm">
           {!bill ? <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow">ไม่พบข้อมูล</div> : (
@@ -3890,20 +3907,12 @@ function ReceiptDetailDialog({
   const isCancelled = row?.status === 'cancelled'
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden rounded-2xl !p-0 flex flex-col bg-slate-900 border-0 shadow-2xl" fallbackTitle="รายละเอียดรับเงิน Customer" hideClose>
-        <DialogHeader className="flex-row items-center justify-between gap-3 bg-slate-900 px-5 py-4 text-white">
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden rounded-md !p-0 flex flex-col bg-slate-900 border-0 shadow-2xl outline-none focus:outline-none" fallbackTitle="รายละเอียดรับเงิน Customer" hideClose>
+        <DialogHeader className="bg-slate-900 px-5 py-4 text-white rounded-t-md">
           <div className="min-w-0">
-            <DialogTitle className="truncate text-base font-bold text-white">รายละเอียดรับเงิน Customer</DialogTitle>
-            <div className="mt-1 truncate font-mono text-xs text-slate-300">{row?.docNo ?? '-'}</div>
+            <DialogTitle className="truncate text-base font-bold text-white">{row?.docNo ?? '-'}</DialogTitle>
+            <DialogDescription className="mt-1 truncate text-xs text-slate-300">{row?.partyName || '-'}</DialogDescription>
           </div>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 transition-colors outline-none focus:outline-none focus:ring-0 text-2xl leading-none"
-            aria-label="Close"
-          >
-            &times;
-          </button>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto space-y-4 bg-slate-50 p-5 text-sm">
           {!row ? <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow">ไม่พบข้อมูล</div> : (
