@@ -19,7 +19,7 @@ route: /finance-accounting/posting-rules
 | Menu section | Finance Accounting |
 | Route | `/finance-accounting/posting-rules` |
 | Page | Posting Rules |
-| Current Next | FA5 policy UI baseline |
+| Current Next | direct FA5 policy/readiness page baseline |
 
 ## Canonical References
 
@@ -82,6 +82,7 @@ route: /finance-accounting/posting-rules
 ## Implementation Checklist
 
 - [x] Document page purpose and target rule groups
+- [x] Add direct Next route that explains source-to-account rule groups, readiness controls, GL/report boundaries, and pending hardening work without enabling write/posting actions
 - [ ] Define posting rule schema/versioning/audit
 - [ ] Define required mapping list per source type
 - [ ] Define readiness check API

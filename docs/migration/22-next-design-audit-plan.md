@@ -155,7 +155,7 @@ Design rules used for this pass:
 
 These are visible sidebar routes but do not have a direct page file and currently fall through to the catch-all scaffold page:
 
-- `/finance-accounting/posting-rules` - add the policy page or hide it from sidebar until ready.
+- None remaining after the Accounting Periods and Posting Rules policy page checkpoints.
 
 Evidence:
 
@@ -164,6 +164,7 @@ Evidence:
 Resolved in local design checkpoint:
 
 - `/finance-accounting/accounting-periods` now has a direct FA5 policy/readiness page. It remains policy UI only and does not enforce closed-period locks yet.
+- `/finance-accounting/posting-rules` now has a direct FA5 source-to-account mapping readiness page. It remains policy UI only and does not post GL journals yet.
 
 ### P2 Shared Design Drift To Fix In Batches
 
@@ -246,12 +247,11 @@ Resolved in local design checkpoint:
 
 ### Suggested Fix Order
 
-1. Resolve the remaining active placeholder sidebar route: implement `/finance-accounting/posting-rules` as a minimal policy page or hide it from sidebar until ready.
-2. Finish the remaining high-confidence operational findings already drafted below: `/sales/receipts`; `/purchase/payments`, `/sales/po-sell`, `/sales/bills`, `/purchase/receipt-vouchers`, and `/production/report` have local code/layout checkpoints and still need browser QA.
-3. Normalize shared modal surfaces in one batch per component family: transaction bills, PO Buy/Sell, money movement, stock operation, then tracking/trading. `/daily/expense` has a local static design checkpoint; keep it in the browser-QA queue instead of reworking it again from the same static finding.
-4. Review the field input matrix only inside the touched form batch; do not blanket-convert all `type="number"` hits.
-5. Polish finance/accounting report filter/card styling after operational transaction pages are stable.
-6. Run browser QA per selected batch on desktop and mobile before claiming visual completion.
+1. Finish the remaining high-confidence operational findings already drafted below: `/sales/receipts`; `/purchase/payments`, `/sales/po-sell`, `/sales/bills`, `/purchase/receipt-vouchers`, and `/production/report` have local code/layout checkpoints and still need browser QA.
+2. Normalize shared modal surfaces in one batch per component family: transaction bills, PO Buy/Sell, money movement, stock operation, then tracking/trading. `/daily/expense` has a local static design checkpoint; keep it in the browser-QA queue instead of reworking it again from the same static finding.
+3. Review the field input matrix only inside the touched form batch; do not blanket-convert all `type="number"` hits.
+4. Polish finance/accounting report filter/card styling after operational transaction pages are stable.
+5. Run browser QA per selected batch on desktop and mobile before claiming visual completion.
 
 ### Routes With No High-Confidence Static Finding Yet
 
@@ -328,13 +328,13 @@ Scope of this pass:
 
 - Re-parsed `apps/next/src/lib/navigation.ts` as the active sidebar source of truth.
 - Checked 106 unique sidebar routes.
-- Found 104 direct `page.tsx` routes and 2 visible sidebar routes that still fell through to the catch-all scaffold at the start of this audit. `/finance-accounting/accounting-periods` has since been given a direct policy page.
+- Found 104 direct `page.tsx` routes and 2 visible sidebar routes that still fell through to the catch-all scaffold at the start of this audit. `/finance-accounting/accounting-periods` and `/finance-accounting/posting-rules` have since been given direct policy pages.
 - Reviewed page/component code against `docs/design.md`, `docs/agent-rules/ui.md`, and the closest active references, especially `/daily/weight-ticket-list` and the corrected `/production/report`.
 - This is still a static code/design audit only. No browser/DOM UAT was run in this pass because project rules say browser testing should run only when explicitly requested or after selecting a route batch.
 
 Refined static scan counts:
 
-- P1 visible sidebar route without direct page: 1 remaining route after the Accounting Periods policy page checkpoint.
+- P1 visible sidebar route without direct page: 0 remaining routes after the Accounting Periods and Posting Rules policy page checkpoints.
 - P2 table exists but does not use `ResizableTableHead` / `useResizableColumns`: 24 routes.
 - P2 table page without a clear mobile card/list alternate after accounting for `md:hidden` and `lg:hidden`: 3 routes.
 - P2 explicit `font-sans` override against the Noto Sans Thai baseline: 4 routes.
@@ -347,15 +347,16 @@ Refined static scan counts:
 
 These are visible in `navigation.ts` but have no direct `apps/next/src/app/**/page.tsx`, so they resolve through `apps/next/src/app/[...slug]/page.tsx` and show `Next.js route scaffold`.
 
-- `/finance-accounting/posting-rules`
+- None remaining after the Accounting Periods and Posting Rules policy page checkpoints.
 
 Suggested fix:
 
-- Implement a minimal policy/readiness page now, or hide this entry from the sidebar until the policy page is ready.
+- Keep new policy pages in the browser QA queue before claiming visual completion.
 
 Resolved:
 
 - `/finance-accounting/accounting-periods` now has a direct FA5 policy/readiness page with period states, readiness checks, close/freeze impact, and pending hardening work. Browser QA remains pending.
+- `/finance-accounting/posting-rules` now has a direct FA5 source-to-account mapping readiness page with rule groups, mapping controls, GL/report boundaries, and pending hardening work. Browser QA remains pending.
 
 ### P2 Table Mechanics Still Older Than The Design Reference
 
@@ -512,10 +513,9 @@ Expected:
 
 ### Updated Suggested Fix Order
 
-1. Fix the remaining scaffold sidebar route: `/finance-accounting/posting-rules`.
-2. Finish remaining high-confidence operational inconsistencies users will notice immediately: `/sales/receipts` (`/purchase/payments`, PO Sell, Sales Bills, and RV static findings are fixed; browser QA still pending).
-3. Normalize shared operational modal surfaces by component family: `TransactionBillsPageClient`, `MoneyMovementPageClient`, `PoBuyPageClient`, `PoSellPageClient`, `StockOperationPageClient`, tracking pages, then trading pages. `DailyExpensePageClient` has a static design checkpoint and should move to browser QA rather than another static rewrite.
-4. Bring Dual Costing tables up to the table reference, starting with `/dual-costing/cost-allocator` and `/dual-costing/cost-pool` because they combine table mechanics drift with mobile/table density risk.
-5. Normalize Finance / Accounting table mechanics in shared component batches: fixed assets, financial statements, cash-flow planning, loans/equity.
-6. Review `type="number"` only inside the touched page batch using the design matrix; do not run a broad replacement sweep.
-7. Run browser QA desktop + mobile for the selected batch before claiming visual completion.
+1. Finish remaining high-confidence operational inconsistencies users will notice immediately: `/sales/receipts` (`/purchase/payments`, PO Sell, Sales Bills, and RV static findings are fixed; browser QA still pending).
+2. Normalize shared operational modal surfaces by component family: `TransactionBillsPageClient`, `MoneyMovementPageClient`, `PoBuyPageClient`, `PoSellPageClient`, `StockOperationPageClient`, tracking pages, then trading pages. `DailyExpensePageClient` has a static design checkpoint and should move to browser QA rather than another static rewrite.
+3. Bring Dual Costing tables up to the table reference, starting with `/dual-costing/cost-allocator` and `/dual-costing/cost-pool` because they combine table mechanics drift with mobile/table density risk.
+4. Normalize Finance / Accounting table mechanics in shared component batches: fixed assets, financial statements, cash-flow planning, loans/equity.
+5. Review `type="number"` only inside the touched page batch using the design matrix; do not run a broad replacement sweep.
+6. Run browser QA desktop + mobile for the selected batch before claiming visual completion.
