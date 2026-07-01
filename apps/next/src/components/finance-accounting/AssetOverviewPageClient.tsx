@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -9,6 +9,7 @@ import { dailyFetchJson, formatMoney } from '@/lib/daily'
 
 type AnyRow = Record<string, number | string | boolean | null | undefined>
 type CashColumnKey = 'balance' | 'currency' | 'name' | 'thbEquivalent' | 'type'
+type SortDirection = 'asc' | 'desc'
 type Payload = {
   asOf: string
   branches: { code: string; id: string; name: string }[]
@@ -43,6 +44,16 @@ function text(value: unknown) {
 
 function num(value: unknown) {
   return typeof value === 'number' ? value : Number(value ?? 0)
+}
+
+function cashSortValue(row: AnyRow, key: CashColumnKey) {
+  if (key === 'balance' || key === 'thbEquivalent') return num(row[key])
+  return text(row[key])
+}
+
+function compareSortValues(left: string | number, right: string | number) {
+  if (typeof left === 'number' && typeof right === 'number') return left - right
+  return String(left ?? '').localeCompare(String(right ?? ''), 'th', { numeric: true, sensitivity: 'base' })
 }
 
 export function AssetOverviewPageClient() {
@@ -302,15 +313,34 @@ function agingLabel(key: string) {
 
 function CashTable({ rows, total }: { rows: AnyRow[]; total: number }) {
   const columnResize = useResizableColumns('finance-accounting.asset-overview.cash.v1', cashColumns)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [sortKey, setSortKey] = useState<CashColumnKey | null>(null)
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+    return [...rows].sort((left, right) => {
+      const result = compareSortValues(cashSortValue(left, sortKey), cashSortValue(right, sortKey))
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [rows, sortDirection, sortKey])
+
+  const changeSort = (key: CashColumnKey) => {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setSortKey(key)
+    setSortDirection('asc')
+  }
 
   return (
     <Panel heading="💵 CASH & OTHERS" tone="emerald" total={total}>
       {/* Mobile view */}
       <div className="block lg:hidden divide-y divide-slate-100">
-        {rows.length === 0 ? (
+        {sortedRows.length === 0 ? (
           <div className="p-4 text-center text-slate-400 text-xs">ยังไม่มีข้อมูล</div>
         ) : (
-          rows.map((row, index) => (
+          sortedRows.map((row, index) => (
             <div key={index} className="p-3.5 space-y-1.5 text-xs">
               <div className="flex justify-between items-center">
                 <span className="font-bold text-slate-800">{text(row.name)}</span>
@@ -342,7 +372,7 @@ function CashTable({ rows, total }: { rows: AnyRow[]; total: number }) {
             </button>
           </div>
         ) : null}
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth }}>
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {cashColumns.map((column, index) => {
               if (index === cashColumns.length - 1) {
@@ -353,15 +383,15 @@ function CashTable({ rows, total }: { rows: AnyRow[]; total: number }) {
           </colgroup>
           <thead className="bg-slate-100">
             <tr>
-              <ResizableTableHead label="บัญชี" resizeProps={columnResize.getResizeHandleProps('name', 'บัญชี')} />
-              <ResizableTableHead label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
-              <ResizableTableHead label="สกุลเงิน" resizeProps={columnResize.getResizeHandleProps('currency', 'สกุลเงิน')} />
-              <ResizableTableHead align="right" label="ยอดคงเหลือ" resizeProps={columnResize.getResizeHandleProps('balance', 'ยอดคงเหลือ')} />
-              <ResizableTableHead align="right" label="เทียบบาท (THB)" resizeProps={columnResize.getResizeHandleProps('thbEquivalent', 'เทียบบาท')} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="บัญชี" resizeProps={columnResize.getResizeHandleProps('name', 'บัญชี')} sortKey="name" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="สกุลเงิน" resizeProps={columnResize.getResizeHandleProps('currency', 'สกุลเงิน')} sortKey="currency" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ยอดคงเหลือ" resizeProps={columnResize.getResizeHandleProps('balance', 'ยอดคงเหลือ')} sortKey="balance" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="เทียบบาท (THB)" resizeProps={columnResize.getResizeHandleProps('thbEquivalent', 'เทียบบาท')} sortKey="thbEquivalent" onSort={changeSort} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((row, index) => (
+            {sortedRows.map((row, index) => (
               <tr key={`${row.name}-${index}`} className="hover:bg-slate-50/50 transition-colors">
                 <td className="px-3 py-3 font-medium text-slate-900">{text(row.name)}</td>
                 <td className="px-3 py-3 text-slate-500">{text(row.type)}</td>
