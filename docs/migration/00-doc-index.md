@@ -86,6 +86,7 @@
 | Daily cash flow | `docs/notes/Daily Cash Flow.md` | target daily cash/bank flow for `/daily/transfer` and related money-moving daily documents, including system-managed transfer fields and bank statement side effects |
 | Expense dashboard flow | `docs/notes/Expense Dashboard Flow.md` | page-specific read-only dashboard contract for `/daily/expense-dashboard`: legacy category/month calculation, anomaly thresholds, UI wording, and validation checklist |
 | Legacy page inventory | `docs/migration/20-legacy-page-inventory.md` | counted legacy sidebar entries and view IDs from `https://sirimasth.github.io/ns-scrap-erp/` |
+| Next design audit plan | `docs/migration/22-next-design-audit-plan.md` | active Next sidebar design audit plan and static findings against `docs/design.md` |
 | Environment status | `docs/migration/10-environment-status.md` | Supabase/Vercel/MCP/env |
 | Master data | `docs/migration/13-next-master-data-progress.md` | Next master-data tracker |
 | Auth/permission | `docs/migration/14-auth-permission-batch-plan.md` | login, users, roles, permissions |
@@ -142,6 +143,7 @@
 | `19-next-legacy-ui-parity-audit.md` | post-SYS legacy UI parity audit excluding master-data/admin |
 | `20-legacy-page-inventory.md` | legacy sidebar page count and view ID inventory |
 | `21-db-first-identifier-cutover.md` | DB-first identifier cutover tracker, inventory, and wave log |
+| `22-next-design-audit-plan.md` | active Next sidebar design audit plan and route findings |
 
 ## Planned Documents
 

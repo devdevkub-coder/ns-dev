@@ -36,6 +36,7 @@
 15. [17-next-remaining-modules-progress.md](/Users/watcharathatsrithanesiganon/Documents/GitHub/ns-scrap-erp/docs/migration/17-next-remaining-modules-progress.md)
 16. [20-legacy-page-inventory.md](/Users/watcharathatsrithanesiganon/Documents/GitHub/ns-scrap-erp/docs/migration/20-legacy-page-inventory.md)
 17. [21-db-first-identifier-cutover.md](/Users/watcharathatsrithanesiganon/Documents/GitHub/ns-scrap-erp/docs/migration/21-db-first-identifier-cutover.md)
+18. [22-next-design-audit-plan.md](/Users/watcharathatsrithanesiganon/Documents/GitHub/ns-scrap-erp/docs/migration/22-next-design-audit-plan.md)
 
 ## Recommended Order
 

@@ -79,6 +79,8 @@
 - inactive:
   - `border-slate-300 bg-white hover:bg-slate-50`
 - segmented filter row gap: `gap-2`
+- list/report page ที่มีทั้งเวลาและสถานะ ให้แสดง quick range + segmented status ใน filter card เดียวกัน เช่น `ช่วงเวลา: ทั้งหมด / วันนี้ / 7 วัน / เดือนนี้` และ `สถานะผลิต: ทุกสถานะ / ยังไม่เริ่ม / กำลังผลิต / เสร็จบางส่วน / เสร็จสิ้น / ยกเลิก`
+- ถ้าผู้ใช้เลือกวันที่เอง ให้ถือเป็น custom range และไม่ highlight quick range ที่ไม่ตรงกับวันที่จริง
 
 ### Pagination Row
 
@@ -102,6 +104,13 @@
 - empty/loading state cell padding baseline: `p-8`
 
 ### KPI / Summary Cards Above Table
+
+#### KPI Necessity Rule
+
+- ห้ามใส่ KPI cards เพียงเพื่อทำให้หน้าดูเต็ม ถ้าค่าใน card ซ้ำกับข้อความสรุปจำนวนรายการ เช่น `พบทั้งหมด X รายการ` หรือผู้ใช้ต้องตัดสินใจจากตารางเป็นหลัก
+- หน้า list ที่เป็นงานเอกสารแบบตรวจ/พิมพ์/แก้ไขรายการเดียว เช่น Receipt Voucher ให้ table เป็นพื้นที่หลัก และตัด KPI cards ที่ไม่ช่วย workflow ออก
+- KPI cards ควรมีเฉพาะเมื่อช่วยตัดสินใจทันที เช่น ยอดค้างชำระที่ต้องไล่เก็บ, ยอดเกินกำหนด, stock available/pending_out, หรือ warning ที่มีผลต่อการทำงาน
+- ถ้า KPI เป็นเพียง aggregate ของ filter ปัจจุบัน และไม่ได้ใช้ตัดสินใจ ให้แสดงเป็นข้อความสรุปเล็กใน table toolbar แทน card
 
 - **AcexPOS Style (Card-based with Icons)**:
   - **Outer wrapper (กรอบภายนอก)**: [ยกเลิกการใช้งาน / นำออก] ในดีไซน์ล่าสุดให้นำกรอบพื้นหลังสีเทาอ่อน, เส้นขอบ, และเงาด้านหลังออกทั้งหมดเพื่อลดการทับซ้อนของขอบ โดยใช้เพียง Grid Layout เปล่าๆ ในการจัดวางการ์ดโดยตรง เช่น `grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5 text-sm`
@@ -217,11 +226,13 @@ reference baseline:
 
 rules:
 - วาง label `สถานะ:` นำหน้าชุด segmented filter
+- ถ้าเป็นสถานะของเอกสาร ให้ใช้ label `สถานะเอกสาร:` เพื่อแยกจากสถานะย่อยประเภทอื่น เช่น สถานะจับคู่หรือสถานะชำระเงิน
 - ใช้ปุ่ม segmented style เดียวกันทุกหน้า:
   - active: `border-slate-700 bg-slate-700 text-white`
   - inactive: `border-slate-300 bg-white hover:bg-slate-50`
   - shape/spacing baseline: `rounded-md border px-3 py-1 text-xs font-medium`
 - ถ้ามีตัวเลือก `ทั้งหมด` หรือ `ทุกสถานะ` ให้เป็น segment แรกเสมอ
+- ชุดสถานะต้องมาจาก flow จริงของหน้านั้น ไม่คัดลอกชุดเดียวกันทุกหน้า เช่น Receipt Voucher ที่มีเฉพาะ `ใช้งาน` และ `ยกเลิก` ให้ใช้ `ทุกสถานะ / ใช้งาน / ยกเลิก` ไม่ต้องเพิ่ม `แบบร่าง`, `รับของแล้ว`, หรือ `เสร็จสิ้น` หาก runtime ไม่มีสถานะเหล่านั้น
 - สำหรับ transaction list และ approval queue ให้ถือ `multi-select segmented filter` เป็น default กลางของ status filter
 - behavior ของ multi-select:
   - กดแต่ละสถานะเพื่อ toggle เข้า/ออกจากชุด filter
@@ -240,12 +251,18 @@ rules:
 - table body font: transaction list หลักใช้ scale/weight เดียวกับคอลัมน์สถานะเป็น baseline (`text-xs font-semibold`) เพื่อให้ทุกคอลัมน์ดูเป็นชุดเดียวกัน; ใช้สีเพื่อสื่อความหมายได้ เช่นยอดคงเหลือ `text-amber-700` แต่ไม่เปลี่ยน font family/weight เองทีละคอลัมน์
 - header: `bg-slate-100` เป็น default เว้นแต่หน้ามี legacy header pattern เฉพาะ
 - row height: compact, อ่านง่าย, spacing ต้องนิ่งข้ามหน้า
+- primary list/report table reference is `/daily/weight-ticket-list`: desktop table container should use `hidden md:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm`, table should use `min-w-full divide-y divide-slate-200 text-sm`, body cells should use `px-3 py-3`, and numeric cells should use `tabular-nums`.
+- column headers must name the business meaning, not only the data type. Avoid vague labels such as `เลขที่` or `วันที่` when the page has a specific document/date meaning. Prefer labels such as `เลขที่ RV`, `วันที่เอกสาร`, `วันที่สร้าง`, `วันที่รับเงิน`, `วันที่จ่าย`, or `วันที่บิลซื้อ` based on the page flow.
+- If a list has more than one relevant date, show each date as a separate clearly named column instead of overloading `วันที่`.
+- If a page has several table surfaces, use line tabs above the tables instead of stacking all tables vertically. Follow the WTI/WTO tab pattern: `TabsList variant="line"` with compact `TabsTrigger variant="line"` labels.
+- Keep the main operational table as the first/default tab unless the business flow clearly starts from a summary table. KPI cards that summarize the whole page may stay above the tabs; table-specific summaries should live inside that tab.
 - sorting: กดที่ header โดยตรง
 - sort header baseline: ใช้ปุ่มเต็มพื้นที่หัวคอลัมน์แบบ `/purchase/advance-payments` (`p-2 text-xs font-semibold text-slate-700`, hover `bg-slate-200`, ลูกศรสี `text-slate-400`) ไม่ใช้กรอบมนหรือ active สีเข้มที่ดึงสายตาเกินไป
 - empty state: ใช้ข้อความสั้นตรงไปตรงมา เช่น `ยังไม่มีรายการ`
 - loading state: ใช้ข้อความ `กำลังโหลดข้อมูล`
 - action column อยู่ขวาสุดเสมอ
 - legacy-style action text/link ในตารางให้คงโทนที่ผู้ใช้คุ้นเคย เว้นแต่มีปุ่ม page-specific ที่ชัดกว่า
+- ถ้า row action ใช้งานไม่ได้ในสถานะนั้น ให้ซ่อน action นั้นเป็น default แทนการแสดงปุ่ม disabled ที่กดไม่ได้ ยกเว้นกรณีที่ผู้ใช้จำเป็นต้องเห็นว่า action ถูกล็อกและมีข้อความอธิบายเหตุผลชัดเจน
 - status cell ใช้ pattern `dot + สีข้อความ` เป็น baseline กลาง; ใช้ `text-xs font-semibold` และ dot เล็ก (`size-1.5`) เพื่อไม่ดึงสายตาเกิน cell อื่น; หลีกเลี่ยง badge background ถ้าไม่จำเป็นตาม legacy/page override
 
 ### Created Date Column
@@ -291,8 +308,15 @@ Rules:
 - ต้องกำหนด `defaultWidth` และ `minWidth` ทุกคอลัมน์ ห้ามให้ user ลากจนข้อมูลหลักหรือ action column ยุบใช้งานไม่ได้
 - table ที่เปิด resizable ต้องใช้ `table-layout: fixed`, `colgroup`, และคง horizontal overflow wrapper ไว้สำหรับจอแคบ
 - default table width ต้องเต็ม container เสมอ แม้ผลรวม default/custom column width จะน้อยกว่าความกว้าง container; ให้ใช้ `useResizableColumns().tableMinWidth` ซึ่งคำนวณเป็น `max(<column-sum>px, 100%)` เพื่อกันตารางแหว่ง แต่ยัง scroll แนวนอนได้เมื่อ column sum กว้างกว่า container
+- colgroup must follow the `/daily/weight-ticket-list` auto-stretch pattern: apply `getColumnStyle()` to normal columns, but do not set a fixed width on the final column; give the final column only its `minWidth` so it can absorb remaining widescreen space.
 - header resize handle อยู่ที่ขอบขวาของหัวคอลัมน์, hit area เล็กและไม่ดึงสายตา, ไม่มีเส้นแบ่งท้ายหัวตารางที่เห็นชัด แต่ยังต้องมี focus outline/accessibility label สำหรับ keyboard user
-- ต้องมีทาง reset กลับ default เมื่อมี custom width แล้ว โดยใช้ปุ่ม label `Set col to default` ใน toolbar/pagination row
+- ต้องมีทาง reset กลับ default เมื่อมี custom width แล้ว โดยใช้ปุ่ม label `คืนค่าเดิมตาราง` ใน toolbar/pagination row
+
+### Mobile Table Cards
+
+- Heavy/list tables must switch to dense mobile cards like `/daily/weight-ticket-list`.
+- Mobile card structure: top row shows document number/title and date, middle section uses a light `bg-slate-50` grouped info box for key descriptors, footer uses `border-t` and right-aligned numeric summaries.
+- Avoid generic two-column dumps when a table has a clear document/report meaning; group fields by user task instead.
 - ถ้า header มี sort/click action อยู่แล้ว resize handle ต้อง `stopPropagation()` เพื่อไม่ trigger sort หรือ row action
 
 ### Table / Plain
@@ -697,6 +721,7 @@ Override ต้อง:
 reference implementation ที่ใช้อ้างอิงได้ตอนนี้:
 
 - `apps/next/src/components/daily/TransactionBillsPageClient.tsx`
+- `apps/next/src/components/daily/WeightTicketListPageClient.tsx` (primary table/list reference: resizable columns, sortable headers, toolbar pagination, auto-stretch final column, and dense mobile cards)
 - `apps/next/src/components/daily/MoneyMovementPageClient.tsx`
 - `apps/next/src/components/master-data/shared/MasterDataPageClient.tsx`
 - `apps/next/src/components/production/ProductionReportPageClient.tsx` (ตัวอย่างการทำ Responsive Table-to-Card ทุกตาราง/Dashboard และระบบ Soft Lined Table Borders ลบขีดสีดำ)
