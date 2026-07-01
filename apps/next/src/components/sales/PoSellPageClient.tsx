@@ -719,10 +719,15 @@ export function PoSellPageClient() {
       </div>
 
       {/* Desktop Table (Hidden on Mobile) */}
-      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-        <Table style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
+      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+        <Table className="min-w-full divide-y divide-slate-200" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
         <colgroup>
-          {poSellColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
+          {poSellColumns.map((column, index) => {
+            if (index === poSellColumns.length - 1) {
+              return <col key={column.key} style={{ minWidth: column.minWidth }} />
+            }
+            return <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+          })}
         </colgroup>
         <TableHeader>
           <tr>
@@ -744,8 +749,8 @@ export function PoSellPageClient() {
           </tr>
         </TableHeader>
         <TableBody>
-          {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={15}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
-          {!isLoading && !error && rows.length === 0 ? <TableRow><TableCell className="py-10 text-center text-slate-400" colSpan={15}>ยังไม่มี PO Sell</TableCell></TableRow> : null}
+          {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={poSellColumns.length}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+          {!isLoading && !error && rows.length === 0 ? <TableRow><TableCell className="py-10 text-center text-slate-400" colSpan={poSellColumns.length}>ยังไม่มี PO Sell</TableCell></TableRow> : null}
           {!isLoading && pageRows.map((row) => (
             <TableRow key={row.id} className="border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedRow(row)}>
               <TableCell className="whitespace-nowrap font-mono">{row.docNo}</TableCell>
@@ -1150,26 +1155,26 @@ function PoSellFormModal({
     <Dialog open onOpenChange={(open) => {
       if (!open && !isSaving) onClose()
     }}>
-      <DialogContent aria-labelledby="po-sell-form-title" className="max-h-[90vh] max-w-5xl overflow-y-auto rounded-2xl border-0 shadow-2xl p-0" data-combobox-portal-root="true" hideClose>
-        <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-2xl flex flex-row items-center justify-between shrink-0">
+      <DialogContent aria-labelledby="po-sell-form-title" className="max-h-[90vh] max-w-5xl overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl !p-0 flex flex-col outline-none focus:outline-none" data-combobox-portal-root="true" hideClose>
+        <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-md flex flex-row items-center justify-between shrink-0">
           <DialogTitle id="po-sell-form-title" className="text-white">{title}</DialogTitle>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 transition-colors outline-none focus:outline-none focus:ring-0"
+            className="rounded-md text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 transition-colors outline-none focus:outline-none focus:ring-0"
             aria-label="Close"
           >
             <span className="text-xl leading-none">&times;</span>
           </button>
         </DialogHeader>
 
-        <div className="space-y-4 p-5 text-sm">
+        <div className="flex-1 overflow-y-auto bg-slate-50 p-5 text-sm space-y-4">
           <div className="rounded-md border border-slate-200 bg-white p-4 shadow">
             <div className="mb-3 text-sm font-bold text-slate-800">ข้อมูลเอกสาร</div>
             <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
               <div className="col-span-1">
                 <label className="mb-1 block text-xs font-medium text-slate-600">สาขา/คลัง <span className="text-red-600">*</span></label>
-                <UiSelect className={`!h-9 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'} rounded-lg border-slate-300 focus:border-slate-400 focus:ring-0 outline-none`} value={form.branchId ?? ''} onChange={(event) => onUpdate('branchId', event.target.value || null)}>
+                <UiSelect className={`!h-9 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'} rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none`} value={form.branchId ?? ''} onChange={(event) => onUpdate('branchId', event.target.value || null)}>
                   <option value="">เลือกสาขา/คลัง</option>
                   {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                 </UiSelect>
@@ -1188,14 +1193,14 @@ function PoSellFormModal({
               </div>
               <div className="col-span-1">
                 <label className="mb-1 block text-xs font-medium text-slate-600">วันส่งมอบ <span className="text-red-600">*</span></label>
-                <DatePickerInput className="!h-9 w-full rounded-lg border-slate-300 focus:border-slate-400 focus:ring-0 outline-none" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
+                <DatePickerInput className="!h-9 w-full rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
                 {fieldError('expectedDelivery')}
               </div>
               <div className="col-span-2">
                 <label className="mb-1 block text-xs font-medium text-slate-600">ช่องทางขาย</label>
                 <UiInput
                   readOnly
-                  className={`!h-9 w-full rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-0 ${errors.channelId ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 bg-slate-100 text-slate-700'}`}
+                  className={`!h-9 w-full rounded-md px-2 py-1.5 text-sm outline-none focus:ring-0 ${errors.channelId ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 bg-slate-100 text-slate-700'}`}
                   value={selectedChannelLabel}
                 />
                 {fieldError('channelId')}
@@ -1206,9 +1211,9 @@ function PoSellFormModal({
           <div className="rounded-md border border-slate-200 bg-white p-4 shadow">
             <div className="mb-2 flex items-center justify-between gap-3">
               <label className="font-medium text-slate-800">📋 รายการสินค้า ({form.items.length})</label>
-              <UiButton className="rounded-lg bg-emerald-600 font-normal hover:bg-emerald-700 text-white transition-colors outline-none focus:ring-0" size="xs" type="button" variant="default" onClick={onAddItem}>+ เพิ่มรายการ</UiButton>
+              <UiButton className="rounded-md bg-emerald-600 font-normal hover:bg-emerald-700 text-white transition-colors outline-none focus:ring-0" size="xs" type="button" variant="default" onClick={onAddItem}>+ เพิ่มรายการ</UiButton>
             </div>
-            <div className="overflow-x-auto rounded-lg border border-slate-100">
+            <div className="overflow-x-auto rounded-md border border-slate-100">
               <Table className="min-w-[820px] border-0">
                 <TableHeader>
                   <tr className="border-b border-slate-100 bg-slate-50/50">
@@ -1241,7 +1246,7 @@ function PoSellFormModal({
                          {fieldError(`items.${index}.price`)}
                        </TableCell>
                        <TableCell className="bg-blue-50/50 p-1.5 px-2 text-right font-bold text-blue-700">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</TableCell>
-                       <TableCell className="p-1.5 text-center">{form.items.length > 1 ? <UiButton className="h-8 w-8 px-0 text-red-500 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors outline-none focus:ring-0" size="icon" type="button" variant="ghost" onClick={() => onRemoveItem(index)}>×</UiButton> : null}</TableCell>
+                       <TableCell className="p-1.5 text-center">{form.items.length > 1 ? <UiButton className="h-8 w-8 px-0 text-red-500 hover:bg-red-50 hover:text-red-600 rounded-md transition-colors outline-none focus:ring-0" size="icon" type="button" variant="ghost" onClick={() => onRemoveItem(index)}>×</UiButton> : null}</TableCell>
                      </TableRow>
                    ))}
                  </TableBody>
@@ -1266,7 +1271,7 @@ function PoSellFormModal({
                 </label>
                 <div className="rounded-md border border-slate-200 bg-white p-4 shadow flex-1 flex flex-col">
                   <label className="mb-1 block text-xs font-medium text-slate-600">หมายเหตุ</label>
-                  <textarea className="min-h-16 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus-visible:outline-none focus:border-slate-400 focus:ring-0 outline-none transition-colors flex-1" rows={2} value={form.note ?? ''} onChange={(event) => onUpdate('note', event.target.value || null)} />
+                  <textarea className="min-h-16 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus-visible:outline-none focus:border-slate-400 focus:ring-0 outline-none transition-colors flex-1" rows={2} value={form.note ?? ''} onChange={(event) => onUpdate('note', event.target.value || null)} />
                   {fieldError('note')}
                 </div>
               </div>
@@ -1279,7 +1284,7 @@ function PoSellFormModal({
             </div>
          </div>
  
-         <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0 rounded-b-2xl">
+         <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0 rounded-b-md">
            <UiButton className="font-normal border-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors outline-none focus:ring-0" disabled={isSaving} type="button" variant="ghost" onClick={onClose}>ยกเลิก</UiButton>
            <UiButton className="rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors outline-none focus:ring-0 px-6" disabled={isSaving} type="button" variant="default" onClick={() => void onSubmit()}>{isSaving ? 'กำลังบันทึก...' : submitLabel}</UiButton>
          </DialogFooter>
@@ -1309,8 +1314,8 @@ function PoSellCancelModal({
     <Dialog open onOpenChange={(open) => {
       if (!open && !isSaving) onClose()
     }}>
-      <DialogContent aria-labelledby="po-sell-cancel-title" className="top-auto bottom-0 w-full max-w-lg translate-x-[-50%] translate-y-0 rounded-t-2xl md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-2xl border-0 shadow-2xl p-0 overflow-hidden" hideClose>
-        <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-2xl flex flex-row items-center justify-between shrink-0">
+      <DialogContent aria-labelledby="po-sell-cancel-title" className="top-auto bottom-0 w-full max-w-lg translate-x-[-50%] translate-y-0 rounded-t-2xl md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-md border-0 shadow-2xl !p-0 overflow-hidden outline-none focus:outline-none" hideClose>
+        <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-2xl md:rounded-t-md flex flex-row items-center justify-between shrink-0">
           <div>
             <DialogTitle id="po-sell-cancel-title" className="text-white">ยกเลิก PO Sell {row.docNo}</DialogTitle>
             <DialogDescription className="text-slate-300">{row.customerName}</DialogDescription>
@@ -1318,7 +1323,7 @@ function PoSellCancelModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 transition-colors outline-none focus:outline-none focus:ring-0"
+            className="rounded-md text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 transition-colors outline-none focus:outline-none focus:ring-0"
             aria-label="Close"
           >
             <span className="text-xl leading-none">&times;</span>
@@ -1328,7 +1333,7 @@ function PoSellCancelModal({
           <label className="block text-xs font-medium text-slate-600" htmlFor="po-sell-cancel-note">หมายเหตุการยกเลิก *</label>
           <textarea
             id="po-sell-cancel-note"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:ring-0 outline-none transition-colors"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:ring-0 outline-none transition-colors"
             maxLength={500}
             rows={3}
             value={note}
@@ -1336,7 +1341,7 @@ function PoSellCancelModal({
           />
           {error ? <div className="text-xs text-red-600">{error}</div> : null}
         </div>
-        <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0 rounded-b-2xl">
+        <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0 md:rounded-b-md">
           <UiButton className="font-normal border-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors outline-none focus:ring-0" disabled={isSaving} type="button" variant="ghost" onClick={onClose}>ปิด</UiButton>
           <UiButton className="rounded-md bg-red-600 hover:bg-red-700 text-white font-medium transition-colors outline-none focus:ring-0 px-5" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</UiButton>
         </DialogFooter>
@@ -1360,16 +1365,16 @@ function PoSellDetailModal({
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="po-sell-detail-title" className="max-h-[90vh] max-w-3xl rounded-2xl !p-0 overflow-hidden flex flex-col bg-slate-900 dark:bg-[#0f172a] border-0 shadow-2xl" hideClose>
-        <DialogHeader className="px-5 py-4 bg-slate-900 dark:bg-[#0f172a] text-white flex flex-row items-center justify-between shrink-0 rounded-t-2xl">
+      <DialogContent aria-labelledby="po-sell-detail-title" className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 dark:bg-[#0f172a] border-0 shadow-2xl outline-none focus:outline-none" hideClose>
+        <DialogHeader className="px-5 py-4 bg-slate-900 dark:bg-[#0f172a] text-white flex flex-row items-center justify-between shrink-0 rounded-t-md">
           <div>
             <DialogTitle id="po-sell-detail-title" className="text-white">รายละเอียด {row.docNo}</DialogTitle>
-            <DialogDescription className="text-slate-300 dark:text-slate-700">{row.customerName}</DialogDescription>
+            <DialogDescription className="text-slate-300">{row.customerName}</DialogDescription>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg text-slate-400 hover:text-white hover:bg-[#1e293b] p-1.5 transition-colors outline-none focus:outline-none focus:ring-0"
+            className="rounded-md text-slate-400 hover:text-white hover:bg-[#1e293b] p-1.5 transition-colors outline-none focus:outline-none focus:ring-0"
             aria-label="Close"
           >
             <span className="text-xl leading-none">&times;</span>
@@ -1435,7 +1440,7 @@ function PoSellDetailModal({
             <div className="text-sm font-semibold text-slate-900 mt-1">{row.productName || '-'}</div>
           </div>
         </div>
-        <DialogFooter className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 shrink-0 rounded-b-2xl">
+        <DialogFooter className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 shrink-0 rounded-b-md">
           <button className="rounded-md border border-slate-200 bg-white px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 transition-colors" type="button" onClick={onClose}>ปิด</button>
           <button
             className="rounded-md border border-slate-200 bg-white px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 transition-colors inline-flex items-center gap-1.5"

@@ -246,7 +246,7 @@ Evidence:
 ### Suggested Fix Order
 
 1. Resolve the two active placeholder sidebar routes: implement minimal policy pages or remove from sidebar until ready.
-2. Finish the remaining high-confidence operational findings already drafted below: `/sales/po-sell`, `/purchase/payments`, and `/sales/receipts`; `/sales/bills`, `/purchase/receipt-vouchers`, and `/production/report` have local code/layout checkpoints and still need browser QA.
+2. Finish the remaining high-confidence operational findings already drafted below: `/purchase/payments` and `/sales/receipts`; `/sales/po-sell`, `/sales/bills`, `/purchase/receipt-vouchers`, and `/production/report` have local code/layout checkpoints and still need browser QA.
 3. Normalize shared modal surfaces in one batch per component family: transaction bills, PO Buy/Sell, daily expense, money movement, stock operation, then tracking/trading.
 4. Review the field input matrix only inside the touched form batch; do not blanket-convert all `type="number"` hits.
 5. Polish finance/accounting report filter/card styling after operational transaction pages are stable.
@@ -266,16 +266,8 @@ The absence of a static finding is not a visual pass. These still need browser r
 
 ### `/sales/po-sell`
 
-- Rename table headers:
-  - `เลขที่` -> `เลขที่จองขาย`.
-  - truncated `วันที่สร้าง...` -> `วันที่สร้าง`.
-  - `Customer` -> `ลูกค้า`; keep table headers Thai-first and avoid English when the rest of the page is Thai.
-  - truncated `สถานะเอก...` -> `สถานะเอกสาร`.
-  - `สถานะ Match` -> `สถานะจับคู่ต้นทุน`.
-- Tune table column widths so document number, date, status, and action headers are not clipped. Customer/product cells may truncate, but core identifiers and headers must remain readable.
-- Hide unavailable row actions on closed/cancelled rows; keep only usable actions such as print.
-- KPI cards may remain because `ยอดรอส่ง` and cost matching status can support PO Sell decisions, but they should be compact and not duplicate table summary text.
-- Mobile must use dense card list with the core fields: เลขที่จองขาย, ลูกค้า, สินค้า, วันที่ส่งมอบ, จำนวนรวม, รายได้รวม, เหลือ, สถานะเอกสาร, สถานะจับคู่ต้นทุน, and usable actions.
+- 2026-07-01 implementation checkpoint: the PO Sell list already had the page-specific Thai headers and hidden unavailable edit/cancel actions; this pass finished the remaining table/modal drift by aligning the desktop table shell with the lined table baseline, letting the final action column auto-stretch, replacing fixed `colSpan={15}` with the column definition count, and normalizing the create/edit, cancel, and detail dialogs to the `rounded-md` dark-header modal baseline with no outer border/outline leakage. The detail subtitle now keeps readable slate-300 contrast in dark mode. Browser QA remains pending because this batch was local code/layout validation only.
+- Remaining follow-up: run desktop/mobile browser QA for PO Sell when the selected visual batch reaches browser verification.
 
 ### `/production/report`
 
@@ -413,9 +405,8 @@ High-impact route families:
   - 2026-07-01 design polish completed for the high-confidence static findings: page-specific headers/filter wording, final-column auto-stretch, desktop action alignment, hidden unavailable edit/cancel actions, and dark-header modal surfaces.
   - Remaining: browser QA for desktop/mobile visual confirmation.
 - `/sales/po-sell`
-  - Table mechanics and mobile cards exist.
-  - Headers still need business wording cleanup: `เลขที่` -> `เลขที่จองขาย`, `Customer` -> `ลูกค้า`, `สถานะ Match` -> `สถานะจับคู่ต้นทุน`.
-  - Row actions still render disabled edit/cancel states.
+  - 2026-07-01 design polish completed for the high-confidence static findings: table wording/action visibility is aligned, the final action column auto-stretches, and create/edit, cancel, and detail dialogs now follow the `rounded-md` dark-header modal baseline.
+  - Remaining: browser QA for desktop/mobile visual confirmation.
 - `/daily/expense`, `/daily/transfer`, `/daily/payment-approval`, `/production/orders`, stock operation pages, tracking pages, and trading pages
   - These are mainly modal-surface review items: normalize detail/form dialog header, border/radius, grouped card layout, and avoid border leakage.
   - Do not change business behavior during these visual passes.
@@ -467,6 +458,9 @@ Expected:
 - `/sales/bills`
   - After the latest correction, the Sales Bill list table/action/filter and detail/cancel modal surfaces follow the active baseline more closely.
   - Browser QA remains pending.
+- `/sales/po-sell`
+  - After the latest correction, the PO Sell list table/action and form/cancel/detail modal surfaces follow the active baseline more closely.
+  - Browser QA remains pending.
 - Master data shared pages under `/master-data/*`
   - Most shared pages use `MasterDataPageClient`, which already has resizable desktop table, mobile toolbar/filter bottom sheet, mobile card list, and dark-header form modal.
   - Remaining work is mostly modal polish, wording cleanup, and field-specific validation/presentation, not a full table rewrite.
@@ -477,7 +471,7 @@ Expected:
 ### Updated Suggested Fix Order
 
 1. Fix the two scaffold sidebar routes: `/finance-accounting/accounting-periods` and `/finance-accounting/posting-rules`.
-2. Finish remaining high-confidence operational inconsistencies users will notice immediately: `/sales/po-sell`, `/purchase/payments`, and `/sales/receipts` (Sales Bills and RV static findings are fixed; browser QA still pending).
+2. Finish remaining high-confidence operational inconsistencies users will notice immediately: `/purchase/payments` and `/sales/receipts` (PO Sell, Sales Bills, and RV static findings are fixed; browser QA still pending).
 3. Normalize shared operational modal surfaces by component family: `TransactionBillsPageClient`, `MoneyMovementPageClient`, `PoBuyPageClient`, `PoSellPageClient`, `DailyExpensePageClient`, `StockOperationPageClient`, tracking pages, then trading pages.
 4. Bring Dual Costing tables up to the table reference, starting with `/dual-costing/cost-allocator` and `/dual-costing/cost-pool` because they combine table mechanics drift with mobile/table density risk.
 5. Normalize Finance / Accounting table mechanics in shared component batches: fixed assets, financial statements, cash-flow planning, loans/equity.

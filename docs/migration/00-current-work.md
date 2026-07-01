@@ -2272,3 +2272,8 @@ Tailwind dependency check:
   - Fixed `SB2607-0008`-style edit hydration where the form showed the sold/billed weight (`40`) as the WTO source weight even though the original WTO summary was `50`.
   - Sales Bill detail now loads the original `weight_ticket_product_summaries` for referenced WTO documents and exposes `sourceGrossWeight/sourceDeductWeight/sourceNetWeight/sourceLineCount`.
   - The edit form uses these source-weight fields for the locked WTO snapshot/capacity while keeping the Sales Bill line quantity as the actual sold weight. This lets the form correctly show `น้ำหนักสุทธิที่ส่ง = 50`, `จำนวนที่ขายได้ = 40`, and remaining `10` for split/return handling.
+- 2026-07-01: PO Sell design polish checkpoint
+  - `/sales/po-sell` received a UI-only design pass. Runtime behavior, API contracts, stock, AR, Sales Bill allocation, Cost Allocator, and status lifecycle were not changed.
+  - The desktop list table now uses the current lined table shell more closely and lets the final action column auto-stretch instead of forcing the action column width; empty/loading rows now use the column definition count instead of a fixed colSpan.
+  - The create/edit, cancel, and detail dialogs now use the `rounded-md` dark-header modal baseline with `border-0`, no focus outline leakage, sticky header/body/footer structure where applicable, and readable detail subtitle contrast in dark mode.
+  - Browser QA is still pending; this checkpoint covers static code/layout validation only.
