@@ -2325,3 +2325,8 @@ Tailwind dependency check:
   - `/dual-costing/match-log` received a UI-only table mechanics pass. Runtime API behavior, export contract, reverse/read-only policy, and DB contracts were not changed.
   - The desktop audit table now uses `ResizableTableHead` sort indicators/handlers, persisted resizable widths, reset-width control, and `tableLayout: fixed`; rows are sorted after PO Sell target filtering and before pagination.
   - Validation passed: `npm exec --workspace @ns-scrap-erp/next -- eslint src/components/dual-costing/MatchLogPageClient.tsx`, `npm run type-check --workspace @ns-scrap-erp/next`, and `git diff --check`.
+- 2026-07-01: Allocation Ledger table mechanics checkpoint
+  - `/dual-costing/cost-allocation-ledger` received a UI-only table mechanics pass. Runtime API behavior, ledger calculations, reverse policy, report views, and DB contracts were not changed.
+  - The desktop allocation ledger table now uses `ResizableTableHead` sort indicators/handlers on every business column, persisted resizable widths, reset-width control, `tableLayout: fixed`, and column-definition based loading/empty `colSpan` values.
+  - Rows are sorted before pagination so the desktop table and mobile cards use the same ordered page slice.
+  - Validation passed: `npm exec --workspace @ns-scrap-erp/next -- eslint src/components/dual-costing/DualCostingManagementPageClient.tsx`, `npm run type-check --workspace @ns-scrap-erp/next`, and `git diff --check`.
