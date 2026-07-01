@@ -838,9 +838,16 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       poSellOptionsByKey.set(key, { ...option })
       return
     }
+    const existingQty = current.remainingQty ?? 0
+    const incomingQty = option.remainingQty ?? 0
     current.remainingAmount = (current.remainingAmount ?? 0) + (option.remainingAmount ?? 0)
-    current.remainingQty = (current.remainingQty ?? 0) + (option.remainingQty ?? 0)
+    current.remainingQty = existingQty + incomingQty
     current.active = current.active !== false || option.active !== false
+    if (current.status === 'locked' || option.status === 'locked') {
+      const unit = current.unit ?? option.unit ?? 'กก.'
+      const unitPrice = current.unitPrice ?? option.unitPrice ?? 0
+      current.label = `${current.id} · ใช้ได้ ${formatMoney(current.remainingQty)}${unit ? ` ${unit}` : ''} (เดิม ${formatMoney(existingQty)} + คงเหลือ ${formatMoney(incomingQty)}) · ${formatMoney(unitPrice)} บาท`
+    }
   })
   const activePoSells = [...poSellOptionsByKey.values()].filter((option) => {
     if (salesForm.customerId && option.customer_id && option.customer_id !== salesForm.customerId) return false
