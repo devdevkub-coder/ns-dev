@@ -78,7 +78,7 @@ POS เป็น customer commitment/reservation ฝั่งขาย ก่อ
 - segmented filter ของสถานะใช้ active/idle สีมาตรฐานกลาง ไม่แยกสีตามสถานะ
 - transaction write ต้องทำใน server transaction และ append timeline/status/audit ตาม document policy
 - ถ้า field เป็น money/qty/date/business code ให้ validate ตาม `docs/design.md` และ server-side ซ้ำ
-- ปุ่ม `แก้ไข` และ `ยกเลิก` แสดงในตารางเสมอ แต่ disabled เมื่อรายการไม่เข้าเงื่อนไขแก้ไข
+- ปุ่ม `แก้ไข` และ `ยกเลิก` ให้แสดงเฉพาะเมื่อรายการเข้าเงื่อนไขใช้งานได้; ถ้า POS ถูกล็อก/ปิด/ยกเลิก ให้ซ่อน action ตาม table action baseline ใน `docs/design.md`
 
 ## Validation / Status Rules
 

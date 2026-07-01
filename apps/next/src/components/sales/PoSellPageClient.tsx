@@ -140,7 +140,7 @@ const initialPoSellForm = (): PoSellFormValues => ({
 })
 
 const poSellColumns: ResizableColumnDefinition<string>[] = [
-  { key: 'docNo', minWidth: 90, defaultWidth: 100 },
+  { key: 'docNo', minWidth: 120, defaultWidth: 140 },
   { key: 'createdAt', minWidth: 100, defaultWidth: 110 },
   { key: 'expectedDelivery', minWidth: 100, defaultWidth: 110 },
   { key: 'customerName', minWidth: 120, defaultWidth: 260 },
@@ -151,8 +151,8 @@ const poSellColumns: ResizableColumnDefinition<string>[] = [
   { key: 'remainingQty', minWidth: 90, defaultWidth: 110 },
   { key: 'margin', minWidth: 110, defaultWidth: 135 },
   { key: 'marginPct', minWidth: 70, defaultWidth: 85 },
-  { key: 'documentStatus', minWidth: 100, defaultWidth: 120 },
-  { key: 'matchStatus', minWidth: 110, defaultWidth: 130 },
+  { key: 'documentStatus', minWidth: 120, defaultWidth: 140 },
+  { key: 'matchStatus', minWidth: 150, defaultWidth: 170 },
   { key: 'updatedAt', minWidth: 150, defaultWidth: 180 },
   { key: 'action', minWidth: 180, defaultWidth: 200 },
 ]
@@ -683,7 +683,7 @@ export function PoSellPageClient() {
 
             <div className="text-xs text-slate-600 mb-3 space-y-1">
               <div>
-                <span className="font-semibold text-slate-500">Customer: </span>
+                <span className="font-semibold text-slate-500">ลูกค้า: </span>
                 <span className="text-slate-800">{row.customerName}</span>
               </div>
               <div>
@@ -726,20 +726,20 @@ export function PoSellPageClient() {
         </colgroup>
         <TableHeader>
           <tr>
-            <ResizableTableHead label="เลขที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
-            <ResizableTableHead label="วันที่สร้างรายการ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="createdAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้างรายการ')} />
+            <ResizableTableHead label="เลขที่จองขาย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่จองขาย')} />
+            <ResizableTableHead label="วันที่สร้าง" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="createdAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้าง')} />
             <ResizableTableHead label="วันที่ส่งมอบ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="expectedDelivery" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('expectedDelivery', 'วันที่ส่งมอบ')} />
-            <ResizableTableHead label="Customer" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="customerName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customerName', 'Customer')} />
-            <ResizableTableHead label="รายการ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="productName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('productName', 'รายการ')} />
+            <ResizableTableHead label="ลูกค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="customerName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} />
+            <ResizableTableHead label="สินค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="productName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} />
             <ResizableTableHead align="right" label="จำนวนรวม" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="qty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'จำนวนรวม')} />
             <ResizableTableHead align="right" label="รายได้รวม" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="totalAmount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('totalAmount', 'รายได้รวม')} />
-            <ResizableTableHead align="right" label="Matched" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="matchedQty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('matchedQty', 'Matched')} />
+            <ResizableTableHead align="right" label="จับคู่แล้ว" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="matchedQty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('matchedQty', 'จับคู่แล้ว')} />
             <ResizableTableHead align="right" label="เหลือ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="remainingQty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('remainingQty', 'เหลือ')} />
-            <ResizableTableHead align="right" label="Deal Margin" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="margin" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('margin', 'Deal Margin')} />
-            <ResizableTableHead align="right" label="%" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="marginPct" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('marginPct', '%')} />
+            <ResizableTableHead align="right" label="กำไรดีล" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="margin" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('margin', 'กำไรดีล')} />
+            <ResizableTableHead align="right" label="% Margin" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="marginPct" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('marginPct', '% Margin')} />
             <ResizableTableHead align="center" label="สถานะเอกสาร" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="documentStatus" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('documentStatus', 'สถานะเอกสาร')} />
-            <ResizableTableHead align="center" label="สถานะ Match" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="matchStatus" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('matchStatus', 'สถานะ Match')} />
-            <ResizableTableHead label="อัพเดตล่าสุด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="updatedAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('updatedAt', 'อัพเดตล่าสุด')} />
+            <ResizableTableHead align="center" label="สถานะจับคู่ต้นทุน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="matchStatus" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('matchStatus', 'สถานะจับคู่ต้นทุน')} />
+            <ResizableTableHead label="อัปเดตล่าสุด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="updatedAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('updatedAt', 'อัปเดตล่าสุด')} />
             <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
           </tr>
         </TableHeader>
@@ -773,18 +773,20 @@ export function PoSellPageClient() {
               </TableCell>
               <TableCell className="whitespace-nowrap text-right">
                 <div className="flex justify-end gap-1">
-                  <button
-                    className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={isSaving || !row.canEdit}
-                    title={row.canEdit ? `แก้ไข ${row.docNo}` : row.editDisabledReason}
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      openEditForm(row)
-                    }}
-                  >
-                    แก้ไข
-                  </button>
+                  {row.canEdit ? (
+                    <button
+                      className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-wait disabled:opacity-50"
+                      disabled={isSaving}
+                      title={`แก้ไข ${row.docNo}`}
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        openEditForm(row)
+                      }}
+                    >
+                      แก้ไข
+                    </button>
+                  ) : null}
                   <button
                     className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center gap-1"
                     disabled={printingPoDocNo === row.docNo}
@@ -798,18 +800,20 @@ export function PoSellPageClient() {
                     <Printer className="size-3" />
                     {printingPoDocNo === row.docNo ? 'เตรียม...' : 'พิมพ์'}
                   </button>
-                  <button
-                    className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={isSaving || !row.canCancel}
-                    title={row.canCancel ? `ยกเลิก ${row.docNo}` : row.cancelDisabledReason}
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      openCancelDialog(row)
-                    }}
-                  >
-                    ยกเลิก
-                  </button>
+                  {row.canCancel ? (
+                    <button
+                      className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-wait disabled:opacity-50"
+                      disabled={isSaving}
+                      title={`ยกเลิก ${row.docNo}`}
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        openCancelDialog(row)
+                      }}
+                    >
+                      ยกเลิก
+                    </button>
+                  ) : null}
                 </div>
               </TableCell>
             </TableRow>
