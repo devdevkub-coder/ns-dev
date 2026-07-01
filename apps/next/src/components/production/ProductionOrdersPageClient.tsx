@@ -87,9 +87,9 @@ const emptyOptions: ProductionOrderOptions = { branches: [], machines: [], produ
 const pageSizeOptions = [10, 25, 50, 100]
 const statusOptions = ['', 'Open', 'In Production', 'Partially Completed', 'Completed', 'Cancelled']
 const sortOptions = [
-  { label: 'วันที่', value: 'date' },
-  { label: 'เลขที่', value: 'docNo' },
-  { label: 'สถานะ', value: 'status' },
+  { label: 'วันที่สร้าง', value: 'date' },
+  { label: 'เลขที่ใบสั่งผลิต', value: 'docNo' },
+  { label: 'สถานะผลิต', value: 'status' },
   { label: 'ต้นทุนเข้า', value: 'inputCost' },
   { label: 'มูลค่าผลผลิต', value: 'outputValue' },
 ]
@@ -110,6 +110,8 @@ const productionOrderColumns: Array<ResizableColumnDefinition<ProductionOrderCol
   { key: 'yield', defaultWidth: 80, minWidth: 60 },
   { key: 'status', defaultWidth: 110, minWidth: 90 },
 ]
+const productionMovementColumnCount = 10
+const productStockColumnCount = 5
 
 function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
   const activeClass = {
@@ -218,6 +220,7 @@ export function ProductionOrdersPageClient() {
 
   const currentRows = useMemo(() => data?.rows ?? [], [data?.rows])
   const totalPages = data?.summary.totalPages ?? 1
+  const activeMobileFilterCount = (dateFrom || dateTo ? 1 : 0) + (status ? 1 : 0)
 
   function clearFilters() {
     setSearch('')
@@ -265,12 +268,12 @@ export function ProductionOrdersPageClient() {
       {/* Desktop Toolbar (Hidden on Mobile) */}
       <div className="hidden lg:block mb-3 space-y-2 rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
-          <input 
-            className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm h-9 border-slate-300" 
-            placeholder="ค้นหาเลขใบสั่งผลิต / สินค้า / หมายเหตุ..." 
-            type="search" 
-            value={search} 
-            onChange={(event) => { setSearch(event.target.value); setPage(1) }} 
+          <input
+            className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm h-9 border-slate-300"
+            placeholder="ค้นหาเลขที่ใบสั่งผลิต / สินค้า / หมายเหตุ..."
+            type="search"
+            value={search}
+            onChange={(event) => { setSearch(event.target.value); setPage(1) }}
           />
           <label className="text-xs text-slate-500">วันที่:</label>
           <DatePickerInput className="w-[130px] !h-9 text-sm" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
@@ -282,7 +285,7 @@ export function ProductionOrdersPageClient() {
           <button className="h-9 rounded-md border px-3 text-sm bg-white text-slate-700 hover:bg-slate-50 border-slate-300" type="button" onClick={() => setDirection((value) => value === 'asc' ? 'desc' : 'asc')}>{direction === 'asc' ? 'น้อยไปมาก' : 'มากไปน้อย'}</button>
           {(search || dateFrom || dateTo || status) ? (
             <button className="h-9 rounded-md bg-slate-100 px-3 text-xs hover:bg-slate-200" type="button" onClick={clearFilters}>
-              ✕ ล้างทั้งหมด
+              ล้างตัวกรอง
             </button>
           ) : null}
           <button className="ml-auto rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 h-9 flex items-center" type="button" onClick={() => setModalMode('create')}>+ ใบสั่งผลิตใหม่</button>
@@ -328,7 +331,7 @@ export function ProductionOrdersPageClient() {
             className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
             onClick={() => setShowMobileFilters(true)}
           >
-            ตัวกรอง {(dateFrom || dateTo || status) ? '(มี)' : ''}
+            ตัวกรอง {activeMobileFilterCount > 0 ? `(${activeMobileFilterCount})` : ''}
           </button>
         </div>
       </div>
@@ -476,7 +479,8 @@ export function ProductionOrdersPageClient() {
           <span>รวมทั้งหมด <span className="font-semibold text-slate-900">{data?.summary.total ?? 0}</span> รายการ</span>
           {columnResize.hasCustomWidths ? (
             <Button
-              size="xs"
+              className="hidden lg:inline-flex"
+              size="sm"
               variant="outline"
               type="button"
               onClick={columnResize.resetColumnWidths}
@@ -486,12 +490,12 @@ export function ProductionOrdersPageClient() {
           ) : null}
         </div>
         <div className="flex items-center gap-2">
-          <select className="h-8 text-xs rounded-md border border-slate-300 px-2 bg-white text-slate-800" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
+          <select className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
             {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
           </select>
-          <Button disabled={page <= 1} size="xs" variant="outline" type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
+          <Button disabled={page <= 1} size="sm" variant="outline" type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
           <span className="px-1 text-sm font-medium">หน้า {data?.page ?? page} / {totalPages}</span>
-          <Button disabled={page >= totalPages} size="xs" variant="outline" type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
+          <Button disabled={page >= totalPages} size="sm" variant="outline" type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
         </div>
       </div>
 
@@ -499,31 +503,34 @@ export function ProductionOrdersPageClient() {
       {!isLoading && currentRows.length > 0 ? (
         <>
           {/* Desktop Table View */}
-          <div className="hidden lg:block overflow-x-auto rounded-md bg-white border border-slate-200 shadow">
-            <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200 bg-white shadow">
+            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
-                {productionOrderColumns.map((column) => (
-                  <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
-                ))}
+                {productionOrderColumns.map((column, index) => {
+                  const style = index === productionOrderColumns.length - 1
+                    ? { minWidth: column.minWidth }
+                    : columnResize.getColumnStyle(column.key)
+                  return <col key={column.key} style={style} />
+                })}
               </colgroup>
-              <thead className="bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-500">
+              <thead className="border-b border-slate-200 bg-slate-100 text-xs font-semibold text-slate-500">
                 <tr>
                   <ResizableTableHead label="ลำดับ" resizeProps={columnResize.getResizeHandleProps('index', 'ลำดับ')} />
                   <ResizableTableHead
                     activeSortKey={sort}
                     direction={direction}
-                    label="วันที่"
+                    label="วันที่สร้าง"
                     sortKey="date"
                     onSort={toggleSort}
-                    resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')}
+                    resizeProps={columnResize.getResizeHandleProps('date', 'วันที่สร้าง')}
                   />
                   <ResizableTableHead
                     activeSortKey={sort}
                     direction={direction}
-                    label="เลขที่"
+                    label="เลขที่ใบสั่งผลิต"
                     sortKey="docNo"
                     onSort={toggleSort}
-                    resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')}
+                    resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ใบสั่งผลิต')}
                   />
                   <ResizableTableHead label="สาขา" resizeProps={columnResize.getResizeHandleProps('branch', 'สาขา')} />
                   <ResizableTableHead label="สินค้าที่ผลิต" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้าที่ผลิต')} />
@@ -537,14 +544,14 @@ export function ProductionOrdersPageClient() {
                     activeSortKey={sort}
                     align="center"
                     direction={direction}
-                    label="สถานะ"
+                    label="สถานะผลิต"
                     sortKey="status"
                     onSort={toggleSort}
-                    resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')}
+                    resizeProps={columnResize.getResizeHandleProps('status', 'สถานะผลิต')}
                   />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-200">
                 {currentRows.map((row, index) => {
                   const yieldPct = row.inputQty > 0 ? (row.outputQty / row.inputQty) * 100 : 0
                   const wipQty = Math.max(0, row.wipQty ?? 0)
@@ -1100,30 +1107,31 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
 
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(false) }}>
-      <DialogContent className="max-w-5xl !p-0 overflow-hidden flex flex-col bg-slate-900 dark:bg-[#0f172a] border-0 max-h-[90vh] animate-fade-in" hideClose>
-        <div className="bg-slate-900 dark:bg-[#0f172a] px-5 py-4 shrink-0 border-b border-slate-800 dark:border-slate-200">
+      <DialogContent className="max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 outline-none focus:outline-none max-h-[90vh] animate-fade-in" hideClose>
+        <div className="bg-slate-900 px-5 py-4 shrink-0 border-b border-slate-800">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <DialogTitle className="font-mono text-lg font-bold text-white">{isCreate ? 'ใบสั่งผลิตใหม่' : row?.docNo ?? ''}</DialogTitle>
-              <StatusBadge status={isCreate ? 'Open' : row?.status ?? '-'} />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <DialogTitle className="font-mono text-lg font-bold text-white">{isCreate ? 'ใบสั่งผลิตใหม่' : row?.docNo ?? ''}</DialogTitle>
+                <StatusBadge status={isCreate ? 'Open' : row?.status ?? '-'} />
+              </div>
+              <DialogDescription className="mt-1 text-sm text-slate-300">
+                {isCreate ? 'เปิดงานผลิตใหม่โดยยังไม่กระทบสต็อก' : `${row?.productName || '-'} · ${row?.branchName || '-'}`}
+              </DialogDescription>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {!isCreate && row ? (
                 <div className="flex flex-wrap gap-2">
-                  <button className="rounded-md bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-slate-800 hover:bg-teal-700" disabled={isSaving || rowWipQty > 0 || row.status === 'Completed' || row.status === 'Cancelled'} type="button" onClick={() => void patchOrder('complete')}>จบงาน</button>
-                  <button className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-slate-800 hover:bg-red-700" disabled={isSaving || row.inputCount > 0 || row.outputCount > 0 || row.status === 'Cancelled'} type="button" onClick={() => void patchOrder('cancel')}>ยกเลิก</button>
+                  {rowWipQty <= 0 && row.status !== 'Completed' && row.status !== 'Cancelled' ? (
+                    <button className="rounded-md bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-50" disabled={isSaving} type="button" onClick={() => void patchOrder('complete')}>จบงาน</button>
+                  ) : null}
+                  {row.inputCount <= 0 && row.outputCount <= 0 && row.status !== 'Cancelled' ? (
+                    <button className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50" disabled={isSaving} type="button" onClick={() => void patchOrder('cancel')}>ยกเลิก</button>
+                  ) : null}
                 </div>
               ) : null}
-              <button className="text-2xl text-slate-400 hover:text-white ml-1" type="button" onClick={() => onClose(false)}>&times;</button>
             </div>
           </div>
-          {!isCreate && row ? (
-            <div className="mt-3 rounded-md border-l-4 border-amber-500 bg-slate-800/80 p-3 text-white">
-              <div className="text-xs font-bold text-amber-300">สินค้าที่ผลิต</div>
-              <div className="text-lg font-bold text-amber-200">{row.productName}</div>
-              <div className="font-mono text-xs text-slate-300">{row.productCode || '-'}</div>
-            </div>
-          ) : null}
           {error ? <div className="mt-3"><Alert tone="red" title="บันทึกไม่สำเร็จ" text={error} /></div> : null}
         </div>
 
@@ -1140,7 +1148,7 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
           ) : null}
 
           {!isCreate ? (
-            <div className="flex overflow-x-auto rounded-t-md border-b border-slate-100 bg-white shadow">
+            <div className="flex overflow-x-auto rounded-md border-b border-slate-100 bg-white shadow">
               {[
                 ['header', 'Header'],
                 ['input', `Input (${row?.inputCount ?? 0})`],
@@ -1219,18 +1227,26 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
                 </div>
               </div>
             ) : (
-              <div className="rounded-md bg-white p-5 shadow">
-                <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-                  <ReadField label="เลขที่เอกสาร" value={row?.docNo ?? '-'} />
-                  <ReadField label="วันที่" value={row?.date ?? '-'} />
-                  <ReadField label="สถานะ" value={row?.status ? statusLabel(row.status) : '-'} />
-                  <ReadField label="สินค้าเป้าหมาย" value={row?.productName ?? '-'} />
-                  <ReadField label="สาขา" value={row?.branchName ?? '-'} />
-                  <ReadField label="เครื่องจักร" value={row?.machineName ?? '-'} />
-                  <ReadField label="ประเภทเครื่องจักร" value={row?.machineType ?? '-'} />
-                  <ReadField label="คลังรับผลผลิต" value={row?.warehouseName ?? '-'} />
-                  <ReadField label="WIP" value={formatMoney(rowWipQty)} />
-                  <ReadField label="หมายเหตุ" value={row?.notes || '-'} />
+              <div className="grid gap-3 lg:grid-cols-2">
+                <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <h4 className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">ข้อมูลใบสั่งผลิต</h4>
+                  <div className="grid grid-cols-2 gap-x-5 gap-y-4 text-sm">
+                    <ReadField label="เลขที่เอกสาร" value={row?.docNo ?? '-'} />
+                    <ReadField label="วันที่" value={row?.date ?? '-'} />
+                    <ReadField label="สถานะ" value={row?.status ? statusLabel(row.status) : '-'} />
+                    <ReadField label="สินค้าเป้าหมาย" value={row?.productName ?? '-'} />
+                  </div>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <h4 className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">การผลิตและคลัง</h4>
+                  <div className="grid grid-cols-2 gap-x-5 gap-y-4 text-sm">
+                    <ReadField label="สาขา" value={row?.branchName ?? '-'} />
+                    <ReadField label="เครื่องจักร" value={row?.machineName ?? '-'} />
+                    <ReadField label="ประเภทเครื่องจักร" value={row?.machineType ?? '-'} />
+                    <ReadField label="คลังรับผลผลิต" value={row?.warehouseName ?? '-'} />
+                    <ReadField label="WIP" value={formatMoney(rowWipQty)} />
+                    <ReadField label="หมายเหตุ" value={row?.notes || '-'} />
+                  </div>
                 </div>
               </div>
             )
@@ -1380,9 +1396,21 @@ function MovementPanel({
         </form>
       ) : null}
 
-      <div className="overflow-x-auto rounded-md border border-slate-200">
-        <table className="hidden lg:table w-full text-xs">
-          <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
+      <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
+        <table className="hidden min-w-full table-fixed divide-y divide-slate-200 text-sm lg:table" style={{ minWidth: 980 }}>
+          <colgroup>
+            <col style={{ width: 90 }} />
+            <col style={{ width: 130 }} />
+            <col style={{ width: 180 }} />
+            <col style={{ width: 140 }} />
+            <col style={{ width: 90 }} />
+            <col style={{ width: 110 }} />
+            <col style={{ width: 110 }} />
+            <col style={{ width: 120 }} />
+            <col style={{ width: 90 }} />
+            <col />
+          </colgroup>
+          <thead className="border-b border-slate-200 bg-slate-100 text-xs font-semibold text-slate-600">
             <tr>
               <th className="p-2 text-left">วันที่</th>
               <th className="p-2 text-left">เลขที่</th>
@@ -1396,47 +1424,48 @@ function MovementPanel({
               <th className="p-2 text-center">จัดการ</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-200">
             {rows.map((row, index) => {
               const isRowActive = row.status?.toLowerCase() === 'active'
               const isRowReversed = row.status?.toLowerCase() === 'reversed'
               return (
                 <tr key={index} className={`hover:bg-slate-50 ${isRowReversed ? 'bg-slate-50/50 text-slate-400 line-through' : ''}`}>
                   <td className="p-2 whitespace-nowrap">{formatDateDisplay(row.date)}</td>
-                  <td className="p-2 font-mono">{row.docNo}</td>
-                  <td className="p-2">
-                    <span className="font-semibold">{row.productName}</span>
-                    <div className="text-xs text-slate-400 font-mono">{row.productCode}</div>
+                  <td className="p-2 whitespace-nowrap font-mono">{row.docNo}</td>
+                  <td className="min-w-0 p-2">
+                    <span className="block truncate font-semibold" title={row.productName}>{row.productName}</span>
+                    <div className="truncate text-xs text-slate-400 font-mono">{row.productCode}</div>
                   </td>
-                  <td className="p-2">
-                    {row.warehouseName}
+                  <td className="min-w-0 p-2">
+                    <span className="block truncate" title={row.warehouseName}>{row.warehouseName}</span>
                     {row.stockStatus ? <span className="ml-1 text-xs text-slate-400 font-semibold">[{row.stockStatus}]</span> : null}
                   </td>
-                  <td className="p-2 font-mono">{row.lotNo || '-'}</td>
-                  <td className="p-2 text-right font-medium tabular-nums">{formatMoney(row.qty)}</td>
-                  <td className="p-2 text-right text-slate-500 tabular-nums">{formatMoney(row.unitCost)}</td>
-                  <td className="p-2 text-right font-semibold text-blue-700 tabular-nums">{formatMoney(row.totalCost)}</td>
+                  <td className="p-2 whitespace-nowrap font-mono">{row.lotNo || '-'}</td>
+                  <td className="p-2 whitespace-nowrap text-right font-medium tabular-nums">{formatMoney(row.qty)}</td>
+                  <td className="p-2 whitespace-nowrap text-right text-slate-500 tabular-nums">{formatMoney(row.unitCost)}</td>
+                  <td className="p-2 whitespace-nowrap text-right font-semibold text-slate-800 tabular-nums">{formatMoney(row.totalCost)}</td>
                   <td className="p-2 text-center">
                     <span className={`rounded-md px-1.5 py-0.5 text-xs font-bold ${isRowActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                       {isRowActive ? 'Active' : 'Reversed'}
                     </span>
                   </td>
                   <td className="p-2 text-center">
-                    <button
-                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                      disabled={!canWrite || !isRowActive}
-                      type="button"
-                      onClick={() => onReverse(row.docNo)}
-                    >
-                      Reverse
-                    </button>
+                    {canWrite && isRowActive ? (
+                      <button
+                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        type="button"
+                        onClick={() => onReverse(row.docNo)}
+                      >
+                        Reverse
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               )
             })}
             {rows.length === 0 ? (
               <tr>
-                <td className="p-6 text-center text-slate-400" colSpan={10}>
+                <td className="p-8 text-center text-slate-400" colSpan={productionMovementColumnCount}>
                   ยังไม่มีรายการเคลื่อนไหว
                 </td>
               </tr>
@@ -1530,9 +1559,16 @@ function ProductStockPreview({
       </h5>
       
       {/* Desktop Table View */}
-      <div className="hidden lg:block overflow-x-auto rounded-md bg-white border border-indigo-100">
-        <table className="w-full text-xs">
-          <thead className="bg-indigo-50 text-indigo-700">
+      <div className="hidden lg:block overflow-x-auto rounded-md border border-indigo-100 bg-white shadow-sm">
+        <table className="min-w-full table-fixed divide-y divide-indigo-100 text-sm" style={{ minWidth: 720 }}>
+          <colgroup>
+            <col style={{ width: 230 }} />
+            <col style={{ width: 90 }} />
+            <col style={{ width: 140 }} />
+            <col style={{ width: 140 }} />
+            <col />
+          </colgroup>
+          <thead className="border-b border-indigo-100 bg-indigo-50 text-xs font-semibold text-indigo-700">
             <tr>
               <th className="p-2 text-left">สาขา / คลัง</th>
               <th className="p-2 text-center">ประเภท</th>
@@ -1541,19 +1577,23 @@ function ProductStockPreview({
               <th className="p-2 text-right">รวมมูลค่า</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-indigo-50/50">
+          <tbody className="divide-y divide-indigo-100">
             {stock.rows.map((row, index) => (
               <tr key={index} className="hover:bg-indigo-50/10">
-                <td className="p-2 font-medium text-slate-700">{stock.branchCode} / {row.warehouseCode || destinationWarehouseName}</td>
+                <td className="min-w-0 p-2 font-medium text-slate-700">
+                  <span className="block truncate" title={`${stock.branchCode} / ${row.warehouseCode || destinationWarehouseName}`}>
+                    {stock.branchCode} / {row.warehouseCode || destinationWarehouseName}
+                  </span>
+                </td>
                 <td className="p-2 text-center"><span className="rounded bg-slate-100 px-1 py-0.5 text-xs font-bold text-slate-600">{row.status}</span></td>
-                <td className="p-2 text-right font-bold text-slate-900 tabular-nums">{formatMoney(row.qty)}</td>
-                <td className="p-2 text-right text-slate-500 tabular-nums">{formatMoney(row.avgCost)}</td>
-                <td className="p-2 text-right font-bold text-indigo-700 tabular-nums">{formatMoney(row.value)}</td>
+                <td className="p-2 whitespace-nowrap text-right font-bold text-slate-900 tabular-nums">{formatMoney(row.qty)}</td>
+                <td className="p-2 whitespace-nowrap text-right text-slate-500 tabular-nums">{formatMoney(row.avgCost)}</td>
+                <td className="p-2 whitespace-nowrap text-right font-bold text-slate-800 tabular-nums">{formatMoney(row.value)}</td>
               </tr>
             ))}
             {stock.rows.length === 0 ? (
               <tr>
-                <td className="p-4 text-center text-slate-400 font-semibold" colSpan={5}>
+                <td className="p-8 text-center text-slate-400 font-semibold" colSpan={productStockColumnCount}>
                   ไม่มีของในคลังนี้ (เป็นศูนย์)
                 </td>
               </tr>

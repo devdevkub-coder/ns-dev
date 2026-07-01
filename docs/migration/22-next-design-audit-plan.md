@@ -313,6 +313,12 @@ The absence of a static finding is not a visual pass. These still need browser r
 - Do not repeat the selected tab label as a separate heading above the table. The count/pagination row should sit close to the table as the table toolbar.
 - Main report table should follow `/daily/weight-ticket-list` table mechanics: resizable columns with `defaultWidth` and `minWidth`, sortable `ResizableTableHead`, final-column auto-stretch, reset button in the pagination toolbar, and dense mobile cards grouped by document/date, production descriptors, and metric summary.
 
+### `/production/orders`
+
+- 2026-07-01 implementation checkpoint: the production order list now aligns more closely with the `/daily/weight-ticket-list` and corrected `/production/report` table baseline. The desktop table uses the lined shell, `border-slate-200`, `min-w-full divide-y divide-slate-200 text-sm`, resizable columns, final-column auto-stretch, and page-specific wording (`วันที่สร้าง`, `เลขที่ใบสั่งผลิต`, `สถานะผลิต`). Pagination controls now use the `h-9` baseline and the reset-width action is desktop-only. Filter wording uses `ล้างตัวกรอง`, and the mobile filter button shows the real active date/status count.
+- The create/detail modal now follows the `rounded-md` dark-header baseline with hidden corner close control, document number in the title, product/branch in the subtitle, and no duplicated target-product banner. The header detail tab groups facts into white cards, and unavailable complete/cancel actions are hidden instead of rendered disabled. Input/output movement tables and the selected product stock preview table now use lined table shells, explicit column sizing, final-column stretch, neutral value color, and column-count based empty rows.
+- This batch is UI/layout only. It intentionally does not change the stock-sensitive `/api/production/orders` contract, PI/PO2 writes, reverse behavior, complete/cancel validation, WIP calculation, stock ledger, product-stock API, status lifecycle, or reconciliation rules. Browser QA remains pending because this checkpoint was local code/layout validation only.
+
 ## Detailed Static Sidebar Design Audit Checkpoint - 2026-07-01
 
 Scope of this pass:
@@ -437,7 +443,8 @@ High-impact route families:
   - 2026-07-01 design polish completed for the high-confidence static findings: AP/advance and expense/petty-return table shell/final-column auto-stretch, source/PMA wording, column-count based empty/loading rows, hidden unavailable print checkboxes, mobile filter count, and rounded-md dark-header detail modal with grouped cards.
   - Remaining: browser QA for desktop/mobile visual confirmation.
 - `/production/orders`, stock operation pages, tracking pages, and trading pages
-  - These are mainly modal-surface review items: normalize detail/form dialog header, border/radius, grouped card layout, and avoid border leakage.
+  - `/production/orders` has a 2026-07-01 local design checkpoint for list table wording/shell, pagination sizing, mobile filter count, dark-header modal surfaces, grouped detail cards, hidden unavailable complete/cancel actions, and movement/stock-preview table shells.
+  - Remaining stock operation, tracking, and trading pages are mainly modal-surface review items: normalize detail/form dialog header, border/radius, grouped card layout, and avoid border leakage.
   - Do not change business behavior during these visual passes.
 
 ### P2 Field Input Matrix Review Queue
