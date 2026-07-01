@@ -57,19 +57,33 @@ type CustomerAdvancePayload = {
   }
 }
 
-const customerAdvanceColumns: Array<ResizableColumnDefinition<string>> = [
-  { key: 'docNo', defaultWidth: 120 },
-  { key: 'date', defaultWidth: 100 },
-  { key: 'customerName', defaultWidth: 200 },
-  { key: 'currency', defaultWidth: 70 },
-  { key: 'fxRate', defaultWidth: 80 },
-  { key: 'amount', defaultWidth: 100 },
-  { key: 'amountThb', defaultWidth: 100 },
-  { key: 'usedAmount', defaultWidth: 100 },
-  { key: 'remainingAmount', defaultWidth: 100 },
-  { key: 'status', defaultWidth: 110 },
-  { key: 'action', defaultWidth: 80 },
+type CustomerAdvanceColumnKey = 'action' | 'amount' | 'amountThb' | 'currency' | 'customerName' | 'date' | 'docNo' | 'fxRate' | 'remainingAmount' | 'status' | 'usedAmount'
+type CustomerAdvanceSortKey = Exclude<CustomerAdvanceColumnKey, 'action'>
+type SortDirection = 'asc' | 'desc'
+
+const customerAdvanceColumns: Array<ResizableColumnDefinition<CustomerAdvanceColumnKey>> = [
+  { key: 'docNo', defaultWidth: 120, minWidth: 105 },
+  { key: 'date', defaultWidth: 100, minWidth: 90 },
+  { key: 'customerName', defaultWidth: 200, minWidth: 160 },
+  { key: 'currency', defaultWidth: 70, minWidth: 65 },
+  { key: 'fxRate', defaultWidth: 80, minWidth: 75 },
+  { key: 'amount', defaultWidth: 100, minWidth: 90 },
+  { key: 'amountThb', defaultWidth: 100, minWidth: 95 },
+  { key: 'usedAmount', defaultWidth: 100, minWidth: 95 },
+  { key: 'remainingAmount', defaultWidth: 100, minWidth: 95 },
+  { key: 'status', defaultWidth: 110, minWidth: 95 },
+  { key: 'action', defaultWidth: 80, minWidth: 75 },
 ]
+
+function compareSortValues(left: string | number, right: string | number) {
+  if (typeof left === 'number' && typeof right === 'number') return left - right
+  return String(left ?? '').localeCompare(String(right ?? ''), 'th', { numeric: true, sensitivity: 'base' })
+}
+
+function getCustomerAdvanceSortValue(row: CustomerAdvanceRow, key: CustomerAdvanceSortKey) {
+  if (key === 'customerName') return `${row.customerCode} ${row.customerName}`
+  return row[key]
+}
 
 export function CustomerAdvancePageClient() {
   const [data, setData] = useState<CustomerAdvancePayload | null>(null)
@@ -99,6 +113,26 @@ export function CustomerAdvancePageClient() {
 
   const exportHref = `/api/finance/customer-advance?${queryString}&format=xlsx`
   const columnResize = useResizableColumns('finance.customer.advance.v5', customerAdvanceColumns)
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows])
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [sortKey, setSortKey] = useState<CustomerAdvanceSortKey | null>(null)
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+    return [...rows].sort((left, right) => {
+      const result = compareSortValues(getCustomerAdvanceSortValue(left, sortKey), getCustomerAdvanceSortValue(right, sortKey))
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [rows, sortDirection, sortKey])
+
+  const changeSort = (key: CustomerAdvanceSortKey) => {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setSortKey(key)
+    setSortDirection('asc')
+  }
 
   return (
     <section className="space-y-4">
@@ -125,7 +159,7 @@ export function CustomerAdvancePageClient() {
             </button>
           ) : null}
         </div>
-        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {customerAdvanceColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -133,23 +167,23 @@ export function CustomerAdvancePageClient() {
           </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
             <tr>
-              <ResizableTableHead label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
-              <ResizableTableHead label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
-              <ResizableTableHead label="Customer" resizeProps={columnResize.getResizeHandleProps('customerName', 'Customer')} />
-              <ResizableTableHead label="สกุล" resizeProps={columnResize.getResizeHandleProps('currency', 'สกุล')} />
-              <ResizableTableHead align="right" label="Rate" resizeProps={columnResize.getResizeHandleProps('fxRate', 'Rate')} />
-              <ResizableTableHead align="right" label="จำนวน" resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวน')} />
-              <ResizableTableHead align="right" label="มูลค่า THB" resizeProps={columnResize.getResizeHandleProps('amountThb', 'มูลค่า THB')} />
-              <ResizableTableHead align="right" label="ใช้แล้ว" resizeProps={columnResize.getResizeHandleProps('usedAmount', 'ใช้แล้ว')} />
-              <ResizableTableHead align="right" label="คงเหลือ" resizeProps={columnResize.getResizeHandleProps('remainingAmount', 'คงเหลือ')} />
-              <ResizableTableHead align="center" label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="Customer" resizeProps={columnResize.getResizeHandleProps('customerName', 'Customer')} sortKey="customerName" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="สกุล" resizeProps={columnResize.getResizeHandleProps('currency', 'สกุล')} sortKey="currency" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="Rate" resizeProps={columnResize.getResizeHandleProps('fxRate', 'Rate')} sortKey="fxRate" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="จำนวน" resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวน')} sortKey="amount" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="มูลค่า THB" resizeProps={columnResize.getResizeHandleProps('amountThb', 'มูลค่า THB')} sortKey="amountThb" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ใช้แล้ว" resizeProps={columnResize.getResizeHandleProps('usedAmount', 'ใช้แล้ว')} sortKey="usedAmount" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="คงเหลือ" resizeProps={columnResize.getResizeHandleProps('remainingAmount', 'คงเหลือ')} sortKey="remainingAmount" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
               <ResizableTableHead label="" resizeProps={columnResize.getResizeHandleProps('action', '')} />
             </tr>
           </thead>
           <tbody>
             {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={11}>กำลังโหลดข้อมูล</td></tr> : null}
-            {!isLoading && (data?.rows ?? []).length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={11}>ยังไม่มี Customer Advance</td></tr> : null}
-            {!isLoading && (data?.rows ?? []).map((row) => (
+            {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={11}>ยังไม่มี Customer Advance</td></tr> : null}
+            {!isLoading && sortedRows.map((row) => (
               <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors">
                 <td className="px-4 py-3.5 font-mono text-xs overflow-hidden truncate">{row.docNo}</td>
                 <td className="px-4 py-3.5 overflow-hidden truncate">{row.date}</td>
@@ -173,10 +207,10 @@ export function CustomerAdvancePageClient() {
         {isLoading ? (
           <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-100">กำลังโหลดข้อมูล</div>
         ) : null}
-        {!isLoading && (data?.rows ?? []).length === 0 ? (
+        {!isLoading && sortedRows.length === 0 ? (
           <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-100">ยังไม่มี Customer Advance</div>
         ) : null}
-        {!isLoading && (data?.rows ?? []).map((row) => (
+        {!isLoading && sortedRows.map((row) => (
           <div
             key={row.id}
             className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2"
