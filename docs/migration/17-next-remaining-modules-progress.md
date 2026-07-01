@@ -1685,6 +1685,14 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Validation: `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`, and `git diff --check` passed. OpenAPI remains valid with existing catalog warnings.
 - Browser QA: subagent unauth sweep confirmed protected pages redirect to login and APIs return `401`; authenticated main Playwright smoke confirmed the three A5 APIs return `200`, pages render the legacy-colored management baseline UI, Excel buttons are disabled, and mobile width has no horizontal overflow.
 
+#### A5 Design Polish Checkpoint
+
+- Date: 2026-07-01.
+- Routes covered: `/finance-accounting/pl-statement`, `/finance-accounting/balance-sheet`, and `/finance-accounting/cash-flow-statement`.
+- UI changes: converted the shared Statement tables and drilldown detail modal to the active lined/resizable table baseline with Thai-first headers, persisted widths, reset-width controls, and safer numeric alignment. Mobile card views were preserved.
+- Boundary: UI/layout only; no report formula, source table, query param, management-vs-statutory boundary, GL posting, period close, retained earnings, cash-flow category write, stock, bank, AP/AR, asset, loan, equity, or API behavior changed.
+- Validation: targeted ESLint for `FinancialStatementsPageClients.tsx`, full Next lint, full Next type-check, and full Next build passed. Browser QA remains pending because this was a local code/layout checkpoint only.
+
 ### A6: Fixed Assets
 
 - [x] `/finance-accounting/asset-register`
