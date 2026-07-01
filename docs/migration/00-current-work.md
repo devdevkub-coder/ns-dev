@@ -2335,3 +2335,8 @@ Tailwind dependency check:
   - The desktop category summary table now uses `ResizableTableHead` sort indicators/handlers on every business column, persisted resizable widths, reset-width control, `tableLayout: fixed`, lined table shell, Thai-first table headers, and column-definition based empty `colSpan`.
   - Category rows are sorted client-side before desktop/mobile rendering so the mobile cards follow the same ordered row set as the desktop table.
   - Validation passed: `npm exec --workspace @ns-scrap-erp/next -- eslint src/components/dual-costing/DualCostingManagementPageClient.tsx`, `npm run type-check --workspace @ns-scrap-erp/next`, and `git diff --check`.
+- 2026-07-01: Waiting Allocations table mechanics checkpoint
+  - `/dual-costing/waiting-allocations` received a UI-only table mechanics pass. Runtime API behavior, waiting allocation filters, Cost Allocator links, allocation status, and DB contracts were not changed.
+  - The summary-by-category table now uses `ResizableTableHead` sort indicators/handlers, persisted resizable widths, reset-width control, `tableLayout: fixed`, lined table shell, Thai-first table headers, and column-definition based empty `colSpan`.
+  - Summary rows are sorted client-side before desktop/mobile rendering so the mobile summary cards follow the same ordered row set as the desktop table. Page-local `font-sans` control overrides were removed so controls inherit the app Thai font baseline.
+  - Validation passed: `npm exec --workspace @ns-scrap-erp/next -- eslint src/components/dual-costing/DualCostingManagementPageClient.tsx`, `npm run type-check --workspace @ns-scrap-erp/next`, and `git diff --check`.
