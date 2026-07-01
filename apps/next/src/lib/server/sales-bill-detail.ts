@@ -40,6 +40,8 @@ export type SalesBillDetail = {
     productId: string
     productName: string
     qty: number
+    sourceProductCode: string
+    sourceProductName: string
     sourceLabel: string
     sourceType: string
     tradingSourceDocNo: string
@@ -308,6 +310,8 @@ function buildDurableItems(input: {
         }),
         ...poAllocations.map((allocation) => allocation.allocation_type === 'PO_SELL' ? 'PO Sell' : 'Spot Sale'),
       ])).join(' / ')
+    const sourceProductCode = wtoSource?.product_code_snapshot || line.product_code_snapshot
+    const sourceProductName = wtoSource?.product_name_snapshot || line.product_name_snapshot || '-'
 
     return {
       amount: toNumber(line.line_amount),
@@ -328,6 +332,8 @@ function buildDurableItems(input: {
       productId: line.product_code_snapshot,
       productName: line.product_name_snapshot || '-',
       qty: toNumber(line.qty),
+      sourceProductCode,
+      sourceProductName,
       sourceLabel: sourceParts.filter(Boolean).join(' / '),
       sourceType,
       tradingSourceDocNo: tradingSource.sourceDocNo,

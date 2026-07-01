@@ -1555,6 +1555,40 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     if (deliveryItems.length === 0) return null
     const documentNo = detail.deliveryDocNos[0] ?? deliveryItems[0]?.deliveryTicketDocNo ?? ''
     if (!documentNo) return null
+    const summaryById = new Map<string, DeliveryOption['productSummaries'][number]>()
+    deliveryItems.forEach((item) => {
+      const summaryId = item.deliverySummaryId || `${documentNo}:${item.deliveryLineId || item.lineNo}`
+      const sourceProductId = item.sourceProductCode || item.productCode || item.productId
+      const sourceProductName = item.sourceProductName || item.productName
+      const current = summaryById.get(summaryId)
+      const billedWeight = item.netWeight
+      const grossWeight = detail.transactionMode === 'STOCK' ? Number(((item.qty ?? item.netWeight) + item.deductWeight).toFixed(2)) : item.netWeight
+      const sourceLineIds = item.deliveryLineId ? [item.deliveryLineId] : []
+      if (current) {
+        current.billedWeight = Number((current.billedWeight + billedWeight).toFixed(2))
+        current.grossWeight = Number((current.grossWeight + grossWeight).toFixed(2))
+        current.netWeight = Number((current.netWeight + item.netWeight).toFixed(2))
+        current.remainingWeight = Number((current.remainingWeight + item.netWeight).toFixed(2))
+        current.sourceLineIds = Array.from(new Set([...current.sourceLineIds, ...sourceLineIds]))
+        current.lineCount = Math.max(1, current.sourceLineIds.length)
+        if (current.unitCostSnapshot == null && item.unitCostSnapshot != null) current.unitCostSnapshot = item.unitCostSnapshot
+        return
+      }
+      summaryById.set(summaryId, {
+        billedWeight,
+        deductWeight: item.deductWeight,
+        grossWeight,
+        hasMixedDeductionProfiles: false,
+        id: summaryId,
+        lineCount: 1,
+        netWeight: item.netWeight,
+        productId: sourceProductId,
+        productName: sourceProductName,
+        remainingWeight: item.netWeight,
+        sourceLineIds,
+        unitCostSnapshot: item.unitCostSnapshot,
+      })
+    })
 
     return {
       branchId: detail.branchId,
@@ -1570,26 +1604,13 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         lineNo: item.lineNo,
         netWeight: detail.transactionMode === 'STOCK' ? Number(((item.qty ?? item.netWeight) + item.deductWeight).toFixed(2)) : item.netWeight,
         note: item.note,
-        productId: item.productCode || item.productId,
-        productName: item.productName,
+        productId: item.sourceProductCode || item.productCode || item.productId,
+        productName: item.sourceProductName || item.productName,
         remainingQty: item.netWeight,
         usedQty: 0,
       })),
       partyName: detail.customerName,
-      productSummaries: deliveryItems.map((item) => ({
-        billedWeight: item.netWeight,
-        deductWeight: item.deductWeight,
-        grossWeight: item.grossWeight,
-        hasMixedDeductionProfiles: false,
-        id: item.deliverySummaryId,
-        lineCount: 1,
-        netWeight: item.netWeight,
-        productId: item.productCode || item.productId,
-        productName: item.productName,
-        remainingWeight: item.netWeight,
-        sourceLineIds: item.deliveryLineId ? [item.deliveryLineId] : [],
-        unitCostSnapshot: item.unitCostSnapshot,
-      })),
+      productSummaries: [...summaryById.values()],
       status: '',
       vehicleNo: deliveryItems[0]?.deliveryVehicleNo ?? '',
     }
@@ -2200,6 +2221,25 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setSalesForm((current) => ({
       ...current,
       items: current.items.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item),
+    }))
+    setSalesFieldErrors({})
+  }
+
+  function updateSalesSplitProduct(index: number, productId: string) {
+    setSalesForm((current) => ({
+      ...current,
+      items: current.items.map((item, itemIndex) => {
+        if (itemIndex !== index) return item
+        const selectedPoSell = item.poSellId ? poSellOptionForProduct(item.poSellId, productId) : null
+        const selectedTradingCostSource = item.tradingCostSourceId ? tradingCostSourceOptionForProduct(item.tradingCostSourceId, productId) : null
+        return {
+          ...item,
+          poSellId: selectedPoSell ? item.poSellId : null,
+          price: selectedPoSell ? selectedPoSell.unitPrice ?? item.price : item.poSellId ? 0 : item.price,
+          productId,
+          tradingCostSourceId: selectedTradingCostSource ? item.tradingCostSourceId : item.deliveryTicketId ? item.tradingCostSourceId : null,
+        }
+      }),
     }))
     setSalesFieldErrors({})
   }
@@ -3809,7 +3849,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                                  {isFirstRowOfSummary ? (
 	                                    <>
 	                                      <div className="font-medium text-slate-900">{sourceSummary?.productName ?? productName}</div>
-	                                      <div className="mt-1 text-xs text-slate-500">{item.productId}</div>
+	                                      <div className="mt-1 text-xs text-slate-500">{sourceSummary?.productId ?? item.productId}</div>
 	                                      {sourceSummary ? <div className="mt-1 text-xs text-slate-500">รวม {sourceSummary.lineCount} เต๋า</div> : null}
 	                                      {sourceSummary && summaryVariance ? (
 	                                        <div className={`mt-1 text-xs font-semibold ${summaryVariance.className}`}>
@@ -3817,7 +3857,18 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                                        </div>
 	                                      ) : null}
 	                                    </>
-	                                  ) : <span className="text-slate-300">-</span>}
+	                                  ) : (
+                                      <div className="min-w-[220px]">
+                                        <ProductSearchCombobox
+                                          error={salesFieldErrors[`items.${index}.productId`]}
+                                          errorKey={`items.${index}.productId`}
+                                          inputId={`sales-bill-split-product-search-${index}`}
+                                          options={activeProducts}
+                                          value={item.productId}
+                                          onChange={(value) => updateSalesSplitProduct(index, value)}
+                                        />
+                                      </div>
+                                    )}
 	                                </td>
 	                                <td className="p-2 text-right tabular-nums text-emerald-700">{isFirstRowOfSummary ? formatMoney(sourceSummary?.remainingWeight ?? item.netWeight ?? item.qty) : ''}</td>
 	                                <td className="p-2">
