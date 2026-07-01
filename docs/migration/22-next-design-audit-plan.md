@@ -367,7 +367,6 @@ Expected:
 Routes/components with high-confidence table mechanics drift:
 
 - Main dashboard/report pages:
-  - `/cash-others-summary`
   - `/sales-plan`
   - `/sales-commission`
 - Finance / Accounting:
@@ -480,6 +479,10 @@ Expected:
 - `/cash-flow-calendar`
   - After the latest correction, the day-entry detail table inside the cash day modal now uses the active lined/resizable table shell with persisted column widths, reset-width control, sortable up/down headers, fixed table layout, Thai-first business headers, and safer nowrap/tabular numeric alignment for cash-in/cash-out values.
   - Mobile entry cards now render from the same sorted row set as the desktop modal table. Month controls, KPI cards, charts, calendar grid, opening/ending cash, net cash formula, source rows, and read-model behavior were not changed.
+  - Browser QA remains pending.
+- `/cash-others-summary`
+  - After the latest correction, the Cash Accounts table now uses the active lined/resizable table shell with persisted column widths, reset-width control, sortable up/down headers, fixed table layout, and safer nowrap/tabular numeric alignment for Balance and THB Equivalent.
+  - Mobile account cards now render from the same sorted row set as the desktop table. As-of filter, KPIs, Trading Pending cards, asset/debt donut data, AR aging, receivable/debt/stock key rows, and read-model behavior were not changed.
   - Browser QA remains pending.
 - `/production/report`
   - After the latest correction, the report, WIP, and product-summary tables now share the same toolbar/table mechanics and mobile card pattern.

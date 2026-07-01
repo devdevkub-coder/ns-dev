@@ -1,11 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 
 type AnyRow = Record<string, number | string | boolean | null | undefined>
+type SortDirection = 'asc' | 'desc'
 type CashOthersPayload = {
   asOf: string
   charts: { arAging: Record<string, number>; assetComp: Array<{ color: string; name: string; val: number }>; debtComp: Array<{ color: string; name: string; val: number }> }
@@ -27,8 +30,19 @@ function text(value: unknown) {
   return String(value ?? '')
 }
 
-function num(value: unknown) {
-  return typeof value === 'number' ? value : Number(value ?? 0)
+function compareSortValues(left: string | number, right: string | number) {
+  if (typeof left === 'number' && typeof right === 'number') {
+    return left - right
+  }
+
+  return String(left).localeCompare(String(right), 'th', { numeric: true })
+}
+
+function parseSortCell(value: string) {
+  const normalized = value.replace(/[^\d.-]/g, '')
+  if (!normalized) return value
+  const numberValue = Number(normalized)
+  return Number.isFinite(numberValue) ? numberValue : value
 }
 
 export function CashOthersSummaryPageClient() {
@@ -288,37 +302,87 @@ function Panel({ children, heading, total }: { children: ReactNode; heading: str
 }
 
 function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const columns = useMemo<Array<ResizableColumnDefinition<string> & { align?: 'center' | 'left' | 'right'; label: string }>>(() => {
+    return headers.map((header, index) => ({
+      key: String(index),
+      label: header,
+      defaultWidth: index === 0 ? 190 : index >= headers.length - 2 ? 135 : 120,
+      minWidth: index === 0 ? 145 : index >= headers.length - 2 ? 115 : 95,
+      align: index >= headers.length - 2 ? 'right' : 'left',
+    }))
+  }, [headers])
+  const columnResize = useResizableColumns('main.cash-others-summary.cash-accounts.v1', columns)
+  const sortedRows = useMemo(() => {
+    if (sortKey === null) return rows
+    const index = Number(sortKey)
+
+    return [...rows].sort((left, right) => {
+      const result = compareSortValues(parseSortCell(left[index] ?? ''), parseSortCell(right[index] ?? ''))
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [rows, sortDirection, sortKey])
+
+  function changeSort(key: string) {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(key)
+    setSortDirection('asc')
+  }
+
   return (
     <div>
       {/* Desktop view */}
-      <div className="hidden lg:block overflow-x-auto">
-        <table className="w-full min-w-[620px] text-xs text-slate-700">
-          <thead className="bg-slate-50/50">
+      {columnResize.hasCustomWidths ? (
+        <div className="mb-2 hidden justify-end px-3 pt-3 lg:flex">
+          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+        </div>
+      ) : null}
+      <div className="hidden overflow-x-auto lg:block">
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <colgroup>
+            {columns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
+          </colgroup>
+          <thead className="bg-slate-100">
             <tr>
-              {headers.map((header) => (
-                <th key={header} className="p-3 text-left font-semibold text-slate-600 border-b border-slate-100 last:text-right">
-                  {header}
-                </th>
+              {columns.map((column) => (
+                <ResizableTableHead
+                  key={column.key}
+                  activeSortKey={sortKey ?? undefined}
+                  align={column.align}
+                  direction={sortDirection}
+                  label={column.label}
+                  sortKey={column.key}
+                  onSort={changeSort}
+                  resizeProps={columnResize.getResizeHandleProps(column.key, column.label)}
+                />
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((row, index) => (
+            {sortedRows.map((row, index) => (
               <tr key={`${row[0]}-${index}`} className="hover:bg-slate-50/30 transition-colors">
                 {row.map((cell, cellIndex) => (
-                  <td key={`${cell}-${cellIndex}`} className={`p-3 ${cellIndex >= row.length - 2 ? 'text-right font-mono' : ''}`}>
-                    {cell}
+                  <td key={`${cell}-${cellIndex}`} className={`px-3 py-3 ${cellIndex >= row.length - 2 ? 'text-right font-mono tabular-nums' : 'text-slate-700'}`}>
+                    <div className={cellIndex >= row.length - 2 ? 'whitespace-nowrap' : 'truncate'} title={cell}>{cell}</div>
                   </td>
                 ))}
               </tr>
             ))}
+            {sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={columns.length}>ไม่มีข้อมูล</td></tr> : null}
           </tbody>
         </table>
       </div>
 
       {/* Mobile view */}
       <div className="block lg:hidden divide-y divide-slate-100 bg-white">
-        {rows.map((row, index) => (
+        {sortedRows.map((row, index) => (
           <div key={`${row[0]}-${index}`} className="p-3 hover:bg-slate-50/30 transition-colors">
             {row.map((cell, cellIndex) => (
               <div key={`${cell}-${cellIndex}`} className="flex justify-between items-center gap-2 py-1 text-xs">
@@ -330,6 +394,7 @@ function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
             ))}
           </div>
         ))}
+        {sortedRows.length === 0 ? <div className="p-8 text-center text-xs text-slate-400">ไม่มีข้อมูล</div> : null}
       </div>
     </div>
   )
