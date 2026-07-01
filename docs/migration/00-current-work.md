@@ -2442,3 +2442,10 @@ Tailwind dependency check:
   - Mobile Year Compare now renders compact customer/month cards from the same sorted row set as the desktop table instead of a wide horizontal table.
   - Validation passed: `npm exec --workspace @ns-scrap-erp/next -- eslint src/components/tracking/CustomerTrackingPageClient.tsx`, `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`, and `git diff --check`.
   - Browser/computer-use QA was not run per the current instruction to avoid browser verification.
+
+- 2026-07-02: Production Cost Report table mechanics checkpoint
+  - `/production/production-cost-report` received a UI-only table mechanics pass for the cost breakdown report table. This route is no longer in the active Production menu, but the supporting page/component still exists and was included in the static table scan.
+  - The cost breakdown desktop table now uses sortable `ResizableTableHead` headers with inactive/active up/down indicators, derived-column sorting for Labor/Electricity/Machine/Fuel/Maintenance/Other Proc, persisted resizable widths, reset-width control, `colgroup`, and `tableLayout: fixed` so resize handles visibly affect columns like `/dual-costing/cost-pool`.
+  - Mobile cost cards and CSV export now follow the same sorted row order as the desktop table. Production cost API behavior, RM/process-cost formulas, allocation method display, filters, summary cards, stock/ledger behavior, and DB state were not changed.
+  - Validation passed: `npm exec --workspace @ns-scrap-erp/next -- eslint src/components/production/ProductionReportPageClient.tsx`, `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`, and `git diff --check`.
+  - Browser/computer-use QA was not run per the current instruction to avoid browser verification.

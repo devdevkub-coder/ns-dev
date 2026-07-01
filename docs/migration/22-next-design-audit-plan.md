@@ -520,6 +520,9 @@ Expected:
 - `/production/report`
   - After the latest correction, the report, WIP, and product-summary tables now share the same toolbar/table mechanics and mobile card pattern.
   - Browser QA remains pending.
+- `/production/production-cost-report`
+  - Supporting route note: this page is no longer in the active Production menu, but its existing cost breakdown table now uses sortable `ResizableTableHead` headers with inactive/active up/down indicators, derived-column sorting, persisted resizable widths, reset-width control, `colgroup`, and fixed table layout. Mobile cost cards and CSV export now follow the same sorted row order.
+  - Production cost API behavior, RM/process-cost formulas, allocation method display, filters, summary cards, stock/ledger behavior, and DB state were not changed. Browser/computer-use QA was not run per the current instruction.
 - `/stock/transfer`
   - After the latest correction, the stock transfer list table now uses sortable `ResizableTableHead` business headers with inactive/active up/down indicators, client-side ascending/descending sorting of the displayed row set before rendering, the same sorted row set for mobile cards, persisted resizable widths, a reset-width control, and fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
   - ST draft/post/cancel policy, paired stock ledger movement, source-stock preview, ready-stock validation, filters, server pagination, summary KPIs, create/edit/post modal behavior, API behavior, and DB state were not changed.

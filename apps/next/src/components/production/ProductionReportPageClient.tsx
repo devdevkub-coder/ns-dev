@@ -132,6 +132,38 @@ const costColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'productionType', defaultWidth: 120, minWidth: 100 },
 ]
 
+const productionCostBreakdownColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'docNo', defaultWidth: 120, minWidth: 110 },
+  { key: 'date', defaultWidth: 110, minWidth: 100 },
+  { key: 'rm', defaultWidth: 110, minWidth: 95 },
+  { key: 'labor', defaultWidth: 110, minWidth: 95 },
+  { key: 'electricity', defaultWidth: 110, minWidth: 95 },
+  { key: 'machine', defaultWidth: 110, minWidth: 95 },
+  { key: 'fuel', defaultWidth: 100, minWidth: 90 },
+  { key: 'maintenance', defaultWidth: 120, minWidth: 105 },
+  { key: 'otherProc', defaultWidth: 120, minWidth: 105 },
+  { key: 'totalCost', defaultWidth: 130, minWidth: 115 },
+  { key: 'outputQty', defaultWidth: 120, minWidth: 105 },
+  { key: 'costPerKg', defaultWidth: 150, minWidth: 130 },
+  { key: 'method', defaultWidth: 130, minWidth: 110 },
+]
+
+const productionCostBreakdownTableColumns: Column[] = [
+  { key: 'docNo', label: 'เลขที่', type: 'text' },
+  { key: 'date', label: 'วันที่', type: 'date' },
+  { key: 'rm', label: 'RM', type: 'money' },
+  { key: 'labor', label: 'Labor', type: 'money' },
+  { key: 'electricity', label: 'Electricity', type: 'money' },
+  { key: 'machine', label: 'Machine', type: 'money' },
+  { key: 'fuel', label: 'Fuel', type: 'money' },
+  { key: 'maintenance', label: 'Maintenance', type: 'money' },
+  { key: 'otherProc', label: 'Other Proc', type: 'money' },
+  { key: 'totalCost', label: 'Total Cost', type: 'money' },
+  { key: 'outputQty', label: 'Output (kg)', type: 'number' },
+  { key: 'costPerKg', label: 'ต้นทุนผลิต ฿/กก.', type: 'money' },
+  { key: 'method', label: 'Method', type: 'text' },
+]
+
 const yieldLossColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'docNo', defaultWidth: 120, minWidth: 110 },
   { key: 'date', defaultWidth: 100, minWidth: 95 },
@@ -214,6 +246,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
   const wipResize = useResizableColumns('production.report.wip.v5', wipColumns)
   const reportResize = useResizableColumns('production.report.report.v5', reportColumns)
   const costResize = useResizableColumns('production.report.cost.v5', costColumns)
+  const costBreakdownResize = useResizableColumns('production.report.cost.breakdown.v1', productionCostBreakdownColumns)
   const yieldLossResize = useResizableColumns('production.report.yieldLoss.v5', yieldLossColumns)
   const machineResize = useResizableColumns('production.report.machine.v5', machineColumns)
   const productSummaryResize = useResizableColumns('production.report.productSummary.v1', productSummaryColumns)
@@ -380,6 +413,11 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
       return compareTableValues(leftValue, rightValue, column.type, sortDir)
     })
   }, [productSummary, sortDir, sortKey])
+  const sortedCostRows = useMemo(() => {
+    const column = productionCostBreakdownTableColumns.find((item) => item.key === sortKey)
+    if (!column) return filteredRows
+    return [...filteredRows].sort((left, right) => compareTableValues(productionCostBreakdownValue(left, sortKey), productionCostBreakdownValue(right, sortKey), column.type, sortDir))
+  }, [filteredRows, sortDir, sortKey])
   const hasActiveFilters = Boolean(displayedDateFrom || displayedDateTo || productSearch || statusFilter)
 
   function applyReportRange(range: Exclude<ReportRangeFilter, 'custom'>) {
@@ -451,7 +489,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
   if (mode === 'cost') {
     const breakdown = data?.breakdown ?? {}
     const summary = data?.summary ?? {}
-    const costRows = filteredRows
+    const costRows = sortedCostRows
     const costTotals = {
       electricity: breakdown['Electricity Cost'] ?? 0,
       fuel: breakdown['Fuel Cost'] ?? 0,
@@ -507,6 +545,15 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               <span className="xs:hidden">ล้าง</span>
             </button>
           </div>
+          {costBreakdownResize.hasCustomWidths ? (
+            <button
+              className="hidden rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none lg:inline-flex"
+              type="button"
+              onClick={costBreakdownResize.resetColumnWidths}
+            >
+              คืนค่าเดิมตาราง
+            </button>
+          ) : null}
           <button className="rounded-md bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-sm font-semibold text-white focus:outline-none sm:ml-auto w-full sm:w-auto text-center shrink-0" type="button" onClick={exportCostCsv}>
             Export CSV
           </button>
@@ -532,13 +579,48 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
 
         <div className="overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm hidden lg:block">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="p-2 text-left">เลขที่</th><th className="p-2 text-left">วันที่</th><th className="p-2 text-right">RM</th><th className="p-2 text-right">Labor</th><th className="p-2 text-right">Electricity</th><th className="p-2 text-right">Machine</th><th className="p-2 text-right">Fuel</th><th className="p-2 text-right">Maintenance</th><th className="p-2 text-right">Other Proc</th><th className="p-2 text-right">Total Cost</th><th className="p-2 text-right">Output (kg)</th><th className="p-2 text-right">ต้นทุนผลผลิต ฿/กก.</th><th className="p-2 text-left">Method</th></tr></thead>
+            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: costBreakdownResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+              <colgroup>
+                {productionCostBreakdownColumns.map((column, index) => (
+                  <col
+                    key={column.key}
+                    style={index === productionCostBreakdownColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : costBreakdownResize.getColumnStyle(column.key)}
+                  />
+                ))}
+              </colgroup>
+              <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
+                <tr>
+                  {productionCostBreakdownTableColumns.map((column) => (
+                    <ResizableTableHead
+                      key={column.key}
+                      activeSortKey={sortKey}
+                      align={column.type === 'money' || column.type === 'number' ? 'right' : 'left'}
+                      direction={sortDir}
+                      label={column.label}
+                      resizeProps={costBreakdownResize.getResizeHandleProps(column.key, column.label)}
+                      sortKey={column.key}
+                      onSort={toggleSort}
+                    />
+                  ))}
+                </tr>
+              </thead>
               <tbody>
                 {isLoading ? <tr><td className="py-6 text-center text-slate-500" colSpan={13}>กำลังโหลดข้อมูล</td></tr> : null}
                 {!isLoading && costRows.map((row, index) => {
-                  const costs = costBreakdown(row)
-                  return <tr key={String(row.id ?? index)} className="border-t border-slate-100 hover:bg-slate-50"><td className="p-2 font-mono text-xs">{String(row.docNo ?? '')}</td><td className="p-2">{formatDateDisplay(String(row.date ?? ''))}</td><td className="p-2 text-right">{formatMoney(Number(row.inputCost ?? 0))}</td><td className="p-2 text-right">{formatMoney(costs.labor)}</td><td className="p-2 text-right">{formatMoney(costs.electricity)}</td><td className="p-2 text-right">{formatMoney(costs.machine)}</td><td className="p-2 text-right">{formatMoney(costs.fuel)}</td><td className="p-2 text-right">{formatMoney(costs.maintenance)}</td><td className="p-2 text-right">{formatMoney(costs.otherProc)}</td><td className="p-2 text-right font-bold text-blue-700">{formatMoney(Number(row.totalCost ?? 0))}</td><td className="p-2 text-right text-emerald-700">{formatMoney(Number(row.outputQty ?? 0))}</td><td className="p-2 text-right text-slate-700">{formatMoney(Number(row.costPerKg ?? 0))}</td><td className="p-2 text-xs">{String(row.costAllocationMethod ?? row.productionType ?? '-')}</td></tr>
+                  return (
+                    <tr key={String(row.id ?? index)} className="border-t border-slate-100 hover:bg-slate-50">
+                      {productionCostBreakdownTableColumns.map((column) => (
+                        <td
+                          key={column.key}
+                          className={`p-2 text-xs min-w-0 overflow-hidden ${productionCostBreakdownCellClass(column)}`}
+                        >
+                          <div className={column.type === 'money' || column.type === 'number' ? 'truncate text-right tabular-nums' : 'truncate'} title={formatProductionCostBreakdownCell(row, column)}>
+                            {formatProductionCostBreakdownCell(row, column)}
+                          </div>
+                        </td>
+                      ))}
+                    </tr>
+                  )
                 })}
                 {!isLoading && costRows.length === 0 ? <tr><td className="py-6 text-center text-slate-400" colSpan={13}>ไม่มีข้อมูล</td></tr> : null}
               </tbody>
@@ -1659,6 +1741,36 @@ function costBreakdown(row: Row) {
   const maintenance = breakdown['Maintenance Cost'] ?? 0
   const otherProc = Number(row.processCost ?? 0) - labor - electricity - machine - fuel - maintenance
   return { electricity, fuel, labor, machine, maintenance, otherProc: Math.max(0, otherProc) }
+}
+
+function productionCostBreakdownValue(row: Row, key: string) {
+  const costs = costBreakdown(row)
+  if (key === 'docNo') return String(row.docNo ?? '')
+  if (key === 'date') return String(row.date ?? '')
+  if (key === 'rm') return Number(row.inputCost ?? 0)
+  if (key === 'labor') return costs.labor
+  if (key === 'electricity') return costs.electricity
+  if (key === 'machine') return costs.machine
+  if (key === 'fuel') return costs.fuel
+  if (key === 'maintenance') return costs.maintenance
+  if (key === 'otherProc') return costs.otherProc
+  if (key === 'totalCost') return Number(row.totalCost ?? 0)
+  if (key === 'outputQty') return Number(row.outputQty ?? 0)
+  if (key === 'costPerKg') return Number(row.costPerKg ?? 0)
+  if (key === 'method') return String(row.costAllocationMethod ?? row.productionType ?? '-')
+  return row[key]
+}
+
+function formatProductionCostBreakdownCell(row: Row, column: Column) {
+  return formatCell(productionCostBreakdownValue(row, column.key) as Row[string], column.type)
+}
+
+function productionCostBreakdownCellClass(column: Column) {
+  const align = column.type === 'money' || column.type === 'number' ? 'text-right font-mono whitespace-nowrap tabular-nums' : 'text-left'
+  if (column.key === 'totalCost') return `${align} font-bold text-blue-700`
+  if (column.key === 'outputQty') return `${align} font-semibold text-emerald-700`
+  if (column.key === 'docNo') return `${align} font-mono text-slate-600`
+  return `${align} text-slate-700`
 }
 
 function formatDisplayCell(row: Row, column: Column, mode: string) {
