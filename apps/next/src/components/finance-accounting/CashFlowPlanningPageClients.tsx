@@ -2,11 +2,16 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 
 type BranchRow = { code: string; id: string; name: string }
 type SourceState = { basis: string; limitations: string[]; writeActionsEnabled: false }
 type Insight = { body: string; explain: string; title: string; type: 'danger' | 'ok' | 'warn' }
+type DetailColumnKey = 'label' | 'value'
+type DayEventColumnKey = 'amount' | 'label' | 'refNo' | 'type'
+type TopPartyColumnKey = 'amount' | 'days' | 'docNo' | 'party'
 
 type AnalysisPayload = {
   branches: BranchRow[]
@@ -53,6 +58,25 @@ type ForecastPayload = {
   sourceState: SourceState
   summary: { endCash: number; lowestBal: number; negCount: number; negDay: { closing: number; date: string } | null; startCash: number; totalIn: number; totalOut: number }
 }
+
+const detailColumns: Array<ResizableColumnDefinition<DetailColumnKey>> = [
+  { key: 'label', defaultWidth: 360, minWidth: 220 },
+  { key: 'value', defaultWidth: 190, minWidth: 140 },
+]
+
+const topPartyColumns: Array<ResizableColumnDefinition<TopPartyColumnKey>> = [
+  { key: 'party', defaultWidth: 240, minWidth: 160 },
+  { key: 'docNo', defaultWidth: 150, minWidth: 120 },
+  { key: 'amount', defaultWidth: 170, minWidth: 135 },
+  { key: 'days', defaultWidth: 100, minWidth: 80 },
+]
+
+const dayEventColumns: Array<ResizableColumnDefinition<DayEventColumnKey>> = [
+  { key: 'type', defaultWidth: 120, minWidth: 95 },
+  { key: 'refNo', defaultWidth: 150, minWidth: 120 },
+  { key: 'label', defaultWidth: 320, minWidth: 190 },
+  { key: 'amount', defaultWidth: 170, minWidth: 135 },
+]
 
 function today() {
   return localDateInputValue(new Date())
@@ -377,26 +401,55 @@ function InsightCard({ insight }: { insight: Insight }) {
 }
 
 function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPayload['detailRows'] }) {
+  const columnResize = useResizableColumns('finance-accounting.cash-flow-analysis.detail.v1', detailColumns)
+
   return (
-    <div className="rounded-md bg-white p-4 shadow">
-      <h3 className="mb-3 font-bold">📊 ตารางรายละเอียด</h3>
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-4 py-3">
+        <h3 className="font-bold text-slate-800">📊 ตารางรายละเอียด</h3>
+        {columnResize.hasCustomWidths ? (
+          <button
+            className="hidden h-8 rounded-md bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200 lg:inline-flex"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            รีเซ็ตความกว้างตาราง
+          </button>
+        ) : null}
+      </div>
       {/* Desktop Table View */}
-      <table className="hidden lg:table w-full text-sm">
-        <tbody>
-          {isLoading ? <tr><td className="py-8 text-center text-slate-400" colSpan={2}>กำลังโหลดข้อมูล</td></tr> : null}
-          {rows.map((row) => (
-            <tr key={row.label} className={`border-t ${row.tone === 'warn' ? 'bg-amber-50' : row.tone === 'bad' ? 'bg-red-50' : row.label.includes('Projected') ? 'bg-blue-50' : ''}`}>
-              <td className="px-4 py-3.5">{row.label}</td>
-              <td className={`p-2 text-right font-bold ${row.tone === 'bad' ? 'text-red-700' : row.tone === 'good' ? 'text-emerald-700' : ''}`}>
-                {row.suffix === '%' ? row.value.toFixed(2) : money(row.value)}{row.suffix ?? ''}
-              </td>
+      <div className="hidden overflow-x-auto lg:block">
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth }}>
+          <colgroup>
+            {detailColumns.map((column, index) => {
+              if (index === detailColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />
+              }
+              return <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            })}
+          </colgroup>
+          <thead className="bg-slate-100">
+            <tr>
+              <ResizableTableHead label="รายการ" resizeProps={columnResize.getResizeHandleProps('label', 'รายการ')} />
+              <ResizableTableHead align="right" label="มูลค่า" resizeProps={columnResize.getResizeHandleProps('value', 'มูลค่า')} />
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {isLoading ? <tr><td className="py-8 text-center text-slate-400" colSpan={detailColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+            {rows.map((row) => (
+              <tr key={row.label} className={`transition-colors hover:bg-slate-50 ${row.tone === 'warn' ? 'bg-amber-50/70' : row.tone === 'bad' ? 'bg-red-50/70' : row.label.includes('Projected') ? 'bg-blue-50/70' : ''}`}>
+                <td className="px-3 py-3 text-slate-700">{row.label}</td>
+                <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${row.tone === 'bad' ? 'text-red-700' : row.tone === 'good' ? 'text-emerald-700' : 'text-slate-900'}`}>
+                  {row.suffix === '%' ? row.value.toFixed(2) : money(row.value)}{row.suffix ?? ''}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {/* Mobile Card List View */}
-      <div className="block lg:hidden divide-y divide-slate-100">
+      <div className="block divide-y divide-slate-100 lg:hidden">
         {isLoading && <div className="py-6 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล</div>}
         {!isLoading && rows.map((row) => (
           <div key={row.label} className={`flex justify-between items-center p-3 text-xs ${row.tone === 'warn' ? 'bg-amber-50/50' : row.tone === 'bad' ? 'bg-red-50/50' : row.label.includes('Projected') ? 'bg-blue-50/50' : ''}`}>
@@ -434,32 +487,58 @@ function CalendarGrid({ days, isLoading, onSelect }: { days: ProjectionDay[]; is
 
 function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
   const headingCls = 'bg-emerald-50 text-emerald-700'
+  const columnResize = useResizableColumns('finance-accounting.cash-flow-forecast.top-ar.v1', topPartyColumns)
+
   return (
-    <div className="rounded-md bg-white shadow">
-      <div className={`border-b border-emerald-100 p-3 font-bold ${headingCls}`}>📥 ต้องเร่งเก็บลูกค้าคนไหน (Top 10 Overdue)</div>
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className={`flex flex-wrap items-center justify-between gap-2 border-b border-emerald-100 p-3 font-bold ${headingCls}`}>
+        <span>📥 ต้องเร่งเก็บลูกค้าคนไหน (Top 10 Overdue)</span>
+        {columnResize.hasCustomWidths ? (
+          <button
+            className="hidden h-8 rounded-md bg-white/70 px-3 text-xs font-semibold text-emerald-700 hover:bg-white lg:inline-flex"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            รีเซ็ตความกว้างตาราง
+          </button>
+        ) : null}
+      </div>
       
       {/* Desktop Table View */}
-      <table className="hidden lg:table w-full text-sm">
-        <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
-          <tr>
-            <Th>ชื่อ</Th><Th>บิล</Th><Th align="right">ค้าง</Th><Th align="right">วัน</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
-              <Td>{row.customerName}</Td>
-              <Td mono>{row.docNo}</Td>
-              <Td align="right" strong>{money(row.receivableBalance)}</Td>
-              <Td align="right" strong>{row.daysOverdue}</Td>
+      <div className="hidden overflow-x-auto lg:block">
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth }}>
+          <colgroup>
+            {topPartyColumns.map((column, index) => {
+              if (index === topPartyColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />
+              }
+              return <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            })}
+          </colgroup>
+          <thead className="bg-slate-100">
+            <tr>
+              <ResizableTableHead label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('party', 'ลูกค้า')} />
+              <ResizableTableHead label="เลขที่บิล" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่บิล')} />
+              <ResizableTableHead align="right" label="ยอดค้าง" resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดค้าง')} />
+              <ResizableTableHead align="right" label="ค้างมาแล้ว" resizeProps={columnResize.getResizeHandleProps('days', 'ค้างมาแล้ว')} />
             </tr>
-          ))}
-          {!rows.length ? <tr><td className="py-4 text-center text-slate-400" colSpan={4}>ไม่มีลูกค้าค้างเกินกำหนด ✓</td></tr> : null}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((row) => (
+              <tr key={row.id} className="transition-colors hover:bg-slate-50/50">
+                <td className="px-3 py-3 font-medium text-slate-900">{row.customerName}</td>
+                <td className="whitespace-nowrap px-3 py-3 font-mono text-xs font-semibold text-blue-700">{row.docNo}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-slate-900">{money(row.receivableBalance)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-red-700">{row.daysOverdue} วัน</td>
+              </tr>
+            ))}
+            {!rows.length ? <tr><td className="py-4 text-center text-slate-400" colSpan={topPartyColumns.length}>ไม่มีลูกค้าค้างเกินกำหนด ✓</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
 
       {/* Mobile Card List View */}
-      <div className="block lg:hidden divide-y divide-slate-100">
+      <div className="block divide-y divide-slate-100 lg:hidden">
         {!rows.length ? (
           <div className="py-4 text-center text-slate-400 text-xs">ไม่มีลูกค้าค้างเกินกำหนด ✓</div>
         ) : (
@@ -483,32 +562,58 @@ function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
 
 function TopAp({ rows }: { rows: ForecastPayload['insights']['topAP'] }) {
   const headingCls = 'bg-red-50 text-red-700'
+  const columnResize = useResizableColumns('finance-accounting.cash-flow-forecast.top-ap.v1', topPartyColumns)
+
   return (
-    <div className="rounded-md bg-white shadow">
-      <div className={`border-b border-red-100 p-3 font-bold ${headingCls}`}>📤 อาจจะต้องเลื่อนจ่าย Supplier คนไหน (Top 10 ยอดสูง)</div>
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className={`flex flex-wrap items-center justify-between gap-2 border-b border-red-100 p-3 font-bold ${headingCls}`}>
+        <span>📤 อาจจะต้องเลื่อนจ่าย Supplier คนไหน (Top 10 ยอดสูง)</span>
+        {columnResize.hasCustomWidths ? (
+          <button
+            className="hidden h-8 rounded-md bg-white/70 px-3 text-xs font-semibold text-red-700 hover:bg-white lg:inline-flex"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            รีเซ็ตความกว้างตาราง
+          </button>
+        ) : null}
+      </div>
       
       {/* Desktop Table View */}
-      <table className="hidden lg:table w-full text-sm">
-        <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
-          <tr>
-            <Th>ชื่อ</Th><Th>บิล</Th><Th align="right">ค้าง</Th><Th align="right">วัน</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors">
-              <Td>{row.supplierName}</Td>
-              <Td mono>{row.docNo}</Td>
-              <Td align="right" strong>{money(row.payableBalance)}</Td>
-              <Td align="right"><span className={row.daysToDue < 7 ? 'text-red-700' : 'text-slate-600'}>{row.daysToDue}</span></Td>
+      <div className="hidden overflow-x-auto lg:block">
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth }}>
+          <colgroup>
+            {topPartyColumns.map((column, index) => {
+              if (index === topPartyColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />
+              }
+              return <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            })}
+          </colgroup>
+          <thead className="bg-slate-100">
+            <tr>
+              <ResizableTableHead label="Supplier" resizeProps={columnResize.getResizeHandleProps('party', 'Supplier')} />
+              <ResizableTableHead label="เลขที่บิล" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่บิล')} />
+              <ResizableTableHead align="right" label="ยอดค้าง" resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดค้าง')} />
+              <ResizableTableHead align="right" label="ครบกำหนดใน" resizeProps={columnResize.getResizeHandleProps('days', 'ครบกำหนดใน')} />
             </tr>
-          ))}
-          {!rows.length ? <tr><td className="py-4 text-center text-slate-400" colSpan={4}>ไม่มี AP คงเหลือ</td></tr> : null}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((row) => (
+              <tr key={row.id} className="transition-colors hover:bg-slate-50/50">
+                <td className="px-3 py-3 font-medium text-slate-900">{row.supplierName}</td>
+                <td className="whitespace-nowrap px-3 py-3 font-mono text-xs font-semibold text-blue-700">{row.docNo}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-slate-900">{money(row.payableBalance)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums"><span className={row.daysToDue < 7 ? 'text-red-700' : 'text-slate-600'}>{row.daysToDue} วัน</span></td>
+              </tr>
+            ))}
+            {!rows.length ? <tr><td className="py-4 text-center text-slate-400" colSpan={topPartyColumns.length}>ไม่มี AP คงเหลือ</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
 
       {/* Mobile Card List View */}
-      <div className="block lg:hidden divide-y divide-slate-100">
+      <div className="block divide-y divide-slate-100 lg:hidden">
         {!rows.length ? (
           <div className="py-4 text-center text-slate-400 text-xs">ไม่มี AP คงเหลือ</div>
         ) : (
@@ -531,6 +636,8 @@ function TopAp({ rows }: { rows: ForecastPayload['insights']['topAP'] }) {
 }
 
 function DayModal({ day, onClose }: { day: ProjectionDay; onClose: () => void }) {
+  const columnResize = useResizableColumns('finance-accounting.cash-flow-forecast.day-events.v1', dayEventColumns)
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
       <div className="w-full max-w-3xl overflow-hidden rounded-xl bg-white shadow-xl">
@@ -540,33 +647,57 @@ function DayModal({ day, onClose }: { day: ProjectionDay; onClose: () => void })
             ปิด
           </button>
         </div>
+        {columnResize.hasCustomWidths ? (
+          <div className="hidden justify-end border-b border-slate-100 bg-white px-3 py-2 lg:flex">
+            <button
+              className="h-8 rounded-md bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+              type="button"
+              onClick={columnResize.resetColumnWidths}
+            >
+              รีเซ็ตความกว้างตาราง
+            </button>
+          </div>
+        ) : null}
         <div className="max-h-[60vh] overflow-auto">
           {/* Desktop Table View */}
-          <table className="hidden lg:table w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
-              <tr>
-                <Th>Type</Th><Th>Ref</Th><Th>Label</Th><Th align="right">Amount</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {day.events.map((event) => (
-                <tr key={`${event.type}-${event.refNo}`} className="border-t">
-                  <Td>{event.type}</Td>
-                  <Td mono>{event.refNo}</Td>
-                  <Td>{event.label}</Td>
-                  <Td align="right">
-                    <span className={event.inOut === 'IN' ? 'text-emerald-700' : 'text-red-700'}>
-                      {event.inOut === 'IN' ? '+' : '-'}{money(event.amount)}
-                    </span>
-                  </Td>
+          <div className="hidden lg:block">
+            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth }}>
+              <colgroup>
+                {dayEventColumns.map((column, index) => {
+                  if (index === dayEventColumns.length - 1) {
+                    return <col key={column.key} style={{ minWidth: column.minWidth }} />
+                  }
+                  return <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+                })}
+              </colgroup>
+              <thead className="sticky top-0 z-10 bg-slate-100">
+                <tr>
+                  <ResizableTableHead label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
+                  <ResizableTableHead label="เลขอ้างอิง" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขอ้างอิง')} />
+                  <ResizableTableHead label="รายการ" resizeProps={columnResize.getResizeHandleProps('label', 'รายการ')} />
+                  <ResizableTableHead align="right" label="จำนวนเงิน" resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวนเงิน')} />
                 </tr>
-              ))}
-              {!day.events.length ? <tr><td className="py-5 text-center text-slate-400" colSpan={4}>ไม่มี event ในวันนี้</td></tr> : null}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {day.events.map((event) => (
+                  <tr key={`${event.type}-${event.refNo}`} className="transition-colors hover:bg-slate-50">
+                    <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-700">{event.type}</td>
+                    <td className="whitespace-nowrap px-3 py-3 font-mono text-xs font-semibold text-blue-700">{event.refNo}</td>
+                    <td className="min-w-0 px-3 py-3 text-slate-700"><div className="truncate">{event.label}</div></td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums">
+                      <span className={event.inOut === 'IN' ? 'text-emerald-700' : 'text-red-700'}>
+                        {event.inOut === 'IN' ? '+' : '-'}{money(event.amount)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {!day.events.length ? <tr><td className="py-5 text-center text-slate-400" colSpan={dayEventColumns.length}>ไม่มี event ในวันนี้</td></tr> : null}
+              </tbody>
+            </table>
+          </div>
 
           {/* Mobile Card List View */}
-          <div className="block lg:hidden divide-y divide-slate-100">
+          <div className="block divide-y divide-slate-100 lg:hidden">
             {!day.events.length ? (
               <div className="py-5 text-center text-slate-400 text-xs">ไม่มี event ในวันนี้</div>
             ) : (
@@ -591,16 +722,6 @@ function DayModal({ day, onClose }: { day: ProjectionDay; onClose: () => void })
       </div>
     </div>
   )
-}
-
-function Th({ align = 'left', children }: { align?: 'center' | 'left' | 'right'; children: ReactNode }) {
-  const textAlign = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
-  return <th className={`whitespace-nowrap p-2 font-semibold ${textAlign}`}>{children}</th>
-}
-
-function Td({ align = 'left', children, mono = false, strong = false }: { align?: 'center' | 'left' | 'right'; children: ReactNode; mono?: boolean; strong?: boolean }) {
-  const textAlign = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
-  return <td className={`whitespace-nowrap p-2 ${textAlign} ${mono ? 'font-mono text-xs' : 'text-xs'} ${strong ? 'font-bold' : ''}`}>{children}</td>
 }
 
 function ErrorBox({ message }: { message: string }) {

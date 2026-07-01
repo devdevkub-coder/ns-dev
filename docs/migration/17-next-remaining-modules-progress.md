@@ -1635,6 +1635,14 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Validation: passed `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200` (valid with existing warnings), and `git diff --check`.
 - Browser QA: unauth subagent confirmed page redirects to login and API 401 for both endpoints on desktop/mobile with no login overflow. Authenticated smoke on `http://localhost:3100` confirmed both APIs return 200, desktop/mobile have no horizontal overflow, legacy-colored hero/card/table markers render, forecast calendar renders the day grid, and day detail modal opens.
 
+#### A2 Design Polish Checkpoint
+
+- Date: 2026-07-01.
+- Routes covered: `/finance-accounting/cash-flow-analysis` and `/finance-accounting/cf-forecast-calendar`.
+- UI changes: converted the Cash Flow Analysis detail table, Forecast Calendar Top AR/AP insight tables, and day-event detail modal to the active lined/resizable table baseline with Thai-first headers, persisted widths, reset-width controls, and safer numeric alignment. Existing charts, cards, filter layout, calendar grid, baseline notice, and mobile card views were preserved.
+- Boundary: UI/layout only; no forecast formula, AP/AR/payment schedule source, bank, stock, tax, loan, GL, statutory cash-flow statement, forecast write, payment/receipt creation, reclass, API, or business behavior changed.
+- Validation: targeted ESLint for `CashFlowPlanningPageClients.tsx`, full Next lint, full Next type-check, and full Next build passed. Browser QA remains pending because this was a local code/layout checkpoint only.
+
 ### A3: Working Capital and Stock Finance
 
 - [x] `/finance-accounting/working-capital`
