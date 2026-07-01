@@ -49,6 +49,8 @@ type PettyAdvanceRecipientOption = SearchComboboxOption & {
   type: string
 }
 type PettyAdvanceColumnKey = 'action' | 'amount' | 'date' | 'docNo' | 'recipientName' | 'remaining' | 'returned' | 'spent' | 'status' | 'type'
+type PettyAdvanceSortKey = Exclude<PettyAdvanceColumnKey, 'action'>
+type SortDirection = 'asc' | 'desc'
 
 const pettyAdvanceColumns: Array<ResizableColumnDefinition<PettyAdvanceColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
@@ -95,6 +97,17 @@ function typeLabel(value: PettyAdvanceFormValues['type']) {
   return value === 'DIRECTOR_LOAN' ? 'กู้กรรมการ' : 'เงินสำรองจ่าย'
 }
 
+function compareSortValues(left: string | number, right: string | number) {
+  return typeof left === 'number' && typeof right === 'number'
+    ? left - right
+    : String(left).localeCompare(String(right), 'th', { numeric: true })
+}
+
+function getPettyAdvanceSortValue(row: PettyAdvanceRow, key: PettyAdvanceSortKey) {
+  if (key === 'type') return typeLabel(row.type)
+  return row[key]
+}
+
 export function DailyPettyAdvancePageClient() {
   const [accounts, setAccounts] = useState<DailyAccountOption[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -114,6 +127,8 @@ export function DailyPettyAdvancePageClient() {
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
+  const [sortKey, setSortKey] = useState<PettyAdvanceSortKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
 
   useEffect(() => {
     setPage(1)
@@ -146,16 +161,24 @@ export function DailyPettyAdvancePageClient() {
       .filter((row) => !status || row.status === status)
       .filter((row) => !type || row.type === type)
       .filter((row) => !query || `${row.docNo} ${row.recipientName} ${row.notes ?? ''}`.toLowerCase().includes(query))
-      .sort((left, right) => right.date.localeCompare(left.date) || right.docNo.localeCompare(left.docNo))
   }, [rows, search, status, type])
 
-  const totalRows = filteredRows.length
+  const sortedRows = useMemo(() => {
+    return [...filteredRows].sort((left, right) => {
+      if (!sortKey) return right.date.localeCompare(left.date) || right.docNo.localeCompare(left.docNo)
+
+      const result = compareSortValues(getPettyAdvanceSortValue(left, sortKey), getPettyAdvanceSortValue(right, sortKey))
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [filteredRows, sortDirection, sortKey])
+
+  const totalRows = sortedRows.length
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
   const currentPage = Math.min(page, totalPages)
   const pagedRows = useMemo(() => {
     const start = (currentPage - 1) * pageSize
-    return filteredRows.slice(start, start + pageSize)
-  }, [filteredRows, currentPage, pageSize])
+    return sortedRows.slice(start, start + pageSize)
+  }, [sortedRows, currentPage, pageSize])
 
   const summary = {
     active: rows.filter((row) => row.status === 'active').length,
@@ -184,6 +207,16 @@ export function DailyPettyAdvancePageClient() {
 
   const activeAccounts = useMemo(() => accounts.filter((account) => account.active), [accounts])
   const hasActiveFilters = Boolean(search.trim() || type || status !== 'active')
+
+  function handleSort(key: PettyAdvanceSortKey) {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(key)
+    setSortDirection('asc')
+  }
 
   function focusFirstField(field: string) {
     requestAnimationFrame(() => {
@@ -690,15 +723,15 @@ export function DailyPettyAdvancePageClient() {
           </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
             <tr>
-              <ResizableTableHead label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
-              <ResizableTableHead label="วันที่จ่าย" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่จ่าย')} />
-              <ResizableTableHead label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
-              <ResizableTableHead label="ผู้รับเงิน" resizeProps={columnResize.getResizeHandleProps('recipientName', 'ผู้รับเงิน')} />
-              <ResizableTableHead align="right" label="ยอดยืม" resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดยืม')} />
-              <ResizableTableHead align="right" label="ใช้ไปแล้ว" resizeProps={columnResize.getResizeHandleProps('spent', 'ใช้ไปแล้ว')} />
-              <ResizableTableHead align="right" label="คืนแล้ว" resizeProps={columnResize.getResizeHandleProps('returned', 'คืนแล้ว')} />
-              <ResizableTableHead align="right" label="คงค้าง" resizeProps={columnResize.getResizeHandleProps('remaining', 'คงค้าง')} />
-              <ResizableTableHead align="center" label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
+              <ResizableTableHead label="เลขที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
+              <ResizableTableHead label="วันที่จ่าย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่จ่าย')} />
+              <ResizableTableHead label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="type" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
+              <ResizableTableHead label="ผู้รับเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="recipientName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('recipientName', 'ผู้รับเงิน')} />
+              <ResizableTableHead align="right" label="ยอดยืม" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดยืม')} />
+              <ResizableTableHead align="right" label="ใช้ไปแล้ว" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="spent" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('spent', 'ใช้ไปแล้ว')} />
+              <ResizableTableHead align="right" label="คืนแล้ว" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="returned" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('returned', 'คืนแล้ว')} />
+              <ResizableTableHead align="right" label="คงค้าง" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="remaining" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('remaining', 'คงค้าง')} />
+              <ResizableTableHead align="center" label="สถานะ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="status" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
               <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'Action')} />
             </tr>
           </thead>
