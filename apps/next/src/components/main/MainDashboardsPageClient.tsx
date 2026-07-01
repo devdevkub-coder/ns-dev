@@ -76,6 +76,37 @@ type MainPayload = {
 }
 
 type Mode = 'daily-report' | 'dashboard' | 'owner-daily' | 'analytics-dashboard'
+type SortDirection = 'asc' | 'desc'
+type DashboardAgingSortKey = 'label' | 'current' | 'd1_30' | 'd31_60' | 'd61_90' | 'over90' | 'total'
+type DashboardAgingRow = {
+  current: number
+  d1_30: number
+  d31_60: number
+  d61_90: number
+  key: 'ap' | 'ar'
+  label: string
+  over90: number
+  tone: 'emerald' | 'red'
+  total: number
+}
+type DashboardStockGroupRow = MainPayload['dashboard']['stockByGroup'][number]
+type DashboardStockGroupSortKey = keyof DashboardStockGroupRow
+
+const dashboardAgingColumns: ResizableColumnDefinition<string>[] = [
+  { key: 'label', defaultWidth: 170, minWidth: 140 },
+  { key: 'current', defaultWidth: 110, minWidth: 90 },
+  { key: 'd1_30', defaultWidth: 110, minWidth: 90 },
+  { key: 'd31_60', defaultWidth: 110, minWidth: 90 },
+  { key: 'd61_90', defaultWidth: 110, minWidth: 90 },
+  { key: 'over90', defaultWidth: 110, minWidth: 90 },
+  { key: 'total', defaultWidth: 120, minWidth: 100 },
+]
+
+const dashboardStockGroupColumns: ResizableColumnDefinition<string>[] = [
+  { key: 'group', defaultWidth: 180, minWidth: 130 },
+  { key: 'qty', defaultWidth: 120, minWidth: 100 },
+  { key: 'value', defaultWidth: 140, minWidth: 110 },
+]
 
 function today() {
   const date = new Date()
@@ -178,6 +209,12 @@ function DashboardView(props: {
   setRangeTo: (value: string) => void
 }) {
   const { dashboardBranchId, dashboardCustomerId, dashboardGroup, dashboardProductId, dashboardSupplierId, data, date, rangeFrom, rangeMode, rangeTo, setDashboardBranchId, setDashboardCustomerId, setDashboardGroup, setDashboardProductId, setDashboardSupplierId, setRangeFrom, setRangeMode, setRangeTo } = props
+  const [agingSortKey, setAgingSortKey] = useState<DashboardAgingSortKey>('total')
+  const [agingSortDirection, setAgingSortDirection] = useState<SortDirection>('desc')
+  const [stockGroupSortKey, setStockGroupSortKey] = useState<DashboardStockGroupSortKey>('value')
+  const [stockGroupSortDirection, setStockGroupSortDirection] = useState<SortDirection>('desc')
+  const agingResize = useResizableColumns('main.dashboard.aging.v1', dashboardAgingColumns)
+  const stockGroupResize = useResizableColumns('main.dashboard.stock-by-group.v1', dashboardStockGroupColumns)
 
   const supplierSearchOptions = useMemo<SearchComboboxOption[]>(() => {
     return (data?.filterOptions.suppliers ?? []).map((row) => ({
@@ -217,6 +254,17 @@ function DashboardView(props: {
   const stockValue = section?.stock.value ?? 0
   const gpPct = salesAmount > 0 ? (gp / salesAmount) * 100 : 0
   const filteredCount = `${money(section?.purchase.count)} ซื้อ · ${money(section?.sales.count)} ขาย`
+  const agingRows = useMemo<DashboardAgingRow[]>(() => [
+    buildDashboardAgingRow('ar', '📥 AR ลูกหนี้', 'emerald', data?.dashboard.agingBuckets.ar, k.ar ?? 0),
+    buildDashboardAgingRow('ap', '📤 AP เจ้าหนี้', 'red', data?.dashboard.agingBuckets.ap, k.ap ?? 0),
+  ], [data?.dashboard.agingBuckets.ap, data?.dashboard.agingBuckets.ar, k.ap, k.ar])
+  const sortedAgingRows = useMemo(() => {
+    return [...agingRows].sort((left, right) => compareDashboardValues(dashboardAgingValue(left, agingSortKey), dashboardAgingValue(right, agingSortKey), agingSortDirection))
+  }, [agingRows, agingSortDirection, agingSortKey])
+  const sortedStockGroupRows = useMemo(() => {
+    const stockGroupRows = data?.dashboard.stockByGroup ?? []
+    return [...stockGroupRows].sort((left, right) => compareDashboardValues(left[stockGroupSortKey], right[stockGroupSortKey], stockGroupSortDirection))
+  }, [data?.dashboard.stockByGroup, stockGroupSortDirection, stockGroupSortKey])
 
   const periodTextMap: Record<string, { buySection: string; sellSection: string; buyLabel: string; sellLabel: string }> = {
     year: {
@@ -287,6 +335,20 @@ function DashboardView(props: {
     setDashboardCustomerId('')
     setDashboardProductId('')
     applyPeriod('year')
+  }
+  const toggleAgingSort = (key: DashboardAgingSortKey) => {
+    if (agingSortKey === key) setAgingSortDirection(agingSortDirection === 'asc' ? 'desc' : 'asc')
+    else {
+      setAgingSortKey(key)
+      setAgingSortDirection(key === 'label' ? 'asc' : 'desc')
+    }
+  }
+  const toggleStockGroupSort = (key: DashboardStockGroupSortKey) => {
+    if (stockGroupSortKey === key) setStockGroupSortDirection(stockGroupSortDirection === 'asc' ? 'desc' : 'asc')
+    else {
+      setStockGroupSortKey(key)
+      setStockGroupSortDirection(key === 'group' ? 'asc' : 'desc')
+    }
   }
   return (
     <>
@@ -378,10 +440,69 @@ function DashboardView(props: {
         </div>
         <div className="grid gap-3 lg:grid-cols-3">
           <DashboardChartCard title="Receivables & Payables Aging">
-            <table className="w-full text-xs">
-              <thead className="text-slate-500"><tr><th className="py-1 text-left">Type</th><th className="text-right">Current</th><th className="text-right">1-30</th><th className="text-right">31-60</th><th className="text-right">61-90</th><th className="text-right">&gt;90</th><th className="text-right">Total</th></tr></thead>
-              <tbody><AgingRow buckets={data?.dashboard.agingBuckets.ar} label="📥 AR ลูกหนี้" tone="emerald" total={k.ar ?? 0} /><AgingRow buckets={data?.dashboard.agingBuckets.ap} label="📤 AP เจ้าหนี้" tone="red" total={k.ap ?? 0} /></tbody>
-            </table>
+            <div className="mb-2 flex justify-end">
+              {agingResize.hasCustomWidths ? (
+                <button className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-50" type="button" onClick={agingResize.resetColumnWidths}>
+                  คืนค่าเดิมตาราง
+                </button>
+              ) : null}
+            </div>
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: agingResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+                <colgroup>
+                  {dashboardAgingColumns.map((column, index) => (
+                    <col key={column.key} style={index === dashboardAgingColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : agingResize.getColumnStyle(column.key)} />
+                  ))}
+                </colgroup>
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr>
+                    <ResizableTableHead activeSortKey={agingSortKey} direction={agingSortDirection} label="Type" resizeProps={agingResize.getResizeHandleProps('label', 'Type')} sortKey="label" onSort={toggleAgingSort} />
+                    <ResizableTableHead activeSortKey={agingSortKey} align="right" direction={agingSortDirection} label="Current" resizeProps={agingResize.getResizeHandleProps('current', 'Current')} sortKey="current" onSort={toggleAgingSort} />
+                    <ResizableTableHead activeSortKey={agingSortKey} align="right" direction={agingSortDirection} label="1-30" resizeProps={agingResize.getResizeHandleProps('d1_30', '1-30')} sortKey="d1_30" onSort={toggleAgingSort} />
+                    <ResizableTableHead activeSortKey={agingSortKey} align="right" direction={agingSortDirection} label="31-60" resizeProps={agingResize.getResizeHandleProps('d31_60', '31-60')} sortKey="d31_60" onSort={toggleAgingSort} />
+                    <ResizableTableHead activeSortKey={agingSortKey} align="right" direction={agingSortDirection} label="61-90" resizeProps={agingResize.getResizeHandleProps('d61_90', '61-90')} sortKey="d61_90" onSort={toggleAgingSort} />
+                    <ResizableTableHead activeSortKey={agingSortKey} align="right" direction={agingSortDirection} label=">90" resizeProps={agingResize.getResizeHandleProps('over90', '>90')} sortKey="over90" onSort={toggleAgingSort} />
+                    <ResizableTableHead activeSortKey={agingSortKey} align="right" direction={agingSortDirection} label="Total" resizeProps={agingResize.getResizeHandleProps('total', 'Total')} sortKey="total" onSort={toggleAgingSort} />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {sortedAgingRows.map((row) => {
+                    const textTone = row.tone === 'emerald' ? 'text-emerald-700' : 'text-red-700'
+                    return (
+                      <tr key={row.key} className="hover:bg-slate-50/50">
+                        <td className={`p-2 font-medium ${textTone} min-w-0 overflow-hidden`}><div className="truncate" title={row.label}>{row.label}</div></td>
+                        <td className="p-2 text-right tabular-nums whitespace-nowrap">{money(row.current)}</td>
+                        <td className="p-2 text-right tabular-nums whitespace-nowrap">{money(row.d1_30)}</td>
+                        <td className="p-2 text-right tabular-nums whitespace-nowrap">{money(row.d31_60)}</td>
+                        <td className="p-2 text-right tabular-nums whitespace-nowrap">{money(row.d61_90)}</td>
+                        <td className="p-2 text-right tabular-nums whitespace-nowrap">{money(row.over90)}</td>
+                        <td className={`p-2 text-right font-bold tabular-nums whitespace-nowrap ${textTone}`}>{money(row.total)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="space-y-2 sm:hidden">
+              {sortedAgingRows.map((row) => {
+                const textTone = row.tone === 'emerald' ? 'text-emerald-700' : 'text-red-700'
+                return (
+                  <div key={row.key} className="rounded-lg border border-slate-100 bg-slate-50/60 p-2 text-xs">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className={`font-bold ${textTone}`}>{row.label}</span>
+                      <span className={`font-bold ${textTone}`}>{money(row.total)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-slate-600">
+                      <span>Current: <b>{money(row.current)}</b></span>
+                      <span>1-30: <b>{money(row.d1_30)}</b></span>
+                      <span>31-60: <b>{money(row.d31_60)}</b></span>
+                      <span>61-90: <b>{money(row.d61_90)}</b></span>
+                      <span className="col-span-2">&gt;90: <b>{money(row.over90)}</b></span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </DashboardChartCard>
           <DashboardChartCard title="Channel Performance">
             <MiniLine label="📥 Purchase" value={`${money(purchaseWeight)} กก. · ${money(purchaseAmount)}`} />
@@ -403,10 +524,51 @@ function DashboardView(props: {
       <div className="grid gap-4 lg:grid-cols-2">
         <DashboardChartCard title="📈 แนวโน้มซื้อ-ขาย 30 วัน"><BarRows rows={(analytics?.dailyTrend ?? []).slice(-10).flatMap((row) => [{ label: `${row.label} ซื้อ`, value: row.purchase }, { label: `${row.label} ขาย`, value: row.sales }])} /></DashboardChartCard>
         <DashboardChartCard title="📦 มูลค่าสินค้าตามหมวด">
-          <table className="w-full text-xs">
-            <thead className="bg-slate-50 text-slate-500"><tr><th className="p-1.5 text-left">หมวด</th><th className="p-1.5 text-right">กก.</th><th className="p-1.5 text-right">มูลค่า</th></tr></thead>
-            <tbody>{(data?.dashboard.stockByGroup ?? []).map((row) => <tr className="border-t" key={row.group}><td className="p-1.5 font-medium">{row.group}</td><td className="p-1.5 text-right">{money(row.qty)}</td><td className="p-1.5 text-right font-bold text-indigo-700">{money(row.value)}</td></tr>)}</tbody>
-          </table>
+          <div className="mb-2 flex justify-end">
+            {stockGroupResize.hasCustomWidths ? (
+              <button className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-50" type="button" onClick={stockGroupResize.resetColumnWidths}>
+                คืนค่าเดิมตาราง
+              </button>
+            ) : null}
+          </div>
+          <div className="hidden overflow-x-auto sm:block">
+            <table className="min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: stockGroupResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+              <colgroup>
+                {dashboardStockGroupColumns.map((column, index) => (
+                  <col key={column.key} style={index === dashboardStockGroupColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : stockGroupResize.getColumnStyle(column.key)} />
+                ))}
+              </colgroup>
+              <thead className="bg-slate-50 text-slate-500">
+                <tr>
+                  <ResizableTableHead activeSortKey={stockGroupSortKey} direction={stockGroupSortDirection} label="หมวด" resizeProps={stockGroupResize.getResizeHandleProps('group', 'หมวด')} sortKey="group" onSort={toggleStockGroupSort} />
+                  <ResizableTableHead activeSortKey={stockGroupSortKey} align="right" direction={stockGroupSortDirection} label="กก." resizeProps={stockGroupResize.getResizeHandleProps('qty', 'กก.')} sortKey="qty" onSort={toggleStockGroupSort} />
+                  <ResizableTableHead activeSortKey={stockGroupSortKey} align="right" direction={stockGroupSortDirection} label="มูลค่า" resizeProps={stockGroupResize.getResizeHandleProps('value', 'มูลค่า')} sortKey="value" onSort={toggleStockGroupSort} />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {sortedStockGroupRows.map((row) => (
+                  <tr className="hover:bg-slate-50/50" key={row.group}>
+                    <td className="p-2 font-medium text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.group}>{row.group}</div></td>
+                    <td className="p-2 text-right tabular-nums whitespace-nowrap">{money(row.qty)}</td>
+                    <td className="p-2 text-right font-bold text-indigo-700 tabular-nums whitespace-nowrap">{money(row.value)}</td>
+                  </tr>
+                ))}
+                {sortedStockGroupRows.length === 0 ? <tr><td className="py-6 text-center text-slate-400" colSpan={3}>ไม่มีข้อมูล</td></tr> : null}
+              </tbody>
+            </table>
+          </div>
+          <div className="space-y-2 sm:hidden">
+            {sortedStockGroupRows.map((row) => (
+              <div key={row.group} className="rounded-lg border border-slate-100 bg-slate-50/60 p-2 text-xs">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="font-bold text-slate-800 truncate">{row.group}</span>
+                  <span className="font-bold text-indigo-700">{money(row.value)}</span>
+                </div>
+                <div className="text-slate-600">น้ำหนัก: <b>{money(row.qty)} กก.</b></div>
+              </div>
+            ))}
+            {sortedStockGroupRows.length === 0 ? <div className="py-4 text-center text-xs text-slate-400">ไม่มีข้อมูล</div> : null}
+          </div>
         </DashboardChartCard>
       </div>
 
@@ -445,9 +607,36 @@ function monthLabel(value: string) {
   return `${monthNames[month] ?? value.slice(5, 7)} ${value.slice(2, 4)}`
 }
 
-function AgingRow({ buckets, label, tone, total }: { buckets?: Record<string, number>; label: string; tone: 'emerald' | 'red'; total: number }) {
-  const textTone = tone === 'emerald' ? 'text-emerald-700' : 'text-red-700'
-  return <tr className="border-t"><td className={`py-1.5 font-medium ${textTone}`}>{label}</td><td className="text-right">{money(buckets?.current)}</td><td className="text-right">{money(buckets?.['1-30'])}</td><td className="text-right">{money(buckets?.['31-60'])}</td><td className="text-right">{money(buckets?.['61-90'])}</td><td className="text-right">{money(buckets?.over90)}</td><td className={`text-right font-bold ${textTone}`}>{money(total)}</td></tr>
+function buildDashboardAgingRow(
+  key: DashboardAgingRow['key'],
+  label: string,
+  tone: DashboardAgingRow['tone'],
+  buckets: Record<string, number> | undefined,
+  total: number,
+): DashboardAgingRow {
+  return {
+    current: buckets?.current ?? 0,
+    d1_30: buckets?.['1-30'] ?? 0,
+    d31_60: buckets?.['31-60'] ?? 0,
+    d61_90: buckets?.['61-90'] ?? 0,
+    key,
+    label,
+    over90: buckets?.over90 ?? 0,
+    tone,
+    total,
+  }
+}
+
+function dashboardAgingValue(row: DashboardAgingRow, key: DashboardAgingSortKey) {
+  return row[key]
+}
+
+function compareDashboardValues(left: number | string | null | undefined, right: number | string | null | undefined, direction: SortDirection) {
+  const result = typeof left === 'number' && typeof right === 'number'
+    ? left - right
+    : String(left ?? '').localeCompare(String(right ?? ''), 'th', { numeric: true, sensitivity: 'base' })
+
+  return direction === 'asc' ? result : -result
 }
 
 function DashboardKpi({ icon, label, sub, tone, value }: { icon: string; label: string; sub: string; tone: string; value: string }) {
