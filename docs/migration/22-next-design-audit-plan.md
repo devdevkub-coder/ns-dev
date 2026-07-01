@@ -509,6 +509,10 @@ Expected:
   - After the latest correction, the Trading Cost Source modal table, Stock / Cost Source Readiness table, Trading by Product table, Trading Purchase table, and Trading Sales table now use sortable `ResizableTableHead` business headers with inactive/active up/down indicators, persisted resizable widths, reset-width controls, and fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
   - Product, purchase, sales, and readiness mobile cards now render from the same sorted row sets as desktop. Dashboard filters, KPI totals, aging buckets, cost-source create behavior, allocation facts, GP formulas, and DB/API behavior were not changed.
   - Browser QA remains pending.
+- `/trading/matching`
+  - After the latest correction, the allocation rows table and Trading purchase/cost source remaining table now use sortable `ResizableTableHead` business headers with inactive/active up/down indicators, client-side ascending/descending sorting before pagination, persisted resizable widths, reset-width controls, and fixed table layout so resize handles visibly adjust columns like `/dual-costing/cost-pool`.
+  - Allocation and remaining-cost mobile cards now render from the same sorted paged row sets as desktop. Export query, allocation facts, ex-VAT GP formula, filters, read-only correction boundary, detail modal behavior, and API/DB state were not changed.
+  - Browser QA remains pending.
 - `/production/report`
   - After the latest correction, the report, WIP, and product-summary tables now share the same toolbar/table mechanics and mobile card pattern.
   - Browser QA remains pending.

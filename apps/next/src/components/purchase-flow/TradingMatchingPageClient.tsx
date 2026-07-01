@@ -20,6 +20,9 @@ type TradingPayload = {
 
 type TradingDealRow = TradingPayload['deals'][number]
 type TradingPurchaseRow = TradingPayload['purchases'][number]
+type AllocationColumnKey = 'action' | 'customerName' | 'date' | 'grossProfit' | 'grossProfitPct' | 'matchedPurchaseAmount' | 'matchedQty' | 'matchedSalesAmount' | 'productName' | 'purchaseBillNo' | 'salesBillNo' | 'supplierName'
+type RemainingColumnKey = 'date' | 'docNo' | 'matchedAmount' | 'remainingAmount' | 'supplierName' | 'totalAmount'
+type SortDirection = 'asc' | 'desc'
 
 const allocationLinks = [
   { href: '/dual-costing/cost-allocation-ledger', label: 'Allocation Ledger' },
@@ -31,7 +34,7 @@ function isCancelled(status: string) {
   return status.toLowerCase().includes('cancel')
 }
 
-const allocationColumns: Array<ResizableColumnDefinition<string>> = [
+const allocationColumns: Array<ResizableColumnDefinition<AllocationColumnKey>> = [
   { key: 'salesBillNo', defaultWidth: 110 },
   { key: 'date', defaultWidth: 80 },
   { key: 'purchaseBillNo', defaultWidth: 110 },
@@ -45,6 +48,46 @@ const allocationColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'grossProfitPct', defaultWidth: 70 },
   { key: 'action', defaultWidth: 80 },
 ]
+
+function compareSortValues(left: string | number, right: string | number) {
+  return typeof left === 'number' && typeof right === 'number'
+    ? left - right
+    : String(left).localeCompare(String(right), 'th', { numeric: true })
+}
+
+function useLocalTableSort<TRow, TKey extends string>(rows: TRow[], getSortValue: (row: TRow, key: TKey) => string | number) {
+  const [sortKey, setSortKey] = useState<TKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+
+    return [...rows].sort((left, right) => {
+      const result = compareSortValues(getSortValue(left, sortKey), getSortValue(right, sortKey))
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [getSortValue, rows, sortDirection, sortKey])
+
+  function handleSort(key: TKey) {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(key)
+    setSortDirection('asc')
+  }
+
+  return { handleSort, sortDirection, sortedRows, sortKey }
+}
+
+function getAllocationSortValue(row: TradingDealRow, key: AllocationColumnKey) {
+  if (key === 'action') return ''
+  return row[key]
+}
+
+function getRemainingSortValue(row: TradingPurchaseRow, key: RemainingColumnKey) {
+  return row[key]
+}
 
 export function TradingMatchingPageClient() {
   const [data, setData] = useState<TradingPayload | null>(null)
@@ -100,20 +143,32 @@ export function TradingMatchingPageClient() {
       return `${row.docNo} ${row.supplierName}`.toLowerCase().includes(query)
     })
   }, [data?.purchases, fromDate, search, toDate])
+  const {
+    handleSort: handleAllocationSort,
+    sortDirection: allocationSortDirection,
+    sortedRows: sortedFilteredDeals,
+    sortKey: allocationSortKey,
+  } = useLocalTableSort<TradingDealRow, AllocationColumnKey>(filteredDeals, getAllocationSortValue)
+  const {
+    handleSort: handleRemainingSort,
+    sortDirection: remainingSortDirection,
+    sortedRows: sortedRemainingPurchases,
+    sortKey: remainingSortKey,
+  } = useLocalTableSort<TradingPurchaseRow, RemainingColumnKey>(remainingPurchases, getRemainingSortValue)
 
-  const totalRows = tab === 'allocations' ? filteredDeals.length : remainingPurchases.length
+  const totalRows = tab === 'allocations' ? sortedFilteredDeals.length : sortedRemainingPurchases.length
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
   const currentPage = Math.min(page, totalPages)
 
   const pagedFilteredDeals = useMemo(() => {
     const start = (currentPage - 1) * pageSize
-    return filteredDeals.slice(start, start + pageSize)
-  }, [filteredDeals, currentPage, pageSize])
+    return sortedFilteredDeals.slice(start, start + pageSize)
+  }, [sortedFilteredDeals, currentPage, pageSize])
 
   const pagedRemainingPurchases = useMemo(() => {
     const start = (currentPage - 1) * pageSize
-    return remainingPurchases.slice(start, start + pageSize)
-  }, [remainingPurchases, currentPage, pageSize])
+    return sortedRemainingPurchases.slice(start, start + pageSize)
+  }, [sortedRemainingPurchases, currentPage, pageSize])
 
   const totals = useMemo(() => {
     const salesAmount = filteredDeals.reduce((sum, row) => sum + row.matchedSalesAmount, 0)
@@ -283,17 +338,17 @@ export function TradingMatchingPageClient() {
                 </colgroup>
                 <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
                   <tr>
-                    <ResizableTableHead label="Sales Bill" resizeProps={columnResize.getResizeHandleProps('salesBillNo', 'Sales Bill')} />
-                    <ResizableTableHead label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
-                    <ResizableTableHead label="Cost Source" resizeProps={columnResize.getResizeHandleProps('purchaseBillNo', 'Cost Source')} />
-                    <ResizableTableHead label="Supplier" resizeProps={columnResize.getResizeHandleProps('supplierName', 'Supplier')} />
-                    <ResizableTableHead label="Customer" resizeProps={columnResize.getResizeHandleProps('customerName', 'Customer')} />
-                    <ResizableTableHead label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} />
-                    <ResizableTableHead align="right" label="Qty" resizeProps={columnResize.getResizeHandleProps('matchedQty', 'Qty')} />
-                    <ResizableTableHead align="right" label="Cost" resizeProps={columnResize.getResizeHandleProps('matchedPurchaseAmount', 'Cost')} />
-                    <ResizableTableHead align="right" label="Sales Amt" resizeProps={columnResize.getResizeHandleProps('matchedSalesAmount', 'Sales Amt')} />
-                    <ResizableTableHead align="right" label="Expected GP" resizeProps={columnResize.getResizeHandleProps('grossProfit', 'Expected GP')} />
-                    <ResizableTableHead align="right" label="GP%" resizeProps={columnResize.getResizeHandleProps('grossProfitPct', 'GP%')} />
+                    <ResizableTableHead label="Sales Bill" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="salesBillNo" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('salesBillNo', 'Sales Bill')} />
+                    <ResizableTableHead label="วันที่" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="date" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+                    <ResizableTableHead label="Cost Source" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="purchaseBillNo" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('purchaseBillNo', 'Cost Source')} />
+                    <ResizableTableHead label="Supplier" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="supplierName" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('supplierName', 'Supplier')} />
+                    <ResizableTableHead label="Customer" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="customerName" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('customerName', 'Customer')} />
+                    <ResizableTableHead label="สินค้า" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="productName" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} />
+                    <ResizableTableHead align="right" label="Qty" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="matchedQty" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('matchedQty', 'Qty')} />
+                    <ResizableTableHead align="right" label="Cost" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="matchedPurchaseAmount" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('matchedPurchaseAmount', 'Cost')} />
+                    <ResizableTableHead align="right" label="Sales Amt" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="matchedSalesAmount" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('matchedSalesAmount', 'Sales Amt')} />
+                    <ResizableTableHead align="right" label="Expected GP" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="grossProfit" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('grossProfit', 'Expected GP')} />
+                    <ResizableTableHead align="right" label="GP%" activeSortKey={allocationSortKey ?? undefined} direction={allocationSortDirection} sortKey="grossProfitPct" onSort={handleAllocationSort} resizeProps={columnResize.getResizeHandleProps('grossProfitPct', 'GP%')} />
                     <ResizableTableHead label="Action" resizeProps={columnResize.getResizeHandleProps('action', 'Action')} />
                   </tr>
                 </thead>
@@ -332,7 +387,7 @@ export function TradingMatchingPageClient() {
             </div>
 
             <div className="hidden p-5 lg:block">
-              <RemainingPurchaseTable rows={pagedRemainingPurchases} />
+              <RemainingPurchaseTable rows={pagedRemainingPurchases} sortDirection={remainingSortDirection} sortKey={remainingSortKey} onSort={handleRemainingSort} />
             </div>
           </>
         )}
@@ -371,7 +426,7 @@ function RemainingPurchaseCard({ row }: { row: TradingPurchaseRow }) {
   )
 }
 
-const remainingColumns: Array<ResizableColumnDefinition<string>> = [
+const remainingColumns: Array<ResizableColumnDefinition<RemainingColumnKey>> = [
   { key: 'docNo', defaultWidth: 120 },
   { key: 'date', defaultWidth: 90 },
   { key: 'supplierName', defaultWidth: 200 },
@@ -380,7 +435,17 @@ const remainingColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'remainingAmount', defaultWidth: 120 },
 ]
 
-function RemainingPurchaseTable({ rows }: { rows: TradingPurchaseRow[] }) {
+function RemainingPurchaseTable({
+  onSort,
+  rows,
+  sortDirection,
+  sortKey,
+}: {
+  onSort: (key: RemainingColumnKey) => void
+  rows: TradingPurchaseRow[]
+  sortDirection: SortDirection
+  sortKey: RemainingColumnKey | null
+}) {
   const columnResize = useResizableColumns('trading.matching.remaining.v5', remainingColumns)
   return (
     <div>
@@ -401,12 +466,12 @@ function RemainingPurchaseTable({ rows }: { rows: TradingPurchaseRow[] }) {
           </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
             <tr>
-              <ResizableTableHead label="บิลซื้อ" resizeProps={columnResize.getResizeHandleProps('docNo', 'บิลซื้อ')} />
-              <ResizableTableHead label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
-              <ResizableTableHead label="Supplier" resizeProps={columnResize.getResizeHandleProps('supplierName', 'Supplier')} />
-              <ResizableTableHead align="right" label="มูลค่า" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'มูลค่า')} />
-              <ResizableTableHead align="right" label="Matched" resizeProps={columnResize.getResizeHandleProps('matchedAmount', 'Matched')} />
-              <ResizableTableHead align="right" label="ต้นทุนคงเหลือ" resizeProps={columnResize.getResizeHandleProps('remainingAmount', 'ต้นทุนคงเหลือ')} />
+              <ResizableTableHead label="บิลซื้อ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={onSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'บิลซื้อ')} />
+              <ResizableTableHead label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={onSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+              <ResizableTableHead label="Supplier" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="supplierName" onSort={onSort} resizeProps={columnResize.getResizeHandleProps('supplierName', 'Supplier')} />
+              <ResizableTableHead align="right" label="มูลค่า" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="totalAmount" onSort={onSort} resizeProps={columnResize.getResizeHandleProps('totalAmount', 'มูลค่า')} />
+              <ResizableTableHead align="right" label="Matched" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="matchedAmount" onSort={onSort} resizeProps={columnResize.getResizeHandleProps('matchedAmount', 'Matched')} />
+              <ResizableTableHead align="right" label="ต้นทุนคงเหลือ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="remainingAmount" onSort={onSort} resizeProps={columnResize.getResizeHandleProps('remainingAmount', 'ต้นทุนคงเหลือ')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
