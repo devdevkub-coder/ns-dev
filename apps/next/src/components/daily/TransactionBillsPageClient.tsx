@@ -3168,7 +3168,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 
       {showForm && mode === 'purchase' ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4">
-          <div className="mx-auto my-4 flex max-h-[94vh] max-w-5xl flex-col rounded-md bg-white shadow-2xl">
+          <div className="mx-auto my-4 flex max-h-[94vh] max-w-5xl flex-col overflow-hidden rounded-md border-0 bg-white shadow-2xl outline-none focus:outline-none">
             <div className="sticky top-0 z-10 flex items-center rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
               <div>
                 <h3 className="text-xl font-bold">📥 {editingBillId ? 'แก้ไขบิลรับซื้อ' : 'สร้างบิลรับซื้อใหม่'}</h3>
@@ -3633,21 +3633,20 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               </div>
             </div>
             <div className="flex justify-end gap-2 rounded-b-md border-t border-slate-100 bg-white p-4">
-              <button className="rounded-md px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-50 outline-none" type="button" onClick={() => { setError(null); setSupplierSwapMode(false); setSupplierSwapSupplierId(''); setLockedReceiptSnapshot(null); setShowForm(false) }}>ยกเลิก</button>
-              <button className="rounded-md bg-blue-600 hover:bg-blue-700 px-5 py-2 text-sm font-bold text-white disabled:opacity-60 outline-none" disabled={isSaving || !stockReceiptSelected} type="button" onClick={() => void savePurchaseBill()}>{isSaving ? 'กำลังบันทึก...' : supplierSwapMode ? 'บันทึกและสร้าง PB ใหม่' : editingBillId ? 'บันทึกการแก้ไข' : 'บันทึกบิลรับซื้อ'}</button>
+              <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 outline-none hover:bg-slate-50 hover:text-slate-900 focus:outline-none" type="button" onClick={() => { setError(null); setSupplierSwapMode(false); setSupplierSwapSupplierId(''); setLockedReceiptSnapshot(null); setShowForm(false) }}>ยกเลิก</button>
+              <button className="rounded-md bg-slate-900 px-5 py-2 text-sm font-normal text-white outline-none hover:bg-slate-800 focus:outline-none disabled:opacity-60" disabled={isSaving || !stockReceiptSelected} type="button" onClick={() => void savePurchaseBill()}>{isSaving ? 'กำลังบันทึก...' : supplierSwapMode ? 'บันทึกและสร้าง PB ใหม่' : editingBillId ? 'บันทึกการแก้ไข' : 'บันทึก'}</button>
             </div>
           </div>
         </div>
       ) : null}
       {showSalesForm && mode === 'sales' ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4">
-          <div className="relative mx-auto my-4 flex max-h-[94vh] w-full max-w-[1480px] flex-col rounded-md bg-white shadow-2xl" data-combobox-portal-root="true">
-            <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
+          <div className="relative mx-auto my-4 flex max-h-[94vh] w-full max-w-[1480px] flex-col overflow-hidden rounded-md border-0 bg-white shadow-2xl outline-none focus:outline-none" data-combobox-portal-root="true">
+            <div className="sticky top-0 z-10 flex items-center rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
               <div>
                 <h3 className="text-xl font-bold">{editingSalesBillId ? `แก้ไขบิลขาย ${editingSalesBillId}` : 'สร้างบิลขายใหม่'}</h3>
                 <p className="mt-1 text-xs opacity-80">{editingSalesBillId ? 'ตรวจและแก้ข้อมูลด้วยฟอร์มเดียวกับตอนสร้างบิลขาย' : 'บันทึกบิลขายแบบ Stock / Trading พร้อม VAT และข้อมูลรับเงิน'}</p>
               </div>
-              <button className="text-3xl leading-none text-white/80 hover:text-white outline-none focus:outline-none" type="button" onClick={() => { setError(null); setLockedPoSellOptions([]); setShowSalesForm(false) }}>&times;</button>
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-6 text-sm">
               {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
@@ -4182,8 +4181,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               </div>
             </div>
             <div className="flex justify-end gap-2 rounded-b-md border-t border-slate-100 bg-white p-4">
-              <button className="rounded-md px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-50 outline-none" disabled={isSaving} type="button" onClick={() => { setError(null); setLockedPoSellOptions([]); setShowSalesForm(false) }}>ยกเลิก</button>
-              <button className="rounded-md bg-blue-600 hover:bg-blue-700 px-5 py-2 text-sm font-bold text-white disabled:opacity-60 outline-none" disabled={isSaving} type="button" onClick={() => void saveSalesBill()}>{isSaving ? 'กำลังบันทึก...' : editingSalesBillId ? 'บันทึกการแก้ไข' : 'บันทึกบิลขาย'}</button>
+              <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 outline-none hover:bg-slate-50 hover:text-slate-900 focus:outline-none" disabled={isSaving} type="button" onClick={() => { setError(null); setLockedPoSellOptions([]); setShowSalesForm(false) }}>ยกเลิก</button>
+              <button className="rounded-md bg-slate-900 px-5 py-2 text-sm font-normal text-white outline-none hover:bg-slate-800 focus:outline-none disabled:opacity-60" disabled={isSaving} type="button" onClick={() => void saveSalesBill()}>{isSaving ? 'กำลังบันทึก...' : editingSalesBillId ? 'บันทึกการแก้ไข' : 'บันทึก'}</button>
             </div>
           </div>
         </div>
@@ -4234,24 +4233,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           setCancelNoteError('')
         }}>
           <DialogContent aria-labelledby={`${mode}-bill-cancel-title`} hideClose className="top-auto bottom-0 w-full max-w-lg translate-x-[-50%] translate-y-0 rounded-t-2xl md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-md border-0 shadow-2xl !p-0 overflow-hidden outline-none focus:outline-none">
-            <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-2xl md:rounded-t-md flex flex-row items-center justify-between shrink-0">
+            <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-2xl md:rounded-t-md flex flex-row items-center shrink-0">
               <div>
                 <DialogTitle id={`${mode}-bill-cancel-title`} className="text-white">ยกเลิก{mode === 'sales' ? 'บิลขาย' : 'บิลรับซื้อ'} {cancelingBill.docNo}</DialogTitle>
                 <DialogDescription className="text-slate-300">{cancelDialogPartyName}</DialogDescription>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  if (isSaving) return
-                  setCancelingBill(null)
-                  setCancelNote('')
-                  setCancelNoteError('')
-                }}
-                className="rounded-md text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 transition-colors outline-none focus:outline-none focus:ring-0 text-xl leading-none"
-                aria-label="Close"
-              >
-                &times;
-              </button>
             </DialogHeader>
             <div className="space-y-2 p-5 text-sm">
               <label className="block text-xs font-medium text-slate-600" htmlFor={`${mode}-bill-cancel-note`}>หมายเหตุการยกเลิก *</label>
@@ -4573,21 +4559,13 @@ function SalesBillDetailModal({
       if (!open) onClose()
     }}>
       <DialogContent aria-labelledby="sales-bill-detail-title" className="max-h-[90vh] max-w-6xl overflow-hidden rounded-md !p-0 flex flex-col bg-slate-900 border-0 outline-none focus:outline-none" hideClose>
-        <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-md flex flex-row items-center justify-between shrink-0">
+        <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-md flex flex-row items-center shrink-0">
           <div>
             <DialogTitle id="sales-bill-detail-title" className="text-white">รายละเอียดบิลขาย {detail?.docNo ?? docNo}</DialogTitle>
             <DialogDescription className="text-xs text-slate-300">
               {detail ? `${detail.customerCode ? `[${detail.customerCode}] ` : ''}${detail.customerName}` : docNo}
             </DialogDescription>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 transition-colors outline-none focus:outline-none focus:ring-0 text-xl leading-none"
-            aria-label="Close"
-          >
-            &times;
-          </button>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto bg-slate-50">
@@ -4646,7 +4624,7 @@ function SalesBillDetailModal({
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="text-sm font-bold text-slate-800">รายการสินค้า / Source</div>
                 {detail.transactionMode === 'TRADING' ? (
-                  <Button className="h-8 px-3 text-xs font-normal" type="button" variant="outline" onClick={() => setShowCorrection((current) => !current)}>
+                  <Button className="h-9 px-3 text-xs font-normal" type="button" variant="outline" onClick={() => setShowCorrection((current) => !current)}>
                     {showCorrection ? 'ซ่อนแก้ allocation' : 'แก้ Trading allocation'}
                   </Button>
                 ) : null}
