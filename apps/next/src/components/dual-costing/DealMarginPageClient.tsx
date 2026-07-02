@@ -150,6 +150,38 @@ export function DealMarginPageClient() {
     setSortDirection('asc')
   }
 
+  const tableControls = (
+    <>
+      <div>
+        พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {columnResize.hasCustomWidths ? (
+          <Button className="hidden h-9 lg:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
+            คืนค่าเดิมตาราง
+          </Button>
+        ) : null}
+        <Select
+          aria-label="จำนวนรายการต่อหน้า"
+          className="h-9 w-auto px-2 py-1"
+          disabled={isLoading}
+          value={pageSize}
+          onChange={(event) => {
+            setPageSize(Number(event.target.value) as (typeof pageSizeOptions)[number])
+            setPage(1)
+          }}
+        >
+          {pageSizeOptions.map((option) => (
+            <option key={option} value={option}>{option} / หน้า</option>
+          ))}
+        </Select>
+        <Button disabled={safePage <= 1 || isLoading} className="h-9" size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+        <span className="px-1">หน้า {safePage} / {totalPages}</span>
+        <Button disabled={safePage >= totalPages || isLoading} className="h-9" size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
+      </div>
+    </>
+  )
+
   return (
     <DualCostingPageSection>
       <DualCostingErrorBox error={error} />
@@ -270,39 +302,17 @@ export function DealMarginPageClient() {
         </div>
       </DualCostingFilterCard>
 
-      <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {columnResize.hasCustomWidths ? (
-            <Button className="hidden h-9 lg:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
-              คืนค่าเดิมตาราง
-            </Button>
-          ) : null}
-          <Select
-            aria-label="จำนวนรายการต่อหน้า"
-            className="h-9 w-auto px-2 py-1"
-            disabled={isLoading}
-            value={pageSize}
-            onChange={(event) => {
-              setPageSize(Number(event.target.value) as (typeof pageSizeOptions)[number])
-              setPage(1)
-            }}
-          >
-            {pageSizeOptions.map((option) => (
-              <option key={option} value={option}>{option} / หน้า</option>
-            ))}
-          </Select>
-          <Button disabled={safePage <= 1 || isLoading} className="h-9" size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
-          <span className="px-1">หน้า {safePage} / {totalPages}</span>
-          <Button disabled={safePage >= totalPages || isLoading} className="h-9" size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
-        </div>
+      <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:hidden">
+        {tableControls}
       </div>
 
       {/* Desktop Table View */}
-      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
+      <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+          {tableControls}
+        </div>
+        <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth, width: '100%' }}>
           <colgroup>
             {dealMarginColumns.map((column, index) => {
               const style = columnResize.getColumnStyle(column.key)
@@ -353,6 +363,7 @@ export function DealMarginPageClient() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Mobile Card list */}
