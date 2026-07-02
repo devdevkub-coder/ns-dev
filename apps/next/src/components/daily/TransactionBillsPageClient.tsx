@@ -439,7 +439,7 @@ function salesStockQtyVariance(sentQty: number, acceptedQty: number) {
   const diff = sentQty - acceptedQty
   if (Math.abs(diff) < 0.001) return { className: 'text-emerald-700', text: 'ขายครบตามใบส่งของ' }
   if (diff > 0) return { className: 'text-amber-700', text: `เหลือรอรับคืน ${formatMoney(diff)} กก.` }
-  return { className: 'text-sky-700', text: `ลูกค้าชั่งเกิน ${formatMoney(Math.abs(diff))} กก. ตัด stock เท่าใบส่งของ` }
+  return null
 }
 
 function salesItemSourceGroupKey(item: SalesBillFormValues['items'][number]) {
@@ -1373,23 +1373,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     }, 0)
     return Math.max(0, (source.remainingQty ?? 0) - allocatedOtherRows)
   }
-
-  const salesStockAllocationIssues = (() => {
-    if (!selectedDelivery) return []
-    if (!salesForm.items.some((item) => item.deliveryTicketId)) return []
-    return selectedDelivery.productSummaries.flatMap((summary) => {
-      const state = salesStockSummaryDraft.get(summary.id)
-      const acceptedQty = state?.allocatedQty ?? 0
-      const overQty = acceptedQty - summary.remainingWeight
-      if (overQty <= 0.001) return []
-      return [{
-        className: 'text-red-700',
-        message: `${summary.productName}: ขายเกินใบส่งของ ${formatMoney(overQty)} กก.`,
-        rowIndex: state?.rowIndices[0] ?? null,
-        summaryId: summary.id,
-      }]
-    })
-  })()
 
   function receiptToBillItems(receipt: ReceiptOption): PurchaseBillFormValues['items'] {
     return receipt.productSummaries.map((summary) => ({
@@ -2639,21 +2622,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       return
     }
 
-    if (salesStockAllocationIssues.length > 0) {
-      const nextFieldErrors = salesStockAllocationIssues.reduce<Record<string, string>>((errors, issue) => {
-        if (issue.rowIndex != null) {
-          errors[`items.${issue.rowIndex}.qty`] = issue.message
-        }
-        return errors
-      }, { items: 'รายการจากใบส่งของ WTO ต้องไม่ขายเกินน้ำหนักคงเหลือ' })
-      const firstIssue = salesStockAllocationIssues[0]
-      const firstErrorKey = firstIssue?.rowIndex != null ? `items.${firstIssue.rowIndex}.qty` : 'items'
-      setSalesFieldErrors(nextFieldErrors)
-      setError(firstIssue?.message ?? 'รายการจากใบส่งของ WTO ต้องไม่ขายเกินน้ำหนักคงเหลือ')
-      focusFieldError(firstErrorKey)
-      return
-    }
-
     setIsSaving(true)
     setError(null)
     try {
@@ -3857,13 +3825,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                {salesForm.transactionMode === 'STOCK' ? (
 	                  selectedDelivery ? (
 	                    <div className="space-y-3">
-	                      {salesStockAllocationIssues.length > 0 ? (
-	                        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
-	                          {salesStockAllocationIssues.map((issue) => (
-	                            <div key={issue.summaryId} className={issue.className}>{issue.message}</div>
-	                          ))}
-	                        </div>
-	                      ) : null}
 	                      <div className="overflow-x-auto rounded-md border border-slate-200/60">
 	                      <table className="w-full min-w-[1300px] text-sm">
                         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
