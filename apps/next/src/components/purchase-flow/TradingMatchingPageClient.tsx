@@ -267,7 +267,7 @@ export function TradingMatchingPageClient() {
         </div>
 
         {/* Pagination Controls */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200 shadow-sm mx-4 mb-4">
+        <div className="mx-4 mt-4 mb-4 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
           <div>
             พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
           </div>
@@ -322,10 +322,10 @@ export function TradingMatchingPageClient() {
               {!isLoading && filteredDeals.length === 0 ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">ยังไม่มี allocation ตามเงื่อนไขที่ค้นหา</div> : null}
             </div>
 
-            <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200/60 bg-white shadow-sm overflow-hidden">
+            <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
               <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
                 {columnResize.hasCustomWidths ? (
-                  <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+                  <button className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>
                     คืนค่าเดิมตาราง
                   </button>
                 ) : null}
@@ -452,12 +452,12 @@ function RemainingPurchaseTable({
       <div className="flex justify-between items-center mb-3.5">
         <div className="font-bold text-emerald-755 text-sm">Trading Purchases / Cost Source — ยังไม่ได้จับ Matched</div>
         {columnResize.hasCustomWidths ? (
-          <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+          <button className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>
             คืนค่าเดิมตาราง
           </button>
         ) : null}
       </div>
-      <div className="overflow-x-auto rounded-md border border-slate-200/60 bg-white shadow-sm overflow-hidden">
+      <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {remainingColumns.map((col) => (
