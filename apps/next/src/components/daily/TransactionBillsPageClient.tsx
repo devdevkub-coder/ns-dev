@@ -1338,6 +1338,17 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     return null
   }
 
+  function poSellExceededFieldMessage(poSellId: string | null, index: number, qty?: number) {
+    if (!poSellId) return null
+    const currentItem = salesForm.items[index]
+    const po = poSellOptionForProduct(poSellId, currentItem?.productId ?? null)
+    if (!po || !currentItem) return null
+    const requestedQty = Math.max(0, qty ?? currentItem.qty)
+    const availableQty = poSellAvailableForRow(poSellId, index)
+    if (requestedQty <= availableQty + 0.001) return null
+    return `${po.name || po.id}: จำนวนสินค้า ${currentItem.productId} เกินยอดคงเหลือใน PO Sell`
+  }
+
   function poSellDetailText(option: Option | null, index: number) {
     if (!option) return null
     const currentItem = salesForm.items[index]
@@ -2271,7 +2282,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         return {
           ...item,
           poSellId: selectedPoSell ? item.poSellId : null,
-          price: selectedPoSell ? selectedPoSell.unitPrice ?? item.price : item.poSellId ? 0 : item.price,
           productId,
           tradingCostSourceId: selectedTradingCostSource ? item.tradingCostSourceId : item.deliveryTicketId ? item.tradingCostSourceId : null,
         }
@@ -2293,111 +2303,140 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setSalesFieldErrors({})
   }
 
+  function normalizeSalesPoSellRows(
+    items: SalesBillFormValues['items'],
+    index: number,
+    explicitPoSellId?: string | null,
+  ) {
+    const source = items[index]
+    if (!source) return items
+    const poSellId = explicitPoSellId ?? source.poSellId ?? null
+    if (!poSellId) return items
+    const selectedPoSell = poSellOptionForProduct(poSellId, source.productId)
+    if (!selectedPoSell) {
+      return items.map((item, itemIndex) => (
+        itemIndex === index ? { ...item, poSellId: null } : item
+      ))
+    }
+
+    const allocatedOtherPoRows = items.reduce((sum, item, itemIndex) => {
+      if (itemIndex === index) return sum
+      if (item.poSellId !== poSellId) return sum
+      if (source.productId && item.productId !== source.productId) return sum
+      return sum + item.qty
+    }, 0)
+    const poAvailableQty = Math.max(0, (selectedPoSell.remainingQty ?? 0) - allocatedOtherPoRows)
+    const currentSaleQty = Math.max(0, source.qty)
+    const poQty = Number(Math.min(currentSaleQty, poAvailableQty).toFixed(2))
+    const spotQty = Number(Math.max(0, currentSaleQty - poQty).toFixed(2))
+    const poUnitPrice = selectedPoSell.unitPrice ?? source.price
+
+    if (poQty <= 0.0001) {
+      return items.map((item, itemIndex) => (
+        itemIndex === index ? { ...item, poSellId: null } : item
+      ))
+    }
+
+    const nextItems = [...items]
+    const currentGrossWeight = Math.max(0, source.netWeight)
+    const currentDeductWeight = Math.max(0, source.deductWeight)
+    const poDeductWeight = Number(Math.min(currentDeductWeight, Math.max(0, currentGrossWeight - poQty)).toFixed(2))
+    const poGrossWeight = Number((poQty + poDeductWeight).toFixed(2))
+    const spotDeductWeight = Number(Math.max(0, currentDeductWeight - poDeductWeight).toFixed(2))
+    const spotGrossWeight = Number(Math.max(0, currentGrossWeight - poGrossWeight).toFixed(2))
+
+    nextItems[index] = {
+      ...source,
+      deductWeight: poDeductWeight,
+      grossWeight: poGrossWeight,
+      netWeight: poGrossWeight,
+      poSellId,
+      price: poUnitPrice,
+      qty: poQty,
+    }
+
+    if (spotQty <= 0.0001) {
+      return nextItems
+    }
+
+    const summaryKey = source.deliverySummaryId ?? source.deliveryLineId ?? null
+    let reusableSpotIndex = -1
+    for (let itemIndex = index + 1; itemIndex < nextItems.length; itemIndex += 1) {
+      const candidate = nextItems[itemIndex]
+      const candidateSummaryKey = candidate.deliverySummaryId ?? candidate.deliveryLineId ?? null
+      if (candidateSummaryKey !== summaryKey) break
+      if (!candidate.poSellId && candidate.productId === source.productId) {
+        reusableSpotIndex = itemIndex
+        break
+      }
+    }
+
+    const spotRow = {
+      ...(reusableSpotIndex >= 0 ? nextItems[reusableSpotIndex] : source),
+      deductWeight: spotDeductWeight,
+      discount: reusableSpotIndex >= 0 ? nextItems[reusableSpotIndex].discount : 0,
+      grossWeight: spotGrossWeight,
+      netWeight: spotGrossWeight,
+      note: reusableSpotIndex >= 0 ? nextItems[reusableSpotIndex].note : null,
+      poSellId: null,
+      price: reusableSpotIndex >= 0 ? nextItems[reusableSpotIndex].price : 0,
+      productId: source.productId,
+      qty: spotQty,
+      salesBillLineNo: reusableSpotIndex >= 0 ? nextItems[reusableSpotIndex].salesBillLineNo : null,
+    }
+
+    if (reusableSpotIndex >= 0) {
+      nextItems[reusableSpotIndex] = spotRow
+      return nextItems
+    }
+
+    nextItems.splice(index + 1, 0, spotRow)
+    return nextItems
+  }
+
   function updateSalesStockSaleWeight(index: number, key: 'deductWeight' | 'netWeight', value: number) {
-    setSalesForm((current) => ({
-      ...current,
-      items: current.items.map((item, itemIndex) => {
+    setSalesForm((current) => {
+      const nextItems = current.items.map((item, itemIndex) => {
         if (itemIndex !== index) return item
         const next = { ...item, [key]: value }
-        const qty = Number(Math.max(0, next.netWeight).toFixed(2))
+        const qty = Number(Math.max(0, next.netWeight - next.deductWeight).toFixed(2))
         return { ...next, qty }
-      }),
-    }))
-    setSalesFieldErrors({})
+      })
+      return { ...current, items: nextItems }
+    })
+    setSalesFieldErrors((current) => {
+      const nextErrors = { ...current }
+      const currentItem = salesForm.items[index]
+      const nextItem = currentItem
+        ? {
+          ...currentItem,
+          [key]: value,
+        }
+        : null
+      const nextQty = nextItem ? Number(Math.max(0, nextItem.netWeight - nextItem.deductWeight).toFixed(2)) : 0
+      const poExceededMessage = nextItem?.poSellId ? poSellExceededFieldMessage(nextItem.poSellId, index, nextQty) : null
+      if (poExceededMessage) nextErrors[`items.${index}.qty`] = poExceededMessage
+      else delete nextErrors[`items.${index}.qty`]
+      if (key === 'deductWeight') delete nextErrors[`items.${index}.deductWeight`]
+      if (key === 'netWeight') delete nextErrors[`items.${index}.netWeight`]
+      return nextErrors
+    })
   }
 
   function updateSalesItemPoSell(index: number, poSellId: string | null) {
     setSalesForm((current) => {
-      const items: SalesBillFormValues['items'] = []
-      for (let itemIndex = 0; itemIndex < current.items.length; itemIndex += 1) {
-        const item = current.items[itemIndex]
-        if (itemIndex !== index) {
-          items.push(item)
-          continue
+      const source = current.items[index]
+      if (!source) return current
+      const selectedPoSell = poSellId ? poSellOptionForProduct(poSellId, source.productId) : null
+      if (!selectedPoSell) {
+        return {
+          ...current,
+          items: current.items.map((item, itemIndex) => (
+            itemIndex === index ? { ...item, poSellId: null } : item
+          )),
         }
-        const nextRow = current.items[itemIndex + 1]
-        const mergeNextSpotSplit = current.transactionMode === 'TRADING'
-          && Boolean(item.poSellId)
-          && Boolean(item.tradingCostSourceId)
-          && Boolean(nextRow)
-          && !nextRow?.poSellId
-          && nextRow?.tradingCostSourceId === item.tradingCostSourceId
-          && nextRow?.productId === item.productId
-          && !nextRow?.deliveryTicketId
-        const mergedSplitQty = mergeNextSpotSplit ? (nextRow?.qty ?? 0) : 0
-        const selectedPoSell = poSellId ? poSellOptionForProduct(poSellId, item.productId) : null
-        const selectedTradingCostSource = item.tradingCostSourceId ? tradingCostSourceOptionForProduct(item.tradingCostSourceId, item.productId) : null
-        const summaryId = item.deliverySummaryId ?? item.deliveryLineId ?? null
-        const summary = summaryId ? deliverySummaryById.get(summaryId) : null
-        const allocatedOtherSummaryRows = current.items.reduce((sum, row, rowIndex) => {
-          if (rowIndex === index) return sum
-          return (row.deliverySummaryId ?? row.deliveryLineId) === summaryId ? sum + row.qty : sum
-        }, 0)
-        const tradingRequestedQty = item.qty > 0 ? item.qty : selectedPoSell?.remainingQty ?? 0
-        const summaryCapacity = current.transactionMode === 'STOCK'
-          ? Math.max(0, (summary?.remainingWeight ?? item.netWeight ?? item.qty) - allocatedOtherSummaryRows)
-          : Math.max(0, tradingRequestedQty)
-        const allocatedOtherPoRows = poSellId
-          ? current.items.reduce((sum, row, rowIndex) => {
-            if (rowIndex === index) return sum
-            if (row.poSellId !== poSellId) return sum
-            if (item.productId && row.productId !== item.productId) return sum
-            return sum + row.qty
-          }, 0)
-          : 0
-        const poCapacity = poSellId ? Math.max(0, (selectedPoSell?.remainingQty ?? 0) - allocatedOtherPoRows) : summaryCapacity
-        const allocatedOtherCostSourceRows = item.tradingCostSourceId
-          ? current.items.reduce((sum, row, rowIndex) => {
-            if (rowIndex === index) return sum
-            if (row.tradingCostSourceId !== item.tradingCostSourceId) return sum
-            if (item.productId && row.productId !== item.productId) return sum
-            return sum + row.qty
-          }, 0)
-          : 0
-        const costSourceCapacity = item.tradingCostSourceId
-          ? Math.max(0, (selectedTradingCostSource?.remainingQty ?? 0) - allocatedOtherCostSourceRows)
-          : Number.POSITIVE_INFINITY
-        const requestedQty = Number((item.qty + mergedSplitQty).toFixed(2))
-        if (!poSellId) {
-          const nextDeductWeight = item.deductWeight
-          const nextSaleWeight = Number((requestedQty + nextDeductWeight).toFixed(2))
-          items.push({
-            ...item,
-            grossWeight: nextSaleWeight,
-            netWeight: nextSaleWeight,
-            poSellId: null,
-            price: 0,
-            qty: requestedQty,
-          })
-          if (mergeNextSpotSplit) itemIndex += 1
-          continue
-        }
-        const sourceAllowedQty = Math.min(requestedQty, summaryCapacity, costSourceCapacity)
-        const nextQty = Math.min(sourceAllowedQty, poCapacity)
-        const nextItem = {
-          ...item,
-          ...(nextQty < requestedQty ? { deductWeight: 0, grossWeight: nextQty, netWeight: nextQty } : { netWeight: nextQty }),
-          poSellId,
-          price: poSellId ? (selectedPoSell?.unitPrice ?? 0) : item.price,
-          qty: nextQty,
-        }
-        items.push(nextItem)
-
-        const leftoverQty = sourceAllowedQty - nextQty
-        if (current.transactionMode === 'TRADING' && poSellId && leftoverQty > 0.0001) {
-          items.push({
-            ...item,
-            deductWeight: 0,
-            grossWeight: Number(leftoverQty.toFixed(2)),
-            netWeight: Number(leftoverQty.toFixed(2)),
-            poSellId: null,
-            price: 0,
-            qty: Number(leftoverQty.toFixed(2)),
-          })
-        }
-        if (mergeNextSpotSplit) itemIndex += 1
       }
-      return { ...current, items }
+      return { ...current, items: normalizeSalesPoSellRows(current.items, index, poSellId) }
     })
     setSalesFieldErrors({})
   }
@@ -2493,7 +2532,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         (item.deliverySummaryId ?? item.deliveryLineId) === summaryId ? sum + item.netWeight : sum
       ), 0)
       const remainingQty = Math.max(0, summary.remainingWeight - allocatedQty)
-      if (remainingQty <= 0.0001) return current
       const insertIndex = current.items.reduce((lastIndex, item, itemIndex) => (
         (item.deliverySummaryId ?? item.deliveryLineId) === summaryId ? itemIndex : lastIndex
       ), index) + 1
@@ -2619,6 +2657,19 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       setSalesFieldErrors((current) => ({ ...current, exportOrderNo: 'กรอกเลขที่ order ส่งออก' }))
       setError('กรอกเลขที่ order ส่งออกสำหรับบิลขายต่างประเทศ')
       focusFieldError('exportOrderNo')
+      return
+    }
+
+    const poSellOverflowError = parsed.data.items.reduce<{ errorKey: string; message: string } | null>((found, item, index) => {
+      if (found || !item.poSellId) return found
+      const message = poSellExceededFieldMessage(item.poSellId, index, item.qty)
+      if (!message) return found
+      return { errorKey: `items.${index}.qty`, message }
+    }, null)
+    if (poSellOverflowError) {
+      setSalesFieldErrors((current) => ({ ...current, [poSellOverflowError.errorKey]: poSellOverflowError.message }))
+      setError(poSellOverflowError.message)
+      focusFieldError(poSellOverflowError.errorKey)
       return
     }
 
@@ -3849,9 +3900,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                            const summaryVariance = sourceSummary ? salesStockQtyVariance(sourceSummary.remainingWeight, summaryState?.allocatedQty ?? 0) : null
 	                            const isFirstRowOfSummary = summaryState ? summaryState.rowIndices[0] === index : true
 	                            const isLastRowOfSummary = summaryState ? summaryState.rowIndices[summaryState.rowIndices.length - 1] === index : false
-	                            const summaryUnallocatedQty = sourceSummary
-	                              ? Math.max(0, sourceSummary.remainingWeight - (summaryState?.allocatedQty ?? 0))
-	                              : 0
 	                            const productName = activeProducts.find((product) => product.id === item.productId)?.name ?? item.productId
 	                            const itemPoSellOptions = activePoSells.filter((po) => {
 	                              if (po.product_id && po.product_id !== item.productId) return false
@@ -3961,7 +4009,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                                <tr className="border-t border-dashed border-slate-100">
 	                                  <td className="p-2"></td>
 	                                  <td className="p-2 text-right">
-	                                    <Button disabled={summaryUnallocatedQty <= 0.0001} size="xs" type="button" variant="outline" onClick={() => addSalesStockAllocationRow(index)}>
+	                                    <Button size="xs" type="button" variant="outline" onClick={() => addSalesStockAllocationRow(index)}>
 	                                      + เพิ่มแถว
 	                                    </Button>
 	                                  </td>
