@@ -2176,6 +2176,8 @@ function Bar({ label, max, value }: { label: string; max: number; value: number 
 
 function MiniAssetTable({ isLoading, rows, summary }: { isLoading: boolean; rows: DepreciationPayload['pendingAssets']; summary?: ReactNode }) {
   const columnResize = useResizableColumns('finance-accounting.depreciation.pending-assets.v1', pendingAssetColumns)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [sortKey, setSortKey] = useState<PendingAssetSortKey | null>(null)
 
@@ -2196,6 +2198,18 @@ function MiniAssetTable({ isLoading, rows, summary }: { isLoading: boolean; rows
     setSortDirection('asc')
   }
 
+  const totalRows = sortedRows.length
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const pagedRows = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return sortedRows.slice(start, start + pageSize)
+  }, [sortedRows, currentPage, pageSize])
+
+  useEffect(() => {
+    setPage(1)
+  }, [rows, pageSize])
+
   return (
     <div>
       {/* Desktop view */}
@@ -2203,6 +2217,32 @@ function MiniAssetTable({ isLoading, rows, summary }: { isLoading: boolean; rows
         {summary || columnResize.hasCustomWidths ? (
           <div className="flex flex-col gap-3 border-b border-slate-100 bg-white px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
             <div>{summary}</div>
+            <div className="flex flex-wrap items-center gap-2">
+            <select
+              aria-label="จำนวนรายการต่อหน้า"
+              className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              value={pageSize}
+              onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}
+            >
+              {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+            </select>
+            <button
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              disabled={currentPage <= 1}
+              type="button"
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+            >
+              ก่อนหน้า
+            </button>
+            <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+            <button
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              disabled={currentPage >= totalPages}
+              type="button"
+              onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+            >
+              ถัดไป
+            </button>
             {columnResize.hasCustomWidths ? (
               <button
               className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50"
@@ -2212,6 +2252,7 @@ function MiniAssetTable({ isLoading, rows, summary }: { isLoading: boolean; rows
               คืนค่าเดิมตาราง
               </button>
             ) : null}
+            </div>
           </div>
         ) : null}
         <div className="overflow-x-auto">
@@ -2237,7 +2278,7 @@ function MiniAssetTable({ isLoading, rows, summary }: { isLoading: boolean; rows
           </thead>
           <tbody className="divide-y divide-slate-100">
             <LoadingOrEmpty colSpan={7} isLoading={isLoading} rows={rows.length} />
-            {sortedRows.map((row) => (
+            {pagedRows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50">
                 <td className="whitespace-nowrap px-3 py-3 font-mono font-bold text-amber-700">{row.code}</td>
                 <td className="px-3 py-3 font-semibold text-slate-800">{row.name}</td>
@@ -2253,7 +2294,36 @@ function MiniAssetTable({ isLoading, rows, summary }: { isLoading: boolean; rows
         </div>
       </div>
 
-      {summary ? <div className="block px-1 text-sm text-slate-600 lg:hidden">{summary}</div> : null}
+      <div className="flex flex-col gap-3 px-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:hidden">
+        <div>{summary}</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            aria-label="จำนวนรายการต่อหน้า"
+            className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            value={pageSize}
+            onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}
+          >
+            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+          </select>
+          <button
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            disabled={currentPage <= 1}
+            type="button"
+            onClick={() => setPage((value) => Math.max(1, value - 1))}
+          >
+            ก่อนหน้า
+          </button>
+          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+          <button
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            disabled={currentPage >= totalPages}
+            type="button"
+            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+          >
+            ถัดไป
+          </button>
+        </div>
+      </div>
       {/* Mobile view */}
       <div className="block lg:hidden space-y-2.5">
         {isLoading ? (
@@ -2261,7 +2331,7 @@ function MiniAssetTable({ isLoading, rows, summary }: { isLoading: boolean; rows
         ) : sortedRows.length === 0 ? (
           <div className="text-center text-xs text-slate-400 py-6">ไม่มีรายการทรัพย์สินที่ต้องประมวลผล</div>
         ) : (
-          sortedRows.map((row) => (
+          pagedRows.map((row) => (
             <div key={row.id} className="bg-slate-50 rounded-lg p-3 border border-slate-100 space-y-2">
               <div className="flex justify-between items-center">
                 <span className="font-mono text-xs text-amber-700 font-bold">{row.code}</span>
