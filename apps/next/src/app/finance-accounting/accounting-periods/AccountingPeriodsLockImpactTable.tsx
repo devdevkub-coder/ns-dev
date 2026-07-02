@@ -44,7 +44,7 @@ export function AccountingPeriodsLockImpactTable({ rows }: { rows: readonly (rea
   }
 
   return (
-    <section className="overflow-hidden rounded-md bg-white shadow">
+    <section className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div>

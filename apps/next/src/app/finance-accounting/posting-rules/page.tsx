@@ -148,7 +148,7 @@ export default function PostingRulesPage() {
           <div className="mt-3 space-y-2">
             {pendingWork.map((item, index) => (
               <div key={item} className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-bold text-white">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">
                   {index + 1}
                 </span>
                 <span className="leading-5">{item}</span>

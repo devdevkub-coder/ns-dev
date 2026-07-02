@@ -267,7 +267,7 @@ export function LoanContractsPageClient() {
                 <label className="mb-1 block font-semibold text-slate-600 text-xs">ประเภทสัญญา</label>
                 <select
                   aria-label="Type select"
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
                   value={type}
                   onChange={(event) => setType(event.target.value)}
                 >
@@ -280,7 +280,7 @@ export function LoanContractsPageClient() {
                 <label className="mb-1 block font-semibold text-slate-600 text-xs">สถานะสัญญา</label>
                 <select
                   aria-label="Status select"
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
                   value={status}
                   onChange={(event) => setStatus(event.target.value)}
                 >
@@ -293,14 +293,14 @@ export function LoanContractsPageClient() {
                 <button
                   type="button"
                   disabled
-                  className="w-full h-10 rounded-lg bg-slate-100 text-slate-400 font-semibold text-xs cursor-not-allowed flex items-center justify-center gap-1.5 opacity-60"
+                  className="w-full h-10 rounded-md bg-slate-100 text-slate-400 font-semibold text-xs cursor-not-allowed flex items-center justify-center gap-1.5 opacity-60"
                 >
                   📥 Template
                 </button>
                 <button
                   type="button"
                   disabled
-                  className="w-full h-10 rounded-lg bg-slate-100 text-slate-400 font-semibold text-xs cursor-not-allowed flex items-center justify-center gap-1.5 opacity-60"
+                  className="w-full h-10 rounded-md bg-slate-100 text-slate-400 font-semibold text-xs cursor-not-allowed flex items-center justify-center gap-1.5 opacity-60"
                 >
                   📤 Import Excel
                 </button>
@@ -314,14 +314,14 @@ export function LoanContractsPageClient() {
                   setType('all')
                   setStatus('all')
                 }}
-                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                className="flex-1 h-10 rounded-md border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
               >
                 ล้างตัวกรอง
               </button>
               <button
                 type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+                className="flex-1 h-10 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
               >
                 ตกลง
               </button>
@@ -438,7 +438,7 @@ export function LoanContractsPageClient() {
                 </div>
                 <StatusPill status={row.status} />
               </div>
-              <div className="grid grid-cols-2 gap-2.5 text-xs bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50">
+              <div className="grid grid-cols-2 gap-2.5 text-xs bg-slate-50/50 p-2.5 rounded-md border border-slate-100/50">
                 <div><span className="text-slate-400 block">วงเงิน (Financed)</span><span className="font-semibold text-slate-800">{formatMoney(row.principalAmount)}</span></div>
                 <div><span className="text-slate-400 block">ยอดคงเหลือ</span><span className="font-bold text-slate-900">{formatMoney(row.outstanding)}</span></div>
                 <div><span className="text-slate-400 block">งวดผ่อนชำระ</span><span className="font-semibold text-slate-800">{formatMoney(row.installmentAmount)}</span></div>
@@ -580,7 +580,7 @@ export function OpeningBalancePageClient() {
       </div>
 
       {/* Mobile Card List View */}
-      <div className="block lg:hidden divide-y divide-slate-100 bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
+      <div className="block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:hidden">
         <div className="p-4 text-xs font-semibold text-slate-500 bg-slate-50">บัญชีและยอดเปิดบัญชี</div>
         {accounts.length === 0 && <div className="p-4 text-center text-slate-400 text-xs">ไม่มีข้อมูล</div>}
         {sortedRows.map((account) => (
@@ -627,14 +627,14 @@ export function HistoricalDataPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="rounded-md border-l-4 border-blue-400 bg-blue-50 p-4">
+      <div className="rounded-md border border-blue-200 bg-blue-50/70 p-4 shadow-sm">
         <h1 className="mb-2 text-xl font-bold text-slate-900">📅 ข้อมูลย้อนหลัง ม.ค.-เม.ย. 2026 (ก่อน Go-Live)</h1>
         <p className="text-sm text-gray-700">ใช้คีย์ตัวเลขย้อนหลังเป็น baseline เพื่อเปรียบเทียบกับข้อมูลจริงตั้งแต่ พ.ค. 2026 (Go-Live)</p>
         <div className="mt-2 text-xs text-blue-700">📊 มีข้อมูลแล้ว: Expense {data?.summary.expense ?? 0} cells · P&amp;L {data?.summary.pnl ?? 0} cells · CashFlow {data?.summary.cashflow ?? 0} cells (รวม {data?.summary.total ?? 0})</div>
       </div>
       {error ? <ErrorBox message={error} /> : null}
       <div className="flex flex-wrap gap-2"><TabButton active={tab === 'expense'} onClick={() => setTab('expense')}>💰 ค่าใช้จ่าย (Expenses)</TabButton><TabButton active={tab === 'pnl'} onClick={() => setTab('pnl')}>📈 งบกำไรขาดทุน (P&amp;L)</TabButton><TabButton active={tab === 'cashflow'} onClick={() => setTab('cashflow')}>💵 งบกระแสเงินสด (Cash Flow)</TabButton></div>
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-600"><span>{tab === 'expense' ? 'กรอกค่าใช้จ่ายแต่ละหมวด — แต่ละเดือน' : tab === 'pnl' ? 'กรอกตัวเลขสรุป P&L แต่ละเดือน' : 'กรอก Cash Flow แต่ละเดือน'}</span><div className="flex gap-2"><DisabledButton>🗑 ล้าง tab นี้</DisabledButton><DisabledButton strong>💾 บันทึก + Sync Cloud</DisabledButton></div></div>
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white p-3 text-sm text-slate-600 shadow"><span>{tab === 'expense' ? 'กรอกค่าใช้จ่ายแต่ละหมวด — แต่ละเดือน' : tab === 'pnl' ? 'กรอกตัวเลขสรุป P&L แต่ละเดือน' : 'กรอก Cash Flow แต่ละเดือน'}</span><div className="flex gap-2"><DisabledButton>🗑 ล้าง tab นี้</DisabledButton><DisabledButton strong>💾 บันทึก + Sync Cloud</DisabledButton></div></div>
       {/* Desktop Table View */}
       <div className="hidden lg:block">
         <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
@@ -677,7 +677,7 @@ export function HistoricalDataPageClient() {
       </div>
 
       {/* Mobile Card List View */}
-      <div className="block lg:hidden divide-y divide-slate-100 bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
+      <div className="block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:hidden">
         <div className="p-4 text-xs font-semibold text-slate-500 bg-slate-50">ประวัติข้อมูลย้อนหลัง</div>
         <HistoricalRowsMobile isLoading={isLoading} months={months} rows={sortedRows} />
       </div>
@@ -702,7 +702,7 @@ function useApi<T>(url: string) {
 }
 
 function DisabledButton({ children, strong = false }: { children: ReactNode; strong?: boolean }) {
-  return <button className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${strong ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-50 border border-slate-100 text-slate-400 opacity-60'} outline-none focus:ring-0`} disabled type="button">{children}</button>
+  return <button className={`rounded-md px-3 py-1.5 text-xs font-semibold ${strong ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-50 border border-slate-100 text-slate-400 opacity-60'} outline-none focus:ring-0`} disabled type="button">{children}</button>
 }
 
 function InlineDisabledButton({ children }: { children: ReactNode }) {
@@ -710,11 +710,11 @@ function InlineDisabledButton({ children }: { children: ReactNode }) {
 }
 
 function FilterPanel({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">{children}</div>
+  return <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-100 bg-white p-3 shadow-sm">{children}</div>
 }
 
 function Panel({ children, title }: { children: ReactNode; title: string }) {
-  return <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm"><h2 className="mb-3 text-xs font-bold text-slate-800">{title}</h2>{children}</div>
+  return <div className="rounded-md border border-slate-100 bg-white p-4 shadow-sm"><h2 className="mb-3 text-xs font-bold text-slate-800">{title}</h2>{children}</div>
 }
 
 function StatCard({ label, tone, value }: { label: string; tone?: 'amber' | 'blue' | 'cyan' | 'red'; value: number | string }) {
@@ -727,7 +727,7 @@ function StatCard({ label, tone, value }: { label: string; tone?: 'amber' | 'blu
   }
   const current = toneStyles[tone ?? 'default']
   return (
-    <div className="bg-white p-3.5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-3">
+    <div className="bg-white p-3.5 border border-slate-100 rounded-md shadow-sm flex items-center gap-3">
       <div className={`w-10 h-10 rounded-full ${current.bg} ${current.text} flex items-center justify-center text-lg shrink-0`}>
         {current.icon}
       </div>
@@ -765,7 +765,7 @@ function Bar({ color, label, max, value }: { color: string; label: string; max: 
 }
 
 function DueTable({ isLoading, rows, title, tone }: { isLoading: boolean; rows: DueRow[]; title: string; tone: 'amber' | 'red' }) {
-  const heading = tone === 'red' ? 'border-red-105 bg-red-50/50 text-red-700' : 'border-amber-105 bg-amber-50/50 text-amber-700'
+  const heading = tone === 'red' ? 'border-red-200 bg-red-50/50 text-red-700' : 'border-amber-200 bg-amber-50/50 text-amber-700'
   const columnResize = useResizableColumns(`finance-accounting.loan-dashboard.due-${tone}.v1`, dueColumns)
   const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<DueRow, DueColumnKey>(rows, getDueSortValue)
 
@@ -845,7 +845,7 @@ function AlertLine({ label, tone, value }: { label: string; tone: 'amber' | 'blu
     blue: 'border-blue-200 bg-blue-50/30 text-blue-800'
   }
   return (
-    <div className={`rounded-xl border p-3.5 shadow-sm ${map[tone]} text-xs`}>
+    <div className={`rounded-md border p-3.5 shadow-sm ${map[tone]} text-xs`}>
       <div className="flex items-center justify-between">
         <span className="font-semibold text-slate-600">{label}</span>
         <span className="text-sm font-bold tracking-tight text-slate-900">{value}</span>
@@ -858,7 +858,7 @@ function ReadField({ label, value }: { label: string; value: string }) {
   return (
     <label className="block text-xs font-medium text-slate-600">
       <span className="mb-1 block">{label}</span>
-      <input className="w-full rounded-lg border border-slate-100 bg-slate-50 px-3 py-1.5 text-right text-xs outline-none focus:ring-0" readOnly value={value} />
+      <input className="w-full rounded-md border border-slate-100 bg-slate-50 px-3 py-1.5 text-right text-xs outline-none focus:ring-0" readOnly value={value} />
     </label>
   )
 }
@@ -883,7 +883,7 @@ function HistoricalRowsMobile({ isLoading, months, rows }: { isLoading: boolean;
   return rows.map((row) => (
     <div key={row.category} className="p-4 space-y-2 text-xs hover:bg-slate-50/50 transition">
       <div className="font-semibold text-slate-900 text-sm">{row.category}</div>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50 text-slate-650">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs bg-slate-50/50 p-2.5 rounded-md border border-slate-100/50 text-slate-650">
         {months.map((month) => (
           <div key={month.label} className="flex justify-between">
             <span>{month.label}:</span>
@@ -902,8 +902,8 @@ function HistoricalRowsMobile({ isLoading, months, rows }: { isLoading: boolean;
 function TabButton({ active, children, onClick }: { active: boolean; children: ReactNode; onClick: () => void }) {
   return (
     <button
-      className={`rounded-lg px-4 py-2 text-xs font-bold transition outline-none focus:ring-0 ${active ? 'bg-[#0F172A] text-white hover:bg-slate-800 shadow-sm' : 'bg-slate-50 border border-slate-100 text-slate-650 hover:bg-slate-100'}`}
-      type="button" 
+      className={`rounded-md px-4 py-2 text-xs font-bold transition outline-none focus:ring-0 ${active ? 'bg-[#0F172A] text-white hover:bg-slate-800 shadow-sm' : 'bg-slate-50 border border-slate-100 text-slate-650 hover:bg-slate-100'}`}
+      type="button"
       onClick={onClick}
     >
       {children}

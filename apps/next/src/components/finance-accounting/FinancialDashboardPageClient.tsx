@@ -33,7 +33,7 @@ export function FinancialDashboardPageClient() {
   return (
     <section className="space-y-4">
       {/* Notice Block ด้านบนสุด: ปรับเป็น AcexPOS style (border-amber-200 + bg-amber-50/40) โดยไม่ใช้ border-l-4 */}
-      <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 text-sm text-amber-900 shadow-sm flex items-start gap-3">
+      <div className="rounded-md border border-amber-200 bg-amber-50/40 p-4 text-sm text-amber-900 shadow-sm flex items-start gap-3">
         <span className="text-lg leading-none mt-0.5" aria-hidden="true">⚠️</span>
         <div>
           <b className="font-semibold text-amber-950">Financial Dashboard read baseline</b>
@@ -43,25 +43,25 @@ export function FinancialDashboardPageClient() {
       </div>
 
       {error ? (
-        <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-4 text-sm text-rose-800 shadow-sm flex items-start gap-3">
+        <div className="rounded-md border border-rose-200 bg-rose-50/50 p-4 text-sm text-rose-800 shadow-sm flex items-start gap-3">
           <span className="text-lg leading-none mt-0.5" aria-hidden="true">🚫</span>
           <div>{error}</div>
         </div>
       ) : null}
 
       {/* กล่องตัวกรอง (Toolbar Filter) */}
-      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
         <div className="flex items-center gap-2 text-sm text-slate-600 font-medium">
           <span>As of</span>
-          <DatePickerInput 
-            className="w-[140px] h-9 text-sm border-slate-300 focus:border-slate-400 focus:ring-0 rounded-lg outline-none" 
-            value={asOf} 
-            onChange={setAsOf} 
+          <DatePickerInput
+            className="w-[140px] h-9 text-sm border-slate-300 focus:border-slate-400 focus:ring-0 rounded-md outline-none"
+            value={asOf}
+            onChange={setAsOf}
           />
         </div>
-        <select 
-          className="h-9 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 outline-none focus:border-slate-400 focus:ring-0" 
-          value={branchId} 
+        <select
+          className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 outline-none focus:border-slate-400 focus:ring-0"
+          value={branchId}
           onChange={(event) => setBranchId(event.target.value)}
         >
           <option value="">ทุกสาขา</option>
@@ -93,20 +93,20 @@ export function FinancialDashboardPageClient() {
                 {/* COGS (Rose-400) */}
                 <rect fill="#fb7185" height={(row.cogs / maxRevenue) * 180} rx="3" width="22" x={80 + i * 90} y={220 - (row.cogs / maxRevenue) * 180} />
                 {/* Net Profit (Violet-400 / Rose-500) */}
-                <rect 
-                  fill={row.np >= 0 ? '#a78bfa' : '#f43f5e'} 
-                  height={(Math.max(0, Math.abs(row.np)) / maxRevenue) * 180} 
-                  rx="3" 
-                  width="22" 
-                  x={105 + i * 90} 
-                  y={220 - (Math.max(0, Math.abs(row.np)) / maxRevenue) * 180} 
+                <rect
+                  fill={row.np >= 0 ? '#a78bfa' : '#f43f5e'}
+                  height={(Math.max(0, Math.abs(row.np)) / maxRevenue) * 180}
+                  rx="3"
+                  width="22"
+                  x={105 + i * 90}
+                  y={220 - (Math.max(0, Math.abs(row.np)) / maxRevenue) * 180}
                 />
                 <text fill="#64748b" fontSize="12" textAnchor="middle" x={88 + i * 90} y="235">{row.label}</text>
               </g>
             ))}
           </svg>
         </Panel>
-        
+
         <Panel title="🥧 องค์ประกอบสินทรัพย์">
           <Donut rows={data?.assetComp ?? []} total={assetTotal} />
           <div className="mt-3 space-y-2 text-xs">
@@ -159,9 +159,9 @@ export function FinancialDashboardPageClient() {
           <Card label="🎯 Net Profit" tone={(s.np ?? 0) >= 0 ? 'emerald' : 'red'} value={money(s.np)} note={`${(s.npPct ?? 0).toFixed(1)}%`} />
           <Card label="💧 Operating Cash Flow" tone={(s.opCF ?? 0) >= 0 ? 'cyan' : 'red'} value={money(s.opCF)} />
         </Section>
-        
+
         {/* งบดุลรวม (Balance Sheet) */}
-        <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-md border border-slate-200/80 bg-white shadow-sm">
           <div className="border-b border-slate-100 bg-slate-50/70 px-4 py-3">
             <h3 className="font-bold text-slate-800 text-sm md:text-base">📊 งบดุลรวม (Balance Sheet)</h3>
           </div>
@@ -225,7 +225,7 @@ function money(value?: number) {
 
 function Panel({ children, className = '', title }: { children: ReactNode; className?: string; title: string }) {
   return (
-    <div className={`rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm ${className}`}>
+    <div className={`rounded-md border border-slate-200/80 bg-white p-5 shadow-sm ${className}`}>
       <h3 className="mb-4 font-bold text-slate-800 text-sm md:text-base">{title}</h3>
       {children}
     </div>
@@ -250,17 +250,17 @@ function Donut({ rows, total }: { rows: Payload['assetComp']; total: number }) {
   return (
     <svg viewBox="0 0 200 200" className="mx-auto block h-[170px] w-[170px]">
       {segments.map((row) => (
-        <circle 
-          cx="100" 
-          cy="100" 
-          fill="none" 
-          key={row.name} 
-          r="70" 
-          stroke={row.color} 
-          strokeDasharray={`${row.dash} 440`} 
-          strokeDashoffset={-row.offset} 
-          strokeWidth="32" 
-          transform="rotate(-90 100 100)" 
+        <circle
+          cx="100"
+          cy="100"
+          fill="none"
+          key={row.name}
+          r="70"
+          stroke={row.color}
+          strokeDasharray={`${row.dash} 440`}
+          strokeDashoffset={-row.offset}
+          strokeWidth="32"
+          transform="rotate(-90 100 100)"
         />
       ))}
       <text fill="#64748b" fontSize="12" textAnchor="middle" x="100" y="95">Total Assets</text>
@@ -272,13 +272,13 @@ function Donut({ rows, total }: { rows: Payload['assetComp']; total: number }) {
 function CashPeriod({ period }: { period: { cashIn: number; label: string; need: number } }) {
   const max = Math.max(period.need, period.cashIn, 1)
   const net = period.cashIn - period.need
-  
+
   const isZero = net === 0
   const statusText = isZero ? 'สมดุล' : net >= 0 ? 'เกินดุล' : 'ขาดดุล'
   const textColor = isZero ? 'text-slate-600' : net >= 0 ? 'text-emerald-600' : 'text-rose-600'
 
   return (
-    <div className="rounded-xl border border-slate-200/60 bg-slate-50/50 p-4">
+    <div className="rounded-md border border-slate-200/60 bg-slate-50/50 p-4">
       <div className="mb-3 text-xs font-semibold text-slate-500">{period.label}</div>
       <Bar amount={period.need} color="from-rose-400 to-rose-500" label="📤 ต้องจ่าย" max={max} tone="text-rose-600" />
       <Bar amount={period.cashIn} color="from-emerald-400 to-emerald-500" label="📥 จะได้รับ" max={max} tone="text-emerald-600" />
@@ -306,10 +306,10 @@ function Bar({ amount, color, label, max, tone }: { amount: number; color: strin
 
 function Section({ children, subtitle, title }: { children: ReactNode; subtitle?: string; title: string }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-200/80 bg-white shadow-sm">
       <div className="border-b border-slate-100 bg-slate-50/70 px-4 py-3">
         <h3 className="font-bold text-slate-800 text-sm md:text-base flex items-baseline gap-2">
-          {title} 
+          {title}
           {subtitle ? <span className="text-xs font-normal text-slate-400">{subtitle}</span> : null}
         </h3>
       </div>
@@ -346,7 +346,7 @@ function Card({ label, note, tone, value }: { label: string; note?: string; tone
   const finalIconClass = isZeroValue ? 'bg-slate-100 text-slate-500 border border-slate-200/60' : toneIconClass(tone)
 
   return (
-    <div className="bg-white shadow-sm border border-slate-200/80 rounded-xl p-4 flex items-center gap-3">
+    <div className="bg-white shadow-sm border border-slate-200/80 rounded-md p-4 flex items-center gap-3">
       <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg ${finalIconClass}`} aria-hidden="true">
         {emoji}
       </div>
@@ -368,7 +368,7 @@ function WideRow({ label, note, tone, value }: { label: string; note: string; to
   const finalIconClass = isZeroValue ? 'bg-slate-100 text-slate-500 border border-slate-200/60' : toneIconClass(tone)
 
   return (
-    <div className="flex items-center justify-between bg-white border border-slate-200/80 rounded-xl p-4 shadow-sm">
+    <div className="flex items-center justify-between bg-white border border-slate-200/80 rounded-md p-4 shadow-sm">
       <div className="flex items-center gap-3">
         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base ${finalIconClass}`} aria-hidden="true">
           {emoji}
@@ -386,17 +386,17 @@ function WideRow({ label, note, tone, value }: { label: string; note: string; to
 function InsightCard({ insight }: { insight: Payload['insights'][number] }) {
   const tone = insight.type === 'danger' ? 'red' : insight.type === 'warn' ? 'amber' : 'emerald'
   const value = typeof insight.value === 'number' ? money(insight.value) : insight.value
-  
+
   const isZeroValue = value === '0.00' || value === '0' || value === '(0.00)' || value === '฿0.00' || value === '฿0'
   const finalIconClass = isZeroValue ? 'bg-slate-100 text-slate-500 border border-slate-200/60' : toneIconClass(tone)
-  
+
   let emoji = '🔎'
   if (insight.type === 'danger') emoji = '🚨'
   else if (insight.type === 'warn') emoji = '⚠️'
   else if (insight.type === 'ok') emoji = '✅'
 
   return (
-    <div className="bg-white shadow-sm border border-slate-200/80 rounded-xl p-4 flex gap-3">
+    <div className="bg-white shadow-sm border border-slate-200/80 rounded-md p-4 flex gap-3">
       <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base ${finalIconClass}`} aria-hidden="true">
         {emoji}
       </div>
