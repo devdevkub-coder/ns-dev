@@ -312,13 +312,14 @@ function WaitingAllocationsView() {
       </div>
 
       <DualCostingPanel title="สรุปตามหมวด">
-        {summaryResize.hasCustomWidths ? (
-          <div className="mb-2 hidden justify-end lg:flex">
-            <Button size="sm" type="button" variant="outline" onClick={summaryResize.resetColumnWidths}>คืนค่าเดิมตารางสรุป</Button>
-          </div>
-        ) : null}
         {/* Desktop View */}
-        <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+          {summaryResize.hasCustomWidths ? (
+            <div className="flex justify-end border-b border-slate-100 px-3 py-3">
+              <Button size="sm" type="button" variant="outline" onClick={summaryResize.resetColumnWidths}>คืนค่าเดิมตารางสรุป</Button>
+            </div>
+          ) : null}
+          <div className="overflow-x-auto">
           <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: summaryResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {waitingSummaryColumns.map((column, index) => {
@@ -356,6 +357,7 @@ function WaitingAllocationsView() {
               {!isLoading && summaryRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-400" colSpan={waitingSummaryColumns.length}>ไม่มีรายการรอ allocate ตามตัวกรอง</TableCell></TableRow> : null}
             </TableBody>
           </Table>
+          </div>
         </div>
 
         {/* Mobile View */}
