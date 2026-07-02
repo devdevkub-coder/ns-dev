@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 
@@ -27,6 +28,32 @@ type FxGainLossPayload = {
   summary: { net: number; rows: number; totalGain: number; totalLoss: number }
 }
 
+type FxGainLossColumnKey =
+  | 'currency'
+  | 'date'
+  | 'foreignAmount'
+  | 'fxGainLossAmount'
+  | 'originalFxRate'
+  | 'originalThbValue'
+  | 'reference'
+  | 'settlementFxRate'
+  | 'settlementThbValue'
+  | 'transactionType'
+type SortDirection = 'asc' | 'desc'
+
+const fxGainLossColumns: Array<ResizableColumnDefinition<FxGainLossColumnKey>> = [
+  { key: 'date', defaultWidth: 120, minWidth: 105 },
+  { key: 'transactionType', defaultWidth: 150, minWidth: 120 },
+  { key: 'reference', defaultWidth: 170, minWidth: 130 },
+  { key: 'currency', defaultWidth: 90, minWidth: 80 },
+  { key: 'foreignAmount', defaultWidth: 150, minWidth: 125 },
+  { key: 'originalFxRate', defaultWidth: 140, minWidth: 115 },
+  { key: 'settlementFxRate', defaultWidth: 150, minWidth: 125 },
+  { key: 'originalThbValue', defaultWidth: 150, minWidth: 125 },
+  { key: 'settlementThbValue', defaultWidth: 160, minWidth: 130 },
+  { key: 'fxGainLossAmount', defaultWidth: 140, minWidth: 120 },
+]
+
 export function FxGainLossReportPageClient() {
   const [currency, setCurrency] = useState('all')
   const [data, setData] = useState<FxGainLossPayload | null>(null)
@@ -36,7 +63,10 @@ export function FxGainLossReportPageClient() {
   const [refType, setRefType] = useState('all')
   const [toDate, setToDate] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [sortKey, setSortKey] = useState<FxGainLossColumnKey | null>(null)
   const latestLoadRequestRef = useRef(0)
+  const columnResize = useResizableColumns('finance.foreign.fx-gain-loss-report.main.v1', fxGainLossColumns)
   const hasFilters = Boolean(fromDate || toDate || currency !== 'all' || refType !== 'all')
 
   const query = useMemo(() => {
@@ -69,6 +99,31 @@ export function FxGainLossReportPageClient() {
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows])
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+
+    return [...rows].sort((a, b) => {
+      const aValue = getFxGainLossSortValue(a, sortKey)
+      const bValue = getFxGainLossSortValue(b, sortKey)
+      const result = typeof aValue === 'number' && typeof bValue === 'number'
+        ? aValue - bValue
+        : String(aValue).localeCompare(String(bValue), 'th', { numeric: true })
+
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [rows, sortDirection, sortKey])
+
+  function handleSort(key: FxGainLossColumnKey) {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(key)
+    setSortDirection('asc')
+  }
 
   return (
     <section className="space-y-4">
@@ -158,41 +213,65 @@ export function FxGainLossReportPageClient() {
         <MetricCard label="Net FX G/L" tone="net" value={data?.summary.net ?? 0} />
       </div>
 
-      <div className="hidden lg:block">
-        <Table className="text-xs">
-          <TableHeader>
+      <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          พบทั้งหมด <span className="font-semibold text-slate-900">{sortedRows.length}</span> รายการ
+        </div>
+        {columnResize.hasCustomWidths ? (
+          <button
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            คืนค่าเดิมตาราง
+          </button>
+        ) : null}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
+          <colgroup>
+            {fxGainLossColumns.map((column, index) => {
+              const style = columnResize.getColumnStyle(column.key)
+              if (index === fxGainLossColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />
+              }
+              return <col key={column.key} style={style} />
+            })}
+          </colgroup>
+          <thead className="bg-slate-100">
             <tr>
-              <TableHead className="p-3 pl-4">วันที่</TableHead>
-              <TableHead className="p-3">ประเภท</TableHead>
-              <TableHead className="p-3">Reference</TableHead>
-              <TableHead className="p-3">สกุล</TableHead>
-              <TableHead className="p-3 text-right">Foreign Amount</TableHead>
-              <TableHead className="p-3 text-right">Original Rate</TableHead>
-              <TableHead className="p-3 text-right">Settlement Rate</TableHead>
-              <TableHead className="p-3 text-right">Original THB</TableHead>
-              <TableHead className="p-3 text-right">Settlement THB</TableHead>
-              <TableHead className="p-3 pr-4 text-right">FX G/L</TableHead>
+              <ResizableTableHead label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+              <ResizableTableHead label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="transactionType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('transactionType', 'ประเภท')} />
+              <ResizableTableHead label="Reference" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="reference" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('reference', 'Reference')} />
+              <ResizableTableHead label="สกุล" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="currency" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('currency', 'สกุล')} />
+              <ResizableTableHead align="right" label="Foreign Amount" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="foreignAmount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('foreignAmount', 'Foreign Amount')} />
+              <ResizableTableHead align="right" label="Original Rate" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="originalFxRate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('originalFxRate', 'Original Rate')} />
+              <ResizableTableHead align="right" label="Settlement Rate" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="settlementFxRate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('settlementFxRate', 'Settlement Rate')} />
+              <ResizableTableHead align="right" label="Original THB" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="originalThbValue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('originalThbValue', 'Original THB')} />
+              <ResizableTableHead align="right" label="Settlement THB" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="settlementThbValue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('settlementThbValue', 'Settlement THB')} />
+              <ResizableTableHead align="right" label="FX G/L" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="fxGainLossAmount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('fxGainLossAmount', 'FX G/L')} />
             </tr>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
-            {!isLoading && (data?.rows.length ?? 0) === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-400" colSpan={10}>ยังไม่มี FX Gain/Loss</TableCell></TableRow> : null}
-            {!isLoading && data?.rows.map((row) => (
-              <TableRow key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors">
-                <TableCell className="p-3 pl-4 whitespace-nowrap text-slate-600">{formatDateDisplay(row.date)}</TableCell>
-                <TableCell className="p-3 text-xs text-slate-700">{row.transactionType}</TableCell>
-                <TableCell className="p-3 font-mono text-xs text-slate-700">{row.reference}</TableCell>
-                <TableCell className="p-3 text-slate-600">{row.currency || '-'}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.foreignAmount)}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.originalFxRate)}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.settlementFxRate)}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.originalThbValue)}</TableCell>
-                <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.settlementThbValue)}</TableCell>
-                <TableCell className={`p-3 pr-4 text-right font-mono font-bold ${row.fxGainLossAmount >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatMoney(row.fxGainLossAmount)}</TableCell>
-              </TableRow>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={fxGainLossColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+            {!isLoading && !error && sortedRows.length === 0 ? <tr><td className="px-3 py-10 text-center text-slate-400" colSpan={fxGainLossColumns.length}>ยังไม่มี FX Gain/Loss</td></tr> : null}
+            {!isLoading && sortedRows.map((row) => (
+              <tr key={row.id} className="transition-colors hover:bg-slate-50">
+                <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatDateDisplay(row.date)}</td>
+                <td className="min-w-0 truncate px-3 py-3 text-slate-700">{row.transactionType}</td>
+                <td className="min-w-0 truncate px-3 py-3 font-mono text-xs text-slate-700">{row.reference}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-slate-600">{row.currency || '-'}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.foreignAmount)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.originalFxRate)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.settlementFxRate)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.originalThbValue)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.settlementThbValue)}</td>
+                <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${row.fxGainLossAmount >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatMoney(row.fxGainLossAmount)}</td>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
 
       {/* Mobile Card list */}
@@ -200,10 +279,10 @@ export function FxGainLossReportPageClient() {
         {isLoading ? (
           <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-200">กำลังโหลดข้อมูล</div>
         ) : null}
-        {!isLoading && (data?.rows.length ?? 0) === 0 ? (
+        {!isLoading && !error && sortedRows.length === 0 ? (
           <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-200">ยังไม่มี FX Gain/Loss</div>
         ) : null}
-        {!isLoading && data?.rows.map((row) => (
+        {!isLoading && sortedRows.map((row) => (
           <div
             key={row.id}
             className="rounded-md border border-slate-200 bg-white p-4 shadow-sm space-y-2 text-sm"
@@ -250,6 +329,15 @@ export function FxGainLossReportPageClient() {
       </div>
     </section>
   )
+}
+
+function getFxGainLossSortValue(row: FxGainLossRow, key: FxGainLossColumnKey): string | number {
+  if (key === 'date') {
+    const timestamp = Date.parse(row.date)
+    return Number.isNaN(timestamp) ? 0 : timestamp
+  }
+
+  return row[key] ?? ''
 }
 
 function MetricCard({ label, tone, value }: { label: string; tone: 'gain' | 'loss' | 'net'; value: number }) {

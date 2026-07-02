@@ -2,7 +2,8 @@
 
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { Button } from '@/components/ui/Button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { formatDateDisplay } from '@/lib/format'
@@ -25,6 +26,23 @@ type SupplierTrackingColumnKey =
   | 'overdueApAmount'
   | 'paidPct'
 
+type SupplierProductBreakdownColumnKey = 'productName' | 'suppliers' | 'billCount' | 'qty' | 'amount' | 'avgBuy'
+type SupplierYearCompareColumnKey =
+  | 'supplierName'
+  | 'm01'
+  | 'm02'
+  | 'm03'
+  | 'm04'
+  | 'm05'
+  | 'm06'
+  | 'm07'
+  | 'm08'
+  | 'm09'
+  | 'm10'
+  | 'm11'
+  | 'm12'
+  | 'total'
+
 const trackingColumns: Array<ResizableColumnDefinition<SupplierTrackingColumnKey>> = [
   { key: 'code', defaultWidth: 90, minWidth: 80 },
   { key: 'supplierName', defaultWidth: 180, minWidth: 140 },
@@ -36,6 +54,15 @@ const trackingColumns: Array<ResizableColumnDefinition<SupplierTrackingColumnKey
   { key: 'payable', defaultWidth: 120, minWidth: 100 },
   { key: 'overdueApAmount', defaultWidth: 110, minWidth: 90 },
   { key: 'paidPct', defaultWidth: 80, minWidth: 70 },
+]
+
+const productBreakdownColumns: Array<ResizableColumnDefinition<SupplierProductBreakdownColumnKey>> = [
+  { key: 'productName', defaultWidth: 260, minWidth: 180 },
+  { key: 'suppliers', defaultWidth: 115, minWidth: 95 },
+  { key: 'billCount', defaultWidth: 100, minWidth: 85 },
+  { key: 'qty', defaultWidth: 140, minWidth: 115 },
+  { key: 'amount', defaultWidth: 150, minWidth: 125 },
+  { key: 'avgBuy', defaultWidth: 130, minWidth: 110 },
 ]
 
 type SupplierTrackingRow = {
@@ -101,6 +128,11 @@ type DetailCell = string | { href: string; label: string }
 
 const monthLabels = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
 const months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
+const supplierYearCompareColumns: Array<ResizableColumnDefinition<SupplierYearCompareColumnKey>> = [
+  { key: 'supplierName', defaultWidth: 220, minWidth: 160 },
+  ...months.map((month) => ({ key: `m${month}` as SupplierYearCompareColumnKey, defaultWidth: 110, minWidth: 90 })),
+  { key: 'total', defaultWidth: 130, minWidth: 110 },
+]
 
 export function SupplierTrackingPageClient() {
   const [data, setData] = useState<SupplierTrackingPayload | null>(null)
@@ -117,6 +149,8 @@ export function SupplierTrackingPageClient() {
   const [year, setYear] = useState(String(new Date().getFullYear()))
   const [sortKey, setSortKey] = useState<string | undefined>(undefined)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [productSortKey, setProductSortKey] = useState<SupplierProductBreakdownColumnKey | undefined>(undefined)
+  const [productSortDirection, setProductSortDirection] = useState<'asc' | 'desc'>('asc')
 
   useEffect(() => {
     if (view === 'yearCompare') {
@@ -125,6 +159,7 @@ export function SupplierTrackingPageClient() {
   }, [view])
 
   const columnResize = useResizableColumns('tracking.supplier.main.v6', trackingColumns)
+  const productBreakdownResize = useResizableColumns('tracking.supplier.product-breakdown.v1', productBreakdownColumns)
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -132,6 +167,15 @@ export function SupplierTrackingPageClient() {
     } else {
       setSortKey(key)
       setSortDirection('asc')
+    }
+  }
+
+  const handleProductSort = (key: SupplierProductBreakdownColumnKey) => {
+    if (productSortKey === key) {
+      setProductSortDirection(productSortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setProductSortKey(key)
+      setProductSortDirection('asc')
     }
   }
 
@@ -197,7 +241,8 @@ export function SupplierTrackingPageClient() {
     }
   }, [queryString])
 
-  const rows = data?.rows ?? []
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows])
+  const productRows = useMemo(() => data?.byProduct ?? [], [data?.byProduct])
 
   const sortedRows = useMemo(() => {
     const result = [...rows]
@@ -220,6 +265,27 @@ export function SupplierTrackingPageClient() {
     }
     return result
   }, [rows, sortKey, sortDirection])
+
+  const sortedProductRows = useMemo(() => {
+    const result = [...productRows]
+    if (productSortKey) {
+      result.sort((a, b) => {
+        const valA = a[productSortKey]
+        const valB = b[productSortKey]
+
+        if (typeof valA === 'number' && typeof valB === 'number') {
+          return productSortDirection === 'asc' ? valA - valB : valB - valA
+        }
+
+        return productSortDirection === 'asc'
+          ? String(valA).localeCompare(String(valB), 'th', { numeric: true })
+          : String(valB).localeCompare(String(valA), 'th', { numeric: true })
+      })
+    }
+    return result
+  }, [productRows, productSortDirection, productSortKey])
+
+  const displayedProductRows = sortedProductRows.slice(0, 20)
 
   const topPurchase = [...rows].sort((left, right) => right.purchaseAmount - left.purchaseAmount).slice(0, 10)
   const topQty = [...rows].sort((left, right) => right.qty - left.qty).slice(0, 10)
@@ -497,7 +563,7 @@ export function SupplierTrackingPageClient() {
           {/* Mobile Card list for Product breakdown */}
           <div className="block lg:hidden space-y-3">
             <div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-700 rounded-t-md">Product breakdown จากบิลรับซื้อ (มือถือ)</div>
-            {(data?.byProduct ?? []).slice(0, 20).map((row) => (
+            {displayedProductRows.map((row) => (
               <div key={row.productName} className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2">
                 <span className="font-bold text-slate-800 text-sm block">{row.productName}</span>
 
@@ -523,7 +589,7 @@ export function SupplierTrackingPageClient() {
                 </div>
               </div>
             ))}
-            {!isLoading && (data?.byProduct ?? []).length === 0 ? (
+            {!isLoading && productRows.length === 0 ? (
               <div className="rounded-md bg-white p-6 text-center text-xs text-slate-400 shadow-sm border border-slate-100">
                 ไม่มี item detail สำหรับ product breakdown
               </div>
@@ -531,23 +597,53 @@ export function SupplierTrackingPageClient() {
           </div>
 
           <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">Product breakdown จากบิลรับซื้อ</div>
-            <table className="w-full min-w-[760px] text-sm">
-              <thead className="bg-slate-50 border-b border-slate-100 text-slate-500"><tr><th className="p-2 text-left">สินค้า</th><th className="p-2 text-right">Supplier</th><th className="p-2 text-right">บิล</th><th className="p-2 text-right">น้ำหนัก</th><th className="p-2 text-right">ยอดซื้อ</th><th className="p-2 text-right">ราคาเฉลี่ย</th></tr></thead>
-              <tbody>
-                {(data?.byProduct ?? []).slice(0, 20).map((row) => (
-                  <tr key={row.productName} className="border-t hover:bg-slate-50">
-                    <td className="p-2 font-medium min-w-0 overflow-hidden"><div className="truncate" title={row.productName || ''}>{row.productName}</div></td>
-                    <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{row.suppliers}</td>
-                    <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{row.billCount}</td>
-                    <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{formatMoney(row.qty)}</td>
-                    <td className="p-2 text-right font-semibold whitespace-nowrap tabular-nums pl-4">{formatMoney(row.amount)}</td>
-                    <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{formatMoney(row.avgBuy)}</td>
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+              <span>Product breakdown จากบิลรับซื้อ</span>
+              {productBreakdownResize.hasCustomWidths ? (
+                <button
+                  className="hidden h-8 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 lg:inline-flex"
+                  type="button"
+                  onClick={productBreakdownResize.resetColumnWidths}
+                >
+                  คืนค่าเดิมตาราง
+                </button>
+              ) : null}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: productBreakdownResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+                <colgroup>
+                  {productBreakdownColumns.map((column, index) => (
+                    <col
+                      key={column.key}
+                      style={index === productBreakdownColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : productBreakdownResize.getColumnStyle(column.key)}
+                    />
+                  ))}
+                </colgroup>
+                <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
+                  <tr>
+                    <ResizableTableHead activeSortKey={productSortKey} direction={productSortDirection} label="สินค้า" resizeProps={productBreakdownResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={handleProductSort} />
+                    <ResizableTableHead activeSortKey={productSortKey} align="right" direction={productSortDirection} label="Supplier" resizeProps={productBreakdownResize.getResizeHandleProps('suppliers', 'Supplier')} sortKey="suppliers" onSort={handleProductSort} />
+                    <ResizableTableHead activeSortKey={productSortKey} align="right" direction={productSortDirection} label="บิล" resizeProps={productBreakdownResize.getResizeHandleProps('billCount', 'บิล')} sortKey="billCount" onSort={handleProductSort} />
+                    <ResizableTableHead activeSortKey={productSortKey} align="right" direction={productSortDirection} label="น้ำหนัก" resizeProps={productBreakdownResize.getResizeHandleProps('qty', 'น้ำหนัก')} sortKey="qty" onSort={handleProductSort} />
+                    <ResizableTableHead activeSortKey={productSortKey} align="right" direction={productSortDirection} label="ยอดซื้อ" resizeProps={productBreakdownResize.getResizeHandleProps('amount', 'ยอดซื้อ')} sortKey="amount" onSort={handleProductSort} />
+                    <ResizableTableHead activeSortKey={productSortKey} align="right" direction={productSortDirection} label="ราคาเฉลี่ย" resizeProps={productBreakdownResize.getResizeHandleProps('avgBuy', 'ราคาเฉลี่ย')} sortKey="avgBuy" onSort={handleProductSort} />
                   </tr>
-                ))}
-                {!isLoading && (data?.byProduct ?? []).length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={6}>ไม่มี item detail สำหรับ product breakdown</td></tr> : null}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {displayedProductRows.map((row) => (
+                    <tr key={row.productName} className="hover:bg-slate-50">
+                      <td className="p-2 font-medium min-w-0 overflow-hidden"><div className="truncate" title={row.productName || ''}>{row.productName}</div></td>
+                      <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{row.suppliers}</td>
+                      <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{row.billCount}</td>
+                      <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{formatMoney(row.qty)}</td>
+                      <td className="p-2 text-right font-semibold whitespace-nowrap tabular-nums pl-4">{formatMoney(row.amount)}</td>
+                      <td className="p-2 pr-4 text-right whitespace-nowrap tabular-nums pl-4">{formatMoney(row.avgBuy)}</td>
+                    </tr>
+                  ))}
+                  {!isLoading && productRows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={productBreakdownColumns.length}>ไม่มี item detail สำหรับ product breakdown</td></tr> : null}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       ) : null}
@@ -559,13 +655,13 @@ export function SupplierTrackingPageClient() {
 function SupplierDetailDialog({ detail, isLoading, onOpenChange }: { detail: SupplierTrackingDetail | null; isLoading: boolean; onOpenChange: (open: boolean) => void }) {
   return (
     <Dialog open={detail !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden !p-0 shadow-2xl" fallbackTitle="Supplier Tracking Detail">
-        <DialogHeader>
-          <DialogTitle>{detail?.supplier.name ?? 'รายละเอียด Supplier'}</DialogTitle>
-          <DialogDescription>{detail?.supplier.code ?? ''} · Purchase Bills / Payments / WTI / Grade Adjust / Product mix</DialogDescription>
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden rounded-md border-0 bg-slate-900 !p-0 shadow-2xl outline-none focus:outline-none flex flex-col" fallbackTitle="Supplier Tracking Detail" hideClose>
+        <DialogHeader className="shrink-0 rounded-t-md bg-slate-900 px-5 py-4 text-white flex flex-col space-y-1">
+          <DialogTitle className="text-xl font-bold text-white">{detail?.supplier.name ?? 'รายละเอียด Supplier'}</DialogTitle>
+          <DialogDescription className="mt-0.5 text-xs text-slate-300">{detail?.supplier.code ?? ''} · Purchase Bills / Payments / WTI / Grade Adjust / Product mix</DialogDescription>
         </DialogHeader>
-        <div className="max-h-[72vh] space-y-4 overflow-y-auto p-4">
-          {isLoading ? <div className="rounded-md bg-slate-50 p-6 text-center text-sm text-slate-500">กำลังโหลดรายละเอียด</div> : null}
+        <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4 text-sm sm:p-5">
+          {isLoading ? <div className="rounded-md border border-slate-100 bg-white p-6 text-center text-sm text-slate-500">กำลังโหลดรายละเอียด</div> : null}
           {!isLoading && detail ? (
             <>
               <DetailSection title="Reliability / Quality Signals">
@@ -626,6 +722,9 @@ function SupplierDetailDialog({ detail, isLoading, onOpenChange }: { detail: Sup
             </>
           ) : null}
         </div>
+        <DialogFooter className="shrink-0 rounded-b-md border-t border-slate-100 bg-white px-5 py-3.5 flex justify-end gap-2">
+          <Button className="font-normal" type="button" variant="outline" onClick={() => onOpenChange(false)}>ปิด</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
@@ -783,21 +882,50 @@ function TopPanel({ rows, title }: { rows: { label: string; value: number }[]; t
 
 function YearCompare({ rows }: { rows: SupplierTrackingRow[] }) {
   const [mode, setMode] = useState<'weight' | 'purchase'>('weight')
+  const [sortKey, setSortKey] = useState<SupplierYearCompareColumnKey | undefined>(undefined)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const columnResize = useResizableColumns('tracking.supplier.year-compare.v1', supplierYearCompareColumns)
 
-  // Calculate totals per month
-  const monthlyTotals = Array.from({ length: 12 }, (_, monthIdx) => {
-    return rows.reduce((sum, row) => {
-      const val = row.monthlyData?.[monthIdx]
-      return sum + (mode === 'weight' ? (val?.qty ?? 0) : (val?.purchaseAmount ?? 0))
-    }, 0)
-  })
+  const monthValue = useCallback((row: SupplierTrackingRow, monthIdx: number) => {
+    const val = row.monthlyData?.[monthIdx]
+    return mode === 'weight' ? (val?.qty ?? 0) : (val?.purchaseAmount ?? 0)
+  }, [mode])
+  const rowTotal = useCallback((row: SupplierTrackingRow) => (row.monthlyData ?? []).reduce((sum, val) => sum + (mode === 'weight' ? val.qty : val.purchaseAmount), 0), [mode])
 
+  const sortedRows = useMemo(() => {
+    const result = [...rows]
+    if (!sortKey) return result
+
+    result.sort((a, b) => {
+      const valA = sortKey === 'supplierName' ? a.supplierName : sortKey === 'total' ? rowTotal(a) : monthValue(a, Number(sortKey.slice(1)) - 1)
+      const valB = sortKey === 'supplierName' ? b.supplierName : sortKey === 'total' ? rowTotal(b) : monthValue(b, Number(sortKey.slice(1)) - 1)
+
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return sortDirection === 'asc' ? valA - valB : valB - valA
+      }
+
+      return sortDirection === 'asc'
+        ? String(valA).localeCompare(String(valB), 'th', { numeric: true })
+        : String(valB).localeCompare(String(valA), 'th', { numeric: true })
+    })
+    return result
+  }, [monthValue, rowTotal, rows, sortDirection, sortKey])
+
+  const monthlyTotals = Array.from({ length: 12 }, (_, monthIdx) => rows.reduce((sum, row) => sum + monthValue(row, monthIdx), 0))
   const grandTotal = monthlyTotals.reduce((sum, val) => sum + val, 0)
+
+  const handleSort = (key: SupplierYearCompareColumnKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
 
   return (
     <div className="space-y-4">
-      {/* Mode Selector Toggle */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-semibold text-slate-500">แสดงผล:</span>
         <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200/60 shadow-sm">
           <button
@@ -807,7 +935,7 @@ function YearCompare({ rows }: { rows: SupplierTrackingRow[] }) {
             type="button"
             onClick={() => setMode('weight')}
           >
-            ⚖️ น้ำหนัก (กก.)
+            น้ำหนัก (กก.)
           </button>
           <button
             className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none ${
@@ -816,64 +944,109 @@ function YearCompare({ rows }: { rows: SupplierTrackingRow[] }) {
             type="button"
             onClick={() => setMode('purchase')}
           >
-            💰 ยอดซื้อ (บาท)
+            ยอดซื้อ (บาท)
           </button>
         </div>
+        {columnResize.hasCustomWidths ? (
+          <button
+            className="ml-auto hidden h-8 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 lg:inline-flex"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            คืนค่าเดิมตาราง
+          </button>
+        ) : null}
       </div>
 
-      <div className="overflow-x-auto rounded-xl bg-white border border-slate-200/60 shadow-sm">
-        <table className="w-full text-sm border-collapse text-left">
-          <thead className="bg-slate-100/75 text-slate-700 border-b border-slate-200">
+      <div className="hidden overflow-x-auto rounded-xl border border-slate-200/60 bg-white shadow-sm lg:block">
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <colgroup>
+            {supplierYearCompareColumns.map((column, index) => (
+              <col
+                key={column.key}
+                style={index === supplierYearCompareColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : columnResize.getColumnStyle(column.key)}
+              />
+            ))}
+          </colgroup>
+          <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
             <tr>
-              <th className="p-3 pl-4 font-semibold">Supplier</th>
-              {monthLabels.map((lbl) => (
-                <th key={lbl} className="p-3 text-right font-semibold min-w-[90px]">{lbl}</th>
-              ))}
-              <th className="p-3 pr-4 text-right font-semibold min-w-[100px]">รวม</th>
+              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="Supplier" resizeProps={columnResize.getResizeHandleProps('supplierName', 'Supplier')} sortKey="supplierName" onSort={handleSort} />
+              {monthLabels.map((label, index) => {
+                const key = `m${months[index]}` as SupplierYearCompareColumnKey
+                return (
+                  <ResizableTableHead key={key} activeSortKey={sortKey} align="right" direction={sortDirection} label={label} resizeProps={columnResize.getResizeHandleProps(key, label)} sortKey={key} onSort={handleSort} />
+                )
+              })}
+              <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="รวม" resizeProps={columnResize.getResizeHandleProps('total', 'รวม')} sortKey="total" onSort={handleSort} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
-            {rows.map((row) => {
-              const rowSum = (row.monthlyData ?? []).reduce((sum, m) => {
-                return sum + (mode === 'weight' ? m.qty : m.purchaseAmount)
-              }, 0)
+            {sortedRows.map((row) => {
+              const total = rowTotal(row)
 
               return (
                 <tr key={row.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="p-3 pl-4 font-medium text-slate-800">
-                    <div>{row.supplierName}</div>
-                    <div className="text-xs text-slate-400 font-mono mt-0.5">{row.code}</div>
+                  <td className="p-3 pl-4 font-medium text-slate-800 min-w-0 overflow-hidden">
+                    <div className="truncate" title={row.supplierName}>{row.supplierName}</div>
+                    <div className="text-xs text-slate-400 font-mono mt-0.5 truncate" title={row.code}>{row.code}</div>
                   </td>
                   {Array.from({ length: 12 }).map((_, monthIdx) => {
-                    const mData = row.monthlyData?.[monthIdx]
-                    const val = mode === 'weight' ? (mData?.qty ?? 0) : (mData?.purchaseAmount ?? 0)
+                    const val = monthValue(row, monthIdx)
                     return (
-                      <td key={monthIdx} className="p-3 text-right font-mono text-xs">
+                      <td key={monthIdx} className="p-3 text-right font-mono text-xs whitespace-nowrap tabular-nums">
                         {val > 0 ? formatMoney(val) : '-'}
                       </td>
                     )
                   })}
-                  <td className="p-3 pr-4 text-right font-mono font-semibold text-xs text-slate-900">
-                    {rowSum > 0 ? formatMoney(rowSum) : '-'}
+                  <td className="p-3 pr-4 text-right font-mono font-semibold text-xs text-slate-900 whitespace-nowrap tabular-nums">
+                    {total > 0 ? formatMoney(total) : '-'}
                   </td>
                 </tr>
               )
             })}
 
-            {/* Totals Row */}
             <tr className="bg-slate-50 font-bold border-t border-slate-200 text-slate-900">
               <td className="p-3 pl-4 text-slate-800">ยอดรวมทั้งหมด</td>
               {monthlyTotals.map((val, idx) => (
-                <td key={idx} className="p-3 text-right font-mono text-xs">
+                <td key={idx} className="p-3 text-right font-mono text-xs whitespace-nowrap tabular-nums">
                   {val > 0 ? formatMoney(val) : '-'}
                 </td>
               ))}
-              <td className="p-3 pr-4 text-right font-mono text-xs text-slate-900">
+              <td className="p-3 pr-4 text-right font-mono text-xs text-slate-900 whitespace-nowrap tabular-nums">
                 {grandTotal > 0 ? formatMoney(grandTotal) : '-'}
               </td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div className="space-y-3 lg:hidden">
+        {sortedRows.map((row) => {
+          const total = rowTotal(row)
+          return (
+            <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm text-xs">
+              <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-bold text-slate-900">{row.supplierName}</div>
+                  <div className="truncate font-mono text-slate-400">{row.code || '-'}</div>
+                </div>
+                <div className="shrink-0 text-right font-mono font-bold text-slate-900">{total > 0 ? formatMoney(total) : '-'}</div>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {monthLabels.map((label, monthIdx) => {
+                  const val = monthValue(row, monthIdx)
+                  return (
+                    <div key={label} className="rounded-md bg-slate-50 p-2 text-right">
+                      <div className="font-semibold text-slate-500">{label}</div>
+                      <div className="font-mono font-semibold text-slate-800">{val > 0 ? formatMoney(val) : '-'}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+        {sortedRows.length === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-xs text-slate-400 shadow-sm">ไม่มีข้อมูลรายปี</div> : null}
       </div>
     </div>
   )

@@ -1,7 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 
 type FcdAccount = {
   accountNo: string | null
@@ -38,11 +41,42 @@ type FcdPayload = {
   summary: { accountCount: number; currency: string; foreignBalance: number; rows: number; thbBalance: number }
 }
 
+type FcdColumnKey =
+  | 'date'
+  | 'description'
+  | 'foreignBal'
+  | 'foreignIn'
+  | 'foreignOut'
+  | 'fxRate'
+  | 'refNo'
+  | 'thbBal'
+  | 'thbIn'
+  | 'thbOut'
+  | 'type'
+type SortDirection = 'asc' | 'desc'
+
+const fcdColumns: Array<ResizableColumnDefinition<FcdColumnKey>> = [
+  { key: 'date', defaultWidth: 120, minWidth: 105 },
+  { key: 'type', defaultWidth: 150, minWidth: 120 },
+  { key: 'refNo', defaultWidth: 150, minWidth: 120 },
+  { key: 'description', defaultWidth: 250, minWidth: 170 },
+  { key: 'foreignIn', defaultWidth: 130, minWidth: 110 },
+  { key: 'foreignOut', defaultWidth: 130, minWidth: 110 },
+  { key: 'fxRate', defaultWidth: 115, minWidth: 95 },
+  { key: 'thbIn', defaultWidth: 130, minWidth: 110 },
+  { key: 'thbOut', defaultWidth: 130, minWidth: 110 },
+  { key: 'foreignBal', defaultWidth: 150, minWidth: 125 },
+  { key: 'thbBal', defaultWidth: 150, minWidth: 125 },
+]
+
 export function FcdLedgerPageClient() {
   const [accountId, setAccountId] = useState('')
   const [data, setData] = useState<FcdPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [sortKey, setSortKey] = useState<FcdColumnKey | null>(null)
+  const columnResize = useResizableColumns('finance.foreign.fcd-ledger.main.v1', fcdColumns)
 
   const query = useMemo(() => {
     const params = new URLSearchParams()
@@ -69,6 +103,30 @@ export function FcdLedgerPageClient() {
   }, [loadData])
 
   const currency = data?.summary.currency || data?.account?.currency || ''
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows])
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+
+    return [...rows].sort((a, b) => {
+      const aValue = getFcdSortValue(a, sortKey)
+      const bValue = getFcdSortValue(b, sortKey)
+      const result = typeof aValue === 'number' && typeof bValue === 'number'
+        ? aValue - bValue
+        : String(aValue).localeCompare(String(bValue), 'th', { numeric: true })
+
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [rows, sortDirection, sortKey])
+
+  function handleSort(key: FcdColumnKey) {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(key)
+    setSortDirection('asc')
+  }
 
   return (
     <section className="space-y-4">
@@ -79,7 +137,7 @@ export function FcdLedgerPageClient() {
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="flex flex-wrap gap-2">
-        <select className="w-full rounded-md border border-slate-100 bg-white px-3 py-2 text-sm md:w-80" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+        <select className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm md:w-80" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
           {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.label} ({account.currency})</option>)}
           {!isLoading && (data?.filters.accounts.length ?? 0) === 0 ? <option value="">ไม่มีบัญชี FCD</option> : null}
         </select>
@@ -115,39 +173,63 @@ export function FcdLedgerPageClient() {
         </div>
       </div>
 
-      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
+      <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          พบทั้งหมด <span className="font-semibold text-slate-900">{sortedRows.length}</span> รายการ
+        </div>
+        {columnResize.hasCustomWidths ? (
+          <button
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            คืนค่าเดิมตาราง
+          </button>
+        ) : null}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
+          <colgroup>
+            {fcdColumns.map((column, index) => {
+              const style = columnResize.getColumnStyle(column.key)
+              if (index === fcdColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />
+              }
+              return <col key={column.key} style={style} />
+            })}
+          </colgroup>
+          <thead className="bg-slate-100">
             <tr>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">วันที่</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">ประเภท</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">เอกสาร</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">รายละเอียด</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">FCD เข้า</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">FCD ออก</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">FX</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">THB เข้า</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">THB ออก</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">FCD Balance</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">THB Balance</th>
+              <ResizableTableHead label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+              <ResizableTableHead label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="type" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
+              <ResizableTableHead label="เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="refNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('refNo', 'เอกสาร')} />
+              <ResizableTableHead label="รายละเอียด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="description" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('description', 'รายละเอียด')} />
+              <ResizableTableHead align="right" label="FCD เข้า" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="foreignIn" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('foreignIn', 'FCD เข้า')} />
+              <ResizableTableHead align="right" label="FCD ออก" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="foreignOut" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('foreignOut', 'FCD ออก')} />
+              <ResizableTableHead align="right" label="FX" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="fxRate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('fxRate', 'FX')} />
+              <ResizableTableHead align="right" label="THB เข้า" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="thbIn" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('thbIn', 'THB เข้า')} />
+              <ResizableTableHead align="right" label="THB ออก" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="thbOut" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('thbOut', 'THB ออก')} />
+              <ResizableTableHead align="right" label="FCD Balance" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="foreignBal" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('foreignBal', 'FCD Balance')} />
+              <ResizableTableHead align="right" label="THB Balance" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="thbBal" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('thbBal', 'THB Balance')} />
             </tr>
           </thead>
-          <tbody>
-            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={11}>กำลังโหลดข้อมูล</td></tr> : null}
-            {!isLoading && (data?.rows.length ?? 0) === 0 ? <tr><td className="p-6 text-center text-slate-500" colSpan={11}>ยังไม่มีรายการเดินบัญชี FCD</td></tr> : null}
-            {!isLoading && data?.rows.map((row) => (
-              <tr key={row.id} className={`border-t border-slate-100 ${row.type === 'ยอดยกมา' ? 'bg-slate-100 font-semibold' : 'hover:bg-slate-50'}`}>
-                <td className="px-4 py-3.5">{row.date}</td>
-                <td className="px-4 py-3.5 text-xs">{row.type}</td>
-                <td className="px-4 py-3.5 font-mono text-xs text-blue-600">{row.refNo}</td>
-                <td className="max-w-80 truncate p-2 text-xs">{row.description || '-'}</td>
+          <tbody className="divide-y divide-slate-100">
+            {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={fcdColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+            {!isLoading && !error && sortedRows.length === 0 ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={fcdColumns.length}>ยังไม่มีรายการเดินบัญชี FCD</td></tr> : null}
+            {!isLoading && sortedRows.map((row) => (
+              <tr key={row.id} className={`transition-colors ${isOpeningRow(row) ? 'bg-slate-100 font-semibold' : 'hover:bg-slate-50'}`}>
+                <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatFcdDate(row.date)}</td>
+                <td className="min-w-0 truncate px-3 py-3 text-xs text-slate-700">{row.type}</td>
+                <td className="min-w-0 truncate px-3 py-3 font-mono text-xs text-blue-600">{row.refNo}</td>
+                <td className="min-w-0 truncate px-3 py-3 text-xs text-slate-700">{row.description || '-'}</td>
                 <MoneyCell tone="in" value={row.foreignIn} />
                 <MoneyCell tone="out" value={row.foreignOut} />
-                <td className="px-4 py-3.5 text-right">{row.fxRate ? formatMoney(row.fxRate) : '-'}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{row.fxRate ? formatMoney(row.fxRate) : '-'}</td>
                 <MoneyCell tone="in" value={row.thbIn} />
                 <MoneyCell tone="out" value={row.thbOut} />
-                <td className="px-4 py-3.5 text-right font-medium">{formatMoney(row.foreignBal)}</td>
-                <td className="px-4 py-3.5 text-right font-medium">{formatMoney(row.thbBal)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-medium tabular-nums text-slate-900">{formatMoney(row.foreignBal)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-medium tabular-nums text-slate-900">{formatMoney(row.thbBal)}</td>
               </tr>
             ))}
           </tbody>
@@ -159,18 +241,18 @@ export function FcdLedgerPageClient() {
         {isLoading ? (
           <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-100">กำลังโหลดข้อมูล</div>
         ) : null}
-        {!isLoading && (data?.rows.length ?? 0) === 0 ? (
+        {!isLoading && !error && sortedRows.length === 0 ? (
           <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-100">ยังไม่มีรายการเดินบัญชี FCD</div>
         ) : null}
-        {!isLoading && data?.rows.map((row) => {
-          const isOpening = row.type === 'ยอดยกมา'
+        {!isLoading && sortedRows.map((row) => {
+          const isOpening = isOpeningRow(row)
           return (
             <div
               key={row.id}
               className={`rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2 text-xs ${isOpening ? 'bg-slate-50' : ''}`}
             >
               <div className="flex justify-between items-start">
-                <span className="font-mono text-slate-500 text-xs">{row.date}</span>
+                <span className="font-mono text-slate-500 text-xs">{formatFcdDate(row.date)}</span>
                 <span className={`rounded-md px-1.5 py-0.5 text-xs font-bold ${isOpening ? 'bg-slate-200 text-slate-700' : 'bg-indigo-100 text-indigo-700'}`}>
                   {row.type}
                 </span>
@@ -212,7 +294,25 @@ export function FcdLedgerPageClient() {
   )
 }
 
+function formatFcdDate(value: string) {
+  return value === '-' ? '-' : formatDateDisplay(value)
+}
+
+function getFcdSortValue(row: FcdRow, key: FcdColumnKey): string | number {
+  if (key === 'date') {
+    if (row.date === '-') return 0
+    const timestamp = Date.parse(row.date)
+    return Number.isNaN(timestamp) ? 0 : timestamp
+  }
+
+  return row[key] ?? ''
+}
+
+function isOpeningRow(row: FcdRow) {
+  return row.type === 'ยอดยกมา'
+}
+
 function MoneyCell({ tone, value }: { tone: 'in' | 'out'; value: number }) {
   const color = tone === 'in' ? 'text-emerald-700' : 'text-red-600'
-  return <td className={`p-2 text-right ${color}`}>{value ? formatMoney(value) : '-'}</td>
+  return <td className={`whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums ${color}`}>{value ? formatMoney(value) : '-'}</td>
 }

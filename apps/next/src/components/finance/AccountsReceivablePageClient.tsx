@@ -54,6 +54,7 @@ type ArPayload = {
 }
 
 type SortKey = 'date' | 'docNo' | 'dueDate' | 'receivableBalance' | 'customerName' | 'aging'
+type SummarySortKey = 'b30' | 'b60' | 'b90' | 'bills' | 'current' | 'customerName' | 'gt90' | 'oldest' | 'total'
 
 function bucketClass(bucket: string) {
   if (bucket === 'Current') return 'bg-emerald-100 text-emerald-700'
@@ -80,7 +81,7 @@ function bucketTextClass(bucket: string) {
 }
 
 function bucketLabel(bucket: string) {
-  if (bucket === 'Current') return '✓ Current'
+  if (bucket === 'Current') return '✓ ยังไม่ครบกำหนด'
   if (bucket === '>90') return '⚠ >90 วัน'
   return `${bucket} วัน`
 }
@@ -110,7 +111,7 @@ export function AccountsReceivablePageClient() {
   const customerOptions = useMemo(() => {
     const list = (data?.filters.customers ?? []).filter((customer) => !branchId || (customer.branchIds ?? []).includes(branchId))
     return [
-      { id: '', label: 'ทุก Customer' },
+      { id: '', label: 'ทุกลูกค้า' },
       ...list.map((c) => ({
         id: c.id,
         label: c.code ? `${c.code} - ${c.name}` : c.name,
@@ -125,6 +126,8 @@ export function AccountsReceivablePageClient() {
   const [q, setQ] = useState('')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [sortKey, setSortKey] = useState<SortKey>('dueDate')
+  const [summarySortDirection, setSummarySortDirection] = useState<'asc' | 'desc'>('desc')
+  const [summarySortKey, setSummarySortKey] = useState<SummarySortKey>('total')
   const [status, setStatus] = useState('')
   const [to, setTo] = useState(todayDateInput())
   const [showMobileFilters, setShowMobileFilters] = useState(false)
@@ -238,6 +241,16 @@ export function AccountsReceivablePageClient() {
     setSortDirection(nextKey === 'receivableBalance' || nextKey === 'aging' ? 'desc' : 'asc')
   }
 
+  function changeSummarySort(nextKey: SummarySortKey) {
+    setSummaryPage(1)
+    if (nextKey === summarySortKey) {
+      setSummarySortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+    setSummarySortKey(nextKey)
+    setSummarySortDirection(nextKey === 'customerName' ? 'asc' : 'desc')
+  }
+
   async function exportXlsx() {
     setIsExporting(true)
     setError(null)
@@ -245,7 +258,7 @@ export function AccountsReceivablePageClient() {
       const exportQuery = new URLSearchParams(query)
       exportQuery.set('format', 'xlsx')
       const response = await fetch(`/api/finance/ar?${exportQuery.toString()}`, { cache: 'no-store' })
-      if (!response.ok) throw new Error('Export AR ไม่สำเร็จ')
+      if (!response.ok) throw new Error('ส่งออก AR ไม่สำเร็จ')
       const blob = await response.blob()
       const disposition = response.headers.get('Content-Disposition') ?? ''
       const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? `finance_ar_${todayDateInput()}.xlsx`
@@ -256,7 +269,7 @@ export function AccountsReceivablePageClient() {
       anchor.click()
       URL.revokeObjectURL(url)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Export AR ไม่สำเร็จ')
+      setError(caught instanceof Error ? caught.message : 'ส่งออก AR ไม่สำเร็จ')
     } finally {
       setIsExporting(false)
     }
@@ -266,7 +279,15 @@ export function AccountsReceivablePageClient() {
   const bucketRows = data?.byBucket ?? []
   const topCustomers = (data?.byCustomer ?? []).slice(0, 5)
 
-  const summaryRows = useMemo(() => data?.byCustomer ?? [], [data?.byCustomer])
+  const summaryRows = useMemo(() => {
+    const direction = summarySortDirection === 'asc' ? 1 : -1
+    return [...(data?.byCustomer ?? [])].sort((left, right) => {
+      const leftValue = left[summarySortKey]
+      const rightValue = right[summarySortKey]
+      if (typeof leftValue === 'number' && typeof rightValue === 'number') return (leftValue - rightValue) * direction
+      return String(leftValue).localeCompare(String(rightValue), 'th') * direction
+    })
+  }, [data?.byCustomer, summarySortDirection, summarySortKey])
   const summaryTotalPages = Math.max(1, Math.ceil(summaryRows.length / summaryPageSize))
   const safeSummaryPage = Math.min(summaryPage, summaryTotalPages)
 
@@ -309,7 +330,7 @@ export function AccountsReceivablePageClient() {
         </div>
 
         <div className="rounded-md bg-white p-4 shadow">
-          <div className="mb-3 text-sm font-bold text-slate-700">📊 Aging Buckets</div>
+          <div className="mb-3 text-sm font-bold text-slate-700">📊 ช่วงอายุหนี้</div>
           <div className="space-y-2 text-xs">
             {bucketRows.map((row) => (
               <div key={row.bucket}>
@@ -353,7 +374,7 @@ export function AccountsReceivablePageClient() {
                 type="button"
                 onClick={() => setTab('summary')}
               >
-                📊 สรุปตาม Customer
+                📊 สรุปตามลูกค้า
               </button>
               <button
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-all h-8 ${
@@ -373,9 +394,9 @@ export function AccountsReceivablePageClient() {
                 hideLabel
                 inputClassName="h-9 text-sm rounded-lg border-slate-300 focus:border-slate-400 focus:ring-0 outline-none"
                 inputId="ar-customer-filter"
-                label="Customer"
+                label="ลูกค้า"
                 options={customerOptions}
-                placeholder="ทุก Customer"
+                placeholder="ทุกลูกค้า"
                 value={customerId}
                 onChange={(value) => {
                   setPage(1)
@@ -391,14 +412,14 @@ export function AccountsReceivablePageClient() {
             
             <select className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
               <option value="">ทุกอายุหนี้</option>
-              <option value="Current">Current</option>
+              <option value="Current">ยังไม่ครบกำหนด</option>
               <option value="1-30">1-30</option>
               <option value="31-60">31-60</option>
               <option value="61-90">61-90</option>
               <option value=">90">&gt;90</option>
             </select>
             
-            <button className="ml-auto rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 hover:bg-emerald-700 transition-colors flex items-center" disabled={isExporting} type="button" onClick={() => void exportXlsx()}>{isExporting ? 'กำลัง Export...' : 'Export .xlsx'}</button>
+            <button className="ml-auto rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 hover:bg-emerald-700 transition-colors flex items-center" disabled={isExporting} type="button" onClick={() => void exportXlsx()}>{isExporting ? 'กำลังส่งออก...' : 'ส่งออก .xlsx'}</button>
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
@@ -436,7 +457,7 @@ export function AccountsReceivablePageClient() {
                 type="button"
                 onClick={() => setTab('summary')}
               >
-                📊 สรุปตาม Customer
+                📊 สรุปตามลูกค้า
               </button>
               <button
                 className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
@@ -484,9 +505,9 @@ export function AccountsReceivablePageClient() {
                 hideLabel
                 inputClassName="h-9 text-sm rounded-lg border-slate-300 focus:border-slate-400 focus:ring-0 outline-none w-full"
                 inputId="ar-customer-filter-mobile"
-                label="Customer"
+                label="ลูกค้า"
                 options={customerOptions}
-                placeholder="ทุก Customer"
+                placeholder="ทุกลูกค้า"
                 value={customerId}
                 onChange={(value) => {
                   setPage(1)
@@ -499,7 +520,7 @@ export function AccountsReceivablePageClient() {
               </select>
               <select className="w-full rounded-md border px-3 py-2 text-sm" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
                 <option value="">ทุกอายุหนี้</option>
-                <option value="Current">Current</option>
+                <option value="Current">ยังไม่ครบกำหนด</option>
                 <option value="1-30">1-30</option>
                 <option value="31-60">31-60</option>
                 <option value="61-90">61-90</option>
@@ -553,6 +574,9 @@ export function AccountsReceivablePageClient() {
             loadingCustomers={loadingCustomers}
             onToggleExpand={toggleCustomerExpand}
             onOpenDetail={setSelectedRow}
+            onSort={changeSummarySort}
+            selectedSort={summarySortKey}
+            sortDirection={summarySortDirection}
           />
         </>
       ) : null}
@@ -601,7 +625,7 @@ export function AccountsReceivablePageClient() {
                       <span className="text-blue-700 font-bold tabular-nums">{formatMoney(row.total)}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block text-xs font-semibold">Current:</span>
+                      <span className="text-slate-400 block text-xs font-semibold">ยังไม่ครบกำหนด:</span>
                       <span className="text-slate-600 tabular-nums">{formatMoney(row.current)}</span>
                     </div>
                   </div>
@@ -789,15 +813,15 @@ function DetailTable({ isLoading, onOpen, onSort, rows, selectedSort, sortDirect
         </colgroup>
         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
           <tr>
-            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="Customer" resizeProps={columnResize.getResizeHandleProps('customerName', 'Customer')} sortKey="customerName" onSort={onSort} />
-            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="บิล" resizeProps={columnResize.getResizeHandleProps('docNo', 'บิล')} sortKey="docNo" onSort={onSort} />
-            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={onSort} />
-            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="Due" resizeProps={columnResize.getResizeHandleProps('dueDate', 'Due')} sortKey="dueDate" onSort={onSort} />
-            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="อายุ(วัน)" resizeProps={columnResize.getResizeHandleProps('aging', 'อายุ(วัน)')} sortKey="aging" onSort={onSort} />
-            <ResizableTableHead align="right" label="ยอด" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'ยอด')} />
+            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} sortKey="customerName" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="เลขที่บิลขาย" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่บิลขาย')} sortKey="docNo" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="วันที่ออกบิล" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่ออกบิล')} sortKey="date" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="วันครบกำหนด" resizeProps={columnResize.getResizeHandleProps('dueDate', 'วันครบกำหนด')} sortKey="dueDate" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="อายุหนี้ (วัน)" resizeProps={columnResize.getResizeHandleProps('aging', 'อายุหนี้')} sortKey="aging" onSort={onSort} />
+            <ResizableTableHead align="right" label="ยอดบิล" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'ยอดบิล')} />
             <ResizableTableHead align="right" label="รับแล้ว" resizeProps={columnResize.getResizeHandleProps('receivedAmount', 'รับแล้ว')} />
             <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="ค้างรับ" resizeProps={columnResize.getResizeHandleProps('receivableBalance', 'ค้างรับ')} sortKey="receivableBalance" onSort={onSort} />
-            <ResizableTableHead label="Channel" resizeProps={columnResize.getResizeHandleProps('channelName', 'Channel')} />
+            <ResizableTableHead label="ช่องทางขาย" resizeProps={columnResize.getResizeHandleProps('channelName', 'ช่องทางขาย')} />
           </tr>
         </thead>
         <tbody>
@@ -840,7 +864,7 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: ArRow }) {
             <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
               <DetailItem label="วันที่บิล" value={formatDateDisplay(row.date)} />
               <DetailItem label="ครบกำหนด" value={row.dueDate ? formatDateDisplay(row.dueDate) : '-'} />
-              <DetailItem label="Credit term" value={`${row.creditTerm} วัน`} />
+              <DetailItem label="เครดิตเทอม" value={`${row.creditTerm} วัน`} />
               <DetailItem label="อายุหนี้" value={`${row.aging} วัน (${row.bucket})`} />
               <DetailItem label="ช่องทางขาย" value={row.channelName || '-'} />
               <DetailItem label="สาขา" value={row.branchName || '-'} />
@@ -884,9 +908,9 @@ function TraceSection({
 }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1.5 border-b border-slate-100">Drilldown / ที่มาของยอด</div>
+      <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1.5 border-b border-slate-100">ที่มาของยอด</div>
       <div className="space-y-3 text-sm">
-        <TraceLink label="Sales Bill" href={salesBill?.href ?? '#'} docNo={salesBill?.docNo ?? '-'} amountLabel="Source" amountValue={salesBill?.sourceOfTruth ?? '-'} />
+        <TraceLink label="บิลขาย" href={salesBill?.href ?? '#'} docNo={salesBill?.docNo ?? '-'} amountLabel="ที่มา" amountValue={salesBill?.sourceOfTruth ?? '-'} />
         <TraceList
           emptyText="ยังไม่มีใบรับเงินที่หักกับบิลนี้"
           rows={receipts.map((receipt) => ({
@@ -898,14 +922,14 @@ function TraceSection({
           title="Receipt / RCP"
         />
         <TraceList
-          emptyText="ยังไม่มี Customer Advance ที่ใช้หักบิลนี้"
+          emptyText="ยังไม่มีเงินรับล่วงหน้าลูกค้าที่ใช้หักบิลนี้"
           rows={customerAdvances.map((advance) => ({
             amount: `${formatMoney(advance.allocatedAmount)} บาท`,
             href: advance.href,
             meta: advance.status,
             title: advance.docNo,
           }))}
-          title="Customer Advance"
+          title="เงินรับล่วงหน้าลูกค้า"
         />
       </div>
     </div>
@@ -982,6 +1006,9 @@ function SummaryTable({
   loadingCustomers,
   onToggleExpand,
   onOpenDetail,
+  onSort,
+  selectedSort,
+  sortDirection,
 }: {
   buckets: ArPayload['byBucket']
   isLoading: boolean
@@ -992,6 +1019,9 @@ function SummaryTable({
   loadingCustomers: Record<string, boolean>
   onToggleExpand: (customerCode: string) => void
   onOpenDetail: (row: ArRow) => void
+  onSort: (key: SummarySortKey) => void
+  selectedSort: SummarySortKey
+  sortDirection: 'asc' | 'desc'
 }) {
   const bucketTotal = (bucket: string) => buckets.find((item) => item.bucket === bucket)?.total ?? 0
   const columnResize = useResizableColumns('finance.ar.summary.v5', summaryColumns)
@@ -1013,15 +1043,15 @@ function SummaryTable({
         </colgroup>
         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
           <tr>
-            <ResizableTableHead label="Customer" resizeProps={columnResize.getResizeHandleProps('customerName', 'Customer')} />
-            <ResizableTableHead align="right" label="บิล" resizeProps={columnResize.getResizeHandleProps('bills', 'บิล')} />
-            <ResizableTableHead align="right" label="Current" resizeProps={columnResize.getResizeHandleProps('current', 'Current')} />
-            <ResizableTableHead align="right" label="1-30 วัน" resizeProps={columnResize.getResizeHandleProps('b30', '1-30 วัน')} />
-            <ResizableTableHead align="right" label="31-60" resizeProps={columnResize.getResizeHandleProps('b60', '31-60')} />
-            <ResizableTableHead align="right" label="61-90" resizeProps={columnResize.getResizeHandleProps('b90', '61-90')} />
-            <ResizableTableHead align="right" label="&gt;90" resizeProps={columnResize.getResizeHandleProps('gt90', '&gt;90')} />
-            <ResizableTableHead align="right" label="รวมค้างรับ" resizeProps={columnResize.getResizeHandleProps('total', 'รวมค้างรับ')} />
-            <ResizableTableHead align="right" label="เกินกำหนดสุด" resizeProps={columnResize.getResizeHandleProps('oldest', 'เกินกำหนดสุด')} />
+            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} sortKey="customerName" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="จำนวนบิล" resizeProps={columnResize.getResizeHandleProps('bills', 'จำนวนบิล')} sortKey="bills" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="ยังไม่ครบกำหนด" resizeProps={columnResize.getResizeHandleProps('current', 'ยังไม่ครบกำหนด')} sortKey="current" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="1-30 วัน" resizeProps={columnResize.getResizeHandleProps('b30', '1-30 วัน')} sortKey="b30" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="31-60" resizeProps={columnResize.getResizeHandleProps('b60', '31-60')} sortKey="b60" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="61-90" resizeProps={columnResize.getResizeHandleProps('b90', '61-90')} sortKey="b90" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="&gt;90" resizeProps={columnResize.getResizeHandleProps('gt90', '&gt;90')} sortKey="gt90" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="รวมค้างรับ" resizeProps={columnResize.getResizeHandleProps('total', 'รวมค้างรับ')} sortKey="total" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="เกินกำหนดสุด" resizeProps={columnResize.getResizeHandleProps('oldest', 'เกินกำหนดสุด')} sortKey="oldest" onSort={onSort} />
           </tr>
         </thead>
         <tbody>
@@ -1128,7 +1158,7 @@ function SummaryTable({
         {!isLoading && rows.length > 0 ? (
           <tfoot className="bg-slate-100 font-bold">
             <tr>
-              <td className="p-2">รวมทั้งหมด ({rows.length} Customer)</td>
+              <td className="p-2">รวมทั้งหมด ({rows.length} ลูกค้า)</td>
               <td className="p-2 text-right">{summary?.bills ?? 0}</td>
               <td className="p-2 text-right">{formatMoney(bucketTotal('Current'))}</td>
               <td className="p-2 text-right">{formatMoney(bucketTotal('1-30'))}</td>

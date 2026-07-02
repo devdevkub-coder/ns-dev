@@ -52,6 +52,7 @@ type ApPayload = {
 }
 
 type SortKey = 'date' | 'docNo' | 'dueDate' | 'payableBalance' | 'supplierName' | 'aging'
+type SummarySortKey = 'supplierName' | 'bills' | 'current' | 'b30' | 'b60' | 'b90' | 'gt90' | 'total' | 'oldest'
 
 function bucketClass(bucket: string) {
   if (bucket === 'Current') return 'bg-slate-100 text-slate-600'
@@ -120,6 +121,8 @@ export function AccountsPayablePageClient() {
   const [page, setPage] = useState(1)
   const [summaryPage, setSummaryPage] = useState(1)
   const summaryPageSize = 50
+  const [summarySortDirection, setSummarySortDirection] = useState<'asc' | 'desc'>('desc')
+  const [summarySortKey, setSummarySortKey] = useState<SummarySortKey>('total')
   const [q, setQ] = useState('')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [sortKey, setSortKey] = useState<SortKey>('dueDate')
@@ -211,7 +214,7 @@ export function AccountsPayablePageClient() {
       const exportQuery = new URLSearchParams(query)
       exportQuery.set('format', 'xlsx')
       const response = await fetch(`/api/finance/ap?${exportQuery.toString()}`, { cache: 'no-store' })
-      if (!response.ok) throw new Error('Export AP ไม่สำเร็จ')
+      if (!response.ok) throw new Error('ส่งออก AP ไม่สำเร็จ')
       const blob = await response.blob()
       const disposition = response.headers.get('Content-Disposition') ?? ''
       const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? `finance_ap_${todayDateInput()}.xlsx`
@@ -222,7 +225,7 @@ export function AccountsPayablePageClient() {
       anchor.click()
       URL.revokeObjectURL(url)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Export AP ไม่สำเร็จ')
+      setError(caught instanceof Error ? caught.message : 'ส่งออก AP ไม่สำเร็จ')
     } finally {
       setIsExporting(false)
     }
@@ -237,13 +240,34 @@ export function AccountsPayablePageClient() {
   const overduePercent = totalAp > 0 ? ((overdueAp / totalAp) * 100).toFixed(1) : '0.0'
 
   const summaryRows = useMemo(() => data?.bySupplier ?? [], [data?.bySupplier])
+  const sortedSummaryRows = useMemo(() => {
+    return [...summaryRows].sort((left, right) => {
+      const direction = summarySortDirection === 'asc' ? 1 : -1
+      const leftValue = left[summarySortKey]
+      const rightValue = right[summarySortKey]
+      if (typeof leftValue === 'string' || typeof rightValue === 'string') {
+        return String(leftValue).localeCompare(String(rightValue), 'th') * direction
+      }
+      return ((leftValue as number) - (rightValue as number)) * direction
+    })
+  }, [summaryRows, summarySortDirection, summarySortKey])
   const summaryTotalPages = Math.max(1, Math.ceil(summaryRows.length / summaryPageSize))
   const safeSummaryPage = Math.min(summaryPage, summaryTotalPages)
 
   const visibleSummaryRows = useMemo(() => {
     const start = (safeSummaryPage - 1) * summaryPageSize
-    return summaryRows.slice(start, start + summaryPageSize)
-  }, [summaryRows, safeSummaryPage, summaryPageSize])
+    return sortedSummaryRows.slice(start, start + summaryPageSize)
+  }, [safeSummaryPage, sortedSummaryRows, summaryPageSize])
+
+  function changeSummarySort(nextKey: SummarySortKey) {
+    setSummaryPage(1)
+    if (nextKey === summarySortKey) {
+      setSummarySortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+    setSummarySortKey(nextKey)
+    setSummarySortDirection(nextKey === 'supplierName' ? 'asc' : 'desc')
+  }
 
   return (
     <section className="space-y-4">
@@ -253,9 +277,9 @@ export function AccountsPayablePageClient() {
         <div className="relative overflow-hidden rounded-md bg-gradient-to-br from-red-600 via-rose-700 to-pink-800 dark:from-rose-950/60 dark:via-slate-900 dark:to-slate-900 border border-transparent dark:border-rose-950/40 p-6 text-white dark:text-slate-100 shadow-lg">
           <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 dark:bg-rose-500/5" />
           <div className="relative">
-            <div className="text-sm uppercase tracking-wider opacity-80">💸 ค้างจ่าย Supplier รวม</div>
+            <div className="text-sm uppercase tracking-wider opacity-80">💸 ค้างจ่ายผู้ขายรวม</div>
             <div className="mt-2 text-4xl font-bold">{formatMoney(totalAp)}</div>
-            <div className="mt-1 text-sm opacity-90">{data?.summary.bills ?? 0} บิล · {data?.summary.suppliers ?? 0} Supplier</div>
+            <div className="mt-1 text-sm opacity-90">{data?.summary.bills ?? 0} ใบ · {data?.summary.suppliers ?? 0} ผู้ขาย</div>
             <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/20 pt-4">
               <div>
                 <div className="text-xs opacity-75">⚠ อายุหนี้แล้ว</div>
@@ -271,14 +295,14 @@ export function AccountsPayablePageClient() {
         </div>
 
         <div className="rounded-md bg-white p-4 shadow">
-          <div className="mb-3 text-sm font-bold text-slate-700">🏆 Top 5 Supplier ค้างจ่ายสูงสุด</div>
+          <div className="mb-3 text-sm font-bold text-slate-700">🏆 Top 5 ผู้ขายค้างจ่ายสูงสุด</div>
           <div className="space-y-1.5">
             {topSuppliers.map((supplier, index) => (
               <div key={supplier.supplierName} className="flex items-center gap-2 text-xs">
                 <span className={`w-5 text-center font-bold ${index < 3 ? 'text-red-600' : 'text-slate-400'}`}>{index + 1}</span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-semibold text-slate-700">{supplier.supplierName}</div>
-                  <div className="text-xs text-slate-400">{supplier.bills} บิล · เกินสุด {supplier.oldest} วัน</div>
+                  <div className="text-xs text-slate-400">{supplier.bills} ใบ · เกินสุด {supplier.oldest} วัน</div>
                 </div>
                 <div className="h-2.5 w-20 rounded-full bg-slate-100 dark:bg-slate-950">
                   <div className="h-2.5 rounded-full bg-red-500" style={{ width: percentage(supplier.total, topSuppliers[0]?.total ?? 0) }} />
@@ -296,7 +320,7 @@ export function AccountsPayablePageClient() {
         <Metric label="อายุหนี้แล้ว" tone="amber" value={formatMoney(overdueAp)} />
         <Metric label="อายุไม่เกิน 7 วัน" tone="yellow" value={formatMoney(dueIn7)} />
         <Metric label="บิลค้างจ่าย" value={`${data?.summary.bills ?? 0} ใบ`} />
-        <Metric className="col-span-2 lg:col-span-1" label="Supplier ค้างจ่าย" value={`${data?.summary.suppliers ?? 0} ราย`} />
+        <Metric className="col-span-2 lg:col-span-1" label="ผู้ขายค้างจ่าย" value={`${data?.summary.suppliers ?? 0} ราย`} />
       </div>
 
       <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5">
@@ -326,7 +350,7 @@ export function AccountsPayablePageClient() {
                 type="button"
                 onClick={() => setTab('summary')}
               >
-                📊 สรุปตาม Supplier
+                📊 สรุปตามผู้ขาย
               </button>
               <button
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-all h-8 ${
@@ -335,18 +359,18 @@ export function AccountsPayablePageClient() {
                 type="button"
                 onClick={() => setTab('detail')}
               >
-                📄 รายบิล
+                📄 รายบิลรับซื้อ
               </button>
             </div>
             
-            <input autoComplete="off" className="min-w-[200px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" placeholder="ค้นหาเลขบิล / ผู้ขาย / ช่องทาง / สาขา" type="search" value={q} onChange={(event) => { setPage(1); setQ(event.target.value) }} />
+            <input autoComplete="off" className="min-w-[200px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" placeholder="ค้นหาเลข PB / ผู้ขาย / สาขา" type="search" value={q} onChange={(event) => { setPage(1); setQ(event.target.value) }} />
             
             <div className="min-w-[260px]">
               <SearchCombobox
                 hideLabel
                 inputClassName="h-9 text-sm rounded-lg border-slate-300 focus:border-slate-400 focus:ring-0 outline-none"
                 inputId="ap-supplier-filter"
-                label="Supplier"
+                label="ผู้ขาย"
                 options={supplierOptions}
                 placeholder="ผู้ขายทั้งหมด"
                 value={supplierId}
@@ -359,14 +383,14 @@ export function AccountsPayablePageClient() {
             
             <select className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
               <option value="">ทุกอายุหนี้</option>
-              <option value="Current">Current</option>
-              <option value="1-30">1-30</option>
-              <option value="31-60">31-60</option>
-              <option value="61-90">61-90</option>
-              <option value=">90">&gt;90</option>
+              <option value="Current">วันนี้/อนาคต</option>
+              <option value="1-30">1-30 วัน</option>
+              <option value="31-60">31-60 วัน</option>
+              <option value="61-90">61-90 วัน</option>
+              <option value=">90">&gt;90 วัน</option>
             </select>
             
-            <button className="ml-auto rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 hover:bg-emerald-700 transition-colors flex items-center" disabled={isExporting} type="button" onClick={() => void exportXlsx()}>{isExporting ? 'กำลัง Export...' : 'Export .xlsx'}</button>
+            <button className="ml-auto rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 hover:bg-emerald-700 transition-colors flex items-center" disabled={isExporting} type="button" onClick={() => void exportXlsx()}>{isExporting ? 'กำลังส่งออก...' : 'ส่งออก .xlsx'}</button>
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
@@ -413,7 +437,7 @@ export function AccountsPayablePageClient() {
                 type="button"
                 onClick={() => setTab('detail')}
               >
-                📄 รายบิล
+                📄 รายบิลรับซื้อ
               </button>
             </div>
             
@@ -452,7 +476,7 @@ export function AccountsPayablePageClient() {
                 hideLabel
                 inputClassName="h-9 text-sm rounded-lg border-slate-300 focus:border-slate-400 focus:ring-0 outline-none w-full"
                 inputId="ap-supplier-filter-mobile"
-                label="Supplier"
+                label="ผู้ขาย"
                 options={supplierOptions}
                 placeholder="ผู้ขายทั้งหมด"
                 value={supplierId}
@@ -463,11 +487,11 @@ export function AccountsPayablePageClient() {
               />
               <select className="w-full rounded-md border px-3 py-2 text-sm" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
                 <option value="">ทุกอายุหนี้</option>
-                <option value="Current">Current</option>
-                <option value="1-30">1-30</option>
-                <option value="31-60">31-60</option>
-                <option value="61-90">61-90</option>
-                <option value=">90">&gt;90</option>
+                <option value="Current">วันนี้/อนาคต</option>
+                <option value="1-30">1-30 วัน</option>
+                <option value="31-60">31-60 วัน</option>
+                <option value="61-90">61-90 วัน</option>
+                <option value=">90">&gt;90 วัน</option>
               </select>
               <select className="w-full rounded-md border px-3 py-2 text-sm" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
                 <option value="">ทุกสาขา</option>
@@ -479,11 +503,11 @@ export function AccountsPayablePageClient() {
               </select>
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-slate-500">
-                  จากวันที่
+                  วันที่บิลจาก
                   <DatePickerInput className="mt-1 w-full" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
                 </label>
                 <label className="text-xs text-slate-500">
-                  ถึงวันที่
+                  วันที่บิลถึง
                   <DatePickerInput className="mt-1 w-full" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
                 </label>
               </div>
@@ -507,7 +531,15 @@ export function AccountsPayablePageClient() {
               <Button disabled={safeSummaryPage >= summaryTotalPages || isLoading} size="xs" type="button" variant="outline" onClick={() => setSummaryPage((current) => Math.min(summaryTotalPages, current + 1))}>ถัดไป</Button>
             </div>
           </div>
-          <SummaryTable buckets={bucketRows} rows={visibleSummaryRows} summary={data?.summary} isLoading={isLoading} />
+          <SummaryTable
+            buckets={bucketRows}
+            isLoading={isLoading}
+            rows={visibleSummaryRows}
+            selectedSort={summarySortKey}
+            sortDirection={summarySortDirection}
+            summary={data?.summary}
+            onSort={changeSummarySort}
+          />
         </>
       ) : null}
       {tab === 'detail' && (
@@ -550,7 +582,7 @@ export function AccountsPayablePageClient() {
                     <span className="text-red-700 font-bold tabular-nums">{formatMoney(row.total)}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-xs font-semibold">Current:</span>
+                    <span className="text-slate-400 block text-xs font-semibold">วันนี้/อนาคต:</span>
                     <span className="text-slate-600 tabular-nums">{formatMoney(row.current)}</span>
                   </div>
                 </div>
@@ -584,13 +616,13 @@ export function AccountsPayablePageClient() {
               <div className="flex justify-between items-start gap-2">
                 <span className="font-bold text-slate-900 text-[15px] leading-snug text-blue-600">{row.docNo}</span>
                 <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold shrink-0 ${bucketClass(row.bucket)}`}>
-                  {row.bucket} ({row.aging} วัน)
+                  {bucketLongLabel(row.bucket)} ({row.aging} วัน)
                 </span>
               </div>
               
               <div className="text-xs text-slate-600 space-y-2">
                 <div>
-                  <span className="font-semibold text-slate-500">Supplier: </span>
+                  <span className="font-semibold text-slate-500">ผู้ขาย: </span>
                   <span className="text-slate-800 font-medium">{row.supplierName}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
@@ -605,7 +637,7 @@ export function AccountsPayablePageClient() {
                 </div>
                 <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 font-mono text-[13px]">
                   <div>
-                    <span className="text-slate-400 block text-xs font-semibold">ยอดรวม:</span>
+                    <span className="text-slate-400 block text-xs font-semibold">ยอดบิล:</span>
                     <span className="text-slate-800 tabular-nums">{formatMoney(row.totalAmount)}</span>
                   </div>
                   <div>
@@ -699,26 +731,32 @@ function Metric({
 }
 
 const summaryColumns: Array<ResizableColumnDefinition<string>> = [
-  { key: 'supplierName', defaultWidth: 200 },
-  { key: 'bills', defaultWidth: 60 },
-  { key: 'current', defaultWidth: 100 },
-  { key: 'b30', defaultWidth: 100 },
-  { key: 'b60', defaultWidth: 100 },
-  { key: 'b90', defaultWidth: 100 },
-  { key: 'gt90', defaultWidth: 100 },
-  { key: 'total', defaultWidth: 120 },
-  { key: 'oldest', defaultWidth: 100 },
+  { key: 'supplierName', defaultWidth: 220, minWidth: 160 },
+  { key: 'bills', defaultWidth: 110, minWidth: 90 },
+  { key: 'current', defaultWidth: 130, minWidth: 110 },
+  { key: 'b30', defaultWidth: 110, minWidth: 100 },
+  { key: 'b60', defaultWidth: 110, minWidth: 100 },
+  { key: 'b90', defaultWidth: 110, minWidth: 100 },
+  { key: 'gt90', defaultWidth: 110, minWidth: 100 },
+  { key: 'total', defaultWidth: 140, minWidth: 120 },
+  { key: 'oldest', defaultWidth: 130, minWidth: 110 },
 ]
 
 function SummaryTable({
   buckets,
   isLoading,
+  onSort,
   rows,
+  selectedSort,
+  sortDirection,
   summary,
 }: {
   buckets: ApPayload['byBucket']
   isLoading: boolean
+  onSort: (key: SummarySortKey) => void
   rows: ApPayload['bySupplier']
+  selectedSort: SummarySortKey
+  sortDirection: 'asc' | 'desc'
   summary: ApPayload['summary'] | undefined
 }) {
   const bucketTotal = (bucket: string) => buckets.find((item) => item.bucket === bucket)?.total ?? 0
@@ -733,23 +771,26 @@ function SummaryTable({
           </button>
         ) : null}
       </div>
-      <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+      <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
         <colgroup>
-          {summaryColumns.map((col) => (
-            <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
-          ))}
+          {summaryColumns.map((column, index) => {
+            if (index === summaryColumns.length - 1) {
+              return <col key={column.key} style={{ minWidth: column.minWidth }} />
+            }
+            return <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+          })}
         </colgroup>
         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
           <tr>
-            <ResizableTableHead label="Supplier" resizeProps={columnResize.getResizeHandleProps('supplierName', 'Supplier')} />
-            <ResizableTableHead align="right" label="บิล" resizeProps={columnResize.getResizeHandleProps('bills', 'บิล')} />
-            <ResizableTableHead align="right" label="Current" resizeProps={columnResize.getResizeHandleProps('current', 'Current')} />
-            <ResizableTableHead align="right" label="1-30 วัน" resizeProps={columnResize.getResizeHandleProps('b30', '1-30 วัน')} />
-            <ResizableTableHead align="right" label="31-60" resizeProps={columnResize.getResizeHandleProps('b60', '31-60')} />
-            <ResizableTableHead align="right" label="61-90" resizeProps={columnResize.getResizeHandleProps('b90', '61-90')} />
-            <ResizableTableHead align="right" label="&gt;90" resizeProps={columnResize.getResizeHandleProps('gt90', '&gt;90')} />
-            <ResizableTableHead align="right" label="รวมค้างจ่าย" resizeProps={columnResize.getResizeHandleProps('total', 'รวมค้างจ่าย')} />
-            <ResizableTableHead align="right" label="อายุหนี้สูงสุด" resizeProps={columnResize.getResizeHandleProps('oldest', 'อายุหนี้สูงสุด')} />
+            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="ผู้ขาย" resizeProps={columnResize.getResizeHandleProps('supplierName', 'ผู้ขาย')} sortKey="supplierName" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="จำนวนบิล" resizeProps={columnResize.getResizeHandleProps('bills', 'จำนวนบิล')} sortKey="bills" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="วันนี้/อนาคต" resizeProps={columnResize.getResizeHandleProps('current', 'วันนี้/อนาคต')} sortKey="current" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="1-30 วัน" resizeProps={columnResize.getResizeHandleProps('b30', '1-30 วัน')} sortKey="b30" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="31-60 วัน" resizeProps={columnResize.getResizeHandleProps('b60', '31-60 วัน')} sortKey="b60" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="61-90 วัน" resizeProps={columnResize.getResizeHandleProps('b90', '61-90 วัน')} sortKey="b90" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="&gt;90 วัน" resizeProps={columnResize.getResizeHandleProps('gt90', '>90 วัน')} sortKey="gt90" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="รวมค้างจ่าย" resizeProps={columnResize.getResizeHandleProps('total', 'รวมค้างจ่าย')} sortKey="total" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="อายุหนี้สูงสุด" resizeProps={columnResize.getResizeHandleProps('oldest', 'อายุหนี้สูงสุด')} sortKey="oldest" onSort={onSort} />
           </tr>
         </thead>
         <tbody>
@@ -772,7 +813,7 @@ function SummaryTable({
         {!isLoading && rows.length > 0 ? (
           <tfoot className="bg-slate-100 font-bold">
             <tr>
-              <td className="p-2">รวมทั้งหมด ({rows.length} Supplier)</td>
+              <td className="p-2">รวมทั้งหมด ({summary?.suppliers ?? rows.length} ผู้ขาย)</td>
               <td className="p-2 text-right">{summary?.bills ?? 0}</td>
               <td className="p-2 text-right">{formatMoney(bucketTotal('Current'))}</td>
               <td className="p-2 text-right">{formatMoney(bucketTotal('1-30'))}</td>
@@ -790,14 +831,14 @@ function SummaryTable({
 }
 
 const detailColumns: Array<ResizableColumnDefinition<string>> = [
-  { key: 'supplierName', defaultWidth: 200 },
-  { key: 'docNo', defaultWidth: 120 },
-  { key: 'date', defaultWidth: 100 },
-  { key: 'dueDate', defaultWidth: 100 },
-  { key: 'aging', defaultWidth: 90 },
-  { key: 'totalAmount', defaultWidth: 100 },
-  { key: 'paidAmount', defaultWidth: 100 },
-  { key: 'payableBalance', defaultWidth: 100 },
+  { key: 'supplierName', defaultWidth: 220, minWidth: 160 },
+  { key: 'docNo', defaultWidth: 150, minWidth: 130 },
+  { key: 'date', defaultWidth: 130, minWidth: 110 },
+  { key: 'dueDate', defaultWidth: 150, minWidth: 130 },
+  { key: 'aging', defaultWidth: 120, minWidth: 100 },
+  { key: 'totalAmount', defaultWidth: 130, minWidth: 110 },
+  { key: 'paidAmount', defaultWidth: 130, minWidth: 110 },
+  { key: 'payableBalance', defaultWidth: 140, minWidth: 120 },
 ]
 
 function DetailTable({
@@ -827,20 +868,23 @@ function DetailTable({
           </button>
         ) : null}
       </div>
-      <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+      <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
         <colgroup>
-          {detailColumns.map((col) => (
-            <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
-          ))}
+          {detailColumns.map((column, index) => {
+            if (index === detailColumns.length - 1) {
+              return <col key={column.key} style={{ minWidth: column.minWidth }} />
+            }
+            return <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+          })}
         </colgroup>
         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
           <tr>
-            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="Supplier" resizeProps={columnResize.getResizeHandleProps('supplierName', 'Supplier')} sortKey="supplierName" onSort={onSort} />
-            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="บิล" resizeProps={columnResize.getResizeHandleProps('docNo', 'บิล')} sortKey="docNo" onSort={onSort} />
-            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={onSort} />
-            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="นับอายุจาก" resizeProps={columnResize.getResizeHandleProps('dueDate', 'นับอายุจาก')} sortKey="dueDate" onSort={onSort} />
-            <ResizableTableHead activeSortKey={selectedSort} align="center" direction={sortDirection} label="Aging" resizeProps={columnResize.getResizeHandleProps('aging', 'Aging')} sortKey="aging" onSort={onSort} />
-            <ResizableTableHead align="right" label="ยอด" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'ยอด')} />
+            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="ผู้ขาย" resizeProps={columnResize.getResizeHandleProps('supplierName', 'ผู้ขาย')} sortKey="supplierName" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="เลขที่บิลรับซื้อ" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่บิลรับซื้อ')} sortKey="docNo" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="วันที่บิล" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่บิล')} sortKey="date" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="ตั้งต้นอายุหนี้" resizeProps={columnResize.getResizeHandleProps('dueDate', 'ตั้งต้นอายุหนี้')} sortKey="dueDate" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="center" direction={sortDirection} label="อายุหนี้" resizeProps={columnResize.getResizeHandleProps('aging', 'อายุหนี้')} sortKey="aging" onSort={onSort} />
+            <ResizableTableHead align="right" label="ยอดบิล" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'ยอดบิล')} />
             <ResizableTableHead align="right" label="จ่ายแล้ว" resizeProps={columnResize.getResizeHandleProps('paidAmount', 'จ่ายแล้ว')} />
             <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="ค้างจ่าย" resizeProps={columnResize.getResizeHandleProps('payableBalance', 'ค้างจ่าย')} sortKey="payableBalance" onSort={onSort} />
           </tr>
@@ -854,7 +898,7 @@ function DetailTable({
               <td className="p-2 whitespace-nowrap"><button className="font-mono text-xs text-blue-600" type="button" onClick={() => onOpen(row)}>{row.docNo}</button></td>
               <td className="p-2 whitespace-nowrap">{formatDateDisplay(row.date)}</td>
               <td className="p-2 whitespace-nowrap">{formatDateDisplay(row.dueDate)}</td>
-              <td className="p-2 text-center whitespace-nowrap"><span className={`rounded-md px-2 py-0.5 text-xs ${bucketClass(row.bucket)}`}>{row.bucket} ({row.aging})</span></td>
+              <td className="p-2 text-center whitespace-nowrap"><span className={`rounded-md px-2 py-0.5 text-xs ${bucketClass(row.bucket)}`}>{bucketLongLabel(row.bucket)} ({row.aging})</span></td>
               <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{formatMoney(row.totalAmount)}</td>
               <td className="p-2 text-right text-emerald-600 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.paidAmount)}</td>
               <td className="p-2 text-right font-bold text-red-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.payableBalance)}</td>
@@ -896,7 +940,7 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: ApRow }) {
             <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
               <DetailItem label="วันที่บิล" value={formatDateDisplay(row.date)} />
               <DetailItem label="นับอายุจาก" value={formatDateDisplay(row.dueDate)} />
-              <DetailItem label="อายุหนี้" value={`${row.aging} วัน (${row.bucket})`} />
+              <DetailItem label="อายุหนี้" value={`${row.aging} วัน (${bucketLongLabel(row.bucket)})`} />
               <DetailItem label="สาขา" value={row.branchName || '-'} />
               <DetailItem label="ประเภท" value={row.transactionMode || '-'} />
             </div>
@@ -942,9 +986,9 @@ function TraceSection({
 }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">Drilldown / ที่มาของยอด</div>
+      <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ที่มาของยอด</div>
       <div className="space-y-3">
-        <TraceLink label="Purchase Bill" href={purchaseBill?.href ?? '#'} docNo={purchaseBill?.docNo ?? '-'} amountLabel="Source" amountValue={purchaseBill?.sourceOfTruth ?? '-'} />
+        <TraceLink label="บิลรับซื้อ" href={purchaseBill?.href ?? '#'} docNo={purchaseBill?.docNo ?? '-'} amountLabel="ที่มา" amountValue={purchaseBill?.sourceOfTruth ?? '-'} />
         <TraceList
           emptyText="ยังไม่มีรายการอนุมัติจ่ายของบิลนี้"
           rows={paymentApprovals.map((approval) => ({
@@ -953,7 +997,7 @@ function TraceSection({
             meta: approval.status,
             title: approval.docNo || '-',
           }))}
-          title="Payment Approval / PMA"
+          title="อนุมัติจ่าย / PMA"
         />
         <TraceList
           emptyText="ยังไม่มีรายการจ่ายเงินจริงของบิลนี้"
@@ -963,17 +1007,17 @@ function TraceSection({
             meta: `${payment.date ? formatDateDisplay(payment.date) : '-'} · ${payment.status}`,
             title: payment.docNo || payment.voucherId || '-',
           }))}
-          title="Payment / PMT"
+          title="จ่ายเงินจริง / PMT"
         />
         <TraceList
-          emptyText="ยังไม่มี Supplier Advance ที่ใช้หักบิลนี้"
+          emptyText="ยังไม่มีเงินจ่ายล่วงหน้าผู้ขายที่ใช้หักบิลนี้"
           rows={supplierAdvances.map((advance) => ({
             amount: `${formatMoney(advance.allocatedAmount)} บาท`,
             href: advance.href,
             meta: advance.status,
             title: advance.docNo,
           }))}
-          title="Supplier Advance"
+          title="เงินจ่ายล่วงหน้าผู้ขาย"
         />
       </div>
     </div>

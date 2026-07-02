@@ -137,14 +137,14 @@ export function CashFlowAnalysisPageClient() {
       {error ? <ErrorBox message={error} /> : null}
       
       {/* Desktop Filter Panel */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-200">
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
         <DateInput label="From" value={from} onChange={setFrom} />
         <DateInput label="To" value={to} onChange={setTo} />
         <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
+      <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden space-y-3">
         <div className="flex gap-2 items-center">
           <div className="flex-1 grid grid-cols-2 gap-2">
             <div className="flex items-center gap-1.5">
@@ -158,7 +158,7 @@ export function CashFlowAnalysisPageClient() {
           </div>
           <button
             type="button"
-            className="h-9 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
+            className="h-9 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
             onClick={() => setShowMobileFilters(true)}
           >
             ตัวกรอง {branchId ? '(มี)' : ''}
@@ -186,7 +186,7 @@ export function CashFlowAnalysisPageClient() {
                 <label className="mb-1 block font-semibold text-slate-600 text-xs">สาขา</label>
                 <select
                   aria-label="Branch select"
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
                   value={branchId}
                   onChange={(event) => setBranchId(event.target.value)}
                 >
@@ -202,14 +202,14 @@ export function CashFlowAnalysisPageClient() {
                 onClick={() => {
                   setBranchId('')
                 }}
-                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                className="flex-1 h-10 rounded-md border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
               >
                 ล้างตัวกรอง
               </button>
               <button
                 type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+                className="flex-1 h-10 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
               >
                 ตกลง
               </button>
@@ -254,7 +254,7 @@ export function CashFlowForecastCalendarPageClient() {
       {error ? <ErrorBox message={error} /> : null}
       
       {/* Desktop Filter Panel */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-200">
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
         <span className="text-sm font-bold">Forecast:</span>
         {[7, 30, 90].map((item) => <button key={item} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${horizon === item ? 'bg-[#0F172A] text-white' : 'bg-slate-50 border border-slate-100 text-slate-600 hover:bg-slate-100'}`} type="button" onClick={() => setHorizon(item)}>{item} วัน</button>)}
         <DateInput label="เริ่ม" value={startDate} onChange={setStartDate} />
@@ -263,13 +263,13 @@ export function CashFlowForecastCalendarPageClient() {
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
+      <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden space-y-3">
         <div className="flex gap-2 items-center justify-between">
           <div className="flex gap-1.5 overflow-x-auto">
             {[7, 30, 90].map((item) => (
               <button
                 key={item}
-                className={`h-9 px-3 rounded-lg text-xs font-semibold ${horizon === item ? 'bg-[#0F172A] text-white' : 'bg-slate-50 border border-slate-200 text-slate-600'}`}
+                className={`h-9 px-3 rounded-md text-xs font-semibold ${horizon === item ? 'bg-[#0F172A] text-white' : 'bg-slate-50 border border-slate-200 text-slate-600'}`}
                 type="button"
                 onClick={() => setHorizon(item)}
               >
@@ -279,7 +279,7 @@ export function CashFlowForecastCalendarPageClient() {
           </div>
           <button
             type="button"
-            className="h-9 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none shrink-0"
+            className="h-9 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none shrink-0"
             onClick={() => setShowMobileFilters(true)}
           >
             ตัวกรอง {branchId ? '(มี)' : ''}
@@ -312,7 +312,7 @@ export function CashFlowForecastCalendarPageClient() {
                 <label className="mb-1 block font-semibold text-slate-600 text-xs">สาขา</label>
                 <select
                   aria-label="Branch select"
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
                   value={branchId}
                   onChange={(event) => setBranchId(event.target.value)}
                 >
@@ -332,14 +332,14 @@ export function CashFlowForecastCalendarPageClient() {
                 onClick={() => {
                   setBranchId('')
                 }}
-                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                className="flex-1 h-10 rounded-md border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
               >
                 ล้างตัวกรอง
               </button>
               <button
                 type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+                className="flex-1 h-10 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
               >
                 ตกลง
               </button>
@@ -398,7 +398,7 @@ function DateInput({ label, onChange, value }: { label: string; onChange: (value
 }
 
 function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; onChange: (value: string) => void; value: string }) {
-  return <select className="rounded-md border bg-white px-2 py-1.5 text-sm" value={value} onChange={(event) => onChange(event.target.value)}><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>
+  return <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400" value={value} onChange={(event) => onChange(event.target.value)}><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>
 }
 
 function Panel({ children, title }: { children: ReactNode; title: string }) {
@@ -407,7 +407,7 @@ function Panel({ children, title }: { children: ReactNode; title: string }) {
 
 function Bar({ label, max, tone, value }: { label: string; max: number; tone: 'blue' | 'emerald'; value: number }) {
   const color = tone === 'emerald' ? 'from-emerald-500 to-teal-500 text-emerald-700' : 'from-blue-500 to-indigo-500 text-blue-700'
-  return <div className="mb-3"><div className="mb-1 flex justify-between text-sm"><span className="text-slate-600">{label}</span><span className={`font-bold ${color.split(' ').at(-1)}`}>{money(value)}</span></div><div className="h-4 w-full overflow-hidden rounded-md-full bg-slate-100"><div className={`h-4 rounded-md-full bg-gradient-to-r ${color}`} style={{ width: `${Math.min(100, Math.abs(value) / max * 100)}%` }} /></div></div>
+  return <div className="mb-3"><div className="mb-1 flex justify-between text-sm"><span className="text-slate-600">{label}</span><span className={`font-bold ${color.split(' ').at(-1)}`}>{money(value)}</span></div><div className="h-4 w-full overflow-hidden rounded-full bg-slate-100"><div className={`h-4 rounded-full bg-gradient-to-r ${color}`} style={{ width: `${Math.min(100, Math.abs(value) / max * 100)}%` }} /></div></div>
 }
 
 function TrapDonut({ ar, cash, stock }: { ar: number; cash: number; stock: number }) {
@@ -436,7 +436,7 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPa
   const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<AnalysisPayload['detailRows'][number], DetailColumnKey>(rows, (row, key) => row[key])
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-4 py-3">
         <h3 className="font-bold text-slate-800">📊 ตารางรายละเอียด</h3>
         {columnResize.hasCustomWidths ? (
@@ -528,7 +528,7 @@ function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
   })
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className={`flex flex-wrap items-center justify-between gap-2 border-b border-emerald-100 p-3 font-bold ${headingCls}`}>
         <span>📥 ต้องเร่งเก็บลูกค้าคนไหน (Top 10 Overdue)</span>
         {columnResize.hasCustomWidths ? (
@@ -609,7 +609,7 @@ function TopAp({ rows }: { rows: ForecastPayload['insights']['topAP'] }) {
   })
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className={`flex flex-wrap items-center justify-between gap-2 border-b border-red-100 p-3 font-bold ${headingCls}`}>
         <span>📤 อาจจะต้องเลื่อนจ่าย Supplier คนไหน (Top 10 ยอดสูง)</span>
         {columnResize.hasCustomWidths ? (
@@ -688,7 +688,7 @@ function DayModal({ day, onClose }: { day: ProjectionDay; onClose: () => void })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="w-full max-w-3xl overflow-hidden rounded-xl bg-white shadow-xl">
+      <div className="w-full max-w-3xl overflow-hidden rounded-md bg-slate-900 shadow-xl">
         <div className="flex items-center justify-between bg-slate-900 px-4 py-3 text-white">
           <h2 className="text-sm font-bold">📅 {day.date} · Closing {money(day.closing)}</h2>
           <button className="text-slate-300 hover:text-white text-xs font-semibold outline-none focus:ring-0" type="button" onClick={onClose}>
@@ -706,7 +706,7 @@ function DayModal({ day, onClose }: { day: ProjectionDay; onClose: () => void })
             </button>
           </div>
         ) : null}
-        <div className="max-h-[60vh] overflow-auto">
+        <div className="max-h-[60vh] overflow-auto bg-white">
           {/* Desktop Table View */}
           <div className="hidden lg:block">
             <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>

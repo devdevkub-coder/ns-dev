@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Plus, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Button } from '@/components/ui/Button'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -450,18 +451,18 @@ export function TradingDashboardPageClient() {
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 
-      <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="rounded-md bg-white p-3 shadow">
         <div className="grid gap-2 lg:grid-cols-[140px_140px_minmax(180px,1fr)_minmax(180px,1fr)_minmax(180px,1fr)_minmax(180px,1fr)_auto_auto]">
           <DatePickerInput ariaLabel="วันที่เริ่มต้น" className="h-10 text-sm" value={visibleFromDate} onChange={setFromDate} />
           <DatePickerInput ariaLabel="วันที่สิ้นสุด" className="h-10 text-sm" value={visibleToDate} onChange={setToDate} />
-          <SearchCombobox hideLabel inputClassName="h-10 text-sm border-slate-300 rounded-xl focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700" inputId="trading-dashboard-supplier" label="Supplier" options={supplierOptions} placeholder="ค้นหา Supplier" value={supplierId} onChange={setSupplierId} />
-          <SearchCombobox hideLabel inputClassName="h-10 text-sm border-slate-300 rounded-xl focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700" inputId="trading-dashboard-customer" label="Customer" options={customerOptions} placeholder="ค้นหา Customer" value={customerId} onChange={setCustomerId} />
+          <SearchCombobox hideLabel inputClassName="h-10 text-sm border-slate-300 rounded-md focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700" inputId="trading-dashboard-supplier" label="Supplier" options={supplierOptions} placeholder="ค้นหา Supplier" value={supplierId} onChange={setSupplierId} />
+          <SearchCombobox hideLabel inputClassName="h-10 text-sm border-slate-300 rounded-md focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700" inputId="trading-dashboard-customer" label="Customer" options={customerOptions} placeholder="ค้นหา Customer" value={customerId} onChange={setCustomerId} />
           {tab === 'product' ? (
-            <SearchCombobox hideLabel inputClassName="h-10 text-sm border-slate-300 rounded-xl focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700" inputId="trading-dashboard-product" label="สินค้า" options={productOptions} placeholder="ค้นหาสินค้า" value={productId} onChange={setProductId} />
+            <SearchCombobox hideLabel inputClassName="h-10 text-sm border-slate-300 rounded-md focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700" inputId="trading-dashboard-product" label="สินค้า" options={productOptions} placeholder="ค้นหาสินค้า" value={productId} onChange={setProductId} />
           ) : <div className="hidden lg:block" />}
-          <input className="h-10 rounded-xl border border-slate-300 px-3 text-sm bg-white font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" placeholder="ค้นหาเลขบิล" value={billNo} onChange={(event) => setBillNo(event.target.value)} />
-          <button className="h-10 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer" type="button" onClick={() => void loadData()}>Refresh</button>
-          <button className="h-10 rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer" type="button" onClick={clearFilters}>ล้าง</button>
+          <input className="h-10 rounded-md border border-slate-300 px-3 text-sm bg-white font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" placeholder="ค้นหาเลขบิล" value={billNo} onChange={(event) => setBillNo(event.target.value)} />
+          <button className="h-10 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer" type="button" onClick={() => void loadData()}>Refresh</button>
+          <button className="h-10 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer" type="button" onClick={clearFilters}>ล้าง</button>
         </div>
       </div>
 
@@ -563,18 +564,17 @@ function CostSourceModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="max-h-[92vh] max-w-5xl overflow-hidden !p-0" fallbackTitle="Trading Cost Source" hideClose>
-        <DialogHeader className="bg-slate-900 text-white px-6 py-4">
-          <div className="flex items-start justify-between gap-3 w-full">
+      <DialogContent className="max-h-[92vh] max-w-5xl overflow-hidden rounded-md border-0 bg-slate-900 !p-0 shadow-2xl outline-none focus:outline-none flex flex-col" fallbackTitle="Trading Cost Source" hideClose>
+        <DialogHeader className="shrink-0 rounded-t-md bg-slate-900 px-6 py-4 text-white">
+          <div className="flex items-start gap-3 w-full">
             <div>
               <DialogTitle className="text-white text-base font-bold">Trading Cost Source</DialogTitle>
-              <DialogDescription className="text-slate-400 text-xs mt-1">บันทึกต้นทุน Trading แบบไม่ผูก PB เพื่อใช้จับคู่กับบิลขาย Trading</DialogDescription>
+              <DialogDescription className="text-slate-300 text-xs mt-1">บันทึกต้นทุน Trading แบบไม่ผูก PB เพื่อใช้จับคู่กับบิลขาย Trading</DialogDescription>
             </div>
-            <button className="rounded-xl px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 hover:text-white transition-colors outline-none focus:outline-none focus:ring-0 cursor-pointer" type="button" onClick={onClose}>✕</button>
           </div>
         </DialogHeader>
-        <div className="grid max-h-[calc(92vh-128px)] gap-4 overflow-y-auto bg-slate-50 p-4 grid-cols-2 lg:grid-cols-[360px_minmax(0,1fr)]">
-          <div className="rounded-xl border border-slate-100 bg-white p-4 col-span-2 lg:col-span-1">
+        <div className="grid flex-1 gap-4 overflow-y-auto bg-slate-50 p-4 text-sm sm:p-5 grid-cols-2 lg:grid-cols-[360px_minmax(0,1fr)]">
+          <div className="rounded-md border border-slate-100 bg-white p-4 col-span-2 lg:col-span-1">
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2 sm:col-span-1">
                 <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="trading-cost-source-date">วันที่</label>
@@ -582,7 +582,7 @@ function CostSourceModal({
               </div>
               <div className="col-span-2 sm:col-span-1">
                 <SearchCombobox
-                  inputClassName="h-10 text-sm border-slate-300 rounded-xl focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700"
+                  inputClassName="h-10 text-sm border-slate-300 rounded-md focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700"
                   inputId="trading-cost-source-product"
                   label="สินค้า *"
                   options={productOptions}
@@ -593,7 +593,7 @@ function CostSourceModal({
               </div>
               <div className="col-span-2">
                 <SearchCombobox
-                  inputClassName="h-10 text-sm border-slate-300 rounded-xl focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700"
+                  inputClassName="h-10 text-sm border-slate-300 rounded-md focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700"
                   inputId="trading-cost-source-supplier"
                   label="Supplier"
                   options={supplierOptions}
@@ -610,7 +610,7 @@ function CostSourceModal({
                 <NumberField id="trading-cost-source-total" label="มูลค่ารวม" value={form.totalAmount} onChange={(value) => update('totalAmount', value)} />
               </div>
               <div className="col-span-2 sm:col-span-1 flex flex-col justify-end">
-                <div className="rounded-xl bg-emerald-50 px-3 py-2 text-sm border border-emerald-100">
+                <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm border border-emerald-100">
                   <div className="text-xs font-semibold text-emerald-700">ยอดที่จะบันทึก</div>
                   <div className="font-bold text-emerald-900">{formatMoney(estimatedTotal)}</div>
                 </div>
@@ -618,30 +618,30 @@ function CostSourceModal({
               <div className="col-span-2">
                 <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="trading-cost-source-notes">หมายเหตุ</label>
                 <textarea
-                  className="min-h-20 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
+                  className="min-h-20 w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
                   id="trading-cost-source-notes"
                   value={form.notes}
                   onChange={(event) => update('notes', event.target.value)}
                 />
               </div>
-              {error ? <div className="col-span-2 rounded-xl border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</div> : null}
+              {error ? <div className="col-span-2 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</div> : null}
               <button
-                className="col-span-2 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 text-sm font-semibold text-white transition-colors outline-none focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 cursor-pointer"
+                className="col-span-2 h-10 rounded-md bg-slate-900 hover:bg-slate-800 px-4 text-sm font-normal text-white transition-colors outline-none focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 cursor-pointer"
                 disabled={!canSubmit || isSaving}
                 type="button"
                 onClick={onSubmit}
               >
-                {isSaving ? 'กำลังบันทึก...' : 'บันทึก Cost Source'}
+                {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
               </button>
             </div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs col-span-2 lg:col-span-1">
+          <div className="rounded-md border border-slate-200 bg-white overflow-hidden shadow-xs col-span-2 lg:col-span-1">
             <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-3 bg-slate-50/50">
               <div>
                 <div className="text-sm font-bold text-slate-800">รายการ Cost Source ล่าสุด</div>
                 <div className="text-xs text-slate-500">แสดงเฉพาะรายการ active ที่ยังเป็นต้นทุน Trading ได้</div>
               </div>
-              <button className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-800 outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer transition-colors" type="button" onClick={onRefresh}>
+              <button className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-800 outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer transition-colors" type="button" onClick={onRefresh}>
                 <RefreshCw className="h-3.5 w-3.5" />
                 Refresh
               </button>
@@ -688,8 +688,8 @@ function CostSourceModal({
             </div>
           </div>
         </div>
-        <DialogFooter className="bg-slate-50 border-t border-slate-200 px-6 py-3.5 flex justify-end gap-2">
-          <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-50 transition-colors h-10 outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer flex items-center justify-center" type="button" onClick={onClose}>ปิด</button>
+        <DialogFooter className="shrink-0 rounded-b-md border-t border-slate-100 bg-white px-6 py-3.5 flex justify-end gap-2">
+          <Button className="font-normal" type="button" variant="outline" onClick={onClose}>ปิด</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -701,7 +701,7 @@ function NumberField({ id, label, onChange, value }: { id: string; label: string
     <div>
       <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor={id}>{label}</label>
       <input
-        className="h-10 w-full rounded-xl border border-slate-300 px-3 text-sm text-right bg-white font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
+        className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm text-right bg-white font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
         id={id}
         inputMode="decimal"
         min="0"

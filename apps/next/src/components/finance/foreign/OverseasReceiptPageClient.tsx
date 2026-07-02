@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { formatDateDisplay } from '@/lib/format'
 
 type AccountOption = { currency: string; id: string; label: string; name: string; type: string }
@@ -21,6 +23,24 @@ type Payload = {
   rows: Row[]
   summary: { postedRows: number; totalFeeThb: number; totalReceivedThb: number }
 }
+
+type OverseasReceiptColumnKey = 'action' | 'amountForeign' | 'amountThb' | 'currency' | 'customer' | 'date' | 'docNo' | 'feeThb' | 'fxGainLoss' | 'fxRate' | 'receivedAccount' | 'status'
+type SortDirection = 'asc' | 'desc'
+
+const overseasReceiptColumns: Array<ResizableColumnDefinition<OverseasReceiptColumnKey>> = [
+  { key: 'docNo', defaultWidth: 150, minWidth: 120 },
+  { key: 'date', defaultWidth: 125, minWidth: 105 },
+  { key: 'customer', defaultWidth: 220, minWidth: 150 },
+  { key: 'receivedAccount', defaultWidth: 160, minWidth: 120 },
+  { key: 'amountForeign', defaultWidth: 130, minWidth: 110 },
+  { key: 'currency', defaultWidth: 90, minWidth: 75 },
+  { key: 'fxRate', defaultWidth: 90, minWidth: 75 },
+  { key: 'amountThb', defaultWidth: 145, minWidth: 120 },
+  { key: 'feeThb', defaultWidth: 120, minWidth: 100 },
+  { key: 'fxGainLoss', defaultWidth: 115, minWidth: 95 },
+  { key: 'status', defaultWidth: 135, minWidth: 110 },
+  { key: 'action', defaultWidth: 105, minWidth: 90 },
+]
 
 type FormState = {
   bankFeeForeign: number
@@ -66,6 +86,9 @@ export function OverseasReceiptPageClient() {
   const [form, setForm] = useState<FormState>(() => initialForm())
   const [isLoading, setIsLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [sortKey, setSortKey] = useState<OverseasReceiptColumnKey | null>(null)
+  const columnResize = useResizableColumns('finance.foreign.overseas-receipt.main.v1', overseasReceiptColumns)
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -98,6 +121,31 @@ export function OverseasReceiptPageClient() {
   const bankFeeThb = form.bankFeeForeign * fxRate
   const netReceived = receivedAmountThb - (form.chargeBearer === 'BEN' ? bankFeeThb : 0)
   const filteredBills = data?.filters.salesBills.filter((bill) => !form.customerId || bill.customerId === form.customerId) ?? []
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows])
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+
+    return [...rows].sort((a, b) => {
+      const aValue = getOverseasReceiptSortValue(a, sortKey)
+      const bValue = getOverseasReceiptSortValue(b, sortKey)
+      const result = typeof aValue === 'number' && typeof bValue === 'number'
+        ? aValue - bValue
+        : String(aValue).localeCompare(String(bValue), 'th', { numeric: true })
+
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [rows, sortDirection, sortKey])
+
+  function handleSort(key: OverseasReceiptColumnKey) {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(key)
+    setSortDirection('asc')
+  }
+
   function openForm() {
     const next = initialForm()
     next.customerId = data?.filters.customers[0]?.id ?? ''
@@ -122,15 +170,65 @@ export function OverseasReceiptPageClient() {
         <button className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white" type="button" onClick={openForm}>+ รับเงินต่างประเทศใหม่</button>
       </div>
 
-      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-100 text-slate-500"><tr><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">เลขที่</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">วันที่</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">Customer</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">บัญชีรับ</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">รับ (Foreign)</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">สกุล</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">FX</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">มูลค่า THB</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Bank Fee</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">FX G/L</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-center">สถานะ</th><th></th></tr></thead>
-          <tbody>
-            {isLoading ? <tr><td className="py-10 text-center text-slate-400" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
-            {!isLoading && (data?.rows.length ?? 0) === 0 ? <tr><td className="py-10 text-center text-slate-400" colSpan={12}>ยังไม่มีรายการรับเงินต่างประเทศ</td></tr> : null}
-            {data?.rows.map((row) => (
-              <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors">
-                <td className="px-4 py-3.5 font-mono">{row.docNo}</td><td className="px-4 py-3.5">{formatDateDisplay(row.date)}</td><td className="px-4 py-3.5">{row.description || '-'}</td><td className="px-4 py-3.5 text-xs">-</td><td className="px-4 py-3.5 text-right font-medium">-</td><td className="px-4 py-3.5">-</td><td className="px-4 py-3.5 text-right">-</td><td className="px-4 py-3.5 text-right font-medium text-emerald-700">{formatMoney(row.amountThb)}</td><td className="px-4 py-3.5 text-right text-amber-700">{formatMoney(row.feeThb)}</td><td className="px-4 py-3.5 text-right text-emerald-700">0</td><td className="px-4 py-3.5 text-center"><span className="rounded-md bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">{row.status}</span></td><td className="px-4 py-3.5 text-right text-xs text-slate-400">Read-only</td>
+      <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          พบทั้งหมด <span className="font-semibold text-slate-900">{sortedRows.length}</span> รายการ
+        </div>
+        {columnResize.hasCustomWidths ? (
+          <button
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            คืนค่าเดิมตาราง
+          </button>
+        ) : null}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
+          <colgroup>
+            {overseasReceiptColumns.map((column, index) => {
+              const style = columnResize.getColumnStyle(column.key)
+              if (index === overseasReceiptColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />
+              }
+              return <col key={column.key} style={style} />
+            })}
+          </colgroup>
+          <thead className="bg-slate-100">
+            <tr>
+              <ResizableTableHead label="เลขที่รับเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่รับเงิน')} />
+              <ResizableTableHead label="วันที่รับเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่รับเงิน')} />
+              <ResizableTableHead label="ลูกค้า" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="customer" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} />
+              <ResizableTableHead label="บัญชีรับเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="receivedAccount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('receivedAccount', 'บัญชีรับเงิน')} />
+              <ResizableTableHead align="right" label="รับ (Foreign)" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amountForeign" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amountForeign', 'รับ Foreign')} />
+              <ResizableTableHead label="สกุล" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="currency" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('currency', 'สกุล')} />
+              <ResizableTableHead align="right" label="FX" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="fxRate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('fxRate', 'FX')} />
+              <ResizableTableHead align="right" label="มูลค่า THB" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amountThb" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amountThb', 'มูลค่า THB')} />
+              <ResizableTableHead align="right" label="Bank Fee" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="feeThb" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('feeThb', 'Bank Fee')} />
+              <ResizableTableHead align="right" label="FX G/L" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="fxGainLoss" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('fxGainLoss', 'FX G/L')} />
+              <ResizableTableHead align="center" label="สถานะ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="status" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
+              <ResizableTableHead align="right" label="" resizeProps={columnResize.getResizeHandleProps('action', 'Read-only')} />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-400" colSpan={overseasReceiptColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+            {!isLoading && !error && sortedRows.length === 0 ? <tr><td className="px-3 py-10 text-center text-slate-400" colSpan={overseasReceiptColumns.length}>ยังไม่มีรายการรับเงินต่างประเทศ</td></tr> : null}
+            {!isLoading && sortedRows.map((row) => (
+              <tr key={row.id} className="transition-colors hover:bg-slate-50">
+                <td className="whitespace-nowrap px-3 py-3 font-mono text-xs text-slate-700">{row.docNo}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatDateDisplay(row.date)}</td>
+                <td className="min-w-0 truncate px-3 py-3 text-slate-700">{row.description || '-'}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-xs text-slate-500">-</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-500">-</td>
+                <td className="whitespace-nowrap px-3 py-3 text-slate-500">-</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-500">-</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-medium tabular-nums text-emerald-700">{formatMoney(row.amountThb)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-amber-700">{formatMoney(row.feeThb)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">0</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center"><span className="rounded-md bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">{row.status}</span></td>
+                <td className="whitespace-nowrap px-3 py-3 text-right text-xs text-slate-400">Read-only</td>
               </tr>
             ))}
           </tbody>
@@ -142,10 +240,10 @@ export function OverseasReceiptPageClient() {
         {isLoading ? (
           <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-100">กำลังโหลดข้อมูล</div>
         ) : null}
-        {!isLoading && (data?.rows.length ?? 0) === 0 ? (
+        {!isLoading && !error && sortedRows.length === 0 ? (
           <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-100">ยังไม่มีรายการรับเงินต่างประเทศ</div>
         ) : null}
-        {!isLoading && data?.rows.map((row) => (
+        {!isLoading && sortedRows.map((row) => (
           <div
             key={row.id}
             className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2 text-sm"
@@ -246,6 +344,28 @@ export function OverseasReceiptPageClient() {
       ) : null}
     </section>
   )
+}
+
+function getOverseasReceiptSortValue(row: Row, key: OverseasReceiptColumnKey): string | number {
+  if (key === 'date') {
+    const timestamp = Date.parse(row.date)
+    return Number.isNaN(timestamp) ? 0 : timestamp
+  }
+
+  switch (key) {
+    case 'amountThb':
+      return row.amountThb
+    case 'customer':
+      return row.description
+    case 'docNo':
+      return row.docNo
+    case 'feeThb':
+      return row.feeThb
+    case 'status':
+      return row.status
+    default:
+      return ''
+  }
 }
 
 function Field({ children, label }: { children: React.ReactNode; label: string }) {

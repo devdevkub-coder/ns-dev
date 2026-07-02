@@ -81,7 +81,8 @@ type MultiSegmentOption = {
   label: string
   values: ExpenseFormValues['status'][]
 }
-type ExpenseDashboardColumnKey = 'avg' | 'category' | 'status' | 'total' | `month:${string}`
+type ExpenseDashboardColumnKey = 'avg' | 'category' | 'latest' | 'status' | 'total' | `month:${string}`
+type ExpenseDashboardSortKey = ExpenseDashboardColumnKey
 type ExpenseColumnKey = 'account' | 'action' | 'amountSummary' | 'category' | 'date' | 'docNo' | 'dueDate' | 'netAmount' | 'payee' | 'refDocNo' | 'status'
 type ExpenseSortDirection = 'asc' | 'desc'
 type ExpenseSortKey = Exclude<ExpenseColumnKey, 'action'>
@@ -204,6 +205,22 @@ function expenseSortValue(row: ExpenseRow, key: ExpenseSortKey) {
       return row.refDocNo ?? ''
     case 'status':
       return expenseStatusLabel(row.status)
+  }
+}
+
+function dashboardSortValue(row: ExpenseHeatmapRow, key: ExpenseDashboardSortKey) {
+  if (key.startsWith('month:')) return row.byMonth[key.slice('month:'.length)] ?? 0
+  switch (key) {
+    case 'avg':
+      return row.avg
+    case 'category':
+      return row.name
+    case 'latest':
+      return row.latest
+    case 'status':
+      return row.anomaly === 'high' ? 2 : row.anomaly === 'low' ? 1 : 0
+    case 'total':
+      return row.total
   }
 }
 
@@ -394,6 +411,8 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [periodMonths, setPeriodMonths] = useState(6)
+  const [dashboardSortDirection, setDashboardSortDirection] = useState<ExpenseSortDirection>('desc')
+  const [dashboardSortKey, setDashboardSortKey] = useState<ExpenseDashboardSortKey>('total')
   const [sortDirection, setSortDirection] = useState<ExpenseSortDirection>('desc')
   const [sortKey, setSortKey] = useState<ExpenseSortKey>('date')
   const [vatRatePercent, setVatRatePercent] = useState(7)
@@ -531,6 +550,22 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
     { key: 'status', defaultWidth: 130, minWidth: 110 },
   ], [dashboard.monthList])
   const dashboardColumnResize = useResizableColumns('daily.expense-dashboard.heatmap', dashboardColumns)
+  const dashboardTabletColumns = useMemo<Array<ResizableColumnDefinition<ExpenseDashboardSortKey>>>(() => [
+    { key: 'category', defaultWidth: 240, minWidth: 160 },
+    { key: 'latest', defaultWidth: 180, minWidth: 130 },
+    { key: 'avg', defaultWidth: 160, minWidth: 120 },
+    { key: 'status', defaultWidth: 150, minWidth: 120 },
+  ], [])
+  const dashboardTabletColumnResize = useResizableColumns('daily.expense-dashboard.tablet.v1', dashboardTabletColumns)
+  const dashboardRows = useMemo(() => [...dashboard.heatmapRows].sort((left, right) => {
+    const leftValue = dashboardSortValue(left, dashboardSortKey)
+    const rightValue = dashboardSortValue(right, dashboardSortKey)
+    const base = typeof leftValue === 'number' && typeof rightValue === 'number'
+      ? leftValue - rightValue
+      : String(leftValue).localeCompare(String(rightValue), 'th', { numeric: true })
+    const directed = dashboardSortDirection === 'asc' ? base : -base
+    return directed || right.total - left.total || left.name.localeCompare(right.name, 'th')
+  }), [dashboard.heatmapRows, dashboardSortDirection, dashboardSortKey])
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -548,6 +583,15 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
     }
     setSortKey(nextKey)
     setSortDirection(nextKey === 'payee' || nextKey === 'category' || nextKey === 'account' || nextKey === 'status' ? 'asc' : 'desc')
+  }
+
+  function changeDashboardSort(nextKey: ExpenseDashboardSortKey) {
+    if (nextKey === dashboardSortKey) {
+      setDashboardSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+    setDashboardSortKey(nextKey)
+    setDashboardSortDirection(nextKey === 'category' ? 'asc' : 'desc')
   }
 
   function syncFormLines(current: ExpenseFormValues, lines: ExpenseLineDraft[]) {
@@ -895,13 +939,16 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                   </div>
                 </div>
 
-                {dashboardColumnResize.hasCustomWidths && (
+                {(dashboardColumnResize.hasCustomWidths || dashboardTabletColumnResize.hasCustomWidths) && (
                   <Button
                     className="h-8 rounded-lg text-xs"
                     size="sm"
                     type="button"
                     variant="outline"
-                    onClick={dashboardColumnResize.resetColumnWidths}
+                    onClick={() => {
+                      dashboardColumnResize.resetColumnWidths()
+                      dashboardTabletColumnResize.resetColumnWidths()
+                    }}
                   >
                     รีเซ็ตขนาด
                   </Button>
@@ -920,13 +967,13 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                 </colgroup>
                 <thead className="bg-slate-50/75 border-b border-slate-200/60">
                   <tr>
-                    <ResizableTableHead label="หมวดค่าใช้จ่าย" resizeProps={dashboardColumnResize.getResizeHandleProps('category', 'หมวดค่าใช้จ่าย')} />
+                    <ResizableTableHead activeSortKey={dashboardSortKey} direction={dashboardSortDirection} label="หมวดค่าใช้จ่าย" resizeProps={dashboardColumnResize.getResizeHandleProps('category', 'หมวดค่าใช้จ่าย')} sortKey="category" onSort={changeDashboardSort} />
                     {dashboard.monthList.map((month) => (
-                      <ResizableTableHead key={month} align="right" label={formatMonthLabel(month)} resizeProps={dashboardColumnResize.getResizeHandleProps(`month:${month}`, formatMonthLabel(month))} />
+                      <ResizableTableHead key={month} activeSortKey={dashboardSortKey} align="right" direction={dashboardSortDirection} label={formatMonthLabel(month)} resizeProps={dashboardColumnResize.getResizeHandleProps(`month:${month}`, formatMonthLabel(month))} sortKey={`month:${month}` as ExpenseDashboardSortKey} onSort={changeDashboardSort} />
                     ))}
-                    <ResizableTableHead align="right" label="เฉลี่ยรายเดือน" resizeProps={dashboardColumnResize.getResizeHandleProps('avg', 'เฉลี่ยรายเดือน')} />
-                    <ResizableTableHead align="right" label="ยอดรวม" resizeProps={dashboardColumnResize.getResizeHandleProps('total', 'ยอดรวม')} />
-                    <ResizableTableHead align="center" label="สถานะ" resizeProps={dashboardColumnResize.getResizeHandleProps('status', 'สถานะ')} />
+                    <ResizableTableHead activeSortKey={dashboardSortKey} align="right" direction={dashboardSortDirection} label="เฉลี่ยรายเดือน" resizeProps={dashboardColumnResize.getResizeHandleProps('avg', 'เฉลี่ยรายเดือน')} sortKey="avg" onSort={changeDashboardSort} />
+                    <ResizableTableHead activeSortKey={dashboardSortKey} align="right" direction={dashboardSortDirection} label="ยอดรวม" resizeProps={dashboardColumnResize.getResizeHandleProps('total', 'ยอดรวม')} sortKey="total" onSort={changeDashboardSort} />
+                    <ResizableTableHead activeSortKey={dashboardSortKey} align="center" direction={dashboardSortDirection} label="สถานะ" resizeProps={dashboardColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeDashboardSort} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -940,7 +987,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       </td>
                     </tr>
                   ) : null}
-                  {!isLoading && dashboard.heatmapRows.map((item) => (
+                  {!isLoading && dashboardRows.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="expense-dashboard-sticky sticky left-0 bg-white/95 backdrop-blur-sm px-4 py-3 font-semibold text-slate-900 border-r border-slate-200/60 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
                         {item.name}
@@ -991,7 +1038,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       </td>
                     </tr>
                   ))}
-                  {!isLoading && dashboard.heatmapRows.length === 0 ? (
+                  {!isLoading && dashboardRows.length === 0 ? (
                     <tr>
                       <td className="py-12 text-center text-slate-400" colSpan={dashboard.monthList.length + 4}>
                         ยังไม่มีข้อมูลบันทึกค่าใช้จ่ายในช่วงเวลานี้
@@ -999,7 +1046,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                     </tr>
                   ) : null}
                 </tbody>
-                {dashboard.heatmapRows.length > 0 ? (
+                {dashboardRows.length > 0 ? (
                   <tfoot className="bg-slate-50/50 font-bold border-t border-slate-200/60">
                     <tr className="divide-y divide-slate-100">
                       <td className="expense-dashboard-sticky sticky left-0 bg-slate-50/90 backdrop-blur-sm px-4 py-3.5 text-slate-900 border-r border-slate-200/60 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
@@ -1021,24 +1068,30 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
 
             {/* 2. Tablet Layout (Simplified Table) - Visible on md & lg screens */}
             <div className="expense-dashboard-heatmap hidden md:block lg:hidden overflow-x-auto rounded-xl border border-slate-200/60 bg-white shadow-sm">
-              <table className="w-full text-xs">
+              <table className="w-full text-xs" style={{ minWidth: dashboardTabletColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
+                <colgroup>
+                  {dashboardTabletColumns.map((column) => {
+                    const style = dashboardTabletColumnResize.getColumnStyle(column.key)
+                    return <col key={column.key} style={style} />
+                  })}
+                </colgroup>
                 <thead className="bg-slate-50/75 border-b border-slate-200/60">
                   <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-slate-700 w-1/3">หมวดค่าใช้จ่าย</th>
-                    <th className="px-3 py-3 text-right font-semibold text-slate-700">เดือนล่าสุด ({formatMonthLabel(dashboard.monthList[dashboard.monthList.length - 1])})</th>
-                    <th className="px-3 py-3 text-right font-semibold text-slate-700">เฉลี่ยรายเดือน</th>
-                    <th className="px-3 py-3 text-center font-semibold text-slate-700 w-1/4">สถานะ</th>
+                    <ResizableTableHead activeSortKey={dashboardSortKey} direction={dashboardSortDirection} label="หมวดค่าใช้จ่าย" resizeProps={dashboardTabletColumnResize.getResizeHandleProps('category', 'หมวดค่าใช้จ่าย')} sortKey="category" onSort={changeDashboardSort} />
+                    <ResizableTableHead activeSortKey={dashboardSortKey} align="right" direction={dashboardSortDirection} label={`เดือนล่าสุด (${formatMonthLabel(dashboard.monthList[dashboard.monthList.length - 1])})`} resizeProps={dashboardTabletColumnResize.getResizeHandleProps('latest', 'เดือนล่าสุด')} sortKey="latest" onSort={changeDashboardSort} />
+                    <ResizableTableHead activeSortKey={dashboardSortKey} align="right" direction={dashboardSortDirection} label="เฉลี่ยรายเดือน" resizeProps={dashboardTabletColumnResize.getResizeHandleProps('avg', 'เฉลี่ยรายเดือน')} sortKey="avg" onSort={changeDashboardSort} />
+                    <ResizableTableHead activeSortKey={dashboardSortKey} align="center" direction={dashboardSortDirection} label="สถานะ" resizeProps={dashboardTabletColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeDashboardSort} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {isLoading ? (
                     <tr>
-                      <td className="py-8 text-center text-slate-400" colSpan={4}>
+                      <td className="py-8 text-center text-slate-400" colSpan={dashboardTabletColumns.length}>
                         กำลังโหลดข้อมูลวิเคราะห์...
                       </td>
                     </tr>
                   ) : null}
-                  {!isLoading && dashboard.heatmapRows.map((item) => (
+                  {!isLoading && dashboardRows.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-4 py-3 font-semibold text-slate-900">
                         {item.name}
@@ -1066,9 +1119,9 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       </td>
                     </tr>
                   ))}
-                  {!isLoading && dashboard.heatmapRows.length === 0 ? (
+                  {!isLoading && dashboardRows.length === 0 ? (
                     <tr>
-                      <td className="py-8 text-center text-slate-400" colSpan={4}>
+                      <td className="py-8 text-center text-slate-400" colSpan={dashboardTabletColumns.length}>
                         ยังไม่มีข้อมูลบันทึกค่าใช้จ่ายในช่วงเวลานี้
                       </td>
                     </tr>
@@ -1087,7 +1140,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                   </div>
                 </div>
               ) : null}
-              {!isLoading && dashboard.heatmapRows.map((item) => (
+              {!isLoading && dashboardRows.map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -1136,7 +1189,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                   </div>
                 </button>
               ))}
-              {!isLoading && dashboard.heatmapRows.length === 0 ? (
+              {!isLoading && dashboardRows.length === 0 ? (
                 <div className="py-8 text-center text-slate-400 bg-white border border-slate-200/60 rounded-xl text-xs">
                   ยังไม่มีข้อมูลบันทึกค่าใช้จ่ายในช่วงเวลานี้
                 </div>

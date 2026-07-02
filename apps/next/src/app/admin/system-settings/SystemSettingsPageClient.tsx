@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import {
   emptyMasterDataForm,
   listMasterDataRecords,
@@ -15,6 +17,9 @@ import {
 } from '@/lib/master-data'
 
 type SettingKind = 'vat' | 'wht'
+type SortDirection = 'asc' | 'desc'
+type WhtColumnKey = 'action' | 'name' | 'ratePercent' | 'status'
+type WhtSortKey = Exclude<WhtColumnKey, 'action'>
 
 type TaxSettingConfig = {
   apiPath: string
@@ -50,6 +55,13 @@ const whtSetting: TaxSettingConfig = {
   label: 'WHT',
 }
 
+const whtColumns: Array<ResizableColumnDefinition<WhtColumnKey>> = [
+  { key: 'name', defaultWidth: 320, minWidth: 220 },
+  { key: 'ratePercent', defaultWidth: 160, minWidth: 130 },
+  { key: 'status', defaultWidth: 140, minWidth: 110 },
+  { key: 'action', defaultWidth: 120, minWidth: 100 },
+]
+
 function selectPrimaryRecord(rows: MasterDataRecord[]) {
   return rows.find((row) => row.active && row.isDefault) ?? rows.find((row) => row.active) ?? rows[0] ?? null
 }
@@ -78,17 +90,37 @@ function percentInputClassName() {
   return 'h-9 w-full appearance-none px-3 py-1.5 text-right font-semibold tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none border-none outline-none focus:ring-0 bg-transparent'
 }
 
+function compareSortValues(left: string | number, right: string | number) {
+  if (typeof left === 'number' && typeof right === 'number') return left - right
+  return String(left).localeCompare(String(right), 'th', { numeric: true })
+}
+
 export function SystemSettingsPageClient() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [pendingSave, setPendingSave] = useState<PendingSave | null>(null)
   const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [whtSortDirection, setWhtSortDirection] = useState<SortDirection>('asc')
+  const [whtSortKey, setWhtSortKey] = useState<WhtSortKey>('name')
   const [vatRecord, setVatRecord] = useState<MasterDataRecord | null>(null)
   const [vatValue, setVatValue] = useState('')
   const [whtRecords, setWhtRecords] = useState<MasterDataRecord[]>([])
   const [whtValues, setWhtValues] = useState<Record<string, string>>({})
 
   const activeWhtCount = useMemo(() => whtRecords.filter((record) => record.active).length, [whtRecords])
+  const whtColumnResize = useResizableColumns('admin.system-settings.wht.v1', whtColumns)
+  const sortedWhtRecords = useMemo(() => {
+    const getSortValue = (record: MasterDataRecord, key: WhtSortKey) => {
+      if (key === 'ratePercent') return parsePercentInput(whtValues[record.id] ?? toPercentInput(record.ratePercent)) ?? -1
+      if (key === 'status') return record.active ? 1 : 0
+      return record.name
+    }
+
+    return [...whtRecords].sort((left, right) => {
+      const result = compareSortValues(getSortValue(left, whtSortKey), getSortValue(right, whtSortKey))
+      return whtSortDirection === 'asc' ? result : -result
+    })
+  }, [whtRecords, whtSortDirection, whtSortKey, whtValues])
 
   async function loadSettings() {
     setError(null)
@@ -136,6 +168,16 @@ export function SystemSettingsPageClient() {
       record,
       saveKey,
     })
+  }
+
+  function changeWhtSort(key: WhtSortKey) {
+    if (whtSortKey === key) {
+      setWhtSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setWhtSortKey(key)
+    setWhtSortDirection('asc')
   }
 
   async function confirmSave() {
@@ -241,13 +283,28 @@ export function SystemSettingsPageClient() {
 
             {/* Desktop Table View (Hidden on Mobile) */}
             <div className="hidden lg:block">
-              <Table>
-                <TableHeader>
+              {whtColumnResize.hasCustomWidths ? (
+                <div className="mb-2 flex justify-end">
+                  <Button size="xs" type="button" variant="outline" onClick={whtColumnResize.resetColumnWidths}>
+                    คืนค่ากว้าง
+                  </Button>
+                </div>
+              ) : null}
+              <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: whtColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
+                <colgroup>
+                  {whtColumns.map((column, index) => (
+                    <col
+                      key={column.key}
+                      style={index === whtColumns.length - 1 ? { minWidth: column.minWidth } : whtColumnResize.getColumnStyle(column.key)}
+                    />
+                  ))}
+                </colgroup>
+                <TableHeader className="bg-slate-100">
                   <TableRow>
-                    <TableHead className="font-semibold text-slate-700">รายการ</TableHead>
-                    <TableHead className="w-40 text-right font-semibold text-slate-700">อัตรา %</TableHead>
-                    <TableHead className="w-32 text-center font-semibold text-slate-700">สถานะ</TableHead>
-                    <TableHead className="w-28 text-center font-semibold text-slate-700">จัดการ</TableHead>
+                    <ResizableTableHead activeSortKey={whtSortKey} direction={whtSortDirection} label="รายการ" resizeProps={whtColumnResize.getResizeHandleProps('name', 'รายการ')} sortKey="name" onSort={changeWhtSort} />
+                    <ResizableTableHead activeSortKey={whtSortKey} align="right" direction={whtSortDirection} label="อัตรา %" resizeProps={whtColumnResize.getResizeHandleProps('ratePercent', 'อัตรา %')} sortKey="ratePercent" onSort={changeWhtSort} />
+                    <ResizableTableHead activeSortKey={whtSortKey} align="center" direction={whtSortDirection} label="สถานะ" resizeProps={whtColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeWhtSort} />
+                    <ResizableTableHead align="center" label="จัดการ" resizeProps={whtColumnResize.getResizeHandleProps('action', 'จัดการ')} />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -256,13 +313,13 @@ export function SystemSettingsPageClient() {
                       <TableCell className="p-8 text-center text-slate-500" colSpan={4}>ไม่พบข้อมูล WHT</TableCell>
                     </TableRow>
                   ) : null}
-                  {whtRecords.map((record) => {
+                  {sortedWhtRecords.map((record) => {
                     const value = whtValues[record.id] ?? toPercentInput(record.ratePercent)
                     const saveKey = `wht:${record.id}`
                     return (
                       <TableRow key={record.id} className="hover:bg-slate-50">
-                        <TableCell>
-                          <div className="font-semibold text-slate-900">{record.name}</div>
+                        <TableCell className="min-w-0">
+                          <div className="truncate font-semibold text-slate-900" title={record.name}>{record.name}</div>
                           {record.isDefault ? <div className="mt-0.5 text-xs text-emerald-700 font-bold">อัตราที่ใช้คำนวณปัจจุบัน</div> : null}
                         </TableCell>
                         <TableCell>
@@ -306,7 +363,7 @@ export function SystemSettingsPageClient() {
 
             {/* Mobile View: Dense Card List (Hidden on Desktop) */}
             <div className="space-y-3 lg:hidden">
-              {whtRecords.map((record) => {
+              {sortedWhtRecords.map((record) => {
                 const value = whtValues[record.id] ?? toPercentInput(record.ratePercent)
                 const saveKey = `wht:${record.id}`
                 return (

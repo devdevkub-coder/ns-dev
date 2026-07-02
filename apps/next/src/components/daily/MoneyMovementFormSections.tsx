@@ -361,7 +361,7 @@ export function PaymentSplitsSection({
           <span>Discount</span>
           <UiInput
             disabled={methodDisabled}
-            className="mt-1 h-8 w-full px-2 py-1 text-right"
+            className="mt-1 h-9 w-full px-2 py-1 text-right"
             inputMode="decimal"
             type="text"
             value={moneyInputValue(formDiscountKey, Number(form.discount) || 0)}
@@ -374,7 +374,7 @@ export function PaymentSplitsSection({
           <span>Bank Fee</span>
           <UiInput
             disabled={methodDisabled}
-            className="mt-1 h-8 w-full px-2 py-1 text-right"
+            className="mt-1 h-9 w-full px-2 py-1 text-right"
             inputMode="decimal"
             type="text"
             value={moneyInputValue(formFeeKey, Number(form.fee) || 0)}
@@ -463,11 +463,11 @@ export function PaymentLinesSection({
               <TableRow key={line.id ?? lineIndex}>
                 <TableCell className="p-1 align-top">
                   {isBillLocked && lineIndex === 0 && selectedBill ? (
-                    <UiInput className="h-8 w-full bg-slate-50 px-1 py-1 text-xs disabled:opacity-100" disabled value={displayValue} />
+                    <UiInput className="h-9 w-full bg-slate-50 px-1 py-1 text-xs disabled:opacity-100" disabled value={displayValue} />
                   ) : (
                     <UiInput
                       autoComplete="off"
-                      className="h-8 w-full px-1 py-1 text-xs"
+                      className="h-9 w-full px-1 py-1 text-xs"
                       list={`payment-bill-options-${line.id ?? lineIndex}`}
                       placeholder="พิมพ์เลข PMA / เอกสารต้นทาง / ผู้รับเงิน..."
                       value={displayValue}
@@ -496,7 +496,7 @@ export function PaymentLinesSection({
                     </div>
                   ) : null}
                 </TableCell>
-                <TableCell className="p-1 align-top"><UiInput className="h-8 w-full bg-slate-50 px-1 py-1 text-right text-amber-700 disabled:opacity-100" disabled type="text" value={formatMoney(lineBalance)} /></TableCell>
+                <TableCell className="p-1 align-top"><UiInput className="h-9 w-full bg-slate-50 px-1 py-1 text-right text-amber-700 disabled:opacity-100" disabled type="text" value={formatMoney(lineBalance)} /></TableCell>
                 <TableCell className="p-1 text-center align-top"><UiButton className="h-8 w-8 px-0 text-red-500 disabled:text-slate-300" disabled={paymentLines.length <= 1 || (isBillLocked && lineIndex === 0)} size="icon" type="button" variant="ghost" onClick={() => onRemovePaymentLine(lineIndex)}>×</UiButton></TableCell>
               </TableRow>
             )

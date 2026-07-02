@@ -5,7 +5,7 @@ tags:
   - menu
   - admin-system
 status: accepted-baseline
-updated: 2026-06-11
+updated: 2026-07-02
 route: /admin/system-settings
 ---
 
@@ -76,6 +76,11 @@ system settings page for VAT/WHT settings, backed by current master-data tax set
 - เขียน master-data tax setting rows เท่านั้น
 - ไม่มี business transaction side effect
 
+## Current Design Checkpoint
+
+- 2026-07-02: WHT list presentation now follows the active table baseline with sortable/resizable headers, persisted widths, reset-width control, fixed table layout, and mobile cards from the same sorted row set.
+- VAT/WHT save APIs, default WHT behavior, permission boundary, and transaction snapshot behavior were not changed.
+
 ## Current Gap
 
 P3 proof completed from current code. Remaining work only if user changes target behavior.
@@ -85,4 +90,4 @@ P3 proof completed from current code. Remaining work only if user changes target
 - [x] Verify current page/component API calls
 - [x] Verify current API route methods and permission boundary
 - [x] Keep business transaction side effects out of this page
-- [ ] Update this file if admin/system code changes
+- [x] Update this file if admin/system code changes

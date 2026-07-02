@@ -5,7 +5,27 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/Dialog'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/Table'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+
+type ResponsiveDemoColumnKey = 'code' | 'customer' | 'qty' | 'status'
+type BulkDemoColumnKey = 'select' | 'docNo' | 'customer' | 'amount' | 'status'
+
+const responsiveDemoColumns: ResizableColumnDefinition<ResponsiveDemoColumnKey>[] = [
+  { key: 'code', defaultWidth: 110, minWidth: 90 },
+  { key: 'customer', defaultWidth: 200, minWidth: 140 },
+  { key: 'qty', defaultWidth: 120, minWidth: 90 },
+  { key: 'status', defaultWidth: 120, minWidth: 100 },
+]
+
+const bulkDemoColumns: ResizableColumnDefinition<BulkDemoColumnKey>[] = [
+  { key: 'select', defaultWidth: 56, minWidth: 48 },
+  { key: 'docNo', defaultWidth: 180, minWidth: 140 },
+  { key: 'customer', defaultWidth: 240, minWidth: 160 },
+  { key: 'amount', defaultWidth: 140, minWidth: 110 },
+  { key: 'status', defaultWidth: 150, minWidth: 120 },
+]
 
 export function DesignMockupPageClient() {
   // States for interactivity
@@ -13,6 +33,8 @@ export function DesignMockupPageClient() {
   const [activeTab, setActiveTab] = useState<'ap' | 'expense' | 'history'>('ap')
   const [isToggleActive, setIsToggleActive] = useState(true)
   const [splitItems, setSplitItems] = useState([{ id: 1, amount: '5,000.00' }])
+  const responsiveDemoResize = useResizableColumns('daily.design-mockup.responsive-demo.v1', responsiveDemoColumns)
+  const bulkDemoResize = useResizableColumns('daily.design-mockup.bulk-demo.v1', bulkDemoColumns)
 
   const addSplitItem = () => {
     setSplitItems([...splitItems, { id: Date.now(), amount: '' }])
@@ -1730,13 +1752,18 @@ export function DesignMockupPageClient() {
             <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
               <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 text-sm font-bold text-slate-500 flex items-center gap-2"><span className="text-lg">💻</span> มุมมองจอคอมพิวเตอร์ (Desktop)</div>
               <div className="p-4">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm" style={{ minWidth: responsiveDemoResize.tableMinWidth, tableLayout: 'fixed' }}>
+                  <colgroup>
+                    {responsiveDemoColumns.map((column) => (
+                      <col key={column.key} style={responsiveDemoResize.getColumnStyle(column.key)} />
+                    ))}
+                  </colgroup>
                   <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                     <tr>
-                      <th className="py-2 px-3 text-left">รหัส</th>
-                      <th className="py-2 px-3 text-left">ลูกค้า</th>
-                      <th className="py-2 px-3 text-right">จำนวน</th>
-                      <th className="py-2 px-3 text-center">สถานะ</th>
+                      <ResizableTableHead label="รหัส" resizeProps={responsiveDemoResize.getResizeHandleProps('code', 'รหัส')} />
+                      <ResizableTableHead label="ลูกค้า" resizeProps={responsiveDemoResize.getResizeHandleProps('customer', 'ลูกค้า')} />
+                      <ResizableTableHead align="right" label="จำนวน" resizeProps={responsiveDemoResize.getResizeHandleProps('qty', 'จำนวน')} />
+                      <ResizableTableHead align="center" label="สถานะ" resizeProps={responsiveDemoResize.getResizeHandleProps('status', 'สถานะ')} />
                     </tr>
                   </thead>
                   <tbody>
@@ -1875,16 +1902,21 @@ export function DesignMockupPageClient() {
               </div>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
+              <table className="w-full text-sm text-left" style={{ minWidth: bulkDemoResize.tableMinWidth, tableLayout: 'fixed' }}>
+                <colgroup>
+                  {bulkDemoColumns.map((column) => (
+                    <col key={column.key} style={bulkDemoResize.getColumnStyle(column.key)} />
+                  ))}
+                </colgroup>
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold">
                   <tr>
                     <th className="py-3 px-4 w-12 sticky left-0 bg-slate-50 z-10 shadow-[1px_0_0_0_#e2e8f0]">
                       <input type="checkbox" className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" checked onChange={() => {}} />
                     </th>
-                    <th className="py-3 px-4">เลขที่เอกสาร</th>
-                    <th className="py-3 px-4">ลูกค้า</th>
-                    <th className="py-3 px-4">ยอดเงิน</th>
-                    <th className="py-3 px-4">สถานะ</th>
+                    <ResizableTableHead label="เลขที่เอกสาร" resizeProps={bulkDemoResize.getResizeHandleProps('docNo', 'เลขที่เอกสาร')} />
+                    <ResizableTableHead label="ลูกค้า" resizeProps={bulkDemoResize.getResizeHandleProps('customer', 'ลูกค้า')} />
+                    <ResizableTableHead align="right" label="ยอดเงิน" resizeProps={bulkDemoResize.getResizeHandleProps('amount', 'ยอดเงิน')} />
+                    <ResizableTableHead align="center" label="สถานะ" resizeProps={bulkDemoResize.getResizeHandleProps('status', 'สถานะ')} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">

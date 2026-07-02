@@ -519,20 +519,19 @@ function Metric({ label, tone = 'slate', value }: { label: string; tone?: 'amber
 function DealDetailModal({ deal, onClose }: { deal: TradingDealRow; onClose: () => void }) {
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="max-h-[90vh] max-w-2xl !p-0 overflow-hidden flex flex-col" fallbackTitle="รายละเอียด Deal" hideClose>
-        <DialogHeader className="bg-slate-900 text-white px-6 py-4">
-          <div className="flex items-start justify-between gap-3 w-full">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-hidden rounded-md border-0 bg-slate-900 !p-0 shadow-2xl outline-none focus:outline-none flex flex-col" fallbackTitle="รายละเอียด Deal" hideClose>
+        <DialogHeader className="shrink-0 rounded-t-md bg-slate-900 px-6 py-4 text-white">
+          <div className="flex items-start gap-3 w-full">
             <div>
               <DialogTitle className="text-white text-base font-bold">Sales Bill {deal.salesBillNo || '-'}</DialogTitle>
-              <DialogDescription className="text-slate-400 text-xs mt-1">
+              <DialogDescription className="text-slate-300 text-xs mt-1">
                 Cost source {deal.purchaseBillNo || '-'} · {deal.productName}
               </DialogDescription>
             </div>
-            <button className="rounded-md px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 hover:text-white transition-colors outline-none focus:outline-none focus:ring-0 cursor-pointer" type="button" onClick={onClose}>✕</button>
           </div>
         </DialogHeader>
 
-        <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-5 text-sm">
+        <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4 text-sm sm:p-5">
           <div className="grid gap-3 rounded-md border border-slate-100 bg-white p-5 shadow md:grid-cols-3">
             <Detail label="วันที่" value={deal.date || '-'} />
             <Detail label="Qty" value={formatMoney(deal.matchedQty)} />
@@ -549,8 +548,8 @@ function DealDetailModal({ deal, onClose }: { deal: TradingDealRow; onClose: () 
           </div>
         </div>
 
-        <DialogFooter className="bg-slate-50 border-t border-slate-100 px-6 py-3.5 flex justify-end">
-          <button className="text-slate-500 hover:text-slate-700 text-sm font-semibold px-4 py-2 transition-colors focus:outline-none" type="button" onClick={onClose}>ปิด</button>
+        <DialogFooter className="shrink-0 rounded-b-md border-t border-slate-100 bg-white px-6 py-3.5 flex justify-end">
+          <Button className="font-normal" type="button" variant="outline" onClick={onClose}>ปิด</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

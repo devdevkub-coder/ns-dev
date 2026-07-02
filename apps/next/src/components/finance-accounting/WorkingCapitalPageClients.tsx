@@ -160,9 +160,9 @@ export function WorkingCapitalPageClient() {
       {error ? <ErrorBox message={error} /> : null}
       
       {/* Desktop Filter Panel */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-200">
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
         <span className="text-sm">ช่วงวิเคราะห์</span>
-        <select className="h-9 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={periodDays} onChange={(event) => setPeriodDays(Number(event.target.value))}>
+        <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={periodDays} onChange={(event) => setPeriodDays(Number(event.target.value))}>
           {[30, 60, 90, 180, 365].map((days) => <option key={days} value={days}>{days} วันล่าสุด{days === 90 ? ' (แนะนำ)' : ''}</option>)}
         </select>
         <DateInput label="ถึง" value={asOf} onChange={setAsOf} />
@@ -171,11 +171,11 @@ export function WorkingCapitalPageClient() {
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
+      <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden space-y-3">
         <div className="flex gap-2 items-center">
           <select 
             aria-label="Period days select"
-            className="flex-1 h-9 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs outline-none focus:border-slate-400 transition cursor-pointer" 
+            className="flex-1 h-9 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs outline-none focus:border-slate-400 transition cursor-pointer"
             value={periodDays} 
             onChange={(event) => setPeriodDays(Number(event.target.value))}
           >
@@ -183,7 +183,7 @@ export function WorkingCapitalPageClient() {
           </select>
           <button
             type="button"
-            className="h-9 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
+            className="h-9 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
             onClick={() => setShowMobileFilters(true)}
           >
             ตัวกรอง {branchId ? '(มี)' : ''}
@@ -216,7 +216,7 @@ export function WorkingCapitalPageClient() {
                 <label className="mb-1 block font-semibold text-slate-600 text-xs">สาขา</label>
                 <select
                   aria-label="Branch select"
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
                   value={branchId}
                   onChange={(event) => setBranchId(event.target.value)}
                 >
@@ -236,14 +236,14 @@ export function WorkingCapitalPageClient() {
                 onClick={() => {
                   setBranchId('')
                 }}
-                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                className="flex-1 h-10 rounded-md border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
               >
                 ล้างตัวกรอง
               </button>
               <button
                 type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+                className="flex-1 h-10 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
               >
                 ตกลง
               </button>
@@ -313,13 +313,13 @@ export function StockFinancePageClient() {
       {error ? <ErrorBox message={error} /> : null}
       
       {/* Desktop Filter Panel */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-200">
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
         <DateInput label="As of" value={asOf} onChange={setAsOf} />
         <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
+      <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden space-y-3">
         <div className="flex gap-2 items-center">
           <div className="flex-1 flex items-center gap-2">
             <span className="text-xs text-slate-500 font-semibold shrink-0">As of</span>
@@ -327,7 +327,7 @@ export function StockFinancePageClient() {
           </div>
           <button
             type="button"
-            className="h-9 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
+            className="h-9 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
             onClick={() => setShowMobileFilters(true)}
           >
             ตัวกรอง {branchId ? '(มี)' : ''}
@@ -355,7 +355,7 @@ export function StockFinancePageClient() {
                 <label className="mb-1 block font-semibold text-slate-600 text-xs">สาขา</label>
                 <select
                   aria-label="Branch select"
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
                   value={branchId}
                   onChange={(event) => setBranchId(event.target.value)}
                 >
@@ -371,14 +371,14 @@ export function StockFinancePageClient() {
                 onClick={() => {
                   setBranchId('')
                 }}
-                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                className="flex-1 h-10 rounded-md border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
               >
                 ล้างตัวกรอง
               </button>
               <button
                 type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+                className="flex-1 h-10 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
               >
                 ตกลง
               </button>
@@ -433,19 +433,19 @@ export function ProfitLeakPageClient() {
       {error ? <ErrorBox message={error} /> : null}
       
       {/* Desktop Filter Panel */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-200">
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
         <DateInput label="From" value={from} onChange={setFrom} />
         <DateInput label="To" value={to} onChange={setTo} />
         <label className="flex items-center gap-2 text-xs text-slate-600 font-semibold">
           <span>Target GP %</span>
-          <input className="w-20 rounded-lg border border-slate-300 px-3 py-1.5 text-right text-xs outline-none focus:border-slate-400 transition h-9 bg-white" step="0.1" type="number" value={targetMargin} onChange={(event) => setTargetMargin(Number(event.target.value))} />
+          <input className="w-20 rounded-md border border-slate-300 px-3 py-1.5 text-right text-xs outline-none focus:border-slate-400 transition h-9 bg-white" step="0.1" type="number" value={targetMargin} onChange={(event) => setTargetMargin(Number(event.target.value))} />
         </label>
         <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
         <span className="rounded-full bg-red-50 border border-red-200 px-3 py-1 text-xs font-bold text-red-700">รวมรั่วไหล: {money(data?.summary.totalLeak)}</span>
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
+      <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden space-y-3">
         <div className="flex gap-2 items-center">
           <div className="flex-1 grid grid-cols-2 gap-2">
             <div className="flex items-center gap-1">
@@ -459,7 +459,7 @@ export function ProfitLeakPageClient() {
           </div>
           <button
             type="button"
-            className="h-9 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none shrink-0"
+            className="h-9 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none shrink-0"
             onClick={() => setShowMobileFilters(true)}
           >
             ตัวกรอง {(branchId || targetMargin !== 5) ? '(มี)' : ''}
@@ -486,7 +486,7 @@ export function ProfitLeakPageClient() {
               <div>
                 <label className="mb-1 block font-semibold text-slate-600 text-xs">Target GP %</label>
                 <input 
-                  className="w-full h-10 rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-slate-400 bg-white text-slate-900" 
+                  className="w-full h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-400 bg-white text-slate-900"
                   step="0.1" 
                   type="number" 
                   value={targetMargin} 
@@ -498,7 +498,7 @@ export function ProfitLeakPageClient() {
                 <label className="mb-1 block font-semibold text-slate-600 text-xs">สาขา</label>
                 <select
                   aria-label="Branch select"
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
                   value={branchId}
                   onChange={(event) => setBranchId(event.target.value)}
                 >
@@ -520,14 +520,14 @@ export function ProfitLeakPageClient() {
                   setBranchId('')
                   setTargetMargin(5)
                 }}
-                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                className="flex-1 h-10 rounded-md border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
               >
                 ล้างตัวกรอง
               </button>
               <button
                 type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+                className="flex-1 h-10 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
               >
                 ตกลง
               </button>
@@ -606,7 +606,7 @@ function BaselineNotice({ sourceState }: { sourceState?: SourceState }) {
 }
 
 function FilterPanel({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">{children}</div>
+  return <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">{children}</div>
 }
 
 function DateInput({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
@@ -614,7 +614,7 @@ function DateInput({ label, onChange, value }: { label: string; onChange: (value
 }
 
 function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; onChange: (value: string) => void; value: string }) {
-  return <select className="rounded-lg border border-slate-100 bg-white px-3 py-1.5 text-xs outline-none focus:outline-none focus:border-slate-400 transition cursor-pointer" value={value} onChange={(event) => onChange(event.target.value)}><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>
+  return <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none focus:outline-none focus:border-slate-400 transition cursor-pointer" value={value} onChange={(event) => onChange(event.target.value)}><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>
 }
 
 function Panel({ children, className = '', title }: { children: ReactNode; className?: string; title: string }) {
@@ -719,7 +719,7 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: WorkingPay
   }, [rows, sortKey, sortDirection])
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="flex justify-between items-center border-b border-slate-100 bg-slate-50 px-4 py-3 font-bold text-slate-700 text-sm">
         <span>📋 ตารางคำนวณ</span>
         {columnResize.hasCustomWidths && (
@@ -864,7 +864,7 @@ function ProductTable({ rows }: { rows: StockProduct[] }) {
   }, [rows, sortKey, sortDirection])
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="flex justify-between items-center border-b border-red-100 bg-red-50/50 px-4 py-3 font-bold text-red-700 text-sm">
         <span>Slow Moving / สินค้าที่ควรรีบขาย (Top 15 — ไม่ขาย &gt; 60 วัน)</span>
         {columnResize.hasCustomWidths && (
@@ -984,7 +984,7 @@ function NegativeMarginTable({ rows, total }: { rows: ProfitPayload['negMarginIt
   }, [rows, sortKey, sortDirection])
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="flex justify-between items-center border-b border-red-100 bg-red-50/50 px-4 py-3 font-bold text-red-700 text-sm">
         <div className="flex flex-wrap items-center gap-2">
           <span>📉 ขายต่ำกว่า WAC ({rows.length} รายการ)</span>
@@ -1103,7 +1103,7 @@ function LowMarginTable({ rows, targetMargin }: { rows: ProfitPayload['lowMargin
   }, [rows, sortKey, sortDirection])
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="flex justify-between items-center border-b border-slate-100 bg-slate-50 px-4 py-3 font-bold text-slate-700 text-xs">
         <span>⬇ บิลที่ GP &lt; {targetMargin}%</span>
         {columnResize.hasCustomWidths && (
@@ -1206,7 +1206,7 @@ function LowCustomerTable({ rows }: { rows: ProfitPayload['lowCustomers'] }) {
   }, [rows, sortKey, sortDirection])
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="flex justify-between items-center border-b border-slate-100 bg-slate-50 px-4 py-3 font-bold text-slate-700 text-xs">
         <span>👥 ลูกค้ากำไรต่ำ (Top 10)</span>
         {columnResize.hasCustomWidths && (
@@ -1312,7 +1312,7 @@ function HighSupplierTable({ rows }: { rows: ProfitPayload['highSuppliers'] }) {
   }, [rows, sortKey, sortDirection])
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="flex justify-between items-center border-b border-slate-100 bg-slate-50 px-4 py-3 font-bold text-slate-700 text-xs">
         <span>🏭 Supplier ต้นทุนสูง (Top 10)</span>
         {columnResize.hasCustomWidths && (
@@ -1415,7 +1415,7 @@ function OutlierTable({ rows }: { rows: ProfitPayload['outliers'] }) {
   }, [rows, sortKey, sortDirection])
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="flex justify-between items-center border-b border-orange-100 bg-orange-50/50 px-4 py-3 font-bold text-orange-700 text-sm">
         <span>⚠ ค่าใช้จ่ายผิดปกติ ({rows.length}) — สูงเกิน mean + 1.5×stddev</span>
         {columnResize.hasCustomWidths && (
