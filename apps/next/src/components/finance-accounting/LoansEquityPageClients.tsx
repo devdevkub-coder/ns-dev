@@ -770,20 +770,20 @@ function DueTable({ isLoading, rows, title, tone }: { isLoading: boolean; rows: 
   const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<DueRow, DueColumnKey>(rows, getDueSortValue)
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className={`flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 font-bold text-xs ${heading}`}>
         <span>{title} ({rows.length})</span>
         {columnResize.hasCustomWidths ? (
           <button
-            className="hidden h-8 rounded-md bg-white/70 px-3 text-xs font-semibold text-slate-700 hover:bg-white lg:inline-flex"
+            className="hidden h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 lg:inline-flex"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
-            รีเซ็ตความกว้างตาราง
+            คืนค่าเดิมตาราง
           </button>
         ) : null}
       </div>
-      
+
       {/* Desktop Table View */}
       <div className="hidden lg:block max-h-96 overflow-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>

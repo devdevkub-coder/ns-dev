@@ -6,6 +6,8 @@ Date: 2026-07-02
 Active app: `apps/next`
 Primary remote: `new-origin`
 
+Loan Dashboard due-table reset follow-up on 2026-07-02: `/finance-accounting/loan-dashboard` due/overdue tables now use the rounded-md lined table card and standard `h-9`, `text-sm`, `???????????????` reset-width control. This is UI-only; dashboard summaries, due/overdue source rows, sorting/resizing, API permissions, and DB state were not changed.
+
 Loan Contracts toolbar follow-up on 2026-07-02: `/finance-accounting/loan-contracts` now keeps disabled Template, Import Excel, and Add Contract actions inside the same desktop filter card as search/type/status instead of a separate floating action card. The filter shell, mobile toolbar, pagination row, reset-width label, and main table shell now follow the rounded-md lightweight list baseline. This is UI-only; disabled write/import state, loan read-model filters, sorting/resizing, pagination behavior, API permissions, and DB state were not changed.
 
 Depreciation tab-render follow-up on 2026-07-02: `/finance-accounting/depreciation` now renders the pending-assets table and depreciation-history table through an explicit active-tab state, matching the production report tab pattern and preventing both large table sections from appearing at the same time. The tab selector keeps the standard rounded white line-tab surface. This is UI-only; period filters, preview/commit/reverse behavior, depreciation math, table sort/resize logic, APIs, permissions, and DB state were not changed.
