@@ -373,7 +373,7 @@ export function SalesPlanPageClient() {
       </div>
 
       {/* 1. Sales Plan Section */}
-      <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3 text-xs font-semibold text-slate-600">
           📝 ตารางวางแผน — ปลดล็อก = อยู่ในขั้นเสนอ / ล็อก = ราคายืนยันแล้วและกันยอดตามแผนขาย
         </div>
@@ -381,7 +381,7 @@ export function SalesPlanPageClient() {
         {/* Desktop view */}
         {planResize.hasCustomWidths ? (
           <div className="hidden justify-end px-4 pt-3 lg:flex">
-            <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={planResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={planResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           </div>
         ) : null}
         <div className="hidden overflow-x-auto lg:block">
@@ -477,7 +477,7 @@ export function SalesPlanPageClient() {
       </div>
 
       {/* 2. Analysis Section */}
-      <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 p-4">
           <div>
             <h3 className="font-bold text-slate-800 text-sm">📊 วิเคราะห์แผนขาย vs สต๊อกว่างขาย — ผู้บริหารตัดสินใจ</h3>
@@ -488,7 +488,7 @@ export function SalesPlanPageClient() {
         {/* Desktop View Table */}
         {analysisResize.hasCustomWidths ? (
           <div className="hidden justify-end px-4 pt-3 lg:flex">
-            <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={analysisResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={analysisResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           </div>
         ) : null}
         <div className="hidden overflow-x-auto lg:block">
@@ -580,7 +580,7 @@ export function SalesPlanPageClient() {
       </div>
 
       {/* 3. Containers Remaining Section */}
-      <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/50 p-4">
           <h3 className="font-bold text-slate-800 text-sm">📦 สต๊อกว่างขาย คงเหลือหลังหักล็อกราคา — เดือน {(month || data?.filters.month) ?? ''}</h3>
           <div className="text-xs flex items-center gap-1.5">
@@ -592,7 +592,7 @@ export function SalesPlanPageClient() {
         {/* Desktop View Table */}
         {remainingResize.hasCustomWidths ? (
           <div className="hidden justify-end px-4 pt-3 lg:flex">
-            <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={remainingResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={remainingResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           </div>
         ) : null}
         <div className="hidden overflow-x-auto lg:block">
@@ -1005,7 +1005,7 @@ export function SalesCommissionPageClient() {
           <Panel title="📦 Table 1: ยอดซื้อรวมตามหมวดสินค้า">
             {table1Resize.hasCustomWidths ? (
               <div className="mb-2 hidden justify-end lg:flex">
-                <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={table1Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+                <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={table1Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
               </div>
             ) : null}
             <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
@@ -1059,7 +1059,7 @@ export function SalesCommissionPageClient() {
           <Panel title="📈 Table 2: ยอดซื้อที่ได้รับค่าคอมมิชชั่นตามหมวดสินค้า">
             {table2Resize.hasCustomWidths ? (
               <div className="mb-2 hidden justify-end lg:flex">
-                <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={table2Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+                <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={table2Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
               </div>
             ) : null}
             <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
@@ -1114,7 +1114,7 @@ export function SalesCommissionPageClient() {
         <Panel title="🏭 Table 3: Supplier ในความดูแล">
           {table3Resize.hasCustomWidths ? (
             <div className="mb-2 hidden justify-end lg:flex">
-              <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={table3Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+              <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={table3Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
             </div>
           ) : null}
           <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm mb-3">
@@ -1207,7 +1207,7 @@ export function SalesCommissionPageClient() {
           </div>
           {table4Resize.hasCustomWidths ? (
             <div className="mb-2 hidden justify-end lg:flex">
-              <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={table4Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+              <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={table4Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
             </div>
           ) : null}
           <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm mb-3">
@@ -1394,7 +1394,7 @@ export function SalesCommissionPageClient() {
 
         {summaryResize.hasCustomWidths ? (
           <div className="mb-2 hidden justify-end lg:flex">
-            <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={summaryResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={summaryResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           </div>
         ) : null}
         <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
@@ -1467,7 +1467,7 @@ function SimpleTable({ empty = 'ไม่มีข้อมูล', headers, row
   return (
     <div>
       {/* Desktop View Table */}
-      <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
+      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
         <table className="w-full text-xs">
           <thead className="bg-slate-50 border-b border-slate-100">
             <tr>
@@ -1543,7 +1543,7 @@ function SimpleTable({ empty = 'ไม่มีข้อมูล', headers, row
 
 function Panel({ children, title }: { children: ReactNode; title: string }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="bg-slate-900 p-3 text-sm font-bold text-white">{title}</div>
       <div className="p-4">{children}</div>
     </div>
