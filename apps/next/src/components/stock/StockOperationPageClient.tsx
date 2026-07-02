@@ -1023,7 +1023,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
         }}
       >
         <DialogContent
-          className={`flex max-h-[92vh] flex-col overflow-hidden rounded-md bg-white !p-0 shadow-2xl ${mode === 'convert' || mode === 'adjust' ? 'max-w-5xl' : 'max-w-3xl'}`}
+          className={`flex max-h-[92vh] flex-col overflow-hidden rounded-md border-0 bg-slate-900 !p-0 shadow-2xl outline-none focus:outline-none ${mode === 'convert' || mode === 'adjust' ? 'max-w-5xl' : 'max-w-3xl'}`}
           data-combobox-portal-root="true"
           fallbackTitle={meta.title}
           hideClose
@@ -1675,8 +1675,8 @@ function AdjustDetailModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-10">
-      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-md bg-white shadow-2xl">
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-5 py-4 text-white">
+      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl outline-none">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-t-md bg-slate-900 px-5 py-4 text-white">
           <div>
             <h3 className="text-base font-bold text-white">รายละเอียดปรับสต๊อก · {formatCell(detail.docNo)}</h3>
             <div className="mt-1 text-xs text-slate-400">{formatDateDisplay(String(detail.date ?? ''))} · {formatCell(detail.branchWarehouse)} · {formatCell(detail.status)}</div>
@@ -1722,7 +1722,7 @@ function AdjustDetailModal({
             </div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4">
+        <div className="flex flex-wrap items-center justify-end gap-2 rounded-b-md border-t border-slate-200 bg-white px-5 py-4">
           <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" onClick={onClose}>ปิด</button>
           <button
             className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
@@ -1754,8 +1754,8 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
   const totalCost = detail.lines.reduce((sum, line) => sum + line.totalCost, 0)
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-10">
-      <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-md bg-white shadow-2xl">
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-5 py-4 text-white">
+      <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl outline-none">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-t-md bg-slate-900 px-5 py-4 text-white">
           <div>
             <h3 className="font-bold text-white text-base">Cost Allocation Detail · {detail.refNo}</h3>
             <div className="mt-1 text-xs text-slate-400">{detail.date} · {detail.branchWarehouse || '-'} · {detail.status}</div>
@@ -1829,7 +1829,7 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
             </div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-b-md border-t border-slate-200 bg-white px-5 py-4">
           <div className="text-xs text-slate-500">
             เหตุผล: {detail.reason || '-'} · หมายเหตุ: {detail.notes || '-'} · เหตุผล override: {detail.targetCostReason || '-'}
           </div>
@@ -2147,7 +2147,7 @@ function CostPoolPreview({
                   <td className="p-2 text-right font-mono">{formatMoney(entry.unitCost)}</td>
                   <td className="p-2 text-right">
                     <input
-                      className="h-8 w-24 rounded-md border border-slate-300 px-2 text-right font-mono"
+                      className="h-9 w-24 rounded-md border border-slate-300 px-2 text-right font-mono"
                       min="0"
                       step="0.001"
                       type="number"
@@ -2487,9 +2487,9 @@ function FormShell({ children, isSaving, error, onCancel, onSubmit }: { children
         ) : null}
         <div className="grid gap-3 md:grid-cols-2">{children}</div>
       </div>
-      <DialogFooter className="shrink-0 rounded-b-md border-t border-slate-100 bg-slate-50 px-5 py-4">
+      <DialogFooter className="shrink-0 rounded-b-md border-t border-slate-100 bg-white px-5 py-4">
         <button
-          className="h-9 rounded-md px-4 text-sm font-normal text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-9 rounded-md border border-slate-300 bg-white px-4 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={isSaving}
           type="button"
           onClick={onCancel}
@@ -2545,7 +2545,7 @@ function ProductStockPreview({
   if (!stock) return null
 
   return (
-    <div className="rounded-lg border border-indigo-100 bg-indigo-50/50 p-4 space-y-2 text-left">
+    <div className="rounded-md border border-indigo-100 bg-indigo-50/50 p-4 space-y-2 text-left">
       <h5 className="font-bold text-indigo-800 text-xs flex items-center gap-1.5">
         📦 ข้อมูล Stock ปัจจุบันของสินค้าที่จะปรับสถานะสินค้า: <span className="font-normal text-slate-600">{stock.productName} ({stock.productCode})</span>
       </h5>
