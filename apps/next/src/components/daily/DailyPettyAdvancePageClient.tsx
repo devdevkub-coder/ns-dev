@@ -618,11 +618,11 @@ export function DailyPettyAdvancePageClient() {
       ) : null}
 
       {/* Pagination Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200 shadow-sm mb-4">
-        <div className="flex items-center gap-3">
+      <div className="mb-4 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
           <span>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</span>
           {columnResize.hasCustomWidths ? (
-            <button className="rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>
+            <button className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
           ) : null}
@@ -713,7 +713,7 @@ export function DailyPettyAdvancePageClient() {
         ) : null}
       </div>
 
-      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
+      <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
         <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {pettyAdvanceColumns.map((column) => {
