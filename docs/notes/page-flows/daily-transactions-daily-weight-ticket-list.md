@@ -21,7 +21,7 @@ route: /daily/weight-ticket-list
 
 ## Canonical References
 
-[[WTI-WTO Flow]], [[Purchase Flow]], [[Sales Flow]], [[Stock Ledger and Stock Balance]]
+[[WTI-WTO Flow]], [[WTO Return Flow]], [[Purchase Flow]], [[Sales Flow]], [[Stock Ledger and Stock Balance]]
 
 ## Flow Baseline
 
@@ -29,32 +29,31 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 
 ### WTO Pending Out And Average Cost Snapshot Decision
 
-User decision on 2026-06-29 and clarified on 2026-06-30: WTO must reserve stock as `pending_out` from draft/save time, must not lock average cost until the first confirm action, and must own the per-scale cost history plus product-level weighted average cost summary used by Sales Bill.
+User decision on 2026-06-29 and clarified on 2026-06-30, then corrected on 2026-07-02: WTO must reserve stock as `pending_out` from draft/save time, must not lock average cost until the first confirm action, and must use `WTO + product + warehouse` as the stock reservation identity. Scale/line/เต๋า rows are document and audit detail, not separate stock reservation identities.
 
 - `Draft` / saved-but-not-confirmed WTO creates or updates active `pending_out` rows so Stock Balance shows the quantity as `รอออก` and removes it from available stock.
 - Draft `pending_out` does not store average-cost snapshot yet. It is only a quantity reservation.
-- First `Confirm` locks the current average cost for each scale/line pending_out portion at confirmation time. This snapshot becomes the cost source for later Sales Bill stock-out/COGS.
-- After every confirm or edit-save that affects WTO pending_out, WTO recomputes and stores/exposes the product-level weighted average cost summary from all active scale/line portions for that SKU: `sum(active qty x per-scale unit_cost_snapshot) / sum(active qty)`.
-- After confirm, edit uses a delta rule:
-  - unchanged scale/line keeps the existing pending_out row/portion and existing average-cost snapshot;
-  - decreased scale/line releases only the decreased portion from `pending_out` back to on-hand/available stock and keeps the existing average-cost snapshot for the remaining portion;
-  - edited scale/line with changed product, warehouse, net qty, or material stock fields closes/releases the old pending_out portion and creates a new portion with the current average cost at save time;
-  - increased quantity on an existing scale creates a new or adjusted pending_out portion only for the increase and snapshots the current average cost at that save time, while the unchanged old portion keeps the old snapshot;
-  - new scale/SKU creates new pending_out and snapshots the current average cost at that save time;
-  - removed scale/SKU releases its remaining pending_out back to on-hand/available stock.
-- If one SKU has old confirmed scales, edited scales, and newly added scales, the durable model is multiple pending_out rows/portions so each scale/portion keeps its own average-cost snapshot. Do not overwrite the old snapshot for already-confirmed unchanged quantity.
-- WTO must keep enough history to audit each edit: document-level status/audit snapshot plus pending_out event snapshots with `source_line_no`, `weight_ticket_line_id` when available, status, qty, unit cost snapshot, value snapshot, and cost snapshot timestamp/source/note.
-- `stock_holds` is the operational stock-side table for current/closed pending_out portions. It is not the document audit trail. WTO document history must be written to and read from `weight_ticket_pending_out_events` so old events are immutable and do not change when a stock hold later gets released, consumed, or rebuilt.
-- UI may show one combined average cost for the same SKU by weighted average: `(old active qty x old snapshot cost + edited/new active qty x new snapshot cost) / total active qty`. The audit detail must still preserve the old, edited, and new pending_out portions so the weighted result is traceable.
-- Sales Bill must consume the WTO-prepared pending_out portions and cost summary/snapshots and write `stock_ledger.value_out` from those snapshots, not recalculate the old portion from current WAC at SB time.
-- No runtime fallback is allowed for cost: if a pending_out portion has no average-cost snapshot, Sales Bill consume, stock return/loss, and any COGS movement must fail and require confirming/fixing the WTO cost snapshot first.
+- First `Confirm` locks the current average cost for each `WTO + product + warehouse` reservation at confirmation time. This snapshot becomes the cost source for later Sales Bill stock-out/COGS.
+- After every confirm or edit-save that affects WTO pending_out, WTO recomputes and stores/exposes the product-level weighted average cost summary from active reservations for that SKU: `sum(active qty x unit_cost_snapshot) / sum(active qty)`.
+- After confirm, edit uses a product+warehouse delta rule:
+  - unchanged product+warehouse keeps the existing pending_out quantity and existing average-cost snapshot;
+  - decreased product+warehouse releases only the decreased quantity from `pending_out` back to available stock and keeps the existing average-cost snapshot for the remaining quantity;
+  - changed product, warehouse, branch, or material stock field closes/releases the old product+warehouse reservation and creates the new reservation with the current average cost at save time;
+  - increased quantity on an existing product+warehouse updates/creates only the increase and uses the current average cost at save time for the added quantity;
+  - removed product+warehouse releases its remaining pending_out back to available stock.
+- If a WTO has multiple scale/line/เต๋า rows for the same product+warehouse, the stock-side current state must still be one business reservation for that product+warehouse. Audit can keep scale/line details, but business rows, return rows, and ledger rows must be aggregated before calculation.
+- WTO must keep enough history to audit each edit: document-level status/audit snapshot plus pending_out event snapshots with product, warehouse, qty, unit cost snapshot, value snapshot, and cost snapshot timestamp/source/note. `source_line_no` or `weight_ticket_line_id` may appear only as audit metadata, not as stock reservation identity.
+- `stock_holds` is the operational stock-side table for current/closed pending_out. It is not the document audit trail. WTO document history must be written to and read from `weight_ticket_pending_out_events` so old events are immutable and do not change when a stock hold later gets released, consumed, or rebuilt.
+- UI may show one combined average cost for the same SKU by weighted average. Audit detail can explain which document rows contributed to the quantity, but the business result remains product+warehouse.
+- Sales Bill must consume the WTO-prepared pending_out and cost summary/snapshots and write `stock_ledger.value_out` from those snapshots, not recalculate from current WAC at SB time.
+- No runtime fallback is allowed for cost: if a confirmed WTO pending_out has no average-cost snapshot, Sales Bill consume, WTO return/loss, and any COGS movement must fail and require confirming/fixing the WTO cost snapshot first.
 
 ### WTO Cost Snapshot Display
 
 - Main list `/daily/weight-ticket-list` should not show cost by default because it is a fast scanning surface and cost is sensitive.
 - WTO detail/modal should show cost snapshot on the product breakdown table for users allowed to see stock/sales cost:
   - product summary row: weighted average cost and pending_out value, labeled to users as `มูลค่ารอส่ง`;
-  - line/portion row: cost snapshot used by that portion, or `รอยืนยันราคาต้นทุนเฉลี่ย` when draft pending_out has no snapshot yet.
+  - scale/line detail row: audit context for contributed weight, or `รอยืนยันราคาต้นทุนเฉลี่ย` when draft pending_out has no snapshot yet; it must not imply a separate pending_out business row.
 - Runtime detail update 2026-06-30: `/daily/weight-ticket-list/[docNo]` and the detail modal both show the current WTO average-cost snapshot in the main product breakdown table at product-summary level and real-scale/line level. There is no separate current pending_out table; audit rows are shown only from timeline expansion and come from `weight_ticket_pending_out_events`, not live `stock_holds`.
 - WTO detail/modal and owner detail route must merge pending_out/cost audit into the document timeline:
   - timeline events that changed pending_out or cost snapshot show a collapsed `ดูรายการเปลี่ยนแปลง` control;
@@ -63,7 +62,7 @@ User decision on 2026-06-29 and clarified on 2026-06-30: WTO must reserve stock 
   - active rows explain the current cost summary; released/consumed/cancelled/lost rows appear only under the timeline event that caused the change so stale duplicate rows do not look like current state.
 - WTI/WTO edit timeline must store field-level edit details in `weight_ticket_status_logs.meta.changes`. The diff covers document header fields such as branch, customer/supplier, vehicle no, remark, document images, and document totals, plus line fields such as product, warehouse, gross/container/deduction/net weights, impurity, line images, line remark, added lines, and removed lines. This is the document audit trail and is separate from the stock-side pending_out audit.
 - Runtime detail update 2026-06-30: field-level edit details are no longer shown as a second separate table under the timeline event. When a timeline event has pending_out/cost rows, the field-level changes that apply to the document or that scale/line are summarized in the same `รายการเปลี่ยนแปลง` column, for example `เปลี่ยนคลัง: FG สมุทรสาคร -> RM สมุทรสาคร` or `เปลี่ยนน้ำหนักสุทธิ: 30.00 กก. -> 25.00 กก.`. This keeps one audit table per event and avoids duplicating the same warehouse/quantity change in a lower table.
-- `weight_ticket_pending_out_events` must capture confirm/edit/cancel events from WTO and consume/release/return/loss events from Sales Bill flows. Sales Bill routes should append these audit rows in the same transaction as the `stock_holds` state change.
+- `weight_ticket_pending_out_events` must capture confirm/edit/cancel events from WTO, consume/release events from Sales Bill flows, and return/loss events from WTO return flows. Write paths should append these audit rows in the same transaction as the `stock_holds` state change.
 - WTO edit form should show read-only cost guidance after confirm:
   - existing confirmed quantity and cost snapshot;
   - edited/new/increased quantity that will use current average cost at save time;
@@ -240,11 +239,16 @@ User decision on 2026-06-29 and clarified on 2026-06-30: WTO must reserve stock 
 ## Side Effects
 
 - WTI save สร้าง evidence/summary แต่ไม่ stock ledger
-- WTO draft save สร้าง `pending_out` เพื่อกัน stock แต่ยังไม่ snapshot ราคาต้นทุนเฉลี่ย; WTO confirm จึง snapshot ราคาต้นทุนเฉลี่ยของ pending_out ที่ยืนยันแล้วแบบแยกเต๋า/line
-- WTO edit หลัง confirm ต้องปิด/release เฉพาะ pending_out ส่วนที่ลด/ลบ/แก้, สร้างหรือ update snapshot ใหม่เฉพาะเต๋าที่แก้หรือเพิ่ม, เก็บประวัติ pending_out เดิมไว้, แล้ว recompute product-level weighted average cost summary จาก active pending_out ทุกเต๋าของ SKU นั้น
+- WTO draft save สร้าง `pending_out` เพื่อกัน stock แต่ยังไม่ snapshot ราคาต้นทุนเฉลี่ย; WTO confirm จึง snapshot ราคาต้นทุนเฉลี่ยของ pending_out ที่ยืนยันแล้วระดับ `WTO + สินค้า + คลัง`
+- WTO edit หลัง confirm ต้องปิด/release หรือเพิ่มเฉพาะ delta ระดับ `สินค้า + คลัง`, เก็บ audit รายการที่แก้ไว้ใน document timeline, แล้ว recompute product-level weighted average cost summary จาก active pending_out ของ SKU นั้น
 - WTO customer edit before SB usage must not release/recreate pending_out by itself unless line, product, warehouse, branch, or qty data also changes. The customer is a billing/customer ownership guard for later SB validation, not a stock movement dimension.
 - PB/SB เป็นผู้ consume source และเขียน ledger
-- WTO detail แสดงปุ่ม `รับของคืน` เฉพาะเมื่อ `GET /api/daily/weight-tickets/[id]/stock-returns` พบ active `pending_out` ที่ถูกนำไปออก `SB` แล้วบางส่วน; modal ให้กรอกน้ำหนักชั่งคืนจริง และถ้าคืนน้อยกว่ายอดค้างต้องระบุเหตุผลเพื่อให้ระบบบันทึก loss ledger ผ่าน Sales Bill stock-return API
+- WTO detail แสดงปุ่ม `รับของคืน` เฉพาะเมื่อมี active `pending_out` ของ WTO ที่ยังต้องปิดยอด; modal ให้กรอกน้ำหนักชั่งคืนจริงต่อ `WTO + สินค้า + คลัง` และถ้าคืนน้อยกว่ายอดค้างต้องระบุเหตุผล
+- Runtime decision 2026-07-02: `รับของคืน` ต้องอิง `WTO` เป็น owner; `SB` เป็นเพียง reference/audit ไม่ใช่ owner ของ action และไม่ใช่ route หลักของการบันทึกรับคืน
+- Runtime decision 2026-07-02: pending_out/return UI ต้องเป็น 1 row ต่อ `WTO + สินค้า + คลัง`; ห้ามใช้เต๋า, line ย่อย, internal `stock_holds`, หรือ cost portion เป็น business row
+- Runtime decision 2026-07-02: คืนครบให้ release pending_out โดยไม่สร้าง ledger; คืนขาดให้สร้าง `stock_ledger.ref_type = WTO-RETURN-LOSS` 1 row ต่อสินค้า+คลังเท่านั้น และห้ามแตกเป็นหลาย row ตาม internal hold split
+- Runtime decision 2026-07-02: target ใหม่ไม่ควรสร้าง `stock_holds` แยกตามเต๋าสำหรับ WTO pending_out; ถ้าข้อมูลเก่ายัง split อยู่ write path ต้อง aggregate เป็นก้อนธุรกิจก่อนคำนวณและก่อนบันทึก ledger/log
+- ถ้า `SB` ที่ใช้ WTO ถูก cancel ก่อนมี return/loss ระบบต้องเปิด consumed pending_out กลับมาเป็น active ตามจำนวนที่เคย consume จริง แล้ว WTO เดิมยังนำไปเปิด `SB` ใหม่ได้หรือกด `รับของคืน` เพื่อปิดยอดได้; ถ้ากด `รับของคืน` หรือบันทึก loss แล้ว ห้ามนำ WTO เดิมไปเปิด `SB` ใหม่แบบปกติ
 - WTI/WTO user-facing weight labels use Thai terms: `น้ำหนักรวม` for gross weight, `หักภาชนะ`, `หักสิ่งเจือปน`, and `น้ำหนักสุทธิ` for net weight. English Gross/Net remains only in internal field names or external/export contracts when required.
 
 ## Current Code Baseline

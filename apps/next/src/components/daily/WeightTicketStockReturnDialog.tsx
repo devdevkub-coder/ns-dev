@@ -8,10 +8,12 @@ import { getErrorMessage } from '@/lib/api-client'
 
 export type StockReturnOption = {
   pendingOutKey: string
+  pendingOutKeys?: string[]
   pendingQty: number
   productCode: string
   productName: string
   salesBillDocNos: string[]
+  sourceLineNos?: number[]
   sourceLineNo: number | null
   warehouseName: string
   weightTicketDocNo: string
@@ -92,6 +94,7 @@ export function WeightTicketStockReturnDialog({
         body: JSON.stringify({
           note: null,
           pendingOutKey: option.pendingOutKey,
+          pendingOutKeys: option.pendingOutKeys ?? [option.pendingOutKey],
           reason: reason || null,
           returnedQty,
         }),
@@ -153,11 +156,21 @@ export function WeightTicketStockReturnDialog({
                     const returnedQty = Number(qtyByPendingOut[option.pendingOutKey] ?? option.pendingQty)
                     const lossQty = Math.max(0, option.pendingQty - (Number.isFinite(returnedQty) ? returnedQty : 0))
                     const requiresReason = lossQty > 0.0001
+                    const sourceLineNos = option.sourceLineNos?.length
+                      ? option.sourceLineNos
+                      : option.sourceLineNo
+                        ? [option.sourceLineNo]
+                        : []
+                    const sourceLineLabel = sourceLineNos.length > 1
+                      ? `lines ${sourceLineNos.join(', ')}`
+                      : sourceLineNos.length === 1
+                        ? `line ${sourceLineNos[0]}`
+                        : null
                     return (
                       <tr key={option.pendingOutKey} className="border-t border-slate-100 align-top">
                         <td className="px-3 py-2">
                           <div className="font-medium text-slate-900">{option.productName}</div>
-                          <div className="text-slate-500">{[option.productCode, option.sourceLineNo ? `line ${option.sourceLineNo}` : null].filter(Boolean).join(' · ')}</div>
+                          <div className="text-slate-500">{[option.productCode, sourceLineLabel].filter(Boolean).join(' · ')}</div>
                         </td>
                         <td className="px-3 py-2 text-slate-700">{option.warehouseName || '-'}</td>
                         <td className="px-3 py-2">

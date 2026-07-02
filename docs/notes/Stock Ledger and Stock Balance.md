@@ -262,8 +262,11 @@ stock balance key  = branch + warehouse + product + lot/status flags
 - `WTO cancel` ที่ยังไม่ถูกใช้ ต้อง release `pending_out`
 - `SB save from WTO` ต้อง consume `pending_out` แล้วสร้าง `stock_ledger.ref_type = SB`
 - `SB save from WTO` แบบขายไม่ครบต้อง consume เฉพาะส่วนที่ออกบิลและคง remaining `pending_out` สำหรับรับของคืน
-- `WTO return from SB` คืนครบต้อง release active `pending_out` โดยไม่เขียน ledger เพราะของยังอยู่ใน on-hand; ถ้าชั่งคืนจริงน้อยกว่า pending_out ต้องบังคับเหตุผลและเขียน `stock_ledger.ref_type = WTO-RETURN-LOSS` สำหรับส่วนขาด
-- `SB cancel` ต้อง reverse `SB` ledger และ reopen/recreate `pending_out` ของ WTO ที่กลับไปรอออกบิล ถ้า WTO ยัง active
+- ถ้า `SB` commercial qty มากกว่า WTO source qty ต้อง cap stock consume ที่ยอด `pending_out` ของ WTO เท่านั้น เช่น WTO 100 แต่ SB 120 ให้ `SB qty_out/COGS = 100`; ส่วนเกินเป็นยอดการค้า/AR หรือ validation error ตาม policy หน้าจอ แต่ห้ามสร้าง stock movement เกิน source
+- `WTO return` ต้องเป็น action ที่อิง `WTO + สินค้า + คลัง` ไม่ใช่ action ที่อิง `SB`; `SB` ใช้เป็น reference/audit เท่านั้น
+- `WTO return` คืนครบต้อง release active `pending_out` โดยไม่เขียน ledger เพราะของยังอยู่ใน on-hand; ถ้าชั่งคืนจริงน้อยกว่า pending_out ต้องบังคับเหตุผลและเขียน `stock_ledger.ref_type = WTO-RETURN-LOSS` 1 row ต่อสินค้า+คลังสำหรับส่วนขาด
+- `WTO-RETURN-LOSS` ห้ามแตก row ตามเต๋า, line, internal `stock_holds`, หรือ cost portion; ถ้ามี internal rows หลายชุดต้อง aggregate เป็น business movement เดียวก่อนเขียน ledger
+- `SB cancel` ต้อง reverse `SB` ledger ตาม stock movement ที่เคย post จริง และ reopen/recreate `pending_out` ของ WTO เท่าจำนวนที่เคย consume จริง ถ้า WTO ยัง active และยังไม่มี return/loss จาก SB นั้น; ถ้ามี return/loss แล้วห้าม reopen pending_out ซ้ำ
 
 สถานะ pending_out target:
 
@@ -383,6 +386,7 @@ SB-CANCEL คืน 50 kg @ 40
 - ถ้า `SB` ขายไม่ครบตาม WTO ต้องเหลือ `pending_out` สำหรับ action `รับของคืน`; ห้ามนำ remaining นี้ไปเปิด SB ใบอื่นแบบเงียบ ๆ
 - `รับของคืน` ต้องให้ผู้ใช้กรอกน้ำหนักที่ชั่งกลับมาจริงและกดยืนยันก่อนคืน stock เข้า available
 - ถ้ารับคืนครบ ระบบ release hold เท่านั้น ไม่เขียน stock-in ledger; ถ้ารับคืนขาด ส่วนต่างต้องลง `WTO-RETURN-LOSS` ด้วย WAC ของ bucket ณ เวลาปิดรับคืน ไม่ใช้ราคาขายและไม่ให้ผู้ใช้กรอกต้นทุนเอง
+- ถ้า `SB` ถูก cancel ก่อนรับคืน ระบบต้องคืน stock ด้วย `SB-CANCEL` และเปิด pending_out กลับมาเพื่อให้ผู้ใช้เลือกว่าจะเปิด SB ใหม่จาก WTO เดิมหรือกด `รับของคืน`; หลัง pending_out ถูกปิดด้วย return/loss แล้ว ห้ามเปิด SB ใหม่จาก WTO เดิมแบบปกติ
 - `WTI/WTO` ถูก lock หลังถูกใช้กับ `PB/SB`; กรณี `WTO` ออกบิลบางส่วนจะยังมี action เฉพาะ `รับของคืน` สำหรับ remaining pending_out
 
 ### Current state ณ 2026-06-11

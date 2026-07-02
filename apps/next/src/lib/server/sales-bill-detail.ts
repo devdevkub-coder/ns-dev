@@ -328,6 +328,9 @@ function buildDurableItems(input: {
       ])).join(' / ')
     const sourceProductCode = sourceSummary?.productCode || wtoSource?.product_code_snapshot || line.product_code_snapshot
     const sourceProductName = sourceSummary?.productName || wtoSource?.product_name_snapshot || line.product_name_snapshot || '-'
+    const soldWeight = input.bill.transaction_mode === 'STOCK'
+      ? toNumber(line.gross_weight) || toNumber(line.net_weight) || toNumber(line.qty)
+      : toNumber(line.net_weight) || toNumber(line.qty)
 
     return {
       amount: toNumber(line.line_amount),
@@ -337,10 +340,10 @@ function buildDurableItems(input: {
       deliveryVehicleNo: input.vehicleByDeliveryDocNo.get(deliveryTicketDocNo) ?? '',
       deductWeight: toNumber(line.deduct_weight),
       discount: toNumber(line.discount_amount),
-      grossWeight: toNumber(line.gross_weight),
+      grossWeight: input.bill.transaction_mode === 'STOCK' ? soldWeight : toNumber(line.gross_weight),
       lineNo: line.line_no,
       matchedCogs: tradingSource.matchedCogs,
-      netWeight: toNumber(line.net_weight) || toNumber(line.qty),
+      netWeight: soldWeight,
       note: line.notes ?? '',
       poSellDocNo,
       price: toNumber(line.unit_price),
