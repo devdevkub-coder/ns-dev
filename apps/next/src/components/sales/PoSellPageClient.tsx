@@ -502,6 +502,38 @@ export function PoSellPageClient() {
     }
   }
 
+  const listControls = (
+    <>
+      <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
+      <div className="flex items-center gap-2">
+        {columnResize.hasCustomWidths ? (
+          <UiButton
+            size="xs"
+            variant="outline"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            คืนค่าเดิมตาราง
+          </UiButton>
+        ) : null}
+        <select
+          aria-label="จำนวนรายการต่อหน้า"
+          className="h-8 text-xs rounded-md border border-slate-300 px-2 bg-white text-slate-800"
+          value={pageSize}
+          onChange={(event) => setPageSize(Number(event.target.value))}
+        >
+          <option value={10}>10 / หน้า</option>
+          <option value={25}>25 / หน้า</option>
+          <option value={50}>50 / หน้า</option>
+          <option value={100}>100 / หน้า</option>
+        </select>
+        <UiButton disabled={currentPage <= 1} size="xs" variant="outline" type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
+        <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+        <UiButton disabled={currentPage >= totalPages} size="xs" variant="outline" type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</UiButton>
+      </div>
+    </>
+  )
+
   return (
     <section>
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
@@ -562,36 +594,6 @@ export function PoSellPageClient() {
           >
             ตัวกรอง {hasFilters ? '(มี)' : ''}
           </button>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mb-3">
-        <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
-        <div className="flex items-center gap-2">
-          {columnResize.hasCustomWidths ? (
-            <UiButton
-              size="xs"
-              variant="outline"
-              type="button"
-              onClick={columnResize.resetColumnWidths}
-            >
-              คืนค่าเดิมตาราง
-            </UiButton>
-          ) : null}
-          <select
-            aria-label="จำนวนรายการต่อหน้า"
-            className="h-8 text-xs rounded-md border border-slate-300 px-2 bg-white text-slate-800"
-            value={pageSize}
-            onChange={(event) => setPageSize(Number(event.target.value))}
-          >
-            <option value={10}>10 / หน้า</option>
-            <option value={25}>25 / หน้า</option>
-            <option value={50}>50 / หน้า</option>
-            <option value={100}>100 / หน้า</option>
-          </select>
-          <UiButton disabled={currentPage <= 1} size="xs" variant="outline" type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
-          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-          <UiButton disabled={currentPage >= totalPages} size="xs" variant="outline" type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</UiButton>
         </div>
       </div>
 
@@ -664,6 +666,10 @@ export function PoSellPageClient() {
         </div>
       ) : null}
 
+      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:hidden">
+        {listControls}
+      </div>
+
       {/* Mobile Card List (Hidden on Desktop) */}
       <div className="block lg:hidden space-y-3">
         {isLoading ? (
@@ -720,6 +726,9 @@ export function PoSellPageClient() {
 
       {/* Desktop Table (Hidden on Mobile) */}
       <div className="hidden lg:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+          {listControls}
+        </div>
         <Table className="min-w-full divide-y divide-slate-200" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
         <colgroup>
           {poSellColumns.map((column, index) => {
