@@ -6,6 +6,8 @@ Date: 2026-07-02
 Active app: `apps/next`
 Primary remote: `new-origin`
 
+Financial Statements reset-control follow-up on 2026-07-02: `/finance-accounting/pl-statement`, `/finance-accounting/balance-sheet`, and `/finance-accounting/cash-flow-statement` now use the standard `h-9`, `rounded-md`, `text-sm`, `คืนค่าเดิมตาราง` reset-width controls in the shared statement table and drilldown modal. This is UI-only; report formulas, drilldown rows, filters, table sort/resize behavior, APIs, permissions, and DB state were not changed.
+
 Cash-flow Planning reset-control follow-up on 2026-07-02: `/finance-accounting/cash-flow-analysis` and `/finance-accounting/cf-forecast-calendar` now use the standard `h-9`, `rounded-md`, `text-sm`, `คืนค่าเดิมตาราง` reset-width controls across the detail, Top AR, Top AP, and day-event modal tables. This is UI-only; cash forecast formulas, AR/AP source rows, calendar state, filters, APIs, permissions, and DB state were not changed.
 
 Asset Overview reset-control follow-up on 2026-07-02: `/finance-accounting/asset-overview` now uses the standard `h-9`, `rounded-md`, `text-sm`, `คืนค่าเดิมตาราง` reset-width control for the Cash & Others table instead of the older compact reset wording. This is UI-only; asset/cash/debt/net-worth read-model behavior, filters, APIs, permissions, and DB state were not changed.

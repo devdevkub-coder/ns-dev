@@ -709,11 +709,11 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title = 'Statement
         <div className="text-sm font-bold text-slate-700">{title}</div>
         {columnResize.hasCustomWidths ? (
           <button
-            className="h-8 rounded-md bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
-            รีเซ็ตความกว้างตาราง
+            คืนค่าเดิมตาราง
           </button>
         ) : null}
       </div>
@@ -808,11 +808,11 @@ function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: Detai
         {columnResize.hasCustomWidths ? (
           <div className="hidden justify-end border-b border-slate-100 bg-white px-3 py-2 lg:flex">
             <button
-              className="h-8 rounded-md bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50"
               type="button"
               onClick={columnResize.resetColumnWidths}
             >
-              รีเซ็ตความกว้างตาราง
+              คืนค่าเดิมตาราง
             </button>
           </div>
         ) : null}
