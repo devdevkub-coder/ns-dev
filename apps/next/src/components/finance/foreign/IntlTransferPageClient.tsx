@@ -141,6 +141,23 @@ export function IntlTransferPageClient() {
     setSortDirection('asc')
   }
 
+  const tableControls = (
+    <>
+      <div>
+        พบทั้งหมด <span className="font-semibold text-slate-900">{sortedRows.length}</span> รายการ
+      </div>
+      {columnResize.hasCustomWidths ? (
+        <button
+          className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          type="button"
+          onClick={columnResize.resetColumnWidths}
+        >
+          คืนค่าเดิมตาราง
+        </button>
+      ) : null}
+    </>
+  )
+
   function openForm() {
     const next = initialForm()
     next.fromAccountId = data?.filters.accounts[0]?.id ?? ''
@@ -164,23 +181,16 @@ export function IntlTransferPageClient() {
         <button className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white" type="button" onClick={openForm}>+ โอนต่างประเทศใหม่</button>
       </div>
 
-      <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          พบทั้งหมด <span className="font-semibold text-slate-900">{sortedRows.length}</span> รายการ
-        </div>
-        {columnResize.hasCustomWidths ? (
-          <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-            type="button"
-            onClick={columnResize.resetColumnWidths}
-          >
-            คืนค่าเดิมตาราง
-          </button>
-        ) : null}
+      <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:hidden">
+        {tableControls}
       </div>
 
-      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
+      <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+          {tableControls}
+        </div>
+        <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth, width: '100%' }}>
           <colgroup>
             {intlTransferColumns.map((column, index) => {
               const style = columnResize.getColumnStyle(column.key)
@@ -229,6 +239,7 @@ export function IntlTransferPageClient() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Mobile Card list */}
