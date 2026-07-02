@@ -6,6 +6,8 @@ Date: 2026-07-02
 Active app: `apps/next`
 Primary remote: `new-origin`
 
+Stock Ledger table-card follow-up on 2026-07-02: `/stock/ledger` now keeps the desktop ledger summary/reset/pagination/page-size controls inside the same lined `rounded-md border border-slate-200 bg-white shadow-sm` table card as the resizable desktop Stock Ledger table. This removes the floating pagination row above the ledger table while preserving the mobile pagination/card list, ledger filters, movement-type warning, sorting/resizing state, export behavior, pagination behavior, APIs, permissions, and DB state.
+
 Finance AP table-card follow-up on 2026-07-02: `/finance/ap` now keeps each active AP tab's summary/pagination/reset-width controls inside the same lined `rounded-md border border-slate-200 bg-white shadow-sm` table card as the desktop Summary and Detail tables. This removes the floating pagination rows above the AP tables while preserving filters, AP aging/source-of-truth rules, supplier/detail tab state, export behavior, sorting/resizing state, pagination behavior, APIs, permissions, and DB state.
 
 Allocation Ledger table-card follow-up on 2026-07-02: `/dual-costing/cost-allocation-ledger` now keeps the ledger summary/reset/pagination controls, desktop ledger table, and mobile ledger cards inside one lined `rounded-md border border-slate-200 bg-white shadow-sm` table card. This removes the floating control row above the ledger table while preserving ledger filters, status/target views, sorting/resizing state, pagination behavior, APIs, permissions, and DB state.
