@@ -329,52 +329,52 @@ export function LoanContractsPageClient() {
           </div>
         </div>
       ) : null}
-      {/* Pagination Controls */}
-      <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {columnResize.hasCustomWidths ? (
-            <button
-              className="hidden h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 lg:inline-flex"
-              type="button"
-              onClick={columnResize.resetColumnWidths}
+      {/* Table Card Controls */}
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {columnResize.hasCustomWidths ? (
+              <button
+                className="hidden h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 lg:inline-flex"
+                type="button"
+                onClick={columnResize.resetColumnWidths}
+              >
+                คืนค่าเดิมตาราง
+              </button>
+            ) : null}
+            <select
+              aria-label="จำนวนรายการต่อหน้า"
+              className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              value={pageSize}
+              onChange={(event) => setPageSize(Number(event.target.value))}
             >
-              คืนค่าเดิมตาราง
+              {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+            </select>
+            <button
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              disabled={currentPage <= 1}
+              type="button"
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+            >
+              ก่อนหน้า
             </button>
-          ) : null}
-          <select
-            aria-label="จำนวนรายการต่อหน้า"
-            className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
-            value={pageSize}
-            onChange={(event) => setPageSize(Number(event.target.value))}
-          >
-            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-          </select>
-          <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-            disabled={currentPage <= 1}
-            type="button"
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
-          >
-            ก่อนหน้า
-          </button>
-          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-          <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-            disabled={currentPage >= totalPages}
-            type="button"
-            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-          >
-            ถัดไป
-          </button>
+            <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+            <button
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              disabled={currentPage >= totalPages}
+              type="button"
+              onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+            >
+              ถัดไป
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Desktop Table View */}
-      <div className="hidden lg:block">
-        <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+        {/* Desktop Table View */}
+        <div className="hidden lg:block">
           <div className="max-h-[60vh] overflow-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
@@ -423,36 +423,36 @@ export function LoanContractsPageClient() {
             </table>
           </div>
         </div>
-      </div>
 
-      {/* Mobile Card List View */}
-      <div className="block lg:hidden divide-y divide-slate-100 bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
-        <div className="p-4 text-xs font-semibold text-slate-500 bg-slate-50">รายการสัญญาเงินกู้</div>
-        {isLoading && <div className="p-4 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล</div>}
-        {!isLoading && rows.length === 0 && <div className="p-4 text-center text-slate-400 text-xs">ไม่มีสัญญา</div>}
-        {!isLoading && pagedRows.map((row) => (
-          <div key={row.contractNo} className="p-4 space-y-2 text-xs">
-            <div className="flex justify-between items-start">
-              <div>
-                <span className="font-mono text-blue-700 font-semibold text-sm block">{row.contractNo}</span>
-                <span className="text-slate-400 block mt-0.5">{row.lenderName} · {row.loanType}</span>
+        {/* Mobile Card List View */}
+        <div className="block divide-y divide-slate-100 lg:hidden">
+          <div className="bg-slate-50 p-4 text-xs font-semibold text-slate-500">รายการสัญญาเงินกู้</div>
+          {isLoading && <div className="p-4 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล</div>}
+          {!isLoading && rows.length === 0 && <div className="p-4 text-center text-slate-400 text-xs">ไม่มีสัญญา</div>}
+          {!isLoading && pagedRows.map((row) => (
+            <div key={row.contractNo} className="p-4 space-y-2 text-xs">
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="font-mono text-blue-700 font-semibold text-sm block">{row.contractNo}</span>
+                  <span className="text-slate-400 block mt-0.5">{row.lenderName} · {row.loanType}</span>
+                </div>
+                <StatusPill status={row.status} />
               </div>
-              <StatusPill status={row.status} />
+              <div className="grid grid-cols-2 gap-2.5 text-xs bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50">
+                <div><span className="text-slate-400 block">วงเงิน (Financed)</span><span className="font-semibold text-slate-800">{formatMoney(row.principalAmount)}</span></div>
+                <div><span className="text-slate-400 block">ยอดคงเหลือ</span><span className="font-bold text-slate-900">{formatMoney(row.outstanding)}</span></div>
+                <div><span className="text-slate-400 block">งวดผ่อนชำระ</span><span className="font-semibold text-slate-800">{formatMoney(row.installmentAmount)}</span></div>
+                <div><span className="text-slate-400 block">ชำระแล้ว</span><span className="font-medium text-slate-700">{row.duePaid}/{row.dueTotal} งวด</span></div>
+                <div><span className="text-slate-400 block">งวดถัดไป</span><span className="font-medium text-slate-700">{row.nextDue || '-'}</span></div>
+                <div><span className="text-slate-400 block">เกินกำหนด</span><span className="font-bold text-red-600">{formatMoney(row.overdue)}</span></div>
+              </div>
+              <div className="flex justify-end gap-3 pt-1">
+                <InlineDisabledButton>Generate Schedule</InlineDisabledButton>
+                <InlineDisabledButton>Schedule</InlineDisabledButton>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-2.5 text-xs bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50">
-              <div><span className="text-slate-400 block">วงเงิน (Financed)</span><span className="font-semibold text-slate-800">{formatMoney(row.principalAmount)}</span></div>
-              <div><span className="text-slate-400 block">ยอดคงเหลือ</span><span className="font-bold text-slate-900">{formatMoney(row.outstanding)}</span></div>
-              <div><span className="text-slate-400 block">งวดผ่อนชำระ</span><span className="font-semibold text-slate-800">{formatMoney(row.installmentAmount)}</span></div>
-              <div><span className="text-slate-400 block">ชำระแล้ว</span><span className="font-medium text-slate-700">{row.duePaid}/{row.dueTotal} งวด</span></div>
-              <div><span className="text-slate-400 block">งวดถัดไป</span><span className="font-medium text-slate-700">{row.nextDue || '-'}</span></div>
-              <div><span className="text-slate-400 block">เกินกำหนด</span><span className="font-bold text-red-600">{formatMoney(row.overdue)}</span></div>
-            </div>
-            <div className="flex justify-end gap-3 pt-1">
-              <InlineDisabledButton>Generate Schedule</InlineDisabledButton>
-              <InlineDisabledButton>Schedule</InlineDisabledButton>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
 
