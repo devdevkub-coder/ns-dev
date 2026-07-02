@@ -771,6 +771,11 @@ After the `/daily/expense-dashboard` follow-up, tracked `apps/next/src` TS/TSX f
   - Filter buttons/selects/date controls now use `rounded-md`; the shared branch selector uses the standard `h-9` rounded control style; the already-resizable Statement table shell now uses `rounded-md`; and the drilldown modal now uses a dark rounded shell to avoid bright corner/border leakage.
   - Report formulas, date/as-of/branch/mode query state, table sort/resize behavior, drilldown rows, disabled Excel affordance, API behavior, and DB state were not changed.
   - Validation passed: targeted ESLint for `FinancialStatementsPageClients.tsx`, `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`, and `git diff --check`.
+- `/finance-accounting/cash-flow-analysis` and `/finance-accounting/cf-forecast-calendar`
+  - The shared Cash-Flow Planning client now aligns desktop/mobile filter shells with `rounded-md bg-white p-3 shadow`.
+  - Filter buttons/selects/horizon controls now use `rounded-md`; the shared branch selector uses the standard `h-9` rounded control style; already-resizable detail, Top AR, and Top AP table shells now use `rounded-md`; the day-event detail modal uses a dark rounded shell with a white scroll body; and the invalid `rounded-md-full` bar class was corrected to `rounded-full`.
+  - Cash forecast formulas, AP/AR/payment schedule source rows, date/horizon/branch query state, charts/calendar grid, table sort/resize behavior, API behavior, and DB state were not changed.
+  - Validation passed: targeted ESLint for `CashFlowPlanningPageClients.tsx`, `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`, and `git diff --check`.
 - `/finance-accounting/tax-vat-wht`
   - The Tax/VAT/WHT client now aligns desktop/mobile filter shells with `rounded-md bg-white p-3 shadow`, uses `rounded-md` filter controls, and uses `rounded-md` lined shells for its already-resizable VAT/WHT and tax calendar tables.
   - VAT/WHT calculations, month/year/branch query state, tax calendar rows, table sort/resize behavior, API behavior, and DB state were not changed.
