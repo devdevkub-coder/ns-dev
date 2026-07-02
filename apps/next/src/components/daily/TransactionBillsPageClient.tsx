@@ -1338,11 +1338,15 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     return null
   }
 
-  function poSellDetailText(option: Option | null) {
-    if (!option?.label) return null
-    const [, ...detailParts] = option.label.split(' · ')
-    const detail = detailParts.join(' · ').trim()
-    return detail || null
+  function poSellDetailText(option: Option | null, index: number) {
+    if (!option) return null
+    const currentItem = salesForm.items[index]
+    if (!currentItem) return null
+    const productUnit = activeProducts.find((product) => product.id === currentItem.productId)?.unit
+    const unit = option.unit ?? productUnit ?? 'กก.'
+    const currentQty = Math.max(0, currentItem.qty)
+    const remainingAfterCurrentRow = Math.max(0, poSellAvailableForRow(option.id, index) - currentQty)
+    return `ใช้ในบิลนี้ ${formatMoney(currentQty)}${unit ? ` ${unit}` : ''} · คงเหลือ ${formatMoney(remainingAfterCurrentRow)}${unit ? ` ${unit}` : ''} · ${formatMoney(option.unitPrice ?? 0)} บาท`
   }
 
   function tradingCostSourceOptionForProduct(sourceId: string | null | undefined, productId: string | null | undefined) {
@@ -1739,6 +1743,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         price: item.price,
         productId: item.productCode || item.productId,
         qty: item.qty,
+        salesBillLineNo: item.lineNo,
         tradingCostSourceId: item.tradingSourceDocNo
           ? tradingSourceByDocLine.get(`${item.tradingSourceDocNo}:${item.tradingSourceLineNo ?? ''}`) ?? null
           : null,
@@ -2311,7 +2316,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       items: current.items.map((item, itemIndex) => {
         if (itemIndex !== index) return item
         const next = { ...item, [key]: value }
-        const qty = Number(Math.max(0, next.netWeight - next.deductWeight).toFixed(2))
+        const qty = Number(Math.max(0, next.netWeight).toFixed(2))
         return { ...next, qty }
       }),
     }))
@@ -2371,11 +2376,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           : Number.POSITIVE_INFINITY
         const requestedQty = Number((item.qty + mergedSplitQty).toFixed(2))
         if (!poSellId) {
+          const nextDeductWeight = item.deductWeight
+          const nextSaleWeight = Number((requestedQty + nextDeductWeight).toFixed(2))
           items.push({
             ...item,
-            deductWeight: 0,
-            grossWeight: requestedQty,
-            netWeight: requestedQty,
+            grossWeight: nextSaleWeight,
+            netWeight: nextSaleWeight,
             poSellId: null,
             price: 0,
             qty: requestedQty,
@@ -2518,6 +2524,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         grossWeight: 0,
         netWeight: source.poSellId ? remainingQty : 0,
         qty: source.poSellId ? remainingQty : 0,
+        salesBillLineNo: null,
       }
       const items = [...current.items]
       items.splice(insertIndex, 0, nextItem)
@@ -3892,7 +3899,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                            })
 	                            const selectedPoSell = poSellOptionForProduct(item.poSellId, item.productId)
 	                            const hasSelectedPoSell = Boolean(item.poSellId && selectedPoSell)
-	                            const selectedPoSellDetail = hasSelectedPoSell ? poSellDetailText(selectedPoSell) : null
+	                            const selectedPoSellDetail = hasSelectedPoSell ? poSellDetailText(selectedPoSell, index) : null
 	                            const poSellVariance = hasSelectedPoSell ? poSellVarianceForRow(item.poSellId, index) : null
 	                            const rowKey = `${item.deliverySummaryId ?? item.deliveryLineId ?? item.productId}-${index}`
 	                            return (
@@ -4061,7 +4068,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                           })
                           const selectedPoSell = poSellOptionForProduct(item.poSellId, item.productId)
                           const hasSelectedPoSell = Boolean(item.poSellId && selectedPoSell)
-                          const selectedPoSellDetail = hasSelectedPoSell ? poSellDetailText(selectedPoSell) : null
+                          const selectedPoSellDetail = hasSelectedPoSell ? poSellDetailText(selectedPoSell, index) : null
                           const poSellVariance = hasSelectedPoSell ? poSellVarianceForRow(item.poSellId, index) : null
                           const selectedTradingCostSource = tradingCostSourceOptionForProduct(item.tradingCostSourceId, item.productId)
                           const rowCostSourceCapacity = item.tradingCostSourceId ? tradingCostSourceAvailableForRow(item.tradingCostSourceId, index) : null

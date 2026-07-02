@@ -261,8 +261,10 @@ function salesItems(
   deliverySummarySourceMap: Map<string, DeliverySummarySource> = new Map(),
   deliverySummaryIdByIndex: Map<number, string> = new Map(),
   stockIssueQtyByIndex: Map<number, number> = new Map(),
+  lineNoByIndex: Map<number, number> = new Map(),
 ) {
   return values.items.map((item, index) => {
+    const lineNo = lineNoByIndex.get(index) ?? item.salesBillLineNo ?? index + 1
     const productId = parsedProductIds[index]
     const product = productById.get(productId)
     const deliverySummaryId = item.deliveryTicketId ? deliverySummaryIdByIndex.get(index) ?? null : item.deliverySummaryId ?? null
@@ -284,7 +286,8 @@ function salesItems(
       deductWeight: item.deductWeight,
       discount: item.discount,
       grossWeight: deliverySummary ? item.netWeight : item.grossWeight,
-      id: `${String(index + 1).padStart(2, '0')}`,
+      id: `${String(lineNo).padStart(2, '0')}`,
+      lineNo,
       netWeight: item.qty,
       note: item.note,
       poSellId: item.poSellId,
@@ -322,7 +325,7 @@ function salesBillLineRows(input: {
     discount_amount: item.discount,
     gross_weight: item.grossWeight,
     line_amount: item.amount,
-    line_no: index + 1,
+    line_no: item.lineNo,
       meta: {
         deliveryLineId: item.deliveryLineId ?? null,
         deliverySummaryId: item.deliverySummaryId ?? null,
@@ -355,12 +358,13 @@ function poSellAllocationRows(input: {
   parsedProductIds: bigint[]
   poSellByDocNo: Map<string, PoSellForAllocation>
 }) {
-  return input.items.map((item, index) => {
-    const lineNo = index + 1
+  return input.items.flatMap((item, index) => {
+    if (item.qty <= 0.0001) return []
+    const lineNo = item.lineNo
     const poSellDocNo = item.poSellId || input.headerPoSellDocNo || ''
     const poSell = poSellDocNo ? input.poSellByDocNo.get(poSellDocNo) : null
     const allocationType = poSell ? 'PO_SELL' : 'SPOT_SALE'
-    return {
+    return [{
       allocated_amount: item.amount,
       allocated_qty: item.qty,
       allocation_type: allocationType,
@@ -382,7 +386,7 @@ function poSellAllocationRows(input: {
       unit_price: item.unitPrice,
       updated_at: input.createdAt,
       updated_by: input.actor,
-    }
+    }]
   })
 }
 
@@ -407,8 +411,9 @@ function sourceAllocationRows(input: {
 
   return input.items.flatMap((item, index) => {
     if (!isDeliveryBackedSalesItem(item)) return []
-    const lineNo = index + 1
+    const lineNo = item.lineNo
     const stockIssueQty = Math.max(0, item.stockIssueQty)
+    if (stockIssueQty <= 0.0001) return []
     const summarySource = item.deliverySummaryId ? input.deliverySummarySourceMap.get(item.deliverySummaryId) : null
     if (!summarySource || summarySource.product_id == null) {
       throw new Error(`Sales Bill WTO source allocation missing product summary for line ${lineNo}`)
@@ -858,15 +863,15 @@ async function validateStockDeliverySelection(
       return { error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' as const }
     }
     const buyerAcceptedWeight = Math.max(0, item.netWeight)
-    const expectedNetWeight = Number(Math.max(0, buyerAcceptedWeight - item.deductWeight).toFixed(2))
-    if (buyerAcceptedWeight <= 0.0001) {
-      return { error: `กรอกจำนวนที่ขายได้ของ ${summarySource.product_name}` as const }
-    }
     if (item.deductWeight > buyerAcceptedWeight + 0.0001) {
       return { error: `หักสิ่งเจือปนของ ${summarySource.product_name} เกินจำนวนที่ขายได้` as const }
     }
-    if (Math.abs(expectedNetWeight - item.qty) > 0.01) {
-      return { error: `น้ำหนักขายสุทธิของ ${summarySource.product_name} ไม่ตรงกับจำนวนที่ขายได้หลังหักสิ่งเจือปน` as const }
+    if (buyerAcceptedWeight <= 0.0001) {
+      if (input?.excludeSalesBillId) {
+        stockIssueQtyByItemIndex.set(itemIndex, 0)
+        continue
+      }
+      return { error: `กรอกจำนวนที่ขายได้ของ ${summarySource.product_name}` as const }
     }
     const acceptedBefore = acceptedWeightBySummaryId.get(resolvedSummaryRef) ?? 0
     const availableQty = availableQtyBySummaryId.get(resolvedSummaryRef) ?? 0
@@ -2126,6 +2131,7 @@ function salesBillPoAllocationSnapshot(allocation: ActiveSalesBillPoAllocation):
     discount: 0,
     grossWeight: toNumber(allocation.allocated_qty),
     id: String(allocation.sales_line_no),
+    lineNo: allocation.sales_line_no,
     netWeight: toNumber(allocation.allocated_qty),
     note: null,
     poSellId: allocation.po_sell_doc_no,
@@ -2243,9 +2249,6 @@ export async function PATCH(request: Request) {
       if (bill.sales_bill_lines.length === 0) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะบิลขายนี้ยังไม่มี line facts สำหรับ correction' }, { status: 400 })
       }
-      if (values.items.length < bill.sales_bill_lines.length) {
-        return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลบแถวบิลขายเดิมยังไม่เปิดในรอบนี้ ให้แก้จำนวนเป็น 0 หรือปรับข้อมูลในแถวเดิมแทน' }, { status: 400 })
-      }
 
       const branch = await findActiveBranchReferenceByCodeOrId(values.branchId)
       const customer = await findActiveCustomerReferenceByCodeOrId(values.customerId)
@@ -2282,6 +2285,24 @@ export async function PATCH(request: Request) {
       const productById = new Map(products.map((product) => [product.id, product]))
       const productCodeById = new Map(products.map((product) => [product.id, requireBusinessCode(product.code, `สินค้า ${product.id}`)] as const))
       const sourceAllocationByLineNo = new Map(bill.sales_bill_source_allocations.map((allocation) => [allocation.sales_line_no, allocation] as const))
+      const activeLineByOriginalLineNo = new Map(bill.sales_bill_lines.map((line) => [line.line_no, line] as const))
+      const invalidSubmittedLine = values.items.find((item) => item.salesBillLineNo != null && !activeLineByOriginalLineNo.has(item.salesBillLineNo))
+      if (invalidSubmittedLine?.salesBillLineNo != null) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: `อ้างอิงรายการบิลขาย line ${invalidSubmittedLine.salesBillLineNo} ไม่ถูกต้อง` }, { status: 400 })
+      }
+      const submittedExistingLineNos = new Set(values.items.map((item) => item.salesBillLineNo).filter((lineNo): lineNo is number => Number.isInteger(lineNo)))
+      const deletedSalesBillLines = bill.sales_bill_lines.filter((line) => !submittedExistingLineNos.has(line.line_no))
+      let nextNewLineNo = Math.max(0, ...bill.sales_bill_lines.map((line) => line.line_no)) + 1
+      const lineNoByItemIndex = new Map<number, number>()
+      values.items.forEach((item, index) => {
+        const submittedLineNo = item.salesBillLineNo ?? null
+        if (submittedLineNo != null) {
+          lineNoByItemIndex.set(index, submittedLineNo)
+          return
+        }
+        lineNoByItemIndex.set(index, nextNewLineNo)
+        nextNewLineNo += 1
+      })
 
       let stockDeliveryTicket: DeliveryTicketOptionRow | null = null
       let deliverySummaryIdByItemIndex = new Map<number, string>()
@@ -2323,10 +2344,8 @@ export async function PATCH(request: Request) {
       }
 
       for (const [index, item] of values.items.entries()) {
-        const line = bill.sales_bill_lines[index]
-        if (line && line.line_no !== index + 1) {
-          return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะลำดับรายการบิลขายไม่ตรงกับ line facts' }, { status: 400 })
-        }
+        const lineNo = lineNoByItemIndex.get(index) ?? index + 1
+        const line = item.salesBillLineNo ? activeLineByOriginalLineNo.get(item.salesBillLineNo) : null
         if (String(bill.transaction_mode ?? 'STOCK') !== 'STOCK'
           && (!line
             || line.product_code_snapshot !== item.productId
@@ -2335,21 +2354,13 @@ export async function PATCH(request: Request) {
             || Math.abs(toNumber(line.net_weight) - item.netWeight) > 0.0001
             || Math.abs(toNumber(line.gross_weight) - item.grossWeight) > 0.0001
             || Math.abs(toNumber(line.deduct_weight) - item.deductWeight) > 0.0001)) {
-          return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขน้ำหนัก/จำนวนขายของบิล Trading ยังไม่เปิดในรอบนี้ ให้แก้ได้เฉพาะ PO Sell อ้างอิง ราคา ส่วนลด และหมายเหตุ' }, { status: 400 })
+          return NextResponse.json({ code: 'BAD_REQUEST', error: `รายการที่ ${lineNo}: แก้ไขน้ำหนัก/จำนวนขายของบิล Trading ยังไม่เปิดในรอบนี้ ให้แก้ได้เฉพาะ PO Sell อ้างอิง ราคา ส่วนลด และหมายเหตุ` }, { status: 400 })
         }
-        const expectedQty = Number(Math.max(0, item.netWeight - item.deductWeight).toFixed(2))
         if (item.deductWeight > item.netWeight + 0.0001) {
           return NextResponse.json({
             code: 'BAD_REQUEST',
             error: `รายการที่ ${index + 1}: หักสิ่งเจือปนต้องไม่เกินจำนวนที่ขายได้`,
             fieldErrors: { [`items.${index}.deductWeight`]: ['หักสิ่งเจือปนต้องไม่เกินจำนวนที่ขายได้'] },
-          }, { status: 400 })
-        }
-        if (Math.abs(expectedQty - item.qty) > 0.01) {
-          return NextResponse.json({
-            code: 'BAD_REQUEST',
-            error: `รายการที่ ${index + 1}: น้ำหนักขายสุทธิต้องเท่ากับจำนวนที่ขายได้ - หักสิ่งเจือปน`,
-            fieldErrors: { [`items.${index}.qty`]: ['น้ำหนักขายสุทธิต้องเท่ากับจำนวนที่ขายได้ - หักสิ่งเจือปน'] },
           }, { status: 400 })
         }
       }
@@ -2411,10 +2422,10 @@ export async function PATCH(request: Request) {
         deliverySummarySourceMap,
         deliverySummaryIdByItemIndex,
         stockIssueQtyByItemIndex,
+        lineNoByItemIndex,
       ).map((item, index) => {
-        const lineNo = index + 1
-        const sourceAllocation = sourceAllocationByLineNo.get(lineNo)
-        const activeLine = bill.sales_bill_lines[index]
+        const sourceAllocation = sourceAllocationByLineNo.get(item.lineNo)
+        const activeLine = activeLineByOriginalLineNo.get(item.lineNo)
         if (!sourceAllocation || !activeLine) return item
         const sourceMeta = sourceAllocation.meta && typeof sourceAllocation.meta === 'object' && !Array.isArray(sourceAllocation.meta)
           ? sourceAllocation.meta as Record<string, unknown>
@@ -2430,23 +2441,50 @@ export async function PATCH(request: Request) {
         }
       })
       const stockDeltaByLine = String(bill.transaction_mode ?? 'STOCK') === 'STOCK'
-        ? items.map((item, index) => {
-            const lineNo = index + 1
-            const sourceAllocation = sourceAllocationByLineNo.get(lineNo)
+        ? [
+          ...items.map((item) => {
+            const sourceAllocation = sourceAllocationByLineNo.get(item.lineNo)
             const oldStockIssueQty = sourceAllocation ? toNumber(sourceAllocation.allocated_qty) : 0
             const newStockIssueQty = item.stockIssueQty
             const sourceSummary = item.deliverySummaryId ? deliverySummarySourceMap.get(item.deliverySummaryId) : null
             return {
               deltaQty: Number((newStockIssueQty - oldStockIssueQty).toFixed(2)),
               item,
-              lineNo,
+              lineNo: item.lineNo,
               newStockIssueQty,
               oldStockIssueQty,
               productId: sourceSummary?.product_id ?? null,
               sourceAllocation,
               summaryId: item.deliverySummaryId,
             }
-          })
+          }),
+          ...deletedSalesBillLines.flatMap((line) => {
+            const sourceAllocation = sourceAllocationByLineNo.get(line.line_no)
+            if (!sourceAllocation) return []
+            const sourceMeta = sourceAllocation.meta && typeof sourceAllocation.meta === 'object' && !Array.isArray(sourceAllocation.meta)
+              ? sourceAllocation.meta as Record<string, unknown>
+              : {}
+            const summaryId = typeof sourceMeta.deliverySummaryId === 'string'
+              ? sourceMeta.deliverySummaryId
+              : null
+            if (!summaryId) return []
+            return [{
+              deltaQty: -toNumber(sourceAllocation.allocated_qty),
+              item: {
+                lineNo: line.line_no,
+                productCode: line.product_code_snapshot,
+                productName: line.product_name_snapshot,
+                qty: toNumber(line.qty),
+              },
+              lineNo: line.line_no,
+              newStockIssueQty: 0,
+              oldStockIssueQty: toNumber(sourceAllocation.allocated_qty),
+              productId: sourceAllocation.product_id,
+              sourceAllocation,
+              summaryId,
+            }]
+          }),
+        ]
         : []
 
       const releaseAllocations = new Map<bigint, number>()
@@ -2513,7 +2551,8 @@ export async function PATCH(request: Request) {
       await prisma.$transaction(async (tx) => {
         let stockCostDelta = 0
         let activeSalesBillLines = bill.sales_bill_lines
-        if (items.length > bill.sales_bill_lines.length) {
+        const newItems = items.filter((item) => !activeLineByOriginalLineNo.has(item.lineNo))
+        if (newItems.length > 0) {
           const allLineRows = salesBillLineRows({
             actor,
             billId: bill.id,
@@ -2523,7 +2562,7 @@ export async function PATCH(request: Request) {
             totals,
           })
           await tx.sales_bill_lines.createMany({
-            data: allLineRows.filter((line) => line.line_no > bill.sales_bill_lines.length),
+            data: allLineRows.filter((line) => newItems.some((item) => item.lineNo === line.line_no)),
           })
           activeSalesBillLines = await tx.sales_bill_lines.findMany({
             orderBy: { line_no: 'asc' },
@@ -2635,8 +2674,20 @@ export async function PATCH(request: Request) {
           })))
 
           for (const [lineNo, sourceAllocation] of sourceAllocationByLineNo.entries()) {
-            const item = items[lineNo - 1]
-            if (!item) continue
+            const item = items.find((candidate) => candidate.lineNo === lineNo)
+            if (!item) {
+              await tx.sales_bill_source_allocations.update({
+                data: {
+                  notes: 'Reversed by Sales Bill edit line delete',
+                  status: 'reversed',
+                  updated_at: createdAt,
+                  updated_by: actor,
+                  version: { increment: 1 },
+                },
+                where: { id: sourceAllocation.id },
+              })
+              continue
+            }
             const summary = item.deliverySummaryId ? deliverySummarySourceMap.get(item.deliverySummaryId) : null
             if (!summary || summary.product_id == null) {
               throw new Error(`Sales Bill WTO source allocation missing product summary for line ${lineNo}`)
@@ -2818,8 +2869,7 @@ export async function PATCH(request: Request) {
         })
 
         for (const [index, item] of items.entries()) {
-          const lineNo = index + 1
-          const activeLine = activeLineByLineNo.get(lineNo)
+          const activeLine = activeLineByLineNo.get(item.lineNo)
           if (!activeLine) continue
           await tx.sales_bill_lines.update({
             data: {
@@ -2847,6 +2897,22 @@ export async function PATCH(request: Request) {
               version: { increment: 1 },
             },
             where: { id: activeLine.id },
+          })
+        }
+        if (deletedSalesBillLines.length > 0) {
+          await tx.sales_bill_lines.updateMany({
+            data: {
+              notes: 'Removed by Sales Bill edit',
+              status: 'reversed',
+              updated_at: createdAt,
+              updated_by: actor,
+              version: { increment: 1 },
+            },
+            where: {
+              id: { in: deletedSalesBillLines.map((line) => line.id) },
+              sales_bill_id: bill.id,
+              status: 'active',
+            },
           })
         }
 

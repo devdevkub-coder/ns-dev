@@ -107,6 +107,8 @@ Profile/contact fields are stored on `app_users` as application profile data:
 
 As of 2026-07-02, the Users and Roles desktop tables follow the active Cost Pool / Weight Ticket table mechanics: sortable `ResizableTableHead` business headers, persisted resizable column widths, reset-width control, `colgroup`, fixed table layout, and mobile card lists rendered from the same sorted row sets as desktop. This is presentation-only; admin user APIs, Supabase Auth invite/reset flow, permission checks, role matrix semantics, branch access writes, audit events, and DB state remain unchanged.
 
+As of 2026-07-02, `/admin/users` summary cards intentionally show only active users and users who must change password. Branch access remains available in the user table and edit form, but the branch-scoped summary card was removed because it is not a primary user-management action.
+
 ## Current Gap
 
 P3 proof completed from current code. Role/permission matrix future changes should update System Supporting Flows. Profile image upload/storage is not implemented yet; current contract stores an optional URL only. User department linkage is still a follow-up because `departments` exists as master data, but `app_users` does not yet reference it.

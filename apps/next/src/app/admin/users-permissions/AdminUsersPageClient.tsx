@@ -379,7 +379,6 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     const users = data?.users ?? []
     return {
       active: users.filter((user) => user.active).length,
-      branchScoped: users.filter((user) => user.branches.length > 0).length,
       mustChange: users.filter((user) => user.mustChangePassword).length,
     }
   }, [data?.users])
@@ -605,7 +604,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
 
       {/* AcexPOS Style KPI / Summary Cards */}
       {isUsersPage ? (
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm animate-fade-in">
+      <div className="grid grid-cols-2 gap-2.5 text-sm animate-fade-in sm:gap-4">
         {/* 1. ผู้ใช้ Active */}
         <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl shrink-0">
@@ -616,18 +615,8 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
             <div className="text-sm font-bold text-emerald-700 mt-0.5 tabular-nums">{userSummary.active}</div>
           </div>
         </div>
-        {/* 2. จำกัดสาขา */}
+        {/* 2. ต้องเปลี่ยน Password */}
         <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xl shrink-0">
-            🏢
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold text-slate-500 truncate">จำกัดสาขา</div>
-            <div className="text-sm font-bold text-blue-700 mt-0.5 tabular-nums">{userSummary.branchScoped}</div>
-          </div>
-        </div>
-        {/* 3. ต้องเปลี่ยน Password */}
-        <div className="col-span-2 md:col-span-1 bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xl shrink-0">
             🔑
           </div>
