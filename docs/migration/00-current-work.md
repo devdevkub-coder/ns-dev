@@ -6,6 +6,8 @@ Date: 2026-07-02
 Active app: `apps/next`
 Primary remote: `new-origin`
 
+Allocation Ledger table-card follow-up on 2026-07-02: `/dual-costing/cost-allocation-ledger` now keeps the ledger summary/reset/pagination controls, desktop ledger table, and mobile ledger cards inside one lined `rounded-md border border-slate-200 bg-white shadow-sm` table card. This removes the floating control row above the ledger table while preserving ledger filters, status/target views, sorting/resizing state, pagination behavior, APIs, permissions, and DB state.
+
 Waiting Allocations table-card follow-up on 2026-07-02: `/dual-costing/waiting-allocations` now keeps the PO/Sales Bill/Production tabs, waiting-list summary/pagination controls, desktop waiting table, and mobile waiting cards inside one lined `rounded-md border border-slate-200 bg-white shadow-sm` table card. This removes the floating pagination row above the waiting table while preserving filters, tab switching, allocator links, sorting/resizing state, pagination behavior, APIs, permissions, and DB state.
 
 Trading Matching table-card follow-up on 2026-07-02: `/trading/matching` now keeps the active tab pagination controls, reset-width controls, desktop tables, and mobile lists inside the same lined `rounded-md border border-slate-200 bg-white shadow-sm` tab/table card. This removes the remaining nested table-card/floating-control split while preserving allocation and remaining-cost filters, pagination, sorting/resizing state, export behavior, calculations, APIs, permissions, and DB state.

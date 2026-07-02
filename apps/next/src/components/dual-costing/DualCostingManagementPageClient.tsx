@@ -857,7 +857,8 @@ function AllocationLedgerView() {
         </div>
       </DualCostingFilterCard>
 
-      <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-2 px-1 py-1 text-sm text-slate-600">
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-3 text-sm text-slate-600">
         <div>พบทั้งหมด {sortedRows.length.toLocaleString('th-TH')} รายการ</div>
         <div className="flex flex-wrap items-center gap-2">
           {ledgerResize.hasCustomWidths ? <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={ledgerResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
@@ -882,7 +883,7 @@ function AllocationLedgerView() {
       </div>
 
       {/* Desktop View */}
-      <div className="hidden overflow-x-auto rounded-md bg-white shadow lg:block">
+      <div className="hidden overflow-x-auto lg:block">
         <Table className="text-sm" style={{ minWidth: ledgerResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {ledgerColumns.map((column) => (
@@ -934,7 +935,7 @@ function AllocationLedgerView() {
 
 
       {/* Mobile Card List */}
-      <div className="block lg:hidden space-y-3">
+      <div className="block space-y-3 p-3 lg:hidden">
         {isLoading ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">กำลังโหลดข้อมูล</div>
         ) : null}
@@ -984,6 +985,7 @@ function AllocationLedgerView() {
             </div>
           </div>
         ))}
+      </div>
       </div>
 
     </DualCostingPageSection>
