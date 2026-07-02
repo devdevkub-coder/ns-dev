@@ -3,7 +3,7 @@ import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { accountMasterDataFormSchema } from '@/lib/master-data'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { errorJson, masterDataJson, masterDataListJson, normalizeCode, toIso, toNumber } from '@/lib/server/master-data'
+import { errorJson, masterDataJson, masterDataListJson, toIso, toNumber } from '@/lib/server/master-data'
 import { findActiveBranchReferenceByCodeOrId, outwardBranchReference } from '@/lib/server/branch-reference'
 
 export const runtime = 'nodejs'
@@ -232,7 +232,7 @@ export async function POST(request: Request) {
     const values = accountMasterDataFormSchema.parse(await request.json())
     const existing = values.id
       ? await prisma.accounts.findFirst({
-        select: { id: true },
+        select: { code: true, id: true },
         where: {
           OR: [
             { code: values.id.toUpperCase() },
@@ -241,7 +241,9 @@ export async function POST(request: Request) {
         } as any,
       })
       : null
-    const code = normalizeCode(values.code, values.id || await getNextAccountCode())
+    const code = existing
+      ? requireBusinessCode(existing.code, `บัญชีเงิน ${existing.id}`)
+      : await getNextAccountCode()
     const accountType = accountTypeSchema.parse(values.type)
     const paymentMethodGroup = await assertActivePaymentMethod(accountType)
     const accountSubtype = paymentMethodGroup === 'cash'
