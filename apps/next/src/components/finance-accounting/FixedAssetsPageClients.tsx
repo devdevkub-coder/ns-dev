@@ -534,10 +534,10 @@ export function AssetRegisterPageClient() {
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 space-y-2 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden">
+      <div className="mb-4 space-y-2 rounded-md bg-white p-3 shadow lg:hidden">
         <div className="flex gap-2 items-center">
           <input
-            className="flex-1 rounded-lg border border-slate-300 px-3 py-1 text-sm h-9 outline-none focus:border-slate-400 transition"
+            className="flex-1 rounded-md border border-slate-300 px-3 py-1 text-sm h-9 outline-none focus:border-slate-400 transition"
             placeholder="ค้นหา..."
             type="search"
             value={search}
@@ -545,7 +545,7 @@ export function AssetRegisterPageClient() {
           />
           <button
             type="button"
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
             onClick={() => setShowMobileFilters(true)}
           >
             ตัวกรอง {(category !== 'all' || status !== 'all') ? '(มี)' : ''}
@@ -572,7 +572,7 @@ export function AssetRegisterPageClient() {
               <div>
                 <label className="mb-1 block font-semibold text-slate-600 text-xs">หมวดหมู่</label>
                 <select
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
                   value={category}
                   onChange={(event) => setCategory(event.target.value)}
                 >
@@ -584,7 +584,7 @@ export function AssetRegisterPageClient() {
               <div>
                 <label className="mb-1 block font-semibold text-slate-600 text-xs">สถานะ</label>
                 <select
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
                   value={status}
                   onChange={(event) => setStatus(event.target.value)}
                 >
@@ -599,21 +599,21 @@ export function AssetRegisterPageClient() {
                   {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
                   <a
                     href="/api/finance-accounting/asset-register?template=csv"
-                    className="flex h-10 items-center justify-center rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                    className="flex h-10 items-center justify-center rounded-md border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
                   >
                     📄 Template
                   </a>
                   <button
                     type="button"
                     onClick={() => { setShowMobileFilters(false); openImport() }}
-                    className="flex h-10 items-center justify-center rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                    className="flex h-10 items-center justify-center rounded-md border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
                   >
                     📥 Import
                   </button>
                   <a
                     href={exportHref}
                     onClick={() => setShowMobileFilters(false)}
-                    className="col-span-2 flex h-10 items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition"
+                    className="col-span-2 flex h-10 items-center justify-center rounded-md bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition"
                   >
                     📤 Export CSV
                   </a>
@@ -628,14 +628,14 @@ export function AssetRegisterPageClient() {
                   setCategory('all')
                   setStatus('all')
                 }}
-                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                className="flex-1 h-10 rounded-md border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
               >
                 ล้างตัวกรอง
               </button>
               <button
                 type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+                className="flex-1 h-10 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
               >
                 ตกลง
               </button>
@@ -791,11 +791,11 @@ export function AssetRegisterPageClient() {
         <Modal title={form.id ? `แก้ไขทรัพย์สิน ${form.code}` : 'เพิ่มทรัพย์สิน'}>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
             <Field label="รหัสทรัพย์สิน">
-              <input 
-                className={fieldClass} 
-                disabled 
-                placeholder={form.id ? "" : "(ระบบสร้างให้อัตโนมัติ)"} 
-                value={form.id ? form.code : "(ระบบสร้างให้อัตโนมัติ)"} 
+              <input
+                className={fieldClass}
+                disabled
+                placeholder={form.id ? "" : "(ระบบสร้างให้อัตโนมัติ)"}
+                value={form.id ? form.code : "(ระบบสร้างให้อัตโนมัติ)"}
               />
             </Field>
             <Field label="ชื่อทรัพย์สิน"><input className={fieldClass} value={form.name} onChange={(event) => updateForm('name', event.target.value)} /></Field>
@@ -824,12 +824,12 @@ export function AssetRegisterPageClient() {
             <Field label="วันที่ซื้อ"><input className={fieldClass} type="date" value={form.purchaseDate} onChange={(event) => updateForm('purchaseDate', event.target.value)} /></Field>
             <Field label="ประเภทการได้มา"><SelectControl options={data?.options.acquisitionTypes ?? []} value={form.acquisitionType} onChange={(value) => updateForm('acquisitionType', value)} /></Field>
             <div className="w-full">
-              <SearchCombobox 
-                inputId="form-supplier" 
-                label="ผู้ขาย" 
-                options={supplierOptions} 
-                value={form.supplierId} 
-                onChange={(value) => updateForm('supplierId', value)} 
+              <SearchCombobox
+                inputId="form-supplier"
+                label="ผู้ขาย"
+                options={supplierOptions}
+                value={form.supplierId}
+                onChange={(value) => updateForm('supplierId', value)}
                 placeholder="พิมพ์เพื่อค้นหาผู้ขาย..."
               />
             </div>
@@ -1064,18 +1064,18 @@ export function DepreciationPageClient() {
       {error ? <ErrorBox message={error} /> : null}
       {/* Desktop Filter Panel */}
       <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
-        <select aria-label="Depreciation month" className="h-9 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={month} onChange={(event) => setMonth(event.target.value)}>
+        <select aria-label="Depreciation month" className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={month} onChange={(event) => setMonth(event.target.value)}>
           <option value="all">ดูรายปี (ทุกเดือน)</option>
           {Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0')).map((item) => <option key={item} value={item}>เดือน {item}</option>)}
         </select>
-        <input aria-label="Depreciation year" className="w-24 h-9 rounded-lg border border-slate-300 px-3 py-1 text-sm outline-none focus:border-slate-400 transition text-center" value={year} onChange={(event) => setYear(event.target.value)} />
-        <input aria-label="Depreciation period date" className="h-9 rounded-lg border border-slate-300 bg-slate-50 px-3 py-1 text-sm outline-none cursor-default" readOnly value={periodDate} />
-        
-        <select aria-label="Filter category" className="h-9 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={filterCategory} onChange={(event) => setFilterCategory(event.target.value)}>
+        <input aria-label="Depreciation year" className="w-24 h-9 rounded-md border border-slate-300 px-3 py-1 text-sm outline-none focus:border-slate-400 transition text-center" value={year} onChange={(event) => setYear(event.target.value)} />
+        <input aria-label="Depreciation period date" className="h-9 rounded-md border border-slate-300 bg-slate-50 px-3 py-1 text-sm outline-none cursor-default" readOnly value={periodDate} />
+
+        <select aria-label="Filter category" className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={filterCategory} onChange={(event) => setFilterCategory(event.target.value)}>
           <option value="all">ทุกหมวด</option>
           {categoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
-        <select aria-label="Filter department" className="h-9 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={filterDepartment} onChange={(event) => setFilterDepartment(event.target.value)}>
+        <select aria-label="Filter department" className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={filterDepartment} onChange={(event) => setFilterDepartment(event.target.value)}>
           <option value="all">ทุกแผนก</option>
           {departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
@@ -1088,32 +1088,32 @@ export function DepreciationPageClient() {
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
+      <div className="rounded-md bg-white p-3 shadow lg:hidden space-y-3">
         <div className="flex gap-2 items-center">
-          <select 
-            aria-label="Depreciation month" 
-            className="flex-1 h-9 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" 
-            value={month} 
+          <select
+            aria-label="Depreciation month"
+            className="flex-1 h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+            value={month}
             onChange={(event) => setMonth(event.target.value)}
           >
             <option value="all">ดูรายปี (ทุกเดือน)</option>
             {Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0')).map((item) => <option key={item} value={item}>เดือน {item}</option>)}
           </select>
-          <input 
-            aria-label="Depreciation year" 
-            className="w-20 h-9 rounded-lg border border-slate-300 px-3 py-1 text-sm outline-none focus:border-slate-400 transition text-center" 
-            value={year} 
-            onChange={(event) => setYear(event.target.value)} 
+          <input
+            aria-label="Depreciation year"
+            className="w-20 h-9 rounded-md border border-slate-300 px-3 py-1 text-sm outline-none focus:border-slate-400 transition text-center"
+            value={year}
+            onChange={(event) => setYear(event.target.value)}
           />
           <button
             type="button"
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
             onClick={() => setShowMobileFilters(true)}
           >
             ตัวกรอง
           </button>
         </div>
-        
+
         <div className="flex flex-wrap gap-2 pt-1">
           <Chip tone="blue">คิดค่าเสื่อม {filteredPendingAssets.length}</Chip>
           <Chip tone="emerald">Run แล้ว {data?.period.postedRuns ?? 0}</Chip>
@@ -1152,10 +1152,10 @@ export function DepreciationPageClient() {
             <div className="space-y-3">
               <div>
                 <label className="mb-1 block font-semibold text-slate-600 text-xs">หมวดหมู่ทรัพย์สิน</label>
-                <select 
-                  aria-label="Filter category" 
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" 
-                  value={filterCategory} 
+                <select
+                  aria-label="Filter category"
+                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  value={filterCategory}
                   onChange={(event) => setFilterCategory(event.target.value)}
                 >
                   <option value="all">ทุกหมวด</option>
@@ -1165,10 +1165,10 @@ export function DepreciationPageClient() {
 
               <div>
                 <label className="mb-1 block font-semibold text-slate-600 text-xs">แผนก</label>
-                <select 
-                  aria-label="Filter department" 
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" 
-                  value={filterDepartment} 
+                <select
+                  aria-label="Filter department"
+                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  value={filterDepartment}
                   onChange={(event) => setFilterDepartment(event.target.value)}
                 >
                   <option value="all">ทุกแผนก</option>
@@ -1178,30 +1178,30 @@ export function DepreciationPageClient() {
 
               <div>
                 <label className="mb-1 block font-semibold text-slate-600 text-xs">วันสิ้นสุดงวด (Period End Date)</label>
-                <input 
-                  aria-label="Depreciation period date" 
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-slate-50 px-3 py-1 text-sm outline-none cursor-default" 
-                  readOnly 
-                  value={periodDate} 
+                <input
+                  aria-label="Depreciation period date"
+                  className="w-full h-10 rounded-md border border-slate-300 bg-slate-50 px-3 py-1 text-sm outline-none cursor-default"
+                  readOnly
+                  value={periodDate}
                 />
               </div>
             </div>
 
             <div className="pt-2 border-t border-slate-100 flex gap-2">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => {
                   setFilterCategory('all')
                   setFilterDepartment('all')
                 }}
-                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                className="flex-1 h-10 rounded-md border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
               >
                 ล้างตัวกรอง
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+                className="flex-1 h-10 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
               >
                 ตกลง
               </button>
@@ -1327,10 +1327,10 @@ export function DepreciationPageClient() {
                     {row.status === 'reversed' ? (
                       <span className="text-xs text-slate-400 font-medium">{row.reversalReason || '-'}</span>
                     ) : (
-                      <button 
-                        className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition" 
-                        disabled={isSaving} 
-                        onClick={() => setReverseRow(row)} 
+                      <button
+                        className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition"
+                        disabled={isSaving}
+                        onClick={() => setReverseRow(row)}
                         type="button"
                       >
                         ย้อนกลับ
@@ -1392,10 +1392,10 @@ export function DepreciationPageClient() {
                   ) : (
                     <>
                       <span />
-                      <button 
-                        className="rounded-md border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition" 
-                        disabled={isSaving} 
-                        onClick={() => setReverseRow(row)} 
+                      <button
+                        className="rounded-md border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition"
+                        disabled={isSaving}
+                        onClick={() => setReverseRow(row)}
                         type="button"
                       >
                         ย้อนกลับ
@@ -1589,10 +1589,10 @@ export function AssetDisposalPageClient() {
         <Chip tone="emerald">บันทึกแล้ว {data?.summary.disposedRows ?? 0}</Chip>
         <Chip tone="amber">ย้อนกลับแล้ว {data?.summary.reversedRows ?? 0}</Chip>
         <div className="ml-auto">
-          <button 
-            type="button" 
-            onClick={openCreate} 
-            className="h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition outline-none"
+          <button
+            type="button"
+            onClick={openCreate}
+            className="h-9 px-4 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition outline-none"
           >
             + จำหน่ายทรัพย์สิน
           </button>
@@ -1600,7 +1600,7 @@ export function AssetDisposalPageClient() {
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden">
+      <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden">
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="rounded-lg bg-blue-50 border border-blue-100 p-1.5">
             <div className="text-xs text-slate-500 font-semibold">จำหน่ายได้</div>
@@ -1713,10 +1713,10 @@ export function AssetDisposalPageClient() {
                     {row.status === 'reversed' ? (
                       <span className="text-xs text-slate-400 font-medium">{row.reversalReason || '-'}</span>
                     ) : (
-                      <button 
-                        className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition" 
-                        disabled={isSaving} 
-                        onClick={() => openReverse(row)} 
+                      <button
+                        className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition"
+                        disabled={isSaving}
+                        onClick={() => openReverse(row)}
                         type="button"
                       >
                         ย้อนกลับ
@@ -1779,10 +1779,10 @@ export function AssetDisposalPageClient() {
                   ) : (
                     <>
                       <span />
-                      <button 
-                        className="rounded-md border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition" 
-                        disabled={isSaving} 
-                        onClick={() => openReverse(row)} 
+                      <button
+                        className="rounded-md border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition"
+                        disabled={isSaving}
+                        onClick={() => openReverse(row)}
                         type="button"
                       >
                         ย้อนกลับ
@@ -1805,12 +1805,12 @@ export function AssetDisposalPageClient() {
             <Field label="ประเภท"><SelectControl options={data?.disposalTypes ?? []} value={form.disposalType} onChange={(value) => updateForm('disposalType', value)} /></Field>
             <MoneyField label="ราคาขาย" value={form.sellingPrice} onChange={(value) => updateForm('sellingPrice', value)} />
             <div className="w-full">
-                <SearchCombobox 
-                  inputId="form-customer" 
-                  label="ลูกค้า" 
-                  options={customerOptions} 
-                  value={form.customerId} 
-                  onChange={(value) => updateForm('customerId', value)} 
+                <SearchCombobox
+                  inputId="form-customer"
+                  label="ลูกค้า"
+                  options={customerOptions}
+                  value={form.customerId}
+                  onChange={(value) => updateForm('customerId', value)}
                   placeholder="พิมพ์เพื่อค้นหาลูกค้า..."
                 />
             </div>
@@ -2004,7 +2004,7 @@ function splitDelimitedLine(line: string, delimiter: string) {
 function Modal({ children, title }: { children: ReactNode; title: string }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4">
-      <div className="mt-8 w-full max-w-5xl rounded-2xl bg-white shadow-xl overflow-hidden">
+      <div className="mt-8 w-full max-w-5xl overflow-hidden rounded-md bg-white shadow-xl">
         <div className="bg-slate-900 px-6 py-4 border-b border-slate-800">
           <h2 className="text-sm font-semibold text-white">{title}</h2>
         </div>
@@ -2041,8 +2041,8 @@ function MoneyField({ label, onChange, value }: { label: string; onChange: (valu
 }
 
 function ActionButton({ children, disabled = false, onClick, strong = false }: { children: ReactNode; disabled?: boolean; onClick: () => void; strong?: boolean }) {
-  const color = strong 
-    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm focus:outline-none focus:ring-0' 
+  const color = strong
+    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm focus:outline-none focus:ring-0'
     : 'bg-transparent text-slate-500 hover:text-slate-800 border-none shadow-none focus:outline-none focus:ring-0'
   return <button className={`${color} rounded-md px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 transition`} disabled={disabled} onClick={onClick} type="button">{children}</button>
 }
@@ -2066,7 +2066,7 @@ function Panel({ children, title }: { children: ReactNode; title: string }) {
 
 function FilterPanel({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+    <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
       {children}
     </div>
   )
@@ -2074,9 +2074,9 @@ function FilterPanel({ children }: { children: ReactNode }) {
 
 function TableShell({ children, title }: { children: ReactNode; title?: string }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       {title ? (
-        <h2 className="border-b border-slate-100 px-4 py-3 font-bold text-slate-900 text-sm bg-slate-50/50">{title}</h2>
+        <h2 className="border-b border-slate-200 px-4 py-3 font-bold text-slate-900 text-sm bg-slate-50/50">{title}</h2>
       ) : null}
       <div className="max-h-[60vh] overflow-auto">
         {children}
@@ -2305,7 +2305,7 @@ function StatusPill({ status }: { status: string }) {
     color = 'bg-amber-50 text-amber-700'
     text = 'ซ่อมบำรุง'
   }
-  
+
   return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>{text}</span>
 }
 
