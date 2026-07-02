@@ -11,7 +11,7 @@ tags:
   - decision
 status: draft
 created: 2026-05-24
-updated: 2026-07-01
+updated: 2026-07-02
 ---
 
 # Sales Flow / Flow ขาย
@@ -33,6 +33,7 @@ updated: 2026-07-01
 - ถ้าต้องออกเอกสารส่งของ/น้ำหนักขาออก ให้ใช้ `ใบส่งของ / Weight Ticket Out` เลขเอกสาร `WTO{branchCode}{YYMM}-NNNN`; ไม่มีเลข `WT` เดี่ยวใน target
 - flow หลักของการสร้างบิลขายต้องเป็น `PO Sell -> WTO -> Sales Bill`; หน้า `/sales/bills` เลือก `WTO` แล้วแสดงรายการสินค้าจากใบส่งของเพื่อ allocate เข้า `PO Sell`
 - ถ้าปริมาณจาก `WTO` เกิน remaining ของ `PO Sell` ส่วนเกินต้องถูกแยกเป็น `Spot Sale` ไม่ตัด PO เกินยอด
+- ในหน้า Sales Bill ข้อความใต้ช่อง `อ้างอิง` ของ PO Sell ต้องคำนวณจากจำนวนที่ row นั้นตัดกับ PO จริง (`จำนวนที่ขายได้` หลังหักสิ่งเจือปน) เพื่อให้ `ใช้ในบิลนี้` และ `คงเหลือ` เปลี่ยนตามการแก้ไขในฟอร์มทันที ไม่ใช้ข้อความ option เดิมที่ hydrate มาจากเอกสารเก่า
 - บิลขาย Trading จากบิลรับซื้อยังเป็น target follow-up แต่ไม่ใช่แกน create flow รอบนี้
 - บิลขายควรออกจาก `WTO` ที่มี `pending_out` แล้ว เพื่อให้ trace ของออกและต้นทุนย้อนกลับไปที่ใบส่งของได้
 - ใบรับเงินต้องตัดลูกหนี้และลง bank statement ใน transaction เดียวกัน
@@ -556,6 +557,8 @@ AR contract:
 - ตารางนี้เป็นข้อมูลของบิลขายโดยตรง ไม่ใช่ประวัติ stock hold ดิบ: ต้องแสดง line สินค้าที่ขาย, เอกสารต้นทาง, จำนวนที่ใช้, ต้นทุน/COGS, สถานะ allocation/usage, และเวลาเกิด fact
 - ถ้า Sales Bill line ขาย SKU จริงต่างจาก SKU ต้นทางของ WTO ให้แสดงข้อความ `คัดแยกจาก: <สินค้าเดิม>` ในรายการสินค้า เพื่อให้ audit เข้าใจว่าลูกค้าคัดแยกสินค้าจากแถว WTO เดิม ไม่ใช่การแก้ WTO ย้อนหลัง
 - ไม่ควรเปลี่ยน source/cost identity ของ WTO หรือ stock hold จาก UI detail; detail เป็น read model เพื่ออธิบายความสัมพันธ์ของ SB กับ source เท่านั้น
+- ในหน้าแก้ไขบิลขาย ห้ามลบ line fact เดิมออกจาก payload เพราะจะทำให้ `line_no`, WTO source allocation, PO Sell allocation, และ history ขาดช่วง หากต้องเอาแถวเดิมออก ให้ zero-out น้ำหนัก/จำนวน/ส่วนลดของ line เดิมแทน แล้วปล่อยให้ edit delta release pending_out/PO allocation ตาม transaction เดิม
+- โหมดสร้างบิลใหม่ยังต้องบังคับจำนวนและราคามากกว่า 0 เสมอ; zero-out อนุญาตเฉพาะโหมดแก้ไขเพื่อแก้เอกสารเดิมแบบ audit ได้
 
 ## งาน Implementation ที่ตามมา
 

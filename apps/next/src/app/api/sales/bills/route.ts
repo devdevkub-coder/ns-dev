@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { XLSX } from '@/lib/server/xlsx'
-import { salesBillFormSchema, type SalesBillFormValues } from '@/lib/sales'
+import { salesBillEditFormSchema, salesBillFormSchema, type SalesBillFormValues } from '@/lib/sales'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission, type AppAuthContext } from '@/lib/server/auth-context'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
@@ -355,12 +355,13 @@ function poSellAllocationRows(input: {
   parsedProductIds: bigint[]
   poSellByDocNo: Map<string, PoSellForAllocation>
 }) {
-  return input.items.map((item, index) => {
+  return input.items.flatMap((item, index) => {
+    if (item.qty <= 0.0001) return []
     const lineNo = index + 1
     const poSellDocNo = item.poSellId || input.headerPoSellDocNo || ''
     const poSell = poSellDocNo ? input.poSellByDocNo.get(poSellDocNo) : null
     const allocationType = poSell ? 'PO_SELL' : 'SPOT_SALE'
-    return {
+    return [{
       allocated_amount: item.amount,
       allocated_qty: item.qty,
       allocation_type: allocationType,
@@ -382,7 +383,7 @@ function poSellAllocationRows(input: {
       unit_price: item.unitPrice,
       updated_at: input.createdAt,
       updated_by: input.actor,
-    }
+    }]
   })
 }
 
@@ -409,6 +410,7 @@ function sourceAllocationRows(input: {
     if (!isDeliveryBackedSalesItem(item)) return []
     const lineNo = index + 1
     const stockIssueQty = Math.max(0, item.stockIssueQty)
+    if (stockIssueQty <= 0.0001) return []
     const summarySource = item.deliverySummaryId ? input.deliverySummarySourceMap.get(item.deliverySummaryId) : null
     if (!summarySource || summarySource.product_id == null) {
       throw new Error(`Sales Bill WTO source allocation missing product summary for line ${lineNo}`)
@@ -859,14 +861,18 @@ async function validateStockDeliverySelection(
     }
     const buyerAcceptedWeight = Math.max(0, item.netWeight)
     const expectedNetWeight = Number(Math.max(0, buyerAcceptedWeight - item.deductWeight).toFixed(2))
-    if (buyerAcceptedWeight <= 0.0001) {
-      return { error: `กรอกจำนวนที่ขายได้ของ ${summarySource.product_name}` as const }
-    }
     if (item.deductWeight > buyerAcceptedWeight + 0.0001) {
       return { error: `หักสิ่งเจือปนของ ${summarySource.product_name} เกินจำนวนที่ขายได้` as const }
     }
     if (Math.abs(expectedNetWeight - item.qty) > 0.01) {
       return { error: `น้ำหนักขายสุทธิของ ${summarySource.product_name} ไม่ตรงกับจำนวนที่ขายได้หลังหักสิ่งเจือปน` as const }
+    }
+    if (buyerAcceptedWeight <= 0.0001) {
+      if (input?.excludeSalesBillId) {
+        stockIssueQtyByItemIndex.set(itemIndex, 0)
+        continue
+      }
+      return { error: `กรอกจำนวนที่ขายได้ของ ${summarySource.product_name}` as const }
     }
     const acceptedBefore = acceptedWeightBySummaryId.get(resolvedSummaryRef) ?? 0
     const availableQty = availableQtyBySummaryId.get(resolvedSummaryRef) ?? 0
@@ -2110,7 +2116,7 @@ const cancelSalesBillSchema = z.object({
 
 const editSalesBillSchema = z.object({
   id: z.string().trim().min(1, 'ระบุรหัสบิลขาย'),
-}).and(salesBillFormSchema)
+}).and(salesBillEditFormSchema)
 
 type ActiveSalesBillPoAllocation = Prisma.sales_bill_po_sell_allocationsGetPayload<Record<string, never>>
 

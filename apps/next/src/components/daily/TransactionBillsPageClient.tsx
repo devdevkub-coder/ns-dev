@@ -24,7 +24,7 @@ import { firstErrorKeyFromZodIssues, focusFieldError, issueMapFromZodIssues } fr
 import { formatDateDisplay, formatDecimalDisplay, formatDecimalDraft, sanitizeDecimalInput } from '@/lib/format'
 import { purchaseBillCancelSchema, purchaseBillFormSchema, type PurchaseBillCancelValues, type PurchaseBillFormValues } from '@/lib/purchase-bill'
 import { openPurchaseBillPrint, openPurchaseBillPrintWindow } from '@/lib/purchase-bill-print'
-import { salesBillCancelSchema, salesBillFormSchema, type SalesBillCancelValues, type SalesBillFormValues } from '@/lib/sales'
+import { salesBillCancelSchema, salesBillEditFormSchema, salesBillFormSchema, type SalesBillCancelValues, type SalesBillFormValues } from '@/lib/sales'
 import { openSalesBillPrint, openSalesBillPrintWindow } from '@/lib/sales-bill-print'
 import type { SalesBillDetail } from '@/lib/server/sales-bill-detail'
 
@@ -1338,11 +1338,15 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     return null
   }
 
-  function poSellDetailText(option: Option | null) {
-    if (!option?.label) return null
-    const [, ...detailParts] = option.label.split(' · ')
-    const detail = detailParts.join(' · ').trim()
-    return detail || null
+  function poSellDetailText(option: Option | null, index: number) {
+    if (!option) return null
+    const currentItem = salesForm.items[index]
+    if (!currentItem) return null
+    const productUnit = activeProducts.find((product) => product.id === currentItem.productId)?.unit
+    const unit = option.unit ?? productUnit ?? 'กก.'
+    const currentQty = Math.max(0, currentItem.qty)
+    const remainingAfterCurrentRow = Math.max(0, poSellAvailableForRow(option.id, index) - currentQty)
+    return `ใช้ในบิลนี้ ${formatMoney(currentQty)}${unit ? ` ${unit}` : ''} · คงเหลือ ${formatMoney(remainingAfterCurrentRow)}${unit ? ` ${unit}` : ''} · ${formatMoney(option.unitPrice ?? 0)} บาท`
   }
 
   function tradingCostSourceOptionForProduct(sourceId: string | null | undefined, productId: string | null | undefined) {
@@ -1739,6 +1743,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         price: item.price,
         productId: item.productCode || item.productId,
         qty: item.qty,
+        salesBillLineNo: item.lineNo,
         tradingCostSourceId: item.tradingSourceDocNo
           ? tradingSourceByDocLine.get(`${item.tradingSourceDocNo}:${item.tradingSourceLineNo ?? ''}`) ?? null
           : null,
@@ -2518,6 +2523,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         grossWeight: 0,
         netWeight: source.poSellId ? remainingQty : 0,
         qty: source.poSellId ? remainingQty : 0,
+        salesBillLineNo: null,
       }
       const items = [...current.items]
       items.splice(insertIndex, 0, nextItem)
@@ -2534,6 +2540,22 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       if (!summaryId) return current
       const summaryRowCount = current.items.filter((item) => (item.deliverySummaryId ?? item.deliveryLineId) === summaryId).length
       if (summaryRowCount <= 1) return current
+      if (editingSalesBillId && source.salesBillLineNo) {
+        return {
+          ...current,
+          items: current.items.map((item, itemIndex) => itemIndex === index
+            ? {
+                ...item,
+                deductWeight: 0,
+                discount: 0,
+                grossWeight: 0,
+                netWeight: 0,
+                poSellId: null,
+                qty: 0,
+              }
+            : item),
+        }
+      }
       return { ...current, items: current.items.filter((_item, itemIndex) => itemIndex !== index) }
     })
     setSalesFieldErrors({})
@@ -2616,7 +2638,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   }
 
   async function saveSalesBill() {
-    const parsed = salesBillFormSchema.safeParse(salesForm)
+    const parsed = (editingSalesBillId ? salesBillEditFormSchema : salesBillFormSchema).safeParse(salesForm)
     if (!parsed.success) {
       const nextFieldErrors = issueMapFromZodIssues(parsed.error.issues)
       setSalesFieldErrors(nextFieldErrors)
@@ -3893,7 +3915,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                            })
 	                            const selectedPoSell = poSellOptionForProduct(item.poSellId, item.productId)
 	                            const hasSelectedPoSell = Boolean(item.poSellId && selectedPoSell)
-	                            const selectedPoSellDetail = hasSelectedPoSell ? poSellDetailText(selectedPoSell) : null
+	                            const selectedPoSellDetail = hasSelectedPoSell ? poSellDetailText(selectedPoSell, index) : null
 	                            const poSellVariance = hasSelectedPoSell ? poSellVarianceForRow(item.poSellId, index) : null
 	                            const rowKey = `${item.deliverySummaryId ?? item.deliveryLineId ?? item.productId}-${index}`
 	                            return (
@@ -4062,7 +4084,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                           })
                           const selectedPoSell = poSellOptionForProduct(item.poSellId, item.productId)
                           const hasSelectedPoSell = Boolean(item.poSellId && selectedPoSell)
-                          const selectedPoSellDetail = hasSelectedPoSell ? poSellDetailText(selectedPoSell) : null
+                          const selectedPoSellDetail = hasSelectedPoSell ? poSellDetailText(selectedPoSell, index) : null
                           const poSellVariance = hasSelectedPoSell ? poSellVarianceForRow(item.poSellId, index) : null
                           const selectedTradingCostSource = tradingCostSourceOptionForProduct(item.tradingCostSourceId, item.productId)
                           const rowCostSourceCapacity = item.tradingCostSourceId ? tradingCostSourceAvailableForRow(item.tradingCostSourceId, index) : null
