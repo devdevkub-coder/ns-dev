@@ -11,7 +11,14 @@ import { requireBusinessCode } from '@/lib/business-code'
 import { isCustomerEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSalesChannelReferenceByCode } from '@/lib/server/sales-channel-reference'
-import { activeSalesReceiptCount, activeSalesReceiptCountByBillId, isSalesBillActiveForCancel, salesBillCancelState } from '@/lib/server/sales-bill-cancel-policy'
+import {
+  activeSalesReceiptCount,
+  activeSalesReceiptCountByBillId,
+  isSalesBillActiveForCancel,
+  salesBillCancelState,
+  salesBillHasReturnOrLoss,
+  salesBillReturnLockByBillId,
+} from '@/lib/server/sales-bill-cancel-policy'
 import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { appendPoSellAllocationLogs, PO_SELL_ALLOCATION_ACTION } from '@/lib/server/po-sell-allocation-history'
 import { salesBillLineFactsForBills, type SalesBillLineFactRow } from '@/lib/server/sales-bill-line-facts'
@@ -115,14 +122,16 @@ function parseBillQuery(url: URL, includePaging = true): BillQuery {
   }
 }
 
-function billJson(row: SalesBillRow, activeReceiptCount = 0, lineCount?: number) {
+function billJson(row: SalesBillRow, activeReceiptCount = 0, lineCount?: number, hasReturnOrLoss = false) {
   const cancelState = salesBillCancelState(row.status, activeReceiptCount)
-  const canEdit = isSalesBillActiveForCancel(row.status) && activeReceiptCount === 0
+  const canEdit = isSalesBillActiveForCancel(row.status) && activeReceiptCount === 0 && !hasReturnOrLoss
   const editLockedReason = !isSalesBillActiveForCancel(row.status)
     ? 'บิลขายนี้ถูกยกเลิกแล้ว'
     : activeReceiptCount > 0
       ? 'แก้ไขบิลขายไม่ได้ เพราะมีรายการรับเงิน Customer แล้ว'
-      : null
+      : hasReturnOrLoss
+        ? 'แก้ไขบิลขายไม่ได้ เพราะ WTO ของบิลนี้มีการรับของคืนหรือบันทึก loss แล้ว'
+        : null
   return {
     branchId: row.branches?.code ?? '',
     branchName: row.branches?.name ?? '-',
@@ -1371,11 +1380,17 @@ export async function GET(request: Request) {
       prisma.sales_bills.aggregate({ _sum: { total_amount: true }, where }),
     ])
     const billIds = rows.map((row) => row.id)
-    const [activeReceiptCountByBillId, lineCountByBillId] = await Promise.all([
+    const [activeReceiptCountByBillId, lineCountByBillId, returnLockByBillId] = await Promise.all([
       activeSalesReceiptCountByBillId(prisma, billIds),
       salesBillLineCountByBillId(billIds),
+      salesBillReturnLockByBillId(prisma, billIds),
     ])
-    const jsonRows = rows.map((row) => billJson(row, activeReceiptCountByBillId.get(row.id) ?? 0, lineCountByBillId.get(row.id)))
+    const jsonRows = rows.map((row) => billJson(
+      row,
+      activeReceiptCountByBillId.get(row.id) ?? 0,
+      lineCountByBillId.get(row.id),
+      (returnLockByBillId.get(row.id) ?? 0) > 0,
+    ))
 
     if (url.searchParams.get('format') === 'xlsx') {
       const body = await buildWorkbook(jsonRows, await salesBillLineFactsForBills(billIds, { lineStatuses: ['active', 'cancelled'], tradingStatuses: ['active', 'cancelled'] }))
@@ -2364,21 +2379,7 @@ export async function PATCH(request: Request) {
       let deliverySummarySourceMap = new Map<string, DeliverySummarySource>()
       let stockIssueQtyByItemIndex = new Map<number, number>()
       if (String(bill.transaction_mode ?? 'STOCK') === 'STOCK') {
-        const hasReturnOrLoss = await prisma.weight_ticket_usage_logs.findFirst({
-          select: { id: true },
-          where: {
-            action: {
-              in: [
-                WEIGHT_TICKET_USAGE_ACTION.RETURNED_FROM_SALES_BILL,
-                WEIGHT_TICKET_USAGE_ACTION.LOSS_FROM_SALES_BILL,
-                WEIGHT_TICKET_USAGE_ACTION.RETURNED_FROM_WTO,
-                WEIGHT_TICKET_USAGE_ACTION.LOSS_FROM_WTO_RETURN,
-              ],
-            },
-            target_doc_no: bill.doc_no,
-            target_type: 'SALES_BILL',
-          },
-        })
+        const hasReturnOrLoss = await salesBillHasReturnOrLoss(prisma, bill.id)
         if (hasReturnOrLoss) {
           return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขบิลขายนี้แบบปกติไม่ได้ เพราะมีการรับของคืนหรือบันทึก loss แล้ว' }, { status: 400 })
         }

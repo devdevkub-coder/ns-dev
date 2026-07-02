@@ -36,3 +36,6 @@ supabase/migrations/20260519044843_create_fx_rates_table.sql
 .agents/skills.disabled/
 .vercel
 .codegraph/
+
+# Current work scratch doc
+docs/migration/00-current-work.md
