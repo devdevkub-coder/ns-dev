@@ -33,6 +33,7 @@ company cash/bank account master used by TRF/PMT/RCP/PRET/bank statement
 - ดูแล master data ของ บัญชีเงินบริษัท
 - รองรับ list/search/filter/sort/resize/export/import เฉพาะที่ API ของหน้านี้เปิดไว้
 - ใช้ code/name/status เป็น outward UI identity และให้ server resolve internal id
+- รหัสบัญชีเงินบริษัท generate ที่ server ตอนสร้างเท่านั้น และไม่แสดง input ในฟอร์ม
 - แสดง created date/status และใช้งาน active-only ใน transaction pages
 - เก็บ snapshot ลง business documents เมื่อ master ถูกนำไปใช้ในเอกสารที่ต้องรักษาประวัติ
 
@@ -47,7 +48,7 @@ company cash/bank account master used by TRF/PMT/RCP/PRET/bank statement
 | Step | User action | System result |
 |---|---|---|
 | 1 | เปิดหน้า | โหลด list จาก Current API |
-| 2 | สร้าง/แก้ไข | validate code/name/type/status และ required fields |
+| 2 | สร้าง/แก้ไข | validate name/type/status และ required fields โดย code generate ฝั่ง server ตอน create |
 | 3 | บันทึก | เขียน master row และ audit/updated timestamp |
 | 4 | ปิดใช้งาน | active=false/status inactive เพื่อกันเลือกในเอกสารใหม่ |
 | 5 | นำไปใช้ | transaction pages เลือกเฉพาะ active และ snapshot ค่าที่ต้อง trace |
@@ -70,7 +71,7 @@ company cash/bank account master used by TRF/PMT/RCP/PRET/bank statement
 ## Validation / Status Rules
 
 - required fields ต้องชัดตามหน้าและไม่พึ่ง placeholder เป็น validation
-- code/business id ต้อง unique ตาม scope ที่กำหนด
+- code/business id ต้อง unique ตาม scope ที่กำหนด และผู้ใช้ไม่กรอกเองจากฟอร์ม
 - inactive row ต้องยังแสดงในประวัติเอกสารเก่า แต่ห้ามเลือกในเอกสารใหม่
 - ห้าม normalize/merge ข้อมูล legacy แบบ silent ใน runtime path
 
