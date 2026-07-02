@@ -486,53 +486,6 @@ export function AssetRegisterPageClient() {
         <StatCard label="แสดงผลตามตัวกรอง" value={rows.length} tone="blue" icon="🔎" />
       </div>
 
-      {/* Desktop Toolbar */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
-        <input
-          className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none transition focus:border-slate-400"
-          placeholder="ค้นหา รหัส / ชื่อ / สถานที่ / สาขา"
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-        <div className="flex items-center gap-2">
-          <select
-            className="h-9 w-auto min-w-[120px] rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition cursor-pointer focus:border-slate-400"
-            value={category}
-            onChange={(event) => setCategory(event.target.value)}
-          >
-            <option value="all">ทุกหมวด</option>
-            {(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
-          <select
-            className="h-9 w-auto min-w-[120px] rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition cursor-pointer focus:border-slate-400"
-            value={status}
-            onChange={(event) => setStatus(event.target.value)}
-          >
-            <option value="all">ทุกสถานะ</option>
-            {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
-        </div>
-        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
-          <LinkButton href="/api/finance-accounting/asset-register?template=csv">📄 Template CSV</LinkButton>
-          <button
-            type="button"
-            onClick={openImport}
-            className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50 outline-none focus:ring-0"
-          >
-            📥 Import
-          </button>
-          <LinkButton href={exportHref}>📤 Export CSV</LinkButton>
-          <button
-            type="button"
-            onClick={openCreate}
-            className="inline-flex h-9 items-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 outline-none focus:ring-0"
-          >
-            + เพิ่มทรัพย์สิน
-          </button>
-        </div>
-      </div>
-
       {/* Mobile Toolbar (Hidden on Desktop) */}
       <div className="mb-4 space-y-2 rounded-md bg-white p-3 shadow lg:hidden">
         <div className="flex gap-2 items-center">
@@ -644,8 +597,54 @@ export function AssetRegisterPageClient() {
         </div>
       ) : null}
 
-      {/* Pagination Controls */}
-      <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+      {/* Desktop Table Card */}
+      <div className="hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
+        <input
+          className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none transition focus:border-slate-400"
+          placeholder="ค้นหา รหัส / ชื่อ / สถานที่ / สาขา"
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+        <div className="flex items-center gap-2">
+          <select
+            className="h-9 w-auto min-w-[120px] rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition cursor-pointer focus:border-slate-400"
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+          >
+            <option value="all">ทุกหมวด</option>
+            {(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+          <select
+            className="h-9 w-auto min-w-[120px] rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition cursor-pointer focus:border-slate-400"
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+          >
+            <option value="all">ทุกสถานะ</option>
+            {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </div>
+        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <LinkButton href="/api/finance-accounting/asset-register?template=csv">📄 Template CSV</LinkButton>
+          <button
+            type="button"
+            onClick={openImport}
+            className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50 outline-none focus:ring-0"
+          >
+            📥 Import
+          </button>
+          <LinkButton href={exportHref}>📤 Export CSV</LinkButton>
+          <button
+            type="button"
+            onClick={openCreate}
+            className="inline-flex h-9 items-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 outline-none focus:ring-0"
+          >
+            + เพิ่มทรัพย์สิน
+          </button>
+        </div>
+      </div>
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
         <div>
           พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
         </div>
@@ -686,9 +685,7 @@ export function AssetRegisterPageClient() {
           ) : null}
         </div>
       </div>
-
-      {/* Desktop View Table */}
-      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {assetRegisterColumns.map((column, index) => {
@@ -745,6 +742,51 @@ export function AssetRegisterPageClient() {
               ))}
             </tbody>
           </table>
+      </div>
+
+      </div>
+
+      {/* Mobile Pagination Controls */}
+      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:hidden">
+        <div>
+          พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            aria-label="จำนวนรายการต่อหน้า"
+            className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            value={pageSize}
+            onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}
+          >
+            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+          </select>
+          <button
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            disabled={currentPage <= 1}
+            type="button"
+            onClick={() => setPage((value) => Math.max(1, value - 1))}
+          >
+            ก่อนหน้า
+          </button>
+          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+          <button
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            disabled={currentPage >= totalPages}
+            type="button"
+            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+          >
+            ถัดไป
+          </button>
+          {columnResize.hasCustomWidths ? (
+            <button
+              className="h-9 rounded-md bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+              type="button"
+              onClick={columnResize.resetColumnWidths}
+            >
+              คืนค่าเดิมตาราง
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {/* Mobile View Card List */}
