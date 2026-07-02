@@ -2415,3 +2415,4 @@ Tailwind dependency check:
   - The API uses `salesBillLineNo`/`line_no` as the durable line identity, so remaining rows do not inherit the deleted row's source allocation, PO Sell allocation, or history by array index.
   - Deleted existing lines are kept audit-safe by marking `sales_bill_lines.status = removed`, reversing their source allocation rows, releasing WTO pending_out/summary usage through the edit delta flow, and releasing/reallocating PO Sell from the remaining active lines.
   - New split rows created during edit receive the next line number after the current max line, avoiding unique conflicts and preserving existing line history. Create-new and edit payloads still require positive quantity and price for active lines.
+  - Follow-up UI fix: changing a Sales Bill line reference from PO Sell back to Spot Sale keeps the existing impurity/deduct weight and recalculates net sale weight from the preserved value instead of clearing the impurity field.

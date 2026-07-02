@@ -2376,11 +2376,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           : Number.POSITIVE_INFINITY
         const requestedQty = Number((item.qty + mergedSplitQty).toFixed(2))
         if (!poSellId) {
+          const nextDeductWeight = item.deductWeight
+          const nextSaleWeight = Number((requestedQty + nextDeductWeight).toFixed(2))
           items.push({
             ...item,
-            deductWeight: 0,
-            grossWeight: requestedQty,
-            netWeight: requestedQty,
+            grossWeight: nextSaleWeight,
+            netWeight: nextSaleWeight,
             poSellId: null,
             price: 0,
             qty: requestedQty,
