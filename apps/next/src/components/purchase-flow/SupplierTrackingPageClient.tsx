@@ -947,18 +947,21 @@ function YearCompare({ rows }: { rows: SupplierTrackingRow[] }) {
             ยอดซื้อ (บาท)
           </button>
         </div>
-        {columnResize.hasCustomWidths ? (
-          <button
-            className="ml-auto hidden h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 lg:inline-flex"
-            type="button"
-            onClick={columnResize.resetColumnWidths}
-          >
-            คืนค่าเดิมตาราง
-          </button>
-        ) : null}
       </div>
 
-      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+      <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        {columnResize.hasCustomWidths ? (
+          <div className="flex justify-end border-b border-slate-100 px-3 py-3">
+            <button
+              className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 outline-none focus:ring-0"
+              type="button"
+              onClick={columnResize.resetColumnWidths}
+            >
+              คืนค่าเดิมตาราง
+            </button>
+          </div>
+        ) : null}
+        <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {supplierYearCompareColumns.map((column, index) => (
@@ -1018,6 +1021,7 @@ function YearCompare({ rows }: { rows: SupplierTrackingRow[] }) {
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className="space-y-3 lg:hidden">
