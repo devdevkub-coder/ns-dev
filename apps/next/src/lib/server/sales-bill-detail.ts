@@ -640,16 +640,16 @@ export async function getSalesBillDetail(
       qty: toNumber(log.allocated_net_weight) || toNumber(log.allocated_qty),
       status: log.action === 'released_from_sales_bill'
         ? 'cancelled'
-        : log.action === 'loss_from_sales_bill'
+        : log.action === 'loss_from_sales_bill' || log.action === 'loss_from_wto_return'
           ? 'loss'
-          : log.action === 'returned_from_sales_bill'
+          : log.action === 'returned_from_sales_bill' || log.action === 'returned_from_wto'
             ? 'returned'
             : 'active',
       title: log.action === 'released_from_sales_bill'
         ? 'คืน WTO จากบิลขาย'
-        : log.action === 'loss_from_sales_bill'
+        : log.action === 'loss_from_sales_bill' || log.action === 'loss_from_wto_return'
           ? 'ตัดของขาดจากรับคืน WTO'
-          : log.action === 'returned_from_sales_bill'
+          : log.action === 'returned_from_sales_bill' || log.action === 'returned_from_wto'
             ? 'รับของคืนจาก WTO'
             : 'ใช้ WTO ในบิลขาย',
       type: 'WTO usage log',

@@ -108,6 +108,7 @@ trigger:
 input:
 
 - 1 row ต่อ `WTO + สินค้า + คลัง`
+- submit ผ่าน `POST /api/daily/weight-tickets/{docNo}/stock-return`
 - `pending_out_qty`
 - `returned_qty`
 - `short_reason` ถ้า `returned_qty < pending_out_qty`
@@ -121,12 +122,15 @@ validation:
 ผลลัพธ์เมื่อคืนครบ:
 
 - release `pending_out` ทั้งก้อน
+- append `weight_ticket_usage_logs.action = returned_from_wto`
 - ไม่เขียน stock-in ledger
 - append audit event ของ WTO return
 
 ผลลัพธ์เมื่อคืนขาด:
 
 - release `pending_out` ทั้งก้อน
+- append `weight_ticket_usage_logs.action = returned_from_wto` สำหรับยอดที่คืนจริง
+- append `weight_ticket_usage_logs.action = loss_from_wto_return` สำหรับยอดขาด
 - เขียน `stock_ledger.ref_type = WTO-RETURN-LOSS` 1 row ต่อ `WTO + สินค้า + คลัง`
 - `qty_out` ของ loss = `pending_out_qty - returned_qty`
 - `value_out` ของ loss ต้องอิงต้นทุน snapshot ของ WTO ก้อนนั้น
@@ -242,6 +246,8 @@ flowchart TD
 - `SB` ต้องตัดต้นทุนตาม snapshot ของ WTO ที่ consume จริง
 - `SB-CANCEL` ต้อง reverse ต้นทุนเท่าเดิมกับ `SB` เดิม ไม่ใช่คำนวณใหม่จาก WAC ปัจจุบัน
 - `WTO-RETURN-LOSS` ต้องใช้ต้นทุน snapshot ของ WTO ก้อนที่ถูกปิด
+- `WTO-RETURN-LOSS` ต้องอ้าง `ref_no/ref_id` กลับไปที่เอกสาร `WTO` เสมอ แม้ action จะถูกกดจากหน้า `SB`
+- คู่ค้าใน stock ledger ของ `WTO-RETURN-LOSS` ต้องเป็น `ลูกค้า` จาก `WTO` ใบนั้น ไม่ใช่ชื่อประเภท movement หรือเลข `SB`
 - ถ้าไม่มี cost snapshot ที่ถูกต้อง ต้อง fail flow และให้แก้ข้อมูลต้นทุนก่อน
 
 ตัวอย่าง:

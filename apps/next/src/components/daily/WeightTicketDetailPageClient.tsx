@@ -80,6 +80,8 @@ function usageActionLabel(action: string) {
   if (action === 'released_from_purchase_bill') return 'คืนยอดจากบิลรับซื้อ'
   if (action === 'allocated_to_sales_bill') return 'นำไปออกบิลขาย'
   if (action === 'released_from_sales_bill') return 'คืนยอดจากบิลขาย'
+  if (action === 'returned_from_wto') return 'รับของคืนจาก WTO'
+  if (action === 'loss_from_wto_return') return 'ของขาดจากรับคืน WTO'
   return action || '-'
 }
 

@@ -2371,6 +2371,8 @@ export async function PATCH(request: Request) {
               in: [
                 WEIGHT_TICKET_USAGE_ACTION.RETURNED_FROM_SALES_BILL,
                 WEIGHT_TICKET_USAGE_ACTION.LOSS_FROM_SALES_BILL,
+                WEIGHT_TICKET_USAGE_ACTION.RETURNED_FROM_WTO,
+                WEIGHT_TICKET_USAGE_ACTION.LOSS_FROM_WTO_RETURN,
               ],
             },
             target_doc_no: bill.doc_no,

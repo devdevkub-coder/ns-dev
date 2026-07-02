@@ -8,13 +8,14 @@ import { getErrorMessage } from '@/lib/api-client'
 
 export type StockReturnOption = {
   pendingOutKey: string
-  pendingOutKeys?: string[]
   pendingQty: number
+  productId: string
   productCode: string
   productName: string
   salesBillDocNos: string[]
   sourceLineNos?: number[]
   sourceLineNo: number | null
+  warehouseId: string
   warehouseName: string
   weightTicketDocNo: string
 }
@@ -90,13 +91,14 @@ export function WeightTicketStockReturnDialog({
 
     setIsReturningPendingOutKey(option.pendingOutKey)
     try {
-      const response = await fetch(`/api/sales/bills/${encodeURIComponent(salesBillDocNo)}/stock-return`, {
+      const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(ticketDocNo)}/stock-return`, {
         body: JSON.stringify({
           note: null,
-          pendingOutKey: option.pendingOutKey,
-          pendingOutKeys: option.pendingOutKeys ?? [option.pendingOutKey],
+          productId: option.productId,
           reason: reason || null,
           returnedQty,
+          salesBillDocNo,
+          warehouseId: option.warehouseId,
         }),
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',

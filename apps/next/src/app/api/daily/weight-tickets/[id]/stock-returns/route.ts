@@ -34,7 +34,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const holds = await prisma.stock_holds.findMany({
       include: {
         products: { select: { code: true, name: true } },
-        warehouses: { select: { name: true } },
+        warehouses: { select: { code: true, name: true } },
       },
       orderBy: [{ source_line_no: 'asc' }, { id: 'asc' }],
       where: {
@@ -78,12 +78,13 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     const optionGroups = new Map<string, {
       pendingOutKey: string
-      pendingOutKeys: string[]
       pendingQty: number
+      productId: string
       productCode: string
       productName: string
       salesBillDocNos: string[]
       sourceLineNos: number[]
+      warehouseId: string
       warehouseName: string
       weightTicketDocNo: string
     }>()
@@ -95,16 +96,16 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       const groupKey = `GROUP:${hold.product_id.toString()}:${hold.warehouse_id.toString()}`
       const current = optionGroups.get(groupKey) ?? {
         pendingOutKey: groupKey,
-        pendingOutKeys: [],
         pendingQty: 0,
+        productId: hold.products.code ?? '',
         productCode: hold.products.code ?? '',
         productName: hold.products.name,
         salesBillDocNos,
         sourceLineNos: [],
+        warehouseId: hold.warehouses.code ?? '',
         warehouseName: hold.warehouses.name,
         weightTicketDocNo: hold.source_doc_no,
       }
-      current.pendingOutKeys.push(hold.hold_key)
       current.pendingQty = Number((current.pendingQty + toNumber(hold.qty)).toFixed(2))
       if (hold.source_line_no != null && !current.sourceLineNos.includes(hold.source_line_no)) {
         current.sourceLineNos.push(hold.source_line_no)
