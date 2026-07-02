@@ -56,18 +56,18 @@ export function TaxVatWhtPageClient() {
       {error ? <ErrorBox message={error} /> : null}
       
       {/* Desktop Filter Panel */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-200">
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
         <div className="flex items-center gap-2">
           <label className="text-sm text-slate-600 font-medium">งวด</label>
           <select 
-            className="rounded-lg border border-slate-300 px-3 py-1 bg-white text-sm outline-none focus:ring-0 focus:border-slate-400 transition-colors h-9 cursor-pointer" 
+            className="rounded-md border border-slate-300 px-3 py-1 bg-white text-sm outline-none focus:ring-0 focus:border-slate-400 transition-colors h-9 cursor-pointer"
             value={month} 
             onChange={(event) => setMonth(event.target.value)}
           >
             {MONTHS.map((item) => <option key={item} value={item}>เดือน {item}</option>)}
           </select>
           <select 
-            className="rounded-lg border border-slate-300 px-3 py-1 bg-white text-sm outline-none focus:ring-0 focus:border-slate-400 transition-colors h-9 cursor-pointer" 
+            className="rounded-md border border-slate-300 px-3 py-1 bg-white text-sm outline-none focus:ring-0 focus:border-slate-400 transition-colors h-9 cursor-pointer"
             value={year} 
             onChange={(event) => setYear(event.target.value)}
           >
@@ -82,12 +82,12 @@ export function TaxVatWhtPageClient() {
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
+      <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden space-y-3">
         <div className="flex gap-2 items-center">
           <div className="flex-1 grid grid-cols-2 gap-2">
             <select 
               aria-label="Month select"
-              className="w-full h-9 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs outline-none focus:border-slate-400 transition cursor-pointer" 
+              className="w-full h-9 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs outline-none focus:border-slate-400 transition cursor-pointer"
               value={month} 
               onChange={(event) => setMonth(event.target.value)}
             >
@@ -95,7 +95,7 @@ export function TaxVatWhtPageClient() {
             </select>
             <select 
               aria-label="Year select"
-              className="w-full h-9 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs outline-none focus:border-slate-400 transition cursor-pointer" 
+              className="w-full h-9 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs outline-none focus:border-slate-400 transition cursor-pointer"
               value={year} 
               onChange={(event) => setYear(event.target.value)}
             >
@@ -104,7 +104,7 @@ export function TaxVatWhtPageClient() {
           </div>
           <button
             type="button"
-            className="h-9 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
+            className="h-9 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
             onClick={() => setShowMobileFilters(true)}
           >
             ตัวกรอง {branchId ? '(มี)' : ''}
@@ -132,7 +132,7 @@ export function TaxVatWhtPageClient() {
                 <label className="mb-1 block font-semibold text-slate-600 text-xs">สาขา</label>
                 <select
                   aria-label="Branch select"
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
                   value={branchId}
                   onChange={(event) => setBranchId(event.target.value)}
                 >
@@ -263,13 +263,13 @@ function BaselineNotice({ sourceState }: { sourceState?: SourceState }) {
 }
 
 function FilterPanel({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm">{children}</div>
+  return <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">{children}</div>
 }
 
 function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; onChange: (value: string) => void; value: string }) {
   return (
     <select 
-      className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:ring-0 focus:border-slate-400 transition-colors h-9" 
+      className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:ring-0 focus:border-slate-400 transition-colors h-9"
       value={value} 
       onChange={(event) => onChange(event.target.value)}
     >
@@ -442,7 +442,7 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tabl
   }, [rows, sortKey, sortDirection, valueKey])
   
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className={`flex justify-between items-center border-b p-3.5 font-semibold text-sm ${heading}`}>
         <span>{title}</span>
         {columnResize.hasCustomWidths && (
@@ -554,7 +554,7 @@ function CalendarTable({ rows }: { rows: TaxPayload['taxCalendar'] }) {
   }, [rows, sortKey, sortDirection])
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="flex justify-between items-center border-b bg-slate-50/80 px-4 py-3.5 font-semibold text-slate-700 border-slate-100 text-sm">
         <span>📅 Tax Calendar — 6 เดือนล่าสุด</span>
         {columnResize.hasCustomWidths && (
