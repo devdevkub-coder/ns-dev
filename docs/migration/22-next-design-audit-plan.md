@@ -764,6 +764,14 @@ After the `/daily/expense-dashboard` follow-up, tracked `apps/next/src` TS/TSX f
 - Rationale: these tables are used for reading a document, filling/editing line items, confirming previews, compact detail drilldowns, print output, or internal examples. Adding sortable/resizable behavior there would be misleading and would diverge from the intended workflow.
 - Browser/real-data visual QA remains a separate pending pass if the user later re-enables browser checks.
 
+### Finance Accounting Filter Shell Follow-Up - 2026-07-02
+
+- `/finance-accounting/working-capital`, `/finance-accounting/stock-finance`, and `/finance-accounting/profit-leak`
+  - The shared report client now aligns its desktop/mobile filter shells with `rounded-md bg-white p-3 shadow`.
+  - Filter controls now use `rounded-md`; the shared branch selector uses the standard `h-9` height; already-resizable report table containers now use a `rounded-md` lined shell.
+  - Report formulas, date/branch/target-margin query state, table sort/resize behavior, API behavior, export/drilldown assumptions, and DB state were not changed.
+  - Validation passed: targeted ESLint for `WorkingCapitalPageClients.tsx`, `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`, and `git diff --check`.
+
 ### Updated Suggested Fix Order
 
 1. No remaining high-confidence operational static inconsistency is currently listed after the final static table-mechanics classification. The listed operational pages are now in browser QA / real-data visual confirmation rather than another static rewrite.
