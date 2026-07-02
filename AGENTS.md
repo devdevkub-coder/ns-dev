@@ -42,16 +42,14 @@ Use `new-origin` branches with this promotion path:
 ```text
 codex/* or feature/*
   -> dev
-  -> uat
-  -> main
 ```
 
 - `main` is production-ready only. Do not work directly on `main`, and do not push directly to `main` unless the user explicitly asks for a coordinated release or hotfix.
-- `uat` is for UAT/pre-production verification. Merge or promote from `dev` only after the integrated batch is ready for broader QA.
+- Customer `UAT` deployment currently uses the customer Git remote `nserpdev/uat`, not `new-origin/uat`.
 - The old remote branch `staging` has been deleted to avoid confusion. Do not recreate, push to, or promote through `staging`.
 - `dev` is the shared integration branch. Start normal feature, bugfix, migration, and refactor work from `dev`.
 - `codex/*` or `feature/*` branches are for scoped work. Keep each branch focused on one feature, bugfix, migration batch, or behavior change.
-- After completing and validating a feature branch, merge or PR it into `dev` first, then promote `dev` to `uat`, then promote `uat` to `main`.
+- After completing and validating a feature branch, merge or PR it into `dev` first. If the user asks to promote customer UAT, push the promoted state to `nserpdev/uat`.
 - Agents should finish work on `dev` or a scoped feature branch, not on `main`.
 - Before creating a branch, pushing, merging, or opening a PR, verify the current branch, worktree, and destination remote:
 
@@ -122,11 +120,12 @@ Do not treat this as a greenfield rewrite unless explicitly instructed.
 - Active app: `apps/next/`
 - Git remotes:
   - `new-origin` = active target repo `https://github.com/terner/new-ns-scrap-erp.git`
+  - `nserpdev` = customer repo `https://github.com/nserpdev-commits/ns-erp.git`
   - `origin` = old/legacy repo `https://github.com/sirimasth/ns-scrap-erp.git`
-- Active branches on `new-origin`: `main`, `uat`, `dev`
+- Active branches on `new-origin`: `main`, `dev`
 - Dev/target Supabase: `fhglqymcdmrgbsbadnwr`
 - Legacy production/source Supabase: `mqsgptraslgpyzbpndlg` read-only
-- Git UAT branch: `uat` (`staging` remote branch has been deleted)
+- Customer Git UAT branch: `nserpdev/uat`
 - New production: not created yet
 - Project MCP config: `.mcp.json`
 - Project skills: `.agents/skills/`

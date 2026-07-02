@@ -12,7 +12,7 @@ Important account boundary:
 - A future `new-prod` project has not been created yet.
 
 Git branch boundary:
-- UAT deployment/promotion uses `new-origin/uat`.
+- Customer UAT deployment/promotion currently uses `nserpdev/uat`.
 - The old remote branch `new-origin/staging` was deleted on 2026-06-25 to avoid confusion and must not be recreated.
 - The `staging-uat` name in this document refers to a future Supabase environment/project, not a Git branch.
 
@@ -50,6 +50,7 @@ Git branch boundary:
 
 Status update on 2026-07-01:
 - Customer UAT Supabase is available at project ref `oolzfvqhovmjhiocfqdw`.
+- Customer UAT Git branch currently used for promotion is `nserpdev/uat`.
 - The current dev database snapshot was dumped from the active Next app `DATABASE_URL` in `apps/next/.env.local` at `2026-07-01 11:23:04 +07`.
 - UAT was backed up before restore, then restored with the dev snapshot for `public` plus the required `auth.users` and `auth.identities` rows needed by public foreign keys and login.
 - Post-restore validation matched the restored snapshot: `public` has 135 tables and 26,171 rows; `auth.users` has 43 rows and `auth.identities` has 42 rows.
