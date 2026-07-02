@@ -766,6 +766,11 @@ After the `/daily/expense-dashboard` follow-up, tracked `apps/next/src` TS/TSX f
 
 ### Finance Accounting Filter Shell Follow-Up - 2026-07-02
 
+- `/finance-accounting/pl-statement`, `/finance-accounting/balance-sheet`, and `/finance-accounting/cash-flow-statement`
+  - The shared Financial Statements client now aligns desktop/mobile filter shells with `rounded-md bg-white p-3 shadow`.
+  - Filter buttons/selects/date controls now use `rounded-md`; the shared branch selector uses the standard `h-9` rounded control style; the already-resizable Statement table shell now uses `rounded-md`; and the drilldown modal now uses a dark rounded shell to avoid bright corner/border leakage.
+  - Report formulas, date/as-of/branch/mode query state, table sort/resize behavior, drilldown rows, disabled Excel affordance, API behavior, and DB state were not changed.
+  - Validation passed: targeted ESLint for `FinancialStatementsPageClients.tsx`, `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`, and `git diff --check`.
 - `/finance-accounting/tax-vat-wht`
   - The Tax/VAT/WHT client now aligns desktop/mobile filter shells with `rounded-md bg-white p-3 shadow`, uses `rounded-md` filter controls, and uses `rounded-md` lined shells for its already-resizable VAT/WHT and tax calendar tables.
   - VAT/WHT calculations, month/year/branch query state, tax calendar rows, table sort/resize behavior, API behavior, and DB state were not changed.
