@@ -288,42 +288,43 @@ export function PoOutstandingPageClient() {
         </div>
       </div>
 
-      {/* Pagination Controls */}
-      <div className="mb-4 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
+      {/* Table Card Controls */}
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              aria-label="จำนวนรายการต่อหน้า"
+              className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              value={pageSize}
+              onChange={(event) => setPageSize(Number(event.target.value))}
+            >
+              {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+            </select>
+            <button
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              disabled={currentPage <= 1}
+              type="button"
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+            >
+              ก่อนหน้า
+            </button>
+            <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+            <button
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              disabled={currentPage >= totalPages}
+              type="button"
+              onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+            >
+              ถัดไป
+            </button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            aria-label="จำนวนรายการต่อหน้า"
-            className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
-            value={pageSize}
-            onChange={(event) => setPageSize(Number(event.target.value))}
-          >
-            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-          </select>
-          <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-            disabled={currentPage <= 1}
-            type="button"
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
-          >
-            ก่อนหน้า
-          </button>
-          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-          <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-            disabled={currentPage >= totalPages}
-            type="button"
-            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-          >
-            ถัดไป
-          </button>
-        </div>
-      </div>
 
       {tab === 'buy' ? (
-        <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        <div className="hidden overflow-x-auto lg:block">
           <div className="rounded-t-md border-b border-amber-200 bg-amber-50/50 p-3 text-xs font-medium text-amber-800">
             ตัดต้นทุนเป็น write/cost-pool side effect ใน legacy จึงแสดงเป็นคอลัมน์อ่านอย่างเดียวใน Next จนกว่าจะออกแบบ audit และ permission
           </div>
@@ -497,7 +498,7 @@ export function PoOutstandingPageClient() {
           </table>
         </div>
       ) : (
-        <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        <div className="hidden overflow-x-auto lg:block">
           <table className="w-full text-xs" style={{ minWidth: sellResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {sellColumns.map((column) => {
@@ -657,13 +658,13 @@ export function PoOutstandingPageClient() {
       )}
 
       {/* Mobile Card list */}
-      <div className="block lg:hidden space-y-3">
+      <div className="block divide-y divide-slate-100 lg:hidden">
         {isLoading ? (
-          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200/60">กำลังโหลดข้อมูล</div>
+          <div className="p-8 text-center text-slate-500">กำลังโหลดข้อมูล</div>
         ) : null}
 
         {!isLoading && pagedRows.map((row) => (
-          <div key={row.id} className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm space-y-2">
+          <div key={row.id} className="space-y-2 p-4">
             <div className="flex justify-between items-start">
               <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
               <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
@@ -713,10 +714,11 @@ export function PoOutstandingPageClient() {
         ))}
 
         {!isLoading && rows.length === 0 ? (
-          <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200/60 font-medium">
+          <div className="p-8 text-center font-medium text-slate-400">
             {tab === 'buy' ? 'ไม่มี PO ซื้อค้างรับ' : 'ไม่มี PO ขายค้างส่ง'}
           </div>
         ) : null}
+      </div>
       </div>
 
 

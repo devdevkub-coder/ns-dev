@@ -6,6 +6,8 @@ Date: 2026-07-02
 Active app: `apps/next`
 Primary remote: `new-origin`
 
+PO Outstanding table-card follow-up on 2026-07-02: `/po-reports/outstanding` now keeps the active buy/sell table summary and pagination controls inside the same lined `rounded-md border border-slate-200 bg-white shadow-sm` card as the active desktop table and mobile list. This removes the floating pagination row between the filter card and active table while preserving PO Buy/Sell filters, tab state, totals, sorting/resizing state, CSV/export behavior, APIs, permissions, and DB state.
+
 Loan Contracts table-card follow-up on 2026-07-02: `/finance-accounting/loan-contracts` now keeps the list summary/reset/pagination controls inside the same lined `rounded-md border border-slate-200 bg-white shadow-sm` card as the loan contract desktop table and mobile dense list. This removes the floating pagination/control row above the list while preserving disabled write/import affordances, filters, sorting/resizing state, pagination behavior, APIs, permissions, and DB state.
 
 Daily Petty Advance table-card follow-up on 2026-07-02: `/daily/petty-advance` now keeps the list summary/reset/pagination controls inside the same lined `rounded-md border border-slate-200 bg-white shadow-sm` card as the mobile dense list and desktop resizable table. This removes the floating control row above the table/list while preserving petty advance create/edit/detail/return behavior, filters, sorting/resizing state, APIs, permissions, and DB state.
