@@ -449,7 +449,7 @@ export function AuditLogPageClient() {
         </div>
       </div>
 
-      <div className="rounded-md border border-slate-100 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
           <div>พบทั้งหมด <span className="font-semibold text-slate-900">{data.total.toLocaleString('th-TH')}</span> รายการ</div>
           <div className="flex items-center gap-2">
@@ -467,8 +467,8 @@ export function AuditLogPageClient() {
 
         {/* Desktop Table View (Hidden on Mobile) */}
         {!isLoading && (
-          <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <div className="hidden overflow-x-auto lg:block">
+            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
                 {auditColumns.map((column, index) => {
                   const style = columnResize.getColumnStyle(column.key)
