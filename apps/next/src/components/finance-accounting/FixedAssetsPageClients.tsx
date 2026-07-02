@@ -1266,18 +1266,20 @@ export function DepreciationPageClient() {
       </Tabs>
 
       {depreciationTab === 'pending' ? (
-        <div className="space-y-3">
-          <div className="px-1 text-sm text-slate-600">
-            พบสินทรัพย์รอประมวลผล <span className="font-semibold text-slate-900">{filteredPendingAssets.length}</span> รายการ
-          </div>
-          <MiniAssetTable isLoading={isLoading} rows={filteredPendingAssets} />
-        </div>
+        <MiniAssetTable
+          isLoading={isLoading}
+          rows={filteredPendingAssets}
+          summary={(
+            <>
+              {'\u0e1e\u0e1a\u0e2a\u0e34\u0e19\u0e17\u0e23\u0e31\u0e1e\u0e22\u0e4c\u0e23\u0e2d\u0e1b\u0e23\u0e30\u0e21\u0e27\u0e25\u0e1c\u0e25 '}<span className="font-semibold text-slate-900">{filteredPendingAssets.length}</span>{' \u0e23\u0e32\u0e22\u0e01\u0e32\u0e23'}
+            </>
+          )}
+        />
       ) : null}
 
       {depreciationTab === 'history' ? (
-        <div className="space-y-3">
-          {/* Pagination Controls */}
-          <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+        <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
             <div>
               พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
               <span className="mx-2 text-slate-300">/</span>
@@ -1321,8 +1323,7 @@ export function DepreciationPageClient() {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-        {/* Desktop view */}
+          {/* Desktop view */}
         <div className="hidden overflow-x-auto lg:block">
           <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
@@ -1449,10 +1450,8 @@ export function DepreciationPageClient() {
             ))
           )}
         </div>
-          </div>
         </div>
       ) : null}
-
 
       {preview ? (
         <Modal title={`Preview ค่าเสื่อมงวด ${preview.periodKey}`}>
@@ -2176,7 +2175,7 @@ function Bar({ label, max, value }: { label: string; max: number; value: number 
   )
 }
 
-function MiniAssetTable({ isLoading, rows }: { isLoading: boolean; rows: DepreciationPayload['pendingAssets'] }) {
+function MiniAssetTable({ isLoading, rows, summary }: { isLoading: boolean; rows: DepreciationPayload['pendingAssets']; summary?: ReactNode }) {
   const columnResize = useResizableColumns('finance-accounting.depreciation.pending-assets.v1', pendingAssetColumns)
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [sortKey, setSortKey] = useState<PendingAssetSortKey | null>(null)
@@ -2201,19 +2200,23 @@ function MiniAssetTable({ isLoading, rows }: { isLoading: boolean; rows: Depreci
   return (
     <div>
       {/* Desktop view */}
-      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-        {columnResize.hasCustomWidths ? (
-          <div className="flex justify-end border-b border-slate-100 bg-white px-3 py-2">
-            <button
+      <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        {summary || columnResize.hasCustomWidths ? (
+          <div className="flex flex-col gap-3 border-b border-slate-100 bg-white px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+            <div>{summary}</div>
+            {columnResize.hasCustomWidths ? (
+              <button
               className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50"
               type="button"
               onClick={columnResize.resetColumnWidths}
-            >
+              >
               คืนค่าเดิมตาราง
-            </button>
+              </button>
+            ) : null}
           </div>
         ) : null}
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {pendingAssetColumns.map((column, index) => {
               if (index === pendingAssetColumns.length - 1) {
@@ -2247,9 +2250,11 @@ function MiniAssetTable({ isLoading, rows }: { isLoading: boolean; rows: Depreci
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
 
+      {summary ? <div className="block px-1 text-sm text-slate-600 lg:hidden">{summary}</div> : null}
       {/* Mobile view */}
       <div className="block lg:hidden space-y-2.5">
         {isLoading ? (
