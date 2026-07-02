@@ -1087,13 +1087,14 @@ function DualCostingReportView() {
             <DualCostingStatCard icon="💰" label="มูลค่าขายค้าง" tone="emerald" value={formatMoney(report?.waiting.revenue ?? 0)} />
           </div>
           <DualCostingPanel title="สรุปตามหมวดสินค้า">
-            {reportResize.hasCustomWidths ? (
-              <div className="mb-2 hidden justify-end lg:flex">
-                <Button size="sm" type="button" variant="outline" onClick={reportResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button>
-              </div>
-            ) : null}
             {/* Desktop View */}
-            <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+            <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+              {reportResize.hasCustomWidths ? (
+                <div className="flex justify-end border-b border-slate-100 px-3 py-3">
+                  <Button size="sm" type="button" variant="outline" onClick={reportResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button>
+                </div>
+              ) : null}
+              <div className="overflow-x-auto">
               <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: reportResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
                 <colgroup>
                   {reportColumns.map((column, index) => {
@@ -1135,6 +1136,7 @@ function DualCostingReportView() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
 
             {/* Mobile View */}
