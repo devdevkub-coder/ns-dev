@@ -1661,50 +1661,49 @@ export function AssetDisposalPageClient() {
         <StatCard label="ยอดขายรวม (Proceeds)" value={formatMoney(data?.summary.proceeds)} tone="blue" icon="💵" />
         <StatCard label="กำไร/(ขาดทุน) สุทธิ" value={formatMoney(data?.summary.gainLoss)} tone={(data?.summary.gainLoss ?? 0) >= 0 ? 'emerald' : 'red'} icon="📈" />
       </div>
-      {/* Pagination Controls */}
-      <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {columnResize.hasCustomWidths ? (
-            <button
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50"
-              type="button"
-              onClick={columnResize.resetColumnWidths}
-            >
-              คืนค่าเดิมตาราง
-            </button>
-          ) : null}
-          <select
-            aria-label="จำนวนรายการต่อหน้า"
-            className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
-            value={pageSize}
-            onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}
-          >
-            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-          </select>
-          <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-            disabled={currentPage <= 1}
-            type="button"
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
-          >
-            ก่อนหน้า
-          </button>
-          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-          <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-            disabled={currentPage >= totalPages}
-            type="button"
-            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-          >
-            ถัดไป
-          </button>
-        </div>
-      </div>
-
+      {/* Table Card Controls */}
       <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {columnResize.hasCustomWidths ? (
+              <button
+                className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50"
+                type="button"
+                onClick={columnResize.resetColumnWidths}
+              >
+                คืนค่าเดิมตาราง
+              </button>
+            ) : null}
+            <select
+              aria-label="จำนวนรายการต่อหน้า"
+              className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              value={pageSize}
+              onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}
+            >
+              {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+            </select>
+            <button
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              disabled={currentPage <= 1}
+              type="button"
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+            >
+              ก่อนหน้า
+            </button>
+            <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+            <button
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              disabled={currentPage >= totalPages}
+              type="button"
+              onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+            >
+              ถัดไป
+            </button>
+          </div>
+        </div>
         {/* Desktop view */}
         <div className="hidden overflow-x-auto lg:block">
           <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>

@@ -6,6 +6,8 @@ Date: 2026-07-02
 Active app: `apps/next`
 Primary remote: `new-origin`
 
+Asset Disposal table-card follow-up on 2026-07-02: `/finance-accounting/asset-disposal` now keeps the disposal summary/reset/pagination toolbar inside the same lined `rounded-md border border-slate-200 bg-white shadow-sm` table card as the desktop/mobile disposal lists. This removes the floating control row above the table while preserving disposal create/reverse behavior, formulas, sorting/resizing state, APIs, permissions, and DB state.
+
 Depreciation table-card follow-up on 2026-07-02: `/finance-accounting/depreciation` now keeps the pending-assets and depreciation-history tables behind the line-tab switch, with each active table owning its own summary/reset/pagination toolbar inside the lined `rounded-md border border-slate-200 bg-white shadow-sm` table card. This removes the floating pagination/card row between table sections and keeps table controls visually attached to the active tab. This is UI-only; period filters, preview/commit/reverse behavior, depreciation math, sorting/resizing state, APIs, permissions, and DB state were not changed.
 
 Asset Register table-card follow-up on 2026-07-02: `/finance-accounting/asset-register` now groups the desktop search/category/status toolbar, table pagination/reset controls, and the resizable Asset Register table inside one lined `rounded-md border border-slate-200 bg-white shadow-sm` table card. This removes the separate floating filter card in the middle of the page while preserving the mobile filter card/bottom sheet and mobile pagination. This is UI-only; asset filters, import/export URLs, create/edit/deactivate behavior, table sorting/resizing state, APIs, permissions, and DB state were not changed.
