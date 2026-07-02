@@ -6,6 +6,8 @@ Date: 2026-07-02
 Active app: `apps/next`
 Primary remote: `new-origin`
 
+Cash-flow Planning reset-control follow-up on 2026-07-02: `/finance-accounting/cash-flow-analysis` and `/finance-accounting/cf-forecast-calendar` now use the standard `h-9`, `rounded-md`, `text-sm`, `คืนค่าเดิมตาราง` reset-width controls across the detail, Top AR, Top AP, and day-event modal tables. This is UI-only; cash forecast formulas, AR/AP source rows, calendar state, filters, APIs, permissions, and DB state were not changed.
+
 Asset Overview reset-control follow-up on 2026-07-02: `/finance-accounting/asset-overview` now uses the standard `h-9`, `rounded-md`, `text-sm`, `คืนค่าเดิมตาราง` reset-width control for the Cash & Others table instead of the older compact reset wording. This is UI-only; asset/cash/debt/net-worth read-model behavior, filters, APIs, permissions, and DB state were not changed.
 
 Finance Accounting Tax/VAT/WHT reset-control follow-up on 2026-07-02: `/finance-accounting/tax-vat-wht` now uses the standard `h-9`, `rounded-md`, `text-sm`, `คืนค่าเดิมตาราง` table reset controls for both VAT/WHT detail tables and the tax calendar table. This removes the remaining tiny `h-5`/`h-7` reset controls while preserving the existing read-only tax report calculations, filters, table sorting/resizing, APIs, permissions, and DB state.
