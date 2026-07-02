@@ -458,7 +458,8 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tabl
       
       {/* Mobile View */}
       <div className="block lg:hidden divide-y divide-slate-100">
-        <LoadingOrEmpty colSpan={1} isLoading={isLoading} rows={sortedRows.length} />
+        {isLoading ? <div className="py-8 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล</div> : null}
+        {!isLoading && sortedRows.length === 0 ? <div className="py-8 text-center text-slate-400 text-xs">ยังไม่มีข้อมูล</div> : null}
         {!isLoading && sortedRows.map((item) => (
           <div key={`${item.source}-${item.no}`} className="p-3.5 space-y-2 text-xs">
             <div className="flex justify-between items-center">

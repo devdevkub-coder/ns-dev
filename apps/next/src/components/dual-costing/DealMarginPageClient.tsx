@@ -154,10 +154,10 @@ export function DealMarginPageClient() {
     <DualCostingPageSection>
       <DualCostingErrorBox error={error} />
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className={`rounded-xl p-5 text-white shadow ${marginPositive ? 'bg-gradient-to-br from-purple-600 to-pink-700' : 'bg-gradient-to-br from-red-500 to-rose-700'}`}>
+      <div className="grid min-w-0 gap-3 md:grid-cols-3">
+        <div className={`min-w-0 rounded-xl p-5 text-white shadow ${marginPositive ? 'bg-gradient-to-br from-purple-600 to-pink-700' : 'bg-gradient-to-br from-red-500 to-rose-700'}`}>
           <div className="text-xs opacity-90 font-semibold">กำไรดีล (Deal Margin)</div>
-          <div className="mt-1 text-4xl font-bold">{formatMoney(data?.summary.margin ?? 0)}</div>
+          <div className="mt-1 truncate text-4xl font-bold">{formatMoney(data?.summary.margin ?? 0)}</div>
           <div className="mt-2 text-sm opacity-90 font-medium">Margin {(data?.summary.marginPct ?? 0).toFixed(1)}%</div>
           <div className="mt-3 space-y-0.5 text-xs opacity-80 font-mono">
             <div>รายได้ดีล: <b>{formatMoney(data?.summary.revenue ?? 0)}</b></div>
@@ -173,7 +173,7 @@ export function DealMarginPageClient() {
               <div key={row.id} className="text-xs">
                 <div className="mb-0.5 flex items-center gap-2">
                   <span className="w-4 text-center font-bold text-slate-400">{index + 1}</span>
-                  <span className="flex-1 truncate text-slate-700">{row.docNo} · {row.customer}</span>
+                  <span className="min-w-0 flex-1 truncate text-slate-700">{row.docNo} · {row.customer}</span>
                   <span className={`w-20 text-right font-bold ${row.margin >= 0 ? 'text-purple-700' : 'text-red-600'}`}>{formatMoney(row.margin)}</span>
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-gradient-to-r from-purple-400 to-pink-500" style={{ width: `${Math.min(100, Math.max(0, row.margin) / Math.max(data?.topDeals[0]?.margin || 1, 1) * 100)}%` }} /></div>
@@ -192,7 +192,7 @@ export function DealMarginPageClient() {
         </DualCostingPanel>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid min-w-0 grid-cols-2 gap-3 md:grid-cols-4">
         <DualCostingStatCard label="รายได้ดีลรวม" tone="emerald" value={formatMoney(data?.summary.revenue ?? 0)} />
         <DualCostingStatCard label="ต้นทุนที่จับคู่รวม" tone="red" value={formatMoney(data?.summary.cost ?? 0)} />
         <DualCostingStatCard label="กำไรดีลรวม" tone="purple" value={formatMoney(data?.summary.margin ?? 0)} />
@@ -364,7 +364,7 @@ export function DealMarginPageClient() {
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-400 shadow-sm">ยังไม่มี PO Sell</div>
         ) : null}
         {!isLoading && pagedRows.map((row) => (
-          <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+          <div key={row.id} className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
             <div className="flex justify-between items-start">
               <div>
                 <div className="font-mono text-xs font-bold text-slate-800">{row.docNo}</div>
@@ -372,9 +372,9 @@ export function DealMarginPageClient() {
               </div>
               <MatchStatusBadge status={row.statusMatch} />
             </div>
-            <div>
-              <div className="text-sm font-bold text-slate-800">{row.customer}</div>
-              <div className="text-xs text-slate-600 mt-0.5">{row.product}</div>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-bold text-slate-800">{row.customer}</div>
+              <div className="mt-0.5 truncate text-xs text-slate-600">{row.product}</div>
               <div className="text-xs text-slate-500 mt-1">ช่องทาง: <span className="font-semibold">{row.channel}</span></div>
             </div>
             <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">

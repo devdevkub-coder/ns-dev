@@ -869,18 +869,18 @@ function AnalyticsDashboardView({ data, rangeFrom, rangeMode, rangeTo, setRangeF
           <AnalyticsKpiCard icon="💸" label="ค่าใช้จ่าย" value={money(analytics?.rangeKpi.expenseAmount)} subtext="ค่าใช้จ่ายในการดำเนินงาน" unit="บาท" tone="orange" />
         </div>
       </div>
-      <div className="mb-4 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-200">
+      <div className="mb-4 grid min-w-0 gap-4 lg:grid-cols-2">
+        <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm border border-slate-200">
            <h3 className="mb-3 font-bold text-slate-700 text-sm">📈 ยอดซื้อ vs ขาย (รายวัน)</h3>
            {(analytics?.dailyTrend ?? []).map((row) => <div key={row.label} className="mb-2.5 grid grid-cols-12 items-center gap-2 text-xs"><div className="col-span-3 font-mono text-slate-600">{row.label}</div><div className="col-span-4 rounded-full bg-slate-100 h-5 overflow-hidden"><div className="rounded-full bg-blue-500 h-full text-right text-white pr-2 font-bold text-xs flex items-center justify-end" style={{ width: `${Math.max(15, row.purchase / trendMax * 100)}%` }}>{money(row.purchase)}</div></div><div className="col-span-5 rounded-full bg-slate-100 h-5 overflow-hidden"><div className="rounded-full bg-emerald-500 h-full text-right text-white pr-2 font-bold text-xs flex items-center justify-end" style={{ width: `${Math.max(15, row.sales / trendMax * 100)}%` }}>{money(row.sales)}</div></div></div>)}
         </div>
         <TopSimpleTable rows={analytics?.groupSummary ?? []} title="🥧 มูลค่าตามหมวดสินค้า" />
       </div>
-      <div className="mb-4 grid gap-4 lg:grid-cols-2">
+      <div className="mb-4 grid min-w-0 gap-4 lg:grid-cols-2">
         <RankTable color="blue" rows={analytics?.topSuppliers ?? []} title="🥇 Top 10 ผู้ขาย (ยอดซื้อสูงสุด)" />
         <RankTable color="emerald" rows={analytics?.topCustomers ?? []} title="🥇 Top 10 ผู้ซื้อ (ยอดขายสูงสุด)" />
       </div>
-      <div className="mb-4 grid gap-4 lg:grid-cols-2">
+      <div className="mb-4 grid min-w-0 gap-4 lg:grid-cols-2">
         <ProductRank rows={analytics?.topProductsIn ?? []} title="📦 Top 5 สินค้ารับเข้า (ตามมูลค่า)" tone="indigo" />
         <ProductRank rows={analytics?.topProductsOut ?? []} title="📦 Top 5 สินค้าขายออก (ตามมูลค่า)" tone="teal" />
       </div>
@@ -1624,7 +1624,7 @@ function TopSimpleTable({ rows, title }: { rows: { amount: number; group: string
   }, [rows, sortKey, sortDirection])
 
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-200">
+    <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm border border-slate-200">
       <div className="mb-2 flex items-center justify-between">
         <h3 className="font-bold text-slate-700 text-sm">{title}</h3>
         {columnResize.hasCustomWidths ? (
@@ -1637,7 +1637,7 @@ function TopSimpleTable({ rows, title }: { rows: { amount: number; group: string
           </button>
         ) : null}
       </div>
-      <div className="overflow-x-auto">
+      <div className="min-w-0 overflow-x-auto">
         <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {topSimpleColumns.map((col) => (
@@ -1731,7 +1731,7 @@ function RankTable({ color, rows, title }: { color: 'blue' | 'emerald'; rows: Ra
   }, [rows, sortKey, sortDirection])
 
   return (
-    <div className="overflow-hidden rounded-xl bg-white shadow-sm border border-slate-200">
+    <div className="min-w-0 overflow-hidden rounded-xl bg-white shadow-sm border border-slate-200">
       <div className={`border-b p-3 font-bold text-sm ${header} flex items-center justify-between`}>
         <h3 className="font-bold">{title}</h3>
         {columnResize.hasCustomWidths ? (
@@ -1746,7 +1746,7 @@ function RankTable({ color, rows, title }: { color: 'blue' | 'emerald'; rows: Ra
       </div>
 
       {/* Desktop view */}
-      <div className="hidden sm:block overflow-x-auto">
+      <div className="hidden min-w-0 overflow-x-auto sm:block">
         <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {columns.map((col) => (
@@ -1872,7 +1872,7 @@ function ProductRank({ rows, title, tone }: { rows: { amount: number; code: stri
   }, [rows, sortKey, sortDirection])
 
   return (
-    <div className="overflow-hidden rounded-xl bg-white shadow-sm border border-slate-200">
+    <div className="min-w-0 overflow-hidden rounded-xl bg-white shadow-sm border border-slate-200">
       <div className={`border-b p-3 font-bold text-sm ${header} flex items-center justify-between`}>
         <h3 className="font-bold">{title}</h3>
         {columnResize.hasCustomWidths ? (
@@ -1887,7 +1887,7 @@ function ProductRank({ rows, title, tone }: { rows: { amount: number; code: stri
       </div>
 
       {/* Desktop view */}
-      <div className="hidden sm:block overflow-x-auto">
+      <div className="hidden min-w-0 overflow-x-auto sm:block">
         <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {productRankColumns.map((col) => (

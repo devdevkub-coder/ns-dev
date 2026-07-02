@@ -2506,3 +2506,11 @@ Tailwind dependency check:
   - The standalone facts card was removed from the detail modal. The same WTO/PO Sell/Trading/Customer Advance facts now appear under the oldest timeline event as a collapsible `ต้นทางสินค้าและต้นทุน` table.
   - The timeline table keeps SB-specific audit columns: รายการ, ต้นทาง, จำนวน, ต้นทุน/COGS, สถานะ, and timestamp. This makes the detail page closer to the WTO history pattern while keeping Sales Bill data semantics.
   - Split SKU lines in Sales Bill detail continue to show `คัดแยกจาก: <source product>` when the sold SKU differs from the WTO source SKU, without changing the underlying WTO/stock/cost identity.
+
+- 2026-07-02: Full sidebar design QA closure checkpoint
+  - Closed the remaining Next design-audit browser warnings after checking the active sidebar routes.
+  - UI-only fixes landed for `/analytics-dashboard`, `/tracking/customer`, `/tracking/product`, `/dual-costing/deal-margin`, `/finance-accounting/tax-vat-wht`, and `/daily/design-mockup`.
+  - The fixes address mobile horizontal overflow, Tax/VAT/WHT mobile hydration-safe empty/loading markup, and the two design-mockup demo tables so they follow the fixed/resizable table baseline.
+  - Final browser QA evidence: targeted rerun passed `3/3`, then full sidebar rerun passed `106/106` with `0` warnings and `0` failures in `reports/playwright/next-design-full-sidebar-rerun/report.md`.
+  - Validation passed: targeted ESLint for touched files, `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`, and `npm run build --workspace @ns-scrap-erp/next`.
+  - Runtime behavior, formulas, exports, API contracts, permissions, database schema, and DB state were not changed.

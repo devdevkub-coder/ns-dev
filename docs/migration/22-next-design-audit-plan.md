@@ -793,3 +793,20 @@ After the `/daily/expense-dashboard` follow-up, tracked `apps/next/src` TS/TSX f
 3. Foreign-finance static table mechanics sweep is corrected for `/finance/foreign/fx-gain-loss-report`, `/finance/foreign/fcd-ledger`, `/finance/foreign/fx-rate`, `/finance/foreign/intl-transfer`, and `/finance/foreign/overseas-receipt`; remaining work is browser QA / real-data visual confirmation, not another high-confidence static table rewrite.
 4. Review `type="number"` only inside the touched page batch using the design matrix; do not run a broad replacement sweep.
 5. Run browser QA desktop + mobile for the selected batch before claiming visual completion.
+
+### Full Sidebar Browser QA Closure - 2026-07-02
+
+- Final implementation/browser QA phase remaining: `0`.
+- Full active-sidebar browser QA passed after the final fixes: `106/106` routes pass, `0` warn, `0` fail.
+- Evidence:
+  - Targeted rerun for previously remaining warnings passed `3/3`: `/analytics-dashboard`, `/profit-cost-analysis`, `/daily/design-mockup`.
+  - Full rerun passed `106/106`: `reports/playwright/next-design-full-sidebar-rerun/report.md`.
+  - Validation passed: targeted ESLint for all touched files, `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`, and `npm run build --workspace @ns-scrap-erp/next`.
+- UI-only fixes completed in the final browser-QA closeout:
+  - `/analytics-dashboard`: added `min-w-0` containment around analytics grid/table cards so resizable tables do not create mobile horizontal overflow.
+  - `/tracking/customer` and `/tracking/product`: tightened mobile search/filter/export toolbar sizing so XLSX/export controls no longer push past the viewport.
+  - `/dual-costing/deal-margin`: added min-width containment/truncation to summary, top deal, shared dual-costing panel/stat card, and mobile deal cards so long labels/amounts do not overflow.
+  - `/finance-accounting/tax-vat-wht`: fixed mobile loading/empty rendering so `<tr>` is no longer rendered inside a `<div>`, removing the hydration warning while preserving the desktop table helper.
+  - `/daily/design-mockup`: brought the two active demo tables under the same fixed/resizable table baseline with `colgroup`, `tableLayout: fixed`, and `ResizableTableHead` resize handles.
+- Runtime behavior, formulas, exports, API contracts, permissions, and DB state were not changed.
+- Computer Use was not used; verification used local Playwright/browser automation against `http://localhost:3000`.

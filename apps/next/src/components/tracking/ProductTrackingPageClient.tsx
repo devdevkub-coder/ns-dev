@@ -392,14 +392,14 @@ export function ProductTrackingPageClient({
         <div className="block lg:hidden space-y-2">
           <div className="flex gap-2">
             <input
-              className="flex-1 h-10 rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-100"
+              className="min-w-0 flex-1 h-10 rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-100"
               placeholder="ค้นหา Product..."
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
             <button
-              className={`h-10 rounded-md border px-3 text-sm font-semibold transition-colors flex items-center gap-1 shrink-0 focus-visible:outline-none ${
+              className={`h-10 rounded-md border px-2 text-xs font-semibold transition-colors flex items-center gap-1 shrink-0 focus-visible:outline-none sm:px-3 sm:text-sm ${
                 showMobileFilters ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-700 border-slate-100'
               }`}
               type="button"
@@ -408,7 +408,7 @@ export function ProductTrackingPageClient({
               🔍 ตัวกรอง
             </button>
             <a
-              className="h-10 inline-flex items-center justify-center rounded-md bg-orange-600 px-3 text-sm font-bold text-white shrink-0"
+              className="h-10 inline-flex items-center justify-center rounded-md bg-orange-600 px-2 text-xs font-bold text-white shrink-0 sm:px-3 sm:text-sm"
               href={exportHref}
             >
               📥 XLSX

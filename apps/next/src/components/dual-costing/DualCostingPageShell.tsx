@@ -13,7 +13,7 @@ export function DualCostingFilterCard({ children, className }: { children: React
 
 export function DualCostingPanel({ children, className, title }: { children: ReactNode; className?: string; title?: string }) {
   return (
-    <div className={cn('rounded-xl bg-white p-4 border border-slate-200/80 shadow-sm', className)}>
+    <div className={cn('min-w-0 rounded-xl bg-white p-4 border border-slate-200/80 shadow-sm', className)}>
       {title ? <h3 className="mb-3 text-sm font-bold text-slate-800">{title}</h3> : null}
       {children}
     </div>
@@ -53,7 +53,7 @@ export function DualCostingStatCard({
 
   if (icon) {
     return (
-      <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+      <div className="min-w-0 flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
         <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl', tones.split(' ')[0])}>{icon}</div>
         <div className="min-w-0">
           <div className={cn('text-xs font-semibold', tones.split(' ')[1])}>{label}</div>
@@ -65,9 +65,9 @@ export function DualCostingStatCard({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
       <div className="text-xs text-slate-500 font-semibold">{label}</div>
-      <div className={cn('mt-1 text-base sm:text-lg font-bold font-mono', textTones)}>{value}</div>
+      <div className={cn('mt-1 truncate text-base sm:text-lg font-bold font-mono', textTones)}>{value}</div>
       {children ? <div className="mt-1">{children}</div> : null}
     </div>
   )
