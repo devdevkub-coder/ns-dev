@@ -408,9 +408,13 @@ export async function GET() {
     const rowPurchaseBillIds = rows
       .map((row) => row.purchase_bill_id)
       .filter((id): id is bigint => id !== null)
-    const rowPurchaseBillRemarkRows = rowPurchaseBillIds.length
+    const rowPurchaseBillDocNos = rows
+      .map((row) => row.purchase_bill_doc_no?.trim())
+      .filter((docNo): docNo is string => Boolean(docNo))
+    const rowPurchaseBillRemarkRows = rowPurchaseBillIds.length || rowPurchaseBillDocNos.length
       ? await prisma.purchase_bills.findMany({
         select: {
+          doc_no: true,
           id: true,
           note: true,
           notes: true,
@@ -423,13 +427,21 @@ export async function GET() {
             where: { item_status: 'active' },
           },
         },
-        where: { id: { in: rowPurchaseBillIds } },
+        where: {
+          OR: [
+            ...(rowPurchaseBillIds.length ? [{ id: { in: rowPurchaseBillIds } }] : []),
+            ...(rowPurchaseBillDocNos.length ? [{ doc_no: { in: rowPurchaseBillDocNos } }] : []),
+          ],
+        },
       })
       : []
-    const rowPurchaseBillNoteById = new Map(rowPurchaseBillRemarkRows.map((bill) => [
-      bill.id.toString(),
-      purchaseBillItemRemarks(bill.purchase_bill_items) || bill.note || bill.notes || '',
-    ]))
+    const rowPurchaseBillNoteById = new Map<string, string>()
+    const rowPurchaseBillNoteByDocNo = new Map<string, string>()
+    rowPurchaseBillRemarkRows.forEach((bill) => {
+      const note = purchaseBillItemRemarks(bill.purchase_bill_items) || bill.note || bill.notes || ''
+      rowPurchaseBillNoteById.set(bill.id.toString(), note)
+      rowPurchaseBillNoteByDocNo.set(bill.doc_no, note)
+    })
 
     return NextResponse.json({
       companyProfile: companyProfile
@@ -495,7 +507,10 @@ export async function GET() {
         id: row.doc_no,
         items: row.items ?? [],
         licensePlate: row.license_plate ?? '',
-        note: row.note?.trim() || rowPurchaseBillNoteById.get(row.purchase_bill_id?.toString() ?? '') || '',
+        note: row.note?.trim()
+          || rowPurchaseBillNoteById.get(row.purchase_bill_id?.toString() ?? '')
+          || rowPurchaseBillNoteByDocNo.get(row.purchase_bill_doc_no ?? '')
+          || '',
         payerSignerName: row.payer_signer_name ?? row.created_by ?? '',
         paymentMethod: row.payment_method ?? '',
         purchaseBillId: row.purchase_bill_doc_no ?? '',
