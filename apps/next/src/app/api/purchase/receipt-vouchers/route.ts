@@ -160,6 +160,7 @@ function normalizePurchaseBillVoucherItems(items: Array<{
   amount: Prisma.Decimal | number | null
   display_name: string | null
   line_no: number
+  note?: string | null
   price: Prisma.Decimal | number | null
   product_code: string | null
   product_name: string | null
@@ -185,6 +186,14 @@ function normalizePurchaseBillVoucherItems(items: Array<{
   })
 }
 
+function purchaseBillItemRemarks(items: Array<{ line_no: number; note?: string | null }>) {
+  return [...items]
+    .sort((left, right) => left.line_no - right.line_no)
+    .map((item) => item.note?.trim())
+    .filter((note): note is string => Boolean(note))
+    .join('\n')
+}
+
 async function buildVoucherWriteData(
   tx: Prisma.TransactionClient,
   values: z.infer<typeof receiptVoucherWriteSchema>,
@@ -197,12 +206,15 @@ async function buildVoucherWriteData(
         doc_no: true,
         id: true,
         license_plate: true,
+        note: true,
+        notes: true,
         purchase_bill_items: {
           orderBy: { line_no: 'asc' },
           select: {
             amount: true,
             display_name: true,
             line_no: true,
+            note: true,
             price: true,
             product_code: true,
             product_name: true,
@@ -233,13 +245,14 @@ async function buildVoucherWriteData(
   const totalQty = items.reduce((sum, item) => sum + item.qty, 0)
   const totalAmount = items.reduce((sum, item) => sum + item.amount, 0)
   const sellerName = purchaseBill ? purchaseBill.supplier_name_snapshot ?? '' : values.sellerName?.trim() ?? ''
+  const purchaseBillRemarkNote = purchaseBill ? purchaseBillItemRemarks(purchaseBill.purchase_bill_items) : ''
   if (!purchaseBill && !sellerName) throw new Error('กรุณากรอกชื่อผู้รับเงิน')
   return {
     amount_in_words: values.amountInWords?.trim() || thaiBahtText(totalAmount),
     date: normalizeDate(values.date),
     items: items as Prisma.InputJsonValue,
     license_plate: purchaseBill ? purchaseBill.license_plate ?? null : values.licensePlate || null,
-    note: values.note || null,
+    note: values.note?.trim() || purchaseBillRemarkNote || purchaseBill?.note || purchaseBill?.notes || null,
     payer_signer_name: payerSignerName,
     payment_method: values.paymentMethod?.trim() || CASH_PAYMENT_METHOD,
     purchase_bill_doc_no: purchaseBill?.doc_no ?? null,
@@ -314,6 +327,7 @@ export async function GET() {
               amount: true,
               display_name: true,
               line_no: true,
+              note: true,
               price: true,
               product_code: true,
               product_name: true,
@@ -391,6 +405,31 @@ export async function GET() {
         .map((supplier) => [supplier.name.trim(), supplier.code] as const)
         .filter(([name]) => name),
     )
+    const rowPurchaseBillIds = rows
+      .map((row) => row.purchase_bill_id)
+      .filter((id): id is bigint => id !== null)
+    const rowPurchaseBillRemarkRows = rowPurchaseBillIds.length
+      ? await prisma.purchase_bills.findMany({
+        select: {
+          id: true,
+          note: true,
+          notes: true,
+          purchase_bill_items: {
+            orderBy: { line_no: 'asc' },
+            select: {
+              line_no: true,
+              note: true,
+            },
+            where: { item_status: 'active' },
+          },
+        },
+        where: { id: { in: rowPurchaseBillIds } },
+      })
+      : []
+    const rowPurchaseBillNoteById = new Map(rowPurchaseBillRemarkRows.map((bill) => [
+      bill.id.toString(),
+      purchaseBillItemRemarks(bill.purchase_bill_items) || bill.note || bill.notes || '',
+    ]))
 
     return NextResponse.json({
       companyProfile: companyProfile
@@ -438,7 +477,7 @@ export async function GET() {
           unit: item.unit ?? 'กก.',
         })),
         licensePlate: bill.license_plate ?? '',
-        note: bill.note ?? bill.notes ?? '',
+        note: purchaseBillItemRemarks(bill.purchase_bill_items) || bill.note || bill.notes || '',
         salesPerson: bill.supplier_sales_rep_snapshot ?? '',
         sellerAddress: bill.supplier_address_snapshot ?? '',
         sellerCode: bill.suppliers?.code ?? '',
@@ -456,7 +495,7 @@ export async function GET() {
         id: row.doc_no,
         items: row.items ?? [],
         licensePlate: row.license_plate ?? '',
-        note: row.note ?? '',
+        note: row.note?.trim() || rowPurchaseBillNoteById.get(row.purchase_bill_id?.toString() ?? '') || '',
         payerSignerName: row.payer_signer_name ?? row.created_by ?? '',
         paymentMethod: row.payment_method ?? '',
         purchaseBillId: row.purchase_bill_doc_no ?? '',
