@@ -201,20 +201,6 @@ export function LoanContractsPageClient() {
 
   return (
     <section className="space-y-4">
-      {/* Desktop Actions */}
-      <div className="hidden lg:flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-        <DisabledButton>📥 Template</DisabledButton>
-        <DisabledButton>📤 Import Excel</DisabledButton>
-        <div className="ml-auto">
-          <button 
-            type="button" 
-            disabled
-            className="h-9 px-4 rounded-lg bg-blue-600/50 text-white text-sm font-semibold opacity-60 cursor-not-allowed outline-none"
-          >
-            + เพิ่มสัญญา
-          </button>
-        </div>
-      </div>
       {error ? <ErrorBox message={error} /> : null}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="จำนวนสัญญา" value={data?.summary.count ?? 0} />
@@ -224,31 +210,36 @@ export function LoanContractsPageClient() {
       </div>
 
       {/* Desktop Filter Panel */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-200">
-        <input autoComplete="off" className="min-w-0 flex-1 h-9 rounded-lg border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition" placeholder="ค้นหา loanNo/contractNo/lender..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-        <select className="h-9 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={type} onChange={(event) => setType(event.target.value)}>
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
+        <input autoComplete="off" className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none transition focus:border-slate-400" placeholder="ค้นหา loanNo/contractNo/lender..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+        <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition cursor-pointer focus:border-slate-400" value={type} onChange={(event) => setType(event.target.value)}>
           <option value="all">Type: ทั้งหมด</option>
           {(data?.filters.types ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
-        <select className="h-9 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={status} onChange={(event) => setStatus(event.target.value)}>
+        <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition cursor-pointer focus:border-slate-400" value={status} onChange={(event) => setStatus(event.target.value)}>
           <option value="all">Status: ทั้งหมด</option>
           {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
+        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <button className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-400 opacity-65" disabled type="button">📥 Template</button>
+          <button className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-400 opacity-65" disabled type="button">📤 Import Excel</button>
+          <button className="inline-flex h-9 items-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white opacity-60" disabled type="button">+ เพิ่มสัญญา</button>
+        </div>
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
+      <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden space-y-3">
         <div className="flex gap-2 items-center">
-          <input 
-            autoComplete="off" className="flex-1 h-9 rounded-lg border border-slate-300 px-3 text-xs outline-none bg-white placeholder-slate-400 focus:border-slate-400 transition" 
-            placeholder="ค้นหา loanNo/contractNo/lender..." 
-            type="search" 
-            value={search} 
-            onChange={(event) => setSearch(event.target.value)} 
+          <input
+            autoComplete="off" className="flex-1 h-9 rounded-md border border-slate-300 px-3 text-xs outline-none bg-white placeholder-slate-400 focus:border-slate-400 transition"
+            placeholder="ค้นหา loanNo/contractNo/lender..."
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
           />
           <button
             type="button"
-            className="h-9 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
+            className="h-9 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
             onClick={() => setShowMobileFilters(true)}
           >
             ตัวกรอง {(type !== 'all' || status !== 'all') ? '(มี)' : ''}
@@ -339,18 +330,18 @@ export function LoanContractsPageClient() {
         </div>
       ) : null}
       {/* Pagination Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200 shadow-sm mb-4">
+      <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
         <div>
           พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {columnResize.hasCustomWidths ? (
             <button
-              className="hidden h-9 rounded-md bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200 lg:inline-flex"
+              className="hidden h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 lg:inline-flex"
               type="button"
               onClick={columnResize.resetColumnWidths}
             >
-              รีเซ็ตความกว้างตาราง
+              คืนค่าเดิมตาราง
             </button>
           ) : null}
           <select
@@ -383,7 +374,7 @@ export function LoanContractsPageClient() {
 
       {/* Desktop Table View */}
       <div className="hidden lg:block">
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
           <div className="max-h-[60vh] overflow-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
