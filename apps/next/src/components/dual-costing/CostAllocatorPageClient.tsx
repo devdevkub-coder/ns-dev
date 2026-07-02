@@ -441,46 +441,47 @@ export function CostAllocatorPageClient() {
             </div>
           )}
 
-          {/* Pagination Controls */}
-          <div className="mt-3 mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
+          {/* Target Table Card */}
+          <div className="mt-4 overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {targetColumnResize.hasCustomWidths ? (
+                  <Button className="h-9 text-sm font-normal" size="sm" type="button" variant="outline" onClick={targetColumnResize.resetColumnWidths}>
+                    คืนค่าเดิมตาราง
+                  </Button>
+                ) : null}
+                <select
+                  aria-label="จำนวนรายการต่อหน้า"
+                  className="h-9 w-auto rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  value={pageSize}
+                  onChange={(event) => setPageSize(Number(event.target.value))}
+                >
+                  {[5, 10, 25, 50].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+                </select>
+                <button
+                  className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                  disabled={currentPage <= 1}
+                  type="button"
+                  onClick={() => setPage((value) => Math.max(1, value - 1))}
+                >
+                  ก่อนหน้า
+                </button>
+                <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+                <button
+                  className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                  disabled={currentPage >= totalPages}
+                  type="button"
+                  onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                >
+                  ถัดไป
+                </button>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {targetColumnResize.hasCustomWidths ? (
-                <Button className="h-9 text-sm font-normal" size="sm" type="button" variant="outline" onClick={targetColumnResize.resetColumnWidths}>
-                  คืนค่าเดิมตาราง
-                </Button>
-              ) : null}
-              <select
-                aria-label="จำนวนรายการต่อหน้า"
-                className="h-9 w-auto rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                value={pageSize}
-                onChange={(event) => setPageSize(Number(event.target.value))}
-              >
-                {[5, 10, 25, 50].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-              </select>
-              <button
-                className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                disabled={currentPage <= 1}
-                type="button"
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
-              >
-                ก่อนหน้า
-              </button>
-              <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-              <button
-                className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                disabled={currentPage >= totalPages}
-                type="button"
-                onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-              >
-                ถัดไป
-              </button>
-            </div>
-          </div>
 
-          <div className="mt-4 hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm md:block">
+          <div className="hidden overflow-x-auto md:block">
             <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: targetColumnResize.tableMinWidth }}>
               <colgroup>
                 {targetColumns.map((column) => (
@@ -536,7 +537,7 @@ export function CostAllocatorPageClient() {
             </table>
           </div>
 
-          <div className="mt-4 space-y-3 md:hidden">
+          <div className="space-y-3 p-3 md:hidden">
             {isLoading ? <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">กำลังโหลด target candidates</div> : null}
             {!isLoading && (data?.poSells.length ?? 0) === 0 ? <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">ไม่มี {sourceTypeLabel} ของสินค้านี้ที่ยังไม่ match</div> : null}
             {pagedPoSells.map((target) => {
@@ -571,6 +572,7 @@ export function CostAllocatorPageClient() {
                 </div>
               )
             })}
+          </div>
           </div>
 
 
