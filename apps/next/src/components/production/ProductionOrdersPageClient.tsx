@@ -221,6 +221,32 @@ export function ProductionOrdersPageClient() {
   const currentRows = useMemo(() => data?.rows ?? [], [data?.rows])
   const totalPages = data?.summary.totalPages ?? 1
   const activeMobileFilterCount = (dateFrom || dateTo ? 1 : 0) + (status ? 1 : 0)
+  const listControls = (
+    <>
+      <div className="flex items-center gap-3">
+        <span>รวมทั้งหมด <span className="font-semibold text-slate-900">{data?.summary.total ?? 0}</span> รายการ</span>
+        {columnResize.hasCustomWidths ? (
+          <Button
+            className="hidden lg:inline-flex"
+            size="sm"
+            variant="outline"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            คืนค่าเดิมตาราง
+          </Button>
+        ) : null}
+      </div>
+      <div className="flex items-center gap-2">
+        <select className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
+          {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+        </select>
+        <Button disabled={page <= 1} size="sm" variant="outline" type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
+        <span className="px-1 text-sm font-medium">หน้า {data?.page ?? page} / {totalPages}</span>
+        <Button disabled={page >= totalPages} size="sm" variant="outline" type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
+      </div>
+    </>
+  )
 
   function clearFilters() {
     setSearch('')
@@ -474,37 +500,20 @@ export function ProductionOrdersPageClient() {
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <span>รวมทั้งหมด <span className="font-semibold text-slate-900">{data?.summary.total ?? 0}</span> รายการ</span>
-          {columnResize.hasCustomWidths ? (
-            <Button
-              className="hidden lg:inline-flex"
-              size="sm"
-              variant="outline"
-              type="button"
-              onClick={columnResize.resetColumnWidths}
-            >
-              คืนค่าเดิมตาราง
-            </Button>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-2">
-          <select className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
-            {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-          </select>
-          <Button disabled={page <= 1} size="sm" variant="outline" type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
-          <span className="px-1 text-sm font-medium">หน้า {data?.page ?? page} / {totalPages}</span>
-          <Button disabled={page >= totalPages} size="sm" variant="outline" type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
-        </div>
+      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:hidden">
+        {listControls}
       </div>
 
       {isLoading ? <div className="rounded-md bg-white p-10 text-center text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
-      {!isLoading && currentRows.length > 0 ? (
+      {!isLoading ? (
         <>
           {/* Desktop Table View */}
-          <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200 bg-white shadow">
-            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+            <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+              {listControls}
+            </div>
+            <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
                 {productionOrderColumns.map((column, index) => {
                   const style = index === productionOrderColumns.length - 1
@@ -552,6 +561,13 @@ export function ProductionOrdersPageClient() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
+                {currentRows.length === 0 ? (
+                  <tr>
+                    <td className="p-12 text-center text-slate-400" colSpan={productionOrderColumns.length}>
+                      ยังไม่มีใบสั่งผลิต
+                    </td>
+                  </tr>
+                ) : null}
                 {currentRows.map((row, index) => {
                   const yieldPct = row.inputQty > 0 ? (row.outputQty / row.inputQty) * 100 : 0
                   const wipQty = Math.max(0, row.wipQty ?? 0)
@@ -596,6 +612,7 @@ export function ProductionOrdersPageClient() {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* Mobile Grid/Card View */}
@@ -611,7 +628,7 @@ export function ProductionOrdersPageClient() {
         </>
       ) : null}
       {!isLoading && currentRows.length === 0 ? (
-        <div className="rounded-md bg-white p-12 text-center text-slate-400 shadow">
+        <div className="rounded-md bg-white p-12 text-center text-slate-400 shadow lg:hidden">
           <div className="mb-2 text-3xl font-semibold">ใบสั่งผลิต</div>
           <div>ยังไม่มีใบสั่งผลิต</div>
         </div>
