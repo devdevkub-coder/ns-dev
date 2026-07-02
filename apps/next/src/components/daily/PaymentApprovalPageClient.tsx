@@ -691,16 +691,20 @@ export function PaymentApprovalPageClient() {
       <div className="overflow-hidden rounded-md bg-white shadow">
         <div className="flex border-b border-slate-100">
           <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'ap' ? 'border-red-600 text-red-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('ap')}>
-            ต้นทุน / Supplier <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">{pendingTabCounts.ap}</span>
+            ต้นทุน / Supplier
+            {pendingTabCounts.ap > 0 ? <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">{pendingTabCounts.ap}</span> : null}
           </button>
-          <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'advance' ? 'border-amber-600 text-amber-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('advance')}>
-            จ่ายเงินล่วงหน้า / มัดจำ <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700">{pendingTabCounts.advance}</span>
+          <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'advance' ? 'border-red-600 text-red-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('advance')}>
+            จ่ายเงินล่วงหน้า / มัดจำ
+            {pendingTabCounts.advance > 0 ? <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">{pendingTabCounts.advance}</span> : null}
           </button>
-          <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'expense' ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('expense')}>
-            ค่าใช้จ่าย <span className="ml-2 rounded-full bg-purple-100 px-2 py-0.5 text-xs text-purple-700">{pendingTabCounts.expense}</span>
+          <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'expense' ? 'border-red-600 text-red-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('expense')}>
+            ค่าใช้จ่าย
+            {pendingTabCounts.expense > 0 ? <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">{pendingTabCounts.expense}</span> : null}
           </button>
-          <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'pettyReturn' ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('pettyReturn')}>
-            การคืนเงินสำรองจ่าย / คืนเงินกู้กรรมการ <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">{pendingTabCounts.pettyReturn}</span>
+          <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'pettyReturn' ? 'border-red-600 text-red-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('pettyReturn')}>
+            การคืนเงินสำรองจ่าย / คืนเงินกู้กรรมการ
+            {pendingTabCounts.pettyReturn > 0 ? <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">{pendingTabCounts.pettyReturn}</span> : null}
           </button>
         </div>
 
