@@ -3107,7 +3107,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 
       {showForm && mode === 'purchase' ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4">
-          <div className="mx-auto my-4 flex max-h-[94vh] max-w-5xl flex-col rounded-md bg-white shadow-2xl">
+          <div className="mx-auto my-4 flex max-h-[94vh] w-full max-w-[min(96vw,88rem)] flex-col rounded-md bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
               <div>
                 <h3 className="text-xl font-bold">📥 {editingBillId ? 'แก้ไขบิลรับซื้อ' : 'สร้างบิลรับซื้อใหม่'}</h3>
@@ -3246,7 +3246,19 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                         </div>
                       ) : null}
                       <div className="overflow-x-auto rounded-md border border-slate-200/60">
-                      <table className="w-full min-w-[920px] text-sm">
+                      <table className="w-full min-w-[1180px] table-fixed text-sm">
+                        <colgroup>
+                          <col className="w-[220px]" />
+                          <col className="w-[84px]" />
+                          <col className="w-[72px]" />
+                          <col className="w-[108px]" />
+                          <col className="w-[112px]" />
+                          <col className="w-[168px]" />
+                          <col className="w-[104px]" />
+                          <col className="w-[112px]" />
+                          <col className="w-[92px]" />
+                          <col className="w-[148px]" />
+                        </colgroup>
                         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
                           <tr>
                             <th className="p-2 text-left">สินค้า</th>
@@ -3254,7 +3266,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                             <th className="p-2 text-right">หัก</th>
                             <th className="p-2 text-right">น้ำหนักสุทธิ</th>
                             <th className="p-2 text-right">จำนวนตัดบิล</th>
-                            <th className="p-2 text-left">อ้างอิง PO</th>
+                            <th className="p-2 text-left whitespace-nowrap">อ้างอิง PO</th>
                             <th className="p-2 text-right">ราคา/กก.</th>
                             <th className="p-2 text-right">ราคาหน้าใบ</th>
                             <th className="p-2 text-right">ยอดรวม</th>
@@ -3308,7 +3320,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                   {supplierSwapMode ? (
                                     <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-xs font-semibold text-amber-800">Spot Buy เท่านั้น</div>
                                   ) : (
-                                    <select className="w-full rounded-md border bg-blue-50 px-2 py-2 text-xs" value={item.poBuyId ?? ''} onChange={(event) => updateItemPoBuy(index, event.target.value || null)}>
+                                    <select className="w-full rounded-md border bg-blue-50 px-2 py-2 text-xs" title={selectedPo?.label ?? selectedPo?.name ?? (item.poBuyId ? 'PO Buy' : 'Spot Buy')} value={item.poBuyId ?? ''} onChange={(event) => updateItemPoBuy(index, event.target.value || null)}>
                                       <option value="">Spot Buy</option>
                                       {itemPoOptions.map((po) => <option key={`${po.id}-${po.product_id ?? 'all'}`} value={po.id}>{po.label ?? po.name}</option>)}
                                     </select>
