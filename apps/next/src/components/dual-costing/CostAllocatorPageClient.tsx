@@ -442,26 +442,26 @@ export function CostAllocatorPageClient() {
           )}
 
           {/* Pagination Controls */}
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200 shadow-sm mb-3">
+          <div className="mt-3 mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
             <div>
               พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {targetColumnResize.hasCustomWidths ? (
-                <Button className="h-8 text-xs" size="sm" type="button" variant="outline" onClick={targetColumnResize.resetColumnWidths}>
+                <Button className="h-9 text-sm font-normal" size="sm" type="button" variant="outline" onClick={targetColumnResize.resetColumnWidths}>
                   คืนค่าเดิมตาราง
                 </Button>
               ) : null}
               <select
                 aria-label="จำนวนรายการต่อหน้า"
-                className="h-8 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                className="h-9 w-auto rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
                 value={pageSize}
                 onChange={(event) => setPageSize(Number(event.target.value))}
               >
                 {[5, 10, 25, 50].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
               </select>
               <button
-                className="h-8 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
                 disabled={currentPage <= 1}
                 type="button"
                 onClick={() => setPage((value) => Math.max(1, value - 1))}
@@ -470,7 +470,7 @@ export function CostAllocatorPageClient() {
               </button>
               <span className="px-1">หน้า {currentPage} / {totalPages}</span>
               <button
-                className="h-8 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
                 disabled={currentPage >= totalPages}
                 type="button"
                 onClick={() => setPage((value) => Math.min(totalPages, value + 1))}

@@ -6,6 +6,8 @@ Date: 2026-07-02
 Active app: `apps/next`
 Primary remote: `new-origin`
 
+Cost Allocator table controls follow-up on 2026-07-02: `/dual-costing/cost-allocator` now uses the lightweight pagination/table-control row for the target sale table instead of a separate bordered/shadowed white card. The reset-width control, page-size select, and previous/next buttons now use the standard `h-9`, `rounded-md`, `text-sm` sizing and keep the `คืนค่าเดิมตาราง` reset wording. This is UI-only; allocator filters, target selection, matching preview, confirm/reverse behavior, sorting/resizing state, API permissions, and DB state were not changed.
+
 Historical Data table reset follow-up on 2026-07-02: `/finance-accounting/historical-data` now uses the rounded-md lined table shell and standard `h-9`, `text-sm`, `???????????????` reset-width control for the historical monthly matrix. This is UI-only; historical baseline rows, tab selection, sorting/resizing, API permissions, and DB state were not changed.
 
 Opening Balance table reset follow-up on 2026-07-02: `/finance-accounting/opening-balance` now uses the rounded-md lined table shell and standard `h-9`, `text-sm`, `???????????????` reset-width control for the accounts table. This is UI-only; cutover/read-only state, account rows, sorting/resizing, API permissions, and DB state were not changed.
