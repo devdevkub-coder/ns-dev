@@ -2410,8 +2410,8 @@ Tailwind dependency check:
   - The standalone facts card was removed from the detail modal. The same WTO/PO Sell/Trading/Customer Advance facts now appear under the oldest timeline event as a collapsible `ต้นทางสินค้าและต้นทุน` table.
   - The timeline table keeps SB-specific audit columns: รายการ, ต้นทาง, จำนวน, ต้นทุน/COGS, สถานะ, and timestamp. This makes the detail page closer to the WTO history pattern while keeping Sales Bill data semantics.
   - Split SKU lines in Sales Bill detail continue to show `คัดแยกจาก: <source product>` when the sold SKU differs from the WTO source SKU, without changing the underlying WTO/stock/cost identity.
-- 2026-07-02: Sales Bill edit row deletion guard checkpoint
-  - Sales Bill edit now keeps existing line facts append-safe: deleting an already-saved WTO split line from the edit form turns that row into zero weight/quantity/discount instead of removing the row from the payload.
-  - Create-new Sales Bill still requires positive quantity and price. Only edit mode accepts zero-quantity rows, and only so an existing line can release its WTO pending_out / PO Sell allocation through the normal edit delta logic.
-  - API validation now skips creating new PO/source allocation rows for zero-quantity edit lines, while existing source allocations can be updated to zero for audit continuity.
-  - If a user already removed a row in an open edit modal before this fix, reopen the edit form so the original line facts hydrate back into the form before saving.
+- 2026-07-02: Sales Bill edit split row deletion checkpoint
+  - Sales Bill edit now supports deleting split rows from the form. The UI removes the row from the payload instead of sending a zero-weight placeholder.
+  - The API uses `salesBillLineNo`/`line_no` as the durable line identity, so remaining rows do not inherit the deleted row's source allocation, PO Sell allocation, or history by array index.
+  - Deleted existing lines are kept audit-safe by marking `sales_bill_lines.status = removed`, reversing their source allocation rows, releasing WTO pending_out/summary usage through the edit delta flow, and releasing/reallocating PO Sell from the remaining active lines.
+  - New split rows created during edit receive the next line number after the current max line, avoiding unique conflicts and preserving existing line history. Create-new and edit payloads still require positive quantity and price for active lines.

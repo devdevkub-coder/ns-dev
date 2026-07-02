@@ -24,7 +24,7 @@ import { firstErrorKeyFromZodIssues, focusFieldError, issueMapFromZodIssues } fr
 import { formatDateDisplay, formatDecimalDisplay, formatDecimalDraft, sanitizeDecimalInput } from '@/lib/format'
 import { purchaseBillCancelSchema, purchaseBillFormSchema, type PurchaseBillCancelValues, type PurchaseBillFormValues } from '@/lib/purchase-bill'
 import { openPurchaseBillPrint, openPurchaseBillPrintWindow } from '@/lib/purchase-bill-print'
-import { salesBillCancelSchema, salesBillEditFormSchema, salesBillFormSchema, type SalesBillCancelValues, type SalesBillFormValues } from '@/lib/sales'
+import { salesBillCancelSchema, salesBillFormSchema, type SalesBillCancelValues, type SalesBillFormValues } from '@/lib/sales'
 import { openSalesBillPrint, openSalesBillPrintWindow } from '@/lib/sales-bill-print'
 import type { SalesBillDetail } from '@/lib/server/sales-bill-detail'
 
@@ -2540,22 +2540,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       if (!summaryId) return current
       const summaryRowCount = current.items.filter((item) => (item.deliverySummaryId ?? item.deliveryLineId) === summaryId).length
       if (summaryRowCount <= 1) return current
-      if (editingSalesBillId && source.salesBillLineNo) {
-        return {
-          ...current,
-          items: current.items.map((item, itemIndex) => itemIndex === index
-            ? {
-                ...item,
-                deductWeight: 0,
-                discount: 0,
-                grossWeight: 0,
-                netWeight: 0,
-                poSellId: null,
-                qty: 0,
-              }
-            : item),
-        }
-      }
       return { ...current, items: current.items.filter((_item, itemIndex) => itemIndex !== index) }
     })
     setSalesFieldErrors({})
@@ -2638,7 +2622,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   }
 
   async function saveSalesBill() {
-    const parsed = (editingSalesBillId ? salesBillEditFormSchema : salesBillFormSchema).safeParse(salesForm)
+    const parsed = salesBillFormSchema.safeParse(salesForm)
     if (!parsed.success) {
       const nextFieldErrors = issueMapFromZodIssues(parsed.error.issues)
       setSalesFieldErrors(nextFieldErrors)
