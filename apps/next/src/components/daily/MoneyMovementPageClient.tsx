@@ -2617,9 +2617,9 @@ export function MoneyMovementPageClient({
         <Dialog open onOpenChange={(open) => {
           if (!open && !isSaving) setFormOpen(false)
         }}>
-          <DialogContent className="top-[max(2rem,50%)] max-h-[90vh] overflow-hidden flex flex-col rounded-md p-0 border-0 shadow-2xl bg-slate-900 max-w-5xl outline-none focus:outline-none" hideClose>
+          <DialogContent className="top-[max(2rem,50%)] max-h-[90vh] max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 shadow-2xl outline-none focus:outline-none" hideClose>
             <form noValidate onSubmit={save} className="flex flex-col max-h-[90vh]">
-            <DialogHeader className="flex-row items-center justify-between px-5 py-4 shrink-0 bg-slate-900 text-white rounded-t-md">
+            <DialogHeader className="flex-row items-center px-5 py-4 shrink-0 bg-slate-900 text-white rounded-t-md">
               <div>
                 <DialogTitle className="font-bold text-white">
                   {mode === 'payment' ? 'สร้าง Payment Voucher' : (form.id ? 'แก้ไข Receipt Voucher' : title)}
@@ -2707,7 +2707,7 @@ export function MoneyMovementPageClient({
                   <section className="rounded-md border border-slate-200 bg-white shadow-sm">
                     <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
                       <h3 className="text-sm font-bold text-slate-900">บิลขายที่รับเงิน</h3>
-                      <UiButton className="h-8 font-normal" size="sm" type="button" variant="outline" onClick={addReceiptLine}>
+                      <UiButton className="h-9 font-normal" size="sm" type="button" variant="outline" onClick={addReceiptLine}>
                         <Plus aria-hidden="true" className="mr-1 h-4 w-4" />
                         เพิ่มบิล
                       </UiButton>
@@ -2804,7 +2804,7 @@ export function MoneyMovementPageClient({
                         const withholdingTaxAmountKey = receiptLineMoneyKey(line, index, 'withholdingTaxAmount')
                         const discountAmountKey = receiptLineMoneyKey(line, index, 'discountAmount')
                         return (
-                          <div key={line.id ?? `${index}-${line.salesBillDocNo}`} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+                          <div key={line.id ?? `${index}-${line.salesBillDocNo}`} className="p-4 rounded-md border border-slate-200 bg-slate-50/50 space-y-3">
                             <div className="flex justify-between items-center">
                               <span className="font-bold text-xs text-slate-500">บิลรายการที่ #{index + 1}</span>
                               <UiButton
@@ -2891,7 +2891,7 @@ export function MoneyMovementPageClient({
                     </div>
                   </section>
 
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                  <div className="rounded-md border border-slate-200 bg-slate-50/50 p-4">
                     <div className="grid grid-cols-2 gap-4 md:grid-cols-5 text-xs">
                       <div>
                         <span className="text-slate-500 block mb-1 font-semibold">{amountLabel}</span>
@@ -2957,9 +2957,9 @@ export function MoneyMovementPageClient({
                 </div>
               </>
             )}
-            <DialogFooter className="border-t border-slate-200 px-5 py-4">
-              <UiButton className="font-normal text-slate-600" type="button" variant="ghost" onClick={() => setFormOpen(false)}>ยกเลิก</UiButton>
-              <UiButton className={`px-5 font-semibold text-white disabled:opacity-60 ${theme.action}`} disabled={isSaving} type="submit" variant="default">บันทึก</UiButton>
+            <DialogFooter className="border-t border-slate-200 bg-white px-5 py-4">
+              <UiButton className="font-normal" type="button" variant="outline" onClick={() => setFormOpen(false)}>ยกเลิก</UiButton>
+              <UiButton className="bg-slate-900 px-5 font-normal text-white hover:bg-slate-800 disabled:opacity-60" disabled={isSaving} type="submit" variant="default">บันทึก</UiButton>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -3512,9 +3512,9 @@ export function MoneyMovementPageClient({
                 />
               </label>
             </div>
-            <DialogFooter className="border-t border-slate-200 px-5 py-4">
-              <UiButton disabled={isCancellingReceipt} type="button" variant="ghost" onClick={() => setCancelReceiptTarget(null)}>ปิด</UiButton>
-              <UiButton className="bg-red-600 text-white hover:bg-red-700 font-semibold px-5" disabled={isCancellingReceipt} type="button" variant="default" onClick={cancelCustomerReceiptRow}>ยืนยันยกเลิก</UiButton>
+            <DialogFooter className="border-t border-slate-200 bg-white px-5 py-4">
+              <UiButton className="font-normal" disabled={isCancellingReceipt} type="button" variant="outline" onClick={() => setCancelReceiptTarget(null)}>ปิด</UiButton>
+              <UiButton className="bg-red-600 text-white hover:bg-red-700 font-normal px-5" disabled={isCancellingReceipt} type="button" variant="default" onClick={cancelCustomerReceiptRow}>ยืนยันยกเลิก</UiButton>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -3542,9 +3542,9 @@ export function MoneyMovementPageClient({
                 />
               </label>
             </div>
-            <DialogFooter className="border-t border-slate-200 px-5 py-4">
-              <UiButton disabled={isCancellingPayment} type="button" variant="ghost" onClick={() => setCancelPaymentTarget(null)}>ปิด</UiButton>
-              <UiButton className="bg-red-600 text-white hover:bg-red-700 font-semibold px-5" disabled={isCancellingPayment} type="button" variant="default" onClick={cancelPaymentRow}>ยืนยันยกเลิก</UiButton>
+            <DialogFooter className="border-t border-slate-200 bg-white px-5 py-4">
+              <UiButton className="font-normal" disabled={isCancellingPayment} type="button" variant="outline" onClick={() => setCancelPaymentTarget(null)}>ปิด</UiButton>
+              <UiButton className="bg-red-600 text-white hover:bg-red-700 font-normal px-5" disabled={isCancellingPayment} type="button" variant="default" onClick={cancelPaymentRow}>ยืนยันยกเลิก</UiButton>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -3580,12 +3580,12 @@ export function MoneyMovementPageClient({
                 />
               </label>
             </div>
-            <DialogFooter className="border-t border-slate-200 px-5 py-4">
+            <DialogFooter className="border-t border-slate-200 bg-white px-5 py-4">
               <UiButton
-                className="font-normal text-slate-600"
+                className="font-normal"
                 disabled={isCancellingApproval}
                 type="button"
-                variant="ghost"
+                variant="outline"
                 onClick={() => {
                   setCancelApprovalTarget(null)
                   setCancelApprovalReason('')
@@ -3594,7 +3594,7 @@ export function MoneyMovementPageClient({
                 ปิด
               </UiButton>
               <UiButton
-                className="bg-red-600 px-5 font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                className="bg-red-600 px-5 font-normal text-white hover:bg-red-700 disabled:opacity-60"
                 disabled={isCancellingApproval || !cancelApprovalReason.trim()}
                 type="button"
                 variant="default"
@@ -3648,7 +3648,7 @@ function PaymentHistoryDetailDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 shadow-2xl outline-none focus:outline-none" fallbackTitle="รายละเอียดการจ่ายเงิน" hideClose>
-        <DialogHeader className="flex-row items-center justify-between gap-3 px-5 py-4 bg-slate-900 text-white rounded-t-md">
+        <DialogHeader className="flex-row items-center gap-3 px-5 py-4 bg-slate-900 text-white rounded-t-md">
           <div className="min-w-0">
             <DialogTitle className="truncate text-base font-bold text-white">รายละเอียด {detailDocNo}</DialogTitle>
             <div className="mt-1 truncate text-xs text-slate-300">{detailPartyName}</div>
@@ -3814,7 +3814,7 @@ function PaymentHistoryDetailDialog({
               ยกเลิก
             </UiButton>
           ) : null}
-          <UiButton className="font-normal text-slate-600" type="button" variant="ghost" onClick={() => onOpenChange(false)}>ปิด</UiButton>
+          <UiButton className="font-normal" type="button" variant="outline" onClick={() => onOpenChange(false)}>ปิด</UiButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -3866,9 +3866,8 @@ function ReceivableBillDetailDialog({
               />
 
               <DetailSection
-                title="ลูกค้าและเอกสารอ้างอิง"
+                title="เอกสารอ้างอิง"
                 rows={[
-                  ['ลูกค้า', customerName || '-'],
                   ['บิลขายอ้างอิง', bill.docNo],
                   ['เอกสารอ้างอิง', bill.sourceDocNo || bill.docNo],
                   ['สถานะบิลขาย', paymentBillStatus(bill)],
@@ -3902,7 +3901,7 @@ function ReceivableBillDetailDialog({
               ยกเลิก
             </UiButton>
           ) : null}
-          <UiButton className="font-normal text-slate-600" type="button" variant="ghost" onClick={() => onOpenChange(false)}>ปิด</UiButton>
+          <UiButton className="font-normal" type="button" variant="outline" onClick={() => onOpenChange(false)}>ปิด</UiButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -3974,7 +3973,6 @@ function ReceiptDetailDialog({
                 rows={[
                   ['เลขที่เอกสาร', row.docNo],
                   ['วันที่รับเงิน', formatDateDisplay(row.date)],
-                  ['ลูกค้า', row.partyName || '-'],
                   ['วิธีรับเงิน', row.method || '-'],
                 ]}
               />
@@ -4029,7 +4027,7 @@ function ReceiptDetailDialog({
               ) : null}
             </>
           ) : null}
-          <UiButton className="font-normal text-slate-600" type="button" variant="ghost" onClick={() => onOpenChange(false)}>ปิด</UiButton>
+          <UiButton className="font-normal" type="button" variant="outline" onClick={() => onOpenChange(false)}>ปิด</UiButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

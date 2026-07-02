@@ -2465,3 +2465,12 @@ Tailwind dependency check:
   - Mobile cost cards and CSV export now follow the same sorted row order as the desktop table. Production cost API behavior, RM/process-cost formulas, allocation method display, filters, summary cards, stock/ledger behavior, and DB state were not changed.
   - Validation passed: `npm exec --workspace @ns-scrap-erp/next -- eslint src/components/production/ProductionReportPageClient.tsx`, `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`, and `git diff --check`.
   - Browser/computer-use QA was not run per the current instruction to avoid browser verification.
+
+- 2026-07-02: Money Movement modal design follow-up
+  - `/purchase/payments` and `/sales/receipts` received a UI-only modal/form polish pass in `MoneyMovementPageClient` and `MoneyMovementFormSections`.
+  - The shared PMT/RCP entry modal now uses the no-border-leak dark-header shell (`rounded-md`, `!p-0`, `border-0`, `outline-none`), white footer, outline cancel/close controls, and slate primary `บันทึก` save action instead of mode-colored save buttons.
+  - RCP receipt line add controls are now normal `h-9`; mobile receipt line cards and the receipt summary block use `rounded-md`; detail dialogs no longer repeat the customer name inside grouped cards when the dark header subtitle already shows it.
+  - Payment form money controls that were still `h-8` were raised to `h-9`; compact remove icon buttons remain `h-8` as dense row actions.
+  - Runtime API behavior, PMA/PMT allocation rules, RCP create/edit/cancel behavior, bank statement effects, AR/SB balance rules, account split math, and DB state were not changed.
+  - Validation passed: targeted ESLint for `MoneyMovementPageClient.tsx` and `MoneyMovementFormSections.tsx`, workspace `npm run lint --workspace @ns-scrap-erp/next` (only unrelated existing warnings in `qa-thai-font.tsx` and `ReceiptVouchersPageClient.tsx`), `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`, and `git diff --check`.
+  - Browser/computer-use QA was not run per the current instruction to avoid browser verification.
