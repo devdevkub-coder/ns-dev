@@ -598,16 +598,16 @@ export function AssetRegisterPageClient() {
       ) : null}
 
       {/* Desktop Table Card */}
-      <div className="hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
+      <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        <div className="grid gap-2 border-b border-slate-100 p-3 xl:grid-cols-[minmax(320px,1fr)_auto_auto] xl:items-center">
         <input
-          className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none transition focus:border-slate-400"
+          className="h-9 w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none transition focus:border-slate-400"
           placeholder="ค้นหา รหัส / ชื่อ / สถานที่ / สาขา"
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <select
             className="h-9 w-auto min-w-[120px] rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition cursor-pointer focus:border-slate-400"
             value={category}
@@ -625,7 +625,7 @@ export function AssetRegisterPageClient() {
             {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
         </div>
-        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
           <LinkButton href="/api/finance-accounting/asset-register?template=csv">📄 Template CSV</LinkButton>
           <button
             type="button"
