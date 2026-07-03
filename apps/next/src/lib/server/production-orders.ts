@@ -543,7 +543,7 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
       if (product.metal_group === 'ทองแดง' || product.metal_group === 'ทองเหลือง') {
         await tx.stock_cost_pool_entries.create({
           data: {
-            source_type: 'PRODUCTION',
+            source_type: 'Production',
             source_ref_type: 'PO2',
             source_ref_id: created.id.toString(),
             source_ref_no: outputDocNo,
