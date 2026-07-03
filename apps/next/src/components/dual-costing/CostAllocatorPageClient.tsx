@@ -133,11 +133,19 @@ export function CostAllocatorPageClient() {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedPoSellId, setSelectedPoSellId] = useState(searchParams.get('poSellId') ?? '')
   const [selectedProductId, setSelectedProductId] = useState(searchParams.get('productId') ?? '')
+  const [selectedProductOption, setSelectedProductOption] = useState<SearchComboboxOption | null>(null)
   const [showPreview, setShowPreview] = useState(false)
   const [sourceType, setSourceType] = useState(searchParams.get('sourceType') ?? 'spot-sell')
   const [targetCost, setTargetCost] = useState(0)
   const [targetCostInput, setTargetCostInput] = useState('0')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [collapsedSections, setCollapsedSections] = useState<Record<'step0' | 'step1' | 'step2' | 'step3' | 'step4', boolean>>({
+    step0: false,
+    step1: false,
+    step2: false,
+    step3: false,
+    step4: false,
+  })
   const [reloadTrigger, setReloadTrigger] = useState(0)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -208,12 +216,18 @@ export function CostAllocatorPageClient() {
   }, [sortedPoSells, currentPage, pageSize])
 
   const productSearchOptions = useMemo<SearchComboboxOption[]>(() => {
-    return (data?.filters.products ?? []).map((product) => ({
+    const options = (data?.filters.products ?? []).map((product) => ({
       id: product.id,
       label: product.code ? `${product.code} - ${product.name}` : product.name,
       searchText: `${product.code ?? ''} ${product.name} ${product.metalGroup ?? ''}`.toLowerCase(),
     }))
-  }, [data?.filters.products])
+
+    if (selectedProductOption && !options.some((option) => option.id === selectedProductOption.id)) {
+      return [selectedProductOption, ...options]
+    }
+
+    return options
+  }, [data?.filters.products, selectedProductOption])
 
   const selectedProduct = data?.filters.products.find((product) => product.id === selectedProductId)
   const hasSelection = Boolean(selectedProductId)
@@ -222,6 +236,25 @@ export function CostAllocatorPageClient() {
   const sourceTypeButtons = data?.filters.sourceTypes ?? ['po-sell', 'spot-sell']
   const sourceTypeLabel = sourceType === 'po-sell' ? 'PO Sell' : sourceType === 'production' ? 'Production' : 'Spot Sell / บิลขายไม่มี PO'
   const allocationModes = data?.filters.modes?.length ? data.filters.modes : ['FIFO', 'LIFO', 'Cheap', 'Expensive']
+
+  useEffect(() => {
+    if (!selectedProductId) {
+      setSelectedProductOption(null)
+      return
+    }
+
+    const matchedOption = productSearchOptions.find((option) => option.id === selectedProductId)
+    if (matchedOption) setSelectedProductOption(matchedOption)
+  }, [productSearchOptions, selectedProductId])
+
+  useEffect(() => {
+    setCollapsedSections((current) => ({
+      ...current,
+      step2: hasSelection ? current.step2 : false,
+      step3: hasSelection ? current.step3 : false,
+      step4: showPreview && hasCandidates ? current.step4 : false,
+    }))
+  }, [hasCandidates, hasSelection, showPreview])
 
   function resetSale() {
     setSelectedPoSellId('')
@@ -257,6 +290,10 @@ export function CostAllocatorPageClient() {
 
     setPreviewSortKey(key)
     setPreviewSortDirection('asc')
+  }
+
+  function toggleSection(section: keyof typeof collapsedSections) {
+    setCollapsedSections((current) => ({ ...current, [section]: !current[section] }))
   }
 
   const handleConfirmMatch = async () => {
@@ -310,7 +347,8 @@ export function CostAllocatorPageClient() {
     <DualCostingPageSection>
       <DualCostingErrorBox error={error} />
 
-      <DualCostingPanel title="⓪ เลือกประเภทปลายทางที่จะ Match ต้นทุน">
+      <DualCostingPanel title="⓪ เลือกประเภทปลายทางที่จะ Match ต้นทุน" titleAction={<PanelToggleButton collapsed={collapsedSections.step0} onClick={() => toggleSection('step0')} />}>
+        {!collapsedSections.step0 ? (
         <div className="flex flex-wrap gap-2">
           {sourceTypeButtons.map((item) => {
             const active = sourceType === item
@@ -334,9 +372,12 @@ export function CostAllocatorPageClient() {
             )
           })}
         </div>
+        ) : null}
       </DualCostingPanel>
 
-      <DualCostingPanel title="① เลือกสินค้าที่ต้องการ Match ต้นทุน">
+      <DualCostingPanel title="① เลือกสินค้าที่ต้องการ Match ต้นทุน" titleAction={<PanelToggleButton collapsed={collapsedSections.step1} onClick={() => toggleSection('step1')} />}>
+        {!collapsedSections.step1 ? (
+        <>
         <div className="w-full">
           <SearchCombobox
             inputId="cost-allocator-product"
@@ -346,6 +387,8 @@ export function CostAllocatorPageClient() {
             placeholder="พิมพ์รหัส/ชื่อสินค้าเพื่อค้นหา..."
             value={selectedProductId}
             onChange={(value) => {
+              const nextOption = productSearchOptions.find((option) => option.id === value) ?? null
+              setSelectedProductOption(nextOption)
               setSelectedProductId(value)
               resetSale()
             }}
@@ -360,10 +403,14 @@ export function CostAllocatorPageClient() {
           </div>
         ) : null}
         {hasSelection && !isLoading && (data?.summary.poolCount ?? 0) === 0 ? <div className="mt-3 rounded-xl border border-amber-200/70 bg-amber-50/50 p-3.5 text-xs text-amber-700 leading-relaxed">ยังไม่มีต้นทุนใน Cost Pool สำหรับสินค้านี้</div> : null}
+        </>
+        ) : null}
       </DualCostingPanel>
 
       {hasSelection ? (
-        <DualCostingPanel title={`② เลือก ${sourceTypeLabel} ที่ต้องการ Match ต้นทุน`}>
+        <DualCostingPanel title={`② เลือก ${sourceTypeLabel} ที่ต้องการ Match ต้นทุน`} titleAction={<PanelToggleButton collapsed={collapsedSections.step2} onClick={() => toggleSection('step2')} />}>
+          {!collapsedSections.step2 ? (
+          <>
           <div className="grid gap-3 md:grid-cols-3">
             <div className="md:col-span-2">
               <label className="mb-1 block text-xs font-semibold text-slate-500">{sourceTypeLabel} *</label>
@@ -564,11 +611,15 @@ export function CostAllocatorPageClient() {
             })}
           </div>
           </div>
+          </>
+          ) : null}
         </DualCostingPanel>
       ) : null}
 
       {hasSelection ? (
-        <DualCostingPanel title="③ Lot ต้นทุนใน Cost Pool ของสินค้าที่เลือก">
+        <DualCostingPanel title="③ Lot ต้นทุนใน Cost Pool ของสินค้าที่เลือก" titleAction={<PanelToggleButton collapsed={collapsedSections.step3} onClick={() => toggleSection('step3')} />}>
+          {!collapsedSections.step3 ? (
+          <>
           <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
             {poolColumnResize.hasCustomWidths ? (
               <div className="flex justify-end border-b border-slate-100 px-3 py-3">
@@ -639,11 +690,15 @@ export function CostAllocatorPageClient() {
             ))}
           </div>
           {(data?.pool.length ?? 0) > 12 ? <div className="mt-2 text-xs text-slate-500">แสดง 12 lot แรกตาม sort ปัจจุบันจากทั้งหมด {data?.pool.length ?? 0} lot</div> : null}
+          </>
+          ) : null}
         </DualCostingPanel>
       ) : null}
 
       {showPreview && hasCandidates ? (
-        <DualCostingPanel title="④ Preview การจับคู่ต้นทุน">
+        <DualCostingPanel title="④ Preview การจับคู่ต้นทุน" titleAction={<PanelToggleButton collapsed={collapsedSections.step4} onClick={() => toggleSection('step4')} />}>
+          {!collapsedSections.step4 ? (
+          <>
           <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
             {previewColumnResize.hasCustomWidths ? (
               <div className="flex justify-end border-b border-slate-100 px-3 py-3">
@@ -727,6 +782,8 @@ export function CostAllocatorPageClient() {
               {isSubmitting ? 'กำลังบันทึก...' : 'ยืนยันการจับคู่'}
             </Button>
           </div>
+          </>
+          ) : null}
         </DualCostingPanel>
       ) : null}
     </DualCostingPageSection>
@@ -758,6 +815,26 @@ function compareSortValues(left: string | number, right: string | number) {
 function getTimestamp(value: string | undefined) {
   const timestamp = Date.parse(value ?? '')
   return Number.isNaN(timestamp) ? 0 : timestamp
+}
+
+function PanelToggleButton({
+  collapsed,
+  onClick,
+}: {
+  collapsed: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      aria-expanded={!collapsed}
+      className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+      type="button"
+      onClick={onClick}
+    >
+      <span>{collapsed ? 'แสดง' : 'ซ่อน'}</span>
+      <span className="text-slate-400">{collapsed ? '▾' : '▴'}</span>
+    </button>
+  )
 }
 
 function getTargetSortValue(row: PoSellOption, key: TargetColumnKey): string | number {
