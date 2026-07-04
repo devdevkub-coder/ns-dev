@@ -126,6 +126,26 @@ export type ReturnedWtoPendingOutResult = {
   weightTicketLineId: bigint | null
 }
 
+export type ReturnedWtoPendingOutGroupResult = {
+  branchId: bigint
+  holdIds: bigint[]
+  holdKeys: string[]
+  lossQty: number
+  lossUnitCost: number
+  lossValueOut: number
+  pendingQty: number
+  productCode: string | null
+  productId: bigint
+  productName: string
+  returnedQty: number
+  salesBillDocNo: string | null
+  sourceDocNo: string
+  warehouseCode: string | null
+  warehouseId: bigint
+  warehouseName: string
+  weightTicketId: bigint
+}
+
 export type ReleasedWtoPendingOutLine = {
   pendingOutKey: string
   lotNo: string | null
@@ -1015,7 +1035,7 @@ export async function reopenConsumedWtoPendingOutForSalesBill(tx: TxClient, inpu
   const hasReturnFromSalesBill = await tx.weight_ticket_usage_logs.findFirst({
     select: { id: true },
     where: {
-      action: { in: ['returned_from_sales_bill', 'loss_from_sales_bill'] },
+      action: { in: ['returned_from_sales_bill', 'loss_from_sales_bill', 'returned_from_wto', 'loss_from_wto_return'] },
       target_doc_no: input.salesBillDocNo,
       target_type: 'SALES_BILL',
     },
@@ -1275,17 +1295,13 @@ export async function closeActiveWtoPendingOutForSalesBillReturn(tx: TxClient, i
   }
 
   const now = new Date()
-  let returnedUnitCost = 0
-  let returnedValueIn = 0
   let lossUnitCost = 0
   let lossValueOut = 0
   let lossPendingOutKey: string | null = null
   if (normalizedReturnedQty > 0.0001) {
     if (hold.unit_cost_snapshot == null) {
-      throw new WtoPendingOutError(`pending_out ${hold.hold_key} ยังไม่มีราคาต้นทุนเฉลี่ยที่บันทึกไว้ ไม่สามารถบันทึกรับคืนเข้าคลังได้`)
+      throw new WtoPendingOutError(`pending_out ${hold.hold_key} ยังไม่มีราคาต้นทุนเฉลี่ยที่บันทึกไว้ ไม่สามารถบันทึกรับคืนได้`)
     }
-    returnedUnitCost = toNumber(hold.unit_cost_snapshot)
-    returnedValueIn = normalizedReturnedQty * returnedUnitCost
   }
   if (lossQty > 0.0001) {
     if (hold.unit_cost_snapshot == null) {
@@ -1331,7 +1347,12 @@ export async function closeActiveWtoPendingOutForSalesBillReturn(tx: TxClient, i
         source_doc_no: hold.source_doc_no,
         source_line_no: hold.source_line_no,
         source_type: hold.source_type,
-        status: 'lost',
+        status: 'released',
+        unit_cost_snapshot: hold.unit_cost_snapshot,
+        value_snapshot: hold.unit_cost_snapshot == null ? null : lossQty * toNumber(hold.unit_cost_snapshot),
+        cost_snapshot_at: hold.cost_snapshot_at,
+        cost_snapshot_source: hold.cost_snapshot_source,
+        cost_snapshot_note: hold.cost_snapshot_note,
         updated_at: now,
         updated_by: input.actor,
         warehouse_id: hold.warehouse_id,
@@ -1342,14 +1363,13 @@ export async function closeActiveWtoPendingOutForSalesBillReturn(tx: TxClient, i
     })
     lossPendingOutKey = lostHold.hold_key
   } else {
-    const status = lossQty > 0.0001 ? 'lost' : 'released'
     const closed = await tx.stock_holds.updateMany({
       data: {
         note: lossQty > 0.0001 ? input.reason ?? input.note ?? null : input.note ?? null,
         release_reason: lossQty > 0.0001 ? 'sales_bill_stock_return_loss' : 'sales_bill_stock_return',
         released_at: now,
         released_by: input.actor,
-        status,
+        status: 'released',
         updated_at: now,
         updated_by: input.actor,
       },
@@ -1358,34 +1378,7 @@ export async function closeActiveWtoPendingOutForSalesBillReturn(tx: TxClient, i
     if (closed.count !== 1) {
       throw new WtoPendingOutError('pending_out นี้ถูกเปลี่ยนสถานะไปแล้ว กรุณาโหลดข้อมูลใหม่')
     }
-  }
-
-  if (normalizedReturnedQty > 0.0001) {
-    await tx.stock_ledger.create({
-      data: {
-        branch_id: hold.branch_id,
-        created_by: input.actor,
-        date: input.returnDate,
-        lot_no: hold.lot_no,
-        movement_type: 'รับคืนจากใบส่งของ WTO',
-        note: input.note ?? `รับคืน pending_out จาก WTO ${hold.source_doc_no}`,
-        notes: `รับคืน pending_out ${hold.hold_key} จาก SB ${input.salesBillDocNo}`,
-        not_available_for_sale: hold.not_available_for_sale,
-        output_category: hold.output_category,
-        product_id: hold.product_id,
-        qty_in: normalizedReturnedQty,
-        qty_out: 0,
-        ref_id: input.salesBillDocNo,
-        ref_no: input.salesBillDocNo,
-        ref_type: 'WTO-RETURN',
-        return_reason: input.reason ?? null,
-        sales_channel_id: input.salesChannelId ?? null,
-        unit_cost: returnedUnitCost,
-        value_in: returnedValueIn,
-        value_out: 0,
-        warehouse_id: hold.warehouse_id,
-      },
-    })
+    if (lossQty > 0.0001) lossPendingOutKey = hold.hold_key
   }
 
   if (lossQty > 0.0001) {
@@ -1403,8 +1396,8 @@ export async function closeActiveWtoPendingOutForSalesBillReturn(tx: TxClient, i
         product_id: hold.product_id,
         qty_in: 0,
         qty_out: lossQty,
-        ref_id: input.salesBillDocNo,
-        ref_no: input.salesBillDocNo,
+        ref_id: hold.source_doc_no,
+        ref_no: hold.source_doc_no,
         ref_type: 'WTO-RETURN-LOSS',
         return_reason: input.reason ?? null,
         sales_channel_id: input.salesChannelId ?? null,
@@ -1434,4 +1427,149 @@ export async function closeActiveWtoPendingOutForSalesBillReturn(tx: TxClient, i
     weightTicketId: hold.weight_ticket_id,
     weightTicketLineId: hold.weight_ticket_line_id,
   } satisfies ReturnedWtoPendingOutResult
+}
+
+export async function closeActiveWtoPendingOutForWtoReturn(tx: TxClient, input: {
+  actor: string
+  note?: string | null
+  productCode: string
+  reason?: string | null
+  returnDate: Date
+  returnedQty: number
+  salesBillDocNo?: string | null
+  warehouseCode: string
+  weightTicketId: bigint
+}) {
+  const holds = await tx.stock_holds.findMany({
+    include: {
+      products: { select: { code: true, id: true, name: true } },
+      warehouses: { select: { code: true, name: true } },
+      weight_tickets: { select: { doc_no: true, doc_type: true, id: true } },
+    },
+    orderBy: [{ source_line_no: 'asc' }, { id: 'asc' }],
+    where: {
+      source_type: 'WTO',
+      status: 'active',
+      weight_ticket_id: input.weightTicketId,
+    },
+  })
+  const normalizedProductCode = normalizeCode(input.productCode)
+  const normalizedWarehouseCode = normalizeCode(input.warehouseCode)
+  const groupedHolds = holds.filter((hold) => (
+    normalizeCode(hold.products.code) === normalizedProductCode
+    && normalizeCode(hold.warehouses.code) === normalizedWarehouseCode
+  ))
+  if (groupedHolds.length === 0) {
+    throw new WtoPendingOutError('ไม่พบ pending_out ของสินค้าและคลังที่พร้อมรับคืน กรุณาโหลดข้อมูลใหม่')
+  }
+
+  const firstHold = groupedHolds[0]
+  if (!firstHold) {
+    throw new WtoPendingOutError('ไม่พบ pending_out ของสินค้าและคลังที่พร้อมรับคืน กรุณาโหลดข้อมูลใหม่')
+  }
+  if (firstHold.weight_tickets.doc_type !== 'WTO') {
+    throw new WtoPendingOutError('รับคืนได้เฉพาะ pending_out จากใบส่งของ WTO')
+  }
+
+  const pendingQty = Number(groupedHolds.reduce((sum, hold) => sum + toNumber(hold.qty), 0).toFixed(2))
+  const normalizedReturnedQty = Number(Math.max(0, Math.min(pendingQty, input.returnedQty)).toFixed(2))
+  const lossQty = Number(Math.max(0, pendingQty - normalizedReturnedQty).toFixed(2))
+  if (pendingQty <= 0.0001) {
+    throw new WtoPendingOutError('pending_out นี้ไม่มีจำนวนคงเหลือให้รับคืน')
+  }
+  if (input.returnedQty < -0.0001) {
+    throw new WtoPendingOutError('น้ำหนักรับคืนต้องไม่ติดลบ')
+  }
+  if (input.returnedQty > pendingQty + 0.0001) {
+    throw new WtoPendingOutError(`น้ำหนักรับคืนเกิน pending_out (${pendingQty.toLocaleString('th-TH', { maximumFractionDigits: 2 })} กก.)`)
+  }
+  if (lossQty > 0.0001 && !input.reason?.trim()) {
+    throw new WtoPendingOutError('น้ำหนักรับคืนไม่เท่ากับ pending_out ต้องกรอกเหตุผลส่วนต่างก่อนบันทึก', {
+      reason: ['กรอกเหตุผลส่วนต่าง'],
+    })
+  }
+
+  const weightedCostRows = groupedHolds.map((hold) => {
+    if (hold.unit_cost_snapshot == null) {
+      throw new WtoPendingOutError(`pending_out ${hold.hold_key} ยังไม่มีราคาต้นทุนเฉลี่ยที่บันทึกไว้ ไม่สามารถบันทึกรับคืนได้`)
+    }
+    const qty = toNumber(hold.qty)
+    const unitCost = toNumber(hold.unit_cost_snapshot)
+    return { qty, unitCost, value: qty * unitCost }
+  })
+  const lossUnitCost = lossQty > 0.0001
+    ? Number((weightedCostRows.reduce((sum, row) => sum + row.value, 0) / pendingQty).toFixed(6))
+    : 0
+  const lossValueOut = Number((lossQty * lossUnitCost).toFixed(2))
+
+  const now = new Date()
+  const holdIds = groupedHolds.map((hold) => hold.id)
+  const updated = await tx.stock_holds.updateMany({
+    data: {
+      note: lossQty > 0.0001 ? input.reason ?? input.note ?? null : input.note ?? null,
+      release_reason: lossQty > 0.0001 ? 'wto_return_loss' : 'wto_return',
+      released_at: now,
+      released_by: input.actor,
+      status: 'released',
+      updated_at: now,
+      updated_by: input.actor,
+    },
+    where: {
+      id: { in: holdIds },
+      status: 'active',
+    },
+  })
+  if (updated.count !== holdIds.length) {
+    throw new WtoPendingOutError('pending_out บางรายการถูกเปลี่ยนสถานะไปแล้ว กรุณาโหลดข้อมูลใหม่')
+  }
+
+  if (lossQty > 0.0001) {
+    await tx.stock_ledger.create({
+      data: {
+        branch_id: firstHold.branch_id,
+        created_by: input.actor,
+        date: input.returnDate,
+        lot_no: null,
+        movement_type: 'ของขาดจากรับคืน WTO',
+        note: input.reason ?? `รับคืน WTO ${firstHold.source_doc_no} ไม่ครบ`,
+        notes: input.salesBillDocNo
+          ? `ปิด pending_out ${firstHold.source_doc_no} อ้างอิง SB ${input.salesBillDocNo}`
+          : `ปิด pending_out ${firstHold.source_doc_no}`,
+        not_available_for_sale: false,
+        output_category: firstHold.output_category,
+        product_id: firstHold.product_id,
+        qty_in: 0,
+        qty_out: lossQty,
+        ref_id: firstHold.source_doc_no,
+        ref_no: firstHold.source_doc_no,
+        ref_type: 'WTO-RETURN-LOSS',
+        return_reason: input.reason ?? null,
+        sales_channel_id: null,
+        unit_cost: lossUnitCost,
+        value_in: 0,
+        value_out: lossValueOut,
+        warehouse_id: firstHold.warehouse_id,
+      },
+    })
+  }
+
+  return {
+    branchId: firstHold.branch_id,
+    holdIds,
+    holdKeys: groupedHolds.map((hold) => hold.hold_key),
+    lossQty,
+    lossUnitCost,
+    lossValueOut,
+    pendingQty,
+    productCode: firstHold.products.code,
+    productId: firstHold.product_id,
+    productName: firstHold.products.name,
+    returnedQty: normalizedReturnedQty,
+    salesBillDocNo: input.salesBillDocNo ?? null,
+    sourceDocNo: firstHold.source_doc_no,
+    warehouseCode: firstHold.warehouses.code,
+    warehouseId: firstHold.warehouse_id,
+    warehouseName: firstHold.warehouses.name,
+    weightTicketId: firstHold.weight_ticket_id,
+  } satisfies ReturnedWtoPendingOutGroupResult
 }

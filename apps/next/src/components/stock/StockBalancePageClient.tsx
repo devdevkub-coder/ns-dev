@@ -1169,7 +1169,7 @@ function ProductPanel({ averageCost, info, onClose, onOpen, rows }: {
           <div className="text-lg font-bold mt-1 text-emerald-700 tabular-nums">{formatMoney(info.ready)} <span className="text-xs font-normal">กก.</span></div>
         </div>
       </div>
-      <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
           <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">📜 รายการสต๊อกของสินค้านี้ ({rows.length} รายการ)</h4>
           <span className="text-xs text-slate-400 font-medium">กดรายการเพื่อดูข้อมูลย่อย</span>
@@ -1356,12 +1356,10 @@ function MatrixTable({
   return (
     <>
       {/* Desktop View (Table) */}
-      <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-200/85 bg-white shadow-sm overflow-hidden">
+      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
         <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
           {columnResize.hasCustomWidths ? (
-            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
-              คืนค่าเดิมตาราง
-            </button>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           ) : null}
         </div>
         <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
@@ -1694,12 +1692,10 @@ function DetailTable({
       </div>
 
       {/* Desktop View */}
-      <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-200/85 bg-white shadow-sm overflow-hidden">
+      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
         <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
           {columnResize.hasCustomWidths ? (
-            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
-              คืนค่าเดิมตาราง
-            </button>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           ) : null}
         </div>
         <table className="w-full text-sm text-slate-700" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>

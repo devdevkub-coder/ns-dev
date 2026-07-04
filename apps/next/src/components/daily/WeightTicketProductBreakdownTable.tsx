@@ -162,6 +162,8 @@ function timelinePendingOutChangeLabel(
   if (row.eventType === 'sales_bill_cancel_reopen') return 'คืนจากยกเลิกบิลขาย'
   if (row.eventType === 'sales_bill_return') return 'รับของคืน'
   if (row.eventType === 'sales_bill_return_loss') return 'ของขาดจากรับคืน'
+  if (row.eventType === 'wto_return') return 'รับของคืน'
+  if (row.eventType === 'wto_return_loss') return 'ของขาดจากรับคืน'
   if (event.action !== 'edited') return costSourceLabel(row.costSnapshotSource)
 
   const note = metadataText(event.metadata, 'note')

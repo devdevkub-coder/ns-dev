@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/Dialog'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { Button } from '@/components/ui/Button'
 import { AlertTriangle, Download, RotateCcw, Search } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -393,16 +392,15 @@ export function StockLedgerPageClient() {
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mb-3">
+      <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:hidden">
         <div>พบทั้งหมด <span className="font-semibold text-slate-900">{data?.total ?? 0}</span> รายการ</div>
         <div className="flex items-center gap-2">
-          {columnResize.hasCustomWidths ? <Button size="xs" type="button" variant="outline" className="hidden lg:inline-flex" onClick={columnResize.resetColumnWidths}>คืนค่าตาราง</Button> : null}
-          <select aria-label="จำนวนรายการต่อหน้า" className="h-8 text-xs rounded-md border border-slate-300 px-2 bg-white text-slate-800" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
+          <select aria-label="จำนวนรายการต่อหน้า" className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
             {stockLedgerPageSizes.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
           </select>
-          <Button disabled={page <= 1} size="xs" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
+          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
           <span className="px-1">หน้า {page} / {totalPages}</span>
-          <Button disabled={page >= totalPages} size="xs" type="button" variant="outline" onClick={() => setPage((value) => value + 1)}>ถัดไป</Button>
+          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => value + 1)}>ถัดไป</button>
         </div>
       </div>
 
@@ -469,8 +467,25 @@ export function StockLedgerPageClient() {
       </div>
 
       {/* Desktop Table View */}
-      <div className="hidden overflow-x-auto rounded-md bg-white shadow lg:block">
-        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+      <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+          <div>พบทั้งหมด <span className="font-semibold text-slate-900">{data?.total ?? 0}</span> รายการ</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select aria-label="จำนวนรายการต่อหน้า" className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
+              {stockLedgerPageSizes.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+            </select>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
+            <span className="px-1">หน้า {page} / {totalPages}</span>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => value + 1)}>ถัดไป</button>
+            {columnResize.hasCustomWidths ? (
+              <button className="h-9 rounded-md bg-slate-100 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={columnResize.resetColumnWidths}>
+                คืนค่าตาราง
+              </button>
+            ) : null}
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+        <table className="w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {stockLedgerColumns.map((column) => {
               const style = columnResize.getColumnStyle(column.key);
@@ -528,6 +543,7 @@ export function StockLedgerPageClient() {
             {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ยังไม่มี Stock Movement</td></tr> : null}
           </tbody>
         </table>
+        </div>
       </div>
       
       {selectedRow ? <StockLedgerDetailModal row={selectedRow} onClose={() => setSelectedRow(null)} /> : null}

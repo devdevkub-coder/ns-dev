@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
 import { Plus } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -894,126 +894,6 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       >
         <Plus className="h-6 w-6" />
       </a>
-      {mode === 'status-convert' ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
-          <span>พบทั้งหมด {rows.length} รายการ</span>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <select
-              className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700"
-              value={String(statusConvertPageSize)}
-              onChange={(event) => {
-                setStatusConvertPageSize(Number(event.target.value))
-                setStatusConvertPage(1)
-              }}
-            >
-              {OPERATION_PAGE_SIZES.map((pageSize) => (
-                <option key={pageSize} value={pageSize}>
-                  {pageSize} / หน้า
-                </option>
-              ))}
-            </select>
-            <button
-              className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={statusConvertPage <= 1}
-              type="button"
-              onClick={() => setStatusConvertPage((currentPage) => Math.max(1, currentPage - 1))}
-            >
-              ก่อนหน้า
-            </button>
-            <span className="px-1">หน้า {statusConvertPage} / {statusConvertTotalPages}</span>
-            <button
-              className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={statusConvertPage >= statusConvertTotalPages}
-              type="button"
-              onClick={() => setStatusConvertPage((currentPage) => Math.min(statusConvertTotalPages, currentPage + 1))}
-            >
-              ถัดไป
-            </button>
-          </div>
-        </div>
-      ) : null}
-      {mode === 'adjust' ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-normal text-slate-600">
-          <span>
-            พบทั้งหมด {rows.length} รายการ
-            {rows.length > 0 ? `  แสดง ${(adjustPage - 1) * adjustPageSize + 1}-${Math.min(adjustPage * adjustPageSize, rows.length)}` : ''}
-          </span>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <select
-              className="h-9 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-normal text-slate-700"
-              value={String(adjustPageSize)}
-              onChange={(event) => {
-                setAdjustPageSize(Number(event.target.value))
-                setAdjustPage(1)
-              }}
-            >
-              {OPERATION_PAGE_SIZES.map((pageSize) => (
-                <option key={pageSize} value={pageSize}>
-                  {pageSize} / หน้า
-                </option>
-              ))}
-            </select>
-            <button
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={adjustPage <= 1}
-              type="button"
-              onClick={() => setAdjustPage((currentPage) => Math.max(1, currentPage - 1))}
-            >
-              ก่อนหน้า
-            </button>
-            <span className="px-1 text-sm font-normal text-slate-600">หน้า {adjustPage} / {adjustTotalPages}</span>
-            <button
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={adjustPage >= adjustTotalPages}
-              type="button"
-              onClick={() => setAdjustPage((currentPage) => Math.min(adjustTotalPages, currentPage + 1))}
-            >
-              ถัดไป
-            </button>
-          </div>
-        </div>
-      ) : null}
-      {mode === 'convert' ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-normal text-slate-600">
-          <span>
-            พบทั้งหมด {rows.length} รายการ
-            {rows.length > 0 ? `  แสดง ${(convertPage - 1) * convertPageSize + 1}-${Math.min(convertPage * convertPageSize, rows.length)}` : ''}
-          </span>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <select
-              className="h-9 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-normal text-slate-700"
-              value={String(convertPageSize)}
-              onChange={(event) => {
-                setConvertPageSize(Number(event.target.value))
-                setConvertPage(1)
-              }}
-            >
-              {OPERATION_PAGE_SIZES.map((pageSize) => (
-                <option key={pageSize} value={pageSize}>
-                  {pageSize} / หน้า
-                </option>
-              ))}
-            </select>
-            <button
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={convertPage <= 1}
-              type="button"
-              onClick={() => setConvertPage((currentPage) => Math.max(1, currentPage - 1))}
-            >
-              ก่อนหน้า
-            </button>
-            <span className="px-1 text-sm font-normal text-slate-600">หน้า {convertPage} / {convertTotalPages}</span>
-            <button
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={convertPage >= convertTotalPages}
-              type="button"
-              onClick={() => setConvertPage((currentPage) => Math.min(convertTotalPages, currentPage + 1))}
-            >
-              ถัดไป
-            </button>
-          </div>
-        </div>
-      ) : null}
       <Dialog
         open={formOpen}
         onOpenChange={(open) => {
@@ -1049,6 +929,46 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
         onSortChange={mode === 'status-convert' ? (key) => toggleStatusConvertSort(key as StatusConvertSortKey) : mode === 'adjust' || mode === 'convert' ? toggleOperationSort : undefined}
         onConvertReverse={mode === 'convert' ? reverseConvert : undefined}
         onStatusConvertReverse={mode === 'status-convert' ? reverseStatusConvert : undefined}
+        paginationControls={mode === 'status-convert' ? (
+          <OperationPaginationControls
+            currentPage={statusConvertPage}
+            pageSize={statusConvertPageSize}
+            totalLabel={`พบทั้งหมด ${rows.length} รายการ`}
+            totalPages={statusConvertTotalPages}
+            onNext={() => setStatusConvertPage((currentPage) => Math.min(statusConvertTotalPages, currentPage + 1))}
+            onPageSizeChange={(nextPageSize) => {
+              setStatusConvertPageSize(nextPageSize)
+              setStatusConvertPage(1)
+            }}
+            onPrevious={() => setStatusConvertPage((currentPage) => Math.max(1, currentPage - 1))}
+          />
+        ) : mode === 'adjust' ? (
+          <OperationPaginationControls
+            currentPage={adjustPage}
+            pageSize={adjustPageSize}
+            totalLabel={`พบทั้งหมด ${rows.length} รายการ${rows.length > 0 ? `  แสดง ${(adjustPage - 1) * adjustPageSize + 1}-${Math.min(adjustPage * adjustPageSize, rows.length)}` : ''}`}
+            totalPages={adjustTotalPages}
+            onNext={() => setAdjustPage((currentPage) => Math.min(adjustTotalPages, currentPage + 1))}
+            onPageSizeChange={(nextPageSize) => {
+              setAdjustPageSize(nextPageSize)
+              setAdjustPage(1)
+            }}
+            onPrevious={() => setAdjustPage((currentPage) => Math.max(1, currentPage - 1))}
+          />
+        ) : (
+          <OperationPaginationControls
+            currentPage={convertPage}
+            pageSize={convertPageSize}
+            totalLabel={`พบทั้งหมด ${rows.length} รายการ${rows.length > 0 ? `  แสดง ${(convertPage - 1) * convertPageSize + 1}-${Math.min(convertPage * convertPageSize, rows.length)}` : ''}`}
+            totalPages={convertTotalPages}
+            onNext={() => setConvertPage((currentPage) => Math.min(convertTotalPages, currentPage + 1))}
+            onPageSizeChange={(nextPageSize) => {
+              setConvertPageSize(nextPageSize)
+              setConvertPage(1)
+            }}
+            onPrevious={() => setConvertPage((currentPage) => Math.max(1, currentPage - 1))}
+          />
+        )}
       />
 
       {convertDetail ? (
@@ -1134,6 +1054,7 @@ function OperationTable({
   onConvertReverse,
   onStatusConvertReverse,
   onSortChange,
+  paginationControls,
   rows,
   sortDirection,
   sortKey,
@@ -1146,6 +1067,7 @@ function OperationTable({
   onConvertReverse?: (refNo: string) => void
   onStatusConvertReverse?: (refNo: string) => void
   onSortChange?: (key: string) => void
+  paginationControls?: ReactNode
   rows: Payload['rows']
   sortDirection?: SortDirection
   sortKey?: string
@@ -1158,6 +1080,12 @@ function OperationTable({
   const columns = columnsFor(mode)
   return (
     <>
+      {paginationControls ? (
+        <div className="flex flex-col gap-3 rounded-md bg-white p-3 text-sm text-slate-600 shadow sm:flex-row sm:items-center sm:justify-between lg:hidden">
+          {paginationControls}
+        </div>
+      ) : null}
+
       {/* Mobile Card List (Hidden on Desktop) */}
       <div className="block space-y-3 lg:hidden">
         {isLoading ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
@@ -1349,15 +1277,23 @@ function OperationTable({
       </div>
 
       {/* Desktop Table (Hidden on Mobile) */}
-      <div className="hidden overflow-x-auto rounded-md bg-white shadow lg:block overflow-hidden">
-        <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
-          {columnResize.hasCustomWidths ? (
-            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
-              คืนค่าเดิมตาราง
-            </button>
-          ) : null}
-        </div>
-        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+      <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        {paginationControls || columnResize.hasCustomWidths ? (
+          <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+            {paginationControls}
+            {columnResize.hasCustomWidths ? (
+              <button
+                className="h-9 rounded-md bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+                type="button"
+                onClick={columnResize.resetColumnWidths}
+              >
+                คืนค่าเดิมตาราง
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {columns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -1393,6 +1329,61 @@ function OperationTable({
             {!isLoading && !rows.length ? <tr><td className="p-8 text-center text-slate-400" colSpan={columns.length}>{emptyTextFor(mode)}</td></tr> : null}
           </tbody>
         </table>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function OperationPaginationControls({
+  currentPage,
+  onNext,
+  onPageSizeChange,
+  onPrevious,
+  pageSize,
+  totalLabel,
+  totalPages,
+}: {
+  currentPage: number
+  onNext: () => void
+  onPageSizeChange: (pageSize: number) => void
+  onPrevious: () => void
+  pageSize: number
+  totalLabel: string
+  totalPages: number
+}) {
+  return (
+    <>
+      <span>{totalLabel}</span>
+      <div className="flex flex-wrap items-center justify-end gap-2 sm:ml-auto">
+        <select
+          className="h-9 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-normal text-slate-700"
+          value={String(pageSize)}
+          onChange={(event) => onPageSizeChange(Number(event.target.value))}
+        >
+          {OPERATION_PAGE_SIZES.map((option) => (
+            <option key={option} value={option}>
+              {option} / หน้า
+            </option>
+          ))}
+        </select>
+        <button
+          className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={currentPage <= 1}
+          type="button"
+          onClick={onPrevious}
+        >
+          ก่อนหน้า
+        </button>
+        <span className="px-1 text-sm font-normal text-slate-600">หน้า {currentPage} / {totalPages}</span>
+        <button
+          className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={currentPage >= totalPages}
+          type="button"
+          onClick={onNext}
+        >
+          ถัดไป
+        </button>
       </div>
     </>
   )
@@ -1774,15 +1765,16 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
             <Metric cardClassName="rounded-md bg-white border border-slate-200/60 p-3 shadow-sm" label="Variance" value={formatMoney(detail.targetCostVariance)} />
           </div>
           <div className="p-4">
-            <div className="overflow-auto rounded-md bg-white shadow overflow-hidden">
-              <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
+            <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+              <div className="flex justify-end border-b border-slate-100 bg-white px-3 py-3">
                 {columnResize.hasCustomWidths ? (
-                  <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+                  <button className="h-9 rounded-md bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={columnResize.resetColumnWidths}>
                     คืนค่าเดิมตาราง
                   </button>
                 ) : null}
               </div>
-              <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
                 <colgroup>
                   {detailColumns.map((col) => (
                     <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -1826,6 +1818,7 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
                   {!detail.lines.length ? <tr><td className="p-8 text-center text-slate-400" colSpan={9}>ไม่พบ allocation lines สำหรับเอกสารนี้</td></tr> : null}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         </div>

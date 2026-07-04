@@ -97,6 +97,35 @@ export type WeightTicketPendingOutEventRecord = {
   warehouseName: string
 }
 
+export type AggregateWtoPendingOutEventInput = {
+  actor: string
+  costSnapshotAt?: Date | null
+  costSnapshotNote?: string | null
+  costSnapshotSource?: string | null
+  eventType: string
+  meta?: Prisma.InputJsonValue
+  note?: string | null
+  occurredAt: Date
+  productCodeSnapshot?: string | null
+  productId?: bigint | null
+  productNameSnapshot: string
+  qty: number
+  qtyAfter?: number | null
+  qtyBefore?: number | null
+  referenceDocNo?: string | null
+  referenceDocType?: string | null
+  sourceLineNo?: number | null
+  statusLogEventKey?: string | null
+  statusSnapshot?: string
+  unitCostSnapshot?: number | null
+  usageLogEventKey?: string | null
+  warehouseCodeSnapshot?: string | null
+  warehouseId?: bigint | null
+  warehouseNameSnapshot: string
+  weightTicketDocNo: string
+  weightTicketId: bigint
+}
+
 export async function appendWtoPendingOutEventsFromHolds(tx: DbClient, input: WtoPendingOutEventInput) {
   if (!input.holdIds.length) return
 
@@ -203,6 +232,71 @@ export async function appendWtoPendingOutEventsFromHolds(tx: DbClient, input: Wt
       on conflict do nothing
     `
   }
+}
+
+export async function appendAggregateWtoPendingOutEvent(tx: DbClient, input: AggregateWtoPendingOutEventInput) {
+  await tx.$executeRaw`
+    insert into public.weight_ticket_pending_out_events (
+      weight_ticket_id,
+      weight_ticket_doc_no,
+      status_log_event_key,
+      usage_log_event_key,
+      event_type,
+      source_hold_key,
+      source_line_no,
+      weight_ticket_line_id,
+      product_id,
+      product_code_snapshot,
+      product_name_snapshot,
+      warehouse_id,
+      warehouse_code_snapshot,
+      warehouse_name_snapshot,
+      qty,
+      qty_before,
+      qty_after,
+      unit_cost_snapshot,
+      value_snapshot,
+      cost_snapshot_at,
+      cost_snapshot_source,
+      status_snapshot,
+      reference_doc_no,
+      reference_doc_type,
+      occurred_at,
+      actor,
+      note,
+      meta
+    )
+    values (
+      ${input.weightTicketId},
+      ${input.weightTicketDocNo},
+      ${input.statusLogEventKey ?? null},
+      ${input.usageLogEventKey ?? null},
+      ${input.eventType},
+      ${null},
+      ${input.sourceLineNo ?? null},
+      ${null},
+      ${input.productId ?? null},
+      ${input.productCodeSnapshot ?? null},
+      ${input.productNameSnapshot},
+      ${input.warehouseId ?? null},
+      ${input.warehouseCodeSnapshot ?? null},
+      ${input.warehouseNameSnapshot},
+      ${input.qty},
+      ${input.qtyBefore ?? null},
+      ${input.qtyAfter ?? null},
+      ${input.unitCostSnapshot ?? null},
+      ${input.unitCostSnapshot == null ? null : input.qty * input.unitCostSnapshot},
+      ${input.costSnapshotAt ?? null},
+      ${input.costSnapshotSource ?? null},
+      ${input.statusSnapshot ?? 'released'},
+      ${input.referenceDocNo ?? null},
+      ${input.referenceDocType ?? 'WTO'},
+      ${input.occurredAt},
+      ${input.actor},
+      ${input.note ?? input.costSnapshotNote ?? null},
+      cast(${JSON.stringify(input.meta ?? {})} as jsonb)
+    )
+  `
 }
 
 async function appendWtoPendingOutEventsForHoldRefs(tx: DbClient, refs: HoldRefRow[], input: Omit<WtoPendingOutEventInput, 'holdIds' | 'weightTicketId'>) {

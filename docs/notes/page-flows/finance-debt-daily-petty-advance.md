@@ -50,7 +50,7 @@ Legacy `view-pettyAdvance` มี:
 
 ## Page Responsibilities
 
-- แสดงรายการ `PADV` พร้อมยอดจ่าย, ใช้ไป, คืนแล้ว, คงเหลือ
+- แสดงรายการ `PADV` พร้อมยอดจ่าย, คืนแล้ว, คงเหลือ
 - สร้าง/แก้ `PADV` ด้วยผู้รับเงินจาก master `director_employees`
 - snapshot ชื่อผู้รับเงินและบัญชีรับเงินลงเอกสาร
 - บันทึกคืนเงิน `PRET`
@@ -121,22 +121,22 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - ผู้รับเงิน
 - บัญชีรับเงิน snapshot
 - จำนวนเงิน
-- ใช้ไป
 - คืนแล้ว
 - คงเหลือ
 - สถานะ
-- Action: ดู, คืนเงิน, แก้ ตาม lock
+- Action: แสดงเฉพาะปุ่มที่กดได้จริง เช่น คืนเงิน, แก้ ตาม lock; เปิด detail โดยกดทั้งแถว
 
 Filter:
 
 - search จากเลขเอกสาร/ผู้รับเงิน/หมายเหตุ
 - segmented ประเภท
 - segmented สถานะ แยกบรรทัดตาม design
+- list surface ใช้ตารางหลักเดียวทุกขนาดจอ; ไม่ใช้ mobile card list แยกอีกชุด
 
 ## Current Code Baseline
 
 - Current `apps/next` page/API code is accepted as the implementation baseline as of 2026-06-11.
-- Current `spent` ยังเป็น `0` เพราะ expense allocation กับ `PADV` ยังไม่ finalize.
+- หน้า `/daily/petty-advance` ไม่แสดง field `ใช้ไปแล้ว` แล้ว เพื่อไม่ให้สื่อความหมายผิดกับ flow ปัจจุบันที่ยังไม่ได้ finalize expense allocation จาก `PADV`
 - Current API ไม่ expose `created_at` ใน row payload; target list/export ควรเพิ่ม.
 
 ## Current Gap

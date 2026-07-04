@@ -11,7 +11,7 @@ tags:
   - page-flow
 status: draft
 created: 2026-06-10
-updated: 2026-06-25
+updated: 2026-07-02
 ---
 
 # Sales Bills Page Flow / Flow หน้า `/sales/bills`
@@ -51,11 +51,12 @@ updated: 2026-06-25
 - Stock SB COGS ใช้ต้นทุนเฉลี่ย ณ เวลาขาย: ตอน consume WTO pending_out ระบบ snapshot ต้นทุนลง `stock_ledger.unit_cost/value_out` ของ `SB`; detail/report ต้องอ่าน COGS จาก SB ledger ที่ posted แล้ว ไม่คำนวณใหม่จาก WAC ปัจจุบัน
 - `GET /api/sales/bills/[id]` เป็น detail/read model ของบิลขายเท่านั้น ไม่แสดงฟอร์มรับของคืน; action รับคืนต้องเริ่มจาก detail ของ `WTO` เพื่อให้ user เห็นว่าเป็นการปิด remaining `pending_out` ของใบส่งของ
 - Business language ของ source ค้างส่งคือ `pending_out / รอออก` เท่านั้น; `stock_holds` เป็นชื่อ technical table ใน DB ไม่ใช่คำที่ UI/API business contract ควรใช้
-- `POST /api/sales/bills/[id]/stock-return` ปิด remaining `pending_out` จาก SB partial billing: ถ้ารับคืนครบให้ release pending_out กลับเป็น available โดยไม่เขียน ledger; ถ้ารับคืนจริงน้อยกว่า pending_out ต้องบังคับเหตุผล, release เฉพาะน้ำหนักที่คืน, ปิดส่วนต่างเป็น `lost`, และเขียน `stock_ledger.ref_type = WTO-RETURN-LOSS` เป็น qty_out/value_out
+- `POST /api/daily/weight-tickets/[id]/stock-return` เป็น write endpoint canonical ของ `WTO return`: รับ payload ระดับ `WTO + สินค้า + คลัง`, aggregate active `pending_out` ใน server, รับคืนครบแล้ว release โดยไม่เขียน ledger, รับคืนขาดแล้วเขียน `stock_ledger.ref_type = WTO-RETURN-LOSS` 1 row ต่อสินค้า+คลัง
 - `GET /api/daily/weight-tickets/[id]/stock-returns` เป็น read model สำหรับปุ่ม `รับของคืน` บน `WTO`: ต้องคืนรายการเฉพาะเมื่อ WTO ถูกนำไปออก `SB` แล้วบางส่วนและยังมี active `pending_out` เหลืออยู่; ถ้าออกบิลครบ, ยังไม่ถูกออกบิล, หรือรับคืนแล้ว ต้องไม่แสดงปุ่ม
 - `PATCH /api/sales/bills/[id]` action `cancel` สำหรับ `STOCK` SB ที่ยังไม่มี active receipt: block active `RCP`, append `stock_ledger.ref_type = SB-CANCEL` ด้วย unit cost/value เดิมของ `SB` โดยไม่ลบ `SB`, append `released_from_sales_bill`, append `po_sell_allocation_logs.released_from_sales_bill`, reverse `PO Sell` usage, mark `SB` เป็น `cancelled`, และ append `sales_bill_status_logs`; ถ้า WTO ยังไม่เคยรับของคืนให้ reopen consumed `WTO` pending_out กลับเป็น `pending_out`, แต่ถ้าเคยรับของคืนแล้วห้าม reopen pending_out ซ้ำและให้ `SB-CANCEL` คืน stock ตรง
-- `PATCH /api/sales/bills/[id]` edit สำหรับ `STOCK` SB ตอนนี้รองรับ stock delta correction บน `WTO` เดิมใบเดิมแล้ว: ยังคง lock branch/customer/source/product/line-count/business identity, แต่แก้ `จำนวนที่ขายได้`, `หักสิ่งเจือปน`, `น้ำหนักขายสุทธิ`, `PO Sell`, ราคา, ส่วนลด, VAT/header, export order, และ Customer advance ได้ใน transaction เดียว เมื่อ `WTO pending_out` ที่ bill นี้ consume ลดลง ระบบจะคืน stock ตาม delta และ release consumed pending_out slice กลับเป็น active; เมื่อเพิ่มขึ้นภายใน `WTO` เดิม ระบบจะ consume pending_out เพิ่มและตัด stock เพิ่มตาม delta; ถ้าเคยมี `returned_from_sales_bill` หรือ `loss_from_sales_bill` แล้ว ระบบจะ reject normal edit และบังคับให้ไปใช้ flow correction เฉพาะทาง
-- Cancel-after-return rule เป็น strict fact check: ถ้ามี `weight_ticket_usage_logs.action in (returned_from_sales_bill, loss_from_sales_bill)` ของ SB นั้นแล้ว cancel ห้าม append `released_from_sales_bill` หรือ increment `weight_ticket_product_summaries.remaining_weight` ซ้ำ
+- `PATCH /api/sales/bills/[id]` edit สำหรับ `STOCK` SB ตอนนี้รองรับ stock delta correction บน `WTO` เดิมใบเดิมแล้ว: ยังคง lock branch/customer/source/product/line-count/business identity, แต่แก้ `จำนวนที่ขายได้`, `หักสิ่งเจือปน`, `น้ำหนักขายสุทธิ`, `PO Sell`, ราคา, ส่วนลด, VAT/header, export order, และ Customer advance ได้ใน transaction เดียว เมื่อ `WTO pending_out` ที่ bill นี้ consume ลดลง ระบบจะคืน stock ตาม delta และ release consumed pending_out slice กลับเป็น active; เมื่อเพิ่มขึ้นภายใน `WTO` เดิม ระบบจะ consume pending_out เพิ่มและตัด stock เพิ่มตาม delta; ถ้าเคยมี `returned_from_wto` หรือ `loss_from_wto_return` แล้ว ระบบจะ reject normal edit และบังคับให้ไปใช้ flow correction เฉพาะทาง
+- หน้า list/read model ของ `Sales Bill` ต้อง lock ปุ่ม `แก้ไข` ด้วย rule เดียวกันกับ write API: ถ้า `WTO` ของบิลนั้นมี `returned_from_wto` หรือ `loss_from_wto_return` ผูกกลับมาที่ `SALES_BILL` แล้ว ต้องตั้ง `canEdit = false` และแสดงเหตุผลว่าเอกสารถูกปิด flow รับของคืนแล้ว ห้ามปล่อยให้ user เปิดฟอร์มแก้ไขได้ก่อนแล้วค่อยเจอ error ตอนบันทึก
+- Cancel-after-return rule เป็น strict fact check: ถ้ามี `weight_ticket_usage_logs.action in (returned_from_wto, loss_from_wto_return)` ของ SB นั้นแล้ว cancel ห้าม append `released_from_sales_bill` หรือ increment `weight_ticket_product_summaries.remaining_weight` ซ้ำ
 - หลัง `SB-CANCEL` หรือรับคืนแบบมี loss WAC ปัจจุบันอาจเปลี่ยนจาก ledger ที่ posted จริง: `SB-CANCEL` คืน stock ด้วย cost snapshot เดิมของ SB, ส่วน `WTO-RETURN-LOSS` ตัด value ออกจาก stock ด้วย WAC ของ bucket ณ เวลาปิดรับคืน
 - หลังสร้างหรือแก้ไข `SB` สำเร็จ หน้า list ต้อง reload ด้วย search/filter/page context เดิมของผู้ใช้เท่านั้น ห้าม auto ใส่เลข `SB` ที่เพิ่งบันทึกลง search box เพราะจะทำให้ตารางถูก filter เหลือแค่บิลนั้นโดยไม่ตั้งใจ
 - ถ้าเลือก `ออกใบกำกับภาษีแล้ว` ใน `SB` form ต้องบังคับกรอกทั้ง `เลขที่ใบกำกับภาษี` และ `วันที่ใบกำกับภาษี`; UI ต้อง mark เป็น required และ API ต้อง reject payload ที่ขาด field ใด field หนึ่ง
@@ -116,6 +117,7 @@ Index minimum:
 - `po_sell_allocation_logs(sales_bill_id)`
 - `sales_bill_customer_advance_allocations(customer_advance_doc_no, status)`
 - `sales_bill_customer_advance_allocations(sales_bill_id, customer_advance_doc_no) where status = active` unique
+- `sales_bill_lines.line_no` เป็น durable identity ระดับบิล: create ใหม่ใช้เลข running ใหม่เสมอ, edit ห้าม reuse line_no ของ row ที่เคยถูก reverse/cancelled ไปแล้ว, และ API ต้อง reject payload ที่ส่ง `salesBillLineNo` ซ้ำหรือขาด line identity แทนการ fallback ไปตาม array index
 
 ### API Rules
 
@@ -147,16 +149,29 @@ Index minimum:
   - การสลับ WTO/source document, เปลี่ยน product/line count, หรือแก้หลังมี return/loss facts แล้ว ยังต้องใช้ dedicated append-only stock correction policy แยกต่างหาก
 - Edit modal must keep the original business identity locked like Purchase Bill: `transactionMode`, branch, Customer, WTO source, and Trading PB/Cost Source selectors are read-only/disabled. Changing `STOCK` to `TRADING` or swapping source documents is not a normal edit; it requires cancel/reissue or a dedicated correction flow with append-only facts.
 
-`POST /api/sales/bills/{docNo}/stock-return`:
+`POST /api/daily/weight-tickets/{docNo}/stock-return`:
 
-- Action เริ่มจาก detail ของ `WTO` เท่านั้น ไม่อยู่ใน Sales Bill detail; Sales Bill API เป็น write endpoint เพื่อผูก audit กับ SB/WTO/product/warehouse
+- Action เริ่มและจบที่ detail ของ `WTO` เท่านั้น; route ฝั่ง `Sales Bill` เก่าถูก deprecate แล้ว
 - ใช้เฉพาะ `STOCK` SB ที่เคย consume WTO และยังมี active `stock_holds.status = active` จาก WTO นั้น
 - ปุ่ม `รับของคืน` ต้องแสดงบน WTO detail เมื่อ WTO มี active `pending_out` ที่ถูก SB ใช้ไปแล้วบางส่วนและยังเหลือรอปิดยอด; ถ้า WTO ยังไม่ถูกออกบิล, ออกบิลครบแล้ว, หรือปิดรับคืนแล้ว ต้องไม่แสดงปุ่ม
-- Payload ต้องระบุ `pendingOutKey`, `returnedQty`, `reason`, และ `note`; `reason` บังคับเมื่อ `returnedQty < pending_out`
-- ถ้า `returnedQty = pending_out`: update pending_out เป็น `released`, decrement `weight_ticket_product_summaries.remaining_weight`, append `weight_ticket_usage_logs.action = returned_from_sales_bill`, ไม่เขียน `stock_ledger` เพราะของก้อนนี้ยังไม่เคยถูก stock-out
-- ถ้า `returnedQty < pending_out`: split/close pending_out เป็น returned + lost, append `returned_from_sales_bill` สำหรับน้ำหนักที่คืน, append `loss_from_sales_bill` สำหรับส่วนต่าง, และเขียน `stock_ledger.ref_type = WTO-RETURN-LOSS` ด้วย `qty_out = lossQty`
+- Payload ต้องระบุ `productId`, `warehouseId`, `returnedQty`, และ `reason`; `salesBillDocNo` เป็น optional reference สำหรับ audit เท่านั้น และ `reason` บังคับเมื่อ `returnedQty < pending_out`
+- ถ้า `returnedQty = pending_out`: update pending_out ทั้งก้อนเป็น `released`, decrement `weight_ticket_product_summaries.remaining_weight`, append `weight_ticket_usage_logs.action = returned_from_wto`, ไม่เขียน `stock_ledger` เพราะของก้อนนี้ยังไม่เคยถูก stock-out
+- ถ้า `returnedQty < pending_out`: close pending_out ทั้งก้อน, append `returned_from_wto` สำหรับน้ำหนักที่คืน, append `loss_from_wto_return` สำหรับส่วนต่าง, และเขียน `stock_ledger.ref_type = WTO-RETURN-LOSS` ด้วย `qty_out = lossQty` เพียง 1 row ต่อสินค้า+คลัง
 - ถ้า `returnedQty > pending_out`: reject; น้ำหนักเกินจากที่ค้างต้องไปผ่าน stock adjust/flow รับเข้าอื่น ไม่ปนกับ return ของ WTO นี้
 - หลังปิด pending_out ต้องอัปเดต `WTO.status` เป็น `billed` เฉพาะเมื่อไม่มี remaining weight/active pending_out แล้ว ถ้ายังเหลือ active pending_out ให้เป็น `partially_billed`
+
+### WTO Pending Out Cancel / Return / Rebill Policy
+
+Policy clarified on 2026-07-02:
+
+- `WTO pending_out` เป็น source cap ฝั่ง stock เสมอ; `SB` commercial qty/AR อาจมากกว่าน้ำหนัก source ได้ตาม policy การค้า แต่ `stock_ledger.ref_type = SB` และ COGS ต้องตัดไม่เกินยอด `pending_out` ที่ WTO รองรับ
+- ตัวอย่าง `WTO = 100`, `SB commercial qty = 120`: stock consume และ COGS ต้องเป็น 100 เท่านั้น ส่วนเกิน 20 เป็นยอดการค้า/AR ที่ต้อง audit ชัดเจนหรือ reject ตาม policy หน้าจอ ห้ามสร้าง stock-out เกิน source
+- เมื่อ cancel `SB` ต้อง reverse จาก movement fact ที่เคย post จริง ไม่ใช่จาก commercial qty: ตัวอย่างข้างต้นให้เขียน `SB-CANCEL qty_in = 100` ไม่ใช่ 120
+- ถ้า `SB` ถูก cancel ก่อนมี return/loss จากบิลนั้น ให้ reopen consumed `WTO pending_out` กลับเป็น `active` เท่าจำนวนที่เคย consume จริงเท่านั้น; ตัวอย่าง `WTO = 100`, `SB = 120`, cancel แล้ว WTO pending_out กลับมา 100
+- หลัง cancel แล้ว WTO ที่ถูก reopen ยังเป็น source document เดิมและสามารถนำไปเปิด `SB` ใหม่ได้ ตราบใดที่ยังไม่ได้ปิดด้วย action `รับของคืน` หรือ loss
+- ถ้าหลัง cancel ผู้ใช้กด `รับของคืน`: รับคืนครบให้ release active pending_out โดยไม่เขียน stock-in ledger; รับคืนขาดให้ release เท่าที่คืนและเขียน `WTO-RETURN-LOSS` เฉพาะส่วนขาด; รับคืนเกิน pending_out ต้อง reject
+- ถ้าเคยรับของคืน/loss จาก `SB` นั้นแล้ว ภายหลัง cancel ห้าม reopen/recreate pending_out ซ้ำ; ให้ `SB-CANCEL` คืน stock ตาม `SB` movement เดิมและคง return/loss audit เดิมไว้
+- เมื่อ pending_out ถูกปิดด้วย `รับของคืน` หรือ loss แล้ว ห้ามนำ WTO เดิมไปเปิด `SB` ใหม่แบบปกติ ต้องออก WTO ใหม่หรือใช้ dedicated correction flow ที่ append audit ชัดเจน
 
 ## Canonical Create SB Flow
 
@@ -177,8 +192,8 @@ PO Sell
 | 2 | User | เลือกสาขาและ Customer | ใช้กรอง `WTO` ที่ยังไม่ถูกออกบิลและ `PO Sell` ที่ยังมี remaining |
 | 3 | User | เลือก `WTO` 1 ใบที่เป็น Customer/สาขาเดียวกัน | ระบบล็อก source สำคัญจาก `WTO` และดึงรายการสินค้า/น้ำหนักจากเอกสารส่งของ |
 | 4 | System | แสดงรายการสินค้าจาก `WTO` | line ต้องมาจาก snapshot ของ `WTO` เท่านั้น; ผู้ใช้ไม่กรอกสินค้าเองใน `STOCK` |
-| 5 | User | เลือก `PO Sell` หรือ `Spot Sale` ต่อ line เหมือนช่อง `อ้างอิง PO` ของบิลซื้อ | ระบบแสดงยอดคงเหลือของ PO Sell ที่ตรง Customer/สาขา/สินค้า |
-| 6 | System/User | แยกยอดเกิน PO Sell เป็น `Spot Sale` | ห้ามตัด PO Sell เกิน remaining; ส่วนเกินต้องเป็น Spot Sale แยก line/source |
+| 5 | User | กรอก `จำนวนที่ขายได้` / `หักสิ่งเจือปน` ก่อน แล้วเลือก `PO Sell` หรือ `Spot Sale` ต่อ line | ระบบเปลี่ยน reference, lock ราคาขาย/หน่วยตาม PO, และแสดงยอด `ใช้ในบิลนี้` / `คงเหลือ` ของ PO Sell ที่ตรง Customer/สาขา/สินค้า โดยอิงจาก `น้ำหนักขายสุทธิ` ปัจจุบันของ line |
+| 6 | System | ถ้าผู้ใช้เลือก `PO Sell` หลังจากกรอกยอดไว้แล้ว และยอดเกิน PO remaining ให้ auto split | row เดิมถูกลดเป็นส่วนที่ตัด PO ได้จริง และเพิ่ม row `Spot Sale` สำหรับส่วนเกินทันที |
 | 7 | User | กรอกราคาขาย, ส่วนลด, VAT, เครดิตเทอม, หมายเหตุ, และมัดจำที่จะหัก | totals ใช้ pattern เดียวกับ PB |
 | 8 | System | บันทึก `SB` | สร้าง `SB...`, AR, usage/allocation logs, PO Sell billed qty, Customer advance allocation ถ้ามี |
 | 9 | System | อัปเดตสถานะ source | `WTO` เป็น `ออกบิลแล้ว` เมื่อไม่มี pending_out เหลือ; ถ้าออกบิลบางส่วนให้เป็น `ออกบิลแล้วบางส่วน` เพื่อให้ปุ่ม `รับของคืน` บน WTO ปิดยอดค้างก่อน ส่วน `PO Sell` เป็น `ออกบิลบางส่วน` หรือ `ออกบิลแล้ว` ตามยอดจริง |
@@ -228,11 +243,12 @@ PO Sell
 
 - ถ้ายังไม่เลือก `WTO` ให้แสดง empty state ว่าให้เลือกใบส่งของก่อน ไม่แสดงแถวกรอกสินค้าเปล่า
 - เมื่อเลือก `WTO` แล้ว ระบบเติมรายการสินค้าจาก `WTO` product summary/snapshot อัตโนมัติ
-- Product/source fields ในรายการที่มาจาก `WTO` เป็น read-only trace; ผู้ใช้แก้ได้เฉพาะค่าธุรกิจของบิล เช่น จำนวนที่จะตัดบิล, ราคา, ส่วนลด, VAT/totals ตาม rule
+- Source fields จาก `WTO` เป็น read-only trace; แถวแรกใช้สินค้าเดิมจาก WTO ส่วน split row ใต้ summary เดียวกัน default เป็นสินค้าเดิมแต่ผู้ใช้เปลี่ยน SKU ขายจริงได้ถ้าลูกค้าคัดแยกสินค้าใหม่
 - Columns หลักของ `STOCK` คือ `สินค้า`, `น้ำหนักสุทธิที่ส่ง`, `จำนวนที่ขายได้`, `หักสิ่งเจือปน`, `น้ำหนักขายสุทธิ`, `อ้างอิง PO Sell`, `ราคา/หน่วย`, `ส่วนลด`, `ยอดรวม`
 - `น้ำหนักสุทธิที่ส่ง` มาจาก snapshot ของ `WTO` หลังหักภาชนะแล้ว (`remainingWeight`) และต้องแสดงเป็น read-only trace ของใบส่งของ; ไม่แสดง `Gross` ใน modal บิลขาย
 - `จำนวนที่ขายได้` default จาก `น้ำหนักสุทธิที่ส่ง`; ผู้ใช้แก้ได้ตามน้ำหนักที่ Customer ชั่งหรือยอมซื้อจริง ซึ่งอาจน้อยกว่า เท่ากับ หรือมากกว่า `น้ำหนักสุทธิที่ส่ง`
 - `หักสิ่งเจือปน` เป็นน้ำหนักที่ Customer ไม่รับซื้อเพราะคุณภาพ/สิ่งเจือปน และใช้เฉพาะกรณี Customer ซื้อครบหรือซื้อเกินน้ำหนักที่ส่ง; `น้ำหนักขายสุทธิ = จำนวนที่ขายได้ - หักสิ่งเจือปน`
+- Durable field contract ของ `sales_bill_lines` สำหรับ `STOCK`: `gross_weight` และ `net_weight` ใช้เก็บค่า `จำนวนที่ขายได้` ของ line, ส่วน `qty` ใช้เก็บ `น้ำหนักขายสุทธิ` หลังหักสิ่งเจือปนที่เป็น base ของยอดขาย/AR. เวลาเปิดแก้ไขฟอร์มต้อง hydrate `จำนวนที่ขายได้` จาก contract นี้ ห้ามเอา `qty` กลับมาใช้แทน
 - ถ้า `จำนวนที่ขายได้ < น้ำหนักสุทธิที่ส่ง` ถือเป็นกรณีขายไม่ครบ/ออกบิลบางส่วนของของที่ส่งออก ไม่ใช่กรณีหักสิ่งเจือปน; UI ต้องปิดหรือ clear ช่อง `หักสิ่งเจือปน` สำหรับ line นั้น และให้ process ส่วนที่เหลือผ่านปุ่ม `รับของคืน`
 - ยอดขายและ AR คิดจาก `น้ำหนักขายสุทธิ`; แต่ stock consume/COGS จาก `WTO pending_out` ต้องตัดไม่เกินน้ำหนักที่ส่งออกจาก `WTO` ตาม source ไม่ใช่ตัดตามน้ำหนักชั่งปลายทางที่อาจเกิน
 - GP ของบิลขายต้องคิดเหมือน legacy: ฐานกำไรคือ `ยอดก่อน VAT หลังหักส่วนลดทั้งหมด` ไม่ใช่ยอดรวม VAT. สูตรคือ `grossProfitBase = subtotal หลังหักส่วนลดรายสินค้า - ส่วนลดท้ายบิล`, แล้ว `gross_profit = grossProfitBase - COGS`. สำหรับ VAT แบบ `EXCLUDE` ห้ามเอา `vat_amount` หรือ `total_amount` ไปบวกใน GP.
@@ -242,13 +258,19 @@ PO Sell
   3. `หักสิ่งเจือปน` = adjustment เชิงคุณภาพของน้ำหนักขาย
   4. `น้ำหนักขายสุทธิ` = base ของยอดขาย/AR/VAT
 - เพราะฉะนั้น `จำนวนที่ขายได้` มากกว่า `น้ำหนักสุทธิที่ส่ง` ได้ในเชิงเอกสารการค้า แต่ห้ามทำให้ stock movement เกิน `WTO pending_out`
+- การ consume `WTO pending_out` ต้องดูเฉพาะ `จำนวนที่ขายได้` ของ row ที่ยังเป็น source product เดิมของ WTO summary นั้น แล้ว cap ที่ `น้ำหนักสุทธิที่ส่ง`/pending_out ของ WTO; split row ที่ผู้ใช้เปลี่ยนเป็น SKU อื่นเป็นรายการขายจริงและ AR เท่านั้น ไม่ consume pending_out เพิ่ม
+- ตัวอย่าง: WTO ส่ง `กระทะดำ, ผัด` 50 กก. ถ้า split เป็น `กระทะดำ` 30 กก. + `กระทะดำ` 21 กก. + `กระป๋องอลูมิเนียม` 100 กก. ให้ stock consume `กระทะดำ` จาก WTO สูงสุด 50 กก. เท่านั้น, ส่วน `กระทะดำ` เกิน 1 กก. และ `กระป๋องอลูมิเนียม` 100 กก. ไม่เพิ่ม stock-out จาก WTO แต่ยังเป็นยอดขาย/AR ตาม line
 - `SB` เป็นเอกสารที่ทำ stock movement จริง: create = stock out ตาม qty ที่ consume จาก WTO, edit = ปรับ stock by delta ของ WTO-consumed qty, cancel = reverse stock ตาม posted fact ของ SB
 - แต่ละ line ต้องมี selector `อ้างอิง PO Sell` โดย option แรกคือ `Spot Sale` และ option ถัดไปคือ `PO Sell` ที่ตรง Customer/สาขา/สินค้าและยังมี remaining
 - ถ้า WTO summary เดียวต้องตัดทั้ง `PO Sell` และ `Spot Sale` หรือมีมากกว่า 1 PO Sell ต้อง split เป็นหลาย row ใต้สินค้าเดียวกันแบบเดียวกับบิลซื้อ
-- ระบบต้อง block save เมื่อจำนวนที่ตัดเข้า `PO Sell` เกิน remaining ต่อสินค้า แต่ต้องยอมให้บันทึกบิลขายจาก `WTO` แบบขายไม่ครบได้ โดยคงส่วนต่างไว้เป็น `pending_out` ที่รอ `รับของคืน`
+- การเลือก `PO Sell` ต้องเปลี่ยนเฉพาะ `poSellId` / source reference ของ line, lock `ราคาขาย/หน่วย` ตาม PO, และ helper ใต้ช่องอ้างอิงเมื่อ line ไม่เกิน PO remaining
+- ถ้าผู้ใช้ `กรอกยอดก่อน` แล้ว `ค่อยเลือก PO Sell` และยอดนั้นเกิน PO remaining ระบบให้ auto split ได้ทันที โดย row PO เก็บ `จำนวนที่ขายได้`/`น้ำหนักขายสุทธิ` เท่าที่ PO ตัดได้ และ row `Spot Sale` เก็บส่วนเกิน
+- ถ้าผู้ใช้ `เลือก PO Sell ไปแล้ว` แล้วภายหลังค่อยแก้ `จำนวนที่ขายได้` หรือ `หักสิ่งเจือปน` จนยอดสุทธิเกิน PO remaining ระบบห้าม split เงียบ ๆ; ต้องให้ผู้ใช้รับรู้ก่อนด้วย confirm หรือ block/error แล้วให้ตัดสินใจเอง
+- helper ใต้ช่อง `อ้างอิง PO Sell` ต้องคำนวณจาก line ปัจจุบันว่า `ใช้ในบิลนี้` เท่าไร, หลังใช้แล้ว PO `คงเหลือ` เท่าไร, และใช้ราคา PO เท่าไร; ค่าเหล่านี้เป็นข้อมูลตรวจสอบ ไม่ใช่ input ที่ไปทับน้ำหนักขาย
+- ระบบต้องพยายาม auto split เฉพาะ action `เลือก PO Sell` ก่อน save; backend ยังต้อง block save เฉพาะกรณี payload สุดท้ายยังตัดเข้า `PO Sell` เกิน remaining เพราะเป็น data-integrity guard และต้องยอมให้บันทึกบิลขายจาก `WTO` แบบขายไม่ครบได้ โดยคงส่วนต่างไว้เป็น `pending_out` ที่รอ `รับของคืน`
 - แถวที่เลือก `PO Sell` ต้องใช้ราคาจาก `PO Sell` และล็อกช่อง `ราคา/หน่วย`; แถว `Spot Sale` ยังแก้ราคาเองได้
 - ไม่แสดงปุ่ม `+ เพิ่มรายการ` และไม่แสดงปุ่ม `ลบ` สำหรับรายการ `STOCK` ที่มาจาก `WTO`
-- ปุ่ม `+ เพิ่มแถว` / `ลบ` ใน `STOCK` ใช้ได้เฉพาะการ split allocation ของสินค้าเดิมจาก `WTO`; ไม่ใช่การเพิ่มสินค้า manual
+- ปุ่ม `+ เพิ่มแถว` / `ลบ` ใน `STOCK` ใช้สำหรับ split allocation ใต้สินค้าเดิมจาก `WTO`; ผู้ใช้ต้องกดเพิ่มแถวเองได้แม้ยอดแถวหลักเท่ากับน้ำหนักจาก WTO แล้ว เพื่อแยก PO/Spot หรือแยก SKU ที่ลูกค้าคัดแยกจริง แถวใหม่เริ่มเป็น `Spot Sale` ยอด 0 แล้วให้ผู้ใช้กรอกเอง ไม่ใช่การเพิ่มสินค้า manual นอก source WTO
 - `TRADING` เป็นคนละ flow และยังอนุญาต manual line ตาม Trading sales-bill design follow-up ได้
 
 ### Fields ที่ต้องตัดออกจากหน้า SB
@@ -297,7 +319,7 @@ Validation:
 - Modal ต้องแสดง `น้ำหนักค้างตามระบบ` จาก `WTO pending_out` เป็น read-only เพื่อเทียบกับน้ำหนักคืนจริง
 - คืน stock เข้า available โดยการปลด `stock_holds` เฉพาะน้ำหนักที่ชั่งกลับจริง; ของก้อนนี้ยังไม่เคย stock-out ใน ledger จึงไม่ต้องเขียน stock-in ledger เมื่อคืนครบ
 - ถ้าน้ำหนักคืนจริงน้อยกว่าน้ำหนักค้าง ต้องเก็บส่วนต่างเป็น loss/diff audit และบังคับเหตุผลก่อนบันทึก
-- ส่วน loss ต้องปิด pending_out เป็น `lost`, append `weight_ticket_usage_logs.action = loss_from_sales_bill`, และเขียน `stock_ledger.ref_type = WTO-RETURN-LOSS` เป็น qty_out/value_out โดย link กลับไปยัง `WTO`, `SB`, product, warehouse, ผู้ยืนยันรายการ, และเหตุผล
+- ส่วน loss ต้องปิด pending_out ระดับก้อนธุรกิจ `WTO + สินค้า + คลัง`, append `weight_ticket_usage_logs.action = loss_from_wto_return`, และเขียน `stock_ledger.ref_type = WTO-RETURN-LOSS` เป็น qty_out/value_out โดยอิง `WTO` เป็น owner และเก็บ `SB` เป็น reference/audit เท่านั้น
 - ต้นทุนของ `WTO-RETURN-LOSS` ใช้ WAC ของ stock bucket ณ เวลาปิดรับคืน เพราะเป็นการตัดของที่ยังอยู่ใน on-hand ledger ออกจาก stock จริง; ไม่ใช้ราคาขายและไม่ให้ผู้ใช้กรอกต้นทุนเอง
 - ถ้าน้ำหนักคืนจริงมากกว่าน้ำหนักค้าง ต้อง reject; น้ำหนักเกินต้องผ่าน stock adjust หรือ flow รับเข้าอื่น ไม่ปนกับ return ของ WTO นี้
 - ถ้ามีการรับของคืนจาก `WTO` แล้วภายหลัง `SB` ถูกยกเลิก ห้าม reopen/recreate `pending_out` ของ `WTO` ซ้ำ; ให้ `SB-CANCEL` คืน stock ตรงเฉพาะจำนวนที่ `SB` เคยขาย ด้วย unit cost/value เดิมจาก `SB` และคง return/diff audit เดิมไว้
@@ -454,7 +476,7 @@ Design/API รายละเอียดอยู่ที่ [[Stock Ledger DB
 - [x] กรอง `PO Sell` ตาม Customer/สาขา/สินค้า/remaining
 - [x] รองรับ split row ใต้สินค้า WTO เดิมด้วย `+ เพิ่มแถว` / `ลบ`
 - [x] block save เมื่อจัดสรรน้ำหนักจาก `WTO` ไม่ครบ
-- [x] block/cap จำนวนที่ตัดเข้า `PO Sell` ไม่ให้เกิน remaining
+- [x] auto split เฉพาะกรณีผู้ใช้กรอกยอดก่อนแล้วค่อยเลือก `PO Sell`; ถ้าเลือก `PO Sell` ไปแล้วค่อยแก้ยอดจนเกิน ต้องให้ผู้ใช้รับรู้ก่อน ไม่ split เงียบ ๆ
 - [x] แถวที่เลือก `PO Sell` ใช้ราคา PO และล็อก `ราคา/หน่วย`
 - [x] แถว `Spot Sale` ยังแก้ราคาเองได้
 

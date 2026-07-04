@@ -724,11 +724,11 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: WorkingPay
         <span>📋 ตารางคำนวณ</span>
         {columnResize.hasCustomWidths && (
           <button
-            className="hidden lg:inline-flex items-center gap-1 h-7 rounded bg-white border border-slate-200 px-2.5 text-xs text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
+            className="hidden h-9 items-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50 lg:inline-flex outline-none"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
-            <RotateCcw className="h-3 w-3" /> คืนค่าเดิมตาราง
+            <RotateCcw className="h-4 w-4" /> คืนค่าเดิมตาราง
           </button>
         )}
       </div>
@@ -869,11 +869,11 @@ function ProductTable({ rows }: { rows: StockProduct[] }) {
         <span>Slow Moving / สินค้าที่ควรรีบขาย (Top 15 — ไม่ขาย &gt; 60 วัน)</span>
         {columnResize.hasCustomWidths && (
           <button
-            className="hidden lg:inline-flex items-center gap-1 h-7 rounded bg-white border border-red-200 px-2.5 text-xs text-red-700 hover:bg-red-50 font-normal transition outline-none"
+            className="hidden h-9 items-center gap-1 rounded-md border border-red-200 bg-white px-3 text-sm font-normal text-red-700 transition hover:bg-red-50 lg:inline-flex outline-none"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
-            <RotateCcw className="h-3 w-3" /> คืนค่าเดิมตาราง
+            <RotateCcw className="h-4 w-4" /> คืนค่าเดิมตาราง
           </button>
         )}
       </div>
@@ -992,11 +992,11 @@ function NegativeMarginTable({ rows, total }: { rows: ProfitPayload['negMarginIt
         </div>
         {columnResize.hasCustomWidths && (
           <button
-            className="hidden lg:inline-flex items-center gap-1 h-7 rounded bg-white border border-red-200 px-2.5 text-xs text-red-700 hover:bg-red-50 font-normal transition outline-none"
+            className="hidden h-9 items-center gap-1 rounded-md border border-red-200 bg-white px-3 text-sm font-normal text-red-700 transition hover:bg-red-50 lg:inline-flex outline-none"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
-            <RotateCcw className="h-3 w-3" /> คืนค่าเดิมตาราง
+            <RotateCcw className="h-4 w-4" /> คืนค่าเดิมตาราง
           </button>
         )}
       </div>
@@ -1108,11 +1108,11 @@ function LowMarginTable({ rows, targetMargin }: { rows: ProfitPayload['lowMargin
         <span>⬇ บิลที่ GP &lt; {targetMargin}%</span>
         {columnResize.hasCustomWidths && (
           <button
-            className="inline-flex items-center gap-1 h-5 rounded bg-white border border-slate-200 px-1.5 text-xs text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
+            className="inline-flex h-9 items-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50 outline-none"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
-            <RotateCcw className="h-2.5 w-2.5" /> รีเซ็ต
+            <RotateCcw className="h-4 w-4" /> คืนค่าเดิมตาราง
           </button>
         )}
       </div>
@@ -1211,11 +1211,11 @@ function LowCustomerTable({ rows }: { rows: ProfitPayload['lowCustomers'] }) {
         <span>👥 ลูกค้ากำไรต่ำ (Top 10)</span>
         {columnResize.hasCustomWidths && (
           <button
-            className="inline-flex items-center gap-1 h-5 rounded bg-white border border-slate-200 px-1.5 text-xs text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
+            className="inline-flex h-9 items-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50 outline-none"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
-            <RotateCcw className="h-2.5 w-2.5" /> รีเซ็ต
+            <RotateCcw className="h-4 w-4" /> คืนค่าเดิมตาราง
           </button>
         )}
       </div>
@@ -1317,11 +1317,11 @@ function HighSupplierTable({ rows }: { rows: ProfitPayload['highSuppliers'] }) {
         <span>🏭 Supplier ต้นทุนสูง (Top 10)</span>
         {columnResize.hasCustomWidths && (
           <button
-            className="inline-flex items-center gap-1 h-5 rounded bg-white border border-slate-200 px-1.5 text-xs text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
+            className="inline-flex h-9 items-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50 outline-none"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
-            <RotateCcw className="h-2.5 w-2.5" /> รีเซ็ต
+            <RotateCcw className="h-4 w-4" /> คืนค่าเดิมตาราง
           </button>
         )}
       </div>
@@ -1420,11 +1420,11 @@ function OutlierTable({ rows }: { rows: ProfitPayload['outliers'] }) {
         <span>⚠ ค่าใช้จ่ายผิดปกติ ({rows.length}) — สูงเกิน mean + 1.5×stddev</span>
         {columnResize.hasCustomWidths && (
           <button
-            className="hidden lg:inline-flex items-center gap-1 h-7 rounded bg-white border border-orange-200 px-2.5 text-xs text-orange-700 hover:bg-orange-50 font-normal transition outline-none"
+            className="hidden h-9 items-center gap-1 rounded-md border border-orange-200 bg-white px-3 text-sm font-normal text-orange-700 transition hover:bg-orange-50 lg:inline-flex outline-none"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
-            <RotateCcw className="h-3 w-3" /> คืนค่าเดิมตาราง
+            <RotateCcw className="h-4 w-4" /> คืนค่าเดิมตาราง
           </button>
         )}
       </div>

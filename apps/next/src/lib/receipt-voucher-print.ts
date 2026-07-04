@@ -205,7 +205,7 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
       .note-box { border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; }
       .note-box-header { background: #f1f5f9; padding: 4px 8px; font-weight: 900; color: #475569; font-size: 12px; }
       .note-content { padding: 8px; font-size: 12px; font-weight: bold; color: #0f172a; min-height: 32px; }
-      .note-content-small { padding: 6px 8px; font-size: 12px; color: #475569; min-height: 40px; white-space: pre-wrap; }
+      .note-content-small { padding: 8px 10px; font-size: 12px; line-height: 1.55; color: #334155; min-height: 64px; white-space: pre-wrap; overflow-wrap: anywhere; }
       .summary-box { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
       .summary-row { display: grid; grid-template-columns: 1fr 32mm; gap: 8px; border-bottom: 1px solid #cbd5e1; padding: 6px 8px; font-size: 12px; }
       .summary-row:last-child { border-bottom: 0; }

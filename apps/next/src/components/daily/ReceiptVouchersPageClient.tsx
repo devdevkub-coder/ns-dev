@@ -1081,7 +1081,8 @@ function ReceiptVoucherFormModal({
             <div className="grid grid-cols-2 gap-2 md:gap-3">
               <FormField className="col-span-2" label="หมายเหตุ">
                 <textarea
-                  className="h-10 md:h-20 min-h-10 md:min-h-20 w-full rounded-md border border-slate-300 px-3 py-1.5 md:py-2 text-xs md:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100"
+                  className="min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-xs md:min-h-36 md:text-sm leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100"
+                  rows={5}
                   value={form.note}
                   onChange={(event) => onUpdateForm({ note: event.target.value })}
                 />
@@ -1186,7 +1187,7 @@ function ReceiptVoucherDetailModal({ onClose, onPrint, row }: { onClose: () => v
                 <DetailField label="Sale contact" value={row.salesPerson || '-'} />
                 <DetailField label="ยอดเงิน" value={formatMoney(row.totalAmount)} />
                 <DetailField label="น้ำหนักรวม" value={formatMoney(row.totalQty)} />
-                <DetailField label="หมายเหตุ" value={row.note || '-'} />
+                <DetailField label="หมายเหตุ" value={row.note || '-'} wide />
               </div>
             </div>
           </section>
@@ -1226,7 +1227,7 @@ function DetailField({ label, value, wide = false }: { label: string; value: str
   return (
     <div className={`flex flex-col py-1 ${wide ? 'md:col-span-2' : ''}`}>
       <div className="text-xs font-medium text-slate-500">{label}</div>
-      <div className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">{value}</div>
+      <div className="mt-0.5 whitespace-pre-wrap text-xs sm:text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">{value}</div>
     </div>
   )
 }

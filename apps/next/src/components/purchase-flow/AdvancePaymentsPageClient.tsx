@@ -545,6 +545,20 @@ export function AdvancePaymentsPageClient() {
 
   const hasActiveFilters = Boolean(q || dateFrom || dateTo || statuses.length > 0)
   const exportHref = useMemo(() => `/api/purchase/advance-payments?${queryString ? `${queryString}&` : ''}format=xlsx`, [queryString])
+  const listControls = (
+    <>
+      <span>พบทั้งหมด {data?.pagination.totalRows ?? 0} รายการ</span>
+      <div className="flex flex-wrap items-center gap-2">
+        {columnResize.hasCustomWidths ? <Button className="h-9 font-normal" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
+        <Select aria-label="จำนวนรายการต่อหน้า" className="h-9 w-auto min-w-[96px] px-2" value={String(pageSize)} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
+          {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+        </Select>
+        <Button className="h-9 font-normal" disabled={page <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+        <span className="px-1">หน้า {data?.pagination.page ?? page} / {data?.pagination.totalPages ?? 1}</span>
+        <Button className="h-9 font-normal" disabled={page >= (data?.pagination.totalPages ?? 1)} size="sm" type="button" variant="outline" onClick={() => setPage((current) => current + 1)}>ถัดไป</Button>
+      </div>
+    </>
+  )
 
   return (
     <section className="space-y-4">
@@ -873,17 +887,8 @@ export function AdvancePaymentsPageClient() {
             </div>
           ) : null}
 
-          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
-            <span>พบทั้งหมด {data?.pagination.totalRows ?? 0} รายการ</span>
-            <div className="flex flex-wrap items-center gap-2">
-              {columnResize.hasCustomWidths ? <Button className="h-9 font-normal" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
-              <Select aria-label="จำนวนรายการต่อหน้า" className="h-9 w-auto min-w-[96px] px-2" value={String(pageSize)} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
-                {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-              </Select>
-              <Button className="h-9 font-normal" disabled={page <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
-              <span className="px-1">หน้า {data?.pagination.page ?? page} / {data?.pagination.totalPages ?? 1}</span>
-              <Button className="h-9 font-normal" disabled={page >= (data?.pagination.totalPages ?? 1)} size="sm" type="button" variant="outline" onClick={() => setPage((current) => current + 1)}>ถัดไป</Button>
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600 md:hidden">
+            {listControls}
           </div>
 
           {/* Mobile Card List */}
@@ -928,8 +933,12 @@ export function AdvancePaymentsPageClient() {
             ))}
           </div>
 
-          <div className="hidden md:block overflow-x-auto rounded-md bg-white shadow">
-            <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
+            <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+              {listControls}
+            </div>
+            <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
                 {advancePaymentColumns.map((column) => {
                   const style = columnResize.getColumnStyle(column.key);
@@ -1010,6 +1019,7 @@ export function AdvancePaymentsPageClient() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </>
       )}

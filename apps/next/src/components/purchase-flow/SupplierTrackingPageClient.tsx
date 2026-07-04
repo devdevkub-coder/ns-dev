@@ -329,7 +329,7 @@ export function SupplierTrackingPageClient() {
         <SummaryCard className="col-span-2 lg:col-span-1" icon="🏦" label="เจ้าหนี้ค้าง" tone="red" value={formatMoney(data?.summary.payable ?? 0)} />
       </div>
 
-      <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
+      <div className="rounded-md bg-white p-3 shadow">
         <div className="grid gap-2 lg:grid-cols-5">
           <input className="h-9 rounded-md border border-slate-300 px-3 text-sm outline-none" type="number" value={year} onChange={(event) => setYear(event.target.value)} />
           <select className="h-9 rounded-md border border-slate-300 px-3 text-sm outline-none disabled:opacity-50" value={month} disabled={view === 'yearCompare'} onChange={(event) => setMonth(event.target.value)}>
@@ -351,14 +351,14 @@ export function SupplierTrackingPageClient() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-2 border border-slate-200 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
         <Tab active={view === 'list'} label="รายการ" onClick={() => setView('list')} />
         <Tab active={view === 'top10'} label="Top 10" onClick={() => setView('top10')} />
         <Tab active={view === 'yearCompare'} label="รายปี" onClick={() => setView('yearCompare')} />
         <div className="ml-auto flex items-center gap-2">
           {view === 'list' && columnResize.hasCustomWidths && (
             <button
-              className="hidden h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 lg:inline-flex"
+              className="hidden h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 lg:inline-flex"
               type="button"
               onClick={columnResize.resetColumnWidths}
             >
@@ -596,12 +596,12 @@ export function SupplierTrackingPageClient() {
             ) : null}
           </div>
 
-          <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
+          <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
               <span>Product breakdown จากบิลรับซื้อ</span>
               {productBreakdownResize.hasCustomWidths ? (
                 <button
-                  className="hidden h-8 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 lg:inline-flex"
+                  className="hidden h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 lg:inline-flex"
                   type="button"
                   onClick={productBreakdownResize.resetColumnWidths}
                 >
@@ -947,18 +947,21 @@ function YearCompare({ rows }: { rows: SupplierTrackingRow[] }) {
             ยอดซื้อ (บาท)
           </button>
         </div>
-        {columnResize.hasCustomWidths ? (
-          <button
-            className="ml-auto hidden h-8 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 lg:inline-flex"
-            type="button"
-            onClick={columnResize.resetColumnWidths}
-          >
-            คืนค่าเดิมตาราง
-          </button>
-        ) : null}
       </div>
 
-      <div className="hidden overflow-x-auto rounded-xl border border-slate-200/60 bg-white shadow-sm lg:block">
+      <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        {columnResize.hasCustomWidths ? (
+          <div className="flex justify-end border-b border-slate-100 px-3 py-3">
+            <button
+              className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 outline-none focus:ring-0"
+              type="button"
+              onClick={columnResize.resetColumnWidths}
+            >
+              คืนค่าเดิมตาราง
+            </button>
+          </div>
+        ) : null}
+        <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {supplierYearCompareColumns.map((column, index) => (
@@ -1018,6 +1021,7 @@ function YearCompare({ rows }: { rows: SupplierTrackingRow[] }) {
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className="space-y-3 lg:hidden">

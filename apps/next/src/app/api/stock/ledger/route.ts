@@ -37,6 +37,7 @@ function sourcePathFor(row: { refNo: string; refType: string }) {
   const refNo = encodeURIComponent(row.refNo)
   if (row.refType === 'PB' || row.refType === 'PB-CANCEL' || row.refType === 'PB-EDIT-REV') return `/purchase/bills/${refNo}`
   if (row.refType === 'SB' || row.refType === 'SB-CANCEL') return `/sales/bills?docNo=${refNo}`
+  if (row.refType === 'WTO-RETURN-LOSS') return `/daily/weight-ticket-list?docNo=${refNo}`
   if (row.refType === 'ST') return `/stock/transfer?docNo=${refNo}`
   if (row.refType === 'SC' || row.refType === 'SC-REV') return `/stock/status-convert?docNo=${refNo}`
   if (row.refType === 'GA') return `/stock/convert?docNo=${refNo}`
@@ -180,6 +181,7 @@ export async function GET(request: Request) {
 
     const purchaseRefTypes = new Set(['PB', 'PB-CANCEL', 'PB-EDIT-REV'])
     const salesRefTypes = new Set(['SB', 'SB-CANCEL'])
+    const wtoReturnLossRefTypes = new Set(['WTO-RETURN-LOSS'])
     const purchaseBillIds = [...new Set(pageRows
       .filter((row) => row.ref_type && purchaseRefTypes.has(row.ref_type) && row.ref_id)
       .map((row) => parseInternalBigIntId(row.ref_id))
@@ -194,7 +196,10 @@ export async function GET(request: Request) {
     const salesBillDocNos = [...new Set(pageRows
       .filter((row) => row.ref_type && salesRefTypes.has(row.ref_type))
       .flatMap((row) => [row.ref_id, row.ref_no].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)))]
-    const [purchaseBills, salesBills] = await Promise.all([
+    const wtoDocNos = [...new Set(pageRows
+      .filter((row) => row.ref_type && wtoReturnLossRefTypes.has(row.ref_type))
+      .flatMap((row) => [row.ref_id, row.ref_no].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)))]
+    const [purchaseBills, salesBills, weightTickets] = await Promise.all([
       purchaseBillIds.length || purchaseBillDocNos.length
         ? prisma.purchase_bills.findMany({
           include: { suppliers: true },
@@ -207,11 +212,21 @@ export async function GET(request: Request) {
           where: { OR: [...(salesBillIds.length ? [{ id: { in: salesBillIds } }] : []), ...(salesBillDocNos.length ? [{ doc_no: { in: salesBillDocNos } }] : [])] },
         })
         : Promise.resolve([]),
+      wtoDocNos.length
+        ? prisma.weight_tickets.findMany({
+          select: { doc_no: true, party_name: true },
+          where: {
+            doc_no: { in: wtoDocNos },
+            doc_type: 'WTO',
+          },
+        })
+        : Promise.resolve([]),
     ])
     const purchaseById = new Map(purchaseBills.map((bill) => [bill.id, bill]))
     const purchaseByDocNo = new Map(purchaseBills.map((bill) => [bill.doc_no, bill]))
     const salesById = new Map(salesBills.map((bill) => [bill.id, bill]))
     const salesByDocNo = new Map(salesBills.map((bill) => [bill.doc_no, bill]))
+    const weightTicketByDocNo = new Map(weightTickets.map((ticket) => [ticket.doc_no, ticket]))
 
     const partitionSql = query.balanceMode === 'warehouse'
       ? Prisma.sql`product_id, branch_id, warehouse_id, coalesce(lot_no, ''), coalesce(output_category, ''), coalesce(not_available_for_sale, false)`
@@ -282,10 +297,13 @@ export async function GET(request: Request) {
         : row.ref_type && salesRefTypes.has(row.ref_type)
           ? salesByDocNo.get(row.ref_id ?? '') ?? salesByDocNo.get(row.ref_no ?? '')
           : null
-      const outwardRefNo = row.ref_no ?? purchaseBill?.doc_no ?? salesBill?.doc_no ?? ''
+      const wtoTicket = row.ref_type && wtoReturnLossRefTypes.has(row.ref_type)
+        ? weightTicketByDocNo.get(row.ref_id ?? '') ?? weightTicketByDocNo.get(row.ref_no ?? '')
+        : null
+      const outwardRefNo = row.ref_no ?? purchaseBill?.doc_no ?? salesBill?.doc_no ?? wtoTicket?.doc_no ?? ''
       return {
         branchName: row.branches?.name ?? '-',
-        counterpartyName: purchaseBill?.suppliers?.name ?? salesBill?.customers?.name ?? '-',
+        counterpartyName: purchaseBill?.suppliers?.name ?? salesBill?.customers?.name ?? wtoTicket?.party_name ?? '',
         date: toDateOnly(row.date),
         id: row.ledger_key,
         movementType: row.movement_type,

@@ -12,11 +12,9 @@ import { useResizableColumns, type ResizableColumnDefinition } from '@/component
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import {
   DualCostingErrorBox,
-  DualCostingHint,
   DualCostingPageSection,
   DualCostingPanel,
   DualCostingStatCard,
-  DualCostingWorkflowStrip,
 } from './DualCostingPageShell'
 
 type ProductOption = {
@@ -135,11 +133,19 @@ export function CostAllocatorPageClient() {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedPoSellId, setSelectedPoSellId] = useState(searchParams.get('poSellId') ?? '')
   const [selectedProductId, setSelectedProductId] = useState(searchParams.get('productId') ?? '')
+  const [selectedProductOption, setSelectedProductOption] = useState<SearchComboboxOption | null>(null)
   const [showPreview, setShowPreview] = useState(false)
   const [sourceType, setSourceType] = useState(searchParams.get('sourceType') ?? 'spot-sell')
   const [targetCost, setTargetCost] = useState(0)
   const [targetCostInput, setTargetCostInput] = useState('0')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [collapsedSections, setCollapsedSections] = useState<Record<'step0' | 'step1' | 'step2' | 'step3' | 'step4', boolean>>({
+    step0: false,
+    step1: false,
+    step2: false,
+    step3: false,
+    step4: false,
+  })
   const [reloadTrigger, setReloadTrigger] = useState(0)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -210,12 +216,18 @@ export function CostAllocatorPageClient() {
   }, [sortedPoSells, currentPage, pageSize])
 
   const productSearchOptions = useMemo<SearchComboboxOption[]>(() => {
-    return (data?.filters.products ?? []).map((product) => ({
+    const options = (data?.filters.products ?? []).map((product) => ({
       id: product.id,
       label: product.code ? `${product.code} - ${product.name}` : product.name,
       searchText: `${product.code ?? ''} ${product.name} ${product.metalGroup ?? ''}`.toLowerCase(),
     }))
-  }, [data?.filters.products])
+
+    if (selectedProductOption && !options.some((option) => option.id === selectedProductOption.id)) {
+      return [selectedProductOption, ...options]
+    }
+
+    return options
+  }, [data?.filters.products, selectedProductOption])
 
   const selectedProduct = data?.filters.products.find((product) => product.id === selectedProductId)
   const hasSelection = Boolean(selectedProductId)
@@ -224,6 +236,25 @@ export function CostAllocatorPageClient() {
   const sourceTypeButtons = data?.filters.sourceTypes ?? ['po-sell', 'spot-sell']
   const sourceTypeLabel = sourceType === 'po-sell' ? 'PO Sell' : sourceType === 'production' ? 'Production' : 'Spot Sell / บิลขายไม่มี PO'
   const allocationModes = data?.filters.modes?.length ? data.filters.modes : ['FIFO', 'LIFO', 'Cheap', 'Expensive']
+
+  useEffect(() => {
+    if (!selectedProductId) {
+      setSelectedProductOption(null)
+      return
+    }
+
+    const matchedOption = productSearchOptions.find((option) => option.id === selectedProductId)
+    if (matchedOption) setSelectedProductOption(matchedOption)
+  }, [productSearchOptions, selectedProductId])
+
+  useEffect(() => {
+    setCollapsedSections((current) => ({
+      ...current,
+      step2: hasSelection ? current.step2 : false,
+      step3: hasSelection ? current.step3 : false,
+      step4: showPreview && hasCandidates ? current.step4 : false,
+    }))
+  }, [hasCandidates, hasSelection, showPreview])
 
   function resetSale() {
     setSelectedPoSellId('')
@@ -259,6 +290,10 @@ export function CostAllocatorPageClient() {
 
     setPreviewSortKey(key)
     setPreviewSortDirection('asc')
+  }
+
+  function toggleSection(section: keyof typeof collapsedSections) {
+    setCollapsedSections((current) => ({ ...current, [section]: !current[section] }))
   }
 
   const handleConfirmMatch = async () => {
@@ -310,14 +345,10 @@ export function CostAllocatorPageClient() {
 
   return (
     <DualCostingPageSection>
-      <DualCostingHint tone="purple">
-        <strong>Cost Allocator</strong> ใช้เลือกบิลขายไม่มี PO หรือ PO Sell จากนั้น preview การหยิบต้นทุนจริงจาก Cost Pool ตามลำดับที่กำหนด โดย batch นี้ยังเป็น read-only และยังไม่เขียน match log จริง
-      </DualCostingHint>
-
       <DualCostingErrorBox error={error} />
-      <DualCostingWorkflowStrip active="allocator" />
 
-      <DualCostingPanel title="⓪ เลือกประเภทปลายทางที่จะ Match ต้นทุน">
+      <DualCostingPanel title="⓪ เลือกประเภทปลายทางที่จะ Match ต้นทุน" titleAction={<PanelToggleButton collapsed={collapsedSections.step0} onClick={() => toggleSection('step0')} />}>
+        {!collapsedSections.step0 ? (
         <div className="flex flex-wrap gap-2">
           {sourceTypeButtons.map((item) => {
             const active = sourceType === item
@@ -341,12 +372,12 @@ export function CostAllocatorPageClient() {
             )
           })}
         </div>
-        <div className="mt-3 rounded-xl border border-amber-200/70 bg-amber-50/50 p-3 text-xs leading-relaxed text-amber-800">
-          Scope ล่าสุดใช้ Spot Sell / Sales Bill ไม่มี PO เป็น target หลักสำหรับทองแดงและทองเหลือง ส่วนการยืนยัน Match ยังปิดไว้จนกว่าจะมี durable allocation ledger
-        </div>
+        ) : null}
       </DualCostingPanel>
 
-      <DualCostingPanel title="① เลือกสินค้าที่ต้องการ Match ต้นทุน">
+      <DualCostingPanel title="① เลือกสินค้าที่ต้องการ Match ต้นทุน" titleAction={<PanelToggleButton collapsed={collapsedSections.step1} onClick={() => toggleSection('step1')} />}>
+        {!collapsedSections.step1 ? (
+        <>
         <div className="w-full">
           <SearchCombobox
             inputId="cost-allocator-product"
@@ -356,6 +387,8 @@ export function CostAllocatorPageClient() {
             placeholder="พิมพ์รหัส/ชื่อสินค้าเพื่อค้นหา..."
             value={selectedProductId}
             onChange={(value) => {
+              const nextOption = productSearchOptions.find((option) => option.id === value) ?? null
+              setSelectedProductOption(nextOption)
               setSelectedProductId(value)
               resetSale()
             }}
@@ -370,10 +403,14 @@ export function CostAllocatorPageClient() {
           </div>
         ) : null}
         {hasSelection && !isLoading && (data?.summary.poolCount ?? 0) === 0 ? <div className="mt-3 rounded-xl border border-amber-200/70 bg-amber-50/50 p-3.5 text-xs text-amber-700 leading-relaxed">ยังไม่มีต้นทุนใน Cost Pool สำหรับสินค้านี้</div> : null}
+        </>
+        ) : null}
       </DualCostingPanel>
 
       {hasSelection ? (
-        <DualCostingPanel title={`② เลือก ${sourceTypeLabel} ที่ต้องการ Match ต้นทุน`}>
+        <DualCostingPanel title={`② เลือก ${sourceTypeLabel} ที่ต้องการ Match ต้นทุน`} titleAction={<PanelToggleButton collapsed={collapsedSections.step2} onClick={() => toggleSection('step2')} />}>
+          {!collapsedSections.step2 ? (
+          <>
           <div className="grid gap-3 md:grid-cols-3">
             <div className="md:col-span-2">
               <label className="mb-1 block text-xs font-semibold text-slate-500">{sourceTypeLabel} *</label>
@@ -441,46 +478,47 @@ export function CostAllocatorPageClient() {
             </div>
           )}
 
-          {/* Pagination Controls */}
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200 shadow-sm mb-3">
-            <div>
-              พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
+          {/* Target Table Card */}
+          <div className="mt-4 overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {targetColumnResize.hasCustomWidths ? (
+                  <Button className="h-9 text-sm font-normal" size="sm" type="button" variant="outline" onClick={targetColumnResize.resetColumnWidths}>
+                    คืนค่าเดิมตาราง
+                  </Button>
+                ) : null}
+                <select
+                  aria-label="จำนวนรายการต่อหน้า"
+                  className="h-9 w-auto rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  value={pageSize}
+                  onChange={(event) => setPageSize(Number(event.target.value))}
+                >
+                  {[5, 10, 25, 50].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+                </select>
+                <button
+                  className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                  disabled={currentPage <= 1}
+                  type="button"
+                  onClick={() => setPage((value) => Math.max(1, value - 1))}
+                >
+                  ก่อนหน้า
+                </button>
+                <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+                <button
+                  className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                  disabled={currentPage >= totalPages}
+                  type="button"
+                  onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                >
+                  ถัดไป
+                </button>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {targetColumnResize.hasCustomWidths ? (
-                <Button className="h-8 text-xs" size="sm" type="button" variant="outline" onClick={targetColumnResize.resetColumnWidths}>
-                  คืนค่าเดิมตาราง
-                </Button>
-              ) : null}
-              <select
-                aria-label="จำนวนรายการต่อหน้า"
-                className="h-8 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                value={pageSize}
-                onChange={(event) => setPageSize(Number(event.target.value))}
-              >
-                {[5, 10, 25, 50].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-              </select>
-              <button
-                className="h-8 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                disabled={currentPage <= 1}
-                type="button"
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
-              >
-                ก่อนหน้า
-              </button>
-              <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-              <button
-                className="h-8 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                disabled={currentPage >= totalPages}
-                type="button"
-                onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-              >
-                ถัดไป
-              </button>
-            </div>
-          </div>
 
-          <div className="mt-4 hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm md:block">
+          <div className="hidden overflow-x-auto md:block">
             <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: targetColumnResize.tableMinWidth }}>
               <colgroup>
                 {targetColumns.map((column) => (
@@ -496,7 +534,7 @@ export function CostAllocatorPageClient() {
                   <ResizableTableHead align="right" label={sourceType === 'production' ? 'จำนวนผลิต (กก.)' : 'จำนวนขาย (กก.)'} activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="qty" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('qty', sourceType === 'production' ? 'จำนวนผลิต' : 'จำนวนขาย')} />
                   <ResizableTableHead align="right" label="จับคู่แล้ว" activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="matchedQty" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('matchedQty', 'จับคู่แล้ว')} />
                   <ResizableTableHead align="right" label="ค้างจับคู่" activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="remainingQty" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('remainingQty', 'ค้างจับคู่')} />
-                  <ResizableTableHead align="right" label={sourceType === 'production' ? 'ต้นทุน/กก.' : 'ราคา/หน่วย'} activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="unitPrice" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('unitPrice', sourceType === 'production' ? 'ต้นทุนต่อกิโลกรัม' : 'ราคาต่อหน่วย')} />
+                  <ResizableTableHead align="right" label={sourceType === 'production' ? 'ต้นทุน/กก.' : 'ราคาขาย/หน่วย'} activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="unitPrice" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('unitPrice', sourceType === 'production' ? 'ต้นทุนต่อกิโลกรัม' : 'ราคาขายต่อหน่วย')} />
                   <ResizableTableHead align="center" label="เลือก" resizeProps={targetColumnResize.getResizeHandleProps('action', 'เลือก')} />
                 </tr>
               </thead>
@@ -536,7 +574,7 @@ export function CostAllocatorPageClient() {
             </table>
           </div>
 
-          <div className="mt-4 space-y-3 md:hidden">
+          <div className="space-y-3 p-3 md:hidden">
             {isLoading ? <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">กำลังโหลด target candidates</div> : null}
             {!isLoading && (data?.poSells.length ?? 0) === 0 ? <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">ไม่มี {sourceTypeLabel} ของสินค้านี้ที่ยังไม่ match</div> : null}
             {pagedPoSells.map((target) => {
@@ -555,7 +593,7 @@ export function CostAllocatorPageClient() {
                     <div><span className="block text-xs text-slate-500">{sourceType === 'production' ? 'จำนวนผลิต' : 'จำนวนขาย'}</span><span className="mt-0.5 block font-bold tabular-nums text-slate-900">{formatMoney(target.qty)} กก.</span></div>
                     <div className="text-right"><span className="block text-xs text-slate-500">ค้างจับคู่</span><span className="mt-0.5 block font-bold tabular-nums text-amber-700">{formatMoney(target.remainingQty)} กก.</span></div>
                     <div><span className="block text-xs text-slate-500">จับคู่แล้ว</span><span className="mt-0.5 block font-bold tabular-nums text-slate-900">{formatMoney(target.matchedQty)} กก.</span></div>
-                    <div className="text-right"><span className="block text-xs text-slate-500">{sourceType === 'production' ? 'ต้นทุน/กก.' : 'ราคา/หน่วย'}</span><span className="mt-0.5 block font-bold tabular-nums text-slate-900">{formatMoney(target.unitPrice)}</span></div>
+                    <div className="text-right"><span className="block text-xs text-slate-500">{sourceType === 'production' ? 'ต้นทุน/กก.' : 'ราคาขาย/หน่วย'}</span><span className="mt-0.5 block font-bold tabular-nums text-slate-900">{formatMoney(target.unitPrice)}</span></div>
                   </div>
                   <Button
                     className="mt-3 w-full"
@@ -572,38 +610,26 @@ export function CostAllocatorPageClient() {
               )
             })}
           </div>
-
-
-
-          {hasPoSell ? (
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-5 mt-3">
-              <DualCostingStatCard icon="👥" label={sourceType === 'production' ? 'ผู้ผลิต' : 'ลูกค้า'} tone="slate" value={data?.selectedPoSell?.customerName === '-' ? 'ภายในโรงงาน' : (data?.selectedPoSell?.customerName ?? '-')} />
-              <DualCostingStatCard icon="📦" label="สินค้า" tone="slate" value={selectedProduct?.name ?? data?.selectedPoSell?.productName ?? '-'} />
-              <DualCostingStatCard icon="⚖️" label="จำนวนรวม" tone="slate" value={`${formatMoney(data?.selectedPoSell?.qty ?? 0)} กก.`} />
-              <DualCostingStatCard icon="💰" label={sourceType === 'production' ? 'ต้นทุน/กก.' : 'ราคาขาย'} tone="emerald" value={formatMoney(data?.selectedPoSell?.unitPrice ?? 0)} />
-              <DualCostingStatCard icon="⏳" label="ต้อง Match อีก" tone="amber" value={`${formatMoney(data?.selectedPoSell?.remainingQty ?? 0)} กก.`} />
-            </div>
-          ) : null}
-
-          {hasPoSell ? (
-            <div className="mt-3 flex justify-end">
-              <Button type="button" className="rounded-lg h-10 px-4 text-sm font-semibold focus-visible:ring-emerald-100" onClick={() => setShowPreview(true)}>Preview การจับคู่ต้นทุน</Button>
-            </div>
+          </div>
+          </>
           ) : null}
         </DualCostingPanel>
       ) : null}
 
       {hasSelection ? (
-        <DualCostingPanel title="③ Lot ต้นทุนใน Cost Pool ของสินค้าที่เลือก">
-          {poolColumnResize.hasCustomWidths ? (
-            <div className="mb-3 flex justify-end">
-              <Button className="h-8 text-xs" size="sm" type="button" variant="outline" onClick={poolColumnResize.resetColumnWidths}>
-                คืนค่าเดิมตาราง
-              </Button>
-            </div>
-          ) : null}
-          <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm md:block">
-            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: poolColumnResize.tableMinWidth }}>
+        <DualCostingPanel title="③ Lot ต้นทุนใน Cost Pool ของสินค้าที่เลือก" titleAction={<PanelToggleButton collapsed={collapsedSections.step3} onClick={() => toggleSection('step3')} />}>
+          {!collapsedSections.step3 ? (
+          <>
+          <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
+            {poolColumnResize.hasCustomWidths ? (
+              <div className="flex justify-end border-b border-slate-100 px-3 py-3">
+                <Button className="h-8 text-xs" size="sm" type="button" variant="outline" onClick={poolColumnResize.resetColumnWidths}>
+                  คืนค่าเดิมตาราง
+                </Button>
+              </div>
+            ) : null}
+            <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: poolColumnResize.tableMinWidth, width: '100%' }}>
               <colgroup>
                 {poolColumns.map((column) => (
                   <col key={column.key} style={poolColumnResize.getColumnStyle(column.key)} />
@@ -636,6 +662,7 @@ export function CostAllocatorPageClient() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
 
           <div className="space-y-3 md:hidden">
@@ -663,20 +690,25 @@ export function CostAllocatorPageClient() {
             ))}
           </div>
           {(data?.pool.length ?? 0) > 12 ? <div className="mt-2 text-xs text-slate-500">แสดง 12 lot แรกตาม sort ปัจจุบันจากทั้งหมด {data?.pool.length ?? 0} lot</div> : null}
+          </>
+          ) : null}
         </DualCostingPanel>
       ) : null}
 
       {showPreview && hasCandidates ? (
-        <DualCostingPanel title="④ Preview การจับคู่ต้นทุน">
-          {previewColumnResize.hasCustomWidths ? (
-            <div className="mb-3 flex justify-end">
-              <Button className="h-8 text-xs" size="sm" type="button" variant="outline" onClick={previewColumnResize.resetColumnWidths}>
-                คืนค่าเดิมตาราง
-              </Button>
-            </div>
-          ) : null}
-          <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm md:block">
-            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: previewColumnResize.tableMinWidth }}>
+        <DualCostingPanel title="④ Preview การจับคู่ต้นทุน" titleAction={<PanelToggleButton collapsed={collapsedSections.step4} onClick={() => toggleSection('step4')} />}>
+          {!collapsedSections.step4 ? (
+          <>
+          <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
+            {previewColumnResize.hasCustomWidths ? (
+              <div className="flex justify-end border-b border-slate-100 px-3 py-3">
+                <Button className="h-8 text-xs" size="sm" type="button" variant="outline" onClick={previewColumnResize.resetColumnWidths}>
+                  คืนค่าเดิมตาราง
+                </Button>
+              </div>
+            ) : null}
+            <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: previewColumnResize.tableMinWidth, width: '100%' }}>
               <colgroup>
                 {previewColumns.map((column) => (
                   <col key={column.key} style={previewColumnResize.getColumnStyle(column.key)} />
@@ -707,6 +739,7 @@ export function CostAllocatorPageClient() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
 
           <div className="space-y-3 md:hidden">
@@ -749,6 +782,8 @@ export function CostAllocatorPageClient() {
               {isSubmitting ? 'กำลังบันทึก...' : 'ยืนยันการจับคู่'}
             </Button>
           </div>
+          </>
+          ) : null}
         </DualCostingPanel>
       ) : null}
     </DualCostingPageSection>
@@ -780,6 +815,26 @@ function compareSortValues(left: string | number, right: string | number) {
 function getTimestamp(value: string | undefined) {
   const timestamp = Date.parse(value ?? '')
   return Number.isNaN(timestamp) ? 0 : timestamp
+}
+
+function PanelToggleButton({
+  collapsed,
+  onClick,
+}: {
+  collapsed: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      aria-expanded={!collapsed}
+      className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+      type="button"
+      onClick={onClick}
+    >
+      <span>{collapsed ? 'แสดง' : 'ซ่อน'}</span>
+      <span className="text-slate-400">{collapsed ? '▾' : '▴'}</span>
+    </button>
+  )
 }
 
 function getTargetSortValue(row: PoSellOption, key: TargetColumnKey): string | number {

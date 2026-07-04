@@ -34,7 +34,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const holds = await prisma.stock_holds.findMany({
       include: {
         products: { select: { code: true, name: true } },
-        warehouses: { select: { name: true } },
+        warehouses: { select: { code: true, name: true } },
       },
       orderBy: [{ source_line_no: 'asc' }, { id: 'asc' }],
       where: {
@@ -76,17 +76,52 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       salesBillDocNosByProductId.set(allocation.product_id, current)
     }
 
+    const optionGroups = new Map<string, {
+      pendingOutKey: string
+      pendingQty: number
+      productId: string
+      productCode: string
+      productName: string
+      salesBillDocNos: string[]
+      sourceLineNos: number[]
+      warehouseId: string
+      warehouseName: string
+      weightTicketDocNo: string
+    }>()
+
+    for (const hold of holds) {
+      const salesBillDocNos = salesBillDocNosByProductId.get(hold.product_id) ?? []
+      if (salesBillDocNos.length === 0) continue
+
+      const groupKey = `GROUP:${hold.product_id.toString()}:${hold.warehouse_id.toString()}`
+      const current = optionGroups.get(groupKey) ?? {
+        pendingOutKey: groupKey,
+        pendingQty: 0,
+        productId: hold.products.code ?? '',
+        productCode: hold.products.code ?? '',
+        productName: hold.products.name,
+        salesBillDocNos,
+        sourceLineNos: [],
+        warehouseId: hold.warehouses.code ?? '',
+        warehouseName: hold.warehouses.name,
+        weightTicketDocNo: hold.source_doc_no,
+      }
+      current.pendingQty = Number((current.pendingQty + toNumber(hold.qty)).toFixed(2))
+      if (hold.source_line_no != null && !current.sourceLineNos.includes(hold.source_line_no)) {
+        current.sourceLineNos.push(hold.source_line_no)
+        current.sourceLineNos.sort((left, right) => left - right)
+      }
+      for (const docNo of salesBillDocNos) {
+        if (!current.salesBillDocNos.includes(docNo)) current.salesBillDocNos.push(docNo)
+      }
+      optionGroups.set(groupKey, current)
+    }
+
     return NextResponse.json({
-      options: holds
-        .map((hold) => ({
-          pendingOutKey: hold.hold_key,
-          pendingQty: toNumber(hold.qty),
-          productCode: hold.products.code ?? '',
-          productName: hold.products.name,
-          salesBillDocNos: salesBillDocNosByProductId.get(hold.product_id) ?? [],
-          sourceLineNo: hold.source_line_no,
-          warehouseName: hold.warehouses.name,
-          weightTicketDocNo: hold.source_doc_no,
+      options: [...optionGroups.values()]
+        .map((option) => ({
+          ...option,
+          sourceLineNo: option.sourceLineNos.length === 1 ? option.sourceLineNos[0] : null,
         }))
         .filter((option) => option.pendingQty > 0.0001 && option.salesBillDocNos.length > 0),
     })

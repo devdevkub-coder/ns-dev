@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Select } from '@/components/ui/Select'
-import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
@@ -151,6 +150,45 @@ export function MatchLogPageClient() {
 
   const exportHref = `/api/dual-costing/match-log?${queryString ? `${queryString}&` : ''}format=xlsx`
   const hasActiveFilters = Boolean(search || matchType !== 'all' || costType !== 'all' || poSellTarget !== 'all' || status !== 'all')
+  const listControls = (
+    <>
+      <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
+      <div className="flex items-center gap-2">
+        {columnResize.hasCustomWidths ? (
+          <Button className="hidden h-8 text-xs md:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
+            คืนค่าเดิมตาราง
+          </Button>
+        ) : null}
+        <select
+          aria-label="จำนวนรายการต่อหน้า"
+          className="h-8 text-xs rounded-md border border-slate-300 px-2 bg-white text-slate-800"
+          value={pageSize}
+          onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}
+        >
+          {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+        </select>
+        <Button
+          disabled={currentPage <= 1}
+          size="xs"
+          variant="outline"
+          type="button"
+          onClick={() => setPage((value) => Math.max(1, value - 1))}
+        >
+          ก่อนหน้า
+        </Button>
+        <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+        <Button
+          disabled={currentPage >= totalPages}
+          size="xs"
+          variant="outline"
+          type="button"
+          onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+        >
+          ถัดไป
+        </Button>
+      </div>
+    </>
+  )
 
   function clearFilters() {
     setCostType('all')
@@ -220,45 +258,12 @@ export function MatchLogPageClient() {
         </div>
       </DualCostingFilterCard>
 
-      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mb-3">
-        <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
-        <div className="flex items-center gap-2">
-          {columnResize.hasCustomWidths ? (
-            <Button className="hidden h-8 text-xs md:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
-              คืนค่าเดิมตาราง
-            </Button>
-          ) : null}
-          <select
-            aria-label="จำนวนรายการต่อหน้า"
-            className="h-8 text-xs rounded-md border border-slate-300 px-2 bg-white text-slate-800"
-            value={pageSize}
-            onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}
-          >
-            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-          </select>
-          <Button
-            disabled={currentPage <= 1}
-            size="xs"
-            variant="outline"
-            type="button"
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
-          >
-            ก่อนหน้า
-          </Button>
-          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-          <Button
-            disabled={currentPage >= totalPages}
-            size="xs"
-            variant="outline"
-            type="button"
-            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-          >
-            ถัดไป
-          </Button>
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+          {listControls}
         </div>
-      </div>
-
-      <Table className="min-w-full divide-y divide-slate-200 text-sm [&_tbody_tr]:border-slate-100" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
+        <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth, width: '100%' }}>
         <colgroup>
           {matchLogColumns.map((column, index) => {
             const style = columnResize.getColumnStyle(column.key)
@@ -268,7 +273,7 @@ export function MatchLogPageClient() {
             return <col key={column.key} style={style} />
           })}
         </colgroup>
-        <TableHeader className="bg-slate-100">
+        <thead className="bg-slate-100">
           <tr>
             <ResizableTableHead label="Match Type" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="matchType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('matchType', 'Match Type')} />
             <ResizableTableHead label="Cost Type" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="costType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('costType', 'Cost Type')} />
@@ -285,32 +290,34 @@ export function MatchLogPageClient() {
             <ResizableTableHead align="center" label="สถานะ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="status" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
             <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
           </tr>
-        </TableHeader>
-        <TableBody>
-          {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={matchLogColumns.length}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
-          {!isLoading && visibleRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-400" colSpan={matchLogColumns.length}>ยังไม่มี Match Log ตามตัวกรอง</TableCell></TableRow> : null}
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={matchLogColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+          {!isLoading && visibleRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={matchLogColumns.length}>ยังไม่มี Match Log ตามตัวกรอง</td></tr> : null}
           {!isLoading && pagedRows.map((row) => (
-            <TableRow key={row.id} className={`hover:bg-slate-50 ${row.status === 'reversed' ? 'opacity-50' : ''}`}>
-              <TableCell><span className={`rounded-md px-2 py-0.5 text-xs font-medium ${matchTypeClass(row.matchType)}`}>{matchTypeBadge(row.matchType)}</span></TableCell>
-              <TableCell><span className={`rounded-md px-2 py-0.5 text-xs ${costTypeClass(row.costType)}`}>{row.costType}</span></TableCell>
-              <TableCell className="font-mono text-xs">{row.matchId}</TableCell>
-              <TableCell className="whitespace-nowrap text-xs">{formatDateDisplay(row.date)}</TableCell>
-              <TableCell className="text-xs">{row.target}</TableCell>
-              <TableCell><span className={`rounded-md px-2 py-0.5 text-xs ${sourceTypeClass(row.sourceType)}`}>{row.sourceType}</span></TableCell>
-              <TableCell className="font-mono text-xs">{row.sourceNo}</TableCell>
-              <TableCell className="text-xs">{row.product}</TableCell>
-              <TableCell className="text-right">{formatMoney(row.qtyUsed)}</TableCell>
-              <TableCell className="text-right">{formatMoney(row.unitCost)}</TableCell>
-              <TableCell className="text-right font-medium">{formatMoney(row.totalCost)}</TableCell>
-              <TableCell className="text-center text-xs">{row.allocationMode}</TableCell>
-              <TableCell className="text-center"><span className={`rounded-md px-2 py-0.5 text-xs ${row.status === 'reversed' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{statusLabel(row.status)}</span></TableCell>
-              <TableCell className="text-right">
+            <tr key={row.id} className={`hover:bg-slate-50 ${row.status === 'reversed' ? 'opacity-50' : ''}`}>
+              <td className="p-2"><span className={`rounded-md px-2 py-0.5 text-xs font-medium ${matchTypeClass(row.matchType)}`}>{matchTypeBadge(row.matchType)}</span></td>
+              <td className="p-2"><span className={`rounded-md px-2 py-0.5 text-xs ${costTypeClass(row.costType)}`}>{row.costType}</span></td>
+              <td className="p-2 font-mono text-xs">{row.matchId}</td>
+              <td className="whitespace-nowrap p-2 text-xs">{formatDateDisplay(row.date)}</td>
+              <td className="p-2 text-xs">{row.target}</td>
+              <td className="p-2"><span className={`rounded-md px-2 py-0.5 text-xs ${sourceTypeClass(row.sourceType)}`}>{row.sourceType}</span></td>
+              <td className="p-2 font-mono text-xs">{row.sourceNo}</td>
+              <td className="p-2 text-xs">{row.product}</td>
+              <td className="p-2 text-right">{formatMoney(row.qtyUsed)}</td>
+              <td className="p-2 text-right">{formatMoney(row.unitCost)}</td>
+              <td className="p-2 text-right font-medium">{formatMoney(row.totalCost)}</td>
+              <td className="p-2 text-center text-xs">{row.allocationMode}</td>
+              <td className="p-2 text-center"><span className={`rounded-md px-2 py-0.5 text-xs ${row.status === 'reversed' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{statusLabel(row.status)}</span></td>
+              <td className="p-2 text-right">
                 {row.status !== 'reversed' ? <button className="text-xs text-red-600 opacity-60" disabled title="Reverse ยังเป็น read-only shell" type="button">ย้อนกลับ</button> : null}
-              </TableCell>
-            </TableRow>
+              </td>
+            </tr>
           ))}
-        </TableBody>
-      </Table>
+        </tbody>
+      </table>
+        </div>
+      </div>
 
 
     </DualCostingPageSection>

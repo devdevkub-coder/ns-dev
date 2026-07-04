@@ -84,36 +84,37 @@ export function AssetOverviewPageClient() {
 
   return (
     <section className="space-y-4 text-slate-800">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
         <div>
           <h1 className="m-0 text-xl font-bold text-slate-900">💎 Net Worth / Track Asset</h1>
           <p className="mt-1 text-xs text-slate-500">ภาพรวมการบริหารทรัพย์สิน หนี้สิน สภาพคล่อง และอายุลูกหนี้ (AR Aging)</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <DatePickerInput 
-            className="w-[140px] border-slate-300 bg-white text-slate-900 outline-none focus:ring-0 h-9 rounded-lg" 
-            value={asOf} 
-            onChange={setAsOf} 
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
+          <DatePickerInput
+            className="h-9 w-[140px] rounded-md border-slate-300 bg-white text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-0"
+            value={asOf}
+            onChange={setAsOf}
           />
-          <select 
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:ring-0 focus:border-slate-400 h-9 transition-colors" 
-            value={branchId} 
+          <select
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-0"
+            value={branchId}
             onChange={(event) => setBranchId(event.target.value)}
           >
             <option value="ALL">ทุกสาขา</option>
             {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
           </select>
-          <button 
-            className="rounded-md bg-slate-900 hover:bg-slate-800 text-white font-medium text-sm px-3.5 py-1.5 outline-none border border-slate-200/80 transition-colors opacity-50 cursor-not-allowed" 
-            disabled 
+          <button
+            className="ml-auto h-9 rounded-md border border-slate-200/80 bg-slate-900 px-3.5 text-sm font-medium text-white opacity-50 outline-none transition-colors hover:bg-slate-800 disabled:cursor-not-allowed"
+            disabled
             type="button"
           >
             ส่งออก
           </button>
-        </div>
       </div>
 
-      {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
+      {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <DarkKpi label="Total Asset" value={summary.totalAsset} />
@@ -122,11 +123,11 @@ export function AssetOverviewPageClient() {
         <DarkKpi danger={(summary.cashNeededToday ?? 0) > (summary.totalCash ?? 0)} label="เงินที่ต้องใช้วันนี้" value={summary.cashNeededToday} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/50 p-3.5 text-xs text-amber-900 shadow-sm">
+      <div className="flex flex-wrap items-center gap-3 rounded-md border border-amber-200 bg-amber-50/50 p-3.5 text-xs text-amber-900 shadow-sm">
         <span className="font-bold text-amber-700">📌 Read-only baseline</span>
         <span>{data?.sourceState.limitations[0] ?? 'มุมมองสำหรับการบริหารเท่านั้น ไม่รองรับการทำธุรกรรมหรือแก้ไขข้อมูลโดยตรง'}</span>
-        <Link 
-          className="ml-auto rounded-lg bg-slate-950 px-3.5 py-1.5 text-white hover:bg-slate-800 outline-none transition-colors font-semibold" 
+        <Link
+          className="ml-auto rounded-md bg-slate-950 px-3.5 py-1.5 text-white hover:bg-slate-800 outline-none transition-colors font-semibold"
           href="/finance-accounting/financial-dashboard"
         >
           Financial Dashboard
@@ -136,7 +137,7 @@ export function AssetOverviewPageClient() {
       <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
         <div className="space-y-4">
           {num(data?.tradingPending.billCount) > 0 ? <TradingPendingBlock summary={data?.tradingPending ?? {}} /> : null}
-          
+
           <div className="grid gap-4 md:grid-cols-2">
             <CashTable rows={data?.rows.cashAccounts ?? []} total={summary.totalCash ?? 0} />
             <ReceivableTable row={data?.rows.receivable ?? {}} />
@@ -144,7 +145,7 @@ export function AssetOverviewPageClient() {
             <DebtTable row={data?.rows.debt ?? {}} />
           </div>
         </div>
-        
+
         <div className="space-y-4">
           <DonutPanel items={data?.charts.assetComp ?? []} title="🥧 องค์ประกอบสินทรัพย์" total={summary.totalAsset ?? 0} tone="emerald" />
           <DonutPanel empty="✅ ไม่มีภาระหนี้สิน" items={data?.charts.debtComp ?? []} title="🥧 องค์ประกอบหนี้สิน" total={summary.totalDebt ?? 0} tone="red" />
@@ -187,7 +188,7 @@ function DarkKpi({ danger = false, label, up = false, value }: { danger?: boolea
   }
 
   return (
-    <div className={`rounded-xl border bg-white p-4 shadow-sm flex items-center gap-3.5 ${toneStyles.border}`}>
+    <div className={`rounded-md border bg-white p-4 shadow-sm flex items-center gap-3.5 ${toneStyles.border}`}>
       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${toneStyles.iconBg}`}>
         {toneStyles.emoji}
       </div>
@@ -204,13 +205,13 @@ function DarkKpi({ danger = false, label, up = false, value }: { danger?: boolea
 
 function TradingPendingBlock({ summary }: { summary: Record<string, number> }) {
   return (
-    <div className="rounded-xl border border-purple-200 bg-purple-50/10 p-4 shadow-sm">
+    <div className="rounded-md border border-purple-200 bg-purple-50/10 p-4 shadow-sm">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-purple-800">
           <span className="text-xl">🔄</span> Trading Pending รับเงิน - Trading ซื้อจ่ายแล้ว แต่ Sales ยังไม่เปิด
         </h3>
-        <Link 
-          className="rounded-lg bg-purple-700 hover:bg-purple-800 transition-colors px-3 py-1.5 text-xs font-semibold text-white outline-none" 
+        <Link
+          className="rounded-md bg-purple-700 hover:bg-purple-800 transition-colors px-3 py-1.5 text-xs font-semibold text-white outline-none"
           href="/trading/matching"
         >
           Trading Matching
@@ -236,7 +237,7 @@ function Mini({ label, tone, value }: { label: string; tone: string; value: stri
     red: 'border-red-200 bg-red-50/30 text-red-800',
   }
   return (
-    <div className={`rounded-lg border p-3 ${map[tone] ?? map.blue}`}>
+    <div className={`rounded-md border p-3 ${map[tone] ?? map.blue}`}>
       <div className="text-xs text-slate-500 font-semibold uppercase">{label}</div>
       <div className="break-words text-lg font-bold mt-1">{value}</div>
     </div>
@@ -246,7 +247,7 @@ function Mini({ label, tone, value }: { label: string; tone: string; value: stri
 function DonutPanel({ empty, items, title, total, tone }: { empty?: string; items: Array<{ color: string; name: string; val: number }>; title: string; total: number; tone: string }) {
   const gradient = conic(items, total)
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+    <div className="rounded-md border border-slate-100 bg-white p-5 shadow-sm">
       <h3 className={`mb-4 font-bold text-sm ${tone === 'red' ? 'text-red-700' : 'text-emerald-700'}`}>{title}</h3>
       <div className="mx-auto flex h-40 w-40 items-center justify-center rounded-full p-9 shadow-inner transition-transform" style={{ background: gradient }}>
         <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-center text-xs font-bold text-slate-800 border border-slate-100 shadow-sm leading-tight">
@@ -264,7 +265,7 @@ function DonutPanel({ empty, items, title, total, tone }: { empty?: string; item
             <span className={`font-mono font-bold ${tone === 'red' ? 'text-red-600' : 'text-emerald-600'}`}>{money(item.val)}</span>
           </div>
         ))}
-        {items.length === 0 ? <div className="py-3 text-center font-semibold text-emerald-600 bg-emerald-50/30 rounded-lg">{empty ?? 'ไม่มีข้อมูล'}</div> : null}
+        {items.length === 0 ? <div className="py-3 text-center font-semibold text-emerald-600 bg-emerald-50/30 rounded-md">{empty ?? 'ไม่มีข้อมูล'}</div> : null}
       </div>
     </div>
   )
@@ -284,7 +285,7 @@ function conic(items: Array<{ color: string; val: number }>, total: number) {
 function ArAging({ aging, total }: { aging: Record<string, number>; total: number }) {
   const max = Math.max(1, ...Object.values(aging))
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+    <div className="rounded-md border border-slate-100 bg-white p-5 shadow-sm">
       <h3 className="mb-4 font-bold text-sm text-blue-700">📥 AR Aging - อายุลูกหนี้</h3>
       <div className="space-y-3">
         {Object.entries(aging).map(([key, amount]) => (
@@ -364,11 +365,11 @@ function CashTable({ rows, total }: { rows: AnyRow[]; total: number }) {
         {columnResize.hasCustomWidths ? (
           <div className="flex justify-end border-b border-slate-100 bg-white px-3 py-2">
             <button
-              className="h-8 rounded-md bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50"
               type="button"
               onClick={columnResize.resetColumnWidths}
             >
-              รีเซ็ตความกว้างตาราง
+              คืนค่าเดิมตาราง
             </button>
           </div>
         ) : null}
@@ -410,13 +411,13 @@ function CashTable({ rows, total }: { rows: AnyRow[]; total: number }) {
 function ReceivableTable({ row }: { row: Record<string, number> }) {
   return (
     <Panel heading="📈 RECEIVABLE / ลูกหนี้" tone="blue" total={row.totalAR}>
-      <KeyRows 
+      <KeyRows
         rows={[
-          ['ลูกหนี้ในประเทศ', row.arDomestic], 
-          ['ลูกหนี้ต่างประเทศ', row.arOverseas], 
-          ['ลูกหนี้เกินกำหนด', row.arOverdue, 'amber'], 
+          ['ลูกหนี้ในประเทศ', row.arDomestic],
+          ['ลูกหนี้ต่างประเทศ', row.arOverseas],
+          ['ลูกหนี้เกินกำหนด', row.arOverdue, 'amber'],
           ['+ Customer Advance ที่รับไว้', row.customerAdvanceTotal, 'emerald']
-        ]} 
+        ]}
       />
     </Panel>
   )
@@ -425,13 +426,13 @@ function ReceivableTable({ row }: { row: Record<string, number> }) {
 function StockTable({ row }: { row: Record<string, number> }) {
   return (
     <Panel heading="📦 STOCK" tone="amber" total={row.val}>
-      <KeyRows 
+      <KeyRows
         rows={[
-          ['น้ำหนัก Stock รวม', `${money(row.qty)} กก.`], 
-          ['มูลค่า Stock รวม (WAC)', row.val], 
-          ['Stock ที่จ่ายเงินแล้ว (ประมาณ)', row.paidVal, 'emerald'], 
+          ['น้ำหนัก Stock รวม', `${money(row.qty)} กก.`],
+          ['มูลค่า Stock รวม (WAC)', row.val],
+          ['Stock ที่จ่ายเงินแล้ว (ประมาณ)', row.paidVal, 'emerald'],
           ['Stock ที่ยังค้างจ่าย', row.unpaidVal, 'amber']
-        ]} 
+        ]}
       />
     </Panel>
   )
@@ -440,14 +441,14 @@ function StockTable({ row }: { row: Record<string, number> }) {
 function DebtTable({ row }: { row: Record<string, number> }) {
   return (
     <Panel heading="📉 DEBT / ภาระหนี้" tone="red" total={row.totalAP + row.customerAdvanceTotal}>
-      <KeyRows 
+      <KeyRows
         rows={[
-          ['เจ้าหนี้การค้า (AP)', row.totalAP], 
-          ['เจ้าหนี้เกินกำหนด', row.apOverdue, 'red'], 
-          ['Customer Advance (Liability)', row.customerAdvanceTotal], 
-          ['ค่าใช้จ่ายวันนี้', row.expenseToday, 'amber'], 
+          ['เจ้าหนี้การค้า (AP)', row.totalAP],
+          ['เจ้าหนี้เกินกำหนด', row.apOverdue, 'red'],
+          ['Customer Advance (Liability)', row.customerAdvanceTotal],
+          ['ค่าใช้จ่ายวันนี้', row.expenseToday, 'amber'],
           ['Supplier Advance ที่จ่ายไว้ (Asset)', row.supplierAdvanceTotal, 'emerald']
-        ]} 
+        ]}
       />
     </Panel>
   )
@@ -467,7 +468,7 @@ function Panel({ children, heading, tone, total }: { children: ReactNode; headin
     red: 'bg-red-50/40',
   }
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm flex flex-col justify-between">
+    <div className="overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm flex flex-col justify-between">
       <div className={`flex justify-between border-b border-slate-100 px-4 py-3.5 font-bold text-sm ${bgMap[tone]} ${map[tone]}`}>
         <span>{heading}</span>
         <span className="font-mono font-bold">{money(total as number)}</span>
@@ -480,10 +481,10 @@ function Panel({ children, heading, tone, total }: { children: ReactNode; headin
 }
 
 function KeyRows({ rows }: { rows: Array<[string, number | string | undefined, string?]> }) {
-  const bg: Record<string, string> = { 
-    amber: 'bg-amber-50/30 text-amber-800 border-amber-100', 
-    emerald: 'bg-emerald-50/30 text-emerald-800 border-emerald-100', 
-    red: 'bg-red-50/30 text-red-800 border-red-100' 
+  const bg: Record<string, string> = {
+    amber: 'bg-amber-50/30 text-amber-800 border-amber-100',
+    emerald: 'bg-emerald-50/30 text-emerald-800 border-emerald-100',
+    red: 'bg-red-50/30 text-red-800 border-red-100'
   }
   return (
     <div className="divide-y divide-slate-100">

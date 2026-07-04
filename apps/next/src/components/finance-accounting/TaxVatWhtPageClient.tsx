@@ -447,11 +447,11 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tabl
         <span>{title}</span>
         {columnResize.hasCustomWidths && (
           <button
-            className="inline-flex items-center gap-1 h-5 rounded bg-white border border-slate-200 px-1.5 text-xs text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
+            className="inline-flex h-9 items-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50 outline-none"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
-            <RotateCcw className="h-2.5 w-2.5" /> รีเซ็ต
+            <RotateCcw className="h-4 w-4" /> คืนค่าเดิมตาราง
           </button>
         )}
       </div>
@@ -560,11 +560,11 @@ function CalendarTable({ rows }: { rows: TaxPayload['taxCalendar'] }) {
         <span>📅 Tax Calendar — 6 เดือนล่าสุด</span>
         {columnResize.hasCustomWidths && (
           <button
-            className="hidden lg:inline-flex items-center gap-1 h-7 rounded bg-white border border-slate-200 px-2.5 text-xs text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
+            className="hidden h-9 items-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50 lg:inline-flex outline-none"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
-            <RotateCcw className="h-3 w-3" /> คืนค่าเดิมตาราง
+            <RotateCcw className="h-4 w-4" /> คืนค่าเดิมตาราง
           </button>
         )}
       </div>

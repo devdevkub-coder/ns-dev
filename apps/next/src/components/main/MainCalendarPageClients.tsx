@@ -431,12 +431,13 @@ function BusinessCombinedTable({ days }: { days: BusinessDay[] }) {
   return (
     <>
       {/* Desktop view */}
-      {columnResize.hasCustomWidths ? (
-        <div className="mb-2 hidden justify-end lg:flex">
-          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
-        </div>
-      ) : null}
-      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+      <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        {columnResize.hasCustomWidths ? (
+          <div className="flex justify-end border-b border-slate-100 px-3 py-3">
+            <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+          </div>
+        ) : null}
+        <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {businessCombinedColumns.map((column) => (
@@ -476,6 +477,7 @@ function BusinessCombinedTable({ days }: { days: BusinessDay[] }) {
             </tr>)}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Mobile view */}
@@ -549,12 +551,13 @@ function BusinessModeTable({ days, mode }: { days: BusinessDay[]; mode: Exclude<
   return (
     <Panel title={config.title}>
       {/* Desktop view */}
-      {columnResize.hasCustomWidths ? (
-        <div className="mb-2 hidden justify-end lg:flex">
-          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
-        </div>
-      ) : null}
-      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+      <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        {columnResize.hasCustomWidths ? (
+          <div className="flex justify-end border-b border-slate-100 px-3 py-3">
+            <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+          </div>
+        ) : null}
+        <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {columns.map((column) => (
@@ -588,6 +591,7 @@ function BusinessModeTable({ days, mode }: { days: BusinessDay[]; mode: Exclude<
             {sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400 text-xs" colSpan={columns.length}>ไม่มีข้อมูล</td></tr> : null}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Mobile view */}
@@ -683,12 +687,13 @@ function CashDayModal({ day, onClose }: { day: CashDay; onClose: () => void }) {
           </div>
           
           {/* Desktop Table View */}
-          {columnResize.hasCustomWidths ? (
-            <div className="mb-2 hidden justify-end sm:flex">
-              <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
-            </div>
-          ) : null}
-          <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm sm:block">
+          <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm sm:block">
+            {columnResize.hasCustomWidths ? (
+              <div className="flex justify-end border-b border-slate-100 px-3 py-3">
+                <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+              </div>
+            ) : null}
+            <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
                 {cashEntryColumns.map((column) => (
@@ -722,6 +727,7 @@ function CashDayModal({ day, onClose }: { day: CashDay; onClose: () => void }) {
                 {sortedEntries.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={cashEntryColumns.length}>ไม่มีรายการ</td></tr> : null}
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* Mobile view inside Modal */}

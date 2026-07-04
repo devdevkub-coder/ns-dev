@@ -11,7 +11,14 @@ import { requireBusinessCode } from '@/lib/business-code'
 import { isCustomerEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSalesChannelReferenceByCode } from '@/lib/server/sales-channel-reference'
-import { activeSalesReceiptCount, activeSalesReceiptCountByBillId, isSalesBillActiveForCancel, salesBillCancelState } from '@/lib/server/sales-bill-cancel-policy'
+import {
+  activeSalesReceiptCount,
+  activeSalesReceiptCountByBillId,
+  isSalesBillActiveForCancel,
+  salesBillCancelState,
+  salesBillHasReturnOrLoss,
+  salesBillReturnLockByBillId,
+} from '@/lib/server/sales-bill-cancel-policy'
 import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { appendPoSellAllocationLogs, PO_SELL_ALLOCATION_ACTION } from '@/lib/server/po-sell-allocation-history'
 import { salesBillLineFactsForBills, type SalesBillLineFactRow } from '@/lib/server/sales-bill-line-facts'
@@ -115,14 +122,16 @@ function parseBillQuery(url: URL, includePaging = true): BillQuery {
   }
 }
 
-function billJson(row: SalesBillRow, activeReceiptCount = 0, lineCount?: number) {
+function billJson(row: SalesBillRow, activeReceiptCount = 0, lineCount?: number, hasReturnOrLoss = false) {
   const cancelState = salesBillCancelState(row.status, activeReceiptCount)
-  const canEdit = isSalesBillActiveForCancel(row.status) && activeReceiptCount === 0
+  const canEdit = isSalesBillActiveForCancel(row.status) && activeReceiptCount === 0 && !hasReturnOrLoss
   const editLockedReason = !isSalesBillActiveForCancel(row.status)
     ? 'บิลขายนี้ถูกยกเลิกแล้ว'
     : activeReceiptCount > 0
       ? 'แก้ไขบิลขายไม่ได้ เพราะมีรายการรับเงิน Customer แล้ว'
-      : null
+      : hasReturnOrLoss
+        ? 'แก้ไขบิลขายไม่ได้ เพราะ WTO ของบิลนี้มีการรับของคืนหรือบันทึก loss แล้ว'
+        : null
   return {
     branchId: row.branches?.code ?? '',
     branchName: row.branches?.name ?? '-',
@@ -254,17 +263,43 @@ function calculateSalesTotals(values: SalesBillFormValues, vatRatePercent: numbe
   return { grossProfitBase, subtotal, totalAmount, vatAmount }
 }
 
+function requiredLineNoForItem(lineNoByIndex: Map<number, number>, index: number) {
+  const lineNo = lineNoByIndex.get(index)
+  if (!Number.isInteger(lineNo) || lineNo == null || lineNo <= 0) {
+    throw new Error(`Sales Bill item ${index + 1} missing durable line number`)
+  }
+  return lineNo
+}
+
+function requiredLineIdByLineNo(lineIdByLineNo: Map<number, bigint>, lineNo: number) {
+  const lineId = lineIdByLineNo.get(lineNo)
+  if (lineId == null) {
+    throw new Error(`Sales Bill line ${lineNo} missing durable line id`)
+  }
+  return lineId
+}
+
+function duplicateLineNo(values: Array<number | null | undefined>) {
+  const seen = new Set<number>()
+  for (const value of values) {
+    if (!Number.isInteger(value) || value == null) continue
+    if (seen.has(value)) return value
+    seen.add(value)
+  }
+  return null
+}
+
 function salesItems(
   values: SalesBillFormValues,
   parsedProductIds: bigint[],
   productById: Map<bigint, { code: string | null; name: string; unit: string | null }>,
-  deliverySummarySourceMap: Map<string, DeliverySummarySource> = new Map(),
-  deliverySummaryIdByIndex: Map<number, string> = new Map(),
-  stockIssueQtyByIndex: Map<number, number> = new Map(),
-  lineNoByIndex: Map<number, number> = new Map(),
+  deliverySummarySourceMap: Map<string, DeliverySummarySource>,
+  deliverySummaryIdByIndex: Map<number, string>,
+  stockIssueQtyByIndex: Map<number, number>,
+  lineNoByIndex: Map<number, number>,
 ) {
   return values.items.map((item, index) => {
-    const lineNo = lineNoByIndex.get(index) ?? item.salesBillLineNo ?? index + 1
+    const lineNo = requiredLineNoForItem(lineNoByIndex, index)
     const productId = parsedProductIds[index]
     const product = productById.get(productId)
     const deliverySummaryId = item.deliveryTicketId ? deliverySummaryIdByIndex.get(index) ?? null : item.deliverySummaryId ?? null
@@ -276,6 +311,7 @@ function salesItems(
       ? stockIssueQtyByIndex.get(index) ?? 0
       : item.qty
     const amount = Math.max(0, item.qty * item.price - item.discount)
+    const soldWeight = deliverySummary ? item.netWeight : item.qty
     return {
       amount,
       customerAdvanceId: values.customerAdvanceId,
@@ -285,10 +321,10 @@ function salesItems(
       deliveryTicketId: item.deliveryTicketId,
       deductWeight: item.deductWeight,
       discount: item.discount,
-      grossWeight: deliverySummary ? item.netWeight : item.grossWeight,
+      grossWeight: deliverySummary ? soldWeight : item.grossWeight,
       id: `${String(lineNo).padStart(2, '0')}`,
       lineNo,
-      netWeight: item.qty,
+      netWeight: soldWeight,
       note: item.note,
       poSellId: item.poSellId,
       productCode: requireBusinessCode(product?.code, `สินค้า ${productId}`),
@@ -380,7 +416,7 @@ function poSellAllocationRows(input: {
       product_id: input.parsedProductIds[index] ?? null,
       product_name_snapshot: item.productName,
       sales_bill_id: input.billId,
-      sales_bill_line_id: input.lineIdByLineNo.get(lineNo) ?? null,
+      sales_bill_line_id: requiredLineIdByLineNo(input.lineIdByLineNo, lineNo),
       sales_line_no: lineNo,
       status: 'active',
       unit_price: item.unitPrice,
@@ -397,6 +433,17 @@ function sourceLineNoFromDeliveryLineId(deliveryLineId: string | null | undefine
   return Number.isInteger(lineNo) && lineNo > 0 ? lineNo : null
 }
 
+function compactStockAllocations(items: SalesItemSnapshot[], deliverySummarySourceMap: Map<string, DeliverySummarySource>) {
+  const allocationsByProductId = new Map<bigint, number>()
+  items.forEach((item) => {
+    if (!isDeliveryBackedSalesItem(item) || item.stockIssueQty <= 0.0001) return
+    const summary = item.deliverySummaryId ? deliverySummarySourceMap.get(item.deliverySummaryId) : null
+    if (!summary?.product_id) return
+    allocationsByProductId.set(summary.product_id, (allocationsByProductId.get(summary.product_id) ?? 0) + item.stockIssueQty)
+  })
+  return [...allocationsByProductId.entries()].map(([productId, qty]) => ({ productId, qty }))
+}
+
 function sourceAllocationRows(input: {
   actor: string
   billId: bigint
@@ -409,11 +456,10 @@ function sourceAllocationRows(input: {
 }) {
   if (!input.stockDeliveryTicket) return []
 
-  return input.items.flatMap((item, index) => {
+  return input.items.flatMap((item) => {
     if (!isDeliveryBackedSalesItem(item)) return []
     const lineNo = item.lineNo
     const stockIssueQty = Math.max(0, item.stockIssueQty)
-    if (stockIssueQty <= 0.0001) return []
     const summarySource = item.deliverySummaryId ? input.deliverySummarySourceMap.get(item.deliverySummaryId) : null
     if (!summarySource || summarySource.product_id == null) {
       throw new Error(`Sales Bill WTO source allocation missing product summary for line ${lineNo}`)
@@ -446,7 +492,7 @@ function sourceAllocationRows(input: {
       product_id: summarySource.product_id,
       product_name_snapshot: summarySource.product_name,
       sales_bill_id: input.billId,
-      sales_bill_line_id: input.lineIdByLineNo.get(lineNo) ?? null,
+      sales_bill_line_id: requiredLineIdByLineNo(input.lineIdByLineNo, lineNo),
       sales_line_no: lineNo,
       source_doc_no: item.deliveryTicketDocNo,
       source_id: input.stockDeliveryTicket!.id,
@@ -836,7 +882,7 @@ async function validateStockDeliverySelection(
 
   const { deliverySummarySourceMap, lineToSummaryRef } = deliveryReferenceMaps(ticket, productCodeById)
   const availableQtyBySummaryId = new Map<string, number>()
-  const acceptedWeightBySummaryId = new Map<string, number>()
+  const sourceAcceptedWeightBySummaryId = new Map<string, number>()
   const deliverySummaryIdByItemIndex = new Map<number, string>()
   const stockIssueQtyByItemIndex = new Map<number, number>()
 
@@ -862,6 +908,7 @@ async function validateStockDeliverySelection(
     if (!itemProduct) {
       return { error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' as const }
     }
+    const isOriginalSourceProduct = summarySource.product_id != null && itemProduct.id === summarySource.product_id
     const buyerAcceptedWeight = Math.max(0, item.netWeight)
     if (item.deductWeight > buyerAcceptedWeight + 0.0001) {
       return { error: `หักสิ่งเจือปนของ ${summarySource.product_name} เกินจำนวนที่ขายได้` as const }
@@ -873,14 +920,15 @@ async function validateStockDeliverySelection(
       }
       return { error: `กรอกจำนวนที่ขายได้ของ ${summarySource.product_name}` as const }
     }
-    const acceptedBefore = acceptedWeightBySummaryId.get(resolvedSummaryRef) ?? 0
+    if (!isOriginalSourceProduct) {
+      stockIssueQtyByItemIndex.set(itemIndex, 0)
+      continue
+    }
+    const acceptedBefore = sourceAcceptedWeightBySummaryId.get(resolvedSummaryRef) ?? 0
     const availableQty = availableQtyBySummaryId.get(resolvedSummaryRef) ?? 0
     const remainingForStock = Math.max(0, availableQty - acceptedBefore)
     const stockIssueQty = Math.min(buyerAcceptedWeight, remainingForStock)
-    if (stockIssueQty <= 0.0001) {
-      return { error: `${summarySource.product_name} ไม่มี pending_out คงเหลือสำหรับตัด stock` as const }
-    }
-    acceptedWeightBySummaryId.set(resolvedSummaryRef, acceptedBefore + buyerAcceptedWeight)
+    sourceAcceptedWeightBySummaryId.set(resolvedSummaryRef, acceptedBefore + buyerAcceptedWeight)
     stockIssueQtyByItemIndex.set(itemIndex, Number(stockIssueQty.toFixed(2)))
   }
 
@@ -1332,11 +1380,17 @@ export async function GET(request: Request) {
       prisma.sales_bills.aggregate({ _sum: { total_amount: true }, where }),
     ])
     const billIds = rows.map((row) => row.id)
-    const [activeReceiptCountByBillId, lineCountByBillId] = await Promise.all([
+    const [activeReceiptCountByBillId, lineCountByBillId, returnLockByBillId] = await Promise.all([
       activeSalesReceiptCountByBillId(prisma, billIds),
       salesBillLineCountByBillId(billIds),
+      salesBillReturnLockByBillId(prisma, billIds),
     ])
-    const jsonRows = rows.map((row) => billJson(row, activeReceiptCountByBillId.get(row.id) ?? 0, lineCountByBillId.get(row.id)))
+    const jsonRows = rows.map((row) => billJson(
+      row,
+      activeReceiptCountByBillId.get(row.id) ?? 0,
+      lineCountByBillId.get(row.id),
+      (returnLockByBillId.get(row.id) ?? 0) > 0,
+    ))
 
     if (url.searchParams.get('format') === 'xlsx') {
       const body = await buildWorkbook(jsonRows, await salesBillLineFactsForBills(billIds, { lineStatuses: ['active', 'cancelled'], tradingStatuses: ['active', 'cancelled'] }))
@@ -1515,7 +1569,16 @@ export async function POST(request: Request) {
     }
 
     const docNo = await nextDailyDocNo('sales_bills', 'SB', billDate)
-    const items = salesItems(values, parsedProductIds as bigint[], productById, deliverySummarySourceMap, deliverySummaryIdByItemIndex, stockIssueQtyByItemIndex)
+    const lineNoByItemIndex = new Map(values.items.map((_item, index) => [index, index + 1] as const))
+    const items = salesItems(
+      values,
+      parsedProductIds as bigint[],
+      productById,
+      deliverySummarySourceMap,
+      deliverySummaryIdByItemIndex,
+      stockIssueQtyByItemIndex,
+      lineNoByItemIndex,
+    )
     const poSellAllocations = new Map<string, ReturnType<typeof allocatePoSellForSalesBill>>()
     for (const poSellDocNo of requestedPoSellDocNos) {
       const poSell = poSellByDocNo.get(poSellDocNo)
@@ -1929,24 +1992,18 @@ export async function POST(request: Request) {
       }
 
       if (stockDeliveryTicket) {
-        const consumedStockLines = await consumeActiveWtoPendingOut(tx, {
-          actor,
-          allocations: items
-            .filter(isDeliveryBackedSalesItem)
-            .map((item) => {
-              const summary = item.deliverySummaryId ? deliverySummarySourceMap.get(item.deliverySummaryId) : null
-              return {
-                productId: summary?.product_id ?? BigInt(0),
-                qty: item.stockIssueQty,
-              }
-            })
-            .filter((allocation) => allocation.productId !== BigInt(0) && allocation.qty > 0.0001),
-          billDate: normalizeDate(billDate),
-          branchId: branch.id,
-          salesBillDocNo: createdBill.doc_no,
-          salesChannelId: channel.id,
-          weightTicketId: stockDeliveryTicket.id,
-        })
+        const stockAllocations = compactStockAllocations(items, deliverySummarySourceMap)
+        const consumedStockLines = stockAllocations.length > 0
+          ? await consumeActiveWtoPendingOut(tx, {
+            actor,
+            allocations: stockAllocations,
+            billDate: normalizeDate(billDate),
+            branchId: branch.id,
+            salesBillDocNo: createdBill.doc_no,
+            salesChannelId: channel.id,
+            weightTicketId: stockDeliveryTicket.id,
+          })
+          : []
         const stockCogs = roundMoney(consumedStockLines.reduce((sum, line) => sum + line.valueOut, 0))
         const combinedCogs = roundMoney(totalCost + stockCogs)
         await tx.sales_bills.update({
@@ -1990,15 +2047,17 @@ export async function POST(request: Request) {
           }]
         })
         await appendWeightTicketUsageLogs(tx, usageEntries)
-        await appendWtoPendingOutEventsForSalesBill(tx, {
-          actor,
-          eventTypeForHold: () => 'sales_bill_consume',
-          occurredAt: createdAt,
-          referenceDocNo: createdBill.doc_no,
-          referenceDocType: 'SB',
-          salesBillDocNo: createdBill.doc_no,
-          statusSnapshot: 'consumed',
-        })
+        if (consumedStockLines.length > 0) {
+          await appendWtoPendingOutEventsForSalesBill(tx, {
+            actor,
+            eventTypeForHold: () => 'sales_bill_consume',
+            occurredAt: createdAt,
+            referenceDocNo: createdBill.doc_no,
+            referenceDocType: 'SB',
+            salesBillDocNo: createdBill.doc_no,
+            statusSnapshot: 'consumed',
+          })
+        }
 
         const summaryUsage = new Map<bigint, number>()
         items.forEach((item) => {
@@ -2290,9 +2349,20 @@ export async function PATCH(request: Request) {
       if (invalidSubmittedLine?.salesBillLineNo != null) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: `อ้างอิงรายการบิลขาย line ${invalidSubmittedLine.salesBillLineNo} ไม่ถูกต้อง` }, { status: 400 })
       }
-      const submittedExistingLineNos = new Set(values.items.map((item) => item.salesBillLineNo).filter((lineNo): lineNo is number => Number.isInteger(lineNo)))
+      const submittedExistingLineNoValues = values.items
+        .map((item) => item.salesBillLineNo)
+        .filter((lineNo): lineNo is number => Number.isInteger(lineNo))
+      const duplicatedSubmittedLineNo = duplicateLineNo(submittedExistingLineNoValues)
+      if (duplicatedSubmittedLineNo != null) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: `อ้างอิงรายการบิลขาย line ${duplicatedSubmittedLineNo} ซ้ำกัน` }, { status: 400 })
+      }
+      const submittedExistingLineNos = new Set(submittedExistingLineNoValues)
       const deletedSalesBillLines = bill.sales_bill_lines.filter((line) => !submittedExistingLineNos.has(line.line_no))
-      let nextNewLineNo = Math.max(0, ...bill.sales_bill_lines.map((line) => line.line_no)) + 1
+      const historicalLineNos = await prisma.sales_bill_lines.findMany({
+        select: { line_no: true },
+        where: { sales_bill_id: bill.id },
+      })
+      let nextNewLineNo = Math.max(0, ...historicalLineNos.map((line) => line.line_no)) + 1
       const lineNoByItemIndex = new Map<number, number>()
       values.items.forEach((item, index) => {
         const submittedLineNo = item.salesBillLineNo ?? null
@@ -2309,19 +2379,7 @@ export async function PATCH(request: Request) {
       let deliverySummarySourceMap = new Map<string, DeliverySummarySource>()
       let stockIssueQtyByItemIndex = new Map<number, number>()
       if (String(bill.transaction_mode ?? 'STOCK') === 'STOCK') {
-        const hasReturnOrLoss = await prisma.weight_ticket_usage_logs.findFirst({
-          select: { id: true },
-          where: {
-            action: {
-              in: [
-                WEIGHT_TICKET_USAGE_ACTION.RETURNED_FROM_SALES_BILL,
-                WEIGHT_TICKET_USAGE_ACTION.LOSS_FROM_SALES_BILL,
-              ],
-            },
-            target_doc_no: bill.doc_no,
-            target_type: 'SALES_BILL',
-          },
-        })
+        const hasReturnOrLoss = await salesBillHasReturnOrLoss(prisma, bill.id)
         if (hasReturnOrLoss) {
           return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขบิลขายนี้แบบปกติไม่ได้ เพราะมีการรับของคืนหรือบันทึก loss แล้ว' }, { status: 400 })
         }
@@ -2344,7 +2402,7 @@ export async function PATCH(request: Request) {
       }
 
       for (const [index, item] of values.items.entries()) {
-        const lineNo = lineNoByItemIndex.get(index) ?? index + 1
+        const lineNo = requiredLineNoForItem(lineNoByItemIndex, index)
         const line = item.salesBillLineNo ? activeLineByOriginalLineNo.get(item.salesBillLineNo) : null
         if (String(bill.transaction_mode ?? 'STOCK') !== 'STOCK'
           && (!line

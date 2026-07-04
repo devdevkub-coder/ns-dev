@@ -372,17 +372,17 @@ export function ReportsIndexPageClient() {
       ) : null}
 
       {/* Main Table Panel */}
-      <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
         <div className="hidden items-center justify-between border-b border-slate-100 bg-slate-50/40 px-3 py-2 text-xs font-semibold text-slate-500 lg:flex">
           <span>{legacyTabs.find((tab) => tab.k === legacyTab)?.l ?? 'Report'} - {sortedRows.length.toLocaleString('th-TH')} รายการ</span>
           {aggregateColumnResize.hasCustomWidths ? (
-            <button className="h-8 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={aggregateColumnResize.resetColumnWidths}>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={aggregateColumnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
           ) : null}
         </div>
         {/* Desktop View */}
-        <div className="hidden overflow-x-auto rounded-md border border-slate-100 bg-white shadow-sm lg:block">
+        <div className="hidden overflow-x-auto bg-white lg:block">
           <table className="min-w-full divide-y divide-slate-200 text-sm text-slate-700" style={{ tableLayout: 'fixed', minWidth: aggregateColumnResize.tableMinWidth }}>
             <colgroup>
               {aggregateColumns.map((column, index) => {
@@ -528,11 +528,11 @@ export function ReportsIndexPageClient() {
           </div>
         </div>
 
-        <div className="mt-4 overflow-hidden rounded-xl border border-slate-100">
+        <div className="mt-4 overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
           <div className="hidden items-center justify-between border-b border-slate-100 bg-slate-50/40 px-3 py-2 text-xs font-semibold text-slate-500 lg:flex">
             <span>{sortedFiltered.length.toLocaleString('th-TH')} รายการ</span>
             {catalogColumnResize.hasCustomWidths ? (
-              <button className="h-8 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={catalogColumnResize.resetColumnWidths}>
+              <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={catalogColumnResize.resetColumnWidths}>
                 คืนค่าเดิมตาราง
               </button>
             ) : null}

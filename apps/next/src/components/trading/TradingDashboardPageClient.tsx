@@ -471,7 +471,7 @@ export function TradingDashboardPageClient() {
         <AgingPanel aging={data?.aging ?? null} isLoading={isLoading} />
       </div>
 
-      <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4">
           <div className="flex flex-wrap">
             {tabs.map((item) => (
@@ -487,15 +487,15 @@ export function TradingDashboardPageClient() {
           </div>
           <div className="flex gap-2 py-2">
             <button
-              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer"
               type="button"
               onClick={() => setIsSourceModalOpen(true)}
             >
               <Plus className="h-3.5 w-3.5" />
               Trading Cost Source
             </button>
-            <Link className="rounded-xl border border-purple-300 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-700 hover:bg-purple-100 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs flex items-center gap-1" href="/trading/matching">Trading Matching</Link>
-            <Link className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs flex items-center gap-1" href="/dual-costing/deal-margin">Deal Margin</Link>
+            <Link className="flex h-9 items-center gap-1 rounded-md border border-purple-300 bg-purple-50 px-3 text-sm font-semibold text-purple-700 hover:bg-purple-100 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs" href="/trading/matching">Trading Matching</Link>
+            <Link className="flex h-9 items-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-800 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs" href="/dual-costing/deal-margin">Deal Margin</Link>
           </div>
         </div>
 
@@ -649,9 +649,7 @@ function CostSourceModal({
             <div className="overflow-x-auto p-4 overflow-hidden">
               <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
                 {columnResize.hasCustomWidths ? (
-                  <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
-                    คืนค่าเดิมตาราง
-                  </button>
+                  <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
                 ) : null}
               </div>
               <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
@@ -719,7 +717,7 @@ function ReadinessPanel({ isLoading, rows, summary }: { isLoading: boolean; rows
   const { changeSort, sortDirection, sortedRows, sortKey } = useDashboardTableSort(rows, getReadinessSortValue)
   const visibleRows = sortedRows.slice(0, 6)
   return (
-    <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+    <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 bg-slate-50/50">
         <div>
           <div className="text-sm font-bold text-slate-800">Stock / Cost Source Readiness</div>
@@ -737,9 +735,7 @@ function ReadinessPanel({ isLoading, rows, summary }: { isLoading: boolean; rows
         <div className="hidden lg:block overflow-x-auto overflow-hidden">
           <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
             {columnResize.hasCustomWidths ? (
-              <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
-                คืนค่าเดิมตาราง
-              </button>
+              <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
             ) : null}
           </div>
           <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
@@ -853,9 +849,7 @@ function ProductTable({ isLoading, rows, totals }: { isLoading: boolean; rows: D
       <div className="hidden lg:block overflow-x-auto overflow-hidden">
         <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
           {columnResize.hasCustomWidths ? (
-            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
-              à¸„à¸·à¸™à¸„à¹ˆà¸²à¹€à¸”à¸´à¸¡à¸•à¸²à¸£à¸²à¸‡
-            </button>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           ) : null}
         </div>
         <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
@@ -949,9 +943,7 @@ function PurchaseTable({ isLoading, rows }: { isLoading: boolean; rows: Dashboar
       <div className="hidden lg:block overflow-x-auto overflow-hidden">
         <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
           {columnResize.hasCustomWidths ? (
-            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
-              คืนค่าเดิมตาราง
-            </button>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           ) : null}
         </div>
         <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
@@ -1038,9 +1030,7 @@ function SalesTable({ isLoading, rows }: { isLoading: boolean; rows: DashboardPa
       <div className="hidden lg:block overflow-x-auto overflow-hidden">
         <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
           {columnResize.hasCustomWidths ? (
-            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
-              คืนค่าเดิมตาราง
-            </button>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           ) : null}
         </div>
         <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>

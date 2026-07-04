@@ -104,11 +104,38 @@ export const salesBillStockReturnSchema = z.object({
     .min(1, 'เลือก pending_out ที่ต้องรับคืน')
     .max(120, 'รหัส pending_out ยาวเกินไป')
     .regex(safeIdPattern, 'รหัส pending_out มีรูปแบบไม่ถูกต้อง'),
+  pendingOutKeys: z.array(z.string()
+    .trim()
+    .min(1, 'เลือก pending_out ที่ต้องรับคืน')
+    .max(120, 'รหัส pending_out ยาวเกินไป')
+    .regex(safeIdPattern, 'รหัส pending_out มีรูปแบบไม่ถูกต้อง'))
+    .min(1, 'เลือก pending_out ที่ต้องรับคืน')
+    .max(100, 'รายการ pending_out มากเกินไป')
+    .optional(),
   note: optionalGeneralText('หมายเหตุรับคืน', 500),
   reason: optionalGeneralText('เหตุผลส่วนต่าง', 500),
   returnedQty: z.coerce.number({ invalid_type_error: 'น้ำหนักที่ชั่งคืนต้องเป็นตัวเลข' })
     .finite('น้ำหนักที่ชั่งคืนต้องเป็นตัวเลข')
     .min(0, 'น้ำหนักที่ชั่งคืนต้องไม่ติดลบ'),
+})
+
+export const wtoStockReturnSchema = z.object({
+  note: optionalGeneralText('หมายเหตุรับคืน', 500),
+  productId: z.string()
+    .trim()
+    .min(1, 'เลือกสินค้าที่ต้องรับคืน')
+    .max(80, 'รหัสสินค้ายาวเกินไป')
+    .regex(safeIdPattern, 'รหัสสินค้ามีรูปแบบไม่ถูกต้อง'),
+  reason: optionalGeneralText('เหตุผลส่วนต่าง', 500),
+  returnedQty: z.coerce.number({ invalid_type_error: 'น้ำหนักที่ชั่งคืนต้องเป็นตัวเลข' })
+    .finite('น้ำหนักที่ชั่งคืนต้องเป็นตัวเลข')
+    .min(0, 'น้ำหนักที่ชั่งคืนต้องไม่ติดลบ'),
+  salesBillDocNo: optionalSafeId('บิลขายอ้างอิง'),
+  warehouseId: z.string()
+    .trim()
+    .min(1, 'เลือกคลังที่ต้องรับคืน')
+    .max(80, 'รหัสคลังยาวเกินไป')
+    .regex(safeIdPattern, 'รหัสคลังมีรูปแบบไม่ถูกต้อง'),
 })
 
 export const poSellFormSchema = z.object({
@@ -125,3 +152,4 @@ export type SalesBillFormValues = z.infer<typeof salesBillFormSchema>
 export type SalesBillCancelValues = z.infer<typeof salesBillCancelSchema>
 export type SalesBillStockReturnValues = z.infer<typeof salesBillStockReturnSchema>
 export type PoSellFormValues = z.infer<typeof poSellFormSchema>
+export type WtoStockReturnValues = z.infer<typeof wtoStockReturnSchema>

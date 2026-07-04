@@ -11,6 +11,7 @@ import { isPurchaseBillCancelledStatus, PURCHASE_BILL_CANCELLED_STATUSES } from 
 export const runtime = 'nodejs'
 
 const CASH_PAYMENT_METHOD = 'รับเงินสด'
+const DEFAULT_RECEIPT_VOUCHER_NOTE = 'แนบสำเนาบัตรประชาชนผู้รับเงิน (กรณีบุคคลธรรมดา)'
 
 const receiptVoucherItemSchema = z.object({
   description: z.string().trim().min(1, 'กรุณากรอกรายการ'),
@@ -44,6 +45,28 @@ const receiptVoucherCancelSchema = z.object({
 })
 
 type ReceiptVoucherStatusLogAction = 'cancelled' | 'created' | 'edited'
+
+type PurchaseBillRemarkLine = {
+  deduct_weight: Prisma.Decimal | number | string | null
+  gross_weight: Prisma.Decimal | number | string | null
+  impurity_id: bigint | number | string | null
+  impurity_name: string | null
+  note: string | null
+  product_id: bigint | number | string | null
+  product_name: string | null
+}
+
+type PurchaseBillReceiptAllocationRemark = {
+  weight_ticket_product_summaries: {
+    product_name: string | null
+    weight_ticket_product_summary_lines: Array<{
+      weight_ticket_lines: PurchaseBillRemarkLine
+    }>
+  }
+  weight_tickets: {
+    weight_ticket_lines: PurchaseBillRemarkLine[]
+  }
+} | null
 
 async function appendReceiptVoucherStatusLog(
   tx: Prisma.TransactionClient,
@@ -156,10 +179,72 @@ function toVoucherNumber(value: Prisma.Decimal | number | string | null) {
   return toNumber(value)
 }
 
+function cleanImpurityName(name: string | null | undefined) {
+  if (!name) return ''
+  return name
+    .replace(/\s*[\d.]+\s*kg/gi, '')
+    .replace(/\s*[\d.]+\s*กก\.?/gi, '')
+    .trim()
+}
+
+function receiptVoucherWeight(value: number) {
+  return value.toLocaleString('th-TH', {
+    maximumFractionDigits: 3,
+    minimumFractionDigits: 0,
+  })
+}
+
+function isImpurityLine(line: PurchaseBillRemarkLine) {
+  return toVoucherNumber(line.gross_weight) === 0 && Boolean(line.impurity_name || line.impurity_id)
+}
+
+function isPurchaseFromImpurityLine(line: PurchaseBillRemarkLine) {
+  return toVoucherNumber(line.gross_weight) > 0 && (line.note ?? '').includes('มาจากสิ่งเจือปน')
+}
+
+function findPurchaseLineForImpurity(
+  impurityLine: PurchaseBillRemarkLine,
+  sourceProductName: string,
+  purchaseLines: PurchaseBillRemarkLine[],
+) {
+  return purchaseLines.find((purchaseLine) => {
+    const note = purchaseLine.note ?? ''
+    if (!note.includes(sourceProductName) && !note.includes(String(impurityLine.product_id))) return false
+    return Math.abs(toVoucherNumber(purchaseLine.gross_weight) - toVoucherNumber(impurityLine.deduct_weight)) < 0.001
+  })
+}
+
+function receiptLineRemark(receiptAllocation: PurchaseBillReceiptAllocationRemark) {
+  if (!receiptAllocation) return ''
+  const summary = receiptAllocation.weight_ticket_product_summaries
+  const allReceiptLines = receiptAllocation.weight_tickets.weight_ticket_lines
+  const purchaseLines = allReceiptLines.filter(isPurchaseFromImpurityLine)
+  const summaryLines = summary.weight_ticket_product_summary_lines.map((bridge) => bridge.weight_ticket_lines)
+  const impurityLines = summaryLines.filter(isImpurityLine)
+  const lotNotes = Array.from(new Set(summaryLines
+    .filter((line) => !isImpurityLine(line) && !isPurchaseFromImpurityLine(line))
+    .map((line) => line.note?.trim() ?? '')
+    .filter((note): note is string => Boolean(note))))
+
+  if (impurityLines.length > 0) {
+    const impurityRemarks = impurityLines.map((line, index) => {
+      const purchaseLine = findPurchaseLineForImpurity(line, summary.product_name ?? '', purchaseLines)
+      const impurityName = cleanImpurityName(line.impurity_name) || 'สิ่งเจือปน'
+      const prefix = `- ${index + 1}. ${impurityName} ${receiptVoucherWeight(toVoucherNumber(line.deduct_weight))} กก.`
+      return purchaseLine ? `${prefix} ซื้อเป็น ${purchaseLine.product_name}` : prefix
+    })
+    const noteRemarks = lotNotes.map((note, index) => `- ${impurityRemarks.length + index + 1}. ${note}`)
+    return [...impurityRemarks, ...noteRemarks].join('\n')
+  }
+
+  return lotNotes.join(' / ')
+}
+
 function normalizePurchaseBillVoucherItems(items: Array<{
   amount: Prisma.Decimal | number | null
   display_name: string | null
   line_no: number
+  note?: string | null
   price: Prisma.Decimal | number | null
   product_code: string | null
   product_name: string | null
@@ -185,6 +270,39 @@ function normalizePurchaseBillVoucherItems(items: Array<{
   })
 }
 
+function purchaseBillItemRemarks(items: Array<{
+  line_no: number
+  note?: string | null
+  purchase_bill_receipt_allocations?: PurchaseBillReceiptAllocationRemark
+}>) {
+  return [...items]
+    .sort((left, right) => left.line_no - right.line_no)
+    .map((item) => receiptLineRemark(item.purchase_bill_receipt_allocations ?? null) || item.note?.trim())
+    .filter((note): note is string => Boolean(note))
+    .join('\n')
+}
+
+function combineReceiptVoucherNotes(...notes: Array<string | null | undefined>) {
+  const lines: string[] = []
+  const seen = new Set<string>()
+  notes.forEach((note) => {
+    String(note ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .forEach((line) => {
+        if (seen.has(line)) return
+        seen.add(line)
+        lines.push(line)
+      })
+  })
+  return lines.join('\n')
+}
+
+function receiptVoucherNote(note: string | null | undefined, purchaseBillNote?: string | null) {
+  return combineReceiptVoucherNotes(DEFAULT_RECEIPT_VOUCHER_NOTE, note, purchaseBillNote)
+}
+
 async function buildVoucherWriteData(
   tx: Prisma.TransactionClient,
   values: z.infer<typeof receiptVoucherWriteSchema>,
@@ -197,15 +315,63 @@ async function buildVoucherWriteData(
         doc_no: true,
         id: true,
         license_plate: true,
+        note: true,
+        notes: true,
         purchase_bill_items: {
           orderBy: { line_no: 'asc' },
           select: {
             amount: true,
             display_name: true,
             line_no: true,
+            note: true,
             price: true,
             product_code: true,
             product_name: true,
+            purchase_bill_receipt_allocations: {
+              select: {
+                weight_ticket_product_summaries: {
+                  select: {
+                    product_name: true,
+                    weight_ticket_product_summary_lines: {
+                      orderBy: {
+                        weight_ticket_lines: {
+                          line_no: 'asc',
+                        },
+                      },
+                      select: {
+                        weight_ticket_lines: {
+                          select: {
+                            deduct_weight: true,
+                            gross_weight: true,
+                            impurity_id: true,
+                            impurity_name: true,
+                            note: true,
+                            product_id: true,
+                            product_name: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+                weight_tickets: {
+                  select: {
+                    weight_ticket_lines: {
+                      orderBy: { line_no: 'asc' },
+                      select: {
+                        deduct_weight: true,
+                        gross_weight: true,
+                        impurity_id: true,
+                        impurity_name: true,
+                        note: true,
+                        product_id: true,
+                        product_name: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
             qty: true,
             unit: true,
           },
@@ -233,13 +399,17 @@ async function buildVoucherWriteData(
   const totalQty = items.reduce((sum, item) => sum + item.qty, 0)
   const totalAmount = items.reduce((sum, item) => sum + item.amount, 0)
   const sellerName = purchaseBill ? purchaseBill.supplier_name_snapshot ?? '' : values.sellerName?.trim() ?? ''
+  const purchaseBillRemarkNote = purchaseBill ? purchaseBillItemRemarks(purchaseBill.purchase_bill_items) : ''
   if (!purchaseBill && !sellerName) throw new Error('กรุณากรอกชื่อผู้รับเงิน')
+  const purchaseBillNote = purchaseBill
+    ? combineReceiptVoucherNotes(purchaseBillRemarkNote, purchaseBill.note, purchaseBill.notes)
+    : ''
   return {
     amount_in_words: values.amountInWords?.trim() || thaiBahtText(totalAmount),
     date: normalizeDate(values.date),
     items: items as Prisma.InputJsonValue,
     license_plate: purchaseBill ? purchaseBill.license_plate ?? null : values.licensePlate || null,
-    note: values.note || null,
+    note: receiptVoucherNote(values.note, purchaseBillNote) || null,
     payer_signer_name: payerSignerName,
     payment_method: values.paymentMethod?.trim() || CASH_PAYMENT_METHOD,
     purchase_bill_doc_no: purchaseBill?.doc_no ?? null,
@@ -314,9 +484,55 @@ export async function GET() {
               amount: true,
               display_name: true,
               line_no: true,
+              note: true,
               price: true,
               product_code: true,
               product_name: true,
+              purchase_bill_receipt_allocations: {
+                select: {
+                  weight_ticket_product_summaries: {
+                    select: {
+                      product_name: true,
+                      weight_ticket_product_summary_lines: {
+                        orderBy: {
+                          weight_ticket_lines: {
+                            line_no: 'asc',
+                          },
+                        },
+                        select: {
+                          weight_ticket_lines: {
+                            select: {
+                              deduct_weight: true,
+                              gross_weight: true,
+                              impurity_id: true,
+                              impurity_name: true,
+                              note: true,
+                              product_id: true,
+                              product_name: true,
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                  weight_tickets: {
+                    select: {
+                      weight_ticket_lines: {
+                        orderBy: { line_no: 'asc' },
+                        select: {
+                          deduct_weight: true,
+                          gross_weight: true,
+                          impurity_id: true,
+                          impurity_name: true,
+                          note: true,
+                          product_id: true,
+                          product_name: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
               qty: true,
               unit: true,
             },
@@ -391,6 +607,88 @@ export async function GET() {
         .map((supplier) => [supplier.name.trim(), supplier.code] as const)
         .filter(([name]) => name),
     )
+    const rowPurchaseBillIds = rows
+      .map((row) => row.purchase_bill_id)
+      .filter((id): id is bigint => id !== null)
+    const rowPurchaseBillDocNos = rows
+      .map((row) => row.purchase_bill_doc_no?.trim())
+      .filter((docNo): docNo is string => Boolean(docNo))
+    const rowPurchaseBillRemarkRows = rowPurchaseBillIds.length || rowPurchaseBillDocNos.length
+      ? await prisma.purchase_bills.findMany({
+        select: {
+          doc_no: true,
+          id: true,
+          note: true,
+          notes: true,
+          purchase_bill_items: {
+            orderBy: { line_no: 'asc' },
+            select: {
+              line_no: true,
+              note: true,
+              purchase_bill_receipt_allocations: {
+                select: {
+                  weight_ticket_product_summaries: {
+                    select: {
+                      product_name: true,
+                      weight_ticket_product_summary_lines: {
+                        orderBy: {
+                          weight_ticket_lines: {
+                            line_no: 'asc',
+                          },
+                        },
+                        select: {
+                          weight_ticket_lines: {
+                            select: {
+                              deduct_weight: true,
+                              gross_weight: true,
+                              impurity_id: true,
+                              impurity_name: true,
+                              note: true,
+                              product_id: true,
+                              product_name: true,
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                  weight_tickets: {
+                    select: {
+                      weight_ticket_lines: {
+                        orderBy: { line_no: 'asc' },
+                        select: {
+                          deduct_weight: true,
+                          gross_weight: true,
+                          impurity_id: true,
+                          impurity_name: true,
+                          note: true,
+                          product_id: true,
+                          product_name: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            where: { item_status: 'active' },
+          },
+        },
+        where: {
+          OR: [
+            ...(rowPurchaseBillIds.length ? [{ id: { in: rowPurchaseBillIds } }] : []),
+            ...(rowPurchaseBillDocNos.length ? [{ doc_no: { in: rowPurchaseBillDocNos } }] : []),
+          ],
+        },
+      })
+      : []
+    const rowPurchaseBillNoteById = new Map<string, string>()
+    const rowPurchaseBillNoteByDocNo = new Map<string, string>()
+    rowPurchaseBillRemarkRows.forEach((bill) => {
+      const note = combineReceiptVoucherNotes(purchaseBillItemRemarks(bill.purchase_bill_items), bill.note, bill.notes)
+      rowPurchaseBillNoteById.set(bill.id.toString(), note)
+      rowPurchaseBillNoteByDocNo.set(bill.doc_no, note)
+    })
 
     return NextResponse.json({
       companyProfile: companyProfile
@@ -438,7 +736,7 @@ export async function GET() {
           unit: item.unit ?? 'กก.',
         })),
         licensePlate: bill.license_plate ?? '',
-        note: bill.note ?? bill.notes ?? '',
+        note: receiptVoucherNote(null, combineReceiptVoucherNotes(purchaseBillItemRemarks(bill.purchase_bill_items), bill.note, bill.notes)),
         salesPerson: bill.supplier_sales_rep_snapshot ?? '',
         sellerAddress: bill.supplier_address_snapshot ?? '',
         sellerCode: bill.suppliers?.code ?? '',
@@ -456,7 +754,11 @@ export async function GET() {
         id: row.doc_no,
         items: row.items ?? [],
         licensePlate: row.license_plate ?? '',
-        note: row.note ?? '',
+        note: receiptVoucherNote(
+          row.note,
+          rowPurchaseBillNoteById.get(row.purchase_bill_id?.toString() ?? '')
+            || rowPurchaseBillNoteByDocNo.get(row.purchase_bill_doc_no ?? ''),
+        ),
         payerSignerName: row.payer_signer_name ?? row.created_by ?? '',
         paymentMethod: row.payment_method ?? '',
         purchaseBillId: row.purchase_bill_doc_no ?? '',
