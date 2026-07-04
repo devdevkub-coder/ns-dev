@@ -6,7 +6,7 @@ tags:
   - read-model
   - flow
 status: accepted-baseline
-updated: 2026-06-24
+updated: 2026-07-04
 ---
 
 # Finance Accounting Flow
@@ -26,11 +26,11 @@ updated: 2026-06-24
 |---|---|---|---|---|
 | `/finance-accounting/financial-dashboard` | `GET /api/finance-accounting/financial-dashboard` | `asOf`, `branchId` | `buildFinancialDashboard()` | read-only |
 | `/finance-accounting/cash-flow-analysis` | `GET /api/finance-accounting/cash-flow-analysis` | `from`, `to`, `branchId` | `buildCashFlowAnalysis()` | read-only |
-| `/finance-accounting/cf-forecast-calendar` | `GET /api/finance-accounting/cf-forecast-calendar` | `startDate`, `horizon`, `branchId` | `buildCashFlowForecastCalendar()` | read-only forecast |
+| `/finance-accounting/cf-forecast-calendar` | `GET /api/finance-accounting/cf-forecast-calendar` | `startDate`, `horizon`, `branchId` | `buildCashFlowForecastCalendar()` with AP/AR/expense/loan plus VAT/WHT due estimates | read-only forecast |
 | `/finance-accounting/working-capital` | `GET /api/finance-accounting/working-capital` | `asOf`, `periodDays`, `branchId` | `buildWorkingCapital()` | read-only |
 | `/finance-accounting/stock-finance` | `GET /api/finance-accounting/stock-finance` | `asOf`, `branchId` | `buildStockFinance()` | read-only |
 | `/finance-accounting/profit-leak` | `GET /api/finance-accounting/profit-leak` | `from`, `to`, `branchId`, `targetMargin` | `buildProfitLeak()` | read-only |
-| `/finance-accounting/tax-vat-wht` | `GET /api/finance-accounting/tax-vat-wht` | `year`, `month`, `branchId` | `buildTaxVatWht()` | read-only tax baseline |
+| `/finance-accounting/tax-vat-wht` | `GET /api/finance-accounting/tax-vat-wht` | `year`, `month`, `branchId`, `format=xlsx` | `buildTaxVatWht()` | read-only tax baseline + export |
 | `/finance-accounting/pl-statement` | `GET /api/finance-accounting/pl-statement` | `from`, `to`, `branchId`, `transactionMode` | `buildPlStatement()` | read-only management P&L |
 | `/finance-accounting/balance-sheet` | `GET /api/finance-accounting/balance-sheet` | `asOf`, `branchId` | `buildBalanceSheet()` | read-only management balance sheet |
 | `/finance-accounting/cash-flow-statement` | `GET /api/finance-accounting/cash-flow-statement` | `from`, `to`, `branchId` | `buildCashFlowStatement()` | read-only management cash flow |
@@ -51,8 +51,8 @@ updated: 2026-06-24
 | Page group | Meaning |
 |---|---|
 | Management financial statements | P&L, Balance Sheet, Cash Flow Statement, Financial Dashboard. These are report-derived statements from operational tables, not locked statutory statements yet. |
-| Cash/working capital planning | Cash Flow Analysis, CF Forecast Calendar, Working Capital, Stock Finance, Profit Leak. These explain cash pressure, inventory/AR/AP days, stock finance risk and margin leakage. |
-| Tax baseline | Tax / VAT / WHT reads transaction tax fields and tax calendar assumptions. It is not a filing ledger and has no filing lock/status today. |
+| Cash/working capital planning | Cash Flow Analysis, CF Forecast Calendar, Working Capital, Stock Finance, Profit Leak. These explain cash pressure, inventory/AR/AP days, stock finance risk, margin leakage, and estimated VAT/WHT due dates. |
+| Tax baseline | Tax / VAT / WHT reads transaction tax fields, global opening balance carry-forward for the go-live period, missing-tax-document aging, source document links, export, and tax calendar assumptions. It is not a filing ledger and has no filing lock/status today. |
 | Asset baseline | Asset Register creates/maintains asset master, Depreciation posts/reverses monthly depreciation rows, Asset Disposal closes/reverses asset lifecycle using latest NBV, and Asset Overview remains read-only. |
 | Loan/equity/opening/historical | Loan Contracts/Dashboard, Equity, Opening Balance, Historical Data read setup/support tables. Write paths need approval/audit/cutover design before enabling. |
 | Period and posting policy | Accounting Periods is the target owner for month/year close states, soft close, lock, and reopen. Posting Rules is the readiness surface for source-to-account mapping before any GL/statutory posting is enabled. |

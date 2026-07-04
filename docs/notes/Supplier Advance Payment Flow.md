@@ -13,7 +13,7 @@ tags:
   - business-flow
 status: draft
 created: 2026-06-01
-updated: 2026-06-08
+updated: 2026-07-04
 ---
 
 # Supplier Advance Payment Flow / จ่ายเงินล่วงหน้า Supplier
@@ -32,6 +32,7 @@ updated: 2026-06-08
 - มี `PO Buy` แล้ว และตกลงจ่ายมัดจำก่อน Supplier ส่งของ
 - รถเข้าของแบบชั่งน้ำหนักรวมจากเครื่องชั่งใหญ่ แต่ยังไม่ได้แตกชั่งย่อย/ตรวจสอบละเอียดใน `WTI`
 - ต้องจ่ายบางส่วนก่อน แล้วค่อยออก `Purchase Bill` หลังข้อมูลรับของหรือ trading bill สมบูรณ์
+- มี invoice/tax invoice ของเงินมัดจำจาก Supplier แล้ว ต้องบันทึกเลข invoice และ VAT ตั้งแต่ตอนสร้าง ADV
 
 `ADV` เป็น source document ฝั่งจ่ายเงินของตัวเอง ไม่ใช่ `PMA` และไม่ใช่ `PMT`
 
@@ -104,6 +105,29 @@ flowchart TD
 
 หมายเหตุล่าสุด: หน้า `/purchase/advance-payments` ไม่แสดง `วิธีจ่าย`, `บัญชีที่จ่าย`, `ชื่อลูกค้า`, `พนักงานขับรถ`, `ผู้ชั่งน้ำหนัก`, หรือ `ผู้ส่ง`; ข้อมูลช่องทางจ่ายจริงอยู่ใน approval/payment flow
 
+### ADV แบบ Invoice + VAT
+
+เคสพิเศษนี้ใช้เมื่อ Supplier ออก invoice/tax invoice สำหรับเงินมัดจำแล้ว จึงต้องเก็บข้อมูลภาษีตั้งแต่ ADV แต่ยังใช้ approval/payment lifecycle เดียวกับ ADV ปกติ
+
+ข้อมูลขั้นต่ำ:
+
+- สาขา
+- Supplier
+- เลข Invoice บังคับกรอก
+- ประเภท VAT บังคับเลือก: `ไม่มี VAT` หรือ `มี VAT`
+- ยอดมัดจำก่อน VAT
+- VAT amount คำนวณอัตโนมัติ
+- ยอดจ่ายจริงรวม VAT คำนวณอัตโนมัติ
+- หมายเหตุ
+
+สูตรคำนวณ:
+
+- `advance_base_amount` = ยอดมัดจำก่อน VAT ที่ผู้ใช้กรอก
+- `advance_vat_amount` = 0 เมื่อเลือก `ไม่มี VAT`; ถ้าเลือก `มี VAT` ให้คำนวณจาก `advance_base_amount * active VAT rate`
+- `advance_gross_amount` = `advance_base_amount + advance_vat_amount`
+- `PMA.approved_amount` และ `PMT` ต้องใช้ `advance_gross_amount` เพราะเป็นยอดเงินออกจริง
+- ยอดที่นำไปหักกับ PB ต้องเก็บแยกเป็นฐานก่อน VAT และ VAT ไม่ใช้ยอด gross ไปหักฐานสินค้าโดยตรง
+
 ## Rule การจ่าย ADV
 
 - หลังบันทึก ADV ต้องเข้า `/daily/payment-approval`
@@ -111,6 +135,7 @@ flowchart TD
 - แต่ละ approval item ต้องไปเป็นรายการรอจ่ายใน `/purchase/payments`
 - เมื่อทำจ่ายสำเร็จ ต้องเกิด `PMT`
 - ADV ที่ยังไม่จ่ายสำเร็จ ห้ามนำไป allocate หักกับ PB
+- ADV แบบ Invoice + VAT ต้องอนุมัติและจ่ายด้วยยอดรวม VAT (`advance_gross_amount`) แต่ต้องเก็บฐานก่อน VAT และ VAT ไว้สำหรับตอน allocate เข้า PB
 - ถ้า approve ADV ไม่เต็มยอด ให้ ADV แสดง `อนุมัติแล้วบางส่วน` และยอดที่เหลือยังเป็น pending source candidate
 - ถ้า PMA ของ ADV ถูก void หรือ PMT ของ ADV ถูกยกเลิก ต้อง recalc ADV จาก active PMA/PMT/allocation ใหม่; ถ้าไม่เหลือ active PMA ให้กลับเป็น `ยังไม่อนุมัติ`, ถ้าเหลือบางส่วนให้เป็น `อนุมัติแล้วบางส่วน`
 - PMA เดิมที่ถูก void หรือถูกปิดรอบจาก cancel PMT ใช้เป็น audit/history เท่านั้น และต้องสร้าง PMA ใหม่ก่อนจ่าย ADV ใหม่
@@ -121,6 +146,13 @@ flowchart TD
 - `ADV` 1 รายการอาจถูกใช้กับ PB เดียวหรือหลาย PB ได้ตาม policy ที่จะออกแบบต่อ
 - ต้องกันไม่ให้ allocate ADV เกินยอดจ่ายจริงที่ยังเหลือ
 - ยอดเจ้าหนี้สุทธิของ PB = `ยอดบิลเต็ม - ยอด ADV ที่ allocate`
+- ถ้า ADV ไม่มี VAT ให้ allocate ด้วยยอดมัดจำตามปกติ
+- ถ้า ADV มี VAT ให้ allocate กับ PB แบบแยกฐานและ VAT:
+  - หัก `PB base/subtotal` ด้วย `ADV base amount` ที่ allocate
+  - หักหรืออ้างอิง `PB VAT` ด้วย `ADV VAT amount` ที่ allocate
+  - ห้ามนำ `ADV gross amount` ไปหัก `PB base/subtotal` โดยตรง
+  - ยอดคงเหลือที่ต้องจ่ายของ PB = `(PB base - allocated ADV base) + (PB VAT - allocated ADV VAT)`
+- ถ้าใช้ ADV มี VAT บางส่วนหรือใช้ข้ามหลาย PB ต้องคำนวณ VAT allocation ตามสัดส่วนของฐานที่ allocate เพื่อไม่ให้ VAT ถูกใช้ซ้ำหรือเกินยอด invoice
 - ถ้ายอดเจ้าหนี้สุทธิ `> 0` ให้ยอดคงเหลือเข้า `/daily/payment-approval`
 - ถ้ายอดเจ้าหนี้สุทธิ `= 0` ให้ PB เป็น `เสร็จสิ้น` และไม่ต้องเข้า approval เพิ่ม
 - ถ้า ADV มากกว่า PB ห้าม carry forward เป็นเครดิต Supplier อัตโนมัติ ต้องเข้า flow `คืนเงินมัดจำ/คืนเงินล่วงหน้า Supplier`
@@ -132,14 +164,18 @@ flowchart TD
 ในรายละเอียดเอกสารควร trace ได้อย่างน้อย:
 
 - `POB` ใดเป็นบริบทของ ADV ถ้ามี
+- เลข Invoice, ประเภท VAT, ฐานก่อน VAT, VAT, และยอดรวม VAT ของ ADV แบบ Invoice + VAT
 - `ADV` ใดถูกจ่ายด้วย `PMA/PMT` ใด
 - `ADV` ใดถูก allocate เข้า `PB` ใด
 - ยอด ADV เดิม, ยอดใช้แล้ว, ยอดคงเหลือ
+- สำหรับ ADV มี VAT ต้อง trace ยอดฐานและ VAT ที่ถูก allocate เข้า PB แต่ละใบ
 - ถ้า PB ถูกยกเลิก ต้องมี rule คืนยอด ADV allocation ให้ถูกต้องตาม policy และ audit trail
 
 ## Open Decisions
 
 - จะให้ `ADV` 1 รายการ allocate ข้ามหลาย PB ได้ทันทีหรือจำกัด 1 ADV ต่อ 1 PB ใน phase แรก
+- UX ของหน้า `/purchase/advance-payments` จะใช้ mode แยกชัดเจนระหว่าง `ADV ปกติ` กับ `ADV Invoice + VAT` หรือใช้ field set เดียวแล้วซ่อน/แสดงตามประเภท
+- policy การ round VAT เมื่อนำ ADV มี VAT ไป allocate แบบบางส่วนหรือข้ามหลาย PB
 - route สำหรับ `คืนเงินมัดจำ/คืนเงินล่วงหน้า Supplier`
 - policy เมื่อ PB ถูกยกเลิกหลังมี ADV allocation แต่ยังไม่มี payment ยอดคงเหลือ
 - report/reconciliation สำหรับ `POB -> ADV -> PMT -> PB`
