@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Children, isValidElement, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -443,10 +444,7 @@ export function AssetRegisterPageClient() {
       {error ? <ErrorBox message={error} /> : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="bg-white p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-4">
-          <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl shrink-0 ${hasAssets ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
-            🏢
-          </div>
+        <div className="bg-white p-5 border border-slate-100 rounded-md shadow-sm">
           <div className="min-w-0 flex-1">
             <div className={`text-xs font-semibold truncate ${hasAssets ? 'text-emerald-600' : 'text-slate-500'}`}>มูลค่าคงเหลือสุทธิ (NBV)</div>
             <div className="mt-0.5 text-2xl font-extrabold text-slate-900 tracking-tight">{formatMoney(data?.summary.nbv)} ฿</div>
@@ -472,22 +470,16 @@ export function AssetRegisterPageClient() {
         </Panel>
         <Panel title="ค่าเสื่อม/เดือน">
           <div className={`text-2xl font-extrabold tracking-tight ${(data?.summary.monthlyDep ?? 0) > 0 ? 'text-amber-700' : 'text-slate-900'}`}>{formatMoney(data?.summary.monthlyDep)} ฿</div>
-          <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-            <MiniStat label="รายการทั้งหมด" value={data?.summary.count ?? 0} />
-            <MiniStat label="แสดงผลปัจจุบัน" value={rows.length} />
-          </div>
         </Panel>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="จำนวนทรัพย์สิน" value={data?.summary.count ?? 0} tone="blue" icon="📋" />
-        <StatCard label="ต้นทุนสุทธิรวม" value={formatMoney(data?.summary.netAssetCost)} tone="blue" icon="💰" />
-        <StatCard label="ค่าเสื่อมสะสมรวม" value={formatMoney(data?.summary.accumDep)} tone="amber" icon="📉" />
-        <StatCard label="แสดงผลตามตัวกรอง" value={rows.length} tone="blue" icon="🔎" />
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard label="ต้นทุนสุทธิรวม" value={formatMoney(data?.summary.netAssetCost)} tone="blue" />
+        <StatCard label="ค่าเสื่อมสะสมรวม" value={formatMoney(data?.summary.accumDep)} tone="amber" />
       </div>
 
       {/* Desktop Toolbar */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
         <input
           className="h-9 min-w-[320px] flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm outline-none transition focus:border-slate-400"
           placeholder="ค้นหา รหัส / ชื่อ / สถานที่ / สาขา"
@@ -514,15 +506,15 @@ export function AssetRegisterPageClient() {
           </select>
         </div>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          <LinkButton href="/api/finance-accounting/asset-register?template=csv">📄 Template CSV</LinkButton>
+          <LinkButton href="/api/finance-accounting/asset-register?template=csv">ดาวน์โหลดแบบฟอร์ม CSV</LinkButton>
           <button
             type="button"
             onClick={openImport}
             className="inline-flex h-9 items-center rounded-lg border border-slate-100 bg-slate-50 px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 outline-none focus:ring-0"
           >
-            📥 Import
+            นำเข้า
           </button>
-          <LinkButton href={exportHref}>📤 Export CSV</LinkButton>
+          <LinkButton href={exportHref}>ส่งออก CSV</LinkButton>
           <button
             type="button"
             onClick={openCreate}
@@ -534,7 +526,7 @@ export function AssetRegisterPageClient() {
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 space-y-2 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden">
+      <div className="mb-4 space-y-2 rounded-md border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden">
         <div className="flex gap-2 items-center">
           <input
             className="flex-1 rounded-lg border border-slate-300 px-3 py-1 text-sm h-9 outline-none focus:border-slate-400 transition"
@@ -555,93 +547,83 @@ export function AssetRegisterPageClient() {
 
       {/* Bottom Sheet Filter for Mobile */}
       {showMobileFilters ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 lg:hidden">
-          <div className="w-full rounded-t-2xl bg-white p-5 shadow-xl border-t border-slate-200 max-h-[85vh] overflow-y-auto space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h4 className="font-bold text-slate-800 text-sm">ตัวกรองเพิ่มเติม</h4>
-              <button
-                className="p-1 text-slate-400 hover:text-slate-600 text-2xl font-bold focus:outline-none"
-                onClick={() => setShowMobileFilters(false)}
-                type="button"
-              >
-                &times;
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="mb-1 block font-semibold text-slate-600 text-xs">หมวดหมู่</label>
-                <select
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
-                  value={category}
-                  onChange={(event) => setCategory(event.target.value)}
-                >
-                  <option value="all">ทุกหมวด</option>
-                  {(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block font-semibold text-slate-600 text-xs">สถานะ</label>
-                <select
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
-                  value={status}
-                  onChange={(event) => setStatus(event.target.value)}
-                >
-                  <option value="all">ทุกสถานะ</option>
-                  {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </div>
-
-              <div className="border-t border-slate-100 pt-3 space-y-2">
-                <label className="block font-semibold text-slate-600 text-xs">จัดการไฟล์และระบบนำเข้า</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-                  <a
-                    href="/api/finance-accounting/asset-register?template=csv"
-                    className="flex h-10 items-center justify-center rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
-                  >
-                    📄 Template
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => { setShowMobileFilters(false); openImport() }}
-                    className="flex h-10 items-center justify-center rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
-                  >
-                    📥 Import
-                  </button>
-                  <a
-                    href={exportHref}
-                    onClick={() => setShowMobileFilters(false)}
-                    className="col-span-2 flex h-10 items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition"
-                  >
-                    📤 Export CSV
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-slate-100 flex gap-2">
+        <MobileFilterSheet
+          bodyClassName="space-y-3"
+          footer={(
+            <>
               <button
                 type="button"
                 onClick={() => {
                   setCategory('all')
                   setStatus('all')
                 }}
-                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                className="flex-1 h-10 rounded-md border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
               >
                 ล้างตัวกรอง
               </button>
               <button
                 type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+                className="flex-1 h-10 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
               >
                 ตกลง
               </button>
+            </>
+          )}
+          onClose={() => setShowMobileFilters(false)}
+          title="ตัวกรองเพิ่มเติม"
+        >
+          <div>
+            <label className="mb-1 block font-semibold text-slate-600 text-xs">หมวดหมู่</label>
+            <select
+              className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+              value={category}
+              onChange={(event) => setCategory(event.target.value)}
+            >
+              <option value="all">ทุกหมวด</option>
+              {(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block font-semibold text-slate-600 text-xs">สถานะ</label>
+            <select
+              className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+            >
+              <option value="all">ทุกสถานะ</option>
+              {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </div>
+
+          <div className="border-t border-slate-100 pt-3 space-y-2">
+            <label className="block font-semibold text-slate-600 text-xs">จัดการไฟล์และระบบนำเข้า</label>
+            <div className="grid grid-cols-2 gap-2">
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+              <a
+                href="/api/finance-accounting/asset-register?template=csv"
+                className="flex h-10 items-center justify-center rounded-md border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+              >
+                แบบฟอร์ม CSV
+              </a>
+              <button
+                type="button"
+                onClick={() => { setShowMobileFilters(false); openImport() }}
+                className="flex h-10 items-center justify-center rounded-md border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+              >
+                นำเข้า
+              </button>
+              <a
+                href={exportHref}
+                onClick={() => setShowMobileFilters(false)}
+                className="col-span-2 flex h-10 items-center justify-center rounded-md bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition"
+              >
+                ส่งออก CSV
+              </a>
             </div>
           </div>
-        </div>
+        </MobileFilterSheet>
       ) : null}
 
       {/* Pagination Controls */}
@@ -750,14 +732,14 @@ export function AssetRegisterPageClient() {
       {/* Mobile View Card List */}
       <div className="block lg:hidden space-y-3">
         {isLoading ? (
-          <div className="bg-white rounded-xl p-6 text-center text-xs text-slate-400 shadow-sm border border-slate-100">กำลังโหลดข้อมูล...</div>
+          <div className="bg-white rounded-md p-6 text-center text-xs text-slate-400 shadow-sm border border-slate-100">กำลังโหลดข้อมูล...</div>
         ) : rows.length === 0 ? (
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+          <div className="bg-white rounded-md p-4 shadow-sm border border-slate-100">
             <AssetRegisterEmptyState hasFilters={hasActiveAssetFilters} />
           </div>
         ) : (
           pagedRows.map((row) => (
-            <div key={row.id} className="bg-white rounded-xl p-4 shadow-sm border border-slate-100 space-y-3 hover:bg-slate-50/50 transition">
+            <div key={row.id} className="bg-white rounded-md p-4 shadow-sm border border-slate-100 space-y-3 hover:bg-slate-50/50 transition">
               <div className="flex justify-between items-start border-b border-slate-100 pb-2">
                 <div className="min-w-0 flex-1 pr-2">
                   <span className="font-mono font-bold text-xs text-amber-700 block">{row.code}</span>
@@ -855,7 +837,7 @@ export function AssetRegisterPageClient() {
       ) : null}
 
       {modal === 'import' ? (
-        <Modal title="Import Asset Register">
+        <Modal title="นำเข้าทะเบียนทรัพย์สิน">
           <div className="space-y-3">
             <input
               accept=".csv,.tsv,.txt"
@@ -890,13 +872,13 @@ export function AssetRegisterPageClient() {
           </div>
           <ModalActions>
             <ActionButton onClick={() => setModal(null)}>ยกเลิก</ActionButton>
-            <ActionButton disabled={isSaving || importBlocked} strong onClick={commitImport}>{isSaving ? 'กำลังนำเข้า' : 'Commit Import'}</ActionButton>
+            <ActionButton disabled={isSaving || importBlocked} strong onClick={commitImport}>{isSaving ? 'กำลังนำเข้า' : 'ยืนยันนำเข้า'}</ActionButton>
           </ModalActions>
         </Modal>
       ) : null}
 
       {/* Floating Action Button (FAB) for Mobile */}
-      <div className="fixed bottom-6 right-6 z-40 lg:hidden">
+      <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 lg:hidden">
         <button
           className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform focus:outline-none text-2xl font-bold hover:bg-blue-700"
           onClick={openCreate}
@@ -1016,7 +998,7 @@ export function DepreciationPageClient() {
       })
       setPreview(result)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Preview ค่าเสื่อมไม่ได้')
+      setError(caught instanceof Error ? caught.message : 'ตรวจค่าเสื่อมไม่ได้')
     } finally {
       setIsSaving(false)
     }
@@ -1061,6 +1043,12 @@ export function DepreciationPageClient() {
   return (
     <section className="space-y-4">
       {error ? <ErrorBox message={error} /> : null}
+      <Tabs defaultValue="pending" className="gap-3">
+        <TabsList className="w-full overflow-x-auto rounded-md bg-white px-2 shadow-sm" variant="line">
+          <TabsTrigger value="pending" variant="line">สินทรัพย์รอประมวลผล</TabsTrigger>
+          <TabsTrigger value="history" variant="line">ประวัติการประมวลผล</TabsTrigger>
+        </TabsList>
+
       {/* Desktop Filter Panel */}
       <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
         <select aria-label="Depreciation month" className="h-9 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={month} onChange={(event) => setMonth(event.target.value)}>
@@ -1083,11 +1071,11 @@ export function DepreciationPageClient() {
         <Chip tone="emerald">Run แล้ว {data?.period.postedRuns ?? 0}</Chip>
         <Chip tone="amber">รอ Run {filteredPendingAssets.length}</Chip>
         <span className="flex-1" />
-        <ActionButton disabled={isSaving || month === 'all' || filteredPendingAssets.length === 0} strong onClick={runPreview}>Preview ค่าเสื่อมงวดนี้</ActionButton>
+        <ActionButton disabled={isSaving || month === 'all' || filteredPendingAssets.length === 0} strong onClick={runPreview}>ตรวจค่าเสื่อมงวดนี้</ActionButton>
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
+      <div className="rounded-md border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
         <div className="flex gap-2 items-center">
           <select 
             aria-label="Depreciation month" 
@@ -1129,91 +1117,75 @@ export function DepreciationPageClient() {
               : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95 transition-transform'
           }`}
         >
-          Preview ค่าเสื่อมงวดนี้
+          ตรวจค่าเสื่อมงวดนี้
         </button>
       </div>
 
       {/* Bottom Sheet Filter for Mobile */}
       {showMobileFilters ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 lg:hidden">
-          <div className="w-full rounded-t-2xl bg-white p-5 shadow-xl border-t border-slate-200 max-h-[85vh] overflow-y-auto space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h4 className="font-bold text-slate-800 text-sm">ตัวกรองเพิ่มเติม</h4>
+        <MobileFilterSheet
+          bodyClassName="space-y-3"
+          footer={(
+            <>
               <button
-                className="p-1 text-slate-400 hover:text-slate-600 text-2xl font-bold focus:outline-none"
-                onClick={() => setShowMobileFilters(false)}
                 type="button"
-              >
-                &times;
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="mb-1 block font-semibold text-slate-600 text-xs">หมวดหมู่ทรัพย์สิน</label>
-                <select 
-                  aria-label="Filter category" 
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" 
-                  value={filterCategory} 
-                  onChange={(event) => setFilterCategory(event.target.value)}
-                >
-                  <option value="all">ทุกหมวด</option>
-                  {categoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block font-semibold text-slate-600 text-xs">แผนก</label>
-                <select 
-                  aria-label="Filter department" 
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" 
-                  value={filterDepartment} 
-                  onChange={(event) => setFilterDepartment(event.target.value)}
-                >
-                  <option value="all">ทุกแผนก</option>
-                  {departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block font-semibold text-slate-600 text-xs">วันสิ้นสุดงวด (Period End Date)</label>
-                <input 
-                  aria-label="Depreciation period date" 
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-slate-50 px-3 py-1 text-sm outline-none cursor-default" 
-                  readOnly 
-                  value={periodDate} 
-                />
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-slate-100 flex gap-2">
-              <button 
-                type="button" 
                 onClick={() => {
                   setFilterCategory('all')
                   setFilterDepartment('all')
                 }}
-                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                className="flex-1 h-10 rounded-md border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
               >
                 ล้างตัวกรอง
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+                className="flex-1 h-10 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
               >
                 ตกลง
               </button>
-            </div>
+            </>
+          )}
+          onClose={() => setShowMobileFilters(false)}
+          title="ตัวกรองเพิ่มเติม"
+        >
+          <div>
+            <label className="mb-1 block font-semibold text-slate-600 text-xs">หมวดหมู่ทรัพย์สิน</label>
+            <select
+              aria-label="Filter category"
+              className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+              value={filterCategory}
+              onChange={(event) => setFilterCategory(event.target.value)}
+            >
+              <option value="all">ทุกหมวด</option>
+              {categoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
           </div>
-        </div>
-      ) : null}
-      <Tabs defaultValue="pending" className="gap-3">
-        <TabsList className="w-full overflow-x-auto bg-white px-2 shadow-sm" variant="line">
-          <TabsTrigger value="pending" variant="line">สินทรัพย์รอประมวลผล</TabsTrigger>
-          <TabsTrigger value="history" variant="line">ประวัติการประมวลผล</TabsTrigger>
-        </TabsList>
 
+          <div>
+            <label className="mb-1 block font-semibold text-slate-600 text-xs">แผนก</label>
+            <select
+              aria-label="Filter department"
+              className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+              value={filterDepartment}
+              onChange={(event) => setFilterDepartment(event.target.value)}
+            >
+              <option value="all">ทุกแผนก</option>
+              {departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block font-semibold text-slate-600 text-xs">วันสิ้นสุดงวด (Period End Date)</label>
+            <input
+              aria-label="Depreciation period date"
+              className="w-full h-10 rounded-md border border-slate-300 bg-slate-50 px-3 py-1 text-sm outline-none cursor-default"
+              readOnly
+              value={periodDate}
+            />
+          </div>
+        </MobileFilterSheet>
+      ) : null}
         <TabsContent value="pending" className="space-y-3">
           <div className="px-1 text-sm text-slate-600">
             พบสินทรัพย์รอประมวลผล <span className="font-semibold text-slate-900">{filteredPendingAssets.length}</span> รายการ
@@ -1332,7 +1304,7 @@ export function DepreciationPageClient() {
         </div>
 
         {/* Mobile view */}
-        <div className="block lg:hidden divide-y divide-slate-100/60 max-h-[60vh] overflow-y-auto">
+        <div className="block lg:hidden divide-y divide-slate-100/60">
           {isLoading ? (
             <div className="py-8 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล...</div>
           ) : filteredRows.length === 0 ? (
@@ -1401,7 +1373,7 @@ export function DepreciationPageClient() {
 
 
       {preview ? (
-        <Modal title={`Preview ค่าเสื่อมงวด ${preview.periodKey}`}>
+        <Modal title={`ตรวจรายการค่าเสื่อมงวด ${preview.periodKey}`}>
           <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-3">
             <StatCard label="จำนวนรายการ" value={preview.summary.count} />
             <StatCard label="ค่าเสื่อมรวม" value={formatMoney(preview.summary.totalDepreciation)} tone="red" />
@@ -1425,7 +1397,7 @@ export function DepreciationPageClient() {
           </TableShell>
           <ModalActions>
             <ActionButton onClick={() => setPreview(null)}>ยกเลิก</ActionButton>
-            <ActionButton disabled={isSaving || preview.rows.length === 0} strong onClick={commitRun}>{isSaving ? 'กำลัง Run' : 'Commit Run'}</ActionButton>
+            <ActionButton disabled={isSaving || preview.rows.length === 0} strong onClick={commitRun}>{isSaving ? 'กำลังบันทึก' : 'ยืนยันบันทึกงวด'}</ActionButton>
           </ModalActions>
         </Modal>
       ) : null}
@@ -1588,7 +1560,7 @@ export function AssetDisposalPageClient() {
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden">
+      <div className="mb-4 rounded-md border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden">
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="rounded-lg bg-blue-50 border border-blue-100 p-1.5">
             <div className="text-xs text-slate-500 font-semibold">จำหน่ายได้</div>
@@ -1605,8 +1577,12 @@ export function AssetDisposalPageClient() {
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <StatCard label="ยอดขายรวม (Proceeds)" value={formatMoney(data?.summary.proceeds)} tone="blue" icon="💵" />
-        <StatCard label="กำไร/(ขาดทุน) สุทธิ" value={formatMoney(data?.summary.gainLoss)} tone={(data?.summary.gainLoss ?? 0) >= 0 ? 'emerald' : 'red'} icon="📈" />
+        <StatCard label="ยอดขายรวม (Proceeds)" value={formatMoney(data?.summary.proceeds)} tone="blue" />
+        <StatCard
+          label="กำไร/(ขาดทุน) สุทธิ"
+          value={formatMoney(data?.summary.gainLoss)}
+          tone={(data?.summary.gainLoss ?? 0) > 0 ? 'emerald' : (data?.summary.gainLoss ?? 0) < 0 ? 'red' : 'slate'}
+        />
       </div>
       {/* Pagination Controls */}
       <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
@@ -1718,7 +1694,7 @@ export function AssetDisposalPageClient() {
         </div>
 
         {/* Mobile view */}
-        <div className="block lg:hidden divide-y divide-slate-100/60 max-h-[60vh] overflow-y-auto">
+        <div className="block lg:hidden divide-y divide-slate-100/60">
           {isLoading ? (
             <div className="py-8 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล...</div>
           ) : rows.length === 0 ? (
@@ -1836,7 +1812,7 @@ export function AssetDisposalPageClient() {
       ) : null}
 
       {/* Floating Action Button (FAB) for Mobile */}
-      <div className="fixed bottom-6 right-6 z-40 lg:hidden">
+      <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 lg:hidden">
         <button
           className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform focus:outline-none text-2xl font-bold hover:bg-blue-700"
           onClick={openCreate}
@@ -1990,14 +1966,20 @@ function splitDelimitedLine(line: string, delimiter: string) {
 }
 
 function Modal({ children, title }: { children: ReactNode; title: string }) {
+  const childList = Children.toArray(children)
+  const actionElement = childList.find((child) => isValidElement<{ children?: ReactNode }>(child) && child.type === ModalActions)
+  const content = childList.filter((child) => !(isValidElement(child) && child.type === ModalActions))
+  const actions = isValidElement<{ children?: ReactNode }>(actionElement) ? actionElement.props.children : null
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4">
-      <div className="mt-8 w-full max-w-5xl rounded-2xl bg-white shadow-xl overflow-hidden">
-        <div className="bg-slate-900 px-6 py-4 border-b border-slate-800">
-          <h2 className="text-sm font-semibold text-white">{title}</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-6xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 bg-slate-900 px-6 py-4">
+          <h2 className="min-w-0 truncate text-sm font-semibold text-white">{title}</h2>
+          {actions ? <div className="flex shrink-0 flex-wrap justify-end gap-2">{actions}</div> : null}
         </div>
-        <div className="p-6">
-          {children}
+        <div className="flex-1 overflow-y-auto bg-slate-50 p-6">
+          {content}
         </div>
       </div>
     </div>
@@ -2005,7 +1987,7 @@ function Modal({ children, title }: { children: ReactNode; title: string }) {
 }
 
 function ModalActions({ children }: { children: ReactNode }) {
-  return <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-4">{children}</div>
+  return <>{children}</>
 }
 
 function Field({ children, label }: { children: ReactNode; label: string }) {
@@ -2029,14 +2011,10 @@ function MoneyField({ label, onChange, value }: { label: string; onChange: (valu
 }
 
 function ActionButton({ children, disabled = false, onClick, strong = false }: { children: ReactNode; disabled?: boolean; onClick: () => void; strong?: boolean }) {
-  const color = strong 
-    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm focus:outline-none focus:ring-0' 
-    : 'bg-transparent text-slate-500 hover:text-slate-800 border-none shadow-none focus:outline-none focus:ring-0'
-  return <button className={`${color} rounded-md px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 transition`} disabled={disabled} onClick={onClick} type="button">{children}</button>
-}
-
-function DisabledButton({ children, strong = false }: { children: ReactNode; strong?: boolean }) {
-  return <button className={`${strong ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'} rounded-md px-4 py-2 text-sm font-medium shadow-sm opacity-65 focus:outline-none focus:ring-0`} disabled type="button">{children}</button>
+  const color = strong
+    ? 'border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700'
+    : 'border-rose-600 bg-rose-600 text-white hover:border-rose-700 hover:bg-rose-700'
+  return <button className={`${color} h-9 rounded-md border px-4 text-sm font-normal transition disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-0`} disabled={disabled} onClick={onClick} type="button">{children}</button>
 }
 
 function LinkButton({ children, href }: { children: ReactNode; href: string }) {
@@ -2045,7 +2023,7 @@ function LinkButton({ children, href }: { children: ReactNode; href: string }) {
 
 function Panel({ children, title }: { children: ReactNode; title: string }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
+    <div className="rounded-md border border-slate-100 bg-white p-4 shadow-sm">
       <h2 className="mb-3 font-semibold text-slate-900 text-sm">{title}</h2>
       {children}
     </div>
@@ -2054,7 +2032,7 @@ function Panel({ children, title }: { children: ReactNode; title: string }) {
 
 function FilterPanel({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+    <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-100 bg-white p-3 shadow-sm">
       {children}
     </div>
   )
@@ -2062,23 +2040,23 @@ function FilterPanel({ children }: { children: ReactNode }) {
 
 function TableShell({ children, title }: { children: ReactNode; title?: string }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
       {title ? (
         <h2 className="border-b border-slate-100 px-4 py-3 font-bold text-slate-900 text-sm bg-slate-50/50">{title}</h2>
       ) : null}
-      <div className="max-h-[60vh] overflow-auto">
+      <div className="overflow-x-auto">
         {children}
       </div>
     </div>
   )
 }
 
-function StatCard({ label, tone, value, icon }: { label: string; tone?: 'amber' | 'emerald' | 'red' | 'blue'; value: number | string; icon?: string }) {
+function StatCard({ label, tone, value, icon }: { label: string; tone?: 'amber' | 'emerald' | 'red' | 'blue' | 'slate'; value: number | string; icon?: string }) {
   const isZero = isZeroDisplayValue(value)
   const labelColor = isZero ? 'text-slate-500' : tone === 'amber' ? 'text-amber-600' : tone === 'emerald' ? 'text-emerald-600' : tone === 'red' ? 'text-red-600' : tone === 'blue' ? 'text-blue-600' : 'text-slate-500'
   const iconBgColor = isZero ? 'bg-slate-100 text-slate-500' : tone === 'amber' ? 'bg-amber-50 text-amber-600' : tone === 'emerald' ? 'bg-emerald-50 text-emerald-600' : tone === 'red' ? 'bg-red-50 text-red-600' : tone === 'blue' ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-600'
   return (
-    <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+    <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-md shadow-sm flex items-center gap-2.5 sm:gap-4">
       {icon && (
         <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${iconBgColor} flex items-center justify-center text-xl shrink-0`}>
           {icon}
@@ -2096,15 +2074,6 @@ function isZeroDisplayValue(value: number | string) {
   if (typeof value === 'number') return value === 0
   const numericValue = Number(value.replace(/,/g, ''))
   return Number.isFinite(numericValue) && numericValue === 0
-}
-
-function MiniStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg bg-slate-50 p-2 border border-slate-100">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="font-bold text-slate-900 text-xs">{value}</div>
-    </div>
-  )
 }
 
 function Bar({ label, max, value }: { label: string; max: number; value: number }) {
@@ -2246,8 +2215,8 @@ function AssetRegisterEmptyState({
   hasFilters: boolean
 }) {
   return (
-    <div className="mx-auto flex max-w-lg flex-col items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-5 py-6 text-center">
-      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-lg text-slate-500 shadow-sm">🏢</div>
+    <div className="mx-auto flex max-w-lg flex-col items-center rounded-md border border-dashed border-slate-200 bg-slate-50/70 px-5 py-6 text-center">
+      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-lg text-slate-500 shadow-sm"></div>
       <div className="mt-3 text-sm font-semibold text-slate-800">
         {hasFilters ? 'ไม่พบทรัพย์สินตามตัวกรอง' : 'ยังไม่มีทรัพย์สินในระบบ'}
       </div>

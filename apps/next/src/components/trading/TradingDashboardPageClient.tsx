@@ -5,7 +5,7 @@ import { Plus, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
@@ -451,6 +451,19 @@ export function TradingDashboardPageClient() {
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 
+      <div className="flex flex-wrap rounded-md bg-white px-2 shadow-sm">
+        {tabs.map((item) => (
+          <button
+            key={item.key}
+            className={`border-b-2 px-4 py-3 text-sm font-semibold outline-none focus:outline-none focus:ring-0 ${tab === item.key ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+            type="button"
+            onClick={() => setTab(item.key)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
       <div className="rounded-md bg-white p-3 shadow">
         <div className="grid gap-2 lg:grid-cols-[140px_140px_minmax(180px,1fr)_minmax(180px,1fr)_minmax(180px,1fr)_minmax(180px,1fr)_auto_auto]">
           <DatePickerInput ariaLabel="วันที่เริ่มต้น" className="h-10 text-sm" value={visibleFromDate} onChange={setFromDate} />
@@ -471,31 +484,19 @@ export function TradingDashboardPageClient() {
         <AgingPanel aging={data?.aging ?? null} isLoading={isLoading} />
       </div>
 
-      <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4">
-          <div className="flex flex-wrap">
-            {tabs.map((item) => (
-              <button
-                key={item.key}
-                className={`border-b-2 px-4 py-3 text-sm font-semibold outline-none focus:outline-none focus:ring-0 ${tab === item.key ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
-                type="button"
-                onClick={() => setTab(item.key)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+      <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-b border-slate-100 px-4">
           <div className="flex gap-2 py-2">
             <button
-              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer"
               type="button"
               onClick={() => setIsSourceModalOpen(true)}
             >
               <Plus className="h-3.5 w-3.5" />
               Trading Cost Source
             </button>
-            <Link className="rounded-xl border border-purple-300 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-700 hover:bg-purple-100 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs flex items-center gap-1" href="/trading/matching">Trading Matching</Link>
-            <Link className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs flex items-center gap-1" href="/dual-costing/deal-margin">Deal Margin</Link>
+            <Link className="flex h-9 items-center gap-1 rounded-md border border-purple-300 bg-purple-50 px-3 text-sm font-semibold text-purple-700 hover:bg-purple-100 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs" href="/trading/matching">Trading Matching</Link>
+            <Link className="flex h-9 items-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-800 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs" href="/dual-costing/deal-margin">Deal Margin</Link>
           </div>
         </div>
 
@@ -566,10 +567,14 @@ function CostSourceModal({
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent className="max-h-[92vh] max-w-5xl overflow-hidden rounded-md border-0 bg-slate-900 !p-0 shadow-2xl outline-none focus:outline-none flex flex-col" fallbackTitle="Trading Cost Source" hideClose>
         <DialogHeader className="shrink-0 rounded-t-md bg-slate-900 px-6 py-4 text-white">
-          <div className="flex items-start gap-3 w-full">
-            <div>
+          <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+            <div className="min-w-0">
               <DialogTitle className="text-white text-base font-bold">Trading Cost Source</DialogTitle>
               <DialogDescription className="text-slate-300 text-xs mt-1">บันทึกต้นทุน Trading แบบไม่ผูก PB เพื่อใช้จับคู่กับบิลขาย Trading</DialogDescription>
+            </div>
+            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+              <Button className="h-9 border-emerald-600 bg-emerald-600 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white" disabled={!canSubmit || isSaving} type="button" variant="outline" onClick={onSubmit}>{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
+              <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={onClose}>ปิด</Button>
             </div>
           </div>
         </DialogHeader>
@@ -625,14 +630,6 @@ function CostSourceModal({
                 />
               </div>
               {error ? <div className="col-span-2 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</div> : null}
-              <button
-                className="col-span-2 h-10 rounded-md bg-slate-900 hover:bg-slate-800 px-4 text-sm font-normal text-white transition-colors outline-none focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 cursor-pointer"
-                disabled={!canSubmit || isSaving}
-                type="button"
-                onClick={onSubmit}
-              >
-                {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
-              </button>
             </div>
           </div>
           <div className="rounded-md border border-slate-200 bg-white overflow-hidden shadow-xs col-span-2 lg:col-span-1">
@@ -649,9 +646,7 @@ function CostSourceModal({
             <div className="overflow-x-auto p-4 overflow-hidden">
               <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
                 {columnResize.hasCustomWidths ? (
-                  <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
-                    คืนค่าเดิมตาราง
-                  </button>
+                  <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
                 ) : null}
               </div>
               <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
@@ -688,9 +683,6 @@ function CostSourceModal({
             </div>
           </div>
         </div>
-        <DialogFooter className="shrink-0 rounded-b-md border-t border-slate-100 bg-white px-6 py-3.5 flex justify-end gap-2">
-          <Button className="font-normal" type="button" variant="outline" onClick={onClose}>ปิด</Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
@@ -719,7 +711,7 @@ function ReadinessPanel({ isLoading, rows, summary }: { isLoading: boolean; rows
   const { changeSort, sortDirection, sortedRows, sortKey } = useDashboardTableSort(rows, getReadinessSortValue)
   const visibleRows = sortedRows.slice(0, 6)
   return (
-    <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+    <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 bg-slate-50/50">
         <div>
           <div className="text-sm font-bold text-slate-800">Stock / Cost Source Readiness</div>
@@ -737,9 +729,7 @@ function ReadinessPanel({ isLoading, rows, summary }: { isLoading: boolean; rows
         <div className="hidden lg:block overflow-x-auto overflow-hidden">
           <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
             {columnResize.hasCustomWidths ? (
-              <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
-                คืนค่าเดิมตาราง
-              </button>
+              <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
             ) : null}
           </div>
           <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
@@ -853,9 +843,7 @@ function ProductTable({ isLoading, rows, totals }: { isLoading: boolean; rows: D
       <div className="hidden lg:block overflow-x-auto overflow-hidden">
         <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
           {columnResize.hasCustomWidths ? (
-            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
-              à¸„à¸·à¸™à¸„à¹ˆà¸²à¹€à¸”à¸´à¸¡à¸•à¸²à¸£à¸²à¸‡
-            </button>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           ) : null}
         </div>
         <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
@@ -949,9 +937,7 @@ function PurchaseTable({ isLoading, rows }: { isLoading: boolean; rows: Dashboar
       <div className="hidden lg:block overflow-x-auto overflow-hidden">
         <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
           {columnResize.hasCustomWidths ? (
-            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
-              คืนค่าเดิมตาราง
-            </button>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           ) : null}
         </div>
         <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
@@ -1038,9 +1024,7 @@ function SalesTable({ isLoading, rows }: { isLoading: boolean; rows: DashboardPa
       <div className="hidden lg:block overflow-x-auto overflow-hidden">
         <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
           {columnResize.hasCustomWidths ? (
-            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
-              คืนค่าเดิมตาราง
-            </button>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           ) : null}
         </div>
         <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>

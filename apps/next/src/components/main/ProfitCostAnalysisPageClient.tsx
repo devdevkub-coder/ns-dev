@@ -159,6 +159,73 @@ export function ProfitCostAnalysisPageClient() {
 
   return (
     <section className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-8">
+        <Metric label="ซื้อรวม" tone="blue" value={money(summary.purchaseAmount)} sub={`${money(summary.purchaseQty)} กก.`} />
+        <Metric label="ขายรวม" tone="emerald" value={money(summary.revenue)} sub={`${money(summary.salesQty)} กก.`} />
+        <Metric label="COGS" tone="orange" value={money(summary.cogs)} sub="ต้นทุนขาย" />
+        <Metric label="GP" tone={(summary.gp ?? 0) >= 0 ? 'purple' : 'red'} value={money(summary.gp)} sub={`${pct(summary.gpPct)}%`} />
+        <Metric label="Stock Qty" tone="amber" value={money(summary.stockQty)} sub="คงเหลือ กก." />
+        <Metric label="Stock Value" tone="slate" value={money(summary.stockValue)} sub="มูลค่าสต๊อก" />
+        <Metric label="ซื้อเฉลี่ย/กก." tone="cyan" value={money(summary.avgBuy)} sub="Avg buy" />
+        <Metric label="ขายเฉลี่ย/กก." tone="emerald" value={money(summary.avgSell)} sub="Avg sell" />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Metric label="เจ้าหนี้คงเหลือ" tone="red" value={money(summary.ap)} sub="AP" />
+        <Metric label="ลูกหนี้คงเหลือ" tone="cyan" value={money(summary.ar)} sub="AR" />
+        <Metric label="Supplier ที่ซื้อ" tone="blue" value={String(summary.supplierCount ?? 0)} sub="ราย" />
+        <Metric label="Customer ที่ขาย" tone="purple" value={String(summary.customerCount ?? 0)} sub="ราย" />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <Panel title="Revenue / GP">
+          <div className="grid gap-3 md:grid-cols-2">
+            <BigNumber label="Revenue" value={money(summary.revenue)} />
+            <BigNumber label="Gross Profit" value={money(summary.gp)} />
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <SmallStat label="ซื้อเฉลี่ย" value={money(summary.avgBuy)} />
+            <SmallStat label="ขายเฉลี่ย" value={money(summary.avgSell)} />
+            <SmallStat label="จำนวนสินค้า" value={String(summary.productCount ?? 0)} />
+          </div>
+        </Panel>
+        <Panel title="Top 10 Product ยอดขาย">
+          <BarRows rows={(data?.top.byRevenue ?? []).map((row) => ({ label: row.name, value: row.revenue }))} />
+        </Panel>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+        <Panel title="รายได้ vs ต้นทุน vs กำไร">
+          <BarRows rows={[{ label: 'รายได้', value: summary.revenue ?? 0 }, { label: 'COGS', value: summary.cogs ?? 0 }, { label: 'GP', value: summary.gp ?? 0 }]} />
+        </Panel>
+        <Panel title="Top 10 Product GP">
+          <BarRows rows={(data?.top.byGp ?? []).map((row) => ({ label: row.name, value: row.gp }))} />
+        </Panel>
+      </div>
+
+      <div className="flex flex-wrap rounded-md bg-white px-2 shadow-sm">
+        {[
+          ['products', 'Product'],
+          ['suppliers', 'Supplier'],
+          ['customers', 'Customer'],
+          ['channels', 'Channel'],
+          ['trend', 'Trend'],
+          ['alerts', 'Alerts'],
+        ].map(([key, label]) => (
+          <button
+            key={key}
+            className={`border-b-2 px-4 py-2 text-sm font-semibold transition-colors outline-none focus:outline-none ${
+              activeTab === key
+                ? 'border-slate-900 text-slate-900'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+            type="button"
+            onClick={() => setActiveTab(key as Tab)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div className="rounded-md bg-white p-4 shadow border border-slate-100">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
           <Field label="จากวันที่"><DatePickerInput className="w-full" value={from} onChange={setFrom} /></Field>
@@ -209,60 +276,7 @@ export function ProfitCostAnalysisPageClient() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-8">
-        <Metric label="ซื้อรวม" tone="blue" value={money(summary.purchaseAmount)} sub={`${money(summary.purchaseQty)} กก.`} />
-        <Metric label="ขายรวม" tone="emerald" value={money(summary.revenue)} sub={`${money(summary.salesQty)} กก.`} />
-        <Metric label="COGS" tone="orange" value={money(summary.cogs)} sub="ต้นทุนขาย" />
-        <Metric label="GP" tone={(summary.gp ?? 0) >= 0 ? 'purple' : 'red'} value={money(summary.gp)} sub={`${pct(summary.gpPct)}%`} />
-        <Metric label="Stock Qty" tone="amber" value={money(summary.stockQty)} sub="คงเหลือ กก." />
-        <Metric label="Stock Value" tone="slate" value={money(summary.stockValue)} sub="มูลค่าสต๊อก" />
-        <Metric label="ซื้อเฉลี่ย/กก." tone="cyan" value={money(summary.avgBuy)} sub="Avg buy" />
-        <Metric label="ขายเฉลี่ย/กก." tone="emerald" value={money(summary.avgSell)} sub="Avg sell" />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="เจ้าหนี้คงเหลือ" tone="red" value={money(summary.ap)} sub="AP" />
-        <Metric label="ลูกหนี้คงเหลือ" tone="cyan" value={money(summary.ar)} sub="AR" />
-        <Metric label="Supplier ที่ซื้อ" tone="blue" value={String(summary.supplierCount ?? 0)} sub="ราย" />
-        <Metric label="Customer ที่ขาย" tone="purple" value={String(summary.customerCount ?? 0)} sub="ราย" />
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <Panel title="Revenue / GP">
-          <div className="grid gap-3 md:grid-cols-2">
-            <BigNumber label="Revenue" value={money(summary.revenue)} />
-            <BigNumber label="Gross Profit" value={money(summary.gp)} />
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <SmallStat label="ซื้อเฉลี่ย" value={money(summary.avgBuy)} />
-            <SmallStat label="ขายเฉลี่ย" value={money(summary.avgSell)} />
-            <SmallStat label="จำนวนสินค้า" value={String(summary.productCount ?? 0)} />
-          </div>
-        </Panel>
-        <Panel title="Top 10 Product ยอดขาย">
-          <BarRows rows={(data?.top.byRevenue ?? []).map((row) => ({ label: row.name, value: row.revenue }))} />
-        </Panel>
-      </div>
-      <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-        <Panel title="รายได้ vs ต้นทุน vs กำไร">
-          <BarRows rows={[{ label: 'รายได้', value: summary.revenue ?? 0 }, { label: 'COGS', value: summary.cogs ?? 0 }, { label: 'GP', value: summary.gp ?? 0 }]} />
-        </Panel>
-        <Panel title="Top 10 Product GP">
-          <BarRows rows={(data?.top.byGp ?? []).map((row) => ({ label: row.name, value: row.gp }))} />
-        </Panel>
-      </div>
-
-      <div className="overflow-hidden rounded-xl bg-white shadow-sm border border-slate-100">
-        <div className="flex flex-wrap gap-2 border-b border-slate-100 bg-slate-50/50 p-3">
-          {[
-            ['products', 'Product'],
-            ['suppliers', 'Supplier'],
-            ['customers', 'Customer'],
-            ['channels', 'Channel'],
-            ['trend', 'Trend'],
-            ['alerts', 'Alerts'],
-          ].map(([key, label]) => <button key={key} className={`rounded-lg border px-3 py-2 text-sm font-bold outline-none ${activeTab === key ? 'bg-purple-600 border-purple-600 text-white shadow-sm' : 'bg-white border-slate-100 text-slate-600 hover:bg-slate-50'}`} type="button" onClick={() => setActiveTab(key as Tab)}>{label}</button>)}
-        </div>
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
         <div className="p-3">
           {activeTab === 'products' ? <ProductTable rows={data?.rows.products ?? []} onSelect={setSelectedProduct} /> : null}
           {activeTab === 'suppliers' ? <SimpleTable tableKey="suppliers" rows={(data?.rows.suppliers ?? []).map((row) => [row.name, money(row.qty), money(row.amount), money(row.paid), money(row.payable), String(row.billCount)])} headers={['Supplier', 'กก.', 'ซื้อ', 'จ่ายแล้ว', 'ค้างจ่าย', 'บิล']} /> : null}
@@ -273,9 +287,6 @@ export function ProfitCostAnalysisPageClient() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-3 text-sm text-amber-900">
-        <b>Profit & Cost read baseline</b><span className="ml-2">{data?.sourceState.limitations[0] ?? 'ไม่มี write/posting action ใน baseline นี้'}</span>
-      </div>
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
       {isLoading ? <div className="rounded-md bg-white p-4 text-center text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
       {selectedProduct ? <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} /> : null}
@@ -510,16 +521,16 @@ function ProductModal({ onClose, product }: { onClose: () => void; product: Prod
     ['Stock', money(product.stockQty), money(product.stockValue), '-', '-'],
   ]
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-xl bg-white shadow-2xl border-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-md bg-slate-900 shadow-2xl border-0">
         <div className="flex items-start justify-between gap-3 border-b border-slate-800 bg-slate-900 p-4 text-white">
           <div>
             <h2 className="text-xl font-bold">{product.name}</h2>
             <p className="text-sm text-slate-300 mt-1">{product.code || '-'} · {product.metalGroup || '-'}</p>
           </div>
-          <button className="text-slate-400 hover:text-white font-semibold text-sm outline-none" type="button" onClick={onClose}>ปิด</button>
+          <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" type="button" onClick={onClose}>ปิด</button>
         </div>
-        <div className="p-4">
+        <div className="bg-slate-50 p-4">
           {/* Desktop modal table */}
           <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">

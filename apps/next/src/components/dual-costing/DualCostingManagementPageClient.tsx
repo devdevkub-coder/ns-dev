@@ -15,7 +15,6 @@ import {
   DualCostingCountRow,
   DualCostingErrorBox,
   DualCostingFilterCard,
-  DualCostingHint,
   DualCostingPageSection,
   DualCostingPanel,
   DualCostingStatCard,
@@ -295,20 +294,14 @@ function WaitingAllocationsView() {
 
   return (
     <DualCostingPageSection>
-      <DualCostingHint tone="amber">
-        Waiting Allocation Queue ใช้ดึงข้อมูลทองแดง/ทองเหลืองจาก PO ขาย, บิลขาย และ Production มาแยกเป็น tab เพื่อให้ผู้ใช้เลือกเอกสารแล้วส่งต่อไปหน้า Cost Allocator
-      </DualCostingHint>
       <DualCostingErrorBox error={error} />
       <DualCostingWorkflowStrip active="waiting" />
       
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <DualCostingStatCard icon="⏳" label="รายการที่รอส่งต่อ" tone="amber" value={String(data?.summary.count ?? 0)} />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <DualCostingStatCard icon="❌" label="ยังไม่ส่งจัดสรร" tone="red" value={String(data?.summary.fullyPending ?? 0)} />
         <DualCostingStatCard icon="🔗" label="บางส่วน" tone="amber" value={String(data?.summary.partial ?? 0)} />
         <DualCostingStatCard icon="⚖️" label="น้ำหนักรอจัดสรร" tone="blue" value={`${formatMoney(data?.summary.totalQty ?? 0)} กก.`} />
-        <div className="col-span-2 md:col-span-1">
-          <DualCostingStatCard icon="💰" label="มูลค่ารอจัดสรร" tone="emerald" value={formatMoney(data?.summary.totalRevenue ?? 0)} />
-        </div>
+        <DualCostingStatCard icon="💰" label="มูลค่ารอจัดสรร" tone="emerald" value={formatMoney(data?.summary.totalRevenue ?? 0)} />
       </div>
 
       <DualCostingPanel title="สรุปตามหมวด">
@@ -384,6 +377,51 @@ function WaitingAllocationsView() {
         </div>
       </DualCostingPanel>
 
+      <div className="flex overflow-x-auto rounded-md bg-white px-2 shadow-sm">
+        <button
+          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors focus-visible:outline-none ${
+            activeTab === 'po'
+              ? 'border-slate-900 text-slate-900 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+          onClick={() => {
+            setActiveTab('po')
+            setSortKey('date')
+            setSortDirection('desc')
+          }}
+        >
+          PO ขาย <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600 font-medium">{data?.po.count ?? 0}</span>
+        </button>
+        <button
+          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors focus-visible:outline-none ${
+            activeTab === 'bill'
+              ? 'border-slate-900 text-slate-900 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+          onClick={() => {
+            setActiveTab('bill')
+            setSortKey('date')
+            setSortDirection('desc')
+          }}
+        >
+          บิลขาย <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600 font-medium">{data?.bill.count ?? 0}</span>
+        </button>
+        <button
+          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors focus-visible:outline-none ${
+            activeTab === 'production'
+              ? 'border-slate-900 text-slate-900 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+          onClick={() => {
+            setActiveTab('production')
+            setSortKey('date')
+            setSortDirection('desc')
+          }}
+        >
+          Production <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600 font-medium">{data?.production.count ?? 0}</span>
+        </button>
+      </div>
+
       <DualCostingFilterCard>
         {/* Desktop View */}
         <div className="hidden lg:block">
@@ -392,10 +430,10 @@ function WaitingAllocationsView() {
             <Select className="w-auto min-w-[160px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">ทุกสถานะ</option>{(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item === 'pending_allocation' ? 'pending' : item === 'partially_allocated' ? 'partial' : item}</option>)}</Select>
             <Select className="w-auto min-w-[160px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
             <Button
-              className="ml-auto rounded-lg h-9 px-3 text-xs font-semibold focus-visible:ring-slate-100"
+              className="ml-auto h-9 rounded-md px-3 text-sm font-normal focus-visible:ring-slate-100"
               size="sm"
               type="button"
-              variant="secondary"
+              variant="outline"
               onClick={() => columnResize.resetColumnWidths()}
             >
               คืนค่าเดิมตาราง
@@ -453,71 +491,26 @@ function WaitingAllocationsView() {
         </div>
       </DualCostingFilterCard>
 
-      {/* Tabs */}
-      <div className="flex border-b border-slate-200">
-        <button
-          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors focus-visible:outline-none ${
-            activeTab === 'po'
-              ? 'border-slate-900 text-slate-900 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-          onClick={() => {
-            setActiveTab('po')
-            setSortKey('date')
-            setSortDirection('desc')
-          }}
-        >
-          PO ขาย <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600 font-medium">{data?.po.count ?? 0}</span>
-        </button>
-        <button
-          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors focus-visible:outline-none ${
-            activeTab === 'bill'
-              ? 'border-slate-900 text-slate-900 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-          onClick={() => {
-            setActiveTab('bill')
-            setSortKey('date')
-            setSortDirection('desc')
-          }}
-        >
-          บิลขาย <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600 font-medium">{data?.bill.count ?? 0}</span>
-        </button>
-        <button
-          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors focus-visible:outline-none ${
-            activeTab === 'production'
-              ? 'border-slate-900 text-slate-900 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-          onClick={() => {
-            setActiveTab('production')
-            setSortKey('date')
-            setSortDirection('desc')
-          }}
-        >
-          Production <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600 font-medium">{data?.production.count ?? 0}</span>
-        </button>
-      </div>
-
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       {/* Pagination controls */}
-      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mt-3 mb-3">
+      <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
         <div>พบทั้งหมด {sortedRows.length.toLocaleString('th-TH')} รายการ</div>
         <div className="flex items-center gap-2">
-          <Button disabled={safePage <= 1 || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+          <Button className="h-9 px-3 text-sm" disabled={safePage <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
           <span>หน้า {safePage} / {totalPages}</span>
-          <Button disabled={safePage >= totalPages || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
+          <Button className="h-9 px-3 text-sm" disabled={safePage >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
         </div>
       </div>
 
       {/* Desktop View */}
-      <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm" style={{ width: '100%', overflowX: 'auto' }}>
-        <table className="text-xs divide-y divide-slate-100 w-full" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+      <div className="hidden overflow-x-auto lg:block" style={{ width: '100%', overflowX: 'auto' }}>
+        <table className="w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {currentColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
             ))}
           </colgroup>
-          <thead className="bg-slate-50 border-b border-slate-100 font-semibold text-slate-600">
+          <thead className="border-b border-slate-200 bg-slate-100 font-semibold text-slate-600">
             <tr className="divide-x divide-transparent">
               {currentColumns.map((col) => (
                 <ResizableTableHead
@@ -592,7 +585,7 @@ function WaitingAllocationsView() {
       </div>
 
       {/* Mobile Card List */}
-      <div className="block lg:hidden space-y-3">
+      <div className="block space-y-3 p-3 lg:hidden">
         {isLoading ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">กำลังโหลดข้อมูล</div>
         ) : null}
@@ -651,6 +644,7 @@ function WaitingAllocationsView() {
             </div>
           )
         })}
+      </div>
       </div>
 
     </DualCostingPageSection>
@@ -778,7 +772,7 @@ function AllocationLedgerView() {
             <Select className="w-auto min-w-[130px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={targetType} onChange={(event) => setTargetType(event.target.value)}><option value="all">ทุก target</option>{(data?.filters.targetTypes ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
             <Select className="w-auto min-w-[130px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
             <Select className="w-auto min-w-[130px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={status} onChange={(event) => setStatus(event.target.value)}><option value="approved">Approved</option><option value="reversed">Reversed</option><option value="all">ทั้งหมด</option></Select>
-            <Button disabled className="ml-auto rounded-lg h-9 px-3 text-xs font-semibold focus-visible:ring-slate-100" size="sm" type="button" variant="export">ส่งออก CSV</Button>
+            <Button disabled className="ml-auto h-9 rounded-md px-3 text-sm font-normal focus-visible:ring-slate-100" size="sm" type="button" variant="export">ส่งออก CSV</Button>
           </div>
         </div>
 
@@ -855,7 +849,8 @@ function AllocationLedgerView() {
         </div>
       </DualCostingFilterCard>
 
-      <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-2 px-1 py-1 text-sm text-slate-600">
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-3 text-sm text-slate-600">
         <div>พบทั้งหมด {sortedRows.length.toLocaleString('th-TH')} รายการ</div>
         <div className="flex flex-wrap items-center gap-2">
           {ledgerResize.hasCustomWidths ? <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={ledgerResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
@@ -880,7 +875,7 @@ function AllocationLedgerView() {
       </div>
 
       {/* Desktop View */}
-      <div className="hidden overflow-x-auto rounded-md bg-white shadow lg:block">
+      <div className="hidden overflow-x-auto lg:block">
         <Table className="text-sm" style={{ minWidth: ledgerResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {ledgerColumns.map((column) => (
@@ -932,7 +927,7 @@ function AllocationLedgerView() {
 
 
       {/* Mobile Card List */}
-      <div className="block lg:hidden space-y-3">
+      <div className="block space-y-3 p-3 lg:hidden">
         {isLoading ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">กำลังโหลดข้อมูล</div>
         ) : null}
@@ -982,6 +977,7 @@ function AllocationLedgerView() {
             </div>
           </div>
         ))}
+      </div>
       </div>
 
     </DualCostingPageSection>
@@ -1057,9 +1053,6 @@ function DualCostingReportView() {
 
   return (
     <DualCostingPageSection>
-      <DualCostingHint tone="emerald">
-        รายงานนี้ใช้ Deal Cost เพื่อให้ผู้บริหารดูกำไรต่อดีล/ลอตที่ allocate เท่านั้น ไม่ใช้ปิดงบ และ P&L ยังใช้ WAC ตามหลักบัญชี
-      </DualCostingHint>
       <DualCostingErrorBox error={error} />
       {isLoading ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">กำลังโหลดข้อมูล...</div> : null}
       

@@ -185,12 +185,12 @@ export function PoOutstandingPageClient() {
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-2 border border-slate-200 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2 rounded-md bg-white px-2 shadow-sm">
         <button
-          className={`rounded-lg px-5 py-2 text-sm font-semibold transition-colors outline-none focus:ring-0 ${
+          className={`border-b-2 px-4 py-2 text-sm font-semibold transition-colors outline-none focus:outline-none ${
             tab === 'buy'
-              ? 'bg-[#0F172A] text-white hover:bg-[#1E293B]'
-              : 'bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100'
+              ? 'border-slate-900 text-slate-900'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
           type="button"
           onClick={() => {
@@ -203,10 +203,10 @@ export function PoOutstandingPageClient() {
           PO ซื้อ คงเหลือ ({data?.summary.buyCount ?? 0})
         </button>
         <button
-          className={`rounded-lg px-5 py-2 text-sm font-semibold transition-colors outline-none focus:ring-0 ${
+          className={`border-b-2 px-4 py-2 text-sm font-semibold transition-colors outline-none focus:outline-none ${
             tab === 'sell'
-              ? 'bg-[#0F172A] text-white hover:bg-[#1E293B]'
-              : 'bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100'
+              ? 'border-slate-900 text-slate-900'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
           type="button"
           onClick={() => {
@@ -222,7 +222,7 @@ export function PoOutstandingPageClient() {
         <div className="ml-auto flex items-center gap-2">
           {tab === 'buy' && buyResize.hasCustomWidths && (
             <button
-              className="hidden h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 lg:inline-flex"
+              className="hidden h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 lg:inline-flex"
               type="button"
               onClick={buyResize.resetColumnWidths}
             >
@@ -231,7 +231,7 @@ export function PoOutstandingPageClient() {
           )}
           {tab === 'sell' && sellResize.hasCustomWidths && (
             <button
-              className="hidden h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 lg:inline-flex"
+              className="hidden h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 lg:inline-flex"
               type="button"
               onClick={sellResize.resetColumnWidths}
             >
@@ -249,16 +249,14 @@ export function PoOutstandingPageClient() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Metric label="รายการคงเหลือ" tone={tab === 'buy' ? 'blue' : 'emerald'} emoji="📄" value={`${totals.lines}`} />
-        <Metric label="น้ำหนักรวม" tone="slate" emoji="⚖️" value={`${formatMoney(totals.totalQty)} กก.`} />
+      <div className="grid grid-cols-2 gap-3">
         <Metric label={tab === 'buy' ? 'รอรับของ' : 'รอส่งของ'} tone="amber" emoji="📦" value={`${formatMoney(totals.remainingQty)} กก.`} />
         <Metric label={tab === 'buy' ? 'มูลค่ารอรับ' : 'มูลค่ารอส่ง'} tone={tab === 'buy' ? 'blue' : 'emerald'} emoji="💰" value={formatMoney(totals.remainingValue)} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 border border-slate-200/60 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
         <input
-          className="h-9 min-w-[220px] flex-1 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition-colors focus:border-slate-400 focus:ring-0"
+          className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition-colors focus:border-slate-400 focus:ring-0"
           placeholder="ค้นหา PO / คู่ค้า / สินค้า"
           type="search"
           value={search}
@@ -288,43 +286,44 @@ export function PoOutstandingPageClient() {
         </div>
       </div>
 
-      {/* Pagination Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200 shadow-sm mb-4">
-        <div>
-          พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
+      {/* Table Card Controls */}
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              aria-label="จำนวนรายการต่อหน้า"
+              className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              value={pageSize}
+              onChange={(event) => setPageSize(Number(event.target.value))}
+            >
+              {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+            </select>
+            <button
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              disabled={currentPage <= 1}
+              type="button"
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+            >
+              ก่อนหน้า
+            </button>
+            <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+            <button
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              disabled={currentPage >= totalPages}
+              type="button"
+              onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+            >
+              ถัดไป
+            </button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            aria-label="จำนวนรายการต่อหน้า"
-            className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
-            value={pageSize}
-            onChange={(event) => setPageSize(Number(event.target.value))}
-          >
-            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-          </select>
-          <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-            disabled={currentPage <= 1}
-            type="button"
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
-          >
-            ก่อนหน้า
-          </button>
-          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-          <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-            disabled={currentPage >= totalPages}
-            type="button"
-            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-          >
-            ถัดไป
-          </button>
-        </div>
-      </div>
 
       {tab === 'buy' ? (
-        <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-200/60 bg-white shadow-sm">
-          <div className="rounded-t-xl border-b border-amber-200 bg-amber-50/50 p-3 text-xs font-medium text-amber-800">
+        <div className="hidden overflow-x-auto lg:block">
+          <div className="rounded-t-md border-b border-amber-200 bg-amber-50/50 p-3 text-xs font-medium text-amber-800">
             ตัดต้นทุนเป็น write/cost-pool side effect ใน legacy จึงแสดงเป็นคอลัมน์อ่านอย่างเดียวใน Next จนกว่าจะออกแบบ audit และ permission
           </div>
           <table className="w-full text-xs" style={{ minWidth: buyResize.tableMinWidth, tableLayout: 'fixed' }}>
@@ -497,7 +496,7 @@ export function PoOutstandingPageClient() {
           </table>
         </div>
       ) : (
-        <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-200/60 bg-white shadow-sm">
+        <div className="hidden overflow-x-auto lg:block">
           <table className="w-full text-xs" style={{ minWidth: sellResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {sellColumns.map((column) => {
@@ -657,13 +656,13 @@ export function PoOutstandingPageClient() {
       )}
 
       {/* Mobile Card list */}
-      <div className="block lg:hidden space-y-3">
+      <div className="block divide-y divide-slate-100 lg:hidden">
         {isLoading ? (
-          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200/60">กำลังโหลดข้อมูล</div>
+          <div className="p-8 text-center text-slate-500">กำลังโหลดข้อมูล</div>
         ) : null}
 
         {!isLoading && pagedRows.map((row) => (
-          <div key={row.id} className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm space-y-2">
+          <div key={row.id} className="space-y-2 p-4">
             <div className="flex justify-between items-start">
               <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
               <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
@@ -713,10 +712,11 @@ export function PoOutstandingPageClient() {
         ))}
 
         {!isLoading && rows.length === 0 ? (
-          <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200/60 font-medium">
+          <div className="p-8 text-center font-medium text-slate-400">
             {tab === 'buy' ? 'ไม่มี PO ซื้อค้างรับ' : 'ไม่มี PO ขายค้างส่ง'}
           </div>
         ) : null}
+      </div>
       </div>
 
 
