@@ -1070,11 +1070,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
     )
   }
 
-  return (
-    <section className="space-y-4">
-      {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
-      {mode === 'report' ? metricGrid : null}
-      <div className="rounded-md bg-white p-3 shadow">
+  const filterCard = (
+    <div className="rounded-md bg-white p-3 shadow">
         <div className="flex flex-col lg:flex-row lg:items-center gap-2 w-full">
           <div className="w-full lg:min-w-[260px] lg:flex-1 relative">
             <input
@@ -1149,7 +1146,31 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             </div>
           </div>
         ) : null}
-      </div>
+    </div>
+  )
+
+  const reportTabs = (
+    <Tabs
+      className="gap-2"
+      value={reportTab}
+      onValueChange={(value) => {
+        setReportTab(value as typeof reportTab)
+        setPage(1)
+      }}
+    >
+      <TabsList className="w-full overflow-x-auto rounded-md bg-white px-2 shadow-sm" variant="line">
+        <TabsTrigger value="orders" variant="line">รายการใบสั่งผลิต</TabsTrigger>
+        <TabsTrigger value="wip" variant="line">WIP คงเหลือ</TabsTrigger>
+        <TabsTrigger value="products" variant="line">สรุปตามสินค้า</TabsTrigger>
+      </TabsList>
+    </Tabs>
+  )
+
+  return (
+    <section className="space-y-4">
+      {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
+      {mode === 'report' ? metricGrid : null}
+      {mode === 'report' ? reportTabs : filterCard}
       {mode === 'yieldLoss' ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           แสดง Yield/Loss + <b>P&amp;L Impact</b> — Output ขาดเกิน Normal = Loss สีแดง · Output เกินคาด = Gain สีเขียว · Net P&amp;L = Gain - Loss
@@ -1170,20 +1191,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
       ) : null}
       {mode === 'report' ? (
         <div className="space-y-3">
-          <Tabs
-            className="gap-2"
-            value={reportTab}
-            onValueChange={(value) => {
-              setReportTab(value as typeof reportTab)
-              setPage(1)
-            }}
-          >
-            <TabsList className="w-full overflow-x-auto rounded-md bg-white px-2 shadow-sm" variant="line">
-              <TabsTrigger value="orders" variant="line">รายการใบสั่งผลิต</TabsTrigger>
-              <TabsTrigger value="wip" variant="line">WIP คงเหลือ</TabsTrigger>
-              <TabsTrigger value="products" variant="line">สรุปตามสินค้า</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {filterCard}
           {/* WIP คงเหลือ (Work-in-Progress) */}
           {reportTab === 'wip' ? (
             <div className="space-y-2">
