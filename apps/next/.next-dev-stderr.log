@@ -1,6 +1,0 @@
-Persisting failed: Unable to write SST file 00000033.sst
-
-Caused by:
-    The system cannot find the path specified. (os error 3)
-Persisting failed: Another write batch or compaction is already active (Only a single write operations is allowed at a time)
-Persisting failed: Another write batch or compaction is already active (Only a single write operations is allowed at a time)

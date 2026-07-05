@@ -896,7 +896,7 @@ aside a:visited {
     padding-left: 1rem !important;
   }
 
-  [data-ns-dialog-content="app"] > :where(form.bg-slate-900, .bg-slate-900) {
+  [data-ns-dialog-content="app"] > :where(form.bg-slate-900, .bg-slate-900):not([data-ns-dialog-header]) {
     display: flex !important;
     flex: 1 1 auto !important;
     flex-direction: column !important;
@@ -907,7 +907,7 @@ aside a:visited {
     border-radius: 0 !important;
   }
 
-  [data-ns-dialog-content="app"] > :where(form.bg-slate-900, .bg-slate-900) > .bg-slate-900:first-child {
+  [data-ns-dialog-content="app"] > :where(form.bg-slate-900, .bg-slate-900):not([data-ns-dialog-header]) > .bg-slate-900:first-child {
     flex-shrink: 0 !important;
     border-radius: 0 !important;
     padding-top: calc(env(safe-area-inset-top) + 1rem) !important;
@@ -915,7 +915,8 @@ aside a:visited {
     padding-left: 1rem !important;
   }
 
-  [data-ns-dialog-content="app"] > :where(form.bg-slate-900, .bg-slate-900) > :where(.bg-slate-50, .overflow-auto, .overflow-y-auto) {
+  [data-ns-dialog-content="app"] > :where(form.bg-slate-900, .bg-slate-900):not([data-ns-dialog-header]) > :where(.bg-slate-50, .overflow-auto, .overflow-y-auto),
+  [data-ns-dialog-content="app"] > :where(.bg-slate-50, .overflow-auto, .overflow-y-auto) {
     flex: 1 1 auto !important;
     min-height: 0 !important;
     max-height: none !important;

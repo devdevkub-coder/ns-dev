@@ -6,9 +6,37 @@
 - Local:         http://localhost:3000
 - Network:       http://0.0.0.0:3000
 - Environments: .env.local
-✓ Ready in 1241ms
+✓ Ready in 983ms
 
- GET /api/health 200 in 905ms (next.js: 600ms, proxy.ts: 276ms, application-code: 29ms)
-○ Compiling /api/health ...
- GET /login?redirect=%2F 200 in 4.7s (next.js: 4.0s, proxy.ts: 271ms, application-code: 359ms)
- GET /api/health 200 in 30ms (next.js: 14ms, proxy.ts: 6ms, application-code: 9ms)
+ GET /api/health 200 in 799ms (next.js: 573ms, proxy.ts: 196ms, application-code: 30ms)
+○ Compiling /login ...
+ GET /login?redirect=%2F 200 in 3.7s (next.js: 3.2s, proxy.ts: 198ms, application-code: 293ms)
+ GET /owner-daily 200 in 2.4s (next.js: 1309ms, proxy.ts: 925ms, application-code: 203ms)
+ GET /api/auth/me 200 in 3.0s (next.js: 1415ms, proxy.ts: 403ms, application-code: 1147ms)
+ GET /api/auth/me 200 in 4.0s (next.js: 1426ms, proxy.ts: 427ms, application-code: 2.2s)
+ GET /api/auth/me 200 in 4.1s (next.js: 1441ms, proxy.ts: 403ms, application-code: 2.2s)
+ GET /api/auth/me 200 in 4.1s (next.js: 1425ms, proxy.ts: 420ms, application-code: 2.2s)
+ POST /api/activity 200 in 4.2s (next.js: 1719ms, proxy.ts: 400ms, application-code: 2.1s)
+ GET /api/auth/me 200 in 3.9s (next.js: 5ms, proxy.ts: 297ms, application-code: 3.6s)
+ GET /api/auth/me 200 in 4.3s (next.js: 7ms, proxy.ts: 3.5s, application-code: 784ms)
+ GET /api/owner-daily?date=2026-07-05 200 in 8.6s (next.js: 1680ms, proxy.ts: 329ms, application-code: 6.6s)
+✓ Compiled in 595ms
+ GET /login?redirect=%2F 200 in 65ms (next.js: 8ms, proxy.ts: 4ms, application-code: 53ms)
+ GET /login?redirect=%2F 200 in 41ms (next.js: 4ms, proxy.ts: 3ms, application-code: 34ms)
+ GET /login?redirect=%2F 200 in 62ms (next.js: 6ms, proxy.ts: 5ms, application-code: 51ms)
+ GET /api/auth/me 200 in 995ms (next.js: 5ms, proxy.ts: 354ms, application-code: 637ms)
+ GET /api/auth/me 200 in 934ms (next.js: 7ms, proxy.ts: 349ms, application-code: 578ms)
+ GET /api/auth/me 200 in 724ms (next.js: 3ms, proxy.ts: 301ms, application-code: 420ms)
+ GET /daily/weight-ticket-list 200 in 1862ms (next.js: 1532ms, proxy.ts: 290ms, application-code: 41ms)
+ GET /api/auth/me 200 in 654ms (next.js: 11ms, proxy.ts: 350ms, application-code: 294ms)
+ POST /api/activity 200 in 2.2s (next.js: 23ms, proxy.ts: 407ms, application-code: 1729ms)
+ GET /api/branches 200 in 2.4s (next.js: 492ms, proxy.ts: 437ms, application-code: 1456ms)
+ GET /api/branches 200 in 2.5s (next.js: 512ms, proxy.ts: 373ms, application-code: 1611ms)
+ GET /api/daily/weight-tickets?page=1&pageSize=10&sortBy=createdAt&sortDir=desc&type=WTI 200 in 3.1s (next.js: 1845ms, proxy.ts: 310ms, application-code: 985ms)
+ GET /api/daily/weight-tickets?page=1&pageSize=10&sortBy=createdAt&sortDir=desc&type=WTI 200 in 3.4s (next.js: 1781ms, proxy.ts: 339ms, application-code: 1231ms)
+ GET /api/daily/weight-tickets/WTI012607-0006 200 in 3.5s (next.js: 2.5s, proxy.ts: 273ms, application-code: 685ms)
+ GET /api/daily/weight-tickets/WTI012607-0006 200 in 3.6s (next.js: 2.5s, proxy.ts: 291ms, application-code: 765ms)
+ GET /api/health 200 in 38ms (next.js: 14ms, proxy.ts: 8ms, application-code: 16ms)
+ GET /api/auth/me 200 in 1650ms (next.js: 5ms, proxy.ts: 1018ms, application-code: 626ms)
+ GET /api/auth/me 200 in 659ms (next.js: 7ms, proxy.ts: 377ms, application-code: 275ms)
+ GET /api/daily/weight-tickets?page=1&pageSize=10&sortBy=createdAt&sortDir=desc&type=WTI 200 in 1256ms (next.js: 5ms, proxy.ts: 259ms, application-code: 991ms)
