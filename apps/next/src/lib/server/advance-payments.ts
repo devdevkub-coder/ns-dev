@@ -4,6 +4,7 @@ import {
   SUPPLIER_ADVANCE_STATUS_ACTION,
   supplierAdvanceStatusActionForStatus,
 } from '@/lib/server/advance-payment-history'
+import { supplierAdvanceTypeLabel, supplierAdvanceVatTypeLabel } from '@/lib/purchase-advance'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 
 export type AdvancePaymentTimelineEvent = {
@@ -128,6 +129,9 @@ type AdvancePaymentRow = Prisma.supplier_advance_paymentsGetPayload<{
       select: {
         allocation_key: true
         allocated_amount: true
+        allocated_subtotal_amount: true
+        allocated_total_amount: true
+        allocated_vat_amount: true
         allocated_at: true
         allocated_by: true
         id: true
@@ -154,8 +158,11 @@ export function mapAdvancePaymentRow(row: AdvancePaymentRow) {
   const allocationRows = row.supplier_advance_allocations
     .map((allocation: AdvancePaymentRow['supplier_advance_allocations'][number]) => ({
       allocatedAmount: toNumber(allocation.allocated_amount),
+      allocatedSubtotalAmount: toNumber(allocation.allocated_subtotal_amount),
       allocatedAt: allocation.allocated_at.toISOString(),
       allocatedBy: allocation.allocated_by ?? '',
+      allocatedTotalAmount: toNumber(allocation.allocated_total_amount),
+      allocatedVatAmount: toNumber(allocation.allocated_vat_amount),
       id: allocation.allocation_key,
       purchaseBillDocNo: allocation.purchase_bills?.doc_no ?? '',
       purchaseBillId: allocation.purchase_bills?.doc_no ?? '',
@@ -172,6 +179,8 @@ export function mapAdvancePaymentRow(row: AdvancePaymentRow) {
     allocatedAmount,
     allocations: allocationRows,
     amount,
+    advanceType: row.advance_type ?? 'WAITING_SORT',
+    advanceTypeLabel: supplierAdvanceTypeLabel(row.advance_type),
     branchId: row.branches?.code ?? '',
     branchName: row.branches.name,
     canCancel: canMutate,
@@ -186,6 +195,7 @@ export function mapAdvancePaymentRow(row: AdvancePaymentRow) {
     fundingAccountId: row.accounts?.code ?? '',
     id: row.doc_no,
     inDate: toBangkokDateTimeInput(row.in_date),
+    invoiceNo: row.invoice_no ?? '',
     largeScaleDocNo: row.large_scale_doc_no ?? '',
     lockedReason: canMutate ? '' : advancePaymentMutationReason(row, 'edit'),
     netWeight: toNumber(row.net_weight),
@@ -200,11 +210,17 @@ export function mapAdvancePaymentRow(row: AdvancePaymentRow) {
     senderName: row.sender_name ?? '',
     status: row.status,
     statusLabel: advancePaymentStatusLabel(row.status),
+    subtotalAmount: toNumber(row.subtotal_amount) || amount,
     supplierCode: row.suppliers.code ?? '',
     supplierId: row.suppliers.code ?? '',
     supplierName: row.suppliers.name,
+    totalAmount: toNumber(row.total_amount) || amount,
     updatedAt: row.updated_at.toISOString(),
     updatedBy: row.updated_by ?? '',
+    vatAmount: toNumber(row.vat_amount),
+    vatRatePercent: toNumber(row.vat_rate_percent),
+    vatType: row.vat_type ?? 'NONE',
+    vatTypeLabel: supplierAdvanceVatTypeLabel(row.vat_type),
     vehiclePhotoNames: row.vehicle_photo_names ?? [],
     weightIn: toNumber(row.weight_in),
     weightOut: toNumber(row.weight_out),

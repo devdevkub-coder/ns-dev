@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-11
+updated: 2026-07-06
 route: /purchase/advance-payments
 ---
 
@@ -27,10 +27,23 @@ route: /purchase/advance-payments
 
 ADV เป็น source document ของเงินล่วงหน้า Supplier ก่อนนำไป allocate เข้า PB
 
+## Target ADV Types
+
+หน้า ADV ต้องมี dropdown เลือกประเภทก่อนกรอกข้อมูล:
+
+| Type | ใช้เมื่อ | Field ที่ต้องแสดง |
+|---|---|---|
+| `มัดจำส่งของรอคัดแยก` | ยังไม่มี invoice และใช้ form ปัจจุบันระหว่างรถเข้า/รอคัดแยก/รอออก PB | สาขา, ผู้ขาย, ใบชั่งใหญ่/ทะเบียน/สินค้า/น้ำหนัก, ยอดมัดจำ, หมายเหตุ |
+| `มัดจำล่วงหน้า` | มี invoice จาก Supplier แล้ว แต่ยังไม่ออก PB จริง | สาขา, ผู้ขาย, เลข invoice required, ยอดมัดจำ, VAT dropdown, หมายเหตุ |
+
+`มัดจำส่งของรอคัดแยก` เป็น default behavior ของ form ปัจจุบัน และไม่ต้องกรอก invoice no
+
 ## Page Responsibilities
 
 - สร้าง `ADV` สำหรับยอดเงินล่วงหน้า Supplier
 - เก็บ supplier/branch/date/amount/source reference/remark เป็น snapshot
+- แยก ADV type ระหว่าง `มัดจำส่งของรอคัดแยก` และ `มัดจำล่วงหน้า`
+- ทุกประเภท ADV ต้องมี VAT dropdown; สำหรับ `มัดจำล่วงหน้า` ต้องเก็บ `invoice no` เพิ่ม และทุกประเภทต้องเก็บยอดก่อน VAT, VAT, และยอดรวมเมื่อเลือกมี VAT
 - ส่ง ADV เข้า approval/payment flow เพื่อจ่ายจริงก่อนนำไปใช้
 - แสดง paid amount, allocated amount, available amount, status และประวัติ PMA/PMT/PB allocation
 - release ADV allocation เมื่อ PB cancel หรือ supplier swap
@@ -66,6 +79,11 @@ ADV เป็น source document ของเงินล่วงหน้า S
 
 - UI ใช้ outward business document/code เป็นหลัก และให้ server resolve internal id
 - list/detail/print/export ต้องอ่าน source contract เดียวกันเพื่อลด drift
+- `advanceType` ต้องเป็น required และ server ต้อง validate field ตาม type
+- `advanceType = มัดจำส่งของรอคัดแยก`: invoice no ไม่ required แต่ VAT dropdown required และ default เป็น `ไม่มี VAT`
+- `advanceType = มัดจำล่วงหน้า`: invoice no required และ VAT dropdown required
+- VAT dropdown phase แรกมีอย่างน้อย `ไม่มี VAT` และ `มี VAT`; ถ้าขยายเป็น `VAT รวมใน` / `VAT แยกนอก` ต้อง snapshot สูตรคำนวณลงเอกสาร
+- ถ้า ADV มี VAT ต้องเก็บ tax breakdown เป็น snapshot: `subtotalAmount`, `vatAmount`, `totalAmount/amount`, `vatRate`
 - modal Supplier Advance ต้องบังคับเลือก `สาขา` ก่อน `ผู้ขาย`; Supplier selector ต้อง disabled จนกว่าจะเลือกสาขา
 - supplier options ต้องกรองตามสาขาเอกสารจาก active `supplier_branches`; ถ้าเปลี่ยนสาขาแล้วผู้ขายที่เลือกอยู่ไม่ผูกกับสาขาใหม่ ต้อง clear supplier และให้ผู้ใช้เลือกใหม่
 - transaction write ต้องทำใน server transaction และ append timeline/status/audit ตาม document policy
@@ -75,6 +93,9 @@ ADV เป็น source document ของเงินล่วงหน้า S
 
 - supplier/branch/amount required
 - amount > 0
+- `advanceType` required
+- `invoice no` required เฉพาะ `มัดจำล่วงหน้า`
+- ถ้า VAT = `มี VAT` ต้องคำนวณยอดก่อน VAT/VAT/ยอดรวมให้ตรงกับ VAT rate snapshot
 - ห้ามแก้ financial fields หลังมี PMA/PMT active
 - PB allocation ต้องไม่เกิน available amount
 - ถ้า PMA void/PMT cancel ต้อง recalc paid/available/status
@@ -84,6 +105,8 @@ ADV เป็น source document ของเงินล่วงหน้า S
 - สร้าง source payable `ADV`
 - เงินออกเกิดที่ PMT เท่านั้น
 - PB allocation ลด available amount และต้องมี allocation fact/audit
+- ADV ที่ไม่มี VAT สามารถลด PB total amount แบบยอดรวมได้
+- ADV ที่มี VAT ต้องลด PB แบบแยกฐานก่อน VAT และ VAT ไม่ใช่หัก `PB.total_amount` ตรง ๆ
 
 ## Current Code Baseline
 
@@ -94,12 +117,19 @@ ADV เป็น source document ของเงินล่วงหน้า S
 
 ## Current Gap
 
-allocation fact/status log/refund policy ยังต้อง finalize
+- allocation fact/status log/refund policy ยังต้อง finalize
+- ยังต้องเพิ่ม ADV type dropdown และ special invoice-only form
+- ยังต้องเพิ่ม VAT-aware ADV schema/API/UI และ VAT-aware allocation เข้า PB
+- ยังต้องตัดสินว่า `มี VAT` phase แรกหมายถึงยอดที่ผู้ใช้กรอกเป็น VAT รวมในหรือ VAT แยกนอก
 
 ## Implementation Checklist
 
 - [x] Verify current Next page/component against this page-flow
 - [x] Verify API route handlers match Current API and status rules above
+- [ ] Add ADV type dropdown and switch form between current waiting-sort form and invoice-advance form
+- [ ] Add invoice no + VAT dropdown + tax breakdown validation for `มัดจำล่วงหน้า`
+- [ ] Update list/detail/print/export to show ADV type, invoice no, VAT, and tax breakdown
+- [ ] Update PB allocation contract to consume VAT-aware ADV amounts
 - [ ] Verify legacy behavior for any gap before implementing runtime change
 - [ ] Add/adjust tests or browser QA checklist before changing runtime
 - [ ] Update this file and canonical reference if contract changes

@@ -55,6 +55,38 @@
 - Daily Expense currently has no visible branch selector in the form even though the API schema keeps optional `branchId`; no new branch-party behavior was added there to avoid changing the expense flow outside this batch.
 - Initial operational data task completed on dev-target: `51` active Customers and `1871` active Suppliers were assigned to branch `01` / `สมุทรสาคร` as active primary mappings. Users can correct branch ownership later in Customer/Supplier master data.
 
+## Active Follow-up: Supplier ADV Type And VAT-Aware PB Allocation
+
+เป้าหมาย: แยก `จ่ายเงินล่วงหน้า / ADV` เป็น 2 business cases และทำให้การหัก ADV ในบิลซื้อถูกต้องเมื่อ ADV มี VAT
+
+### Contract
+
+- หน้า `/purchase/advance-payments` ต้องมี dropdown `ประเภท ADV` ก่อนกรอกข้อมูล
+- `มัดจำส่งของรอคัดแยก` ใช้ form ปัจจุบัน ไม่มี invoice เป็น default แต่ยังต้องเลือก VAT ได้ โดย default เป็น `ไม่มี VAT`
+- `มัดจำล่วงหน้า` ใช้ form สั้น: สาขา, ผู้ขาย, เลข invoice required, ยอดมัดจำ, VAT dropdown, หมายเหตุ
+- VAT dropdown phase แรกมีอย่างน้อย `ไม่มี VAT` และ `มี VAT`; ถ้าขยายเป็น `VAT รวมใน` / `VAT แยกนอก` ต้องตกลงสูตรก่อน runtime change
+- ADV ไม่มี VAT สามารถหักจาก `PB.total_amount` แบบยอดรวมได้
+- ADV มี VAT ห้ามหักยอดรวมจาก `PB.total_amount` ตรง ๆ; ต้องหักยอดก่อน VAT กับฐานก่อน VAT ของ PB และหัก VAT กับ VAT ของ PB แยกกัน
+- allocation fact สำหรับ ADV มี VAT ต้องเก็บ breakdown: `allocated_subtotal_amount`, `allocated_vat_amount`, `allocated_total_amount`
+- Tax/VAT report, AP drilldown, detail, print, export ต้องอ่าน breakdown จาก source/allocation snapshot เพื่อไม่ให้ VAT ซ้ำหรือคลาด
+
+### Task Breakdown
+
+- [x] Update Supplier Advance canonical flow with ADV type dropdown, invoice-advance special case, and VAT-aware allocation rule
+- [x] Update `/purchase/advance-payments` page-flow with target data contract and validation
+- [x] Update `/purchase/bills` page-flow with VAT-aware ADV allocation contract
+- [x] Decide VAT input meaning for `มี VAT`: amount is VAT-inclusive in the first runtime slice; system splits subtotal/VAT from the gross ADV amount
+- [x] Add DB migration and Prisma fields for ADV type, invoice no, VAT type/rate, subtotal amount, VAT amount, and allocation breakdown
+- [x] Update ADV form schema/API validation for type-specific fields
+- [x] Update Advance Payments UI to switch between current waiting-sort form and invoice-advance form
+- [x] Update waiting-sort ADV form to show VAT dropdown and retain selected VAT instead of forcing `ไม่มี VAT`
+- [x] Update ADV list/detail/print/export/timeline to show type, invoice no, VAT, and tax breakdown
+- [x] Update PB ADV option/read model to expose VAT breakdown and block invalid VAT pairing
+- [x] Update PB allocation and settlement logic so no-VAT ADV uses total-amount deduction and VAT ADV uses base/VAT deduction
+- [x] Apply migration to dev-target and regenerate Prisma client
+- [ ] Update AP, Tax VAT/WHT, PB print/detail, and payment approval handoff to read VAT-aware PB/ADV settlement
+- [ ] Add focused tests/service checks for no-VAT ADV, VAT ADV, partial allocation, PB cancel/edit release, and tax report non-duplication
+
 ## Active Follow-up: AR/AP Balance Source Of Truth
 
 เป้าหมาย: ให้หน้า AR/AP และ report อ่านยอดค้างจาก snapshot ของเอกสารต้นทาง (`sales_bills`, `purchase_bills`) เป็นหลัก และใช้ receipt/payment/allocation logs เป็น drilldown/audit เท่านั้น เพื่อไม่ให้ยอดค้างคลาดเมื่อมี Customer/Supplier Advance หรือ cancellation/reversal

@@ -383,8 +383,13 @@ function calculateTotals(values: PurchaseBillFormValues, vatRatePercent: number)
       ? afterDiscount * rate / (100 + rate)
       : afterDiscount * (rate / 100)
   const totalAmount = values.hasVat && values.vatType === 'EXCLUDE' ? afterDiscount + vatAmount : afterDiscount
+  const taxableBaseAmount = values.hasVat && values.vatType === 'INCLUDE' ? Math.max(0, afterDiscount - vatAmount) : afterDiscount
 
-  return { afterDiscount, subtotal, totalAmount, vatAmount }
+  return { afterDiscount, subtotal, taxableBaseAmount, totalAmount, vatAmount }
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
 function buildBillItems(
@@ -935,6 +940,7 @@ async function validateAdvancePaymentSelection(
   values: Pick<PurchaseBillFormValues, 'advancePaymentId'>,
   branchId: bigint,
   supplierId: bigint,
+  billTotals: { subtotalAmount: number; totalAmount: number; vatAmount: number },
   billId?: bigint,
 ) {
   if (!values.advancePaymentId) return null
@@ -947,7 +953,10 @@ async function validateAdvancePaymentSelection(
       doc_no: true,
       id: true,
       status: true,
+      subtotal_amount: true,
       supplier_id: true,
+      vat_amount: true,
+      vat_type: true,
     },
     where: {
       doc_no: values.advancePaymentId,
@@ -984,10 +993,59 @@ async function validateAdvancePaymentSelection(
     throw new Error('เอกสาร ADV นี้ไม่มียอดคงเหลือสำหรับใช้หักบิลแล้ว')
   }
 
+  const vatAmount = toNumber(advancePayment.vat_amount)
+  const subtotalAmount = toNumber(advancePayment.subtotal_amount) || toNumber(advancePayment.amount)
+  const hasVat = advancePayment.vat_type !== 'NONE' && vatAmount > 0.01
+  if (hasVat && billTotals.vatAmount <= 0.01) {
+    throw new Error('ADV นี้มี VAT แต่บิลซื้อไม่มี VAT จึงหักรวมยอดตรง ๆ ไม่ได้')
+  }
+  if (hasVat && billTotals.subtotalAmount <= 0.01) {
+    throw new Error('ADV นี้มี VAT แต่บิลซื้อไม่มียอดก่อน VAT ให้หัก')
+  }
+
   return {
     availableAmount,
     docNo: advancePayment.doc_no,
+    hasVat,
     id: advancePayment.id,
+    subtotalAmount,
+    vatAmount,
+  }
+}
+
+function buildAdvanceAllocationAmounts(
+  advancePayment: NonNullable<Awaited<ReturnType<typeof validateAdvancePaymentSelection>>>,
+  billTotals: { subtotalAmount: number; totalAmount: number; vatAmount: number },
+) {
+  const availableTotalAmount = advancePayment.availableAmount
+  if (!advancePayment.hasVat) {
+    const allocatedTotalAmount = roundMoney(Math.min(billTotals.totalAmount, availableTotalAmount))
+    return {
+      allocatedSubtotalAmount: allocatedTotalAmount,
+      allocatedTotalAmount,
+      allocatedVatAmount: 0,
+    }
+  }
+
+  const advanceTotalAmount = advancePayment.subtotalAmount + advancePayment.vatAmount
+  const subtotalRatio = advanceTotalAmount > 0 ? advancePayment.subtotalAmount / advanceTotalAmount : 1
+  const vatRatio = advanceTotalAmount > 0 ? advancePayment.vatAmount / advanceTotalAmount : 0
+  const maxByBillBreakdown = Math.min(
+    billTotals.totalAmount,
+    billTotals.subtotalAmount / Math.max(subtotalRatio, 0.000001),
+    billTotals.vatAmount / Math.max(vatRatio, 0.000001),
+  )
+  const allocatedTotalAmount = roundMoney(Math.min(availableTotalAmount, maxByBillBreakdown))
+  const allocatedSubtotalAmount = roundMoney(allocatedTotalAmount * subtotalRatio)
+  const allocatedVatAmount = roundMoney(allocatedTotalAmount - allocatedSubtotalAmount)
+  if (allocatedTotalAmount <= 0.01) {
+    throw new Error('ยอด VAT ของ ADV ไม่สามารถหักกับบิลซื้อนี้ได้')
+  }
+
+  return {
+    allocatedSubtotalAmount,
+    allocatedTotalAmount,
+    allocatedVatAmount,
   }
 }
 
@@ -1061,6 +1119,8 @@ async function applyPurchaseBillAdvanceAllocation(
     branchId: bigint
     billDocNo: string
     maxAmount: number
+    maxSubtotalAmount: number
+    maxVatAmount: number
     supplierId: bigint
     values: Pick<PurchaseBillFormValues, 'advancePaymentId'>
   },
@@ -1068,16 +1128,24 @@ async function applyPurchaseBillAdvanceAllocation(
   await resetPurchaseBillAdvanceAllocation(tx, params.billId, params.actor, 'เปลี่ยนการอ้างอิงเอกสาร ADV ในบิลรับซื้อ')
   if (!params.values.advancePaymentId || params.maxAmount <= 0.01) return 0
 
-  const advancePayment = await validateAdvancePaymentSelection(tx, params.values, params.branchId, params.supplierId, params.billId)
+  const billTotals = {
+    subtotalAmount: params.maxSubtotalAmount,
+    totalAmount: params.maxAmount,
+    vatAmount: params.maxVatAmount,
+  }
+  const advancePayment = await validateAdvancePaymentSelection(tx, params.values, params.branchId, params.supplierId, billTotals, params.billId)
   if (!advancePayment) return 0
 
-  const allocatedAmount = Math.min(params.maxAmount, advancePayment.availableAmount)
-  if (allocatedAmount <= 0.01) return 0
+  const allocationAmounts = buildAdvanceAllocationAmounts(advancePayment, billTotals)
+  if (allocationAmounts.allocatedTotalAmount <= 0.01) return 0
 
   const allocation = await tx.supplier_advance_allocations.create({
     data: {
       advance_payment_id: advancePayment.id,
-      allocated_amount: allocatedAmount,
+      allocated_amount: allocationAmounts.allocatedTotalAmount,
+      allocated_subtotal_amount: allocationAmounts.allocatedSubtotalAmount,
+      allocated_total_amount: allocationAmounts.allocatedTotalAmount,
+      allocated_vat_amount: allocationAmounts.allocatedVatAmount,
       allocated_at: new Date(),
       allocated_by: params.actor,
       purchase_bill_id: params.billId,
@@ -1092,17 +1160,22 @@ async function applyPurchaseBillAdvanceAllocation(
   await appendSupplierAdvanceAllocationLogs(tx, [{
     action: SUPPLIER_ADVANCE_ALLOCATION_ACTION.ALLOCATED_TO_PURCHASE_BILL,
     actor: params.actor,
-    allocatedAmount,
+    allocatedAmount: allocationAmounts.allocatedTotalAmount,
     allocationId: allocation.id,
     allocationKey: allocation.allocation_key,
     advancePaymentId: advancePayment.id,
-    meta: { reason: 'purchase_bill_save' },
+    meta: {
+      allocatedSubtotalAmount: allocationAmounts.allocatedSubtotalAmount,
+      allocatedTotalAmount: allocationAmounts.allocatedTotalAmount,
+      allocatedVatAmount: allocationAmounts.allocatedVatAmount,
+      reason: 'purchase_bill_save',
+    },
     purchaseBillDocNo: params.billDocNo,
     purchaseBillId: params.billId,
   }])
 
   await refreshSupplierAdvancePaymentAllocation(tx, advancePayment.id, params.actor)
-  return allocatedAmount
+  return allocationAmounts.allocatedTotalAmount
 }
 
 function receiptSummaryUsageKey(ticketId: bigint | string, summaryId: bigint | string) {
@@ -1612,13 +1685,18 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
       orderBy: [{ advance_date: 'desc' }, { doc_no: 'desc' }],
       select: {
         advance_date: true,
+        advance_type: true,
         amount: true,
         branch_id: true,
         doc_no: true,
         id: true,
+        invoice_no: true,
         remaining_amount: true,
         status: true,
+        subtotal_amount: true,
         supplier_id: true,
+        vat_amount: true,
+        vat_type: true,
       },
       take: 500,
       where: {
@@ -1703,12 +1781,16 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
       advanceDate: toDateOnly(advance.advance_date),
       amount: toNumber(advance.amount),
       branch_id: branchCodeById.get(advance.branch_id) ?? null,
+      invoiceNo: advance.invoice_no ?? '',
       id: advance.doc_no,
-      label: `${advance.doc_no} · คงเหลือ ${toNumber(advance.remaining_amount).toLocaleString('th-TH')} บาท`,
+      label: `${advance.doc_no}${advance.invoice_no ? ` · INV ${advance.invoice_no}` : ''} · ${advance.vat_type === 'NONE' ? 'ไม่มี VAT' : 'มี VAT'} · คงเหลือ ${toNumber(advance.remaining_amount).toLocaleString('th-TH')} บาท`,
       name: advance.doc_no,
       remainingAmount: toNumber(advance.remaining_amount),
       status: advance.status,
+      subtotalAmount: toNumber(advance.subtotal_amount),
       supplier_id: supplierCodeById.get(advance.supplier_id) ?? null,
+      vatAmount: toNumber(advance.vat_amount),
+      vatType: advance.vat_type,
     })),
     branches: branches.map((branch) => ({
       ...branch,
@@ -2316,6 +2398,8 @@ export async function POST(request: Request) {
             billDocNo: createdBill.doc_no,
             billId: createdBill.id,
             maxAmount: totals.totalAmount,
+            maxSubtotalAmount: totals.taxableBaseAmount,
+            maxVatAmount: totals.vatAmount,
             supplierId: supplier.id,
             values: { advancePaymentId: values.advancePaymentId },
           })
@@ -3059,6 +3143,8 @@ export async function PATCH(request: Request) {
           billDocNo: bill.doc_no,
           billId: existingBillRef.id,
           maxAmount: totals.totalAmount,
+          maxSubtotalAmount: totals.taxableBaseAmount,
+          maxVatAmount: totals.vatAmount,
           supplierId: supplier.id,
           values: { advancePaymentId: values.advancePaymentId },
         })

@@ -2,7 +2,7 @@ import { XLSX } from '@/lib/server/xlsx'
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
-import { supplierAdvancePaymentFormSchema } from '@/lib/purchase-advance'
+import { calculateSupplierAdvanceTaxBreakdown, supplierAdvancePaymentFormSchema } from '@/lib/purchase-advance'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
 import { appendSupplierAdvanceStatusLog, SUPPLIER_ADVANCE_STATUS_ACTION } from '@/lib/server/advance-payment-history'
@@ -28,6 +28,9 @@ type AdvancePaymentRow = Prisma.supplier_advance_paymentsGetPayload<{
       select: {
         allocation_key: true
         allocated_amount: true
+        allocated_subtotal_amount: true
+        allocated_total_amount: true
+        allocated_vat_amount: true
         allocated_at: true
         allocated_by: true
         id: true
@@ -111,11 +114,16 @@ async function buildWorkbook(rows: ReturnType<typeof rowJson>[]) {
     ผู้ขาย: row.supplierName,
     รหัสผู้ขาย: row.supplierCode,
     สาขา: row.branchName,
+    ประเภท_ADV: row.advanceTypeLabel,
+    เลข_invoice: row.invoiceNo || '-',
+    VAT: row.vatTypeLabel,
     ใบชั่งใหญ่: row.largeScaleDocNo || '-',
     ทะเบียนรถ: row.plateNo || '-',
     สินค้า: row.productName || '-',
     น้ำหนักสุทธิ: row.netWeight,
     ราคา_ต่อ_กก: row.pricePerKg,
+    ยอดก่อน_VAT: row.subtotalAmount,
+    VAT_Amount: row.vatAmount,
     ยอดมัดจำ: row.amount,
     นำไปหักแล้ว: row.allocatedAmount,
     คงเหลือ: row.remainingAmount,
@@ -200,6 +208,7 @@ export async function GET(request: Request) {
         ? {
             OR: [
               { doc_no: { contains: q, mode: 'insensitive' } },
+              { invoice_no: { contains: q, mode: 'insensitive' } },
               { large_scale_doc_no: { contains: q, mode: 'insensitive' } },
               { plate_no: { contains: q, mode: 'insensitive' } },
               { product_name: { contains: q, mode: 'insensitive' } },
@@ -234,6 +243,9 @@ export async function GET(request: Request) {
             select: {
               allocation_key: true,
               allocated_amount: true,
+              allocated_subtotal_amount: true,
+              allocated_total_amount: true,
+              allocated_vat_amount: true,
               allocated_at: true,
               allocated_by: true,
               id: true,
@@ -304,6 +316,9 @@ export async function GET(request: Request) {
             select: {
               allocation_key: true,
               allocated_amount: true,
+              allocated_subtotal_amount: true,
+              allocated_total_amount: true,
+              allocated_vat_amount: true,
               allocated_at: true,
               allocated_by: true,
               id: true,
@@ -408,10 +423,16 @@ export async function POST(request: Request) {
     if (values.fundingAccountId && fundingAccount == null) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'บัญชีจ่ายไม่ถูกต้อง', fieldErrors: { fundingAccountId: ['เลือกบัญชีจ่าย'] } }, { status: 400 })
     }
+    const taxBreakdown = calculateSupplierAdvanceTaxBreakdown({
+      amount: values.amount,
+      vatRatePercent: 7,
+      vatType: values.vatType,
+    })
 
     const result = await prisma.$transaction(async (tx) => {
       const created = await tx.supplier_advance_payments.create({
         data: {
+          advance_type: values.advanceType,
           advance_date: normalizeDate(advanceDate),
           allocated_amount: 0,
           amount: values.amount,
@@ -422,6 +443,7 @@ export async function POST(request: Request) {
           driver_name: values.driverName,
           funding_account_id: fundingAccount?.id ?? null,
           in_date: values.inDate ? parseBangkokDateTimeInput(values.inDate) : null,
+          invoice_no: values.invoiceNo,
           large_scale_doc_no: values.largeScaleDocNo,
           net_weight: values.netWeight,
           out_date: values.outDate ? parseBangkokDateTimeInput(values.outDate) : null,
@@ -434,9 +456,14 @@ export async function POST(request: Request) {
           scale_operator: values.scaleOperator,
           sender_name: values.senderName,
           status: 'pending_approval',
+          subtotal_amount: taxBreakdown.subtotalAmount,
           supplier_id: supplier.id,
+          total_amount: taxBreakdown.totalAmount,
           updated_at: createdAt,
           updated_by: actor,
+          vat_amount: taxBreakdown.vatAmount,
+          vat_rate_percent: taxBreakdown.vatRatePercent,
+          vat_type: taxBreakdown.vatType,
           vehicle_photo_names: values.vehiclePhotoNames,
           weight_in: values.weightIn,
           weight_out: values.weightOut,

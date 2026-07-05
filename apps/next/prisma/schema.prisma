@@ -3344,6 +3344,9 @@ model stock_ledger {
 
 model supplier_advance_allocations {
   allocated_amount                 Decimal                            @db.Decimal
+  allocated_subtotal_amount        Decimal                            @default(0) @db.Decimal
+  allocated_vat_amount             Decimal                            @default(0) @db.Decimal
+  allocated_total_amount           Decimal                            @default(0) @db.Decimal
   status                           String                             @default("active")
   allocated_at                     DateTime                           @default(now()) @db.Timestamptz(6)
   allocated_by                     String?
@@ -3398,6 +3401,13 @@ model supplier_advance_allocation_logs {
 model supplier_advance_payments {
   doc_no                           String                             @unique
   advance_date                     DateTime                           @db.Date
+  advance_type                     String                             @default("WAITING_SORT")
+  invoice_no                       String?
+  vat_type                         String                             @default("NONE")
+  vat_rate_percent                 Decimal                            @default(7.00) @db.Decimal(5, 2)
+  subtotal_amount                  Decimal                            @default(0) @db.Decimal
+  vat_amount                       Decimal                            @default(0) @db.Decimal
+  total_amount                     Decimal                            @default(0) @db.Decimal
   amount                           Decimal                            @default(0) @db.Decimal
   allocated_amount                 Decimal                            @default(0) @db.Decimal
   remaining_amount                 Decimal                            @default(0) @db.Decimal
@@ -3443,6 +3453,8 @@ model supplier_advance_payments {
   @@index([branch_id, advance_date(sort: Desc), doc_no(sort: Desc)], map: "idx_supplier_advances_active_branch_advance_date_doc", where: raw("((cancelled_at IS NULL) AND (branch_id IS NOT NULL))"))
   @@index([advance_date(sort: Desc)], map: "idx_supplier_advance_payments_date")
   @@index([advance_date(sort: Desc), doc_no(sort: Desc)], map: "idx_supplier_advances_active_advance_date_doc", where: raw("(cancelled_at IS NULL)"))
+  @@index([advance_type], map: "idx_supplier_advance_payments_advance_type")
+  @@index([invoice_no], map: "idx_supplier_advance_payments_invoice_no", where: raw("(invoice_no IS NOT NULL)"))
   @@index([status], map: "idx_supplier_advance_payments_status")
   @@index([supplier_id], map: "idx_supplier_advance_payments_supplier")
   @@schema("public")

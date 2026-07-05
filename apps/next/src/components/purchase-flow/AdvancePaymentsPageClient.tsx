@@ -16,7 +16,7 @@ import { useResizableColumns, type ResizableColumnDefinition } from '@/component
 import { TableNumberCell } from '@/components/ui/TableNumberCell'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
-import { supplierAdvancePaymentFormSchema } from '@/lib/purchase-advance'
+import { calculateSupplierAdvanceTaxBreakdown, supplierAdvancePaymentFormSchema } from '@/lib/purchase-advance'
 import { openAdvancePaymentPrint } from '@/lib/advance-payment-print'
 
 type OptionRow = {
@@ -41,6 +41,8 @@ type AdvancePaymentColumnKey = 'action' | 'advanceDate' | 'allocatedAmount' | 'a
 type AdvancePaymentRow = {
   accountName: string
   advanceDate: string
+  advanceType: string
+  advanceTypeLabel: string
   allocatedAmount: number
   allocations: AdvancePaymentAllocation[]
   branchId: string
@@ -58,6 +60,7 @@ type AdvancePaymentRow = {
   fundingAccountId: string
   id: string
   inDate: string
+  invoiceNo: string
   largeScaleDocNo: string
   netWeight: number
   outDate: string
@@ -71,12 +74,18 @@ type AdvancePaymentRow = {
   senderName: string
   status: string
   statusLabel: string
+  subtotalAmount: number
   supplierCode: string
   supplierId: string
   supplierName: string
+  totalAmount: number
   lockedReason?: string
   updatedAt: string
   updatedBy: string
+  vatAmount: number
+  vatRatePercent: number
+  vatType: string
+  vatTypeLabel: string
   vehiclePhotoNames: string[]
   weightIn: number
   weightOut: number
@@ -84,8 +93,11 @@ type AdvancePaymentRow = {
 
 type AdvancePaymentAllocation = {
   allocatedAmount: number
+  allocatedSubtotalAmount: number
   allocatedAt: string
   allocatedBy: string
+  allocatedTotalAmount: number
+  allocatedVatAmount: number
   id: string
   purchaseBillDocNo: string
   purchaseBillId: string
@@ -154,6 +166,7 @@ const advancePaymentColumns: Array<ResizableColumnDefinition<AdvancePaymentColum
 ]
 
 const emptyForm = (): FormState => ({
+  advanceType: 'WAITING_SORT',
   amount: '',
   branchId: '',
   customerName: '',
@@ -161,6 +174,7 @@ const emptyForm = (): FormState => ({
   driverName: '',
   fundingAccountId: '',
   inDate: '',
+  invoiceNo: '',
   largeScaleDocNo: '',
   netWeight: '',
   outDate: '',
@@ -173,6 +187,7 @@ const emptyForm = (): FormState => ({
   scaleOperator: '',
   senderName: '',
   supplierId: '',
+  vatType: 'NONE',
   weightIn: '',
   weightOut: '',
 })
@@ -262,6 +277,7 @@ export function AdvancePaymentsPageClient() {
     searchText: `${product.code ?? ''} ${product.name} ${product.unit ?? ''}`,
   })), [activeProducts])
   const selectedProduct = useMemo(() => activeProducts.find((product) => product.id === form.productId) ?? null, [activeProducts, form.productId])
+  const isAdvanceInvoice = form.advanceType === 'ADVANCE_INVOICE'
   const derivedNetWeight = useMemo(() => calculateNetWeightInputValue(form.weightIn, form.weightOut), [form.weightIn, form.weightOut])
   const computedAmount = useMemo(() => {
     const netWeight = Number(derivedNetWeight)
@@ -269,6 +285,11 @@ export function AdvancePaymentsPageClient() {
     if (!Number.isFinite(netWeight) || !Number.isFinite(pricePerKg)) return 0
     return Math.max(0, netWeight * pricePerKg)
   }, [derivedNetWeight, form.pricePerKg])
+  const taxBreakdown = useMemo(() => calculateSupplierAdvanceTaxBreakdown({
+    amount: Number(form.amount) || 0,
+    vatRatePercent: 7,
+    vatType: form.vatType === 'INCLUDE' ? 'INCLUDE' : 'NONE',
+  }), [form.amount, form.vatType])
 
   const closeForm = useCallback(() => {
     setEditingAdvanceId(null)
@@ -290,11 +311,13 @@ export function AdvancePaymentsPageClient() {
     setError(null)
     setForm(() => ({
       ...emptyForm(),
+      advanceType: 'WAITING_SORT',
       branchId: '',
       fundingAccountId: '',
       inDate: defaultDateTime,
       outDate: defaultDateTime,
       paymentMethod: '',
+      vatType: 'NONE',
     }))
     setIsFormOpen(true)
   }, [])
@@ -305,12 +328,14 @@ export function AdvancePaymentsPageClient() {
       docNo: row.docNo,
       advanceDate: row.advanceDate,
       amount: row.amount,
+      advanceTypeLabel: row.advanceTypeLabel,
       allocatedAmount: row.allocatedAmount,
       remainingAmount: row.remainingAmount,
       branchId: row.branchId,
       branchName: row.branchName,
       supplierName: row.supplierName,
       customerName: row.customerName,
+      invoiceNo: row.invoiceNo,
       plateNo: row.plateNo,
       productName: row.productName,
       netWeight: row.netWeight,
@@ -318,6 +343,11 @@ export function AdvancePaymentsPageClient() {
       paymentMethod: row.paymentMethod,
       accountName: row.accountName,
       remark: row.remark,
+      subtotalAmount: row.subtotalAmount,
+      totalAmount: row.totalAmount,
+      vatAmount: row.vatAmount,
+      vatRatePercent: row.vatRatePercent,
+      vatTypeLabel: row.vatTypeLabel,
       createdBy: row.createdBy,
       createdAt: row.createdAt,
       allocations: row.allocations,
@@ -333,12 +363,14 @@ export function AdvancePaymentsPageClient() {
     setError(null)
     setForm({
       amount: row.amount ? String(row.amount) : '',
+      advanceType: row.advanceType ?? 'WAITING_SORT',
       branchId: 'branchId' in row ? row.branchId : '',
       customerName: row.customerName ?? '',
       docNo: row.docNo ?? '',
       driverName: 'driverName' in row ? row.driverName : '',
       fundingAccountId: 'fundingAccountId' in row ? row.fundingAccountId : '',
       inDate: 'inDate' in row && row.inDate ? row.inDate : defaultDateTime,
+      invoiceNo: row.invoiceNo ?? '',
       largeScaleDocNo: row.largeScaleDocNo ?? '',
       netWeight: calculateNetWeightInputValue(String(row.weightIn ?? ''), String(row.weightOut ?? '')),
       outDate: 'outDate' in row && row.outDate ? row.outDate : defaultDateTime,
@@ -351,6 +383,7 @@ export function AdvancePaymentsPageClient() {
       scaleOperator: 'scaleOperator' in row ? row.scaleOperator : '',
       senderName: 'senderName' in row ? row.senderName : '',
       supplierId: 'supplierId' in row ? row.supplierId : '',
+      vatType: row.vatType ?? 'NONE',
       weightIn: String(row.weightIn ?? ''),
       weightOut: String(row.weightOut ?? ''),
     })
@@ -426,6 +459,22 @@ export function AdvancePaymentsPageClient() {
         ))
         if (!supplierStillEligible) next.supplierId = ''
       }
+      if (field === 'advanceType') {
+        if (value === 'WAITING_SORT') {
+          next.invoiceNo = ''
+        } else {
+          next.largeScaleDocNo = ''
+          next.inDate = ''
+          next.outDate = ''
+          next.productId = ''
+          next.productName = ''
+          next.weightIn = ''
+          next.weightOut = ''
+          next.netWeight = ''
+          next.pricePerKg = ''
+          next.plateNo = ''
+        }
+      }
       return next
     })
     setFieldErrors((current) => {
@@ -469,11 +518,15 @@ export function AdvancePaymentsPageClient() {
     setFieldErrors({})
     const normalizedForm = {
       ...form,
-      netWeight: calculateNetWeightInputValue(form.weightIn, form.weightOut),
+      netWeight: isAdvanceInvoice ? '0' : calculateNetWeightInputValue(form.weightIn, form.weightOut),
+      pricePerKg: isAdvanceInvoice ? '0' : form.pricePerKg,
+      productId: isAdvanceInvoice ? '' : form.productId,
+      weightIn: isAdvanceInvoice ? '0' : form.weightIn,
+      weightOut: isAdvanceInvoice ? '0' : form.weightOut,
     }
     const parsed = supplierAdvancePaymentFormSchema.safeParse({
       ...normalizedForm,
-      productName: selectedProduct?.name ?? '',
+      productName: isAdvanceInvoice ? '' : selectedProduct?.name ?? '',
       vehiclePhotoNames: vehiclePhotoFiles.map((file) => file.fileName),
     })
     if (!parsed.success) {
@@ -574,7 +627,7 @@ export function AdvancePaymentsPageClient() {
           <div className="mb-4">
             <div>
               <div className="text-sm font-semibold text-slate-900">{editingAdvanceId ? `แก้ไขรายการ ADV ${editingAdvanceNo ?? ''}` : 'สร้างรายการจ่ายเงินล่วงหน้า / มัดจำ'}</div>
-              <div className="text-xs text-slate-500">{editingAdvanceId ? 'แก้ไขได้เฉพาะรายการที่ยังไม่อนุมัติ และยังไม่ถูกใช้หักบิล' : 'บันทึกเอกสาร ADV ใหม่จากข้อมูลใบชั่งใหญ่และข้อมูลการจ่ายเงิน'}</div>
+              <div className="text-xs text-slate-500">{editingAdvanceId ? 'แก้ไขได้เฉพาะรายการที่ยังไม่อนุมัติ และยังไม่ถูกใช้หักบิล' : 'บันทึกเอกสาร ADV ใหม่จากประเภทมัดจำ ข้อมูลผู้ขาย และยอดการจ่ายเงิน'}</div>
             </div>
           </div>
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -583,42 +636,65 @@ export function AdvancePaymentsPageClient() {
                 description="ระบุผู้ขาย สาขา และยอดเงินที่ต้องจ่ายล่วงหน้า"
                 title="ข้อมูลการเงิน"
               >
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                  <div className="col-span-2 sm:col-span-1">
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-12">
+                  <div className="col-span-2 lg:col-span-3">
+                    <Field error={fieldErrors.advanceType} label="ประเภท ADV *">
+                      <Select className="h-10 w-full px-3 py-2" value={form.advanceType} onChange={(event) => updateForm('advanceType', event.target.value)}>
+                        <option value="WAITING_SORT">มัดจำส่งของรอคัดแยก</option>
+                        <option value="ADVANCE_INVOICE">มัดจำล่วงหน้า</option>
+                      </Select>
+                    </Field>
+                  </div>
+                  <div className="col-span-2 sm:col-span-1 lg:col-span-2">
                     <Field error={fieldErrors.branchId} label="สาขา *">
-                      <Select className={`h-9 w-full px-2 py-1.5 ${form.branchId ? '' : 'text-slate-400'}`} value={form.branchId} onChange={(event) => updateForm('branchId', event.target.value)}>
+                      <Select className={`h-10 w-full px-3 py-2 ${form.branchId ? '' : 'text-slate-400'}`} value={form.branchId} onChange={(event) => updateForm('branchId', event.target.value)}>
                         <option disabled value="">เลือกสาขา</option>
                         {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                       </Select>
                     </Field>
                   </div>
-                  <div className="col-span-2 sm:col-span-1">
+                  <div className="col-span-2 lg:col-span-3">
                     <SearchCombobox disabled={!form.branchId} error={fieldErrors.supplierId} errorKey="supplierId" inputId="advance-supplier" label="ผู้ขาย *" options={supplierOptions} placeholder={form.branchId ? 'ค้นหาชื่อหรือรหัสผู้ขาย' : 'เลือกสาขาก่อน'} value={form.supplierId} onChange={(value) => updateForm('supplierId', value)} />
                   </div>
-                  <div className="col-span-2 lg:col-span-1">
+                  <div className="col-span-2 sm:col-span-1 lg:col-span-2">
                     <MoneyInputField error={fieldErrors.amount} label="ยอดมัดจำ *" value={form.amount} onChange={(value) => updateForm('amount', value)} />
                   </div>
-                </div>
-              </FormSection>
-
-              <FormSection
-                description="ผูกเอกสาร ADV กับข้อมูลอ้างอิงจากรถเข้า/ใบชั่งใหญ่"
-                title="อ้างอิงใบชั่งใหญ่"
-              >
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                  <div className="col-span-2 sm:col-span-1">
-                    <InputField error={fieldErrors.largeScaleDocNo} label="เลขที่ใบชั่งใหญ่" value={form.largeScaleDocNo} onChange={(value) => updateForm('largeScaleDocNo', value)} />
-                  </div>
-                  <div className="col-span-2 sm:col-span-1">
-                    <InputField className="max-w-[220px]" error={fieldErrors.inDate} label="วันที่รถเข้า" step="60" type="datetime-local" value={form.inDate} onChange={(value) => updateForm('inDate', value)} />
-                  </div>
-                  <div className="col-span-2 sm:col-span-1">
-                    <InputField className="max-w-[220px]" error={fieldErrors.outDate} label="วันที่รถออก" step="60" type="datetime-local" value={form.outDate} onChange={(value) => updateForm('outDate', value)} />
+                  {isAdvanceInvoice ? (
+                    <div className="col-span-2 sm:col-span-1 lg:col-span-2">
+                      <InputField error={fieldErrors.invoiceNo} label="เลข invoice *" value={form.invoiceNo} onChange={(value) => updateForm('invoiceNo', value)} />
+                    </div>
+                  ) : null}
+                  <div className="col-span-2 sm:col-span-1 lg:col-span-2">
+                    <Field error={fieldErrors.vatType} label="VAT *">
+                      <Select className={`h-10 w-full px-3 py-2 ${form.vatType === 'INCLUDE' ? 'border-amber-500 bg-amber-50 font-medium text-slate-800' : ''}`} value={form.vatType} onChange={(event) => updateForm('vatType', event.target.value)}>
+                        <option value="NONE">ไม่มี VAT</option>
+                        <option value="INCLUDE">มี VAT</option>
+                      </Select>
+                    </Field>
                   </div>
                 </div>
               </FormSection>
 
-              <FormSection
+              {!isAdvanceInvoice ? (
+                <FormSection
+                  description="ผูกเอกสาร ADV กับข้อมูลอ้างอิงจากรถเข้า/ใบชั่งใหญ่"
+                  title="อ้างอิงใบชั่งใหญ่"
+                >
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div className="col-span-2 sm:col-span-1">
+                      <InputField error={fieldErrors.largeScaleDocNo} label="เลขที่ใบชั่งใหญ่" value={form.largeScaleDocNo} onChange={(value) => updateForm('largeScaleDocNo', value)} />
+                    </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <InputField className="max-w-[220px]" error={fieldErrors.inDate} label="วันที่รถเข้า" step="60" type="datetime-local" value={form.inDate} onChange={(value) => updateForm('inDate', value)} />
+                    </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <InputField className="max-w-[220px]" error={fieldErrors.outDate} label="วันที่รถออก" step="60" type="datetime-local" value={form.outDate} onChange={(value) => updateForm('outDate', value)} />
+                    </div>
+                  </div>
+                </FormSection>
+              ) : null}
+
+              {!isAdvanceInvoice ? <FormSection
                 description="กรอกข้อมูลสินค้า น้ำหนัก และราคาที่ใช้คำนวณอ้างอิง"
                 title="สินค้าและน้ำหนัก"
               >
@@ -648,9 +724,9 @@ export function AdvancePaymentsPageClient() {
                     <MoneyInputField error={fieldErrors.pricePerKg} label="ราคา/กก. *" value={form.pricePerKg} onChange={(value) => updateForm('pricePerKg', value)} />
                   </div>
                 </div>
-              </FormSection>
+              </FormSection> : null}
 
-              <FormSection
+              {!isAdvanceInvoice ? <FormSection
                 description="รวบรวมข้อมูลตัวรถและรูปประกอบในจุดเดียว"
                 title="ข้อมูลรถ"
               >
@@ -704,7 +780,7 @@ export function AdvancePaymentsPageClient() {
                     </Field>
                   </div>
                 </div>
-              </FormSection>
+              </FormSection> : null}
 
               <FormSection
                 description="ข้อมูลเสริมสำหรับการติดตามเอกสารและการตรวจสอบย้อนหลัง"
@@ -719,9 +795,13 @@ export function AdvancePaymentsPageClient() {
             </div>
             <div className="rounded-md border border-slate-100 bg-slate-50 p-4">
               <div className="text-sm font-semibold text-slate-800">สรุปก่อนบันทึก</div>
-              <SummaryLine label="น้ำหนักสุทธิ x ราคา" value={formatMoney(computedAmount)} />
+              {!isAdvanceInvoice ? <SummaryLine label="น้ำหนักสุทธิ x ราคา" value={formatMoney(computedAmount)} /> : null}
+              <SummaryLine label="ประเภท" value={isAdvanceInvoice ? 'มัดจำล่วงหน้า' : 'มัดจำส่งของรอคัดแยก'} />
+              <SummaryLine label="VAT" value={form.vatType === 'INCLUDE' ? 'มี VAT' : 'ไม่มี VAT'} />
+              {form.vatType === 'INCLUDE' ? <SummaryLine label="ยอดก่อน VAT" value={formatMoney(taxBreakdown.subtotalAmount)} /> : null}
+              {form.vatType === 'INCLUDE' ? <SummaryLine label="ยอด VAT" value={formatMoney(taxBreakdown.vatAmount)} /> : null}
               <SummaryLine label="ยอดมัดจำ" value={formatMoney(Number(form.amount) || 0)} />
-              <SummaryLine label="ส่วนต่าง" value={formatMoney((Number(form.amount) || 0) - computedAmount)} />
+              {!isAdvanceInvoice ? <SummaryLine label="ส่วนต่าง" value={formatMoney((Number(form.amount) || 0) - computedAmount)} /> : null}
               <div className="mt-4 flex gap-2">
                 <Button disabled={isSaving} type="button" onClick={submitForm}><Save className="mr-1 h-4 w-4" />{isSaving ? 'กำลังบันทึก...' : editingAdvanceId ? 'บันทึกการแก้ไข' : 'บันทึก ADV'}</Button>
                 <Button type="button" variant="outline" onClick={closeForm}>ปิด</Button>
@@ -907,6 +987,8 @@ export function AdvancePaymentsPageClient() {
                 </div>
                 <div className="text-xs text-slate-500 space-y-1 mb-3">
                   {row.productName ? <div>สินค้า: <span className="font-semibold text-slate-700">{row.productName}</span></div> : null}
+                  <div>ประเภท: <span className="font-semibold text-slate-700">{row.advanceTypeLabel}</span></div>
+                  {row.invoiceNo ? <div>Invoice: <span className="font-semibold text-slate-700">{row.invoiceNo}</span></div> : null}
                   {row.largeScaleDocNo ? <div>ใบชั่งใหญ่: <span className="font-semibold text-slate-700">{row.largeScaleDocNo}</span></div> : null}
                   {row.plateNo ? <div>ทะเบียนรถ: <span className="font-semibold text-slate-700">{row.plateNo}</span></div> : null}
                 </div>
@@ -942,7 +1024,7 @@ export function AdvancePaymentsPageClient() {
                   <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('advanceDate', 'วันที่')} sortKey="advanceDate" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="ผู้ขาย" resizeProps={columnResize.getResizeHandleProps('supplierName', 'ผู้ขาย')} sortKey="supplierName" onSort={changeSort} />
-                  <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="ใบชั่งใหญ่" resizeProps={columnResize.getResizeHandleProps('largeScaleDocNo', 'ใบชั่งใหญ่')} sortKey="largeScaleDocNo" onSort={changeSort} />
+                  <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="อ้างอิง" resizeProps={columnResize.getResizeHandleProps('largeScaleDocNo', 'อ้างอิง')} sortKey="largeScaleDocNo" onSort={changeSort} />
                   <ResizableTableHead label="ทะเบียนรถ" resizeProps={columnResize.getResizeHandleProps('plateNo', 'ทะเบียนรถ')} />
                   <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="น้ำหนักสุทธิ" resizeProps={columnResize.getResizeHandleProps('netWeight', 'น้ำหนักสุทธิ')} sortKey="netWeight" onSort={changeSort} />
@@ -961,7 +1043,7 @@ export function AdvancePaymentsPageClient() {
                     <td className="p-2 whitespace-nowrap text-xs font-semibold text-slate-700">{row.docNo}</td>
                     <td className="p-2 whitespace-nowrap text-xs font-semibold text-slate-700">{row.advanceDate}</td>
                     <td className="p-2 text-xs font-semibold text-slate-700">{row.supplierName}</td>
-                    <td className="p-2 text-xs font-semibold text-slate-700">{row.largeScaleDocNo || '-'}</td>
+                    <td className="p-2 text-xs font-semibold text-slate-700">{row.invoiceNo || row.largeScaleDocNo || '-'}</td>
                     <td className="p-2 whitespace-nowrap text-xs font-semibold text-slate-700">{row.plateNo || '-'}</td>
                     <td className="p-2 text-xs font-semibold text-slate-700">{row.productName || '-'}</td>
                     <TableNumberCell value={formatMoney(row.netWeight)} />
@@ -1081,6 +1163,11 @@ export function AdvancePaymentsPageClient() {
                     items={[
                       ['ผู้ขาย', detail.supplierName],
                       ['สาขา', detail.branchName],
+                      ['ประเภท ADV', detail.advanceTypeLabel],
+                      ['เลข invoice', detail.invoiceNo || '-'],
+                      ['VAT', detail.vatTypeLabel],
+                      ['ยอดก่อน VAT', formatMoney(detail.subtotalAmount)],
+                      ['ยอด VAT', formatMoney(detail.vatAmount)],
                       ['วันที่เอกสาร', formatDateDisplay(detail.advanceDate)],
                       ['วันที่รถเข้า', formatDateTimeDisplay(detail.inDate)],
                       ['วันที่รถออก', formatDateTimeDisplay(detail.outDate)],

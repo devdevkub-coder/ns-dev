@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
+import { supplierAdvanceTypeLabel, supplierAdvanceVatTypeLabel } from '@/lib/purchase-advance'
 import { advancePaymentStatusLabel } from '@/lib/server/advance-payments'
 import { AuthContextError, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
@@ -59,6 +60,8 @@ export default async function AdvancePaymentDetailPage({ params }: PageProps) {
         select: {
           allocation_key: true,
           allocated_amount: true,
+          allocated_subtotal_amount: true,
+          allocated_vat_amount: true,
           created_at: true,
           id: true,
           purchase_bills: {
@@ -119,6 +122,11 @@ export default async function AdvancePaymentDetailPage({ params }: PageProps) {
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <DetailCard label="เลขที่เอกสาร" value={row.doc_no} />
         <DetailCard label="วันที่เอกสาร" value={dateOrDash(row.advance_date)} />
+        <DetailCard label="ประเภท ADV" value={supplierAdvanceTypeLabel(row.advance_type)} />
+        <DetailCard label="เลข invoice" value={text(row.invoice_no)} />
+        <DetailCard label="VAT" value={supplierAdvanceVatTypeLabel(row.vat_type)} />
+        <DetailCard label="ยอดก่อน VAT" value={money(toNumber(row.subtotal_amount) || amount)} />
+        <DetailCard label="ยอด VAT" value={money(toNumber(row.vat_amount))} />
         <DetailCard label="สาขา" value={row.branches?.name ?? '-'} />
         <DetailCard label="ผู้ขาย" value={row.suppliers?.name ?? '-'} />
         <DetailCard label="เลขเอกสารชั่งใหญ่" value={text(row.large_scale_doc_no)} />
@@ -141,6 +149,8 @@ export default async function AdvancePaymentDetailPage({ params }: PageProps) {
               <tr>
                 <th className="p-2 text-left">วันที่</th>
                 <th className="p-2 text-left">บิลรับซื้อ</th>
+                <th className="p-2 text-right">ฐาน</th>
+                <th className="p-2 text-right">VAT</th>
                 <th className="p-2 text-right">ยอดที่หัก</th>
               </tr>
             </thead>
@@ -155,12 +165,14 @@ export default async function AdvancePaymentDetailPage({ params }: PageProps) {
                       </Link>
                     ) : '-'}
                   </td>
+                  <td className="p-2 text-right font-medium">{money(toNumber(allocation.allocated_subtotal_amount))}</td>
+                  <td className="p-2 text-right font-medium">{money(toNumber(allocation.allocated_vat_amount))}</td>
                   <td className="p-2 text-right font-medium">{money(toNumber(allocation.allocated_amount))}</td>
                 </tr>
               ))}
               {row.supplier_advance_allocations.length === 0 ? (
                 <tr>
-                  <td className="p-6 text-center text-slate-500" colSpan={3}>ยังไม่มีประวัติการหักบิล</td>
+                  <td className="p-6 text-center text-slate-500" colSpan={5}>ยังไม่มีประวัติการหักบิล</td>
                 </tr>
               ) : null}
             </tbody>

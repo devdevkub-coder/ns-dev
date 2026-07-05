@@ -105,6 +105,8 @@ type PurchaseBillDetailTimelineEvent = {
 
 type PurchaseBillDetail = {
   advanceAllocatedAmount: number
+  advanceAllocatedSubtotalAmount: number
+  advanceAllocatedVatAmount: number
   advancePaymentDocNo: string
   allocationRows: Array<{
     amount: number

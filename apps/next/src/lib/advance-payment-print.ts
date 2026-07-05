@@ -20,12 +20,14 @@ export type AdvancePaymentPrintDocument = {
   docNo: string
   advanceDate: string
   amount: number
+  advanceTypeLabel?: string | null
   allocatedAmount: number
   remainingAmount: number
   branchId: string
   branchName?: string | null
   supplierName?: string | null
   customerName?: string | null
+  invoiceNo?: string | null
   plateNo?: string | null
   productName?: string | null
   netWeight?: number | null
@@ -33,6 +35,11 @@ export type AdvancePaymentPrintDocument = {
   paymentMethod?: string | null
   accountName?: string | null
   remark?: string | null
+  subtotalAmount?: number | null
+  totalAmount?: number | null
+  vatAmount?: number | null
+  vatRatePercent?: number | null
+  vatTypeLabel?: string | null
   createdBy: string
   createdAt: string
   allocations?: AdvancePaymentPrintAllocation[]
@@ -219,6 +226,8 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
             <div class="doc-grid">
               <div class="kv"><div class="label">เลขที่เอกสาร</div><div class="value">${escapeHtml(doc.docNo)}</div></div>
               <div class="kv"><div class="label">วันที่ทำมัดจำ</div><div class="value">${escapeHtml(dateDisplay(doc.advanceDate))}</div></div>
+              <div class="kv"><div class="label">ประเภท ADV</div><div class="value">${escapeHtml(plain(doc.advanceTypeLabel))}</div></div>
+              <div class="kv"><div class="label">Invoice</div><div class="value">${escapeHtml(plain(doc.invoiceNo))}</div></div>
             </div>
           </div>
         </section>
@@ -253,6 +262,8 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
             <div class="panel-body note">${escapeHtml(plain(doc.remark))}</div>
           </div>
           <div class="totals">
+            <div class="total-row"><div>ยอดก่อน VAT</div><div class="num">${money(doc.subtotalAmount ?? doc.amount)}</div></div>
+            <div class="total-row"><div>${escapeHtml(doc.vatTypeLabel || 'VAT')}${doc.vatRatePercent ? ` (${money(doc.vatRatePercent).replace('.00', '')}%)` : ''}</div><div class="num">${money(doc.vatAmount)}</div></div>
             <div class="total-row"><div>ยอดเงินมัดจำ / Total Advance</div><div class="num">${money(doc.amount)}</div></div>
             <div class="total-row allocated"><div>หักล้างแล้ว / Allocated</div><div class="num">${money(doc.allocatedAmount)}</div></div>
             <div class="total-row final"><div>ยอดคงเหลือ / Remaining</div><div class="num">${money(doc.remainingAmount)}</div></div>

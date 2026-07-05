@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supplierAdvancePaymentCancelSchema, supplierAdvancePaymentFormSchema } from '@/lib/purchase-advance'
+import { calculateSupplierAdvanceTaxBreakdown, supplierAdvancePaymentCancelSchema, supplierAdvancePaymentFormSchema } from '@/lib/purchase-advance'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
 import { appendSupplierAdvanceStatusLog, SUPPLIER_ADVANCE_STATUS_ACTION } from '@/lib/server/advance-payment-history'
@@ -13,7 +13,7 @@ import {
 } from '@/lib/server/advance-payments'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { currentActor } from '@/lib/server/daily'
+import { currentActor, toNumber } from '@/lib/server/daily'
 import { hasLockedPaymentApproval } from '@/lib/server/payment-approval-pending'
 import { isSupplierEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { prisma } from '@/lib/server/prisma'
@@ -30,6 +30,9 @@ const advancePaymentInclude = {
     select: {
       allocation_key: true,
       allocated_amount: true,
+      allocated_subtotal_amount: true,
+      allocated_total_amount: true,
+      allocated_vat_amount: true,
       allocated_at: true,
       allocated_by: true,
       id: true,
@@ -133,15 +136,22 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 
     const actor = currentActor(auth)
     const updatedAt = new Date()
+    const taxBreakdown = calculateSupplierAdvanceTaxBreakdown({
+      amount: values.amount,
+      vatRatePercent: toNumber(existing.vat_rate_percent) || 7,
+      vatType: values.vatType,
+    })
     const updated = await prisma.$transaction(async (tx) => {
       const row = await tx.supplier_advance_payments.update({
         data: {
+          advance_type: values.advanceType,
           amount: values.amount,
           branch_id: branch.id,
           customer_name: values.customerName,
           driver_name: values.driverName,
           funding_account_id: fundingAccount?.id ?? null,
           in_date: values.inDate ? parseBangkokDateTimeInput(values.inDate) : null,
+          invoice_no: values.invoiceNo,
           large_scale_doc_no: values.largeScaleDocNo,
           net_weight: values.netWeight,
           out_date: values.outDate ? parseBangkokDateTimeInput(values.outDate) : null,
@@ -153,9 +163,14 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           remark: values.remark,
           scale_operator: values.scaleOperator,
           sender_name: values.senderName,
+          subtotal_amount: taxBreakdown.subtotalAmount,
           supplier_id: supplier.id,
+          total_amount: taxBreakdown.totalAmount,
           updated_at: updatedAt,
           updated_by: actor,
+          vat_amount: taxBreakdown.vatAmount,
+          vat_rate_percent: taxBreakdown.vatRatePercent,
+          vat_type: taxBreakdown.vatType,
           vehicle_photo_names: values.vehiclePhotoNames,
           weight_in: values.weightIn,
           weight_out: values.weightOut,
