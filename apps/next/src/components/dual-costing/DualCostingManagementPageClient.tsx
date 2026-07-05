@@ -18,7 +18,6 @@ import {
   DualCostingPageSection,
   DualCostingPanel,
   DualCostingStatCard,
-  DualCostingWorkflowStrip,
 } from './DualCostingPageShell'
 
 type Mode = 'ledger' | 'report' | 'waiting'
@@ -720,6 +719,7 @@ function AllocationLedgerView() {
     if (toDate) params.set('to', toDate)
     return params.toString()
   }, [category, fromDate, search, status, targetType, toDate])
+  const exportHref = useMemo(() => `/api/dual-costing/cost-allocation-ledger?${queryString ? `${queryString}&` : ''}format=xlsx`, [queryString])
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -749,16 +749,6 @@ function AllocationLedgerView() {
   return (
     <DualCostingPageSection>
       <DualCostingErrorBox error={error} />
-      <DualCostingWorkflowStrip active="ledger" />
-      
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <DualCostingStatCard icon="📊" label="รวม Allocations" tone="slate" value={String(data?.summary.active ?? 0)}>
-          <span className="text-xs font-semibold text-slate-500 mt-0.5 block">PO {data?.summary.poCount ?? 0} · Spot {data?.summary.spotCount ?? 0}</span>
-        </DualCostingStatCard>
-        <DualCostingStatCard icon="⚖️" label="น้ำหนัก allocate" tone="blue" value={`${formatMoney(data?.summary.totalQty ?? 0)} กก.`} />
-        <DualCostingStatCard icon="💳" label="ต้นทุนรวม" tone="red" value={formatMoney(data?.summary.cost ?? 0)} />
-        <DualCostingStatCard icon="📈" label="กำไรรวม (Deal Cost)" tone={(data?.summary.gp ?? 0) >= 0 ? 'emerald' : 'red'} value={formatMoney(data?.summary.gp ?? 0)} />
-      </div>
 
       <DualCostingFilterCard>
         {/* Desktop View */}
@@ -772,7 +762,16 @@ function AllocationLedgerView() {
             <Select className="w-auto min-w-[130px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={targetType} onChange={(event) => setTargetType(event.target.value)}><option value="all">ทุก target</option>{(data?.filters.targetTypes ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
             <Select className="w-auto min-w-[130px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
             <Select className="w-auto min-w-[130px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={status} onChange={(event) => setStatus(event.target.value)}><option value="approved">Approved</option><option value="reversed">Reversed</option><option value="all">ทั้งหมด</option></Select>
-            <Button disabled className="ml-auto h-9 rounded-md px-3 text-sm font-normal focus-visible:ring-slate-100" size="sm" type="button" variant="export">ส่งออก CSV</Button>
+            <Button
+              className="ml-auto h-9 rounded-md px-3 text-sm font-normal focus-visible:ring-slate-100"
+              disabled={isLoading || sortedRows.length === 0}
+              size="sm"
+              type="button"
+              variant="export"
+              onClick={() => window.location.assign(exportHref)}
+            >
+              ส่งออก Excel
+            </Button>
           </div>
         </div>
 
@@ -1061,7 +1060,7 @@ function DualCostingReportView() {
           <div className="grid grid-cols-2 gap-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 p-5 text-white shadow-lg border border-emerald-500/20 md:grid-cols-4">
             <HeroMetric label="Total Revenue (Allocated)" value={formatMoney((report?.po.revenue ?? 0) + (report?.spotAllocated.revenue ?? 0))} />
             <HeroMetric label="Total Cost (Deal Cost)" value={formatMoney(report?.total.cost ?? 0)} />
-            <HeroMetric label="Gross Profit" value={formatMoney(report?.total.gp ?? 0)} />
+            <HeroMetric label="กำไรรวม / Gross Profit (Deal Cost)" value={formatMoney(report?.total.gp ?? 0)} />
             <HeroMetric label="GP%" value={`${(report?.total.gpPct ?? 0).toFixed(2)}%`} />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
