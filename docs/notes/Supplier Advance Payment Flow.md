@@ -153,6 +153,7 @@ flowchart TD
 - ถ้า ADV `ไม่มี VAT`: ยอดเจ้าหนี้สุทธิของ PB = `ยอดบิลเต็ม - ยอด ADV ที่ allocate`
 - ถ้า ADV `มี VAT`: ต้องหักยอดก่อน VAT กับฐานก่อน VAT ของ PB และหัก VAT กับ VAT ของ PB แยกกัน ห้ามหักยอดรวมจาก `PB.total_amount` ตรง ๆ
 - allocation fact ของ ADV ที่มี VAT ต้องเก็บอย่างน้อย `allocated_subtotal_amount`, `allocated_vat_amount`, และ `allocated_total_amount` เพื่อให้ AP, print, audit, และ Tax/VAT report ไม่ derive ยอดผิด
+- Tax/VAT report ต้องอ่าน VAT ซื้อจาก `PB` เป็นหลักหลัง allocation แล้ว ไม่ดึง ADV VAT ไปนับเป็น input VAT แยกอีกใบใน phase นี้ เพราะ ADV VAT เป็น support snapshot สำหรับการหักกับ PB ไม่ใช่ tax ledger/filing document อิสระ
 - ถ้ายอดเจ้าหนี้สุทธิ `> 0` ให้ยอดคงเหลือเข้า `/daily/payment-approval`
 - ถ้ายอดเจ้าหนี้สุทธิ `= 0` ให้ PB เป็น `เสร็จสิ้น` และไม่ต้องเข้า approval เพิ่ม
 - ถ้า ADV มากกว่า PB ห้าม carry forward เป็นเครดิต Supplier อัตโนมัติ ต้องเข้า flow `คืนเงินมัดจำ/คืนเงินล่วงหน้า Supplier`

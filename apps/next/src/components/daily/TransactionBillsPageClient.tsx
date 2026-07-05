@@ -108,6 +108,9 @@ type PurchaseBillDetail = {
   advanceAllocatedSubtotalAmount: number
   advanceAllocatedVatAmount: number
   advancePaymentDocNo: string
+  advancePaymentInvoiceNo: string
+  advancePaymentVatType: string
+  advancePaymentVatTypeLabel: string
   allocationRows: Array<{
     amount: number
     deductWeight: number
@@ -4413,7 +4416,12 @@ function PurchaseBillDetailModal({
                 <DetailItem label="ชำระแล้ว" value={`${formatMoney(detail.paidAmount)} บาท`} />
                 <DetailItem label="ยอดคงเหลือค้างจ่าย" value={`${formatMoney(detail.payableBalance)} บาท`} />
                 {detail.advancePaymentDocNo ? (
-                  <DetailItem className="col-span-2 sm:col-span-4" label="หักเงินล่วงหน้า / มัดจำ" value={`${detail.advancePaymentDocNo} (หักไป ${formatMoney(detail.advanceAllocatedAmount)} บาท)`} />
+                  <>
+                    <DetailItem className="col-span-2 sm:col-span-4" label="หักเงินล่วงหน้า / มัดจำ" value={`${detail.advancePaymentDocNo}${detail.advancePaymentInvoiceNo ? ` · INV ${detail.advancePaymentInvoiceNo}` : ''} (หักไป ${formatMoney(detail.advanceAllocatedAmount)} บาท)`} />
+                    {detail.advancePaymentVatType !== 'NONE' ? (
+                      <DetailItem className="col-span-2 sm:col-span-4" label="ยอดหัก ADV แยก VAT" value={`ฐาน ${formatMoney(detail.advanceAllocatedSubtotalAmount)} บาท / VAT ${formatMoney(detail.advanceAllocatedVatAmount)} บาท`} />
+                    ) : null}
+                  </>
                 ) : null}
               </div>
             </div>

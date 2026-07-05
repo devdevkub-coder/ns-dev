@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { paymentMethodGroupFromValue, resolvePaymentMethodName } from '@/lib/account-payment-method'
 import { requireBusinessCode, requireDocumentNo } from '@/lib/business-code'
+import { supplierAdvanceTypeLabel, supplierAdvanceVatTypeLabel } from '@/lib/purchase-advance'
 import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { refreshAdvancePaymentWorkflowStatus } from '@/lib/server/advance-payments'
@@ -297,6 +298,11 @@ export async function GET() {
       const voidedApprovals = voidedByAdvanceId.get(advanceId) ?? []
       const activeOrConsumedApprovals = activeByAdvanceId.get(advanceId) ?? []
       const totalAmount = toNumber(advance.amount)
+      const advanceTypeLabel = supplierAdvanceTypeLabel(advance.advance_type)
+      const invoiceNo = advance.invoice_no ?? ''
+      const subtotalAmount = toNumber(advance.subtotal_amount)
+      const vatAmount = toNumber(advance.vat_amount)
+      const vatTypeLabel = supplierAdvanceVatTypeLabel(advance.vat_type)
       const bankAccounts = normalizeSupplierBankAccounts({
         paymentMethods,
         rows: advance.suppliers?.supplier_bank_accounts,
@@ -322,8 +328,13 @@ export async function GET() {
         sourceDocNo,
         sourceType: 'advance_payment' as const,
         supplierName: advance.suppliers?.name ?? '-',
+        advanceTypeLabel,
+        invoiceNo,
+        subtotalAmount,
         totalAmount,
-        description: advance.remark || '',
+        vatAmount,
+        vatTypeLabel,
+        description: [advanceTypeLabel, invoiceNo ? `INV ${invoiceNo}` : '', vatTypeLabel, advance.remark || ''].filter(Boolean).join(' · '),
       }] : []
       const approvedRows = activeApprovals.map((approval) => {
         const approvalDocNo = requireDocumentNo(approval.doc_no, `อนุมัติจ่าย ${approval.id}`)
@@ -345,8 +356,13 @@ export async function GET() {
         sourceDocNo: advance.doc_no,
         sourceType: 'advance_payment' as const,
         supplierName: approval.party_name_snapshot ?? advance.suppliers?.name ?? '-',
+        advanceTypeLabel,
+        invoiceNo,
+        subtotalAmount,
         totalAmount: toNumber(approval.approved_amount),
-        description: advance.remark || '',
+        vatAmount,
+        vatTypeLabel,
+        description: [advanceTypeLabel, invoiceNo ? `INV ${invoiceNo}` : '', vatTypeLabel, advance.remark || ''].filter(Boolean).join(' · '),
       }})
       const voidedRows = voidedApprovals.map((approval) => {
         const approvalDocNo = requireDocumentNo(approval.doc_no, `อนุมัติจ่าย ${approval.id}`)
@@ -369,10 +385,15 @@ export async function GET() {
         sourceDocNo,
         sourceType: 'advance_payment' as const,
         supplierName: approval.party_name_snapshot ?? advance.suppliers?.name ?? '-',
+        advanceTypeLabel,
+        invoiceNo,
+        subtotalAmount,
         totalAmount: approvedAmount,
+        vatAmount,
+        vatTypeLabel,
         voidReason: approval.void_reason ?? '',
         voidedAt: toDateOnly(approval.voided_at),
-        description: advance.remark || '',
+        description: [advanceTypeLabel, invoiceNo ? `INV ${invoiceNo}` : '', vatTypeLabel, advance.remark || ''].filter(Boolean).join(' · '),
       }})
       return [...pendingRows, ...approvedRows, ...voidedRows]
     })

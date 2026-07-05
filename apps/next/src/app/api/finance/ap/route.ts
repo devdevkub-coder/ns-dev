@@ -271,7 +271,16 @@ export async function GET(request: Request) {
           }),
           prisma.supplier_advance_allocations.findMany({
             include: {
-              supplier_advance_payments: { select: { advance_date: true, doc_no: true, status: true } },
+              supplier_advance_payments: {
+                select: {
+                  advance_date: true,
+                  advance_type: true,
+                  doc_no: true,
+                  invoice_no: true,
+                  status: true,
+                  vat_type: true,
+                },
+              },
             },
             orderBy: [{ allocated_at: 'desc' }, { id: 'desc' }],
             where: { purchase_bill_id: { in: pageBillIds }, status: 'active' },
@@ -330,9 +339,14 @@ export async function GET(request: Request) {
           },
           supplierAdvances: advancesForBill.map((allocation) => ({
             allocatedAmount: toNumber(allocation.allocated_amount),
+            allocatedSubtotalAmount: toNumber(allocation.allocated_subtotal_amount),
+            allocatedVatAmount: toNumber(allocation.allocated_vat_amount),
+            advanceType: allocation.supplier_advance_payments.advance_type ?? 'WAITING_SORT',
             docNo: allocation.supplier_advance_payments.doc_no,
             href: `/purchase/advance-payments?q=${encodeURIComponent(allocation.supplier_advance_payments.doc_no)}`,
+            invoiceNo: allocation.supplier_advance_payments.invoice_no ?? '',
             status: allocation.supplier_advance_payments.status,
+            vatType: allocation.supplier_advance_payments.vat_type ?? 'NONE',
           })),
         },
       }

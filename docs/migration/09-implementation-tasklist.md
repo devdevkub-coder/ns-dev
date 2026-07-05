@@ -84,7 +84,9 @@
 - [x] Update PB ADV option/read model to expose VAT breakdown and block invalid VAT pairing
 - [x] Update PB allocation and settlement logic so no-VAT ADV uses total-amount deduction and VAT ADV uses base/VAT deduction
 - [x] Apply migration to dev-target and regenerate Prisma client
-- [ ] Update AP, Tax VAT/WHT, PB print/detail, and payment approval handoff to read VAT-aware PB/ADV settlement
+- [x] Update AP, Tax VAT/WHT, PB print/detail, and payment approval handoff to read VAT-aware PB/ADV settlement
+  - AP drilldown, PB detail/direct detail/print, and payment approval now expose ADV type, invoice no, VAT mode, and allocated base/VAT/total where available.
+  - Tax VAT/WHT intentionally continues to read purchase VAT from `purchase_bills` as the filing/report source; supplier ADV VAT is an allocation support snapshot and must not be counted as a second independent input-VAT document until a normalized tax ledger/filing flow is designed.
 - [ ] Add focused tests/service checks for no-VAT ADV, VAT ADV, partial allocation, PB cancel/edit release, and tax report non-duplication
 
 ## Active Follow-up: AR/AP Balance Source Of Truth

@@ -31,6 +31,7 @@ type ApprovalApRow = {
   approvalId: string | null
   approvalStatus: ApprovalStatus
   approvedAmount: number
+  advanceTypeLabel?: string
   bankAccount: string
   bankAccounts: ApprovalDestinationOption[]
   bankName: string
@@ -38,13 +39,17 @@ type ApprovalApRow = {
   destinationLabel: string
   docNo: string
   id: string
+  invoiceNo?: string
   paidAmount: number
   payableBalance: number
   sourceDocNo: string
   sourceLabel: string
   sourceType: 'advance_payment' | 'purchase_bill'
+  subtotalAmount?: number
   supplierName: string
   totalAmount: number
+  vatAmount?: number
+  vatTypeLabel?: string
   voidReason?: string | null
   voidedAt?: string | null
 }
@@ -170,6 +175,15 @@ function approvalRowKindLabel(status: ApprovalStatus) {
   if (status === 'pending') return 'source รออนุมัติ'
   if (status === 'voided') return 'PMA ยกเลิกแล้ว'
   return 'PMA approved'
+}
+
+function advanceMetaLabel(row: ApprovalApRow) {
+  if (row.sourceType !== 'advance_payment') return ''
+  return [
+    row.advanceTypeLabel,
+    row.vatTypeLabel,
+    row.invoiceNo ? `INV ${row.invoiceNo}` : '',
+  ].filter(Boolean).join(' · ')
 }
 
 function approvalPartyName(row: ApprovalApRow | ApprovalExpenseRow) {
@@ -338,7 +352,7 @@ export function PaymentApprovalPageClient() {
           : data.expenseRows
     return source.filter((row) => {
       const rowDate = row.date || ''
-      const haystack = `${row.docNo} ${row.sourceDocNo} ${'supplierName' in row ? row.supplierName : row.payee} ${'bankAccounts' in row ? destinationSummaryLabel(row) : `${row.accountName} ${row.destinationLabel} ${row.refDocNo}`}`.toLowerCase()
+      const haystack = `${row.docNo} ${row.sourceDocNo} ${'supplierName' in row ? row.supplierName : row.payee} ${'bankAccounts' in row ? `${destinationSummaryLabel(row)} ${advanceMetaLabel(row)}` : `${row.accountName} ${row.destinationLabel} ${row.refDocNo}`}`.toLowerCase()
       if (query && !haystack.includes(query)) return false
       if (dateFrom && rowDate < dateFrom) return false
       if (dateTo && rowDate > dateTo) return false
@@ -881,6 +895,9 @@ export function PaymentApprovalPageClient() {
               <div className="text-xs text-slate-500">
                 อ้างอิง: {row.sourceDocNo} ({row.sourceLabel})
               </div>
+              {row.sourceType === 'advance_payment' && advanceMetaLabel(row) ? (
+                <div className="text-xs text-slate-500">{advanceMetaLabel(row)}</div>
+              ) : null}
               <div className="text-xs text-slate-500">
                 ช่องทางจ่าย: {row.approvalStatus === 'approved' ? row.destinationLabel : destinationSummaryLabel(row)}
               </div>
@@ -1038,6 +1055,9 @@ export function PaymentApprovalPageClient() {
                       <TableCell className="text-sm font-semibold text-slate-700">
                         <div className="whitespace-nowrap">{row.sourceDocNo}</div>
                         <div className="text-xs text-slate-500">{row.sourceLabel}</div>
+                        {row.sourceType === 'advance_payment' && advanceMetaLabel(row) ? (
+                          <div className="text-xs font-normal text-slate-500">{advanceMetaLabel(row)}</div>
+                        ) : null}
                       </TableCell>
                       <TableCell className="text-sm font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
                       <TableCell className="text-sm font-semibold text-slate-700">{row.supplierName}</TableCell>
@@ -1206,6 +1226,13 @@ export function PaymentApprovalPageClient() {
                   <DetailItem label="ประเภทเอกสารอ้างอิง" value={detail.row.sourceLabel} />
                   <DetailItem label="วันที่" value={formatDateDisplay(detail.row.date)} />
                   <DetailItem label="ผู้ขาย" value={detail.row.supplierName} />
+                  {detail.row.sourceType === 'advance_payment' ? (
+                    <>
+                      <DetailItem label="ประเภท ADV" value={detail.row.advanceTypeLabel || '-'} />
+                      <DetailItem label="เลข invoice" value={detail.row.invoiceNo || '-'} />
+                      <DetailItem label="VAT" value={detail.row.vatTypeLabel || '-'} />
+                    </>
+                  ) : null}
                 </div>
               </div>
 
@@ -1217,6 +1244,12 @@ export function PaymentApprovalPageClient() {
                   <DetailItem label="ชำระแล้ว" value={formatMoney(detail.row.paidAmount)} />
                   <DetailItem label="คงเหลือสุทธิ" value={formatMoney(detail.row.payableBalance)} />
                   <DetailItem label="สถานะ" value={approvalStatusLabel(detail.row.approvalStatus)} />
+                  {detail.row.sourceType === 'advance_payment' && detail.row.vatTypeLabel === 'มี VAT' ? (
+                    <>
+                      <DetailItem label="ยอดก่อน VAT" value={formatMoney(detail.row.subtotalAmount ?? 0)} />
+                      <DetailItem label="VAT" value={formatMoney(detail.row.vatAmount ?? 0)} />
+                    </>
+                  ) : null}
                 </div>
               </div>
 

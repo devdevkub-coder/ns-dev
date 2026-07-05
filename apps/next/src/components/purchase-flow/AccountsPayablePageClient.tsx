@@ -28,7 +28,7 @@ type ApRow = {
     paymentApprovals: Array<{ approvedAmount: number; docNo: string; href: string; status: string }>
     payments: Array<{ allocatedAmount: number; date: string; docNo: string; href: string; netAmount: number; paymentApprovalDocNo: string; status: string; voucherId: string }>
     purchaseBill: { docNo: string; href: string; sourceOfTruth: string }
-    supplierAdvances: Array<{ allocatedAmount: number; docNo: string; href: string; status: string }>
+    supplierAdvances: Array<{ allocatedAmount: number; allocatedSubtotalAmount: number; allocatedVatAmount: number; advanceType: string; docNo: string; href: string; invoiceNo: string; status: string; vatType: string }>
   }
   docNo: string
   dueDate: string
@@ -1083,7 +1083,11 @@ function TraceSection({
           rows={supplierAdvances.map((advance) => ({
             amount: `${formatMoney(advance.allocatedAmount)} บาท`,
             href: advance.href,
-            meta: advance.status,
+            meta: [
+              advance.status,
+              advance.invoiceNo ? `INV ${advance.invoiceNo}` : null,
+              advance.vatType === 'NONE' ? 'ไม่มี VAT' : `มี VAT: ฐาน ${formatMoney(advance.allocatedSubtotalAmount)} / VAT ${formatMoney(advance.allocatedVatAmount)}`,
+            ].filter(Boolean).join(' · '),
             title: advance.docNo,
           }))}
           title="เงินจ่ายล่วงหน้าผู้ขาย"

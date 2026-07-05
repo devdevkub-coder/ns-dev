@@ -212,6 +212,7 @@ Contract สำหรับ ADV ที่มี VAT:
 - allocation fact ต้องเก็บยอดที่ใช้จริงแบบแยก `allocated_subtotal_amount`, `allocated_vat_amount`, `allocated_total_amount`
 - settlement ของ PB ต้องคำนวณ payable balance จาก breakdown ไม่ใช่บวก `allocated_amount` เข้า paid amount แบบยอดรวมอย่างเดียว
 - print/detail/AP drilldown ต้องแสดงว่า ADV ใดหักยอดฐานและ VAT ไปเท่าไร
+- หน้า Tax/VAT/WHT ต้องถือ `PB` หลัง allocation เป็น source ของ VAT ซื้อใน phase นี้ และไม่บวก ADV VAT ซ้ำเป็นเอกสารภาษีซื้ออีกใบ
 - ถ้า PB ไม่มี VAT หรือ VAT ของ PB ไม่พอรองรับ ADV ที่มี VAT ต้อง block หรือแจ้ง validation ชัดเจน ห้าม silent fallback ไปหักยอดรวม
 - การ cancel/edit/supplier swap ต้อง release allocation breakdown ทั้งชุด และ recalc ADV/PB settlement จาก active allocation ที่เหลือ
 

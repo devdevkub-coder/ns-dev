@@ -1,4 +1,5 @@
 import { PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS } from '@/lib/purchase-bill-status'
+import { supplierAdvanceVatTypeLabel } from '@/lib/purchase-advance'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import type { Prisma } from '../../../generated/prisma/client'
@@ -21,6 +22,9 @@ export type PurchaseBillDetail = {
   advanceAllocatedSubtotalAmount: number
   advanceAllocatedVatAmount: number
   advancePaymentDocNo: string
+  advancePaymentInvoiceNo: string
+  advancePaymentVatType: string
+  advancePaymentVatTypeLabel: string
   allocationRows: Array<{
     amount: number
     deductWeight: number
@@ -181,6 +185,8 @@ type PurchaseBillDetailRow = Prisma.purchase_billsGetPayload<{
         supplier_advance_payments: {
           select: {
             doc_no: true
+            invoice_no: true
+            vat_type: true
           }
         }
       }
@@ -427,6 +433,8 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
           supplier_advance_payments: {
             select: {
               doc_no: true,
+              invoice_no: true,
+              vat_type: true,
             },
           },
         },
@@ -585,6 +593,9 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     advanceAllocatedSubtotalAmount: toNumber(activeAdvanceAllocation?.allocated_subtotal_amount),
     advanceAllocatedVatAmount: toNumber(activeAdvanceAllocation?.allocated_vat_amount),
     advancePaymentDocNo: activeAdvanceAllocation?.supplier_advance_payments.doc_no ?? '',
+    advancePaymentInvoiceNo: activeAdvanceAllocation?.supplier_advance_payments.invoice_no ?? '',
+    advancePaymentVatType: activeAdvanceAllocation?.supplier_advance_payments.vat_type ?? 'NONE',
+    advancePaymentVatTypeLabel: supplierAdvanceVatTypeLabel(activeAdvanceAllocation?.supplier_advance_payments.vat_type),
     allocationRows,
     branchId: bill.branches?.code ?? '',
     branchName: bill.branches?.name ?? '-',

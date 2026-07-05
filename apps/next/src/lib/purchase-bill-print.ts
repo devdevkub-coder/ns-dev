@@ -99,6 +99,9 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
   const grossSummaryText = totals.map((item) => `${money(item.grossWeight)} ${item.unit}`).join(' / ') || '-'
   const deductSummaryText = totals.map((item) => `${money(item.deductWeight)} ${item.unit}`).join(' / ') || '-'
   const afterDiscount = Math.max(0, bill.subtotal - bill.discount)
+  const advanceVatBreakdownHtml = bill.advancePaymentDocNo && bill.advancePaymentVatType !== 'NONE'
+    ? `<div class="total-row advance-sub"><div>ADV หักฐาน / VAT${bill.advancePaymentInvoiceNo ? ` · INV ${escapeHtml(bill.advancePaymentInvoiceNo)}` : ''}</div><div class="num">${money(bill.advanceAllocatedSubtotalAmount)} / ${money(bill.advanceAllocatedVatAmount)}</div></div>`
+    : ''
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)} ${escapeHtml(bill.docNo)}</title>
     <style>
@@ -154,6 +157,7 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
       .total-row:last-child { border-bottom: 0; }
       .total-row.final { background: #14532d; color: white; font-size: 13px; font-weight: 900; }
       .total-row.advance { color: #b45309; }
+      .total-row.advance-sub { color: #0369a1; font-size: 12px; }
       .weight-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; break-inside: avoid; page-break-inside: avoid; }
       .weight-card { border: 1px solid #dbe3ea; border-radius: 8px; padding: 7px; background: #f8fafc; }
       .weight-card .label { color: #64748b; font-size: 12px; }
@@ -309,7 +313,8 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
           <div class="total-row"><div>ยอดหลังหักส่วนลด</div><div class="num">${money(afterDiscount)}</div></div>
           <div class="total-row"><div>Vat (คำนวณจากยอดหลังหักส่วนลด)</div><div class="num">${money(bill.vatAmount)}</div></div>
           <div class="total-row final"><div>ยอดรวมทั้งสิ้น</div><div class="num">${money(bill.totalAmount)}</div></div>
-          <div class="total-row advance"><div>หักเงินมัดจำ/ชำระบางส่วน</div><div class="num">${money(bill.paidAmount)}</div></div>
+          ${advanceVatBreakdownHtml}
+          <div class="total-row advance"><div>หักเงินมัดจำ/ชำระบางส่วน${bill.advancePaymentDocNo ? ` (${escapeHtml(bill.advancePaymentDocNo)})` : ''}</div><div class="num">${money(bill.paidAmount)}</div></div>
           <div class="total-row"><div>ค้างชำระ</div><div class="num strong">${money(bill.payableBalance)}</div></div>
         </div>
       </section>
