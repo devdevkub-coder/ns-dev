@@ -13,7 +13,7 @@ tags:
   - decision
 status: draft
 created: 2026-06-11
-updated: 2026-07-02
+updated: 2026-07-05
 ---
 
 # WTI/WTO Flow / Flow ใบรับ-ส่งของ
@@ -22,6 +22,7 @@ updated: 2026-07-02
 
 - route สร้าง/แก้ไข: `/daily/weight-tickets`
 - route list/detail entry: `/daily/weight-ticket-list`
+- route dashboard/read-model: `/daily/weight-ticket-dashboard`
 
 จุดประสงค์ของเอกสารนี้คือแยกกติกาของ `WTI` และ `WTO` ออกจาก [[Purchase Flow]] และ [[Sales Flow]] ให้ชัด โดยหน้า WTI/WTO เป็นเจ้าของ flow เรื่อง:
 
@@ -71,7 +72,9 @@ updated: 2026-07-02
 | Surface | Route/API | หน้าที่ |
 |---|---|---|
 | Create/Edit page | `/daily/weight-tickets` | สร้าง/แก้ไข WTI/WTO |
+| Dashboard | `/daily/weight-ticket-dashboard` | read-only dashboard สำหรับติดตาม WTI รอเปิด PB, WTO pending out, สรุปตามสถานะ/สาขา/สินค้า |
 | List/Detail entry | `/daily/weight-ticket-list` | ค้นหา กรอง เปิด detail และเข้า edit |
+| Dashboard API | `GET /api/daily/weight-ticket-dashboard` | สรุปจาก `weight_tickets`, `weight_ticket_product_summaries`, และ active `stock_holds` โดยไม่แสดง cost |
 | Header options API | `GET /api/daily/weight-tickets/options` | โหลดสาขา ผู้ขาย ลูกค้า สิ่งเจือปน |
 | Product picker API | `GET /api/daily/weight-tickets/products` | preload รายการสินค้าพร้อม thumbnail |
 | WTO stock options API | `GET /api/daily/weight-tickets/stock-options` | API สำหรับคลัง RM/FG และคงเหลือรายสินค้า/สาขา/คลัง |

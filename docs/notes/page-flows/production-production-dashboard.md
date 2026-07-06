@@ -135,6 +135,13 @@ Legacy distinction:
 - Shared production report/dashboard read model now uses field-level Prisma `select`, and `stock_ledger` has `idx_stock_ledger_production_source_movement` for `PI/PO2` `ref_id` ledger lookups.
 - Branch/machine/status filters remain optional future dashboard parity work; date range is still the minimum dashboard filter.
 
+## Runtime Follow-up 2026-07-05
+
+- `/production/dashboard` now treats `สถานะใบสั่งผลิต` as a top KPI card instead of showing a separate lower status panel. It shows the three operational states requested by the user (`เสร็จบางส่วน`, `กำลังผลิต`, `เสร็จสิ้น`) as direct counts so order state is visible without reading progress bars.
+- The daily Input/Output/Loss widget is now the date-filter owner for the dashboard (`วันนี้`, `7 วัน`, `30 วัน`, `90 วัน`, `เดือนนี้`, `ปีนี้`, and custom dates) and renders as a line chart with grid, axis ticks, legend, markers, and smoothed lines so the range selector and trend it controls stay together.
+- The previous monthly production chart slot now shows dashboard Machine Utilization (`รอบที่ใช้` = output receipt row count, `น้ำหนักผลิต` = non-loss output qty by machine) because this is the operational machine view requested for the first dashboard viewport.
+- The daily chart card layout was tightened into a professional dashboard surface: title and date controls live in a bordered header/toolbar, the legend sits directly above the chart canvas, and the plotting area has its own white canvas with axes and subtle area fills so the data is easier to scan.
+
 ## Implementation Checklist
 
 - [x] Verify current Next page/component against this page-flow

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -47,6 +47,7 @@ type Column = {
 }
 
 type SortDirection = 'asc' | 'desc'
+type ChartRow = { input: number; label: string; loss: number; output: number }
 
 const configs: Record<string, { apiPath: string; columns: Column[]; metrics: Array<{ key: string; label: string; type?: 'money' | 'number' | 'percent' }>; title: string; exportable?: boolean }> = {
   dashboard: {
@@ -246,7 +247,17 @@ const productionStatusOptions = [
   { label: 'ยกเลิก', value: 'Cancelled' },
 ] as const
 
+const dashboardRangeOptions = [
+  { label: 'วันนี้', value: 'today' },
+  { label: '7 วัน', value: 'last7' },
+  { label: '30 วัน', value: 'last30' },
+  { label: '90 วัน', value: 'last90' },
+  { label: 'เดือนนี้', value: 'month' },
+  { label: 'ปีนี้', value: 'year' },
+] as const
+
 type ReportRangeFilter = 'all' | 'custom' | typeof reportRangeOptions[number]['value']
+type DashboardRangeFilter = 'custom' | typeof dashboardRangeOptions[number]['value']
 
 function formatDateLocal(d: Date) {
   const yyyy = d.getFullYear()
@@ -282,8 +293,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const latestLoadRequestRef = useRef(0)
-  const [rangeType, setRangeType] = useState<'today' | 'last7' | 'last30' | 'last90' | 'month' | 'year' | 'custom'>('custom')
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'machines'>('overview')
+  const [rangeType, setRangeType] = useState<DashboardRangeFilter>('custom')
+  const [activeTab, setActiveTab] = useState<'overview' | 'products'>('overview')
   const [reportTab, setReportTab] = useState<'orders' | 'products' | 'wip'>('orders')
   const [sortKey, setSortKey] = useState<string>('date')
   const [sortDir, setSortDir] = useState<SortDirection>('desc')
@@ -489,7 +500,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
     setReportRangeFilter('all')
   }
 
-  function applyDashboardRange(range: 'last30' | 'last7' | 'last90' | 'month' | 'today' | 'year') {
+  function applyDashboardRange(range: Exclude<DashboardRangeFilter, 'custom'>) {
     const end = new Date()
     const start = new Date(end)
     if (range === 'today') {
@@ -502,8 +513,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
       start.setMonth(0)
       start.setDate(1)
     }
-    setDateFrom(start.toISOString().slice(0, 10))
-    setDateTo(end.toISOString().slice(0, 10))
+    setDateFrom(formatDateLocal(start))
+    setDateTo(formatDateLocal(end))
     setRangeType(range)
   }
 
@@ -740,114 +751,128 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
     const topProducts = sortedDashboardTopProducts
     const byStatus = data?.byStatus ?? []
     const daily = data?.daily ?? []
-    const monthly = data?.monthly ?? []
     const machineUtil = sortedDashboardMachineUtil
+    const dashboardRangeControls = (
+      <div className="w-full rounded-lg border border-slate-200 bg-slate-50/80 p-2 sm:w-auto">
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          {dashboardRangeOptions.map((option) => {
+            const isActive = rangeType === option.value
+            return (
+              <button
+                key={option.value}
+                className={`h-8 rounded-md px-3 text-xs font-semibold transition-colors ${
+                  isActive
+                    ? 'border border-purple-700 bg-purple-700 text-white shadow-sm'
+                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+                type="button"
+                onClick={() => applyDashboardRange(option.value)}
+              >
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
+        <div className="mt-2 flex w-full items-center justify-end gap-1.5">
+          <DatePickerInput
+            className="h-8 min-w-0 flex-1 bg-white text-slate-900 sm:w-[130px] sm:flex-none"
+            value={dateFrom}
+            onChange={(val) => { setDateFrom(val); setRangeType('custom') }}
+          />
+          <span className="px-1 text-xs font-bold text-slate-400">→</span>
+          <DatePickerInput
+            className="h-8 min-w-0 flex-1 bg-white text-slate-900 sm:w-[130px] sm:flex-none"
+            value={dateTo}
+            onChange={(val) => { setDateTo(val); setRangeType('custom') }}
+          />
+        </div>
+      </div>
+    )
+    const machineUtilCard = (
+      <div className="flex min-h-[260px] flex-col overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm lg:min-h-[340px]">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-indigo-50/50 p-3">
+          <h3 className="text-sm font-bold text-indigo-700">Machine Utilization (ปริมาณผลิตต่อเครื่อง)</h3>
+          {dashboardMachineResize.hasCustomWidths ? (
+            <button
+              className="hidden rounded-md border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 lg:inline-flex"
+              type="button"
+              onClick={dashboardMachineResize.resetColumnWidths}
+            >
+              คืนค่าเดิมตาราง
+            </button>
+          ) : null}
+        </div>
+
+        <div className="hidden overflow-x-auto lg:block">
+          <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: dashboardMachineResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+            <colgroup>
+              {dashboardMachineColumns.map((column, index) => (
+                <col
+                  key={column.key}
+                  style={index === dashboardMachineColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : dashboardMachineResize.getColumnStyle(column.key)}
+                />
+              ))}
+            </colgroup>
+            <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
+              <tr>
+                <ResizableTableHead activeSortKey={dashboardMachineSortKey} direction={dashboardMachineSortDir} label="เครื่องจักร" resizeProps={dashboardMachineResize.getResizeHandleProps('name', 'เครื่องจักร')} sortKey="name" onSort={toggleDashboardMachineSort} />
+                <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="right" direction={dashboardMachineSortDir} label="รอบที่ใช้" resizeProps={dashboardMachineResize.getResizeHandleProps('batches', 'รอบที่ใช้')} sortKey="batches" onSort={toggleDashboardMachineSort} />
+                <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="right" direction={dashboardMachineSortDir} label="น้ำหนักผลิต" resizeProps={dashboardMachineResize.getResizeHandleProps('qty', 'น้ำหนักผลิต')} sortKey="qty" onSort={toggleDashboardMachineSort} />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {machineUtil.map((item) => (
+                <tr key={item.name} className="hover:bg-slate-50">
+                  <td className="min-w-0 overflow-hidden p-2 text-xs text-slate-700"><div className="truncate" title={item.name}>{item.name}</div></td>
+                  <td className="whitespace-nowrap p-2 text-right text-xs tabular-nums">{item.batches}</td>
+                  <td className="whitespace-nowrap p-2 text-right text-xs font-bold tabular-nums text-indigo-700">{formatMoney(item.qty)}</td>
+                </tr>
+              ))}
+              {!machineUtil.length ? <tr><td className="py-6 text-center text-slate-400" colSpan={3}>ยังไม่มีข้อมูล</td></tr> : null}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="space-y-3 bg-slate-50/30 p-3 lg:hidden">
+          {machineUtil.map((item) => (
+            <div key={item.name} className="space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <span className="truncate text-base font-bold text-slate-900">{item.name}</span>
+                <span className="shrink-0 text-base font-bold text-indigo-700">{formatMoney(item.qty)} กก.</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-semibold text-slate-500">รอบที่ใช้งาน</span>
+                <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-sm font-bold text-slate-800">
+                  {item.batches} รอบ
+                </span>
+              </div>
+            </div>
+          ))}
+          {!machineUtil.length ? <div className="rounded-xl border border-slate-200 bg-white py-4 text-center text-sm text-slate-400">ยังไม่มีข้อมูล</div> : null}
+        </div>
+      </div>
+    )
     return (
       <section className="space-y-4">
         {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
         {/* Desktop Header: Premium Gradient Card */}
         <div className="hidden lg:block rounded-xl bg-gradient-to-r from-purple-700 to-pink-600 p-5 text-white shadow-sm border border-transparent">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-bold">แดชบอร์ดการผลิต</h1>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {[
-                ['today', 'วันนี้'],
-                ['last7', '7 วัน'],
-                ['last30', '30 วัน'],
-                ['last90', '90 วัน'],
-                ['month', 'เดือนนี้'],
-                ['year', 'ปีนี้'],
-              ].map(([value, label]) => {
-                const isActive = rangeType === value
-                return (
-                  <button
-                    key={value}
-                    className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                      isActive
-                        ? 'bg-white text-purple-700 shadow-sm border border-white'
-                        : 'bg-white/20 text-white hover:bg-white/30 border border-transparent'
-                    }`}
-                    type="button"
-                    onClick={() => applyDashboardRange(value as Parameters<typeof applyDashboardRange>[0])}
-                  >
-                    {label}
-                  </button>
-                )
-              })}
-              <DatePickerInput
-                className="w-[120px] bg-white text-slate-900 h-9"
-                value={dateFrom}
-                onChange={(val) => { setDateFrom(val); setRangeType('custom') }}
-              />
-              <span className="text-sm">→</span>
-              <DatePickerInput
-                className="w-[120px] bg-white text-slate-900 h-9"
-                value={dateTo}
-                onChange={(val) => { setDateTo(val); setRangeType('custom') }}
-              />
-            </div>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-2xl font-bold">แดชบอร์ดการผลิต</h1>
           </div>
         </div>
 
-        {/* Mobile Header & Controls (Clean Native App Style) */}
-        <div className="lg:hidden flex flex-col gap-3">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">แดชบอร์ดการผลิต</h1>
-          </div>
-
-          {/* Horizontal scrollable range filter pills */}
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {[
-              ['today', 'วันนี้'],
-              ['last7', '7 วัน'],
-              ['last30', '30 วัน'],
-              ['last90', '90 วัน'],
-              ['month', 'เดือนนี้'],
-              ['year', 'ปีนี้'],
-            ].map(([value, label]) => {
-              const isActive = rangeType === value
-              return (
-                <button
-                  key={value}
-                  className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all shrink-0 border ${
-                    isActive
-                      ? 'bg-slate-900 border-slate-900 text-white shadow-sm'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                  type="button"
-                  onClick={() => applyDashboardRange(value as Parameters<typeof applyDashboardRange>[0])}
-                >
-                  {label}
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Date Picker Row for Custom Dates */}
-          <div className="flex items-center gap-2 bg-white p-2.5 rounded-xl border border-slate-200/60 shadow-sm w-full">
-            <span className="text-xs text-slate-500 font-bold shrink-0">กำหนดเอง:</span>
-            <DatePickerInput
-              className="flex-1 min-w-0 bg-slate-50 border-slate-200 h-9"
-              value={dateFrom}
-              onChange={(val) => { setDateFrom(val); setRangeType('custom') }}
-            />
-            <span className="text-slate-400 text-xs font-bold shrink-0">→</span>
-            <DatePickerInput
-              className="flex-1 min-w-0 bg-slate-50 border-slate-200 h-9"
-              value={dateTo}
-              onChange={(val) => { setDateTo(val); setRangeType('custom') }}
-            />
-          </div>
+        {/* Mobile Header */}
+        <div className="flex flex-col gap-3 lg:hidden">
+          <h1 className="text-xl font-bold text-slate-900">แดชบอร์ดการผลิต</h1>
         </div>
 
         {/* Mobile iOS-Style Segmented Tab Navigation */}
         <div className="lg:hidden flex rounded-xl bg-slate-100 p-1 border border-slate-200/40">
-          {(['overview', 'products', 'machines'] as const).map((tab) => {
+          {(['overview', 'products'] as const).map((tab) => {
             const isActive = activeTab === tab
-            const label = tab === 'overview' ? '📊 ภาพรวม' : tab === 'products' ? '📦 สินค้า' : '⚙️ เครื่องจักร'
+            const label = tab === 'overview' ? '📊 ภาพรวม' : '📦 สินค้า'
             return (
               <button
                 key={tab}
@@ -870,7 +895,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           activeTab === 'overview' ? 'grid lg:grid' : 'hidden lg:grid'
         }`}>
           <DashboardKpi label="ใบสั่งผลิต" note={`Input ${formatMoney(summary.inputQty ?? 0)} | Output ${formatMoney(summary.outputQty ?? 0)}`} tone="blue" value={formatMoney(summary.count ?? 0)} emoji="🏭" />
-          <DashboardKpi label="ผลิตได้" note="กก. ไม่รวม Loss" tone="emerald" value={formatMoney(summary.outputQty ?? 0)} emoji="📦" />
+          <DashboardStatusKpi items={byStatus} />
           <DashboardKpi label="WIP คงเหลือทั้งระบบ" note="กก. ที่ยังผลิตค้างอยู่" tone="amber" value={formatMoney(summary.totalWipQty ?? summary.wipQty ?? 0)} emoji="⚙️" />
           <DashboardKpi label="Yield %" note={`Loss ${Number(summary.lossPct ?? 0).toFixed(1)}%`} tone="purple" value={`${Number(summary.yieldPct ?? 0).toFixed(1)}%`} emoji="📈" />
         </div>
@@ -879,27 +904,16 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         <div className={`grid-cols-1 gap-4 lg:grid-cols-2 ${
           activeTab === 'overview' ? 'grid lg:grid' : 'hidden lg:grid'
         }`}>
-          <ChartPanel title="ผลิตรายวัน (Input/Output/Loss)" type="line" rows={daily.map((item) => ({ label: item.date.slice(5), input: item.inputQty, output: item.outputQty, loss: item.lossQty }))} />
-          <ChartPanel title="ผลิตรายเดือน (12 เดือนล่าสุด)" type="bar" rows={monthly.map((item) => ({ label: item.month.slice(5), input: item.inputQty, output: item.outputQty, loss: 0 }))} />
+          <ChartPanel controls={dashboardRangeControls} title="ผลิตรายวัน (Input/Output/Loss)" type="line" rows={daily.map((item) => ({ label: item.date.slice(5), input: item.inputQty, output: item.outputQty, loss: item.lossQty }))} />
+          {machineUtilCard}
         </div>
 
-        {/* Status Panels & Product Lists */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          {/* Status List */}
-          <div className={`rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm ${
-            activeTab === 'overview' ? 'block lg:block' : 'hidden lg:block'
-          }`}>
-            <h3 className="mb-3 font-bold text-slate-700 text-sm">สถานะใบสั่งผลิต</h3>
-            <div className="space-y-2">
-              {byStatus.map((item) => <StatusBar key={item.status} count={item.count} max={Math.max(1, ...byStatus.map((row) => row.count))} status={item.status} />)}
-              {!byStatus.length ? <div className="py-6 text-center text-sm text-slate-400">ยังไม่มีข้อมูล</div> : null}
-            </div>
-          </div>
-
+        {/* Product List */}
+        <div className={`grid-cols-1 gap-4 ${
+          activeTab === 'products' ? 'grid lg:grid' : 'hidden lg:grid'
+        }`}>
           {/* Top Products Card */}
-          <div className={`rounded-xl border border-slate-200/60 bg-white shadow-sm lg:col-span-2 flex flex-col overflow-hidden ${
-            activeTab === 'products' ? 'flex lg:flex' : 'hidden lg:flex'
-          }`}>
+          <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm">
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-emerald-50/50 p-3">
               <h3 className="font-bold text-emerald-700 text-sm">Top 10 สินค้าที่ผลิตมากสุด</h3>
               {dashboardTopProductResize.hasCustomWidths ? (
@@ -990,73 +1004,6 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               {!topProducts.length ? <div className="py-4 text-center text-sm text-slate-400 bg-white rounded-xl border border-slate-200/60">ยังไม่มีข้อมูลในช่วงนี้</div> : null}
             </div>
           </div>
-        {/* Machine Utilization Card */}
-        <div className={`rounded-xl border border-slate-200/60 bg-white shadow-sm flex flex-col overflow-hidden ${
-          activeTab === 'machines' ? 'flex lg:flex' : 'hidden lg:flex'
-        }`}>
-          <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-indigo-50/50 p-3">
-            <h3 className="font-bold text-indigo-700 text-sm">Machine Utilization (ปริมาณผลิตต่อเครื่อง)</h3>
-            {dashboardMachineResize.hasCustomWidths ? (
-              <button
-                className="hidden rounded-md border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 lg:inline-flex"
-                type="button"
-                onClick={dashboardMachineResize.resetColumnWidths}
-              >
-                คืนค่าเดิมตาราง
-              </button>
-            ) : null}
-          </div>
-
-          {/* Desktop View */}
-          <div className="hidden lg:block overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: dashboardMachineResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
-              <colgroup>
-                {dashboardMachineColumns.map((column, index) => (
-                  <col
-                    key={column.key}
-                    style={index === dashboardMachineColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : dashboardMachineResize.getColumnStyle(column.key)}
-                  />
-                ))}
-              </colgroup>
-              <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
-                <tr>
-                  <ResizableTableHead activeSortKey={dashboardMachineSortKey} direction={dashboardMachineSortDir} label="เครื่องจักร" resizeProps={dashboardMachineResize.getResizeHandleProps('name', 'เครื่องจักร')} sortKey="name" onSort={toggleDashboardMachineSort} />
-                  <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="right" direction={dashboardMachineSortDir} label="รอบที่ใช้" resizeProps={dashboardMachineResize.getResizeHandleProps('batches', 'รอบที่ใช้')} sortKey="batches" onSort={toggleDashboardMachineSort} />
-                  <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="right" direction={dashboardMachineSortDir} label="น้ำหนักผลิต" resizeProps={dashboardMachineResize.getResizeHandleProps('qty', 'น้ำหนักผลิต')} sortKey="qty" onSort={toggleDashboardMachineSort} />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {machineUtil.map((item) => (
-                  <tr key={item.name} className="hover:bg-slate-50">
-                    <td className="p-2 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={item.name}>{item.name}</div></td>
-                    <td className="p-2 text-right text-xs tabular-nums whitespace-nowrap">{item.batches}</td>
-                    <td className="p-2 text-right font-bold text-indigo-700 text-xs tabular-nums whitespace-nowrap">{formatMoney(item.qty)}</td>
-                  </tr>
-                ))}
-                {!machineUtil.length ? <tr><td className="py-6 text-center text-slate-400" colSpan={3}>ยังไม่มีข้อมูล</td></tr> : null}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile View */}
-          <div className="lg:hidden p-3 space-y-3 bg-slate-50/30">
-            {machineUtil.map((item) => (
-              <div key={item.name} className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-sm space-y-3">
-                <div className="border-b border-slate-100 pb-2 flex justify-between items-center">
-                  <span className="font-bold text-slate-900 text-base truncate">{item.name}</span>
-                  <span className="text-base font-bold text-indigo-700 shrink-0">{formatMoney(item.qty)} กก.</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500 font-semibold">รอบที่ใช้งาน</span>
-                  <span className="text-sm font-bold text-slate-800 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200">
-                    {item.batches} รอบ
-                  </span>
-                </div>
-              </div>
-            ))}
-            {!machineUtil.length ? <div className="py-4 text-center text-sm text-slate-400 bg-white rounded-xl border border-slate-200">ยังไม่มีข้อมูล</div> : null}
-          </div>
-        </div>
         </div>
         {isLoading ? <div className="text-center text-sm text-slate-500">กำลังโหลดข้อมูล</div> : null}
       </section>
@@ -1762,32 +1709,169 @@ function DashboardKpi({
   )
 }
 
-function ChartPanel({ rows, title, type }: { rows: Array<{ input: number; label: string; loss: number; output: number }>; title: string; type: 'bar' | 'line' }) {
-  const max = Math.max(1, ...rows.flatMap((row) => [row.input, row.output, row.loss]))
+function DashboardStatusKpi({ items }: { items: Array<{ count: number; status: string }> }) {
+  const statusCounts = new Map(items.map((item) => [item.status, item.count]))
+  const visibleItems = [
+    { label: 'เสร็จบางส่วน', value: statusCounts.get('Partially Completed') ?? 0 },
+    { label: 'กำลังผลิต', value: statusCounts.get('In Production') ?? 0 },
+    { label: 'เสร็จสิ้น', value: statusCounts.get('Completed') ?? 0 },
+  ]
+
   return (
-    <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
-      <h3 className="mb-2 font-bold text-slate-700 text-sm">{title}</h3>
-      <div className="flex h-[220px] sm:h-[260px] lg:h-[300px] items-end gap-2 overflow-x-auto border-b border-slate-100 pb-8">
-        {rows.map((row) => (
-          <div key={row.label} className="relative flex min-w-10 flex-1 items-end justify-center gap-1 h-full">
-            <div className="w-2 rounded-t bg-blue-500" style={{ height: `${Math.max(1, (row.input / max) * 85)}%` }} title={`Input ${formatMoney(row.input)}`} />
-            <div className="w-2 rounded-t bg-emerald-500" style={{ height: `${Math.max(1, (row.output / max) * 85)}%` }} title={`Output ${formatMoney(row.output)}`} />
-            {type === 'line' ? <div className="w-2 rounded-t bg-red-500" style={{ height: `${Math.max(1, (row.loss / max) * 85)}%` }} title={`Loss ${formatMoney(row.loss)}`} /> : null}
-            <span className="absolute -bottom-6 text-xs text-slate-400">{row.label}</span>
-          </div>
-        ))}
-        {!rows.length ? <div className="w-full self-center text-center text-sm text-slate-400">ยังไม่มีข้อมูล</div> : null}
+    <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-3 sm:p-4">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-lg text-emerald-700 sm:h-11 sm:w-11 sm:text-xl">
+        📋
       </div>
-      <div className="mt-2 flex gap-4 text-xs text-slate-500"><span className="text-blue-600">Input</span><span className="text-emerald-600">Output</span>{type === 'line' ? <span className="text-red-600">Loss</span> : null}</div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-semibold text-slate-500">สถานะใบสั่งผลิต</div>
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          {visibleItems.map((item) => (
+            <div key={item.label} className="min-w-0 rounded-lg bg-slate-50 px-2 py-2 text-center">
+              <div className="truncate text-xs font-semibold text-slate-600">{item.label}</div>
+              <div className="mt-1 text-xl font-bold leading-none tabular-nums text-emerald-700">{item.value.toLocaleString('th-TH')}</div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
 
-function StatusBar({ count, max, status }: { count: number; max: number; status: string }) {
+function niceChartMax(max: number) {
+  if (max <= 10) return Math.ceil(max)
+  if (max <= 100) return Math.ceil(max / 10) * 10
+  if (max <= 1000) return Math.ceil(max / 100) * 100
+  return Math.ceil(max / 1000) * 1000
+}
+
+function formatChartTick(value: number) {
+  if (value >= 1000) return `${(value / 1000).toLocaleString('th-TH', { maximumFractionDigits: 1 })}k`
+  return value.toLocaleString('th-TH', { maximumFractionDigits: 0 })
+}
+
+function smoothLinePath(points: Array<{ x: number; y: number }>) {
+  if (!points.length) return ''
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`
+  return points.slice(1).reduce((path, point, index) => {
+    const previous = points[index]
+    const midX = (previous.x + point.x) / 2
+    return `${path} C ${midX} ${previous.y}, ${midX} ${point.y}, ${point.x} ${point.y}`
+  }, `M ${points[0].x} ${points[0].y}`)
+}
+
+function smoothAreaPath(points: Array<{ x: number; y: number }>, baselineY: number) {
+  if (!points.length) return ''
+  const linePath = smoothLinePath(points)
+  const first = points[0]
+  const last = points[points.length - 1]
+  return `${linePath} L ${last.x} ${baselineY} L ${first.x} ${baselineY} Z`
+}
+
+function ChartPanel({ controls, rows, title, type }: { controls?: ReactNode; rows: ChartRow[]; title: string; type: 'bar' | 'line' }) {
+  const max = Math.max(1, ...rows.flatMap((row) => [row.input, row.output, row.loss]))
+  const yMax = niceChartMax(max)
+  const chartWidth = Math.max(640, rows.length * 96)
+  const chartHeight = 280
+  const paddingLeft = 56
+  const paddingRight = 28
+  const paddingTop = 26
+  const paddingBottom = 42
+  const plotWidth = chartWidth - paddingLeft - paddingRight
+  const plotHeight = chartHeight - paddingTop - paddingBottom
+  const xFor = (index: number) => rows.length <= 1 ? paddingLeft + plotWidth / 2 : paddingLeft + index / (rows.length - 1) * plotWidth
+  const yFor = (value: number) => paddingTop + (1 - value / yMax) * plotHeight
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => yMax * ratio)
+  const series = [
+    { color: '#2563eb', key: 'input' as const, label: 'Input', soft: 'rgba(37, 99, 235, 0.10)' },
+    { color: '#10b981', key: 'output' as const, label: 'Output', soft: 'rgba(16, 185, 129, 0.10)' },
+    { color: '#e11d48', key: 'loss' as const, label: 'Loss', soft: 'transparent' },
+  ]
+
   return (
-    <div className="text-sm">
-      <div className="mb-1 flex justify-between"><span>{status}</span><b>{count}</b></div>
-      <div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-purple-500" style={{ width: `${Math.max(4, (count / max) * 100)}%` }} /></div>
+    <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+        <h3 className="font-bold text-slate-700 text-sm">{title}</h3>
+        {controls}
+      </div>
+      {type === 'line' ? (
+        <div className="bg-slate-50/40 p-4">
+          <div className="mb-3 flex flex-wrap justify-end gap-4 text-xs font-medium text-slate-500">
+            {series.map((item) => (
+              <span key={item.key} className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                {item.label}
+              </span>
+            ))}
+          </div>
+          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+          {rows.length ? (
+            <svg aria-label={title} className="h-[220px] sm:h-[260px] lg:h-[300px]" role="img" style={{ minWidth: chartWidth, width: '100%' }} viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
+              <rect fill="white" height={chartHeight - 1} rx="8" width={chartWidth - 1} x="0.5" y="0.5" />
+              {ticks.map((value) => {
+                const y = yFor(value)
+                return (
+                  <g key={value}>
+                    <line stroke="#e2e8f0" strokeWidth="1" x1={paddingLeft} x2={chartWidth - paddingRight} y1={y} y2={y} />
+                    <text fill="#94a3b8" fontSize="10" textAnchor="end" x={paddingLeft - 10} y={y + 3}>
+                      {formatChartTick(value)}
+                    </text>
+                  </g>
+                )
+              })}
+              {rows.map((row, index) => {
+                const x = xFor(index)
+                return <line key={row.label} stroke="#f1f5f9" strokeWidth="1" x1={x} x2={x} y1={paddingTop} y2={chartHeight - paddingBottom} />
+              })}
+              <line stroke="#cbd5e1" strokeWidth="1.25" x1={paddingLeft} x2={chartWidth - paddingRight} y1={chartHeight - paddingBottom} y2={chartHeight - paddingBottom} />
+              <line stroke="#cbd5e1" strokeWidth="1.25" x1={paddingLeft} x2={paddingLeft} y1={paddingTop} y2={chartHeight - paddingBottom} />
+              {series.filter((item) => item.key !== 'loss').map((item) => (
+                <path
+                  key={`${item.key}-area`}
+                  d={smoothAreaPath(rows.map((row, index) => ({ x: xFor(index), y: yFor(row[item.key]) })), chartHeight - paddingBottom)}
+                  fill={item.soft}
+                />
+              ))}
+              {series.map((item) => (
+                <path
+                  key={item.key}
+                  d={smoothLinePath(rows.map((row, index) => ({ x: xFor(index), y: yFor(row[item.key]) })))}
+                  fill="none"
+                  stroke={item.color}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={item.key === 'loss' ? 2.5 : 3.5}
+                />
+              ))}
+              {series.map((item) => rows.map((row, index) => (
+                <circle key={`${item.key}-${row.label}`} cx={xFor(index)} cy={yFor(row[item.key])} fill="white" r="4.5" stroke={item.color} strokeWidth="2.5">
+                  <title>{`${item.label} ${formatMoney(row[item.key])}`}</title>
+                </circle>
+              )))}
+              {rows.map((row, index) => (
+                <text key={row.label} fill="#64748b" fontSize="11" fontWeight="600" textAnchor="middle" x={xFor(index)} y={chartHeight - 13}>
+                  {row.label}
+                </text>
+              ))}
+            </svg>
+          ) : (
+            <div className="flex h-[220px] items-center justify-center text-sm text-slate-400 sm:h-[260px] lg:h-[300px]">ยังไม่มีข้อมูล</div>
+          )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex h-[220px] sm:h-[260px] lg:h-[300px] items-end gap-2 overflow-x-auto border-b border-slate-100 p-4 pb-8">
+          {rows.map((row) => (
+            <div key={row.label} className="relative flex min-w-10 flex-1 items-end justify-center gap-1 h-full">
+              <div className="w-2 rounded-t bg-blue-500" style={{ height: `${Math.max(1, (row.input / max) * 85)}%` }} title={`Input ${formatMoney(row.input)}`} />
+              <div className="w-2 rounded-t bg-emerald-500" style={{ height: `${Math.max(1, (row.output / max) * 85)}%` }} title={`Output ${formatMoney(row.output)}`} />
+              {row.loss > 0 ? <div className="w-2 rounded-t bg-red-500" style={{ height: `${Math.max(1, (row.loss / max) * 85)}%` }} title={`Loss ${formatMoney(row.loss)}`} /> : null}
+              <span className="absolute -bottom-6 text-xs text-slate-400">{row.label}</span>
+            </div>
+          ))}
+          {!rows.length ? <div className="w-full self-center text-center text-sm text-slate-400">ยังไม่มีข้อมูล</div> : null}
+        </div>
+      )}
+      {type === 'bar' ? <div className="px-4 pb-4 pt-2 flex gap-4 text-xs text-slate-500"><span className="text-blue-600">Input</span><span className="text-emerald-600">Output</span></div> : null}
     </div>
   )
 }

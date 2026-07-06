@@ -11,13 +11,13 @@ updated: 2026-06-11
 
 รายชื่อไฟล์ flow รายหน้าสำหรับทุก route ที่อยู่ในเมนูใหม่ `apps/next/src/lib/navigation.ts`.
 
-- จำนวน route ในเมนูใหม่: 109
+- จำนวน route ในเมนูใหม่: 110
 - Scope: active menu only
 - Legacy-only pages ที่ไม่มีในเมนูใหม่ไม่อยู่ใน index นี้
 
 ## Detail Completion Status
 
-ไฟล์รายหน้าทุก route ถูกสร้างครบและมี minimum detailed contract ครบ 109/109 routes แล้ว:
+ไฟล์รายหน้าทุก route ถูกสร้างครบและมี minimum detailed contract ครบ 110/110 routes แล้ว:
 
 - ทุกไฟล์มี responsibilities, non-responsibilities, lifecycle/read flow, API/data contract, validation/status rules, side effects, current gaps, และ implementation checklist
 - Batch 1 deepened page-specific details and Current API for core Purchase, Sales, Payment, and Stock pages:
@@ -30,6 +30,7 @@ updated: 2026-06-11
   - `/sales/po-sell`
   - `/sales/bills`
   - `/sales/receipts`
+  - `/daily/weight-ticket-dashboard`
   - `/daily/weight-ticket-list`
   - `/stock/balance`
   - `/stock/ledger`
@@ -86,6 +87,7 @@ updated: 2026-06-11
 | `/purchase/payments` | จ่ายเงิน Supplier | [daily-transactions-purchase-payments.md](daily-transactions-purchase-payments.md) | [[Payment Flow]] |
 | `/purchase/receipt-vouchers` | ใบสำคัญรับเงิน | [daily-transactions-purchase-receipt-vouchers.md](daily-transactions-purchase-receipt-vouchers.md) | [[Receipt Voucher Page Flow]], [[Printable Documents]], [[Payment Flow]] |
 | `/sales/receipts` | รับเงิน Customer | [daily-transactions-sales-receipts.md](daily-transactions-sales-receipts.md) | [[Sales Flow]], [[Payment Flow]] |
+| `/daily/weight-ticket-dashboard` | Dashboard ใบรับ-ส่งของ | [daily-transactions-daily-weight-ticket-dashboard.md](daily-transactions-daily-weight-ticket-dashboard.md) | [[WTI-WTO Flow]] |
 | `/daily/weight-ticket-list` | รายการใบรับ-ส่งของ | [daily-transactions-daily-weight-ticket-list.md](daily-transactions-daily-weight-ticket-list.md) | [[WTI-WTO Flow]] |
 | `/daily/transfer` | โอนเงินระหว่างบัญชี | [daily-transactions-daily-transfer.md](daily-transactions-daily-transfer.md) | [[Daily Cash Flow]] |
 | `/daily/expense` | ค่าใช้จ่าย | [daily-transactions-daily-expense.md](daily-transactions-daily-expense.md) | [[Daily Cash Flow]] |

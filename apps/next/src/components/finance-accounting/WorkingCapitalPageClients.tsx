@@ -290,6 +290,13 @@ export function StockFinancePageClient() {
   const url = useMemo(() => `/api/finance-accounting/stock-finance?asOf=${asOf}${branchId ? `&branchId=${branchId}` : ''}`, [asOf, branchId])
   const { data, error, isLoading } = useApi<StockPayload>(url)
   const total = Math.max(data?.summary.totalValue ?? 0, 1)
+  const oldStock = data?.aging.find((row) => row.key === '90+')
+  const stockStatusRows = [
+    { color: 'bg-blue-500', key: 'RM', label: 'วัตถุดิบรอผลิต', value: data?.byStatus.RM ?? 0 },
+    { color: 'bg-amber-500', key: 'WIP', label: 'ระหว่างผลิต', value: data?.byStatus.WIP ?? 0 },
+    { color: 'bg-emerald-500', key: 'FG', label: 'พร้อมขาย', value: data?.byStatus.FG ?? 0 },
+    { color: 'bg-slate-400', key: 'อื่นๆ', label: 'สถานะอื่น', value: data?.byStatus.OTHER ?? 0 },
+  ]
   const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   return (
@@ -297,8 +304,8 @@ export function StockFinancePageClient() {
       {error ? <ErrorBox message={error} /> : null}
       
       {/* Desktop Filter Panel */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
-        <DateInput label="As of" value={asOf} onChange={setAsOf} />
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
+        <DateInput label="ณ วันที่" value={asOf} onChange={setAsOf} />
         <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
       </div>
 
@@ -306,7 +313,7 @@ export function StockFinancePageClient() {
       <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden space-y-3">
         <div className="flex gap-2 items-center">
           <div className="flex-1 flex items-center gap-2">
-            <span className="text-xs text-slate-500 font-semibold shrink-0">As of</span>
+            <span className="text-xs text-slate-500 font-semibold shrink-0">ณ วันที่</span>
             <DatePickerInput className="w-full text-xs" value={asOf} onChange={setAsOf} />
           </div>
           <button
@@ -358,28 +365,66 @@ export function StockFinancePageClient() {
           </div>
         </MobileFilterSheet>
       ) : null}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <div className="bg-white p-5 border border-slate-100 rounded-md shadow-sm flex items-center gap-4 lg:col-span-2">
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-amber-600 uppercase">มูลค่า Stock รวม (WAC)</div>
-            <div className="mt-0.5 text-2xl font-extrabold text-slate-900 tracking-tight">{money(data?.summary.totalValue)} <span className="text-xs font-medium text-slate-500">({data?.summary.itemCount ?? 0} รายการ)</span></div>
-            <div className="mt-3 grid grid-cols-3 gap-2 text-xs pt-3 border-t border-slate-100">
-              <Mini label="จ่ายแล้ว (Paid)" value={money(data?.summary.paidValue)} />
-              <Mini label=" ยังไม่จ่าย (Unpaid)" value={money(data?.summary.unpaidValue)} />
-              <Mini label=" Margin Potential" value={money(data?.summary.marginPotential)} />
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+        <div className="rounded-md border border-amber-100 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <div className="text-xs font-bold uppercase text-amber-600">ภาพรวมมูลค่าสต็อก</div>
+              <div className="mt-1 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">{money(data?.summary.totalValue)}</div>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
+                <span>{data?.summary.itemCount ?? 0} รายการ</span>
+                <span className="text-slate-300">/</span>
+                <span>{money(data?.summary.totalQty)} กก.</span>
+                <span className="text-slate-300">/</span>
+                <span>WAC ตามตัวกรองปัจจุบัน</span>
+              </div>
+            </div>
+            <div className="rounded-md border border-amber-100 bg-amber-50/40 px-3 py-2 text-xs text-amber-800">
+              <div className="font-bold">เงินจม 90+ วัน</div>
+              <div className="mt-0.5 text-lg font-extrabold tracking-tight">{money(oldStock?.value)}</div>
+              <div className="text-amber-700/80">{oldStock?.count ?? 0} รายการ</div>
             </div>
           </div>
+          <div className="mt-5 grid grid-cols-1 gap-2 border-t border-slate-100 pt-4 sm:grid-cols-3">
+            <Mini label="จ่ายแล้ว" value={money(data?.summary.paidValue)} />
+            <Mini label="ยังไม่จ่าย" value={money(data?.summary.unpaidValue)} />
+            <Mini label="โอกาสกำไร" value={money(data?.summary.marginPotential)} />
+          </div>
         </div>
-        <Panel title=" RM / WIP / FG"><Donut values={[data?.byStatus.RM ?? 0, data?.byStatus.WIP ?? 0, data?.byStatus.FG ?? 0]} colors={['#3b82f6', '#f59e0b', '#10b981']} total={total} /><div className="mt-1 grid grid-cols-2 gap-1 text-xs"><div>RM: {money(data?.byStatus.RM)}</div><div>WIP: {money(data?.byStatus.WIP)}</div><div>FG: {money(data?.byStatus.FG)}</div><div>อื่นๆ: {money(data?.byStatus.OTHER)}</div></div></Panel>
+        <Panel title="สถานะสต็อกตามการผลิต">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <Donut values={stockStatusRows.map((row) => row.value)} colors={['#3b82f6', '#f59e0b', '#10b981', '#94a3b8']} displayTotal={data?.summary.totalValue ?? 0} total={total} />
+            <div className="min-w-0 flex-1 space-y-2">
+              {stockStatusRows.map((row) => (
+                <div className="flex items-center gap-2 text-xs" key={row.key}>
+                  <span className={`h-2.5 w-2.5 rounded-full ${row.color}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-slate-700">{row.key}</span>
+                      <span className="font-bold text-slate-900">{money(row.value)}</span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="w-20 text-slate-400">{row.label}</span>
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                        <div className={`h-full rounded-full ${row.color}`} style={{ width: `${Math.max(row.value / total * 100, row.value > 0 ? 2 : 0)}%` }} />
+                      </div>
+                      <span className="w-10 text-right font-semibold text-slate-500">{percent(row.value, total)}%</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Panel>
       </div>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <Panel title=" Stock Aging (มูลค่าตามอายุ)">{(data?.aging ?? []).map((row) => <AgingBar key={row.key} row={row} total={total} />)}</Panel>
-        <Panel title="Top 10 สินค้ามูลค่าสต็อกสูงสุด">{(data?.topProducts ?? []).map((row, index) => <TopProduct key={row.id} index={index} max={data?.topProducts[0]?.value ?? 1} row={row} />)}{isLoading ? <Loading /> : null}</Panel>
+        <Panel title="อายุสต็อกตามมูลค่า">{(data?.aging ?? []).map((row) => <AgingBar key={row.key} row={row} total={total} />)}</Panel>
+        <Panel title="สินค้า 10 อันดับมูลค่าสูงสุด">{(data?.topProducts ?? []).map((row, index) => <TopProduct key={row.id} index={index} max={data?.topProducts[0]?.value ?? 1} row={row} />)}{isLoading ? <Loading /> : null}</Panel>
       </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <Insight tone="emerald" title="FG พร้อมขาย" value={money(data?.byStatus.FG)} body={`${percent(data?.byStatus.FG ?? 0, total)}% ของ Stock รวม · ปั่นเป็นเงินสดได้ทันที`} />
-        <Insight tone="blue" title=" RM ที่ต้องเอาไปผลิต" value={money(data?.byStatus.RM)} body={`${percent(data?.byStatus.RM ?? 0, total)}% ของ Stock รวม · ต้องเข้า Production`} />
-        <Insight tone="red" title=" Stock จมเงิน (90+ วัน)" value={money(data?.aging.find((row) => row.key === '90+')?.value)} body={`${data?.aging.find((row) => row.key === '90+')?.count ?? 0} รายการ — เร่งระบาย หรือลด price`} />
+        <Insight tone="emerald" title="พร้อมขาย" value={money(data?.byStatus.FG)} body={`${percent(data?.byStatus.FG ?? 0, total)}% ของสต็อกรวม · เปลี่ยนเป็นเงินสดได้ทันที`} />
+        <Insight tone="blue" title="วัตถุดิบรอผลิต" value={money(data?.byStatus.RM)} body={`${percent(data?.byStatus.RM ?? 0, total)}% ของสต็อกรวม · ต้องเข้าแผนผลิต`} />
+        <Insight tone="red" title="สต็อกจมเงิน 90+ วัน" value={money(oldStock?.value)} body={`${oldStock?.count ?? 0} รายการ · เร่งระบายหรือทบทวนราคา`} />
       </div>
       <ProductTable rows={data?.slowMoving ?? []} />
     </section>
@@ -725,48 +770,57 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: WorkingPay
 
 function Mini({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <div className="text-xs text-slate-400 font-medium">{label}</div>
-      <div className="text-sm font-bold text-slate-800">{value}</div>
+    <div className="rounded-md border border-slate-100 bg-slate-50/60 p-3">
+      <div className="text-xs font-semibold text-slate-500">{label}</div>
+      <div className="mt-1 text-base font-extrabold tracking-tight text-slate-900">{value}</div>
     </div>
   )
 }
 
-function Donut({ colors, total, values }: { colors: string[]; total: number; values: number[] }) {
+function Donut({ colors, displayTotal, total, values }: { colors: string[]; displayTotal?: number; total: number; values: number[] }) {
+  const centerTotal = displayTotal ?? total
   const segments = values.reduce<{ dash: number; offset: number; value: number }[]>((acc, value) => {
     const dash = value / Math.max(1, total) * 440
     const offset = acc.reduce((sum, row) => sum + row.dash, 0)
     return [...acc, { dash, offset, value }]
   }, [])
-  return <svg viewBox="0 0 200 200" className="mx-auto h-36 w-36 shrink-0">{segments.map((segment, index) => <circle key={`${index}-${segment.value}`} cx="100" cy="100" fill="none" r="70" stroke={colors[index % colors.length]} strokeDasharray={`${segment.dash} 440`} strokeDashoffset={-segment.offset} strokeWidth="36" transform="rotate(-90 100 100)" />)}<text x="100" y="98" textAnchor="middle" fontSize="12" fill="#64748b">รวม</text><text x="100" y="115" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#1e293b">{money(total)}</text></svg>
+  return <svg viewBox="0 0 200 200" className="mx-auto h-36 w-36 shrink-0">{segments.map((segment, index) => <circle key={`${index}-${segment.value}`} cx="100" cy="100" fill="none" r="70" stroke={colors[index % colors.length]} strokeDasharray={`${segment.dash} 440`} strokeDashoffset={-segment.offset} strokeWidth="36" transform="rotate(-90 100 100)" />)}<text x="100" y="98" textAnchor="middle" fontSize="12" fill="#64748b">รวม</text><text x="100" y="115" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#1e293b">{money(centerTotal)}</text></svg>
 }
 
 function AgingBar({ row, total }: { row: { count: number; key: string; value: number }; total: number }) {
+  const isRisk = row.key === '90+'
+  const isWatch = row.key.includes('60')
+  const barClass = isRisk ? 'bg-red-500' : isWatch ? 'bg-amber-500' : 'bg-slate-500'
+  const textClass = isRisk ? 'text-red-700' : isWatch ? 'text-amber-700' : 'text-slate-700'
   return (
-    <div className="mb-2 flex items-center gap-3 text-xs">
-      <div className="w-20 font-semibold text-slate-600">{row.key} วัน</div>
-      <div className="relative h-5 flex-1 overflow-hidden rounded-full bg-slate-100">
-        <div className="h-full rounded-full bg-amber-500" style={{ width: `${Math.max(row.value / total * 100, row.value > 0 ? 1 : 0)}%` }} />
-        <span className="absolute left-2 top-0.5 text-xs font-bold text-white">{row.count} รายการ</span>
-        <span className="absolute right-2 top-0.5 text-xs font-bold text-slate-700">{percent(row.value, total)}%</span>
+    <div className="mb-3 text-xs">
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <div className={`font-bold ${textClass}`}>{row.key} วัน</div>
+        <div className="flex items-center gap-2 text-slate-500">
+          <span>{row.count} รายการ</span>
+          <span className="font-bold text-slate-700">{money(row.value)}</span>
+          <span className="w-10 text-right font-semibold">{percent(row.value, total)}%</span>
+        </div>
       </div>
-      <div className="w-24 text-right font-bold text-slate-700">{money(row.value)}</div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${barClass}`} style={{ width: `${Math.max(row.value / total * 100, row.value > 0 ? 1 : 0)}%` }} />
+      </div>
     </div>
   )
 }
 
 function TopProduct({ index, max, row }: { index: number; max: number; row: StockProduct }) {
   return (
-    <div className="mb-2.5 flex items-center gap-2 text-xs">
-      <span className="w-5 text-center font-bold text-amber-600 shrink-0">{index + 1}</span>
+    <div className="mb-3 flex items-center gap-3 text-xs">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-amber-50 font-bold text-amber-700 ring-1 ring-amber-100">{index + 1}</span>
       <div className="min-w-0 flex-1">
         <div className="truncate font-semibold text-slate-800">{row.name}</div>
-        <div className="text-xs text-slate-400 font-medium">{money(row.qty)} kg · WAC {money(row.wac)} · {row.status}</div>
+        <div className="text-xs font-medium text-slate-400">{money(row.qty)} กก. · WAC {money(row.wac)} · {row.status}</div>
+        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+          <div className="h-full rounded-full bg-amber-500" style={{ width: `${Math.min(100, row.value / Math.max(1, max) * 100)}%` }} />
+        </div>
       </div>
-      <div className="h-2 w-16 rounded-full bg-slate-100 shrink-0 overflow-hidden">
-        <div className="h-full rounded-full bg-amber-500" style={{ width: `${Math.min(100, row.value / Math.max(1, max) * 100)}%` }} />
-      </div>
-      <div className="w-20 text-right font-bold text-amber-700 shrink-0">{money(row.value)}</div>
+      <div className="w-24 shrink-0 text-right font-bold text-slate-900">{money(row.value)}</div>
     </div>
   )
 }
@@ -808,11 +862,14 @@ function ProductTable({ rows }: { rows: StockProduct[] }) {
 
   return (
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-      <div className="flex justify-between items-center border-b border-red-100 bg-red-50/50 px-4 py-3 font-bold text-red-700 text-sm">
-        <span>สินค้าหมุนช้า / ควรรีบขาย (Top 15 — ไม่ขาย &gt; 60 วัน)</span>
+      <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3">
+        <div>
+          <div className="text-sm font-bold text-slate-800">สินค้าหมุนช้า / ควรเร่งระบาย</div>
+          <div className="mt-0.5 text-xs font-medium text-slate-500">Top 15 ที่ไม่ขายเกิน 60 วัน · {rows.length} รายการ</div>
+        </div>
         {columnResize.hasCustomWidths && (
           <button
-            className="hidden lg:inline-flex items-center gap-1 h-7 rounded bg-white border border-red-200 px-2.5 text-xs text-red-700 hover:bg-red-50 font-normal transition outline-none"
+            className="hidden h-9 items-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition hover:bg-slate-50 lg:inline-flex"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
@@ -822,7 +879,7 @@ function ProductTable({ rows }: { rows: StockProduct[] }) {
       </div>
       
       {/* Desktop View */}
-      <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-100 bg-white shadow-sm">
+      <div className="hidden lg:block overflow-x-auto bg-white">
         <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {stockProductColumns.map((column) => (
@@ -839,7 +896,7 @@ function ProductTable({ rows }: { rows: StockProduct[] }) {
               <ResizableTableHead align="right" label="มูลค่า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="value" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('value', 'มูลค่า')} />
               <ResizableTableHead align="right" label="ครั้งสุดท้ายขาย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="daysSinceSale" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('daysSinceSale', 'ครั้งสุดท้ายขาย')} />
               <ResizableTableHead align="right" label="ราคามาตรฐาน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="stdPrice" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('stdPrice', 'ราคามาตรฐาน')} />
-              <ResizableTableHead align="right" label="Margin Pot" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="marginPotential" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('marginPotential', 'Margin Pot')} />
+              <ResizableTableHead align="right" label="โอกาสกำไร" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="marginPotential" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('marginPotential', 'โอกาสกำไร')} />
             </tr>
           </thead>
           <tbody>
@@ -856,7 +913,7 @@ function ProductTable({ rows }: { rows: StockProduct[] }) {
                 <Td align="right" className="text-emerald-700 font-semibold">{money(row.marginPotential)}</Td>
               </tr>
             ))}
-            {!sortedRows.length ? <tr><td className="py-8 text-center text-slate-400" colSpan={9}>ไม่มี Slow Moving</td></tr> : null}
+            {!sortedRows.length ? <tr><td className="py-8 text-center text-slate-400" colSpan={9}>ไม่มีสินค้าหมุนช้า</td></tr> : null}
           </tbody>
         </table>
       </div>
@@ -864,7 +921,7 @@ function ProductTable({ rows }: { rows: StockProduct[] }) {
       {/* Mobile View */}
       <div className="block lg:hidden divide-y divide-slate-100">
         {!sortedRows.length ? (
-          <div className="py-8 text-center text-slate-400 text-xs">ไม่มี Slow Moving</div>
+          <div className="py-8 text-center text-slate-400 text-xs">ไม่มีสินค้าหมุนช้า</div>
         ) : (
           sortedRows.map((row) => (
             <div key={row.id} className="p-4 space-y-2 text-xs hover:bg-slate-50/50 transition">
@@ -876,12 +933,12 @@ function ProductTable({ rows }: { rows: StockProduct[] }) {
                 <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{row.metalGroup}</span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50">
-                <div><span className="text-slate-400">จำนวน:</span> <span className="font-semibold text-slate-800">{money(row.qty)} kg</span></div>
-                <div><span className="text-slate-400">มูลค่า Stock:</span> <span className="font-bold text-slate-900">{money(row.value)}</span></div>
+                <div><span className="text-slate-400">จำนวน:</span> <span className="font-semibold text-slate-800">{money(row.qty)} กก.</span></div>
+                <div><span className="text-slate-400">มูลค่าสต็อก:</span> <span className="font-bold text-slate-900">{money(row.value)}</span></div>
                 <div><span className="text-slate-400">WAC:</span> <span className="font-medium text-slate-600">{money(row.wac)}</span></div>
                 <div><span className="text-slate-400">ราคามาตรฐาน:</span> <span className="font-medium text-slate-600">{money(row.stdPrice)}</span></div>
                 <div><span className="text-slate-400">ไม่ขายมาแล้ว:</span> <span className="font-semibold text-red-600">{row.daysSinceSale >= 9999 ? 'ไม่เคยขาย' : `${row.daysSinceSale} วัน`}</span></div>
-                <div><span className="text-slate-400">Margin Pot:</span> <span className="font-bold text-emerald-700">{money(row.marginPotential)}</span></div>
+                <div><span className="text-slate-400">โอกาสกำไร:</span> <span className="font-bold text-emerald-700">{money(row.marginPotential)}</span></div>
               </div>
             </div>
           ))

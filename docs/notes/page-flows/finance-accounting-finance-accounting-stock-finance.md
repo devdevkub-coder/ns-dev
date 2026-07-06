@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-11
+updated: 2026-07-05
 route: /finance-accounting/stock-finance
 ---
 
@@ -86,6 +86,15 @@ finance/accounting read model: Stock Finance Analysis
 - This page is a read-model/report surface; current APIs are `GET`-oriented and protected by report/finance permissions.
 - No transaction, stock ledger, bank statement, AP/AR settlement, or source document status side effect is expected from this page.
 - Future changes should reconcile formula/source/cutoff details here before changing runtime behavior.
+
+## UI Checkpoint 2026-07-05
+
+- ปรับหน้า `/finance-accounting/stock-finance` แบบ presentation-only โดยไม่เปลี่ยน API, formula, cutoff, หรือ permission
+- ลำดับการอ่านหน้าจอคือ ภาพรวมมูลค่าสต็อก -> สถานะสต็อกตามการผลิต -> อายุสต็อก/สินค้าอันดับสูงสุด -> insight การเงิน -> สินค้าหมุนช้า
+- การ์ดภาพรวมต้องให้ `มูลค่าสต็อกรวม`, `จ่ายแล้ว`, `ยังไม่จ่าย`, `โอกาสกำไร`, และ `เงินจม 90+ วัน` อ่านได้ทันทีเพื่อใช้ตัดสินใจด้าน working capital
+- `RM/WIP/FG/อื่นๆ` เป็นสถานะสต็อกตามการผลิต ไม่ใช่สถานะเอกสาร และยังใช้ค่าจาก read model เดิม
+- `อายุสต็อก` ต้องเน้นช่วงเสี่ยง เช่น `90+ วัน` ให้เห็นชัด แต่ไม่เปลี่ยนเงื่อนไขการคำนวณฝั่ง server
+- ตารางสินค้าหมุนช้ายังคงเป็น read-only Top 15 ที่ไม่ขายเกิน 60 วัน และใช้สำหรับตรวจรายการที่ควรเร่งระบายหรือทบทวนราคา
 
 ## Current Gap
 
