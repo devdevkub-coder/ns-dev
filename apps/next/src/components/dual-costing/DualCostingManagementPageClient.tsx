@@ -1069,12 +1069,10 @@ function DualCostingReportView() {
             <DualCostingStatCard icon="⚖️" label="น้ำหนักค้าง" tone="amber" value={`${formatMoney(report?.waiting.qty ?? 0)} กก.`} />
             <DualCostingStatCard icon="💰" label="มูลค่าขายค้าง" tone="emerald" value={formatMoney(report?.waiting.revenue ?? 0)} />
           </div>
-          <DualCostingPanel title="สรุปตามหมวดสินค้า">
-            {reportResize.hasCustomWidths ? (
-              <div className="mb-2 hidden justify-end lg:flex">
-                <Button size="sm" type="button" variant="outline" onClick={reportResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button>
-              </div>
-            ) : null}
+          <DualCostingPanel
+            title="สรุปตามหมวดสินค้า"
+            titleAction={reportResize.hasCustomWidths ? <Button size="sm" type="button" variant="outline" onClick={reportResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
+          >
             {/* Desktop View */}
             <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
               <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: reportResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
