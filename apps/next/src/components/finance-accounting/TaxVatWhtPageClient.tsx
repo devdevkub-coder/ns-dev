@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { RotateCcw } from 'lucide-react'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 
@@ -40,15 +41,23 @@ type TaxPayload = {
 const MONTHS = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0'))
 const YEARS = [2024, 2025, 2026, 2027, 2028]
 
+type DetailTab = 'vat-output' | 'vat-input' | 'wht-calendar'
+
 export function TaxVatWhtPageClient() {
   const now = new Date()
   const [month, setMonth] = useState(String(now.getMonth() + 1).padStart(2, '0'))
   const [year, setYear] = useState(String(now.getFullYear()))
   const [branchId, setBranchId] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [detailTab, setDetailTab] = useState<DetailTab>('vat-output')
   const url = useMemo(() => `/api/finance-accounting/tax-vat-wht?month=${month}&year=${year}${branchId ? `&branchId=${branchId}` : ''}`, [branchId, month, year])
   const { data, error, isLoading } = useApi<TaxPayload>(url)
   const maxCalendar = Math.max(...(data?.taxCalendar ?? []).flatMap((row) => [row.vOut, row.vIn, Math.abs(row.vatPayable)]), 1)
+  const detailTabs = [
+    { count: data?.vatOutput.items.length ?? 0, label: 'VAT ขาย', value: 'vat-output' },
+    { count: data?.vatInput.items.length ?? 0, label: 'VAT ซื้อ', value: 'vat-input' },
+    { count: data?.taxCalendar.length ?? 0, label: 'Calendar', value: 'wht-calendar' },
+  ] satisfies Array<{ count: number; label: string; value: DetailTab }>
 
   return (
     <section className="space-y-4">
@@ -222,13 +231,39 @@ export function TaxVatWhtPageClient() {
         <StatCard label="เอกสารภาษีไม่ครบ" value={String(data?.summary.missingCount ?? 0)} tone="red" />
       </div>
 
-      <TaxTable isLoading={isLoading} rows={data?.vatOutput.items ?? []} title={`📤 VAT ขาย (Output) — ${year}-${month}`} tone="emerald" valueKey="vat" tableKey="finance.tax.vat-output.v5" />
-      <TaxTable hasDoc isLoading={isLoading} rows={data?.vatInput.items ?? []} title={`📥 VAT ซื้อ (Input) — ${year}-${month}`} tone="blue" valueKey="vat" tableKey="finance.tax.vat-input.v5" />
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <TaxTable isLoading={isLoading} rows={data?.whtCharged.items ?? []} title="🪙 WHT เราหักไว้ (ต้องนำส่ง ภงด.3/53)" tone="amber" valueKey="wht" tableKey="finance.tax.wht-charged.v5" />
-        <TaxTable isLoading={isLoading} rows={data?.whtWithheld.items ?? []} title="💰 WHT ลูกค้าหักจากเรา (ใช้เครดิต)" tone="purple" valueKey="wht" tableKey="finance.tax.wht-withheld.v5" />
-      </div>
-      <CalendarTable rows={data?.taxCalendar ?? []} />
+      <Tabs className="gap-4" value={detailTab} onValueChange={(value) => setDetailTab(value as DetailTab)}>
+        <TabsList className="inline-flex w-full max-w-max flex-nowrap overflow-x-auto rounded-[28px] border-4 border-rose-700 bg-white px-4 pt-4 shadow-sm" variant="line">
+          {detailTabs.map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              className="min-w-fit gap-2 px-5 pb-5 pt-1 text-[15px] font-bold text-slate-500 data-[state=active]:border-blue-600 data-[state=active]:text-slate-900"
+              value={tab.value}
+              variant="line"
+            >
+              <span>{tab.label}</span>
+              <span className="rounded-full bg-rose-50 px-2 py-0.5 text-sm font-bold text-rose-500">
+                {tab.count}
+              </span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        <TabsContent value="vat-output">
+          <TaxTable isLoading={isLoading} rows={data?.vatOutput.items ?? []} title={`📤 VAT ขาย (Output) — ${year}-${month}`} tone="emerald" valueKey="vat" tableKey="finance.tax.vat-output.v5" />
+        </TabsContent>
+
+        <TabsContent value="vat-input">
+          <TaxTable hasDoc isLoading={isLoading} rows={data?.vatInput.items ?? []} title={`📥 VAT ซื้อ (Input) — ${year}-${month}`} tone="blue" valueKey="vat" tableKey="finance.tax.vat-input.v5" />
+        </TabsContent>
+
+        <TabsContent value="wht-calendar" className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <TaxTable isLoading={isLoading} rows={data?.whtCharged.items ?? []} title="🪙 WHT เราหักไว้ (ต้องนำส่ง ภงด.3/53)" tone="amber" valueKey="wht" tableKey="finance.tax.wht-charged.v5" />
+            <TaxTable isLoading={isLoading} rows={data?.whtWithheld.items ?? []} title="💰 WHT ลูกค้าหักจากเรา (ใช้เครดิต)" tone="purple" valueKey="wht" tableKey="finance.tax.wht-withheld.v5" />
+          </div>
+          <CalendarTable rows={data?.taxCalendar ?? []} />
+        </TabsContent>
+      </Tabs>
     </section>
   )
 }

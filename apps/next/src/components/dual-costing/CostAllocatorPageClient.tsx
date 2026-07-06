@@ -244,8 +244,10 @@ export function CostAllocatorPageClient() {
     }
 
     const matchedOption = productSearchOptions.find((option) => option.id === selectedProductId)
-    if (matchedOption) setSelectedProductOption(matchedOption)
-  }, [productSearchOptions, selectedProductId])
+    if (matchedOption && selectedProductOption?.id !== matchedOption.id) {
+      setSelectedProductOption(matchedOption)
+    }
+  }, [productSearchOptions, selectedProductId, selectedProductOption?.id])
 
   useEffect(() => {
     setCollapsedSections((current) => ({

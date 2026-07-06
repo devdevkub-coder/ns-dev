@@ -404,6 +404,7 @@ export async function GET(request: Request) {
     const filteredPool = productId ? poolRows.filter((row) => row.productId === productId) : []
     const filteredSales = productId ? targetRows.filter((row) => row.productId === productId) : []
     const selectedSale = poSellId ? filteredSales.find((row) => row.id === poSellId) ?? null : null
+    const visibleSales = poSellId ? (selectedSale ? [selectedSale] : []) : filteredSales
     const selectedPool = sortPool(filteredPool, mode, targetCost)
 
     let need = selectedSale?.remainingQty ?? 0
@@ -433,7 +434,7 @@ export async function GET(request: Request) {
         sourceTypes: ['po-sell', 'spot-sell', 'production'],
       },
       pool: selectedPool,
-      poSells: filteredSales,
+      poSells: visibleSales,
       selectedPoSell: selectedSale,
       summary: {
         expectedMargin,
