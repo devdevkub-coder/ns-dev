@@ -40,6 +40,7 @@ updated: 2026-07-06
 - หน้า anomaly สามารถแนะนำ action/link ได้ แต่ไม่มี auto-fix/write action
 - รายเดือน/รายปีต้อง roll up จาก daily snapshot/facts ที่ตรวจแล้ว: movement metric ใช้ผลรวมรายวัน ส่วน balance metric ใช้ ending balance ณ วันสุดท้ายของช่วง
 - `/dashboard` ต้องให้ผู้ใช้เห็น global filter scope ก่อน overview เสมอ: desktop ใช้ white/neutral filter card, mobile ใช้ compact strip + `MobileFilterSheet` เพื่อไม่ให้ filter stack ดัน KPI ลงล่าง และรายละเอียดที่เป็น table-heavy ต้องเปิดทีละบริบทผ่าน detail tabs แทนการกองหลายตารางยาวลงหน้าเดียว
+- `/api/dashboard` ต้องเคารพ low-pool Supabase runtime (`DATABASE_POOL_MAX=1` ได้) ห้ามกลับไปใช้ `Promise.all` ก้อนใหญ่กับ Prisma read หลายสิบคำสั่งพร้อมกัน เพราะจะทำให้ pg pool acquisition timeout และหน้า Dashboard ได้ 500 แม้สูตรรายงานถูกต้อง
 
 ## Current Query Patterns
 

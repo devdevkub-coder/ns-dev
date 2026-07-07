@@ -70,6 +70,14 @@ function activeStatus(status?: string | null) {
   return !['cancelled', 'void', 'reversed'].includes((status ?? '').toLowerCase())
 }
 
+async function runReadBatch<T extends readonly unknown[]>(tasks: { [K in keyof T]: () => Promise<T[K]> }) {
+  const results: unknown[] = []
+  for (const task of tasks) {
+    results.push(await task())
+  }
+  return results as unknown as T
+}
+
 function itemRows(items: unknown) {
   if (!Array.isArray(items)) return []
   return items.flatMap((item) => {
@@ -157,27 +165,27 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   const todayStart = startOfDay(selectedDate)
   const todayEnd = endOfDay(selectedDate)
 
-  const [purchases, sales, expenses, payments, receipts, stockRows, deals, finance, productionRows, cash, bankToday, bankRange, loanSchedules, products, salespersons, branches, suppliers, customers, historicalRows] = await Promise.all([
-    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, supplier_id: supplier?.id, date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
-    prisma.sales_bills.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, customer_id: customer?.id || undefined, date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
-    prisma.expenses.findMany({ include: { expense_categories: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
-    prisma.payments.findMany({ orderBy: [{ date: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
-    prisma.receipts.findMany({ orderBy: [{ date: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
-    prisma.stock_ledger.findMany({ include: { branches: true, products: true }, orderBy: [{ date: 'desc' }], take: 20000 }),
-    prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 3000 }),
-    buildFinancialDashboard({ asOf: selectedDate, branchId: filter.branchId }),
-    loadProductionMetrics({ branchId: filter.branchId, dateFrom: from, dateTo: to }),
-    cashBalances(selectedDate),
-    prisma.bank_statement.findMany({ include: { accounts: true }, orderBy: [{ date: 'desc' }], where: { date: { gte: todayStart, lte: todayEnd } } }),
-    prisma.bank_statement.findMany({ include: { accounts: true }, orderBy: [{ date: 'asc' }], take: 10000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
-    prisma.loan_schedules.findMany({ include: { loans: true }, orderBy: [{ due_date: 'asc' }], take: 1000, where: { due_date: { lte: todayEnd }, payment_status: { notIn: ['Paid', 'paid', 'PAID', 'cancelled', 'Cancelled'] } } }),
-    prisma.products.findMany({ where: { active: { not: false } } }),
-    prisma.salespersons.findMany({ where: { active: { not: false } } }),
-    prisma.branches.findMany({ orderBy: [{ name: 'asc' }], where: { active: { not: false } } }),
-    prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], select: { code: true, id: true, name: true }, where: { active: { not: false } } }),
-    prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { code: true, id: true, name: true }, where: { active: { not: false } } }),
-    prisma.historical_monthly.findMany({ orderBy: [{ year: 'asc' }, { month: 'asc' }], take: 5000 }),
-  ])
+  const [purchases, sales, expenses, payments, receipts, stockRows, deals, finance, productionRows, cash, bankToday, bankRange, loanSchedules, products, salespersons, branches, suppliers, customers, historicalRows] = await runReadBatch([
+    () => prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, supplier_id: supplier?.id, date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
+    () => prisma.sales_bills.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, customer_id: customer?.id || undefined, date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
+    () => prisma.expenses.findMany({ include: { expense_categories: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
+    () => prisma.payments.findMany({ orderBy: [{ date: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
+    () => prisma.receipts.findMany({ orderBy: [{ date: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
+    () => prisma.stock_ledger.findMany({ include: { branches: true, products: true }, orderBy: [{ date: 'desc' }], take: 20000 }),
+    () => prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 3000 }),
+    () => buildFinancialDashboard({ asOf: selectedDate, branchId: filter.branchId }),
+    () => loadProductionMetrics({ branchId: filter.branchId, dateFrom: from, dateTo: to }),
+    () => cashBalances(selectedDate),
+    () => prisma.bank_statement.findMany({ include: { accounts: true }, orderBy: [{ date: 'desc' }], where: { date: { gte: todayStart, lte: todayEnd } } }),
+    () => prisma.bank_statement.findMany({ include: { accounts: true }, orderBy: [{ date: 'asc' }], take: 10000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
+    () => prisma.loan_schedules.findMany({ include: { loans: true }, orderBy: [{ due_date: 'asc' }], take: 1000, where: { due_date: { lte: todayEnd }, payment_status: { notIn: ['Paid', 'paid', 'PAID', 'cancelled', 'Cancelled'] } } }),
+    () => prisma.products.findMany({ where: { active: { not: false } } }),
+    () => prisma.salespersons.findMany({ where: { active: { not: false } } }),
+    () => prisma.branches.findMany({ orderBy: [{ name: 'asc' }], where: { active: { not: false } } }),
+    () => prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], select: { code: true, id: true, name: true }, where: { active: { not: false } } }),
+    () => prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { code: true, id: true, name: true }, where: { active: { not: false } } }),
+    () => prisma.historical_monthly.findMany({ orderBy: [{ year: 'asc' }, { month: 'asc' }], take: 5000 }),
+  ] as const)
 
   const productById = new Map(products.map((row) => [String(row.id), row]))
   const activeSalesLineFactsByBillId = await salesBillLineFactsByBillId(sales.filter((row) => activeStatus(row.status)).map((row) => row.id))

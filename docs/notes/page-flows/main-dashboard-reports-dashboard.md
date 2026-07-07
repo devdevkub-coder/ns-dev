@@ -90,6 +90,11 @@ Dashboard Overview เป็น management KPI view จาก operational facts.
 - `historical_monthly`
 - helpers: `buildFinancialDashboard()`, `loadProductionMetrics()`
 
+### Runtime Read Contract
+
+- `buildMainDashboards()` ต้องทำงานได้ภายใต้ Prisma/pg pool ต่ำ (`DATABASE_POOL_MAX=1`) เพื่อไม่เปิด connection พร้อมกันเกิน Supabase runtime contract
+- main dashboard read batch ใช้ sequential execution ผ่าน `runReadBatch()` แทน `Promise.all` ก้อนใหญ่; ห้าม optimize กลับเป็น parallel batch โดยไม่เพิ่ม bounded concurrency และ repro ด้วย `DATABASE_POOL_MAX=1`
+
 ### Response Sections
 
 - `dashboard.kpi`, `dashboard.sections`, `dashboard.trend`, `dashboard.monthlyTrend`
