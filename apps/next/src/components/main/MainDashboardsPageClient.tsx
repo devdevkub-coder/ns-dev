@@ -7,6 +7,7 @@ import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 type MainPayload = {
   dashboard: {
@@ -682,24 +683,23 @@ function DashboardView(props: {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
+      <Tabs className="gap-2" value={detailTab} onValueChange={(value) => setDetailTab(value as DashboardDetailTab)}>
+        <TabsList className="w-full overflow-x-auto rounded-md bg-white px-2 shadow-sm" variant="line">
           {dashboardDetailTabs.map((tab) => {
-            const active = detailTab === tab.key
             return (
-              <button
+              <TabsTrigger
                 key={tab.key}
-                className={`rounded-md px-3 py-2 text-left text-xs font-semibold outline-none transition focus:ring-2 focus:ring-blue-100 ${active ? 'bg-blue-600 text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
-                type="button"
-                onClick={() => setDetailTab(tab.key)}
+                aria-label={`${tab.label}: ${tab.summary}`}
+                className="px-3 text-xs sm:text-sm"
+                value={tab.key}
+                variant="line"
               >
-                <span className="block">{tab.label}</span>
-                <span className={`mt-0.5 block font-medium ${active ? 'text-blue-100' : 'text-slate-400'}`}>{tab.summary}</span>
-              </button>
+                {tab.label}
+              </TabsTrigger>
             )
           })}
-        </div>
-      </div>
+        </TabsList>
+      </Tabs>
 
       {detailTab === 'ranking' ? (
         <div className="space-y-3">
