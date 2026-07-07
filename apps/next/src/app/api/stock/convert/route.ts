@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
 import { Prisma } from '../../../../../generated/prisma/client'
 import { requireBusinessCode, requireDocumentNo } from '@/lib/business-code'
+import { isCostPoolEligibleMetalGroup, stockConvertFormSchema } from '@/lib/stock'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
-import { normalizeStockReferenceInput, quantityForStock, stockReferenceData } from '@/lib/server/stock'
-import { stockConvertFormSchema } from '@/lib/stock'
+import { averageCostForStock, normalizeStockReferenceInput, quantityForStock, stockReferenceData } from '@/lib/server/stock'
 
 export const runtime = 'nodejs'
 
@@ -568,6 +568,12 @@ export async function POST(request: Request) {
     const warehouse = await prisma.warehouses.findFirst({ select: { branch_id: true }, where: { active: true, id: references.warehouseId } })
     if (!warehouse || warehouse.branch_id !== references.branchId) return NextResponse.json({ error: 'คลังไม่อยู่ในสาขาที่เลือก' }, { status: 400 })
 
+    const sourceProduct = await prisma.products.findFirst({
+      select: { metal_group: true },
+      where: { id: sourceProductReference.productId as bigint },
+    })
+    const usesCostPool = isCostPoolEligibleMetalGroup(sourceProduct?.metal_group)
+
     const readyQty = await quantityForStock({
       branchId: references.branchId,
       lotNo: values.lotNo,
@@ -582,26 +588,35 @@ export async function POST(request: Request) {
     const refNo = values.docNo ?? await nextDocNo()
     const actor = currentActor(context)
     const result = await prisma.$transaction(async (tx) => {
-      const allocations = await lockPoolEntries({
-        branchId: references.branchId as bigint,
-        lotNo: values.lotNo,
-        manualAllocations: values.manualAllocations.map((line) => ({ poolEntryId: BigInt(line.poolEntryId), qty: line.qty })),
-        method: values.allocationMethod,
-        productId: sourceProductReference.productId as bigint,
-        sourceQty: values.sourceQty,
-      }, tx)
-      const sourceValue = allocations.reduce((sum, line) => sum + line.qty * toNumber(line.row.unit_cost), 0)
-      const sourceUnitCost = sourceValue / values.sourceQty
+      const allocations = usesCostPool
+        ? await lockPoolEntries({
+          branchId: references.branchId as bigint,
+          lotNo: values.lotNo,
+          manualAllocations: values.manualAllocations.map((line) => ({ poolEntryId: BigInt(line.poolEntryId), qty: line.qty })),
+          method: values.allocationMethod,
+          productId: sourceProductReference.productId as bigint,
+          sourceQty: values.sourceQty,
+        }, tx)
+        : []
+      const sourceUnitCost = usesCostPool
+        ? allocations.reduce((sum, line) => sum + line.qty * toNumber(line.row.unit_cost), 0) / values.sourceQty
+        : await averageCostForStock({
+          branchId: references.branchId,
+          lotNo: values.lotNo,
+          productId: sourceProductReference.productId as bigint,
+          warehouseId: references.warehouseId,
+        })
+      const sourceValue = values.sourceQty * sourceUnitCost
       const targetUnitCost = values.targetCostPolicy === 'CUSTOM_UNIT_COST' ? Number(values.targetUnitCost) : sourceUnitCost
       const targetValue = values.targetQty * targetUnitCost
       const costVariance = targetValue - sourceValue
       const costOverrideReason = values.targetCostPolicy === 'CUSTOM_UNIT_COST' ? values.targetUnitCostReason : null
-      const sourceType = values.allocationMethod === 'MANUAL' ? 'Manual' : `Auto (${values.allocationMethod})`
+      const sourceType = usesCostPool ? (values.allocationMethod === 'MANUAL' ? 'Manual' : `Auto (${values.allocationMethod})`) : 'Non Cost Pool'
       const hasPartialSourcePool = allocations.some((line) => {
         const nextAllocated = toNumber(line.row.allocated_qty) + line.qty
         return statusForPool(toNumber(line.row.original_qty), nextAllocated, toNumber(line.row.released_qty)) === 'Partially Used'
       })
-      const costStatus = hasPartialSourcePool ? 'partial' : 'allocated'
+      const costStatus = usesCostPool && hasPartialSourcePool ? 'partial' : 'allocated'
       const [adjustment] = await tx.$queryRaw<Array<{ id: bigint }>>`
         insert into public.grade_adjustments (
           approved_by, branch_id, date, doc_no, notes, product_id, source_product_id, target_product_id,
@@ -612,7 +627,7 @@ export async function POST(request: Request) {
         values (
           ${actor}, ${references.branchId}, ${normalizeDate(values.date)}, ${refNo}, ${values.notes}, ${sourceProductReference.productId}, ${sourceProductReference.productId}, ${targetProductReference.productId},
           ${values.sourceQty}, ${values.targetQty}, ${values.lotNo}, ${values.targetLotNo}, ${values.targetQty - values.sourceQty}, ${values.reason}, now(), ${actor},
-          ${costVariance}, ${references.warehouseId}, 'posted', ${costStatus}, ${sourceType}, ${values.allocationMethod},
+          ${costVariance}, ${references.warehouseId}, 'posted', ${costStatus}, ${sourceType}, ${usesCostPool ? values.allocationMethod : null},
           ${values.targetCostPolicy}, ${sourceUnitCost}, ${targetUnitCost}, ${costVariance}, ${costOverrideReason}
         )
         returning id
@@ -658,39 +673,41 @@ export async function POST(request: Request) {
           },
         ],
       })
-      const [targetPool] = await tx.$queryRaw<Array<{ id: bigint }>>`
-        insert into public.stock_cost_pool_entries (
-          source_type, source_ref_type, source_ref_id, source_ref_no, regrade_adjustment_id, date,
-          branch_id, warehouse_id, product_id, lot_no, original_qty, unit_cost, original_value,
-          status, created_by, notes
-        )
-        values (
-          'Regrade', 'GA', ${String(adjustment.id)}, ${refNo}, ${adjustment.id}, ${normalizeDate(values.date)},
-          ${references.branchId}, ${references.warehouseId}, ${targetProductReference.productId}, ${values.targetLotNo ?? values.lotNo},
-          ${values.targetQty}, ${targetUnitCost}, ${targetValue}, 'Available', ${actor}, ${values.reason ?? values.notes}
-        )
-        returning id
-      `
-      for (const [index, line] of allocations.entries()) {
-        const previousAllocated = toNumber(line.row.allocated_qty)
-        const releasedQty = toNumber(line.row.released_qty)
-        const nextAllocated = previousAllocated + line.qty
-        const nextStatus = statusForPool(toNumber(line.row.original_qty), nextAllocated, releasedQty)
-        await tx.$executeRaw`
-          update public.stock_cost_pool_entries
-          set allocated_qty = ${nextAllocated}, status = ${nextStatus}, updated_at = now(), updated_by = ${actor}
-          where id = ${line.row.id}
-        `
-        await tx.$executeRaw`
-          insert into public.stock_cost_pool_allocations (
-            allocation_type, grade_adjustment_id, source_pool_entry_id, target_pool_entry_id,
-            line_no, allocation_method, qty, unit_cost, total_cost, created_by, notes
+      if (usesCostPool) {
+        const [targetPool] = await tx.$queryRaw<Array<{ id: bigint }>>`
+          insert into public.stock_cost_pool_entries (
+            source_type, source_ref_type, source_ref_id, source_ref_no, regrade_adjustment_id, date,
+            branch_id, warehouse_id, product_id, lot_no, original_qty, unit_cost, original_value,
+            status, created_by, notes
           )
           values (
-            'GA_SOURCE_CONSUME', ${adjustment.id}, ${line.row.id}, ${targetPool.id},
-            ${index + 1}, ${values.allocationMethod}, ${line.qty}, ${toNumber(line.row.unit_cost)}, ${line.qty * toNumber(line.row.unit_cost)}, ${actor}, ${values.reason ?? values.notes}
+            'Regrade', 'GA', ${String(adjustment.id)}, ${refNo}, ${adjustment.id}, ${normalizeDate(values.date)},
+            ${references.branchId}, ${references.warehouseId}, ${targetProductReference.productId}, ${values.targetLotNo ?? values.lotNo},
+            ${values.targetQty}, ${targetUnitCost}, ${targetValue}, 'Available', ${actor}, ${values.reason ?? values.notes}
           )
+          returning id
         `
+        for (const [index, line] of allocations.entries()) {
+          const previousAllocated = toNumber(line.row.allocated_qty)
+          const releasedQty = toNumber(line.row.released_qty)
+          const nextAllocated = previousAllocated + line.qty
+          const nextStatus = statusForPool(toNumber(line.row.original_qty), nextAllocated, releasedQty)
+          await tx.$executeRaw`
+            update public.stock_cost_pool_entries
+            set allocated_qty = ${nextAllocated}, status = ${nextStatus}, updated_at = now(), updated_by = ${actor}
+            where id = ${line.row.id}
+          `
+          await tx.$executeRaw`
+            insert into public.stock_cost_pool_allocations (
+              allocation_type, grade_adjustment_id, source_pool_entry_id, target_pool_entry_id,
+              line_no, allocation_method, qty, unit_cost, total_cost, created_by, notes
+            )
+            values (
+              'GA_SOURCE_CONSUME', ${adjustment.id}, ${line.row.id}, ${targetPool.id},
+              ${index + 1}, ${values.allocationMethod}, ${line.qty}, ${toNumber(line.row.unit_cost)}, ${line.qty * toNumber(line.row.unit_cost)}, ${actor}, ${values.reason ?? values.notes}
+            )
+          `
+        }
       }
       return { id: refNo, refNo }
     })
@@ -720,22 +737,25 @@ export async function PATCH(request: Request) {
         order by line_no asc, id asc
         for update
       `
-      if (!allocations.length) throw new Error('ไม่พบ allocation สำหรับ reverse')
-      const [targetPool] = await tx.$queryRaw<RegradePoolRow[]>`
-        select id, product_id, branch_id, warehouse_id, lot_no, original_qty, allocated_qty, unit_cost
-        from public.stock_cost_pool_entries
-        where regrade_adjustment_id = ${adjustment.id} and source_type = 'Regrade'
-        for update
-      `
-      if (!targetPool) throw new Error('ไม่พบ target Cost Pool สำหรับ reverse')
-      if (toNumber(targetPool.allocated_qty) > COST_EPSILON) throw new Error('Reverse ไม่ได้ เพราะ target Cost Pool ถูกใช้ต่อแล้ว')
+      const usesCostPool = allocations.length > 0
+      if (usesCostPool && !allocations.length) throw new Error('ไม่พบ allocation สำหรับ reverse')
+      const [targetPool] = usesCostPool
+        ? await tx.$queryRaw<RegradePoolRow[]>`
+          select id, product_id, branch_id, warehouse_id, lot_no, original_qty, allocated_qty, unit_cost
+          from public.stock_cost_pool_entries
+          where regrade_adjustment_id = ${adjustment.id} and source_type = 'Regrade'
+          for update
+        `
+        : [null]
+      if (usesCostPool && !targetPool) throw new Error('ไม่พบ target Cost Pool สำหรับ reverse')
+      if (targetPool && toNumber(targetPool.allocated_qty) > COST_EPSILON) throw new Error('Reverse ไม่ได้ เพราะ target Cost Pool ถูกใช้ต่อแล้ว')
       const targetReadyQty = await readyQuantityForStockInTransaction(tx, {
-        branchId: targetPool.branch_id,
-        lotNo: targetPool.lot_no,
-        productId: targetPool.product_id,
-        warehouseId: targetPool.warehouse_id,
+        branchId: targetPool?.branch_id ?? adjustment.branch_id,
+        lotNo: targetPool?.lot_no ?? adjustment.target_lot_no,
+        productId: targetPool?.product_id ?? adjustment.target_product_id!,
+        warehouseId: targetPool?.warehouse_id ?? adjustment.warehouse_id,
       })
-      const targetQty = toNumber(targetPool.original_qty)
+      const targetQty = targetPool ? toNumber(targetPool.original_qty) : toNumber(adjustment.target_qty)
       if (targetQty > targetReadyQty + COST_EPSILON) throw new Error(`Reverse ไม่ได้ เพราะ stock ปลายทางพร้อมใช้เหลือ ${targetReadyQty.toLocaleString('th-TH')} กก.`)
 
       for (const allocation of allocations) {
@@ -776,35 +796,61 @@ export async function PATCH(request: Request) {
           },
         })
       }
+      if (!allocations.length) {
+        const reverseQty = toNumber(adjustment.source_qty)
+        await tx.stock_ledger.create({
+          data: {
+            branch_id: adjustment.branch_id,
+            created_by: actor,
+            date: normalizeDate(new Date().toISOString().slice(0, 10)),
+            lot_no: adjustment.source_lot_no,
+            movement_type: 'GRADE_ADJUST_REVERSE_IN',
+            product_id: adjustment.source_product_id ?? adjustment.product_id,
+            qty_in: reverseQty,
+            qty_out: 0,
+            ref_id: String(adjustment.id),
+            ref_no: `REV-${body.refNo}`,
+            ref_type: 'GA-REV',
+            unit_cost: toNumber(adjustment.source_unit_cost),
+            value_in: reverseQty * toNumber(adjustment.source_unit_cost),
+            value_out: 0,
+            warehouse_id: adjustment.warehouse_id,
+          },
+        })
+      }
       await tx.stock_ledger.create({
         data: {
-          branch_id: targetPool.branch_id,
+          branch_id: targetPool?.branch_id ?? adjustment.branch_id,
           created_by: actor,
           date: normalizeDate(new Date().toISOString().slice(0, 10)),
-          lot_no: targetPool.lot_no,
+          lot_no: targetPool?.lot_no ?? adjustment.target_lot_no,
           movement_type: 'GRADE_ADJUST_REVERSE_OUT',
-          product_id: targetPool.product_id,
+          product_id: targetPool?.product_id ?? adjustment.target_product_id!,
           qty_in: 0,
           qty_out: targetQty,
           ref_id: String(adjustment.id),
           ref_no: `REV-${body.refNo}`,
           ref_type: 'GA-REV',
-          unit_cost: toNumber(targetPool.unit_cost),
+          unit_cost: toNumber(targetPool?.unit_cost ?? adjustment.target_unit_cost),
           value_in: 0,
-          value_out: targetQty * toNumber(targetPool.unit_cost),
-          warehouse_id: targetPool.warehouse_id,
+          value_out: targetQty * toNumber(targetPool?.unit_cost ?? adjustment.target_unit_cost),
+          warehouse_id: targetPool?.warehouse_id ?? adjustment.warehouse_id,
         },
       })
-      await tx.$executeRaw`
-        update public.stock_cost_pool_entries
-        set released_qty = original_qty, status = 'Released', updated_at = now(), updated_by = ${actor}
-        where id = ${targetPool.id}
-      `
-      await tx.$executeRaw`
-        update public.stock_cost_pool_allocations
-        set status = 'reversed', reversed_at = now(), reversed_by = ${actor}
-        where grade_adjustment_id = ${adjustment.id} and status = 'active'
-      `
+      if (targetPool) {
+        await tx.$executeRaw`
+          update public.stock_cost_pool_entries
+          set released_qty = original_qty, status = 'Released', updated_at = now(), updated_by = ${actor}
+          where id = ${targetPool.id}
+        `
+      }
+      if (allocations.length) {
+        await tx.$executeRaw`
+          update public.stock_cost_pool_allocations
+          set status = 'reversed', reversed_at = now(), reversed_by = ${actor}
+          where grade_adjustment_id = ${adjustment.id} and status = 'active'
+        `
+      }
       await tx.$executeRaw`
         update public.grade_adjustments
         set status = 'reversed', reversed_at = now(), reversed_by = ${actor}, updated_at = now(), updated_by = ${actor}

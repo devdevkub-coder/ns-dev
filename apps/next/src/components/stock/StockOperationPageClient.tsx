@@ -12,7 +12,7 @@ import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
-import { stockAdjustReasonOptions, statusConvertFormSchema, stockConvertFormSchema, stockAdjustFormSchema } from '@/lib/stock'
+import { isCostPoolEligibleMetalGroup, stockAdjustReasonOptions, statusConvertFormSchema, stockConvertFormSchema, stockAdjustFormSchema } from '@/lib/stock'
 import type { StatusConvertFormValues, StockAdjustFormValues, StockConvertFormValues, StockCostPoolOption, StockOption } from '@/lib/stock'
 import { z } from 'zod'
 import { ApiError } from '@/lib/api-client'
@@ -1880,6 +1880,7 @@ function Metric({
 }
 
 function Field(props: { disabled?: boolean; label: string; onChange: (value: string) => void; type?: string; value: string }) {
+  const isNumberField = props.type === 'number'
   return (
     <label className="block text-xs font-semibold text-slate-600">
       {props.label}
@@ -1887,11 +1888,11 @@ function Field(props: { disabled?: boolean; label: string; onChange: (value: str
         <DatePickerInput className="mt-1 h-9 w-full font-normal" value={props.value} onChange={props.onChange} />
       ) : (
         <input
-          className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+          className={`mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed ${isNumberField ? '[appearance:textfield] text-right tabular-nums [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none' : ''}`}
           disabled={props.disabled}
-          inputMode={props.type === 'number' ? 'decimal' : undefined}
-          min={props.type === 'number' ? 0 : undefined}
-          step={props.type === 'number' ? 'any' : undefined}
+          inputMode={isNumberField ? 'decimal' : undefined}
+          min={isNumberField ? 0 : undefined}
+          step={isNumberField ? 'any' : undefined}
           type={props.type ?? 'text'}
           value={props.value}
           onChange={(event) => props.onChange(event.target.value)}
@@ -2216,8 +2217,10 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
     targetUnitCostReason: null,
     warehouseId: '',
   })
+  const sourceProduct = props.reference.products.find((item) => item.id === values.sourceProductId)
   const lossQty = Math.max(0, Number(values.sourceQty) - Number(values.targetQty))
   const yieldPct = Number(values.sourceQty) > 0 ? (Number(values.targetQty) / Number(values.sourceQty)) * 100 : 0
+  const usesCostPool = isCostPoolEligibleMetalGroup(sourceProduct?.metalGroup)
   const sourceCostPoolEntries = useMemo(() => {
     const entries = props.reference.costPoolEntries ?? []
     return entries
@@ -2238,10 +2241,12 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
         .filter((line): line is { entry: StockCostPoolOption; qty: number } => Boolean(line))
     : autoPreview.rows
   const previewValue = costPreviewRows.reduce((sum, line) => sum + line.qty * line.entry.unitCost, 0)
-  const previewUnitCost = Number(values.sourceQty) > 0 ? previewValue / Number(values.sourceQty) : 0
-  const targetUnitCost = values.targetCostPolicy === 'CUSTOM_UNIT_COST' ? Number(values.targetUnitCost || 0) : previewUnitCost
-  const targetValue = Number(values.targetQty || 0) * targetUnitCost
-  const costVariance = targetValue - previewValue
+  const previewUnitCost = usesCostPool && Number(values.sourceQty) > 0 ? previewValue / Number(values.sourceQty) : null
+  const targetUnitCost = values.targetCostPolicy === 'CUSTOM_UNIT_COST'
+    ? Number(values.targetUnitCost || 0)
+    : previewUnitCost
+  const targetValue = targetUnitCost === null ? null : Number(values.targetQty || 0) * targetUnitCost
+  const costVariance = usesCostPool && targetValue !== null ? targetValue - previewValue : null
 
   function updateManualAllocation(poolEntryId: string, qty: number) {
     const existing = values.manualAllocations.filter((line) => line.poolEntryId !== poolEntryId)
@@ -2277,30 +2282,34 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
           />
         </div>
         <Field label="น้ำหนักต้นทาง (กก.)" type="number" value={String(values.sourceQty)} onChange={(sourceQty) => setValues({ ...values, sourceQty: Number(sourceQty) })} />
-        <label className="block text-sm font-medium md:col-span-2">วิธีตัดต้นทุน
-          <select
-            className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2"
-            value={values.allocationMethod}
-            onChange={(event) => setValues({ ...values, allocationMethod: event.target.value as StockConvertFormValues['allocationMethod'], manualAllocations: [] })}
-          >
-            <option value="FIFO">FIFO (มาก่อน-ออกก่อน)</option>
-            <option value="LIFO">LIFO (มาหลัง-ออกก่อน)</option>
-            <option value="HIGHEST_COST">Highest Cost (ต้นทุนสูงก่อน)</option>
-            <option value="LOWEST_COST">Lowest Cost (ต้นทุนต่ำก่อน)</option>
-            <option value="MANUAL">Manual (เลือก lot เอง)</option>
-          </select>
-        </label>
-        <div className="md:col-span-2">
-          <CostPoolPreview
-            entries={sourceCostPoolEntries}
-            manualAllocations={values.manualAllocations}
-            method={values.allocationMethod}
-            previewRows={costPreviewRows}
-            shortageQty={values.allocationMethod === 'MANUAL' ? Math.max(0, Number(values.sourceQty) - manualTotalQty) : autoPreview.shortageQty}
-            sourceQty={Number(values.sourceQty)}
-            onManualChange={updateManualAllocation}
-          />
-        </div>
+        {usesCostPool ? (
+          <>
+            <label className="block text-sm font-medium md:col-span-2">วิธีตัดต้นทุน
+              <select
+                className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2"
+                value={values.allocationMethod}
+                onChange={(event) => setValues({ ...values, allocationMethod: event.target.value as StockConvertFormValues['allocationMethod'], manualAllocations: [] })}
+              >
+                <option value="FIFO">FIFO (มาก่อน-ออกก่อน)</option>
+                <option value="LIFO">LIFO (มาหลัง-ออกก่อน)</option>
+                <option value="HIGHEST_COST">Highest Cost (ต้นทุนสูงก่อน)</option>
+                <option value="LOWEST_COST">Lowest Cost (ต้นทุนต่ำก่อน)</option>
+                <option value="MANUAL">Manual (เลือก lot เอง)</option>
+              </select>
+            </label>
+            <div className="md:col-span-2">
+              <CostPoolPreview
+                entries={sourceCostPoolEntries}
+                manualAllocations={values.manualAllocations}
+                method={values.allocationMethod}
+                previewRows={costPreviewRows}
+                shortageQty={values.allocationMethod === 'MANUAL' ? Math.max(0, Number(values.sourceQty) - manualTotalQty) : autoPreview.shortageQty}
+                sourceQty={Number(values.sourceQty)}
+                onManualChange={updateManualAllocation}
+              />
+            </div>
+          </>
+        ) : null}
       </div>
     </div>
     <div className="rounded-md border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm md:col-span-2">
@@ -2340,10 +2349,10 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
       <div className="grid gap-4 md:grid-cols-3">
         <ReadOnlyBox label="Loss" value={`${formatMoney(lossQty)} กก.`} />
         <ReadOnlyBox label="Yield" value={`${formatMoney(yieldPct)}%`} />
-        <ReadOnlyBox label="Allocation" value={`${values.allocationMethod} · ${formatMoney(previewUnitCost)} ฿/กก.`} />
-        <ReadOnlyBox label="Target Cost" value={`${values.targetCostPolicy} · ${formatMoney(targetUnitCost)} ฿/กก.`} />
-        <ReadOnlyBox label="Target Value" value={formatMoney(targetValue)} />
-        <ReadOnlyBox label="Cost Variance" value={formatMoney(costVariance)} />
+        <ReadOnlyBox label="Allocation" value={usesCostPool ? `${values.allocationMethod} · ${formatMoney(previewUnitCost ?? 0)} ฿/กก.` : 'ไม่ใช้ Cost Pool'} />
+        <ReadOnlyBox label="Target Cost" value={targetUnitCost === null ? 'คำนวณจากต้นทุน stock ตอนบันทึก' : `${values.targetCostPolicy} · ${formatMoney(targetUnitCost)} ฿/กก.`} />
+        <ReadOnlyBox label="Target Value" value={targetValue === null ? '-' : formatMoney(targetValue)} />
+        <ReadOnlyBox label="Cost Variance" value={costVariance === null ? '-' : formatMoney(costVariance)} />
       </div>
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Field label="เหตุผล" value={values.reason ?? ''} onChange={(reason) => setValues({ ...values, reason })} />

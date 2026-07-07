@@ -18,6 +18,11 @@ const nonNegativeQty = (label = 'จำนวน') => z.coerce.number({ invalid_
 const stockConvertAllocationMethodSchema = z.enum(['FIFO', 'LIFO', 'HIGHEST_COST', 'LOWEST_COST', 'MANUAL'])
 const stockConvertTargetCostPolicySchema = z.enum(['SOURCE_MATCHED', 'CUSTOM_UNIT_COST'])
 
+export function isCostPoolEligibleMetalGroup(metalGroup: string | null | undefined) {
+  const normalized = (metalGroup ?? '').trim().toLowerCase()
+  return normalized.includes('ทองแดง') || normalized.includes('ทองเหลือง') || normalized.includes('copper') || normalized.includes('brass')
+}
+
 export const stockStatusSchema = z.enum(['RM', 'WIP', 'FG'])
 export const stockStateSchema = z.enum(['on_hand', 'pending_in', 'pending_out'])
 export const statusConvertStatusSchema = z.enum(['RM', 'FG'])
@@ -86,7 +91,7 @@ export const stockConvertFormSchema = z.object({
   targetUnitCostReason: optionalGeneralText('เหตุผล override ต้นทุน', 240),
   warehouseId: z.string().trim().min(1, 'เลือกคลัง'),
 }).refine((value) => value.sourceProductId !== value.targetProductId || value.lotNo !== value.targetLotNo, {
-  message: 'สินค้าหรือ Lot ปลายทางต้องต่างจากต้นทาง',
+  message: 'สินค้าปลายทางต้องต่างจากต้นทาง',
   path: ['targetProductId'],
 }).refine((value) => value.targetQty <= value.sourceQty, {
   message: 'น้ำหนักปลายทางต้องน้อยกว่าหรือเท่ากับน้ำหนักต้นทาง',
