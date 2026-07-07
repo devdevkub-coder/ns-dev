@@ -298,7 +298,6 @@ function DashboardView(props: {
   const section = data?.dashboard.sections
   const analytics = data?.dailyReport.analytics
   const purchaseWeight = section?.purchase.qty ?? 0
-  const salesWeight = section?.sales.qty ?? 0
   const purchaseAmount = section?.purchase.amount ?? 0
   const salesAmount = section?.sales.amount ?? 0
   const purchaseCount = section?.purchase.count ?? 0
@@ -593,19 +592,16 @@ function DashboardView(props: {
           <DashboardKpi label="AR ลูกหนี้" sub="Receivable" tone="purple" value={money(k.ar)} />
           <DashboardKpi label="AP เจ้าหนี้" sub="Payable" tone="orange" value={money(k.ap)} />
         </div>
-        <div className="mb-4 grid gap-3 lg:grid-cols-3">
+        <div className="mb-4 grid gap-3 lg:grid-cols-2">
           <DashboardChartCard title="Revenue vs Expense (Monthly)">
             <BarRows rows={(data?.dashboard.monthlyTrend ?? []).flatMap((row) => [{ label: `${monthLabel(row.label)} Rev`, value: row.sales }, { label: `${monthLabel(row.label)} Exp`, value: row.expense + Math.max(0, row.sales - row.gp) }])} />
           </DashboardChartCard>
           <DashboardChartCard title="Cash Flow Overview">
             <BarRows rows={(data?.dashboard.cashComposition ?? []).map((row) => ({ label: row.label, value: row.value }))} />
           </DashboardChartCard>
-          <DashboardChartCard title="Expense Breakdown">
-            <BarRows rows={(data?.dashboard.monthlyTrend ?? []).map((row) => ({ label: monthLabel(row.label), value: row.expense }))} />
-          </DashboardChartCard>
         </div>
-        <div className="grid gap-3 lg:grid-cols-4">
-          <DashboardChartCard className="lg:col-span-2" title="Receivables & Payables Aging">
+        <div className="mb-4">
+          <DashboardChartCard title="Receivables & Payables Aging">
             <div className="mb-2 flex justify-end">
               {agingResize.hasCustomWidths ? (
                 <button className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-50" type="button" onClick={agingResize.resetColumnWidths}>
@@ -669,16 +665,6 @@ function DashboardView(props: {
                 )
               })}
             </div>
-          </DashboardChartCard>
-          <DashboardChartCard title="Channel Performance">
-            <MiniLine label="Purchase" value={`${money(purchaseWeight)} กก. · ${money(purchaseAmount)}`} />
-            <MiniLine label="Sales" value={`${money(salesWeight)} กก. · ${money(salesAmount)}`} />
-            <MiniLine label="Stock" value={`${money(stockQty)} กก. · ${money(stockValue)}`} />
-          </DashboardChartCard>
-          <DashboardChartCard title="Quick Insights">
-            <MiniLine label="Gross Margin" value={`${money(gpPct)}%`} />
-            <MiniLine label="Net Profit" value={money(k.netProfit)} />
-            <MiniLine label="Net Cash" value={money(section?.cash.netCash)} />
           </DashboardChartCard>
         </div>
       </div>

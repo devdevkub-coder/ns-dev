@@ -2,9 +2,11 @@
 
 ## Current Status
 
-Date: 2026-07-06
+Date: 2026-07-07
 Active app: `apps/next`
 Primary remote: `new-origin`
+
+Dashboard Overview duplicate insight cleanup on 2026-07-07: `/dashboard` now removes the remaining duplicate insight widgets `Expense Breakdown`, `Channel Performance`, and `Quick Insights`. The top chart area is now only `Revenue vs Expense (Monthly)` plus `Cash Flow Overview`, and `Receivables & Payables Aging` now spans the full next row before the line-tab detail surfaces. This keeps the read order as global filters -> runtime notice -> KPI cards -> primary trend/cash charts -> Aging -> Top Ranking / Stock / Metrics tabs, and prevents values already shown in KPI cards, Aging, or Metrics from appearing again as separate cards. This is UI-only/read-only: `GET /api/dashboard`, formulas, filters, permissions, Supabase schema, and DB state were not changed. Validation passed: targeted ESLint for `MainDashboardsPageClient.tsx`, scoped `git diff --check` (only existing LF/CRLF warning for the TSX file), `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`, and `npm run build --workspace @ns-scrap-erp/next` with 302 routes generated successfully.
 
 Stock Finance filter-toolbar cleanup on 2026-07-07: `/finance-accounting/stock-finance` no longer shows a separate top filter card for `ณ วันที่` and branch. The same API scope controls now live inside each active table filter row/sheet (`Stock ทั้งหมด` and `สินค้าหมุนช้า / ควรเร่งระบาย`) alongside search/category/age filters, so users have one filter surface after choosing the table context. The `Stock ทั้งหมด` toolbar also no longer shows duplicate `Qty` and `มูลค่า` chips; it keeps count, pagination, and reset-width only because quantity/value are already available in the summary cards and table columns. This is UI-only/read-only: `GET /api/finance-accounting/stock-finance`, formulas, cutoff behavior, permissions, Supabase schema, and DB state were not changed.
 
