@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { XLSX } from '@/lib/server/xlsx'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { getDualCostingBranch } from '@/lib/server/dual-costing-branch'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
@@ -73,11 +74,30 @@ export async function GET(request: Request) {
     const matchType = url.searchParams.get('matchType')
     const q = url.searchParams.get('q')?.trim().toLowerCase()
     const status = url.searchParams.get('status')
+    const branch = await getDualCostingBranch()
+    const poSells = await prisma.po_sells.findMany({
+      select: { doc_no: true },
+      take: 5000,
+      where: { branch_id: branch.id },
+    })
+    const poSellDocNos = poSells.map((row) => row.doc_no)
 
     const deals = await prisma.trading_deals.findMany({
       include: { customers: true, products: true, purchase_bills: true, sales_bills: true, suppliers: true },
       orderBy: [{ date: 'desc' }, { deal_no: 'desc' }],
       take: 10000,
+      where: {
+        OR: [
+          {
+            sales_bills: {
+              is: {
+                branch_id: branch.id,
+              },
+            },
+          },
+          ...(poSellDocNos.length > 0 ? [{ sales_bill_no: { in: poSellDocNos } }] : []),
+        ],
+      },
     })
 
     const rows: MatchLogRow[] = deals.map((deal, index) => {

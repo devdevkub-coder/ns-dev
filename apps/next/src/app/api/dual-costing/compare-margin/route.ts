@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { getDualCostingBranch } from '@/lib/server/dual-costing-branch'
 import { toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 
@@ -18,6 +19,13 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const from = url.searchParams.get('from')
     const to = url.searchParams.get('to')
+    const branch = await getDualCostingBranch()
+    const poSells = await prisma.po_sells.findMany({
+      select: { doc_no: true },
+      take: 5000,
+      where: { branch_id: branch.id },
+    })
+    const poSellDocNos = poSells.map((row) => row.doc_no)
     const dateWhere = {
       ...(from ? { gte: new Date(from) } : {}),
       ...(to ? { lte: new Date(to) } : {}),
@@ -27,6 +35,16 @@ export async function GET(request: Request) {
       prisma.trading_deals.findMany({
         take: 10000,
         where: {
+          OR: [
+            {
+              sales_bills: {
+                is: {
+                  branch_id: branch.id,
+                },
+              },
+            },
+            ...(poSellDocNos.length > 0 ? [{ sales_bill_no: { in: poSellDocNos } }] : []),
+          ],
           ...(from || to ? { date: dateWhere } : {}),
           NOT: { status: { in: ['cancelled', 'Cancelled'] } },
         },
@@ -34,6 +52,7 @@ export async function GET(request: Request) {
       prisma.sales_bills.findMany({
         take: 10000,
         where: {
+          branch_id: branch.id,
           ...(from || to ? { date: dateWhere } : {}),
           OR: [
             { transaction_mode: 'TRADING' },

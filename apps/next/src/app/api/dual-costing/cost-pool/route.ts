@@ -3,6 +3,7 @@ import { XLSX } from '@/lib/server/xlsx'
 import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { getDualCostingBranch } from '@/lib/server/dual-costing-branch'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
@@ -158,6 +159,7 @@ export async function getCostPoolRowsData(options: {
     q,
     sort = 'FIFO',
   } = options
+  const branch = await getDualCostingBranch()
 
   const [stockPoolEntries] = await Promise.all([
     prisma.stock_cost_pool_entries.findMany({
@@ -165,6 +167,7 @@ export async function getCostPoolRowsData(options: {
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
       take: 5000,
       where: {
+        branch_id: branch.id,
         NOT: { status: { in: ['Cancelled', 'cancelled', 'Reversed', 'reversed', 'Void', 'void'] } },
       },
     }),
