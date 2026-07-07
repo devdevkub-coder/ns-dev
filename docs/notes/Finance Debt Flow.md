@@ -27,7 +27,6 @@ updated: 2026-06-24
 | `/finance/ap` | เจ้าหนี้ (AP) | payable aging read model |
 | `/finance/bank` | Cash / Bank Statement | cash/bank ledger read model |
 | `/finance/cash-position` | Cash Position | liquidity aggregate |
-| `/finance/customer-advance` | รับล่วงหน้าจาก Customer | customer advance liability read model |
 
 หมวดนี้เป็นชั้น operational finance/debt ของระบบ ไม่ใช่ GL/accounting posting เต็มรูปแบบ. เอกสารบัญชีเชิงงบอยู่ในหมวด `การเงิน-บัญชี`; ส่วน flow นี้สนใจว่าเงินเข้า/ออก, ลูกหนี้, เจ้าหนี้, advance, และ cash position อ่านหรือกระทบกันอย่างไร.
 
@@ -46,9 +45,8 @@ flowchart LR
   AR --> RCP["/sales/receipts\nรับเงิน"]
   RCP --> BST
 
-  CADV["CADV\nรับล่วงหน้า Customer"] --> CUSTADV["/finance/customer-advance"]
+  CADV["CADV\nรับล่วงหน้า Customer"] --> RCP
   CADV --> BST
-  CUSTADV -. "future allocation" .-> SB
 
   PADV["PADV\nเงินสำรอง/กู้"] --> PETTY["/daily/petty-advance"]
   PETTY --> PRET["PRET\nคืนเงิน"]
@@ -68,7 +66,7 @@ flowchart LR
 | AP | read-only | primary: `purchase_bills.payable_balance`, `purchase_bills.paid_amount`; drilldown: `payments`, `payment_allocations`, `payment_approvals`, `supplier_advance_allocations` | none |
 | Bank Statement | read-only ledger | `bank_statement`, `accounts` | none |
 | Cash Position | read-only aggregate | `accounts`, `bank_statement`, AR/AP source facts | none |
-| Customer Advance | current read-only | current `bank_statement.ref_type = CADV`; target dedicated advance tables | none in current page |
+| Customer Advance | handled through `/sales/receipts` and AR drilldown | current `bank_statement.ref_type = CADV`; target dedicated advance facts under sales receipt/customer advance model | no separate page |
 
 ## Cross-Flow Rules
 
@@ -88,7 +86,7 @@ flowchart LR
 
 ## Legacy Baseline
 
-Legacy มีเมนูตรงกันสำหรับ `AR`, `AP`, `Bank`, `Cash Position`, `Customer Advance`, และ `Petty Advance`:
+Legacy มีเมนูตรงกันสำหรับ `AR`, `AP`, `Bank`, `Cash Position`, `Customer Advance`, และ `Petty Advance`; target active app เก็บ Customer receipt/advance ไว้ที่ `/sales/receipts` เพื่อไม่ให้มีหน้ารับเงินลูกค้าซ้ำ:
 
 - `AR`: legacy คำนวณจาก sales bills ที่ไม่ cancelled หัก receipts; target ใหม่ให้ visible balance อ่านจาก `sales_bills.receivable_balance` เพื่อรองรับ Customer Advance allocation และ receipt reversal.
 - `AP`: legacy คำนวณจาก purchase bills ที่ไม่ cancelled หัก payments; target ใหม่ให้ visible balance อ่านจาก `purchase_bills.payable_balance` เพื่อรองรับ Supplier Advance allocation และ payment reversal.
@@ -106,7 +104,7 @@ Legacy มีเมนูตรงกันสำหรับ `AR`, `AP`, `Bank`
 | `/finance/ap` | `GET /api/finance/ap` | `finance.cash.view` |
 | `/finance/bank` | `GET /api/finance/bank` | `finance.cash.view` |
 | `/finance/cash-position` | `GET /api/finance/cash-position` | `finance.cash.view` |
-| `/finance/customer-advance` | `GET /api/finance/customer-advance` | `finance.cash.view` |
+| `/sales/receipts` | `GET/POST /api/sales/receipts` | `finance.cash.view` |
 
 ## Open Decisions / Gaps
 
@@ -115,7 +113,7 @@ Legacy มีเมนูตรงกันสำหรับ `AR`, `AP`, `Bank`
 - `/finance/ap` UI must remove or hide channel filter until purchase channel exists as a real source field.
 - `/finance/ar` and `/finance/ap` detail modals must expose source drilldown facts directly: AR -> SB/RCP/Customer Advance, AP -> PB/PMA/PMT/Supplier Advance.
 - AP must be reconciled with PMA/PMT states so list/filter/action clearly separate `ยังไม่อนุมัติ`, `รอจ่าย`, `ชำระบางส่วน`, `เสร็จสิ้น`, `ยกเลิก`.
-- AR must expose customer advance allocation facts in drilldown before `Customer Advance` can show true used/remaining.
+- AR must expose customer advance allocation facts in drilldown; customer receipt/advance operations stay under `/sales/receipts`.
 - Bank statement correction/duplicate cleanup must be admin-only with audit, backup, and rollback; not a normal finance page action.
 - Cash Position needs future `asOf`, branch, and currency/FCD policy if used for historical reporting.
 - Finance historical snapshots are still missing: daily AR/AP outstanding, daily received/paid movement, daily cash/bank ending balance, and advance remaining snapshots must be defined before monthly/yearly dashboard rollups are considered reliable.

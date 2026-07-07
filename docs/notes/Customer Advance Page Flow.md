@@ -10,16 +10,18 @@ tags:
   - debt
   - customer-advance
   - page-flow
-status: draft
+status: retired
 created: 2026-06-11
-updated: 2026-06-11
+updated: 2026-07-06
 ---
 
 # Customer Advance Page Flow / Flow หน้ารับล่วงหน้าจาก Customer
 
+> Retired 2026-07-06: หน้า `/finance/customer-advance` ถูกลบออกจาก active app เพราะซ้ำกับ flow รับเงินลูกค้าที่ `/sales/receipts`. การรับเงิน/เงินรับล่วงหน้าฝั่ง Customer ให้ดูและทำงานผ่าน `/sales/receipts`; `GET /api/finance/customer-advance` อาจยังเหลือเป็น read source ภายในจนกว่าจะย้าย CADV/allocation source เข้ากับ sales receipt model ครบ.
+
 ## Scope
 
-- Route: `/finance/customer-advance`
+- Route: retired; use `/sales/receipts`
 - API: `GET /api/finance/customer-advance`
 - Owner: Finance & Debt
 - Page type: current read baseline for customer advance/deposit

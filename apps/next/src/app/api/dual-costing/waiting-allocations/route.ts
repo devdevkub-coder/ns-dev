@@ -30,10 +30,11 @@ export async function GET(request: Request) {
 
     const allFilteredRows = [...filteredPoRows, ...filteredBillRows, ...filteredProductionRows]
 
-    const byCategory = new Map<string, { count: number; qty: number; revenue: number }>()
+    const byCategory = new Map<string, { count: number; partial: number; qty: number; revenue: number }>()
     allFilteredRows.forEach((row) => {
-      const current = byCategory.get(row.metalGroup) ?? { count: 0, qty: 0, revenue: 0 }
+      const current = byCategory.get(row.metalGroup) ?? { count: 0, partial: 0, qty: 0, revenue: 0 }
       current.count += 1
+      if (row.allocationStatus === 'partially_allocated') current.partial += 1
       current.qty += row.remainingQty
       current.revenue += row.revenuePending
       byCategory.set(row.metalGroup, current)

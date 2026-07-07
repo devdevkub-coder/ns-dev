@@ -583,11 +583,6 @@ function DashboardView(props: {
             <span className="mb-2 inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/85 ring-1 ring-white/15">Management Overview</span>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Dashboard Overview</h1>
             <p className="mt-1 text-sm font-medium text-white/80">ภาพรวมซื้อ ขาย เงินสด หนี้ และ Stock</p>
-            <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-white/85">
-              <span>ซื้อ {money(purchaseAmount)}</span>
-              <span>ขาย {money(salesAmount)}</span>
-              <span>Stock {money(stockValue)}</span>
-            </div>
           </div>
           <span className="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-white shadow-sm ring-1 ring-white/15">
             {rangeFrom} → {rangeTo}

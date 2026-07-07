@@ -63,7 +63,7 @@
 
 - หน้า `/purchase/advance-payments` ต้องมี dropdown `ประเภท ADV` ก่อนกรอกข้อมูล
 - `มัดจำส่งของรอคัดแยก` ใช้ form ปัจจุบัน ไม่มี invoice เป็น default แต่ยังต้องเลือก VAT ได้ โดย default เป็น `ไม่มี VAT`
-- `มัดจำล่วงหน้า` ใช้ form สั้น: สาขา, ผู้ขาย, เลข invoice required, ยอดมัดจำ, VAT dropdown, หมายเหตุ
+- `มัดจำล่วงหน้ายังไม่ส่งของ` ใช้ form สั้น: สาขา, ผู้ขาย, เลข invoice required, ยอดมัดจำ, VAT dropdown, หมายเหตุ
 - VAT dropdown phase แรกมีอย่างน้อย `ไม่มี VAT` และ `มี VAT`; ถ้าขยายเป็น `VAT รวมใน` / `VAT แยกนอก` ต้องตกลงสูตรก่อน runtime change
 - ADV ไม่มี VAT สามารถหักจาก `PB.total_amount` แบบยอดรวมได้
 - ADV มี VAT ห้ามหักยอดรวมจาก `PB.total_amount` ตรง ๆ; ต้องหักยอดก่อน VAT กับฐานก่อน VAT ของ PB และหัก VAT กับ VAT ของ PB แยกกัน
@@ -75,7 +75,7 @@
 - [x] Update Supplier Advance canonical flow with ADV type dropdown, invoice-advance special case, and VAT-aware allocation rule
 - [x] Update `/purchase/advance-payments` page-flow with target data contract and validation
 - [x] Update `/purchase/bills` page-flow with VAT-aware ADV allocation contract
-- [x] Decide VAT input meaning for `มี VAT`: amount is VAT-inclusive in the first runtime slice; system splits subtotal/VAT from the gross ADV amount
+- [x] Decide VAT input meaning for `มี VAT`: amount input is the pre-VAT base amount; system calculates VAT and total ADV amount from that base, and PMA/PMT/remaining use the total amount
 - [x] Add DB migration and Prisma fields for ADV type, invoice no, VAT type/rate, subtotal amount, VAT amount, and allocation breakdown
 - [x] Update ADV form schema/API validation for type-specific fields
 - [x] Update Advance Payments UI to switch between current waiting-sort form and invoice-advance form

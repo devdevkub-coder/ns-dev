@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { Prisma } from '../../../../../generated/prisma/client'
-import { requireDocumentNo } from '@/lib/business-code'
+import { requireBusinessCode, requireDocumentNo } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
@@ -14,17 +14,29 @@ const COST_EPSILON = 0.000001
 
 type CostPoolEntry = {
   available_qty: Prisma.Decimal
+  branch_code: string | null
   branch_id: bigint | null
   date: Date
   id: bigint
   lot_no: string | null
   original_qty: Prisma.Decimal
+  product_code: string | null
   product_id: bigint
   source_ref_no: string | null
   source_type: string
   status: string
   unit_cost: Prisma.Decimal
+  warehouse_code: string | null
   warehouse_id: bigint | null
+}
+
+type StockBalanceOptionRow = {
+  branch_code: string | null
+  metal_group: string | null
+  on_hand_qty: Prisma.Decimal
+  product_code: string | null
+  ready_qty: Prisma.Decimal
+  warehouse_code: string | null
 }
 
 type LockedCostPoolEntry = CostPoolEntry & {
@@ -163,10 +175,16 @@ async function loadCostPoolOptions() {
       e.unit_cost,
       e.status,
       e.original_qty - e.allocated_qty - e.released_qty as available_qty,
+      p.code as product_code,
       e.product_id,
+      b.code as branch_code,
       e.branch_id,
+      w.code as warehouse_code,
       e.warehouse_id
     from public.stock_cost_pool_entries e
+    join public.products p on p.id = e.product_id
+    left join public.branches b on b.id = e.branch_id
+    left join public.warehouses w on w.id = e.warehouse_id
     where e.status in ('Available', 'Partially Used')
       and e.original_qty - e.allocated_qty - e.released_qty > ${COST_EPSILON}
     order by e.date asc, e.id asc
@@ -177,19 +195,74 @@ async function loadCostPoolOptions() {
     return {
       availableQty,
       availableValue: availableQty * toNumber(row.unit_cost),
-      branchId: row.branch_id ? String(row.branch_id) : '',
+      branchId: row.branch_code ? requireBusinessCode(row.branch_code, `สาขา cost pool ${row.id}`) : '',
       date: toDateOnly(row.date),
       id: String(row.id),
       lotNo: row.lot_no,
       originalQty: toNumber(row.original_qty),
-      productId: row.product_id ? String(row.product_id) : '',
+      productId: row.product_code ? requireBusinessCode(row.product_code, `สินค้า cost pool ${row.id}`) : '',
       sourceRefNo: row.source_ref_no,
       sourceType: row.source_type,
       status: row.status,
       unitCost: toNumber(row.unit_cost),
-      warehouseId: row.warehouse_id ? String(row.warehouse_id) : '',
+      warehouseId: row.warehouse_code ?? '',
     }
   })
+}
+
+async function loadStockBalanceOptions() {
+  const rows = await prisma.$queryRaw<StockBalanceOptionRow[]>`
+    with stock as (
+      select
+        product_id,
+        branch_id,
+        warehouse_id,
+        sum(coalesce(qty_in, 0) - coalesce(qty_out, 0)) as on_hand_qty
+      from public.stock_ledger
+      where coalesce(not_available_for_sale, false) = false
+      group by product_id, branch_id, warehouse_id
+      having sum(coalesce(qty_in, 0) - coalesce(qty_out, 0)) > ${COST_EPSILON}
+    ),
+    holds as (
+      select
+        product_id,
+        branch_id,
+        warehouse_id,
+        sum(qty) as hold_qty
+      from public.stock_holds
+      where status = 'active'
+      group by product_id, branch_id, warehouse_id
+    )
+    select
+      p.code as product_code,
+      p.metal_group,
+      b.code as branch_code,
+      w.code as warehouse_code,
+      stock.on_hand_qty,
+      greatest(0, stock.on_hand_qty - coalesce(holds.hold_qty, 0)) as ready_qty
+    from stock
+    join public.products p on p.id = stock.product_id
+    left join public.branches b on b.id = stock.branch_id
+    left join public.warehouses w on w.id = stock.warehouse_id
+    left join holds
+      on holds.product_id = stock.product_id
+     and holds.branch_id is not distinct from stock.branch_id
+     and holds.warehouse_id is not distinct from stock.warehouse_id
+    where p.code is not null
+      and trim(p.code) <> ''
+      and (stock.branch_id is null or (b.code is not null and trim(b.code) <> ''))
+      and (stock.warehouse_id is null or (w.code is not null and trim(w.code) <> ''))
+    order by b.code asc nulls last, w.code asc nulls last, p.code asc nulls last
+  `
+
+  return rows.map((row) => ({
+    branchId: row.branch_code?.trim() ?? '',
+    metalGroup: row.metal_group?.trim() ?? null,
+    onHandQty: toNumber(row.on_hand_qty),
+    productId: row.product_code?.trim() ?? '',
+    readyQty: toNumber(row.ready_qty),
+    warehouseId: row.warehouse_code?.trim() ?? '',
+  }))
 }
 
 function csvEscape(value: string | number | null | undefined) {
@@ -303,7 +376,6 @@ async function lockPoolEntries(input: {
   method: string
   productId: bigint
   sourceQty: number
-  warehouseId: bigint
   manualAllocations: AllocationLine[]
 }, tx: Prisma.TransactionClient) {
   if (input.method === 'MANUAL') {
@@ -326,8 +398,8 @@ async function lockPoolEntries(input: {
     const allocated = input.manualAllocations.map((line) => {
       const row = byId.get(line.poolEntryId.toString())
       if (!row) throw new Error('ไม่พบ Cost Pool lot ที่เลือก')
-      if (row.product_id !== input.productId || row.branch_id !== input.branchId || row.warehouse_id !== input.warehouseId) {
-        throw new Error('Cost Pool lot ที่เลือกไม่ตรงกับสินค้า/สาขา/คลัง')
+      if (row.product_id !== input.productId || row.branch_id !== input.branchId) {
+        throw new Error('Cost Pool lot ที่เลือกไม่ตรงกับสินค้า/สาขา')
       }
       if (input.lotNo && row.lot_no !== input.lotNo) throw new Error('Cost Pool lot ที่เลือกไม่ตรงกับ Lot ต้นทาง')
       const availableQty = toNumber(row.available_qty)
@@ -352,7 +424,6 @@ async function lockPoolEntries(input: {
     left join public.warehouses w on w.id = e.warehouse_id
     where e.product_id = ${input.productId}
       and e.branch_id = ${input.branchId}
-      and e.warehouse_id = ${input.warehouseId}
       and (${input.lotNo}::text is null or e.lot_no = ${input.lotNo})
       and e.status in ('Available', 'Partially Used')
       and e.original_qty - e.allocated_qty - e.released_qty > ${COST_EPSILON}
@@ -415,7 +486,7 @@ export async function GET(request: Request) {
       }
       return NextResponse.json({ detail })
     }
-    const [reference, adjustments, ledgerRows, costPoolEntries] = await Promise.all([
+    const [reference, adjustments, ledgerRows, costPoolEntries, stockBalanceEntries] = await Promise.all([
       stockReferenceData({ includeCustomers: false }),
       prisma.grade_adjustments.findMany({
         include: { products: { select: { code: true, name: true } }, warehouses: true },
@@ -429,6 +500,7 @@ export async function GET(request: Request) {
         where: { ref_type: { in: ['GA', 'GA-REV'] } },
       }),
       loadCostPoolOptions(),
+      loadStockBalanceOptions(),
     ])
     const ledgerByRef = new Map<string, typeof ledgerRows>()
     for (const row of ledgerRows) {
@@ -437,7 +509,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      reference: { ...reference, costPoolEntries },
+      reference: { ...reference, costPoolEntries, stockBalanceEntries },
       rows: adjustments.map((row) => {
         const rows = ledgerByRef.get(row.doc_no) ?? []
         const source = rows.find((entry) => entry.ref_type === 'GA' && toNumber(entry.qty_out) > 0)
@@ -517,7 +589,6 @@ export async function POST(request: Request) {
         method: values.allocationMethod,
         productId: sourceProductReference.productId as bigint,
         sourceQty: values.sourceQty,
-        warehouseId: references.warehouseId as bigint,
       }, tx)
       const sourceValue = allocations.reduce((sum, line) => sum + line.qty * toNumber(line.row.unit_cost), 0)
       const sourceUnitCost = sourceValue / values.sourceQty

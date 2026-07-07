@@ -76,7 +76,7 @@ type WaitingPayload = {
   po: TabPayload
   bill: TabPayload
   production: TabPayload
-  summary: { byCategory: { count: number; name: string; qty: number; revenue: number }[]; count: number; fullyPending: number; partial: number; totalQty: number; totalRevenue: number }
+  summary: { byCategory: { count: number; name: string; partial: number; qty: number; revenue: number }[]; count: number; fullyPending: number; partial: number; totalQty: number; totalRevenue: number }
 }
 
 type LedgerPayload = {
@@ -99,11 +99,12 @@ type ReportMetric = { cost: number; count: number; gp: number; gpPct: number; qt
 type ReportCategoryRow = ReportPayload['report']['byCategory'][number]
 type ReportColumnKey = 'allocatedQty' | 'category' | 'cost' | 'gp' | 'gpPct' | 'pendingQty' | 'pendingRevenue' | 'revenue'
 type WaitingSummaryRow = WaitingPayload['summary']['byCategory'][number]
-type WaitingSummaryColumnKey = 'count' | 'name' | 'qty' | 'revenue'
+type WaitingSummaryColumnKey = 'count' | 'name' | 'partial' | 'qty' | 'revenue'
 
 const waitingSummaryColumns: Array<ResizableColumnDefinition<WaitingSummaryColumnKey> & { align?: 'center' | 'left' | 'right'; label: string }> = [
   { key: 'name', label: 'หมวดสินค้า', defaultWidth: 180, minWidth: 140 },
   { key: 'count', label: 'รายการรอจัดสรร', defaultWidth: 130, minWidth: 110, align: 'right' },
+  { key: 'partial', label: 'บางส่วน', defaultWidth: 100, minWidth: 90, align: 'right' },
   { key: 'qty', label: 'น้ำหนักรอจัดสรร', defaultWidth: 150, minWidth: 125, align: 'right' },
   { key: 'revenue', label: 'มูลค่ารอจัดสรร', defaultWidth: 150, minWidth: 125, align: 'right' },
 ]
@@ -152,7 +153,7 @@ function WaitingAllocationsView() {
     { key: 'productName', label: 'สินค้า', defaultWidth: 220 },
     { key: 'metalGroup', label: 'หมวด', defaultWidth: 90, align: 'center' },
     { key: 'qty', label: 'ขาย (กก.)', defaultWidth: 110, align: 'right' },
-    { key: 'allocatedQty', label: 'Allocate แล้ว', defaultWidth: 110, align: 'right' },
+    { key: 'allocatedQty', label: 'จัดสรรแล้ว', defaultWidth: 110, align: 'right' },
     { key: 'remainingQty', label: 'รอจัดสรร (กก.)', defaultWidth: 115, align: 'right' },
     { key: 'unitPrice', label: 'ราคา/กก.', defaultWidth: 100, align: 'right' },
     { key: 'revenuePending', label: 'มูลค่ารอจัดสรร', defaultWidth: 120, align: 'right' },
@@ -167,7 +168,7 @@ function WaitingAllocationsView() {
     { key: 'productName', label: 'สินค้า', defaultWidth: 220 },
     { key: 'metalGroup', label: 'หมวด', defaultWidth: 90, align: 'center' },
     { key: 'qty', label: 'ขาย (กก.)', defaultWidth: 110, align: 'right' },
-    { key: 'allocatedQty', label: 'Allocate แล้ว', defaultWidth: 110, align: 'right' },
+    { key: 'allocatedQty', label: 'จัดสรรแล้ว', defaultWidth: 110, align: 'right' },
     { key: 'remainingQty', label: 'รอจัดสรร (กก.)', defaultWidth: 115, align: 'right' },
     { key: 'unitPrice', label: 'ราคา/กก.', defaultWidth: 100, align: 'right' },
     { key: 'revenuePending', label: 'มูลค่ารอจัดสรร', defaultWidth: 120, align: 'right' },
@@ -182,7 +183,7 @@ function WaitingAllocationsView() {
     { key: 'productName', label: 'สินค้า', defaultWidth: 220 },
     { key: 'metalGroup', label: 'หมวด', defaultWidth: 90, align: 'center' },
     { key: 'qty', label: 'ผลิต (กก.)', defaultWidth: 110, align: 'right' },
-    { key: 'allocatedQty', label: 'Allocate แล้ว', defaultWidth: 110, align: 'right' },
+    { key: 'allocatedQty', label: 'จัดสรรแล้ว', defaultWidth: 110, align: 'right' },
     { key: 'remainingQty', label: 'รอจัดสรร (กก.)', defaultWidth: 115, align: 'right' },
     { key: 'unitPrice', label: 'ต้นทุน/กก.', defaultWidth: 100, align: 'right' },
     { key: 'revenuePending', label: 'มูลค่ารอจัดสรร', defaultWidth: 120, align: 'right' },
@@ -295,20 +296,11 @@ function WaitingAllocationsView() {
   return (
     <DualCostingPageSection>
       <DualCostingErrorBox error={error} />
-      
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <DualCostingStatCard icon="❌" label="ยังไม่ส่งจัดสรร" tone="red" value={String(data?.summary.fullyPending ?? 0)} />
-        <DualCostingStatCard icon="🔗" label="บางส่วน" tone="amber" value={String(data?.summary.partial ?? 0)} />
-        <DualCostingStatCard icon="⚖️" label="น้ำหนักรอจัดสรร" tone="blue" value={`${formatMoney(data?.summary.totalQty ?? 0)} กก.`} />
-        <DualCostingStatCard icon="💰" label="มูลค่ารอจัดสรร" tone="emerald" value={formatMoney(data?.summary.totalRevenue ?? 0)} />
-      </div>
 
-      <DualCostingPanel title="สรุปตามหมวด">
-        {summaryResize.hasCustomWidths ? (
-          <div className="mb-2 hidden justify-end lg:flex">
-            <Button size="sm" type="button" variant="outline" onClick={summaryResize.resetColumnWidths}>คืนค่าเดิมตารางสรุป</Button>
-          </div>
-        ) : null}
+      <DualCostingPanel
+        title="สรุปตามหมวด"
+        titleAction={summaryResize.hasCustomWidths ? <Button size="sm" type="button" variant="outline" onClick={summaryResize.resetColumnWidths}>คืนค่าเดิมตารางสรุป</Button> : null}
+      >
         {/* Desktop View */}
         <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
           <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: summaryResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
@@ -341,6 +333,7 @@ function WaitingAllocationsView() {
                 <TableRow key={row.name} className="transition-colors hover:bg-slate-50">
                   <TableCell className="px-3 py-3"><span className="block truncate rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800" title={row.name}>{row.name}</span></TableCell>
                   <TableCell className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{row.count}</TableCell>
+                  <TableCell className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{row.partial}</TableCell>
                   <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-slate-800">{formatMoney(row.qty)} กก.</TableCell>
                   <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-emerald-700">{formatMoney(row.revenue)}</TableCell>
                 </TableRow>
@@ -358,7 +351,11 @@ function WaitingAllocationsView() {
                 <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">{row.name}</span>
                 <span className="text-xs text-slate-500 font-semibold">{row.count} รายการ</span>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div>
+                  <span className="text-slate-500 block">บางส่วน</span>
+                  <span className="font-mono font-bold text-slate-800">{row.partial}</span>
+                </div>
                 <div>
                   <span className="text-slate-500 block">น้ำหนักรอ</span>
                   <span className="font-mono font-bold text-slate-800">{formatMoney(row.qty)} กก.</span>
@@ -617,7 +614,7 @@ function WaitingAllocationsView() {
               </div>
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
                 <div>
-                  <span className="text-slate-500 block">ขาย / Allocate แล้ว</span>
+                  <span className="text-slate-500 block">ขาย / จัดสรรแล้ว</span>
                   <span className="font-mono font-medium text-slate-800">{formatMoney(row.qty)} / <span className="text-emerald-700 font-semibold">{formatMoney(row.allocatedQty)}</span> กก.</span>
                 </div>
                 <div className="text-right">
@@ -1072,12 +1069,10 @@ function DualCostingReportView() {
             <DualCostingStatCard icon="⚖️" label="น้ำหนักค้าง" tone="amber" value={`${formatMoney(report?.waiting.qty ?? 0)} กก.`} />
             <DualCostingStatCard icon="💰" label="มูลค่าขายค้าง" tone="emerald" value={formatMoney(report?.waiting.revenue ?? 0)} />
           </div>
-          <DualCostingPanel title="สรุปตามหมวดสินค้า">
-            {reportResize.hasCustomWidths ? (
-              <div className="mb-2 hidden justify-end lg:flex">
-                <Button size="sm" type="button" variant="outline" onClick={reportResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button>
-              </div>
-            ) : null}
+          <DualCostingPanel
+            title="สรุปตามหมวดสินค้า"
+            titleAction={reportResize.hasCustomWidths ? <Button size="sm" type="button" variant="outline" onClick={reportResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
+          >
             {/* Desktop View */}
             <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
               <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: reportResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>

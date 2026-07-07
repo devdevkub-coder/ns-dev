@@ -264,7 +264,7 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
           <div class="totals">
             <div class="total-row"><div>ยอดก่อน VAT</div><div class="num">${money(doc.subtotalAmount ?? doc.amount)}</div></div>
             <div class="total-row"><div>${escapeHtml(doc.vatTypeLabel || 'VAT')}${doc.vatRatePercent ? ` (${money(doc.vatRatePercent).replace('.00', '')}%)` : ''}</div><div class="num">${money(doc.vatAmount)}</div></div>
-            <div class="total-row"><div>ยอดเงินมัดจำ / Total Advance</div><div class="num">${money(doc.amount)}</div></div>
+            <div class="total-row"><div>ยอดรวมมัดจำ / Total Advance</div><div class="num">${money(doc.totalAmount ?? doc.amount)}</div></div>
             <div class="total-row allocated"><div>หักล้างแล้ว / Allocated</div><div class="num">${money(doc.allocatedAmount)}</div></div>
             <div class="total-row final"><div>ยอดคงเหลือ / Remaining</div><div class="num">${money(doc.remainingAmount)}</div></div>
           </div>

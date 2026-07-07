@@ -80,7 +80,7 @@ Status terms:
 |---|---|---|---|---|---|
 | `/purchase/bills` | บิลรับซื้อ | partial write | `GET/POST/PATCH /api/purchase/bills` | `purchase_bills`, `suppliers`, `products`, `stock_ledger` | `finance.cash.view` |
 | `/purchase/bills/[id]` | Purchase bill detail/edit | partial write | `PATCH /api/purchase/bills` | `purchase_bills`, `stock_ledger` | `finance.cash.view` |
-| `/purchase/advance-payments` | เงินล่วงหน้า/มัดจำ | partial write baseline + customer advance tab | `GET/POST /api/purchase/advance-payments`, `GET /api/finance/customer-advance` | `supplier_advance_payments`, `supplier_advance_allocations`, `bank_statement` (`CADV`), `suppliers`, `customers`, `branches`, `accounts` | `finance.cash.view` |
+| `/purchase/advance-payments` | เงินล่วงหน้า/มัดจำ | 2-tab surface: Supplier ADV + Customer receipt/advance | `GET/POST /api/purchase/advance-payments`, `GET/POST /api/sales/receipts` | `supplier_advance_payments`, `supplier_advance_allocations`, `customer_receipts`, `sales_bills`, `suppliers`, `customers`, `branches`, `accounts` | `finance.cash.view` |
 | `/sales/bills` | บิลขาย | read baseline | `GET /api/sales/bills` | `sales_bills`, `customers` | `finance.cash.view` |
 | `/daily/payment-approval` | อนุมัติจ่ายเงิน | partial write | `GET/POST /api/daily/payment-approval` | `payment_approvals`, `purchase_bills`, `supplier_advance_payments`, `expenses` | `finance.cash.view` |
 UI note: compact summary tables; row click opens approval detail modal, and AP approval amount entry now lives in the modal instead of the list grid.
@@ -132,7 +132,6 @@ UI note: list/search/filter real WTI/WTO documents, row click opens detail, and 
 | `/finance/bank` | Cash / Bank Statement | read baseline | `GET /api/finance/bank` | `bank_statement`, `accounts` | `finance.cash.view` |
 | `/finance/cash-position` | Cash Position | read baseline | `GET /api/finance/cash-position` | `accounts`, `bank_statement`, `sales_bills`, `purchase_bills` | `finance.cash.view` |
 | `/finance/supplier-advance` | จ่ายล่วงหน้า Supplier | read baseline | `GET /api/finance/supplier-advance` | `bank_statement` (`SADV`), `suppliers`, `accounts` | `finance.cash.view` |
-| `/finance/customer-advance` | รับล่วงหน้าจาก Customer | compatibility redirect to `/purchase/advance-payments?tab=customer` | `GET /api/finance/customer-advance` | `bank_statement` (`CADV`), `customers`, `accounts` | `finance.cash.view` |
 
 ### Foreign Finance
 

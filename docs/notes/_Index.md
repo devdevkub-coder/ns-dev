@@ -40,6 +40,7 @@ created: 2026-05-16
 - [[Stock Convert Page Flow]] - contract หน้า `/stock/convert`: grade/product conversion `GA`, source-target cost/yield policy และ deferred confirm/reverse flow
 - [[Stock Adjust Page Flow]] - contract หน้า `/stock/adjust`: stock count/cycle count correction `ADJ`, fixed reason options, แก้ไขได้ภายใน 7 วัน, ราคาต่อกก., มูลค่ารวม signed และ WAC/margin impact gap
 - [[Dual Costing Flow]] - ภาพรวมหมวด Dual Costing ทั้ง 8 เมนู active: scope เฉพาะทองแดง/ทองเหลือง, Cost Pool -> Allocator -> Match Log/Ledger -> Report, และเส้นแบ่ง Deal Cost management view ออกจาก WAC/P&L
+- [[Dual Costing Detailed Flow]] - คู่มือ flow Dual Costing แบบละเอียดสำหรับคุยงาน: Cost Pool, Waiting Allocations, Cost Allocator, Full Match Guard, Allocation Facts, Report และ Grade Adjustment/Regrade linkage
 - [[Cost Pool]] - กติกาแยกของ Cost Pool/Dual Costing: eligibility เฉพาะทองแดง/ทองเหลือง, source types, availability, short-close/reversal, API contract และ implementation gap
 - [[Purchase Flow Status Matrix]] - matrix สถานะเอกสารราย use case และราย step สำหรับ PO/WTI/ADV/PB/PMA/PMT ใช้เป็น acceptance criteria ข้าม Purchase Flow กับ Payment Flow
 - [[Payment Flow]] - flow จ่ายเงินแบบละเอียดและเป็นเจ้าของ approval/payment lifecycle: source payable, อนุมัติจ่ายเงิน, split approval, PMA, รอจ่าย, PMT, ประวัติการจ่ายเงิน, จ่ายเงินล่วงหน้า/มัดจำ, และคืนเงินมัดจำฝั่ง Supplier
@@ -49,7 +50,6 @@ created: 2026-05-16
 - [[Finance AR Page Flow]] - contract หน้า `/finance/ar`: AR aging จาก `sales_bills` balance snapshot, SB/RCP/Customer Advance drilldown, due date/customer credit term และ no Pending Sale summary ใน target runtime
 - [[Finance Bank Statement Page Flow]] - contract หน้า `/finance/bank`: read-only cash/bank ledger จาก `bank_statement`, running balance, source refs และ admin cleanup boundary
 - [[Finance Cash Position Page Flow]] - contract หน้า `/finance/cash-position`: liquidity dashboard จาก accounts/bank statement/AR/AP exposure และ as-of/currency gap
-- [[Customer Advance Page Flow]] - contract หน้า `/finance/customer-advance`: current read baseline จาก `CADV` bank statement, remaining/used rule และ target allocation tables
 - [[Main Dashboard Reports Flow]] - ภาพรวมหมวด Main / Dashboard & Reports และ `/reports`: current APIs, source tables/helpers, query params, response sections, management-read boundary, และ gap เรื่องสูตร/drilldown/export
 - [[Reporting History Snapshot Policy]] - กฎกลางสำหรับ Dashboard/Report/Tracking ย้อนหลัง: แยก transaction facts, document snapshots, reporting snapshots, `as_of_date`, และ rollup รายวัน/รายเดือน/รายปี
 - [[Finance And Accounting Menu Summary]] - summary รายเมนูของ `การเงิน & หนี้` และ `Finance / Accounting`: แต่ละหน้าคืออะไร, source/write boundary, AR/AP/Cash/Stock/Asset impact, และ month/year close freeze direction

@@ -404,6 +404,7 @@ export async function GET(request: Request) {
     const filteredPool = productId ? poolRows.filter((row) => row.productId === productId) : []
     const filteredSales = productId ? targetRows.filter((row) => row.productId === productId) : []
     const selectedSale = poSellId ? filteredSales.find((row) => row.id === poSellId) ?? null : null
+    const visibleSales = poSellId ? (selectedSale ? [selectedSale] : []) : filteredSales
     const selectedPool = sortPool(filteredPool, mode, targetCost)
 
     let need = selectedSale?.remainingQty ?? 0
@@ -433,7 +434,7 @@ export async function GET(request: Request) {
         sourceTypes: ['po-sell', 'spot-sell', 'production'],
       },
       pool: selectedPool,
-      poSells: filteredSales,
+      poSells: visibleSales,
       selectedPoSell: selectedSale,
       summary: {
         expectedMargin,
@@ -552,18 +553,34 @@ export async function POST(request: Request) {
         let supplierNameSnapshot: string | null = null
         let pb = null
         let poBuy = null
+        const poolEntry = await tx.stock_cost_pool_entries.findUnique({
+          where: { pool_key: cand.costPoolId }
+        })
+        if (!poolEntry) {
+          throw new Error(`ไม่พบ Cost Pool Entry สำหรับ key: ${cand.costPoolId}`)
+        }
 
         // If candidate is a purchase document (PO Buy or Spot Buy)
         if (cand.sourceType === 'PO_Buy' || cand.sourceType === 'Spot_Buy') {
-          pb = await tx.purchase_bills.findFirst({
-            where: { doc_no: cand.sourceNo, NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
-            include: { suppliers: true }
-          })
+          const purchaseBillIdFromSource = /^\d+$/.test(cand.sourceId) ? BigInt(cand.sourceId) : null
+          pb = purchaseBillIdFromSource
+            ? await tx.purchase_bills.findFirst({
+              where: { id: purchaseBillIdFromSource, NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
+              include: { suppliers: true }
+            })
+            : null
+          if (!pb) {
+            pb = await tx.purchase_bills.findFirst({
+              where: { doc_no: cand.sourceNo, NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
+              include: { suppliers: true }
+            })
+          }
           if (pb) {
             purchaseBillId = pb.id
             supplierId = pb.supplier_id
             supplierNameSnapshot = pb.suppliers?.name || null
-          } else {
+          }
+          if (!supplierId) {
             // Check if PO Buy exists
             poBuy = await tx.po_buys.findFirst({
               where: { doc_no: cand.sourceNo, NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
@@ -576,26 +593,17 @@ export async function POST(request: Request) {
           }
         }
 
-        // If candidate is from Production or Regrade stock cost pool entries
-        if (cand.sourceType === 'Production' || cand.sourceType === 'Grade Adjustment') {
-          const poolEntry = await tx.stock_cost_pool_entries.findUnique({
-            where: { pool_key: cand.costPoolId }
-          })
-          if (!poolEntry) {
-            throw new Error(`ไม่พบ Cost Pool Entry สำหรับ key: ${cand.costPoolId}`)
+        const nextAllocatedQty = toNumber(poolEntry.allocated_qty) + qtyToUse
+        const nextStatus = nextAllocatedQty >= toNumber(poolEntry.original_qty) - 0.001 ? 'Fully Used' : 'Partially Used'
+        await tx.stock_cost_pool_entries.update({
+          where: { id: poolEntry.id },
+          data: {
+            allocated_qty: nextAllocatedQty,
+            status: nextStatus,
+            updated_at: new Date(),
+            updated_by: actor
           }
-          const nextAllocatedQty = toNumber(poolEntry.allocated_qty) + qtyToUse
-          const nextStatus = nextAllocatedQty >= toNumber(poolEntry.original_qty) - 0.001 ? 'Fully' : 'Partial'
-          await tx.stock_cost_pool_entries.update({
-            where: { id: poolEntry.id },
-            data: {
-              allocated_qty: nextAllocatedQty,
-              status: nextStatus,
-              updated_at: new Date(),
-              updated_by: actor
-            }
-          })
-        }
+        })
 
         // Create trading deal
         const candDealNo = `${dealNoBase}-${i}`

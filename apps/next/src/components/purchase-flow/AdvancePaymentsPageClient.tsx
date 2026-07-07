@@ -362,7 +362,9 @@ export function AdvancePaymentsPageClient() {
     setFieldErrors({})
     setError(null)
     setForm({
-      amount: row.amount ? String(row.amount) : '',
+      amount: row.vatType === 'INCLUDE'
+        ? (row.subtotalAmount ? String(row.subtotalAmount) : '')
+        : (row.amount ? String(row.amount) : ''),
       advanceType: row.advanceType ?? 'WAITING_SORT',
       branchId: 'branchId' in row ? row.branchId : '',
       customerName: row.customerName ?? '',
@@ -640,7 +642,7 @@ export function AdvancePaymentsPageClient() {
                     <Field error={fieldErrors.advanceType} label="ประเภท ADV *">
                       <Select className="h-10 w-full px-3 py-2" value={form.advanceType} onChange={(event) => updateForm('advanceType', event.target.value)}>
                         <option value="WAITING_SORT">มัดจำส่งของรอคัดแยก</option>
-                        <option value="ADVANCE_INVOICE">มัดจำล่วงหน้า</option>
+                        <option value="ADVANCE_INVOICE">มัดจำล่วงหน้ายังไม่ส่งของ</option>
                       </Select>
                     </Field>
                   </div>
@@ -656,7 +658,7 @@ export function AdvancePaymentsPageClient() {
                     <SearchCombobox disabled={!form.branchId} error={fieldErrors.supplierId} errorKey="supplierId" inputId="advance-supplier" label="ผู้ขาย *" options={supplierOptions} placeholder={form.branchId ? 'ค้นหาชื่อหรือรหัสผู้ขาย' : 'เลือกสาขาก่อน'} value={form.supplierId} onChange={(value) => updateForm('supplierId', value)} />
                   </div>
                   <div className="col-span-2 sm:col-span-1 lg:col-span-2">
-                    <MoneyInputField error={fieldErrors.amount} label="ยอดมัดจำ *" value={form.amount} onChange={(value) => updateForm('amount', value)} />
+                    <MoneyInputField error={fieldErrors.amount} label={form.vatType === 'INCLUDE' ? 'ยอดก่อน VAT *' : 'ยอดมัดจำ *'} value={form.amount} onChange={(value) => updateForm('amount', value)} />
                   </div>
                   {isAdvanceInvoice ? (
                     <div className="col-span-2 sm:col-span-1 lg:col-span-2">
@@ -795,12 +797,12 @@ export function AdvancePaymentsPageClient() {
             <div className="rounded-md border border-slate-100 bg-slate-50 p-4">
               <div className="text-sm font-semibold text-slate-800">สรุปก่อนบันทึก</div>
               {!isAdvanceInvoice ? <SummaryLine label="น้ำหนักสุทธิ x ราคา" value={formatMoney(computedAmount)} /> : null}
-              <SummaryLine label="ประเภท" value={isAdvanceInvoice ? 'มัดจำล่วงหน้า' : 'มัดจำส่งของรอคัดแยก'} />
+              <SummaryLine label="ประเภท" value={isAdvanceInvoice ? 'มัดจำล่วงหน้ายังไม่ส่งของ' : 'มัดจำส่งของรอคัดแยก'} />
               <SummaryLine label="VAT" value={form.vatType === 'INCLUDE' ? 'มี VAT' : 'ไม่มี VAT'} />
               {form.vatType === 'INCLUDE' ? <SummaryLine label="ยอดก่อน VAT" value={formatMoney(taxBreakdown.subtotalAmount)} /> : null}
               {form.vatType === 'INCLUDE' ? <SummaryLine label="ยอด VAT" value={formatMoney(taxBreakdown.vatAmount)} /> : null}
-              <SummaryLine label="ยอดมัดจำ" value={formatMoney(Number(form.amount) || 0)} />
-              {!isAdvanceInvoice ? <SummaryLine label="ส่วนต่าง" value={formatMoney((Number(form.amount) || 0) - computedAmount)} /> : null}
+              <SummaryLine label="ยอดรวมมัดจำ" value={formatMoney(taxBreakdown.totalAmount)} />
+              {!isAdvanceInvoice ? <SummaryLine label="ส่วนต่าง" value={formatMoney(taxBreakdown.totalAmount - computedAmount)} /> : null}
               <div className="mt-4 flex gap-2">
                 <Button disabled={isSaving} type="button" onClick={submitForm}><Save className="mr-1 h-4 w-4" />{isSaving ? 'กำลังบันทึก...' : editingAdvanceId ? 'บันทึกการแก้ไข' : 'บันทึก ADV'}</Button>
                 <Button type="button" variant="outline" onClick={closeForm}>ปิด</Button>
@@ -994,7 +996,7 @@ export function AdvancePaymentsPageClient() {
                 <div className="flex justify-between items-end border-t border-slate-100 pt-2.5">
                   <div className="text-xs text-slate-500 space-y-0.5">
                     <span>น้ำหนักสุทธิ: <span className="font-semibold text-slate-700">{formatMoney(row.netWeight)}</span> กก.</span>
-                    <div className="block">ยอดมัดจำ: <span className="font-semibold text-slate-700">{formatMoney(row.amount)}</span></div>
+                    <div className="block">ยอดรวมมัดจำ: <span className="font-semibold text-slate-700">{formatMoney(row.totalAmount)}</span></div>
                     {row.allocatedAmount > 0 ? <div className="block text-emerald-700">หักแล้ว: <span className="font-semibold">{formatMoney(row.allocatedAmount)}</span></div> : null}
                   </div>
                   <div className="text-right">
@@ -1027,7 +1029,7 @@ export function AdvancePaymentsPageClient() {
                   <ResizableTableHead label="ทะเบียนรถ" resizeProps={columnResize.getResizeHandleProps('plateNo', 'ทะเบียนรถ')} />
                   <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="น้ำหนักสุทธิ" resizeProps={columnResize.getResizeHandleProps('netWeight', 'น้ำหนักสุทธิ')} sortKey="netWeight" onSort={changeSort} />
-                  <AdvancePaymentSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ยอดมัดจำ" resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดมัดจำ')} sortKey="amount" onSort={changeSort} />
+                  <AdvancePaymentSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ยอดรวมมัดจำ" resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดรวมมัดจำ')} sortKey="amount" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="นำไปหักแล้ว" resizeProps={columnResize.getResizeHandleProps('allocatedAmount', 'นำไปหักแล้ว')} sortKey="allocatedAmount" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="คงเหลือ" resizeProps={columnResize.getResizeHandleProps('remainingAmount', 'คงเหลือ')} sortKey="remainingAmount" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
@@ -1046,7 +1048,7 @@ export function AdvancePaymentsPageClient() {
                     <td className="p-2 whitespace-nowrap text-xs font-semibold text-slate-700">{row.plateNo || '-'}</td>
                     <td className="p-2 text-xs font-semibold text-slate-700">{row.productName || '-'}</td>
                     <TableNumberCell value={formatMoney(row.netWeight)} />
-                    <TableNumberCell value={formatMoney(row.amount)} />
+                    <TableNumberCell value={formatMoney(row.totalAmount)} />
                     <TableNumberCell value={formatMoney(row.allocatedAmount)} />
                     <TableNumberCell tone="amber" value={formatMoney(row.remainingAmount)} />
                     <td className="p-2"><StatusDot status={row.status} label={row.statusLabel} /></td>
@@ -1145,7 +1147,7 @@ export function AdvancePaymentsPageClient() {
           {!isDetailLoading && detail ? (
             <div className="flex-1 overflow-y-auto space-y-4 p-4 bg-slate-50">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <Metric label="ยอดมัดจำ" value={formatMoney(detail.amount)} />
+                <Metric label="ยอดรวมมัดจำ" value={formatMoney(detail.totalAmount)} />
                 <Metric label="ใช้หักบิลแล้ว" value={formatMoney(detail.allocatedAmount)} />
                 <div className="col-span-2 sm:col-span-1">
                   <Metric label="คงเหลือ" tone="amber" value={formatMoney(detail.remainingAmount)} />

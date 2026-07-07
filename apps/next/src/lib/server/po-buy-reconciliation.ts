@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { Prisma } from '../../../generated/prisma/client'
 import { parseInternalBigIntId, stringifyBusinessValue } from '@/lib/business-code'
 import { toNumber } from '@/lib/server/daily'
+import { syncPoBuyCostPoolEntries } from '@/lib/server/po-buy-cost-pool'
 
 export const PO_BUY_STATUS = {
   CANCELLED: 'Cancelled',
@@ -401,6 +402,10 @@ export async function reconcilePoBuys(
         version: { increment: 1 },
       },
       where: { id: row.id },
+    })
+    await syncPoBuyCostPoolEntries(tx, {
+      actor: options?.actor ?? row.updated_by ?? row.created_by ?? 'system',
+      poBuyId: row.id,
     })
 
     if (currentStatus !== nextStatus) {

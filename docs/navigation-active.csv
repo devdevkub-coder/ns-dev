@@ -14,7 +14,7 @@
 "active","รายการประจำวัน","บิลรับซื้อ","/purchase/bills","",""
 "active","รายการประจำวัน","บิลขาย","/sales/bills","",""
 "active","รายการประจำวัน","อนุมัติโอนเงิน (Payment Approval)","/daily/payment-approval","",""
-"active","รายการประจำวัน","เงินล่วงหน้า/มัดจำ","/purchase/advance-payments","","2 tabs: Supplier ADV and Customer CADV"
+"active","รายการประจำวัน","เงินล่วงหน้า/มัดจำ","/purchase/advance-payments","","2 tabs: Supplier ADV and Customer receipt/advance via sales receipts"
 "active","รายการประจำวัน","จ่ายเงิน Supplier","/purchase/payments","",""
 "active","รายการประจำวัน","ประวัติการจ่ายเงิน","/purchase/payment-history","",""
 "active","รายการประจำวัน","ใบสำคัญรับเงิน (Receipt Voucher)","/purchase/receipt-vouchers","",""

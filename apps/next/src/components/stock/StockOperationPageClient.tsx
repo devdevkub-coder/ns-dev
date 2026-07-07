@@ -146,8 +146,8 @@ const convertColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'targetUnitCost', defaultWidth: 90 },
   { key: 'lossQty', defaultWidth: 90 },
   { key: 'costStatus', defaultWidth: 100 },
-  { key: 'status', defaultWidth: 90 },
-  { key: 'action', defaultWidth: 60 },
+  { key: 'status', defaultWidth: 80 },
+  { key: 'action', defaultWidth: 150 },
 ]
 
 const adjustColumns: Array<ResizableColumnDefinition<string>> = [
@@ -1384,7 +1384,10 @@ function OperationTable({
             {!isLoading && rows.map((row, index) => (
               <tr key={String(row.id ?? index)} className={`hover:bg-slate-50 ${mode === 'adjust' ? 'cursor-pointer' : ''}`} onClick={mode === 'adjust' ? () => onAdjustDetail?.(row) : undefined}>
                 {columns.map((column) => (
-                  <td key={column.key} className={`p-2 align-top text-xs font-semibold text-slate-700 overflow-hidden truncate ${column.cellClassName ?? ''}`}>
+                  <td
+                    key={column.key}
+                    className={`p-2 align-top text-xs font-semibold text-slate-700 ${column.key === 'action' || column.key === 'status' || column.key === 'costStatus' ? 'overflow-visible whitespace-nowrap' : 'overflow-hidden truncate'} ${column.cellClassName ?? ''}`}
+                  >
                     {formatOperationCell(mode, row, column.key, onConvertReverse, onConvertDetail, onStatusConvertReverse, onAdjustCorrect)}
                   </td>
                 ))}
@@ -1454,9 +1457,9 @@ function columnsFor(mode: Mode): OperationColumn[] {
     { key: 'targetQty', label: 'Qty', cellClassName: 'text-right font-mono text-emerald-700', headerClassName: 'text-right', sortable: true },
     { key: 'targetUnitCost', label: '฿/กก.', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
     { key: 'lossQty', label: 'Loss', cellClassName: 'text-right font-mono', sortable: true },
-    { key: 'costStatus', label: 'Cost Status', cellClassName: 'text-center', sortable: true },
-    { key: 'status', label: 'สถานะ', cellClassName: 'text-center', sortable: true },
-    { key: 'action', label: '' },
+    { key: 'costStatus', label: 'Cost Status', cellClassName: 'text-center', headerClassName: 'text-center', sortable: true },
+    { key: 'status', label: 'สถานะ', cellClassName: 'text-center', headerClassName: 'text-center', sortable: true },
+    { key: 'action', label: '', cellClassName: 'text-center', headerClassName: 'text-center' },
   ]
   if (mode === 'adjust') return [
     { key: 'docNo', label: 'เลขที่เอกสาร', sortable: true },
@@ -1582,9 +1585,9 @@ function formatOperationCell(mode: Mode, row: Record<string, string | number | b
       const status = String(row.status ?? '')
       const refNo = String(row.refNo ?? row.id ?? '')
       return (
-        <div className="flex items-center justify-center gap-1">
+        <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
           <button
-            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             disabled={!onConvertDetail}
             type="button"
             onClick={() => onConvertDetail?.(refNo)}
@@ -1592,7 +1595,7 @@ function formatOperationCell(mode: Mode, row: Record<string, string | number | b
             รายละเอียด
           </button>
           <button
-            className="rounded-md border border-red-200 bg-white px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+            className="rounded-md border border-red-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
             disabled={status === 'reversed' || !onConvertReverse}
             type="button"
             onClick={() => onConvertReverse?.(refNo)}
@@ -1606,12 +1609,12 @@ function formatOperationCell(mode: Mode, row: Record<string, string | number | b
       const value = String(row[key] ?? '')
       const label = value === 'allocated' ? '✓ Allocated' : value === 'pending_cost' ? '⏳ Pending Cost' : value === 'partial' ? '📋 Partial' : '-'
       const color = value === 'allocated' ? 'bg-emerald-100 text-emerald-700' : value === 'pending_cost' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
-      return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>{label}</span>
+      return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>{label}</span>
     }
     if (key === 'status') {
       const value = String(row[key] ?? '')
       const color = value === 'posted' ? 'bg-emerald-100 text-emerald-700' : value === 'reversed' ? 'bg-slate-200 text-slate-600' : 'bg-amber-100 text-amber-700'
-      return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>{value || '-'}</span>
+      return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>{value || '-'}</span>
     }
     if (key === 'sourceType') {
       const value = String(row[key] ?? 'Manual')
@@ -2221,12 +2224,11 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
     const entries = props.reference.costPoolEntries ?? []
     return entries
       .filter((entry) => !values.branchId || entry.branchId === values.branchId)
-      .filter((entry) => !values.warehouseId || entry.warehouseId === values.warehouseId)
       .filter((entry) => !values.sourceProductId || entry.productId === values.sourceProductId)
       .filter((entry) => !values.lotNo || entry.lotNo === values.lotNo)
       .filter((entry) => entry.availableQty > 0)
       .sort((left, right) => sortCostPoolEntries(left, right, values.allocationMethod))
-  }, [props.reference.costPoolEntries, values.allocationMethod, values.branchId, values.lotNo, values.sourceProductId, values.warehouseId])
+  }, [props.reference.costPoolEntries, values.allocationMethod, values.branchId, values.lotNo, values.sourceProductId])
   const autoPreview = useMemo(() => previewCostPoolAllocation(sourceCostPoolEntries, Number(values.sourceQty)), [sourceCostPoolEntries, values.sourceQty])
   const manualTotalQty = values.manualAllocations.reduce((sum, line) => sum + Number(line.qty || 0), 0)
   const costPreviewRows = values.allocationMethod === 'MANUAL'

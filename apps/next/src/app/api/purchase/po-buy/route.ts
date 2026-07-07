@@ -12,6 +12,7 @@ import { isSupplierEligibleForBranch } from '@/lib/server/party-branch-eligibili
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import { activeVatRatePercent } from '@/lib/server/tax-settings'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
+import { syncPoBuyCostPoolEntries } from '@/lib/server/po-buy-cost-pool'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -758,6 +759,10 @@ export async function POST(request: Request) {
         },
         select: { doc_no: true, id: true },
       })
+      await syncPoBuyCostPoolEntries(tx, {
+        actor,
+        poBuyId: createdRow.id,
+      })
       await createInitialPoBuyStatusLog(tx, { actor, poBuyDocNo: createdRow.doc_no, poBuyId: createdRow.id })
       return createdRow
     })
@@ -876,6 +881,10 @@ export async function PUT(request: Request) {
         },
         select: { doc_no: true, id: true, status: true },
       })
+      await syncPoBuyCostPoolEntries(tx, {
+        actor,
+        poBuyId: row.id,
+      })
       await appendPoBuyStatusLog(tx, {
         actor,
         createdAt: updatedAt,
@@ -961,6 +970,10 @@ export async function PATCH(request: Request) {
           statusMetaByPoId: new Map([[current.id, { reason: 'short_close_action' }]]),
           statusNoteByPoId: new Map([[current.id, values.note]]),
         })
+        await syncPoBuyCostPoolEntries(tx, {
+          actor,
+          poBuyId: current.id,
+        })
         return updatedRow
       })
 
@@ -1009,6 +1022,10 @@ export async function PATCH(request: Request) {
           version: { increment: 1 },
         },
         select: { doc_no: true, id: true },
+      })
+      await syncPoBuyCostPoolEntries(tx, {
+        actor,
+        poBuyId: row.id,
       })
       await appendPoBuyStatusLog(tx, {
         actor,

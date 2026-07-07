@@ -21,6 +21,7 @@ import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/
 import { appendPoBuyAllocationLogs, PO_BUY_ALLOCATION_ACTION, PO_BUY_STATUS, reconcilePoBuys } from '@/lib/server/po-buy-reconciliation'
 import { isSupplierEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { appendPurchaseBillStatusLog, createInitialPurchaseBillStatusLog, PURCHASE_BILL_STATUS_ACTION } from '@/lib/server/purchase-bill-history'
+import { syncPurchaseBillCostPoolEntries } from '@/lib/server/purchase-cost-pool'
 import { prisma } from '@/lib/server/prisma'
 import { refreshPurchaseBillSettlement, refreshSupplierAdvancePaymentAllocation } from '@/lib/server/purchase-bill-settlement'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
@@ -2439,6 +2440,15 @@ export async function POST(request: Request) {
                 warehouse_id: purchaseWarehouseId,
               })),
             })
+            await syncPurchaseBillCostPoolEntries(tx, {
+              actor,
+              billId: createdBill.id,
+              branchId: effectiveBranch.id,
+              date: normalizeDate(billDate),
+              notes: values.note ?? values.notes,
+              transactionMode: values.transactionMode,
+              warehouseId: purchaseWarehouseId,
+            })
             await refreshWeightTicketStatuses(tx, receiptTicketIdsToRefresh, {
               actor,
               reason: 'purchase_bill_create',
@@ -2552,6 +2562,15 @@ export async function PATCH(request: Request) {
             reversalRefType: 'PB-CANCEL',
           })
         }
+        await syncPurchaseBillCostPoolEntries(tx, {
+          actor,
+          billId: existingBillRef.id,
+          branchId: existingBill.branch_id,
+          date: normalizeDate(toDateOnly(existingBill.date) || bangkokDateInput(cancelledAt)),
+          notes: values.note,
+          transactionMode: String(existingBill.transaction_mode ?? 'STOCK'),
+          warehouseId: existingBill.warehouse_id,
+        })
         await appendPoBuyAllocationLogSources(tx, existingPoAllocationSources, {
           action: PO_BUY_ALLOCATION_ACTION.RELEASED_FROM_PURCHASE_BILL,
           actor,
@@ -2761,6 +2780,15 @@ export async function PATCH(request: Request) {
               reason: 'purchase_bill_supplier_swap',
               reversalRefType: 'PB-CANCEL',
             })
+            await syncPurchaseBillCostPoolEntries(tx, {
+              actor,
+              billId: existingBillRef.id,
+              branchId: existingBill.branch_id,
+              date: normalizeDate(billDate),
+              notes: reason,
+              transactionMode: String(existingBill.transaction_mode ?? 'STOCK'),
+              warehouseId: existingBill.warehouse_id,
+            })
             await appendPoBuyAllocationLogSources(tx, existingPoAllocationSources, {
               action: PO_BUY_ALLOCATION_ACTION.RELEASED_FROM_PURCHASE_BILL,
               actor,
@@ -2877,6 +2905,15 @@ export async function PATCH(request: Request) {
                   value_out: 0,
                   warehouse_id: purchaseWarehouseId,
                 })),
+              })
+              await syncPurchaseBillCostPoolEntries(tx, {
+                actor,
+                billId: createdBill.id,
+                branchId: branch.id,
+                date: normalizeDate(billDate),
+                notes: values.note ?? values.notes,
+                transactionMode: values.transactionMode,
+                warehouseId: purchaseWarehouseId,
               })
             }
 
@@ -3189,6 +3226,15 @@ export async function PATCH(request: Request) {
           })),
         })
       }
+      await syncPurchaseBillCostPoolEntries(tx, {
+        actor,
+        billId: existingBillRef.id,
+        branchId: effectiveBranch.id,
+        date: normalizeDate(billDate),
+        notes: values.note ?? values.notes,
+        transactionMode: values.transactionMode,
+        warehouseId: purchaseWarehouseId,
+      })
 
       await refreshWeightTicketStatuses(tx, [
         ...receiptTicketIdsToRefresh,

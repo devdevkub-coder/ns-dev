@@ -168,3 +168,12 @@ export type StockCostPoolOption = {
   unitCost: number
   warehouseId: string | null
 }
+
+export type StockBalanceOption = {
+  branchId: string | null
+  metalGroup?: string | null
+  onHandQty: number
+  productId: string
+  readyQty: number
+  warehouseId: string | null
+}

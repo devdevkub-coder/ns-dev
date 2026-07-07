@@ -11,10 +11,25 @@ export function DualCostingFilterCard({ children, className }: { children: React
   return <div className={cn('rounded-xl bg-white p-3.5 border border-slate-200/80 shadow-sm', className)}>{children}</div>
 }
 
-export function DualCostingPanel({ children, className, title }: { children: ReactNode; className?: string; title?: string }) {
+export function DualCostingPanel({
+  children,
+  className,
+  title,
+  titleAction,
+}: {
+  children: ReactNode
+  className?: string
+  title?: string
+  titleAction?: ReactNode
+}) {
   return (
     <div className={cn('min-w-0 rounded-xl bg-white p-4 border border-slate-200/80 shadow-sm', className)}>
-      {title ? <h3 className="mb-3 text-sm font-bold text-slate-800">{title}</h3> : null}
+      {title || titleAction ? (
+        <div className="mb-3 flex items-center justify-between gap-3">
+          {title ? <h3 className="text-sm font-bold text-slate-800">{title}</h3> : <div />}
+          {titleAction}
+        </div>
+      ) : null}
       {children}
     </div>
   )

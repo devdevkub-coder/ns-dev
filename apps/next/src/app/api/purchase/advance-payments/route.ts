@@ -83,7 +83,7 @@ function orderByFor(sortKey: string, direction: Prisma.SortOrder): Prisma.suppli
       case 'allocatedAmount':
         return { allocated_amount: direction }
       case 'amount':
-        return { amount: direction }
+        return { total_amount: direction }
       case 'docNo':
         return { doc_no: direction }
       case 'largeScaleDocNo':
@@ -124,7 +124,7 @@ async function buildWorkbook(rows: ReturnType<typeof rowJson>[]) {
     ราคา_ต่อ_กก: row.pricePerKg,
     ยอดก่อน_VAT: row.subtotalAmount,
     VAT_Amount: row.vatAmount,
-    ยอดมัดจำ: row.amount,
+    ยอดรวมมัดจำ: row.totalAmount,
     นำไปหักแล้ว: row.allocatedAmount,
     คงเหลือ: row.remainingAmount,
     สถานะ: row.statusLabel,
@@ -270,6 +270,7 @@ export async function GET(request: Request) {
           amount: true,
           remaining_amount: true,
           status: true,
+          total_amount: true,
         },
         take: 10000,
         where,
@@ -296,7 +297,7 @@ export async function GET(request: Request) {
     const mappedRows = rows.map(rowJson)
     const summary = summaryRows.reduce((accumulator, row) => ({
       pendingCount: accumulator.pendingCount + (row.status === 'pending_approval' ? 1 : 0),
-      totalAdvance: accumulator.totalAdvance + toNumber(row.amount),
+      totalAdvance: accumulator.totalAdvance + (toNumber(row.total_amount) || toNumber(row.amount)),
       totalAllocated: accumulator.totalAllocated + toNumber(row.allocated_amount),
       totalRemaining: accumulator.totalRemaining + Math.max(0, toNumber(row.remaining_amount)),
     }), {
@@ -435,7 +436,7 @@ export async function POST(request: Request) {
           advance_type: values.advanceType,
           advance_date: normalizeDate(advanceDate),
           allocated_amount: 0,
-          amount: values.amount,
+          amount: taxBreakdown.totalAmount,
           branch_id: branch.id,
           created_by: actor,
           customer_name: values.customerName,
@@ -451,7 +452,7 @@ export async function POST(request: Request) {
           plate_no: values.plateNo,
           price_per_kg: values.pricePerKg,
           product_name: values.productName,
-          remaining_amount: values.amount,
+          remaining_amount: taxBreakdown.totalAmount,
           remark: values.remark,
           scale_operator: values.scaleOperator,
           sender_name: values.senderName,
