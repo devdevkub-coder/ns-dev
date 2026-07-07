@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
-import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
+import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { getDualCostingBranch } from '@/lib/server/dual-costing-branch'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { formatDualCostingMatchId, getDualCostingMatchIdPrefix } from '@/lib/server/dual-costing-match-id'
 import { prisma } from '@/lib/server/prisma'
 import { getCostPoolRowsData } from '../cost-pool/route'
 
@@ -64,6 +66,17 @@ type SaleRow = {
   qty: number
   remainingQty: number
   unitPrice: number
+}
+
+type ConfirmCandidate = {
+  costPoolId: string
+  counterparty?: string
+  qtyToUse: number
+  sourceId?: string
+  sourceLineId?: string
+  sourceNo: string
+  sourceType: string
+  unitCost: number
 }
 
 function jsonNumber(value: unknown) {
@@ -150,6 +163,7 @@ export async function GET(request: Request) {
     const mode = url.searchParams.get('mode') ?? 'FIFO'
     const sourceType = url.searchParams.get('sourceType') ?? 'spot-sell'
     const targetCost = Number(url.searchParams.get('targetCost')) || 0
+    const branch = await getDualCostingBranch()
 
     const [costPool, poSells, salesBills, spotSalesBills, tradingDeals, products, productionOrders, tradingAllocationFacts] = await Promise.all([
       getCostPoolRowsData({ showAvailableOnly: true }),
@@ -157,12 +171,19 @@ export async function GET(request: Request) {
         include: { customers: true },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 5000,
-        where: { NOT: { status: { in: ['Cancelled', 'cancelled', 'Canceled', 'canceled', 'Closed', 'closed', 'Completed', 'completed', 'Fully Matched', 'fully matched', 'Received', 'received'] } } },
+        where: {
+          branch_id: branch.id,
+          NOT: { status: { in: ['Cancelled', 'cancelled', 'Canceled', 'canceled', 'Closed', 'closed', 'Completed', 'completed', 'Fully Matched', 'fully matched', 'Received', 'received'] } },
+        },
       }),
       prisma.sales_bills.findMany({
         select: { id: true, po_sell_id: true, doc_no: true },
         take: 10000,
-        where: { NOT: { status: 'cancelled' }, po_sell_id: { not: null } },
+        where: {
+          branch_id: branch.id,
+          NOT: { status: 'cancelled' },
+          po_sell_id: { not: null },
+        },
       }),
       prisma.sales_bills.findMany({
         include: {
@@ -179,6 +200,7 @@ export async function GET(request: Request) {
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 10000,
         where: {
+          branch_id: branch.id,
           NOT: [
             { status: { in: ['cancelled', 'Cancelled', 'canceled', 'Canceled'] } },
             { transaction_mode: 'TRADING' },
@@ -200,6 +222,7 @@ export async function GET(request: Request) {
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 5000,
         where: {
+          branch_id: branch.id,
           NOT: { status: 'Cancelled' }
         }
       }),
@@ -224,6 +247,8 @@ export async function GET(request: Request) {
     poSells.forEach((po) => {
       poSellDocNoToPoSellId.set(po.doc_no, po.id)
     })
+    const allowedSalesBillIds = new Set(salesBills.map((bill) => bill.id.toString()))
+    const allowedPoSellIds = new Set(poSells.map((po) => po.id.toString()))
 
     const matchedQtyByPoSellProduct = new Map<string, number>() // key: `${po_sell_id}|${product_id}`
     const matchedQtyBySpotProduct = new Map<string, number>() // key: `${sales_bill_id}:${product_id}`
@@ -252,6 +277,9 @@ export async function GET(request: Request) {
       if (!resolvedPoSellId && fact.sales_doc_no) {
         resolvedPoSellId = poSellDocNoToPoSellId.get(fact.sales_doc_no) ?? null
       }
+      const inBranchScope = (resolvedSalesBillId && allowedSalesBillIds.has(resolvedSalesBillId.toString()))
+        || (resolvedPoSellId && allowedPoSellIds.has(resolvedPoSellId.toString()))
+      if (!inBranchScope) return
 
       if (resolvedSalesBillId) {
         const key = `${resolvedSalesBillId.toString()}:${fact.product_id.toString()}`
@@ -282,6 +310,9 @@ export async function GET(request: Request) {
       if (!resolvedPoSellId && deal.sales_bill_no) {
         resolvedPoSellId = poSellDocNoToPoSellId.get(deal.sales_bill_no) ?? null
       }
+      const inBranchScope = (resolvedSalesBillId && allowedSalesBillIds.has(resolvedSalesBillId.toString()))
+        || (resolvedPoSellId && allowedPoSellIds.has(resolvedPoSellId.toString()))
+      if (!inBranchScope) return
 
       if (resolvedSalesBillId) {
         const key = `${resolvedSalesBillId.toString()}:${deal.product_id.toString()}`
@@ -461,13 +492,42 @@ export async function POST(request: Request) {
     requirePermission(context, 'finance.cash.view')
 
     const body = await request.json()
-    const { productId, poSellId, sourceType, candidates, notes } = body
+    const { productId, poSellId, sourceType, candidates, notes } = body as {
+      candidates?: ConfirmCandidate[]
+      notes?: string
+      poSellId?: string
+      productId?: string
+      sourceType?: string
+    }
 
     if (!productId || !poSellId || !sourceType || !Array.isArray(candidates) || candidates.length === 0) {
       return NextResponse.json({ error: 'ข้อมูลไม่ครบถ้วน' }, { status: 400 })
     }
 
+    const normalizedCandidates = candidates
+      .map((candidate) => ({
+        ...candidate,
+        costPoolId: String(candidate.costPoolId ?? '').trim(),
+        qtyToUse: Number(candidate.qtyToUse ?? 0),
+        sourceId: String(candidate.sourceId ?? '').trim(),
+        sourceLineId: String(candidate.sourceLineId ?? '').trim(),
+        sourceNo: String(candidate.sourceNo ?? '').trim(),
+        sourceType: String(candidate.sourceType ?? '').trim(),
+        unitCost: Number(candidate.unitCost ?? 0),
+      }))
+      .filter((candidate) => candidate.qtyToUse > 0)
+
+    if (normalizedCandidates.length === 0) {
+      return NextResponse.json({ error: 'ไม่มีรายการต้นทุนที่พร้อมยืนยันการจัดสรร' }, { status: 400 })
+    }
+
+    const invalidCandidate = normalizedCandidates.find((candidate) => !candidate.costPoolId || !candidate.sourceNo || !candidate.sourceType || !Number.isFinite(candidate.unitCost))
+    if (invalidCandidate) {
+      return NextResponse.json({ error: 'ข้อมูลต้นทุนที่เลือกไม่สมบูรณ์ กรุณาเปิด Preview ใหม่แล้วลองอีกครั้ง' }, { status: 400 })
+    }
+
     const actor = context.appUser?.username || context.authUser.email || 'system'
+    const branch = await getDualCostingBranch()
     const result = await prisma.$transaction(async (tx) => {
       // 1. Find product
       const product = await tx.products.findFirst({
@@ -486,8 +546,13 @@ export async function POST(request: Request) {
       if (sourceType === 'spot-sell') {
         const [docNo, lineNoStr] = poSellId.split(':')
         const lineNo = parseInt(lineNoStr)
+        if (!docNo || !Number.isFinite(lineNo)) throw new Error(`เลขรายการขายไม่ถูกต้อง: ${poSellId}`)
         const salesBill = await tx.sales_bills.findFirst({
-          where: { doc_no: docNo, NOT: { status: 'cancelled' } },
+          where: {
+            branch_id: branch.id,
+            doc_no: docNo,
+            NOT: { status: 'cancelled' },
+          },
           include: {
             customers: true,
             sales_bill_lines: {
@@ -506,15 +571,20 @@ export async function POST(request: Request) {
         salesLineNo = line.line_no
         unitPrice = toNumber(line.unit_price)
       } else if (sourceType === 'po-sell') {
-        const poId = BigInt(poSellId.split('-')[0])
-        const poSell = await tx.po_sells.findUnique({
-          where: { id: poId },
+        const poId = parseInternalBigIntId(poSellId.split('-')[0])
+        if (!poId) throw new Error(`เลข PO Sell ไม่ถูกต้อง: ${poSellId}`)
+        const poSell = await tx.po_sells.findFirst({
+          where: { id: poId, branch_id: branch.id },
           include: { customers: true }
         })
         if (!poSell) throw new Error(`ไม่พบ PO Sell ID: ${poId}`)
 
         const salesBill = await tx.sales_bills.findFirst({
-          where: { po_sell_id: poId, NOT: { status: 'cancelled' } }
+          where: {
+            branch_id: branch.id,
+            po_sell_id: poId,
+            NOT: { status: 'cancelled' },
+          }
         })
 
         salesBillId = salesBill?.id || null
@@ -524,7 +594,10 @@ export async function POST(request: Request) {
         unitPrice = toNumber(poSell.unit_price)
       } else if (sourceType === 'production') {
         const prodOrder = await tx.production_orders.findFirst({
-          where: { doc_no: poSellId },
+          where: {
+            branch_id: branch.id,
+            doc_no: poSellId,
+          },
           include: { products: true }
         })
         if (!prodOrder) throw new Error(`ไม่พบใบสั่งผลิต: ${poSellId}`)
@@ -534,17 +607,22 @@ export async function POST(request: Request) {
         throw new Error(`ไม่รองรับประเภทเป้าหมาย: ${sourceType}`)
       }
 
-      // Generate a base deal number
-      const timestamp = Date.now()
-      const rand = Math.floor(Math.random() * 1000)
-      const dealNoBase = `TD-${timestamp}-${rand}`
+      const allocationDate = new Date()
+      const matchIdPrefix = getDualCostingMatchIdPrefix(allocationDate)
+      const existingMatchCount = await tx.trading_deals.count({
+        where: {
+          deal_no: {
+            startsWith: `${matchIdPrefix}-`,
+          },
+        },
+      })
 
       const createdDeals = []
       const createdFacts = []
 
       // 3. Process candidates
-      for (let i = 0; i < candidates.length; i++) {
-        const cand = candidates[i]
+      for (let i = 0; i < normalizedCandidates.length; i++) {
+        const cand = normalizedCandidates[i]
         const qtyToUse = cand.qtyToUse
         if (qtyToUse <= 0) continue
 
@@ -553,11 +631,18 @@ export async function POST(request: Request) {
         let supplierNameSnapshot: string | null = null
         let pb = null
         let poBuy = null
-        const poolEntry = await tx.stock_cost_pool_entries.findUnique({
-          where: { pool_key: cand.costPoolId }
+        const poolEntry = await tx.stock_cost_pool_entries.findFirst({
+          where: {
+            branch_id: branch.id,
+            pool_key: cand.costPoolId,
+          }
         })
         if (!poolEntry) {
           throw new Error(`ไม่พบ Cost Pool Entry สำหรับ key: ${cand.costPoolId}`)
+        }
+        const availableQty = Math.max(0, toNumber(poolEntry.original_qty) - toNumber(poolEntry.allocated_qty) - toNumber(poolEntry.released_qty))
+        if (qtyToUse > availableQty + 0.001) {
+          throw new Error(`Cost Pool ${cand.sourceNo} คงเหลือไม่พอสำหรับยืนยัน กรุณาเปิด Preview ใหม่อีกครั้ง`)
         }
 
         // If candidate is a purchase document (PO Buy or Spot Buy)
@@ -606,11 +691,11 @@ export async function POST(request: Request) {
         })
 
         // Create trading deal
-        const candDealNo = `${dealNoBase}-${i}`
+        const candDealNo = formatDualCostingMatchId(allocationDate, existingMatchCount + i + 1)
         const deal = await tx.trading_deals.create({
           data: {
             deal_no: candDealNo,
-            date: new Date(),
+            date: allocationDate,
             purchase_bill_id: purchaseBillId,
             purchase_bill_no: pb?.doc_no || cand.sourceNo,
             sales_bill_id: salesBillId,
@@ -625,8 +710,8 @@ export async function POST(request: Request) {
             status: 'Matched',
             notes: notes || 'Matched via Cost Allocator',
             created_by: actor,
-            created_at: new Date(),
-            updated_at: new Date(),
+            created_at: allocationDate,
+            updated_at: allocationDate,
             updated_by: actor
           }
         })
@@ -636,7 +721,7 @@ export async function POST(request: Request) {
         const fact = await tx.trading_allocation_facts.create({
           data: {
             allocation_no: `TAF-${candDealNo}`,
-            date: new Date(),
+            date: allocationDate,
             trading_deal_id: deal.id,
             purchase_bill_id: purchaseBillId,
             sales_bill_id: salesBillId,
@@ -659,8 +744,8 @@ export async function POST(request: Request) {
             status: 'active',
             notes: notes || 'Matched via Cost Allocator',
             created_by: actor,
-            created_at: new Date(),
-            updated_at: new Date(),
+            created_at: allocationDate,
+            updated_at: allocationDate,
             updated_by: actor
           }
         })
@@ -680,6 +765,12 @@ export async function POST(request: Request) {
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
+    if (
+      caught instanceof Error
+      && !('code' in caught && typeof (caught as { code?: unknown }).code === 'string' && (caught as { code: string }).code.startsWith('P'))
+    ) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: caught.message }, { status: 400 })
+    }
     return apiErrorResponse(caught, 'ยืนยันการจัดสรรต้นทุนไม่สำเร็จ', 500)
   }
 }
