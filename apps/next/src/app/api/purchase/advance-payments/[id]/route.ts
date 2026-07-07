@@ -145,7 +145,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       const row = await tx.supplier_advance_payments.update({
         data: {
           advance_type: values.advanceType,
-          amount: values.amount,
+          amount: taxBreakdown.totalAmount,
           branch_id: branch.id,
           customer_name: values.customerName,
           driver_name: values.driverName,

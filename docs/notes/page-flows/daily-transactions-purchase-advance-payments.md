@@ -93,6 +93,7 @@ ADV เป็น source document ของเงินล่วงหน้า S
 - `advanceType = มัดจำล่วงหน้ายังไม่ส่งของ`: invoice no required และ VAT dropdown required
 - VAT dropdown phase แรกมีอย่างน้อย `ไม่มี VAT` และ `มี VAT`; ถ้าขยายเป็น `VAT รวมใน` / `VAT แยกนอก` ต้อง snapshot สูตรคำนวณลงเอกสาร
 - ถ้า ADV มี VAT ต้องเก็บ tax breakdown เป็น snapshot: `subtotalAmount`, `vatAmount`, `totalAmount/amount`, `vatRate`
+- DB compatibility rule: `supplier_advance_payments.amount` เป็น legacy gross/total amount เพื่อให้ check constraint และ PMA/PMT/AP compatibility ยังถูกต้อง; ยอดก่อน VAT ต้องอ่านจาก `subtotal_amount`
 - modal Supplier Advance ต้องบังคับเลือก `สาขา` ก่อน `ผู้ขาย`; Supplier selector ต้อง disabled จนกว่าจะเลือกสาขา
 - supplier options ต้องกรองตามสาขาเอกสารจาก active `supplier_branches`; ถ้าเปลี่ยนสาขาแล้วผู้ขายที่เลือกอยู่ไม่ผูกกับสาขาใหม่ ต้อง clear supplier และให้ผู้ใช้เลือกใหม่
 - transaction write ต้องทำใน server transaction และ append timeline/status/audit ตาม document policy

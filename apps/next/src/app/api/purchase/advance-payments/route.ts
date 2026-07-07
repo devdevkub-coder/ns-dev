@@ -436,7 +436,7 @@ export async function POST(request: Request) {
           advance_type: values.advanceType,
           advance_date: normalizeDate(advanceDate),
           allocated_amount: 0,
-          amount: values.amount,
+          amount: taxBreakdown.totalAmount,
           branch_id: branch.id,
           created_by: actor,
           customer_name: values.customerName,
