@@ -5,21 +5,23 @@ tags:
   - menu
   - finance-debt
   - customer-advance
-status: accepted-baseline
-updated: 2026-06-11
-route: /finance/customer-advance
+status: retired
+updated: 2026-07-06
+route: retired
 ---
 
 # รับล่วงหน้าจาก Customer Page Flow
 
 ## Scope
 
+Retired 2026-07-06: หน้า `/finance/customer-advance` ถูกลบออกจาก active app เพราะซ้ำกับ `/sales/receipts`. งานรับเงินลูกค้าและเงินรับล่วงหน้าฝั่ง Customer ให้ใช้ `/sales/receipts` เป็น canonical page; เอกสารนี้เก็บไว้เป็น historical/reference ของ legacy `CADV` read model เท่านั้น.
+
 | Field | Value |
 |---|---|
 | Menu section | Finance & Debt |
-| Route | `/finance/customer-advance` |
-| Page | รับล่วงหน้าจาก Customer |
-| Current Next | accepted code baseline |
+| Route | retired; use `/sales/receipts` |
+| Page | รับเงิน Customer |
+| Current Next | retired duplicate page |
 
 ## Canonical References
 

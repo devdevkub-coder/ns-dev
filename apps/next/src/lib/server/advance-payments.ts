@@ -326,6 +326,7 @@ export async function refreshAdvancePaymentWorkflowStatus(
       id: true,
       remaining_amount: true,
       status: true,
+      total_amount: true,
     },
     where: { id: advancePaymentId },
   })
@@ -336,7 +337,7 @@ export async function refreshAdvancePaymentWorkflowStatus(
     activeApprovalAmount: approvalSummary.activeApprovalAmount,
     allocatedAmount: toNumber(advance.allocated_amount),
     allActiveApprovalsSettled: approvalSummary.allActiveApprovalsSettled,
-    amount: toNumber(advance.amount),
+    amount: toNumber(advance.total_amount) || toNumber(advance.amount),
     cancelledAt: advance.cancelled_at,
     currentStatus: advance.status,
     remainingAmount: toNumber(advance.remaining_amount),

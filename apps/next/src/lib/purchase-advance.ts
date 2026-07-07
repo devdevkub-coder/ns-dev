@@ -41,7 +41,7 @@ export type SupplierAdvanceType = typeof supplierAdvanceTypeValues[number]
 export type SupplierAdvanceVatType = typeof supplierAdvanceVatTypeValues[number]
 
 export function supplierAdvanceTypeLabel(value: string | null | undefined) {
-  if (value === 'ADVANCE_INVOICE') return 'มัดจำล่วงหน้า'
+  if (value === 'ADVANCE_INVOICE') return 'มัดจำล่วงหน้ายังไม่ส่งของ'
   return 'มัดจำส่งของรอคัดแยก'
 }
 
@@ -67,11 +67,11 @@ export function calculateSupplierAdvanceTaxBreakdown(params: {
     }
   }
 
-  const subtotalAmount = roundMoney(amount * 100 / (100 + rate))
-  const vatAmount = roundMoney(amount - subtotalAmount)
+  const subtotalAmount = roundMoney(amount)
+  const vatAmount = roundMoney(subtotalAmount * rate / 100)
   return {
     subtotalAmount,
-    totalAmount: roundMoney(amount),
+    totalAmount: roundMoney(subtotalAmount + vatAmount),
     vatAmount,
     vatRatePercent: rate,
     vatType: 'INCLUDE' as const,

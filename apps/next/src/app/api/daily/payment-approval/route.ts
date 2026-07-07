@@ -297,7 +297,7 @@ export async function GET() {
       const activeApprovals = approvedByAdvanceId.get(advanceId) ?? []
       const voidedApprovals = voidedByAdvanceId.get(advanceId) ?? []
       const activeOrConsumedApprovals = activeByAdvanceId.get(advanceId) ?? []
-      const totalAmount = toNumber(advance.amount)
+      const totalAmount = toNumber(advance.total_amount) || toNumber(advance.amount)
       const advanceTypeLabel = supplierAdvanceTypeLabel(advance.advance_type)
       const invoiceNo = advance.invoice_no ?? ''
       const subtotalAmount = toNumber(advance.subtotal_amount)
@@ -746,7 +746,7 @@ export async function POST(request: Request) {
       if (values.sourceType === 'advance_payment') {
         const advance = advanceById.get(sourceInternalId.toString())
         if (!advance) throw new Error('ไม่พบรายการ ADV ที่ต้องการอนุมัติ')
-        const totalAmount = toNumber(advance.amount)
+        const totalAmount = toNumber(advance.total_amount) || toNumber(advance.amount)
         const alreadyApproved = approvedOrPaidAmount
         const pendingAmount = Math.max(0, totalAmount - alreadyApproved)
         const cycleAmount = values.splits.reduce((sum, split) => sum + split.approvedAmount, 0)

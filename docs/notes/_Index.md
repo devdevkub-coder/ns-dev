@@ -49,7 +49,6 @@ created: 2026-05-16
 - [[Finance AR Page Flow]] - contract หน้า `/finance/ar`: AR aging จาก `sales_bills` balance snapshot, SB/RCP/Customer Advance drilldown, due date/customer credit term และ no Pending Sale summary ใน target runtime
 - [[Finance Bank Statement Page Flow]] - contract หน้า `/finance/bank`: read-only cash/bank ledger จาก `bank_statement`, running balance, source refs และ admin cleanup boundary
 - [[Finance Cash Position Page Flow]] - contract หน้า `/finance/cash-position`: liquidity dashboard จาก accounts/bank statement/AR/AP exposure และ as-of/currency gap
-- [[Customer Advance Page Flow]] - contract หน้า `/finance/customer-advance`: current read baseline จาก `CADV` bank statement, remaining/used rule และ target allocation tables
 - [[Main Dashboard Reports Flow]] - ภาพรวมหมวด Main / Dashboard & Reports และ `/reports`: current APIs, source tables/helpers, query params, response sections, management-read boundary, และ gap เรื่องสูตร/drilldown/export
 - [[Reporting History Snapshot Policy]] - กฎกลางสำหรับ Dashboard/Report/Tracking ย้อนหลัง: แยก transaction facts, document snapshots, reporting snapshots, `as_of_date`, และ rollup รายวัน/รายเดือน/รายปี
 - [[Finance And Accounting Menu Summary]] - summary รายเมนูของ `การเงิน & หนี้` และ `Finance / Accounting`: แต่ละหน้าคืออะไร, source/write boundary, AR/AP/Cash/Stock/Asset impact, และ month/year close freeze direction

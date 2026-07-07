@@ -100,7 +100,6 @@ Source:
 | `/finance/ap` | เจ้าหนี้ (AP) | [[Finance Debt Flow]], [[Finance AP Page Flow]], [[page-flows/finance-debt-finance-ap|AP Page Flow]] | accepted code baseline | target: AP visible balance reads `purchase_bills.payable_balance` / `paid_amount`; PMA/PMT/Supplier Advance are drilldown facts; no AP channel filter until purchase channel exists | switch API to snapshot-first balance, remove AP channel filter, sync PMA/PMT drilldown and payment locks |
 | `/finance/bank` | Cash / Bank Statement | [[Finance Debt Flow]], [[Finance Bank Statement Page Flow]], [[page-flows/finance-debt-finance-bank|Bank Statement Page Flow]] | accepted code baseline | legacy `bank`: account statement, running balance, charts, export | define admin correction boundary, created-date display, source links |
 | `/finance/cash-position` | Cash Position | [[Finance Debt Flow]], [[Finance Cash Position Page Flow]], [[page-flows/finance-debt-finance-cash-position|Cash Position Page Flow]] | accepted code baseline | legacy `cashPosition`: cash/bank/FCD/OD + AR/AP liquidity summary | define as-of/currency policy and drilldown links |
-| `/finance/customer-advance` | รับล่วงหน้าจาก Customer | [[Finance Debt Flow]], [[Customer Advance Page Flow]], [[page-flows/finance-debt-finance-customer-advance|Customer Advance Page Flow]] | accepted code baseline | legacy `customerAdvance`: CADV receipt, bank statement in, allocation to SB | implement dedicated customer advance and allocation tables |
 
 ## Stock
 

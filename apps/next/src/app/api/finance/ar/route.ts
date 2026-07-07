@@ -300,7 +300,7 @@ export async function GET(request: Request) {
           customerAdvances: advancesForBill.map((allocation) => ({
             allocatedAmount: toNumber(allocation.allocated_amount),
             docNo: allocation.customer_advance_doc_no,
-            href: `/finance/customer-advance?q=${encodeURIComponent(allocation.customer_advance_doc_no)}`,
+            href: '/sales/receipts',
             outstandingAfter: toNumber(allocation.outstanding_after),
             outstandingBefore: toNumber(allocation.outstanding_before),
             status: allocation.status,

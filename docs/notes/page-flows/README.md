@@ -46,13 +46,12 @@ updated: 2026-06-11
   - `/finance/ap`
   - `/finance/bank`
   - `/finance/cash-position`
-  - `/finance/customer-advance`
   - `/production/orders`
   - `/production/report`
 - Batch 3 deepened report/read-model pages across main dashboards, tracking, trading/PO reports, dual costing, general reports, and finance-accounting pages with Current API/read-model contracts.
 - Batch 4 deepened all active master-data and admin/system pages, and separated platform/support behavior into [[System Supporting Flows]].
 - P0 transaction/stock/payment pages are now accepted as current implementation baseline per [[P0 Transaction Stock Payment Current Code Baseline]]; target-complete gaps remain active for runtime hardening.
-- Finance & Debt was deepened again into [[Finance Debt Flow]] plus 6 route-level files. The page files now record legacy baseline, current API query/response, side-effect boundaries, and remaining allocation/status/correction gaps for Petty Advance, AR, AP, Bank Statement, Cash Position, and Customer Advance.
+- Finance & Debt was deepened again into [[Finance Debt Flow]] plus route-level files. The page files now record legacy baseline, current API query/response, side-effect boundaries, and remaining allocation/status/correction gaps for Petty Advance, AR, AP, Bank Statement, and Cash Position. Customer Advance was later retired as a separate page and folded into `/sales/receipts`.
 - Trading / PO Reports was deepened into [[Trading Flow]] plus 3 route-level files. The page files now record legacy ex-VAT Trading baseline, current `GET`/export APIs, PB/SB Trading matching boundaries, PO Outstanding include/exclude rules, and remaining write/reverse/filter/drilldown gaps.
 - Main Dashboard / Reports was deepened into [[Main Dashboard Reports Flow]] plus route-level files. The page files record current dashboard/report APIs, query params, source tables/helpers, response sections, no-side-effect boundaries, and remaining formula/drilldown/export gaps for active dashboard/report pages.
 - Finance Accounting was deepened into [[Finance Accounting Flow]]. The overview now records all 19 finance-accounting APIs, current query params, source builders/tables, read/design-only write states, and shared management-report boundaries; each route-level page-flow file now points to that overview. Legacy clone planning for this category is tracked in `docs/migration/22-finance-accounting-legacy-clone-plan.md`; use its FA0 reading inventory and page-flow update queue before changing Finance / Accounting runtime behavior.
@@ -82,7 +81,7 @@ updated: 2026-06-11
 | `/sales/bills` | บิลขาย | [daily-transactions-sales-bills.md](daily-transactions-sales-bills.md) | [[Sales Bills Page Flow]], [[Sales Flow]] |
 | `/sales/stock-issue` | เบิกออกรอบิล | [daily-transactions-sales-stock-issue.md](daily-transactions-sales-stock-issue.md) | Removed target flow; legacy reference only |
 | `/daily/payment-approval` | อนุมัติจ่ายเงิน | [daily-transactions-daily-payment-approval.md](daily-transactions-daily-payment-approval.md) | [[Payment Flow]] |
-| `/purchase/advance-payments` | เงินล่วงหน้า/มัดจำ | [daily-transactions-purchase-advance-payments.md](daily-transactions-purchase-advance-payments.md) | [[Supplier Advance Payment Flow]], [[Customer Advance Page Flow]] |
+| `/purchase/advance-payments` | เงินล่วงหน้า/มัดจำ | [daily-transactions-purchase-advance-payments.md](daily-transactions-purchase-advance-payments.md) | [[Supplier Advance Payment Flow]] |
 | `/purchase/payments` | จ่ายเงิน Supplier | [daily-transactions-purchase-payments.md](daily-transactions-purchase-payments.md) | [[Payment Flow]] |
 | `/purchase/receipt-vouchers` | ใบสำคัญรับเงิน | [daily-transactions-purchase-receipt-vouchers.md](daily-transactions-purchase-receipt-vouchers.md) | [[Receipt Voucher Page Flow]], [[Printable Documents]], [[Payment Flow]] |
 | `/sales/receipts` | รับเงิน Customer | [daily-transactions-sales-receipts.md](daily-transactions-sales-receipts.md) | [[Sales Flow]], [[Payment Flow]] |
@@ -108,7 +107,6 @@ updated: 2026-06-11
 | `/finance/ap` | เจ้าหนี้ (AP) | [finance-debt-finance-ap.md](finance-debt-finance-ap.md) | [[Finance AP Page Flow]] |
 | `/finance/bank` | Cash / Bank Statement | [finance-debt-finance-bank.md](finance-debt-finance-bank.md) | [[Finance Bank Statement Page Flow]] |
 | `/finance/cash-position` | Cash Position | [finance-debt-finance-cash-position.md](finance-debt-finance-cash-position.md) | [[Finance Cash Position Page Flow]] |
-| `/purchase/advance-payments?tab=customer` | รับล่วงหน้า Customer | [finance-debt-finance-customer-advance.md](finance-debt-finance-customer-advance.md) | [[Customer Advance Page Flow]] |
 | `/stock/transfer` | โอนสินค้าระหว่างสาขา | [stock-stock-transfer.md](stock-stock-transfer.md) | [[Stock Transfer Page Flow]], [[Stock Ledger and Stock Balance]] |
 | `/stock/balance` | สต๊อกคงเหลือ | [stock-stock-balance.md](stock-stock-balance.md) | [[Stock Balance Page Flow]], [[Stock Ledger and Stock Balance]] |
 | `/stock/ledger` | Stock Ledger | [stock-stock-ledger.md](stock-stock-ledger.md) | [[Stock Ledger Page Flow]], [[Stock Ledger and Stock Balance]] |
