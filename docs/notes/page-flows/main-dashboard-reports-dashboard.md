@@ -30,13 +30,14 @@ Dashboard Overview เป็น management KPI view จาก operational facts.
 ## UI Baseline
 
 - ยึด legacy Dashboard ใน `https://sirimasth.github.io/ns-scrap-erp/` หมวดหน้าหลักเป็น visual reference แต่ใช้ข้อมูลและ API ของ active Next app เท่านั้น
-- ลำดับหน้าจอคือ global filter area -> gradient Dashboard Overview hero -> historical/runtime notice -> KPI 6 ใบ -> chart/widget cards -> risk/breakdown panels -> detail tabs สำหรับ Top Ranking / Stock / Metrics
-- Desktop แสดงตัวกรองหลัก (`ช่วงเวลา`, `from`, `to`, `branch`, `group`, `supplier`, `customer`, `product`) ใน white/neutral filter card เดียวกัน ไม่ซ่อนอยู่ใน details เพื่อให้เห็น scope ของ dashboard ชัดก่อนอ่าน KPI โดยไม่แย่งสายตากับ gradient hero
+- ลำดับหน้าจอคือ global filter area -> historical/runtime notice -> KPI 6 ใบ -> chart/widget cards -> risk/breakdown panels -> detail tabs สำหรับ Top Ranking / Stock / Metrics
+- Desktop แสดงตัวกรองหลัก (`ช่วงเวลา`, `from`, `to`, `branch`, `group`, `supplier`, `customer`, `product`) ใน white/neutral filter card เดียวกัน ไม่ซ่อนอยู่ใน details เพื่อให้เห็น scope ของ dashboard ชัดก่อนอ่าน KPI
 - Mobile แสดงเฉพาะ quick range, ช่วงวันที่, count summary และปุ่ม `ตัวกรอง`; ตัวกรองเต็มเปิดผ่าน `MobileFilterSheet` เพื่อไม่ให้หน้าเริ่มด้วย form stack ยาว
-- KPI 6 ใบใต้ hero ใช้ white cards พร้อม accent สีซ้ายเท่านั้น เพราะ hero เป็นสีหลักของหน้าแล้ว; ห้ามทำ full-gradient ทุกใบจนทั้งหน้าดูแข่งกันเด่น และไม่ใช้ dot marker ที่เหมือนสถานะถ้าไม่มีความหมายจริง
-- Filter card ห้ามใช้แถบดำหนักในหน้านี้ เพราะ hero เป็นจุดสีหลักแล้ว; ช่อง input/select/search ต้องอ่านค่าและ placeholder ชัดเจน ไม่ดูเหมือนช่องว่าง
+- ห้ามแสดง hero/banner แยกสำหรับชื่อหน้า Dashboard Overview ถ้ามี title/scope จาก app shell และ filter card อยู่แล้ว เพราะกินพื้นที่และซ้ำกับข้อมูลหน้า
+- KPI 6 ใบใช้ white cards พร้อม accent สีซ้ายเท่านั้น; ห้ามทำ full-gradient ทุกใบจนทั้งหน้าดูแข่งกันเด่น และไม่ใช้ dot marker ที่เหมือนสถานะถ้าไม่มีความหมายจริง
+- Filter card ห้ามใช้แถบดำหนักในหน้านี้; ช่อง input/select/search ต้องอ่านค่าและ placeholder ชัดเจน ไม่ดูเหมือนช่องว่าง
 - `Historical` แสดงเฉพาะเมื่อมี rows จริง ถ้าไม่มีข้อมูลไม่ต้องแสดง empty banner เพราะไม่ช่วยการตัดสินใจ
-- Detail metric sections ท้ายหน้าต้องไม่ซ้ำกับ KPI/hero โดยตรง เช่น ซื้อ/ขายท้ายหน้าเน้นจำนวนบิล, น้ำหนัก, ราคาเฉลี่ย, GP/Margin แทนการย้ำยอดรวมเดิม
+- Detail metric sections ท้ายหน้าต้องไม่ซ้ำกับ KPI โดยตรง เช่น ซื้อ/ขายท้ายหน้าเน้นจำนวนบิล, น้ำหนัก, ราคาเฉลี่ย, GP/Margin แทนการย้ำยอดรวมเดิม
 - Detail-heavy content เช่น ranked list, stock table, และ metric drill-down ต้องอยู่หลัง overview ใน tabs เพื่อให้ผู้ใช้เลือกอ่านทีละบริบท ไม่ให้ dashboard กลายเป็นหน้าตารางยาว
 - AR/AP overdue หรือยอดลูกหนี้/เจ้าหนี้คงค้างไม่ต้องแสดงเป็น alert strip/card แยก ถ้าข้อมูลเดียวกันอยู่ใน `Receivables & Payables Aging` แล้ว เพราะตาราง Aging เป็นพื้นที่หลักที่แยก Current/1-30/31-60/61-90/>90/Total ชัดกว่า
 - Ranked list ใน Dashboard Overview แสดง 5 อันดับแรกก่อน และให้กดขยายดูครบ 10 อันดับเมื่อจำเป็น
