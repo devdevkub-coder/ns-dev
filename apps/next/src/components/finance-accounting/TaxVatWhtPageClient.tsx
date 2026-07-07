@@ -202,11 +202,11 @@ export function TaxVatWhtPageClient() {
             <MiniHero label="📥 VAT ซื้อ (Input)" tone="blue" value={money(data?.summary.vatIn)} />
           </div>
         </div>
-        
+
         <Panel title="🥧 VAT Output vs Input">
           <Donut output={data?.summary.vatOut ?? 0} input={data?.summary.vatIn ?? 0} net={data?.summary.vatPayable ?? 0} />
         </Panel>
-        
+
         <Panel title="🪙 WHT Position">
           <div className="space-y-3">
             <WhtBox label="เราหักไว้ (ต้องนำส่ง ภงด.)" tone="amber" value={money(data?.summary.whtChargedNet)} />
