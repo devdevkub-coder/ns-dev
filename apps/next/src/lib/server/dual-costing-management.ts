@@ -1,4 +1,5 @@
 import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { buildDualCostingMatchIdMap } from '@/lib/server/dual-costing-match-id'
 import { prisma } from '@/lib/server/prisma'
 
 type JsonItem = Record<string, unknown>
@@ -180,6 +181,7 @@ export async function buildDualCostingManagement() {
 
   const productById = new Map(products.map((product) => [String(product.id), { ...product, code: product.code }]))
   const productByCode = new Map(Array.from(productById.values()).map((product) => [product.code, product]))
+  const matchIdByDealId = buildDualCostingMatchIdMap(tradingDeals)
   const salesBillDocNoToSalesBillId = new Map<string, bigint>()
   salesBills.forEach((bill) => {
     salesBillDocNoToSalesBillId.set(bill.doc_no, bill.id)
@@ -496,12 +498,26 @@ export async function buildDualCostingManagement() {
     const totalCost = toNumber(deal.matched_purchase_amount)
     const allocatedRevenue = toNumber(deal.matched_sales_amount)
     const grossProfit = allocatedRevenue - totalCost
-    const targetType = deal.sales_bills?.po_sell_id ? 'PO_SELL' : 'SPOT_SELL'
+    let resolvedPoSellId: bigint | null = deal.sales_bills?.po_sell_id ?? null
+    if (!resolvedPoSellId && deal.sales_bill_id) {
+      resolvedPoSellId = salesBillIdToPoSellId.get(deal.sales_bill_id) ?? null
+    }
+    if (!resolvedPoSellId && deal.sales_bill_no) {
+      resolvedPoSellId = poSellDocNoToPoSellId.get(deal.sales_bill_no) ?? null
+      if (!resolvedPoSellId) {
+        const resolvedSalesBillId = salesBillDocNoToSalesBillId.get(deal.sales_bill_no) ?? null
+        if (resolvedSalesBillId) {
+          resolvedPoSellId = salesBillIdToPoSellId.get(resolvedSalesBillId) ?? null
+        }
+      }
+    }
+    const targetType = resolvedPoSellId ? 'PO_SELL' : 'SPOT_SELL'
     const product = deal.products ?? (deal.product_id != null ? productById.get(String(deal.product_id)) : null)
     const saleDocNo = deal.sales_bill_no ?? deal.sales_bills?.doc_no ?? deal.customers?.name ?? '-'
     const sourceNo = deal.purchase_bill_no ?? deal.purchase_bills?.doc_no ?? deal.suppliers?.name ?? '-'
     const productCode = product?.code ?? '-'
     const allocatedAt = deal.created_at?.toISOString() ?? toDateOnly(deal.date)
+    const matchId = matchIdByDealId.get(String(deal.id)) ?? deal.deal_no
     return {
       allocatedAt,
       allocatedBy: deal.created_by ?? '-',
@@ -512,8 +528,8 @@ export async function buildDualCostingManagement() {
       date: toDateOnly(deal.date),
       gpPct: pct(grossProfit, allocatedRevenue),
       grossProfit,
-      id: `${deal.deal_no}:${saleDocNo}:${sourceNo}:${productCode}:${allocatedAt}:${deal.status ?? '-'}:${index}`,
-      matchId: deal.deal_no,
+      id: `${matchId}:${saleDocNo}:${sourceNo}:${productCode}:${allocatedAt}:${deal.status ?? '-'}:${index}`,
+      matchId,
       productCategory: product?.metal_group ?? '-',
       productId: product?.code ?? '',
       productName: product ? `${product.code} - ${product.name}` : '-',

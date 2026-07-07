@@ -3,6 +3,7 @@ import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { formatDualCostingMatchId, getDualCostingMatchIdPrefix } from '@/lib/server/dual-costing-match-id'
 import { prisma } from '@/lib/server/prisma'
 import { getCostPoolRowsData } from '../cost-pool/route'
 
@@ -534,10 +535,15 @@ export async function POST(request: Request) {
         throw new Error(`ไม่รองรับประเภทเป้าหมาย: ${sourceType}`)
       }
 
-      // Generate a base deal number
-      const timestamp = Date.now()
-      const rand = Math.floor(Math.random() * 1000)
-      const dealNoBase = `TD-${timestamp}-${rand}`
+      const allocationDate = new Date()
+      const matchIdPrefix = getDualCostingMatchIdPrefix(allocationDate)
+      const existingMatchCount = await tx.trading_deals.count({
+        where: {
+          deal_no: {
+            startsWith: `${matchIdPrefix}-`,
+          },
+        },
+      })
 
       const createdDeals = []
       const createdFacts = []
@@ -606,11 +612,11 @@ export async function POST(request: Request) {
         })
 
         // Create trading deal
-        const candDealNo = `${dealNoBase}-${i}`
+        const candDealNo = formatDualCostingMatchId(allocationDate, existingMatchCount + i + 1)
         const deal = await tx.trading_deals.create({
           data: {
             deal_no: candDealNo,
-            date: new Date(),
+            date: allocationDate,
             purchase_bill_id: purchaseBillId,
             purchase_bill_no: pb?.doc_no || cand.sourceNo,
             sales_bill_id: salesBillId,
@@ -625,8 +631,8 @@ export async function POST(request: Request) {
             status: 'Matched',
             notes: notes || 'Matched via Cost Allocator',
             created_by: actor,
-            created_at: new Date(),
-            updated_at: new Date(),
+            created_at: allocationDate,
+            updated_at: allocationDate,
             updated_by: actor
           }
         })
@@ -636,7 +642,7 @@ export async function POST(request: Request) {
         const fact = await tx.trading_allocation_facts.create({
           data: {
             allocation_no: `TAF-${candDealNo}`,
-            date: new Date(),
+            date: allocationDate,
             trading_deal_id: deal.id,
             purchase_bill_id: purchaseBillId,
             sales_bill_id: salesBillId,
@@ -659,8 +665,8 @@ export async function POST(request: Request) {
             status: 'active',
             notes: notes || 'Matched via Cost Allocator',
             created_by: actor,
-            created_at: new Date(),
-            updated_at: new Date(),
+            created_at: allocationDate,
+            updated_at: allocationDate,
             updated_by: actor
           }
         })

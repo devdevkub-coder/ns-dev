@@ -678,7 +678,7 @@ function AllocationLedgerView() {
     { key: 'saleQty', label: 'Sale Qty', defaultWidth: 115, minWidth: 105, align: 'right' },
     { key: 'allocatedQty', label: 'Allocated', defaultWidth: 115, minWidth: 105, align: 'right' },
     { key: 'costPoolNo', label: 'Cost Pool', defaultWidth: 145, minWidth: 130 },
-    { key: 'costPerKg', label: 'บาท/กก.', defaultWidth: 95, minWidth: 85, align: 'right' },
+    { key: 'costPerKg', label: 'ต้นทุน บาท/กก.', defaultWidth: 130, minWidth: 120, align: 'right' },
     { key: 'totalCost', label: 'Total Cost', defaultWidth: 125, minWidth: 110, align: 'right' },
     { key: 'allocatedRevenue', label: 'Revenue', defaultWidth: 125, minWidth: 110, align: 'right' },
     { key: 'grossProfit', label: 'GP', defaultWidth: 115, minWidth: 100, align: 'right' },
