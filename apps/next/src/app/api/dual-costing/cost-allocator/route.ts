@@ -120,7 +120,7 @@ function itemRows(row: PoSellSourceRow, fallbackProduct: ProductRef | null, prod
 }
 
 function isCancelled(status: string | null | undefined) {
-  return ['cancelled', 'canceled'].includes((status ?? '').trim().toLowerCase())
+  return ['cancelled', 'canceled', 'short closed'].includes((status ?? '').trim().toLowerCase())
 }
 
 function isDualCostingGroup(group?: string | null) {
@@ -162,7 +162,7 @@ export async function GET(request: Request) {
         take: 5000,
         where: {
           branch_id: branch.id,
-          NOT: { status: { in: ['Cancelled', 'cancelled', 'Canceled', 'canceled'] } },
+          NOT: { status: { in: ['Cancelled', 'cancelled', 'Canceled', 'canceled', 'Short Closed', 'short closed'] } },
         },
       }),
       prisma.sales_bills.findMany({
@@ -537,6 +537,7 @@ export async function POST(request: Request) {
         })
         if (!poSell) throw new Error(`ไม่พบ PO Sell ID: ${poId}`)
         if (poSell.branch_id !== branch.id) throw new Error(`ไม่พบ PO Sell ID: ${poId}`)
+        if (isCancelled(poSell.status)) throw new Error(`PO Sell ${poSell.doc_no} ถูกปิดหรือยกเลิกแล้ว`)
 
         const salesBill = await tx.sales_bills.findFirst({
           where: {
