@@ -109,7 +109,7 @@ function itemUnitPrice(item: JsonItem) {
 }
 
 function isCancelled(status?: string | null) {
-  return ['cancelled', 'void', 'reversed'].includes((status ?? '').toLowerCase())
+  return ['cancelled', 'void', 'reversed', 'short closed'].includes((status ?? '').toLowerCase())
 }
 
 function isDualCostingGroup(group?: string | null) {
@@ -159,9 +159,7 @@ export async function buildDualCostingManagement() {
         NOT: {
           status: {
             in: [
-              'Cancelled', 'cancelled', 'Canceled', 'canceled',
-              'Closed', 'closed', 'Completed', 'completed',
-              'Fully Matched', 'fully matched', 'Received', 'received'
+              'Cancelled', 'cancelled', 'Canceled', 'canceled', 'Short Closed', 'short closed'
             ]
           }
         }
@@ -419,7 +417,7 @@ export async function buildDualCostingManagement() {
             lineId: `${resolvedCode || 'line'}-${index}`,
             productId: resolvedCode,
             productName: resolvedCode ? `${resolvedCode} - ${name}` : name,
-            qty: jsonNumber(item.qty),
+            qty: jsonNumber(item.remainingQty ?? item.remaining_qty ?? item.qty),
             unitPrice: jsonNumber(item.unitPrice ?? po.unit_price),
             metalGroup: product?.metal_group ?? fallbackProduct?.metal_group ?? '',
           }
@@ -429,7 +427,7 @@ export async function buildDualCostingManagement() {
         lineId: fallbackProduct?.code || 'header',
         productId: fallbackProduct?.code ?? '',
         productName: fallbackProduct ? `${fallbackProduct.code} - ${fallbackProduct.name}` : '-',
-        qty: jsonNumber(po.qty),
+        qty: jsonNumber(po.remaining_qty ?? po.qty),
         unitPrice: jsonNumber(po.unit_price),
         metalGroup: fallbackProduct?.metal_group ?? '',
       }]

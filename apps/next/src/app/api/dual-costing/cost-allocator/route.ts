@@ -131,7 +131,7 @@ function itemRows(row: PoSellSourceRow, fallbackProduct: ProductRef | null, prod
 }
 
 function isCancelled(status: string | null | undefined) {
-  return ['cancelled', 'canceled'].includes((status ?? '').trim().toLowerCase())
+  return ['cancelled', 'canceled', 'short closed'].includes((status ?? '').trim().toLowerCase())
 }
 
 function isDualCostingGroup(group?: string | null) {
@@ -173,7 +173,7 @@ export async function GET(request: Request) {
         take: 5000,
         where: {
           branch_id: branch.id,
-          NOT: { status: { in: ['Cancelled', 'cancelled', 'Canceled', 'canceled', 'Closed', 'closed', 'Completed', 'completed', 'Fully Matched', 'fully matched', 'Received', 'received'] } },
+          NOT: { status: { in: ['Cancelled', 'cancelled', 'Canceled', 'canceled', 'Short Closed', 'short closed'] } },
         },
       }),
       prisma.sales_bills.findMany({
@@ -330,7 +330,6 @@ export async function GET(request: Request) {
       const items = itemRows(po, fallbackProduct, productById)
       return items.map((item) => {
         const qty = item.qty || jsonNumber(po.qty)
-        const itemRemainingQty = item.remainingQty || jsonNumber(po.remaining_qty ?? po.qty)
 
         const productObj = productByCode.get(item.productId)
         let matchedQty = 0
@@ -338,7 +337,7 @@ export async function GET(request: Request) {
           matchedQty = matchedQtyByPoSellProduct.get(`${po.id.toString()}|${productObj.id.toString()}`) ?? 0
         }
 
-        const remainingQty = Math.max(0, itemRemainingQty - matchedQty)
+        const remainingQty = Math.max(0, qty - matchedQty)
         const unitPrice = item.unitPrice || (qty > 0 ? (item.totalAmount || toNumber(po.total_amount)) / qty : 0)
         return {
           customerName: po.customers?.name ?? '-',
@@ -578,6 +577,9 @@ export async function POST(request: Request) {
           include: { customers: true }
         })
         if (!poSell) throw new Error(`ไม่พบ PO Sell ID: ${poId}`)
+        if (isCancelled(poSell.status)) {
+          throw new Error(`PO Sell ${poSell.doc_no} ถูกปิดหรือยกเลิกแล้ว`)
+        }
 
         const salesBill = await tx.sales_bills.findFirst({
           where: {
