@@ -34,6 +34,7 @@ type PoSellItem = {
 const DOCUMENT_STATUS_OPTIONS = [
   { label: 'เปิดอยู่', value: 'open' },
   { label: 'ออกบิลบางส่วน', value: 'partial' },
+  { label: 'ปิดส่งไม่ครบ', value: 'short_closed' },
   { label: 'ยกเลิก', value: 'cancelled' },
   { label: 'ปิดแล้ว', value: 'closed' },
 ] as const
@@ -55,6 +56,11 @@ const poSellPatchSchema = z.discriminatedUnion('action', [
     action: z.literal('cancel'),
     docNo: z.string().trim().min(1, 'ระบุเลขที่ PO Sell').max(40, 'เลขที่ PO Sell ยาวเกินไป'),
     note: z.string().trim().max(500, 'เหตุผลยกเลิกยาวเกินไป').optional().nullable(),
+  }),
+  z.object({
+    action: z.literal('shortClose'),
+    docNo: z.string().trim().min(1, 'ระบุเลขที่ PO Sell').max(40, 'เลขที่ PO Sell ยาวเกินไป'),
+    note: z.string().trim().min(1, 'กรอกเหตุผลการปิดส่งไม่ครบ').max(500, 'เหตุผลปิดส่งไม่ครบยาวเกินไป'),
   }),
 ])
 
@@ -149,9 +155,290 @@ async function activePoSellDownstreamCount(poSellId: bigint, tx: typeof prisma =
   return allocationCount + directBillCount
 }
 
+function appendAuditNote(current: string | null | undefined, line: string) {
+  return [current, line].filter(Boolean).join('\n')
+}
+
+function poolStatusFromAllocatedQty(originalQty: number, allocatedQty: number) {
+  if (allocatedQty <= 0.001) return 'Available'
+  if (allocatedQty >= originalQty - 0.001) return 'Fully Used'
+  return 'Partially Used'
+}
+
+async function releasePoSellShortCloseDualCosting(
+  tx: Prisma.TransactionClient,
+  params: {
+    actor: string
+    poSell: {
+      branch_id: bigint | null
+      doc_no: string
+      id: bigint
+      qty: number | { toNumber: () => number } | null | undefined
+      remaining_qty: number | { toNumber: () => number } | null | undefined
+    }
+    reason: string
+    releasedAt: Date
+  },
+) {
+  const linkedBills = await tx.sales_bills.findMany({
+    select: { id: true },
+    where: {
+      po_sell_id: params.poSell.id,
+      NOT: { status: { in: CANCELLED_STATUSES } },
+    },
+  })
+  const linkedBillIds = linkedBills.map((bill) => bill.id)
+  const activeFacts = await tx.trading_allocation_facts.findMany({
+    orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+    select: {
+      id: true,
+      matched_cogs: true,
+      notes: true,
+      product_id: true,
+      qty: true,
+      sales_amount: true,
+      source_doc_no: true,
+      source_line_no: true,
+      trading_deal_id: true,
+    },
+    where: {
+      status: 'active',
+      OR: [
+        { sales_doc_no: params.poSell.doc_no },
+        ...(linkedBillIds.length > 0 ? [{ sales_bill_id: { in: linkedBillIds } }] : []),
+      ],
+    },
+  })
+
+  const fulfilledQty = Math.max(0, toNumber(params.poSell.qty) - toNumber(params.poSell.remaining_qty))
+  const matchedQty = activeFacts.reduce((sum, fact) => sum + toNumber(fact.qty), 0)
+  let qtyToRelease = Math.max(0, matchedQty - fulfilledQty)
+  if (qtyToRelease <= 0.001) {
+    return { releasedDealCount: 0, releasedFactCount: 0, releasedQty: 0 }
+  }
+
+  let releasedDealCount = 0
+  let releasedFactCount = 0
+  let releasedQty = 0
+  let returnedPoolEntryCount = 0
+
+  for (const fact of activeFacts) {
+    if (qtyToRelease <= 0.001) break
+
+    const factQty = toNumber(fact.qty)
+    if (factQty <= 0.001) continue
+
+    const sourceDocNo = fact.source_doc_no?.trim()
+    if (!sourceDocNo) throw new Error(`ไม่พบเอกสารต้นทุนของ allocation ${stringifyBusinessValue(fact.id)}`)
+    const poolEntryBaseWhere = {
+      ...(params.poSell.branch_id ? { branch_id: params.poSell.branch_id } : {}),
+      ...(fact.product_id ? { product_id: fact.product_id } : {}),
+      source_ref_no: sourceDocNo,
+    }
+    const activePoolWhere = {
+      ...poolEntryBaseWhere,
+      NOT: { status: { in: ['Cancelled', 'cancelled', 'Reversed', 'reversed', 'Void', 'void'] } },
+    }
+
+    const poolEntry = await tx.stock_cost_pool_entries.findFirst({
+      orderBy: [{ date: 'desc' }, { id: 'desc' }],
+      select: {
+        allocated_qty: true,
+        branch_id: true,
+        date: true,
+        id: true,
+        lot_no: true,
+        notes: true,
+        original_qty: true,
+        product_id: true,
+        source_line_id: true,
+        source_ref_id: true,
+        source_ref_no: true,
+        source_ref_type: true,
+        source_type: true,
+        unit_cost: true,
+        warehouse_id: true,
+      },
+      where: {
+        ...activePoolWhere,
+        ...(fact.source_line_no != null ? { source_line_id: String(fact.source_line_no) } : {}),
+      },
+    })
+      ?? await tx.stock_cost_pool_entries.findFirst({
+        orderBy: [{ date: 'desc' }, { id: 'desc' }],
+        select: {
+          allocated_qty: true,
+          branch_id: true,
+          date: true,
+          id: true,
+          lot_no: true,
+          notes: true,
+          original_qty: true,
+          product_id: true,
+          source_line_id: true,
+          source_ref_id: true,
+          source_ref_no: true,
+          source_ref_type: true,
+          source_type: true,
+          unit_cost: true,
+          warehouse_id: true,
+        },
+        where: activePoolWhere,
+      })
+    const fallbackPoolEntry = poolEntry
+      ? null
+      : await tx.stock_cost_pool_entries.findFirst({
+        orderBy: [{ date: 'desc' }, { id: 'desc' }],
+        select: {
+          branch_id: true,
+          date: true,
+          id: true,
+          lot_no: true,
+          product_id: true,
+          source_line_id: true,
+          source_ref_id: true,
+          source_ref_no: true,
+          source_ref_type: true,
+          source_type: true,
+          status: true,
+          unit_cost: true,
+          warehouse_id: true,
+        },
+        where: poolEntryBaseWhere,
+      })
+
+    const releaseQty = Math.min(factQty, qtyToRelease)
+    const remainingFactQty = Math.max(0, factQty - releaseQty)
+    const releaseRatio = factQty > 0 ? releaseQty / factQty : 0
+    const releasedSalesAmount = toNumber(fact.sales_amount) * releaseRatio
+    const releasedMatchedCogs = toNumber(fact.matched_cogs) * releaseRatio
+    const releaseNoteBase = `Auto reversed from PO Sell short close ${params.poSell.doc_no}: ${params.reason}`
+    const releaseNote = poolEntry
+      ? releaseNoteBase
+      : `${releaseNoteBase} (${fallbackPoolEntry
+        ? `skip cost pool release: ${sourceDocNo}${fallbackPoolEntry.source_line_id ? `/${fallbackPoolEntry.source_line_id}` : ''} status=${fallbackPoolEntry.status ?? '-'}`
+        : `skip cost pool release: no active entry for ${sourceDocNo}${fact.source_line_no != null ? ` line ${fact.source_line_no}` : ''}`})`
+
+    if (poolEntry) {
+      const nextAllocatedQty = Math.max(0, toNumber(poolEntry.allocated_qty) - releaseQty)
+      await tx.stock_cost_pool_entries.update({
+        data: {
+          allocated_qty: nextAllocatedQty,
+          notes: appendAuditNote(poolEntry.notes, `${releaseNote} (คืน ${releaseQty.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} กก.)`),
+          status: poolStatusFromAllocatedQty(toNumber(poolEntry.original_qty), nextAllocatedQty),
+          updated_at: params.releasedAt,
+          updated_by: params.actor,
+        },
+        where: { id: poolEntry.id },
+      })
+    } else {
+      const returnedUnitCost = releaseQty > 0 ? releasedMatchedCogs / releaseQty : 0
+      if (returnedUnitCost > 0) {
+        const returnSourceRefNo = fallbackPoolEntry?.source_ref_no?.trim() || sourceDocNo
+        const returnSourceLineId = fallbackPoolEntry?.source_line_id?.trim()
+          || (fact.source_line_no != null ? String(fact.source_line_no) : null)
+        const returnSourceRefType = fallbackPoolEntry?.source_ref_type?.trim() || 'RETURN'
+        const returnSourceType = fallbackPoolEntry?.source_type?.trim() || 'Purchase'
+        const returnProductId = fallbackPoolEntry?.product_id ?? fact.product_id
+        if (!returnProductId) throw new Error(`ไม่พบสินค้าเพื่อคืน Cost Pool สำหรับ ${sourceDocNo}`)
+        const returnNote = `${releaseNoteBase} (create returned pool entry ${releaseQty.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} กก.)`
+        await tx.stock_cost_pool_entries.create({
+          data: {
+            allocated_qty: 0,
+            branch_id: fallbackPoolEntry?.branch_id ?? params.poSell.branch_id ?? null,
+            created_at: params.releasedAt,
+            created_by: params.actor,
+            date: fallbackPoolEntry?.date ?? params.releasedAt,
+            lot_no: fallbackPoolEntry?.lot_no ?? null,
+            notes: returnNote,
+            original_qty: releaseQty,
+            original_value: releasedMatchedCogs,
+            product_id: returnProductId,
+            released_qty: 0,
+            source_line_id: returnSourceLineId,
+            source_ref_id: fallbackPoolEntry?.source_ref_id ?? null,
+            source_ref_no: returnSourceRefNo,
+            source_ref_type: returnSourceRefType,
+            source_type: returnSourceType,
+            status: 'Available',
+            unit_cost: fallbackPoolEntry?.unit_cost ?? returnedUnitCost,
+            updated_at: params.releasedAt,
+            updated_by: params.actor,
+            warehouse_id: fallbackPoolEntry?.warehouse_id ?? null,
+          },
+        })
+        returnedPoolEntryCount += 1
+      }
+    }
+
+    if (remainingFactQty <= 0.001) {
+      await tx.trading_allocation_facts.update({
+        data: {
+          notes: appendAuditNote(fact.notes, releaseNote),
+          status: 'reversed',
+          updated_at: params.releasedAt,
+          updated_by: params.actor,
+        },
+        where: { id: fact.id },
+      })
+    } else {
+      await tx.trading_allocation_facts.update({
+        data: {
+          matched_cogs: Math.max(0, toNumber(fact.matched_cogs) - releasedMatchedCogs),
+          notes: appendAuditNote(
+            fact.notes,
+            `${releaseNote} (คืน ${releaseQty.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} กก. คงเหลือ ${remainingFactQty.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} กก.)`,
+          ),
+          qty: remainingFactQty,
+          sales_amount: Math.max(0, toNumber(fact.sales_amount) - releasedSalesAmount),
+          updated_at: params.releasedAt,
+          updated_by: params.actor,
+        },
+        where: { id: fact.id },
+      })
+    }
+
+    if (fact.trading_deal_id) {
+      const deal = await tx.trading_deals.findUnique({
+        select: {
+          matched_purchase_amount: true,
+          matched_qty: true,
+          matched_sales_amount: true,
+          notes: true,
+          status: true,
+        },
+        where: { id: fact.trading_deal_id },
+      })
+      if (deal) {
+        const nextDealQty = Math.max(0, toNumber(deal.matched_qty) - releaseQty)
+        await tx.trading_deals.update({
+          data: {
+            matched_purchase_amount: Math.max(0, toNumber(deal.matched_purchase_amount) - releasedMatchedCogs),
+            matched_qty: nextDealQty,
+            matched_sales_amount: Math.max(0, toNumber(deal.matched_sales_amount) - releasedSalesAmount),
+            notes: appendAuditNote(deal.notes, releaseNote),
+            status: nextDealQty <= 0.001 ? 'Cancelled' : deal.status,
+            updated_at: params.releasedAt,
+            updated_by: params.actor,
+          },
+          where: { id: fact.trading_deal_id },
+        })
+      }
+    }
+
+    qtyToRelease -= releaseQty
+    releasedQty += releaseQty
+    releasedFactCount += 1
+    if (fact.trading_deal_id) releasedDealCount += 1
+  }
+
+  return { releasedDealCount, releasedFactCount, releasedQty, returnedPoolEntryCount }
+}
+
 function documentStatus(status: string | null | undefined, remainingQty: number, qty = 0, cutAmount = 0): PoSellDocumentStatus {
   const normalized = (status ?? '').trim().toLowerCase()
   if (['cancelled', 'canceled', 'void'].includes(normalized)) return 'cancelled'
+  if (normalized.includes('short')) return 'short_closed'
   if (['closed', 'completed', 'fully matched', 'received'].includes(normalized) || remainingQty <= 0.001) return 'closed'
   if (remainingQty > 0.001 && ((qty > 0 && remainingQty < qty - 0.001) || cutAmount > 0.001)) return 'partial'
   return 'open'
@@ -621,16 +908,17 @@ export async function PATCH(request: Request) {
     }
 
     const currentDocumentStatus = documentStatus(existing.status, toNumber(existing.remaining_qty), toNumber(existing.qty), toNumber(existing.cut_amount))
-    if (currentDocumentStatus !== 'open') {
-      return NextResponse.json({ code: 'CONFLICT', error: 'แก้ไขได้เฉพาะ PO Sell ที่ยังเปิดอยู่' }, { status: 409 })
-    }
-
-    const downstreamCount = await activePoSellDownstreamCount(existing.id)
-    if (downstreamCount > 0) {
-      return NextResponse.json({ code: 'CONFLICT', error: 'PO Sell นี้ถูกนำไปเปิดบิลหรือจัดสรรต้นทุนแล้ว ต้องยกเลิกรายการปลายทางก่อน' }, { status: 409 })
-    }
 
     if (values.action === 'cancel') {
+      if (currentDocumentStatus !== 'open') {
+        return NextResponse.json({ code: 'CONFLICT', error: 'ยกเลิกได้เฉพาะ PO Sell ที่ยังเปิดอยู่' }, { status: 409 })
+      }
+
+      const downstreamCount = await activePoSellDownstreamCount(existing.id)
+      if (downstreamCount > 0) {
+        return NextResponse.json({ code: 'CONFLICT', error: 'PO Sell นี้ถูกนำไปเปิดบิลหรือจัดสรรต้นทุนแล้ว ต้องยกเลิกรายการปลายทางก่อน' }, { status: 409 })
+      }
+
       const reason = values.note?.trim() || 'ยกเลิกจากหน้า PO Sell'
       const cancelLine = `ยกเลิกโดย ${actor} เมื่อ ${updatedAt.toLocaleString('th-TH')} - เหตุผล: ${reason}`
       const cancelledItems = Array.isArray(existing.items)
@@ -651,6 +939,61 @@ export async function PATCH(request: Request) {
         where: { id: existing.id },
       })
       return NextResponse.json({ docNo: existing.doc_no, id: existing.doc_no, status: 'Cancelled' })
+    }
+
+    if (values.action === 'shortClose') {
+      if (currentDocumentStatus !== 'open' && currentDocumentStatus !== 'partial') {
+        return NextResponse.json({ code: 'CONFLICT', error: 'ปิดส่งไม่ครบได้เฉพาะ PO Sell ที่เปิดอยู่หรือออกบิลบางส่วน' }, { status: 409 })
+      }
+      if (toNumber(existing.remaining_qty) <= 0.001) {
+        return NextResponse.json({ code: 'CONFLICT', error: 'PO Sell นี้ไม่มียอดคงเหลือให้ปิดส่งไม่ครบแล้ว' }, { status: 409 })
+      }
+
+      const reason = values.note.trim()
+      const shortCloseLine = `ปิดส่งไม่ครบโดย ${actor} เมื่อ ${updatedAt.toLocaleString('th-TH')} - ปิดคงเหลือ ${toNumber(existing.remaining_qty).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} กก. เหตุผล: ${reason}`
+      const shortClosedItems = Array.isArray(existing.items)
+        ? existing.items.map((item) => (item && typeof item === 'object' && !Array.isArray(item) ? { ...item, remainingQty: 0 } : item))
+        : existing.items
+
+      const releaseResult = await prisma.$transaction(async (tx) => {
+        const released = await releasePoSellShortCloseDualCosting(tx, {
+          actor,
+          poSell: existing,
+          reason,
+          releasedAt: updatedAt,
+        })
+        await tx.po_sells.update({
+          data: {
+            items: shortClosedItems as Prisma.InputJsonValue,
+            note: appendAuditNote(existing.note, shortCloseLine),
+            notes: appendAuditNote(existing.notes, shortCloseLine),
+            remaining_amount: 0,
+            remaining_qty: 0,
+            status: 'Short Closed',
+            updated_at: updatedAt,
+            updated_by: actor,
+            version: { increment: 1 },
+          },
+          where: { id: existing.id },
+        })
+        return released
+      })
+      return NextResponse.json({
+        docNo: existing.doc_no,
+        id: existing.doc_no,
+        releasedCostQty: releaseResult.releasedQty,
+        returnedPoolEntryCount: releaseResult.returnedPoolEntryCount,
+        status: 'Short Closed',
+      })
+    }
+
+    if (currentDocumentStatus !== 'open') {
+      return NextResponse.json({ code: 'CONFLICT', error: 'แก้ไขได้เฉพาะ PO Sell ที่ยังเปิดอยู่' }, { status: 409 })
+    }
+
+    const downstreamCount = await activePoSellDownstreamCount(existing.id)
+    if (downstreamCount > 0) {
+      return NextResponse.json({ code: 'CONFLICT', error: 'PO Sell นี้ถูกนำไปเปิดบิลหรือจัดสรรต้นทุนแล้ว ต้องยกเลิกรายการปลายทางก่อน' }, { status: 409 })
     }
 
     const expectedDelivery = normalizeDate(values.expectedDelivery)
