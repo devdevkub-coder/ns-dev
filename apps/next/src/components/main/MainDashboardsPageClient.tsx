@@ -81,6 +81,7 @@ type Mode = 'daily-report' | 'dashboard' | 'owner-daily' | 'analytics-dashboard'
 type SortDirection = 'asc' | 'desc'
 type DashboardAgingSortKey = 'label' | 'current' | 'd1_30' | 'd31_60' | 'd61_90' | 'over90' | 'total'
 type DashboardDetailTab = 'metrics' | 'ranking' | 'stock'
+type AnalyticsDetailTab = 'partners' | 'products' | 'sales'
 type DashboardAgingRow = {
   current: number
   d1_30: number
@@ -420,7 +421,7 @@ function DashboardView(props: {
   }
   return (
     <>
-      <div className="rounded-md bg-white p-3 shadow lg:hidden">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-semibold text-slate-600">ช่วงเวลา:</span>
           <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition hover:bg-slate-50 focus:ring-2 focus:ring-slate-200" type="button" onClick={() => setShowDashboardMobileFilters(true)}>
@@ -487,12 +488,12 @@ function DashboardView(props: {
             <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-slate-200" value={dashboardGroup} onChange={(event) => setDashboardGroup(event.target.value)}><option value="">ทุกหมวด</option>{(data?.filterOptions.groups ?? []).map((group) => <option key={group} value={group}>{group}</option>)}</select>
           </div>
           <div>
-            <span className="mb-1 block text-xs font-semibold text-slate-600">Supplier</span>
-            <SearchCombobox inputId="dashboard-supplier-filter-mobile" label="Supplier" hideLabel inputClassName="h-9 border-slate-300 bg-white font-medium text-slate-900 placeholder:text-slate-500" placeholder="ทุก Supplier" options={supplierSearchOptions} value={dashboardSupplierId} onChange={setDashboardSupplierId} />
+            <span className="mb-1 block text-xs font-semibold text-slate-600">ผู้ขาย</span>
+            <SearchCombobox inputId="dashboard-supplier-filter-mobile" label="ผู้ขาย" hideLabel inputClassName="h-9 border-slate-300 bg-white font-medium text-slate-900 placeholder:text-slate-500" placeholder="ทุกผู้ขาย" options={supplierSearchOptions} value={dashboardSupplierId} onChange={setDashboardSupplierId} />
           </div>
           <div>
-            <span className="mb-1 block text-xs font-semibold text-slate-600">Customer</span>
-            <SearchCombobox inputId="dashboard-customer-filter-mobile" label="Customer" hideLabel inputClassName="h-9 border-slate-300 bg-white font-medium text-slate-900 placeholder:text-slate-500" placeholder="ทุก Customer" options={customerSearchOptions} value={dashboardCustomerId} onChange={setDashboardCustomerId} />
+            <span className="mb-1 block text-xs font-semibold text-slate-600">ลูกค้า</span>
+            <SearchCombobox inputId="dashboard-customer-filter-mobile" label="ลูกค้า" hideLabel inputClassName="h-9 border-slate-300 bg-white font-medium text-slate-900 placeholder:text-slate-500" placeholder="ทุกลูกค้า" options={customerSearchOptions} value={dashboardCustomerId} onChange={setDashboardCustomerId} />
           </div>
           <div>
             <span className="mb-1 block text-xs font-semibold text-slate-600">สินค้า</span>
@@ -500,74 +501,84 @@ function DashboardView(props: {
           </div>
         </MobileFilterSheet>
       ) : null}
-      <div className="hidden rounded-md bg-white p-3 shadow lg:block">
-        <div className="flex flex-wrap items-center gap-2 text-slate-800">
-          <span className="text-xs font-semibold text-slate-600">ช่วงเวลา:</span>
-          {[
-            ['year', 'ปีนี้'],
-            ['quarter', 'ไตรมาส'],
-            ['month', 'เดือนนี้'],
-            ['week', '7 วัน'],
-            ['today', 'วันนี้'],
-          ].map(([key, label]) => (
-            <button className={`h-9 rounded-md border px-3 text-xs font-medium outline-none transition focus:ring-2 focus:ring-slate-200 ${rangeMode === key ? 'border-slate-700 bg-slate-700 text-white shadow-sm' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`} key={key} onClick={() => applyPeriod(key)} type="button">{label}</button>
-          ))}
-          <span className="mx-1 hidden h-5 w-px bg-slate-200 sm:block" />
-          <DatePickerInput className="h-9 w-[140px] border-slate-300 bg-white text-slate-900 [&_input]:text-slate-900 [&_input]:placeholder:text-slate-400" value={rangeFrom} onChange={(value) => { setRangeMode('custom'); setRangeFrom(value) }} />
-          <span className="text-xs text-slate-400">→</span>
-          <DatePickerInput className="h-9 w-[140px] border-slate-300 bg-white text-slate-900 [&_input]:text-slate-900 [&_input]:placeholder:text-slate-400" value={rangeTo} onChange={(value) => { setRangeMode('custom'); setRangeTo(value) }} />
-          <span className="ml-auto h-9 rounded-md bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700">{filteredCount}</span>
-          {hasActiveDashboardFilters ? (
-            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-600 outline-none transition hover:bg-slate-50 focus:ring-2 focus:ring-slate-200" onClick={clearFilters} type="button">ล้างตัวกรอง</button>
-          ) : null}
-        </div>
-        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-[160px_180px_minmax(220px,1fr)_minmax(220px,1fr)_minmax(220px,1fr)]">
-          <div className="space-y-1">
-            <span className="block text-[11px] font-semibold text-slate-500">สาขา</span>
-            <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-slate-200" value={dashboardBranchId} onChange={(event) => setDashboardBranchId(event.target.value)}><option value="">ทุกสาขา</option>{(data?.filterOptions.branches ?? []).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>
+      <div className="hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
+        <div className="space-y-3">
+          <div className="grid items-end gap-2 lg:grid-cols-2 xl:grid-cols-[minmax(320px,1.35fr)_minmax(140px,0.8fr)_minmax(160px,0.9fr)_minmax(220px,1fr)_minmax(220px,1fr)_minmax(220px,1fr)]">
+            <div className="space-y-1">
+              <span className="block text-[11px] font-semibold text-slate-500">วันที่</span>
+              <div className="grid grid-cols-[minmax(145px,1fr)_auto_minmax(145px,1fr)] items-center gap-2">
+                <DatePickerInput className="h-9 w-full border-slate-300 bg-white text-slate-900 [&_input]:text-slate-900 [&_input]:placeholder:text-slate-400" value={rangeFrom} onChange={(value) => { setRangeMode('custom'); setRangeFrom(value) }} />
+                <span className="text-xs text-slate-400">→</span>
+                <DatePickerInput className="h-9 w-full border-slate-300 bg-white text-slate-900 [&_input]:text-slate-900 [&_input]:placeholder:text-slate-400" value={rangeTo} onChange={(value) => { setRangeMode('custom'); setRangeTo(value) }} />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <span className="block text-[11px] font-semibold text-slate-500">สาขา</span>
+              <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-slate-200" value={dashboardBranchId} onChange={(event) => setDashboardBranchId(event.target.value)}><option value="">ทุกสาขา</option>{(data?.filterOptions.branches ?? []).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>
+            </div>
+            <div className="space-y-1">
+              <span className="block text-[11px] font-semibold text-slate-500">หมวดสินค้า</span>
+              <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-slate-200" value={dashboardGroup} onChange={(event) => setDashboardGroup(event.target.value)}><option value="">ทุกหมวด</option>{(data?.filterOptions.groups ?? []).map((group) => <option key={group} value={group}>{group}</option>)}</select>
+            </div>
+            <div className="space-y-1">
+              <span className="block text-[11px] font-semibold text-slate-500">ผู้ขาย</span>
+              <SearchCombobox
+                inputId="dashboard-supplier-filter"
+                label="ผู้ขาย"
+                hideLabel
+                inputClassName="h-9 border-slate-300 bg-white font-medium text-slate-900 placeholder:text-slate-500"
+                placeholder="ทุกผู้ขาย"
+                options={supplierSearchOptions}
+                value={dashboardSupplierId}
+                onChange={setDashboardSupplierId}
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="block text-[11px] font-semibold text-slate-500">ลูกค้า</span>
+              <SearchCombobox
+                inputId="dashboard-customer-filter"
+                label="ลูกค้า"
+                hideLabel
+                inputClassName="h-9 border-slate-300 bg-white font-medium text-slate-900 placeholder:text-slate-500"
+                placeholder="ทุกลูกค้า"
+                options={customerSearchOptions}
+                value={dashboardCustomerId}
+                onChange={setDashboardCustomerId}
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="block text-[11px] font-semibold text-slate-500">สินค้า</span>
+              <SearchCombobox
+                inputId="dashboard-product-filter"
+                label="สินค้า"
+                hideLabel
+                inputClassName="h-9 border-slate-300 bg-white font-medium text-slate-900 placeholder:text-slate-500"
+                placeholder="ทุกสินค้า"
+                options={productSearchOptions}
+                value={dashboardProductId}
+                onChange={setDashboardProductId}
+              />
+            </div>
           </div>
-          <div className="space-y-1">
-            <span className="block text-[11px] font-semibold text-slate-500">หมวดสินค้า</span>
-            <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-slate-200" value={dashboardGroup} onChange={(event) => setDashboardGroup(event.target.value)}><option value="">ทุกหมวด</option>{(data?.filterOptions.groups ?? []).map((group) => <option key={group} value={group}>{group}</option>)}</select>
-          </div>
-          <div className="space-y-1">
-            <span className="block text-[11px] font-semibold text-slate-500">Supplier</span>
-            <SearchCombobox
-              inputId="dashboard-supplier-filter"
-              label="Supplier"
-              hideLabel
-              inputClassName="h-9 border-slate-300 bg-white font-medium text-slate-900 placeholder:text-slate-500"
-              placeholder="ทุก Supplier"
-              options={supplierSearchOptions}
-              value={dashboardSupplierId}
-              onChange={setDashboardSupplierId}
-            />
-          </div>
-          <div className="space-y-1">
-            <span className="block text-[11px] font-semibold text-slate-500">Customer</span>
-            <SearchCombobox
-              inputId="dashboard-customer-filter"
-              label="Customer"
-              hideLabel
-              inputClassName="h-9 border-slate-300 bg-white font-medium text-slate-900 placeholder:text-slate-500"
-              placeholder="ทุก Customer"
-              options={customerSearchOptions}
-              value={dashboardCustomerId}
-              onChange={setDashboardCustomerId}
-            />
-          </div>
-          <div className="space-y-1">
-            <span className="block text-[11px] font-semibold text-slate-500">สินค้า</span>
-            <SearchCombobox
-              inputId="dashboard-product-filter"
-              label="สินค้า"
-              hideLabel
-              inputClassName="h-9 border-slate-300 bg-white font-medium text-slate-900 placeholder:text-slate-500"
-              placeholder="ทุกสินค้า"
-              options={productSearchOptions}
-              value={dashboardProductId}
-              onChange={setDashboardProductId}
-            />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2 text-slate-800">
+              <span className="text-xs font-semibold text-slate-600">ช่วงเวลา:</span>
+              {[
+                ['year', 'ปีนี้'],
+                ['quarter', 'ไตรมาส'],
+                ['month', 'เดือนนี้'],
+                ['week', '7 วัน'],
+                ['today', 'วันนี้'],
+              ].map(([key, label]) => (
+                <button className={`h-9 rounded-md border px-3 text-xs font-medium outline-none transition focus:ring-2 focus:ring-slate-200 ${rangeMode === key ? 'border-slate-700 bg-slate-700 text-white shadow-sm' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`} key={key} onClick={() => applyPeriod(key)} type="button">{label}</button>
+              ))}
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <span className="h-9 rounded-md bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700">{filteredCount}</span>
+              {hasActiveDashboardFilters ? (
+                <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-600 outline-none transition hover:bg-slate-50 focus:ring-2 focus:ring-slate-200" onClick={clearFilters} type="button">ล้างตัวกรอง</button>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
@@ -612,7 +623,7 @@ function DashboardView(props: {
               ) : null}
             </div>
             <div className="hidden overflow-x-auto sm:block">
-              <table className="min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: agingResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+              <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: agingResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
                 <colgroup>
                   {dashboardAgingColumns.map((column) => (
                     <col key={column.key} style={agingResize.getColumnStyle(column.key)} />
@@ -672,7 +683,7 @@ function DashboardView(props: {
       </div>
 
       <Tabs className="gap-2" value={detailTab} onValueChange={(value) => setDetailTab(value as DashboardDetailTab)}>
-        <TabsList className="w-full overflow-x-auto rounded-md bg-white px-2 shadow-sm" variant="line">
+        <TabsList className="w-full overflow-x-auto" variant="line">
           {dashboardDetailTabs.map((tab) => {
             return (
               <TabsTrigger
@@ -711,7 +722,7 @@ function DashboardView(props: {
             ) : null}
           </div>
           <div className="hidden overflow-x-auto sm:block">
-            <table className="min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: stockGroupResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: stockGroupResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
                 {dashboardStockGroupColumns.map((column, index) => (
                   <col key={column.key} style={index === dashboardStockGroupColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : stockGroupResize.getColumnStyle(column.key)} />
@@ -925,6 +936,13 @@ function DailyReportView({ data, date, setDate }: { data: MainPayload | null; da
   const salesCount = data?.dailyReport.salesBills.length ?? 0
   const analytics = data?.dailyReport.analytics
   const isToday = date === today()
+  const purchaseAmount = safeNumber(summary.purchaseAmount)
+  const purchaseQty = safeNumber(summary.purchaseQty)
+  const salesAmount = safeNumber(summary.salesAmount)
+  const salesQty = safeNumber(summary.salesQty)
+  const gpAmount = salesAmount - safeNumber(analytics?.rangeKpi.cogs)
+  const gpPct = safeNumber(analytics?.rangeKpi.gpPct)
+  const dateButtonClass = 'h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition hover:bg-slate-50 focus:ring-2 focus:ring-slate-200'
   function shiftDate(days: number) {
     const next = new Date(`${date}T00:00:00`)
     next.setDate(next.getDate() + days)
@@ -932,19 +950,19 @@ function DailyReportView({ data, date, setDate }: { data: MainPayload | null; da
   }
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-100 mb-4">
-        <button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200 outline-none" type="button" onClick={() => shiftDate(-1)}>← วันก่อน</button>
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
+        <button className={dateButtonClass} type="button" onClick={() => shiftDate(-1)}>← วันก่อน</button>
         <DatePickerInput className="w-[140px]" value={date} onChange={setDate} />
-        <button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-30 outline-none" disabled={isToday} type="button" onClick={() => shiftDate(1)}>วันถัดไป →</button>
-        <button className={isToday ? 'rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white outline-none' : 'rounded-lg bg-yellow-300 px-4 py-2 text-sm font-bold text-amber-900 hover:bg-yellow-200 outline-none'} type="button" onClick={() => setDate(today())}>📍 วันนี้</button>
+        <button className={`${dateButtonClass} disabled:cursor-not-allowed disabled:opacity-40`} disabled={isToday} type="button" onClick={() => shiftDate(1)}>วันถัดไป →</button>
+        <button className={isToday ? 'h-9 rounded-md border border-slate-300 bg-slate-100 px-4 text-sm font-semibold text-slate-900 outline-none transition focus:ring-2 focus:ring-slate-200' : `${dateButtonClass} px-4`} type="button" onClick={() => setDate(today())}>วันนี้</button>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        <DailyBigCard count={purchaseCount} icon="📥" label="ยอดรับซื้อ" sub={`เฉลี่ย ${money((summary.purchaseAmount ?? 0) / Math.max(1, summary.purchaseQty ?? 0))} ฿/กก.`} tone="from-blue-600 to-indigo-700" value={money(summary.purchaseAmount)} weight={money(summary.purchaseQty)} />
-        <DailyBigCard count={salesCount} icon="📤" label="ยอดขาย" sub={`GP ${money(summary.salesAmount - (analytics?.rangeKpi.cogs ?? 0))} (${money(analytics?.rangeKpi.gpPct)}%)`} tone="from-emerald-600 to-teal-700" value={money(summary.salesAmount)} weight={money(summary.salesQty)} />
+        <DailyBigCard icon="📥" label="ยอดรับซื้อ" sub={`เฉลี่ย ${money(purchaseAmount / Math.max(1, purchaseQty))} ฿/กก.`} tone="from-blue-600 to-indigo-700" value={money(purchaseAmount)} weight={money(purchaseQty)} />
+        <DailyBigCard icon="📤" label="ยอดขาย" sub={`GP ${money(gpAmount)} (${money(gpPct)}%)`} tone="from-emerald-600 to-teal-700" value={money(salesAmount)} weight={money(salesQty)} />
       </div>
       <GroupBreakdown groups={data?.dailyReport.groupBreakdown ?? []} expandedGroup={expandedGroup} setExpandedGroup={setExpandedGroup} />
-      <div className="grid gap-4 lg:grid-cols-2"><DailyBillTable rows={data?.dailyReport.purchaseBills ?? []} title={`📋 บิลรับซื้อประจำวัน (${purchaseCount})`} total={summary.purchaseAmount ?? 0} tone="blue" /><DailyBillTable rows={data?.dailyReport.salesBills ?? []} title={`📋 บิลขายประจำวัน (${salesCount})`} total={summary.salesAmount ?? 0} tone="emerald" /></div>
-      <ExpenseSummary rows={data?.dailyReport.expenseByCategory ?? []} total={summary.expenseAmount ?? 0} />
+      <div className="grid gap-4 lg:grid-cols-2"><DailyBillTable rows={data?.dailyReport.purchaseBills ?? []} title={`📋 บิลรับซื้อประจำวัน (${purchaseCount})`} tone="blue" /><DailyBillTable rows={data?.dailyReport.salesBills ?? []} title={`📋 บิลขายประจำวัน (${salesCount})`} tone="emerald" /></div>
+      <ExpenseSummary rows={data?.dailyReport.expenseByCategory ?? []} total={safeNumber(summary.expenseAmount)} />
       <CashMovement movement={data?.dailyReport.cashMovement} />
     </>
   )
@@ -952,6 +970,7 @@ function DailyReportView({ data, date, setDate }: { data: MainPayload | null; da
 
 function AnalyticsDashboardView({ data, rangeFrom, rangeMode, rangeTo, setRangeFrom, setRangeMode, setRangeTo }: { data: MainPayload | null; rangeFrom: string; rangeMode: string; rangeTo: string; setRangeFrom: (value: string) => void; setRangeMode: (value: string) => void; setRangeTo: (value: string) => void }) {
   const analytics = data?.dailyReport.analytics
+  const [detailTab, setDetailTab] = useState<AnalyticsDetailTab>('partners')
   const trendMax = useMemo(() => Math.max(1, ...(analytics?.dailyTrend ?? []).flatMap((row) => [row.purchase, row.sales])), [analytics?.dailyTrend])
 
   function applyRange(mode: string) {
@@ -978,16 +997,16 @@ function AnalyticsDashboardView({ data, rangeFrom, rangeMode, rangeTo, setRangeF
 
   return (
     <div className="pt-2 animate-fade-in pb-16">
-      <div className="mb-4 rounded-xl bg-gradient-to-r from-violet-900 to-indigo-950 p-5 text-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h2 className="text-xl font-bold">📊 Analytics Dashboard</h2></div>
+      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div><h2 className="text-sm font-bold text-slate-900">Analytics Dashboard</h2></div>
           <div className="flex flex-wrap items-center gap-2">
             {['today', 'yesterday', 'last7', 'last30', 'last90', 'month'].map((mode) => (
-              <button key={mode} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all outline-none focus:ring-0 ${rangeMode === mode ? 'bg-white text-slate-900' : 'bg-white/10 text-white hover:bg-white/20'}`} type="button" onClick={() => applyRange(mode)}>{rangeLabel(mode)}</button>
+              <button key={mode} className={`inline-flex h-9 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors outline-none focus:ring-0 ${rangeMode === mode ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'}`} type="button" onClick={() => applyRange(mode)}>{rangeLabel(mode)}</button>
             ))}
-            <DatePickerInput className="w-[130px] bg-white text-slate-900 border-slate-300 outline-none" value={rangeFrom} onChange={(value) => { setRangeMode('custom'); setRangeFrom(value) }} />
-            <span className="text-xs">→</span>
-            <DatePickerInput className="w-[130px] bg-white text-slate-900 border-slate-300 outline-none" value={rangeTo} onChange={(value) => { setRangeMode('custom'); setRangeTo(value) }} />
+            <DatePickerInput className="h-9 w-[130px] bg-white text-slate-900 border-slate-300 outline-none" value={rangeFrom} onChange={(value) => { setRangeMode('custom'); setRangeFrom(value) }} />
+            <span className="text-xs text-slate-400">→</span>
+            <DatePickerInput className="h-9 w-[130px] bg-white text-slate-900 border-slate-300 outline-none" value={rangeTo} onChange={(value) => { setRangeMode('custom'); setRangeTo(value) }} />
           </div>
         </div>
       </div>
@@ -1003,26 +1022,42 @@ function AnalyticsDashboardView({ data, rangeFrom, rangeMode, rangeTo, setRangeF
       <div className="mb-4 grid min-w-0 gap-4 lg:grid-cols-2">
         <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm border border-slate-200">
            <h3 className="mb-3 font-bold text-slate-700 text-sm">📈 ยอดซื้อ vs ขาย (รายวัน)</h3>
-           {(analytics?.dailyTrend ?? []).map((row) => <div key={row.label} className="mb-2.5 grid grid-cols-12 items-center gap-2 text-xs"><div className="col-span-3 font-mono text-slate-600">{row.label}</div><div className="col-span-4 rounded-full bg-slate-100 h-5 overflow-hidden"><div className="rounded-full bg-blue-500 h-full text-right text-white pr-2 font-bold text-xs flex items-center justify-end" style={{ width: `${Math.max(15, row.purchase / trendMax * 100)}%` }}>{money(row.purchase)}</div></div><div className="col-span-5 rounded-full bg-slate-100 h-5 overflow-hidden"><div className="rounded-full bg-emerald-500 h-full text-right text-white pr-2 font-bold text-xs flex items-center justify-end" style={{ width: `${Math.max(15, row.sales / trendMax * 100)}%` }}>{money(row.sales)}</div></div></div>)}
+           {(analytics?.dailyTrend ?? []).map((row) => <div key={row.label} className="mb-2.5 grid grid-cols-12 items-center gap-2 text-xs"><div className="col-span-3 font-mono text-slate-600">{row.label}</div><AnalyticsTrendBar className="col-span-4" max={trendMax} tone="blue" value={row.purchase} /><AnalyticsTrendBar className="col-span-5" max={trendMax} tone="emerald" value={row.sales} /></div>)}
         </div>
         <TopSimpleTable rows={analytics?.groupSummary ?? []} title="🥧 มูลค่าตามหมวดสินค้า" />
       </div>
-      <div className="mb-4 grid min-w-0 gap-4 lg:grid-cols-2">
-        <RankTable color="blue" rows={analytics?.topSuppliers ?? []} title="🥇 Top 10 ผู้ขาย (ยอดซื้อสูงสุด)" />
-        <RankTable color="emerald" rows={analytics?.topCustomers ?? []} title="🥇 Top 10 ผู้ซื้อ (ยอดขายสูงสุด)" />
-      </div>
-      <div className="mb-4 grid min-w-0 gap-4 lg:grid-cols-2">
-        <ProductRank rows={analytics?.topProductsIn ?? []} title="📦 Top 5 สินค้ารับเข้า (ตามมูลค่า)" tone="indigo" />
-        <ProductRank rows={analytics?.topProductsOut ?? []} title="📦 Top 5 สินค้าขายออก (ตามมูลค่า)" tone="teal" />
-      </div>
-      <div className="mb-4">
-        <SalespersonTable rows={analytics?.bySalesperson ?? []} />
-      </div>
+      <Tabs className="mb-4 gap-3" value={detailTab} onValueChange={(value) => setDetailTab(value as AnalyticsDetailTab)}>
+        <TabsList className="w-full min-w-0 overflow-x-auto" variant="line">
+          <TabsTrigger value="partners" variant="line">คู่ค้า</TabsTrigger>
+          <TabsTrigger value="products" variant="line">สินค้า</TabsTrigger>
+          <TabsTrigger value="sales" variant="line">Sale</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {detailTab === 'partners' ? (
+        <div className="mb-4 grid min-w-0 gap-4 lg:grid-cols-2">
+          <RankTable color="blue" rows={analytics?.topSuppliers ?? []} title="🥇 Top 10 ผู้ขาย (ยอดซื้อสูงสุด)" />
+          <RankTable color="emerald" rows={analytics?.topCustomers ?? []} title="🥇 Top 10 ผู้ซื้อ (ยอดขายสูงสุด)" />
+        </div>
+      ) : null}
+
+      {detailTab === 'products' ? (
+        <div className="mb-4 grid min-w-0 gap-4 lg:grid-cols-2">
+          <ProductRank rows={analytics?.topProductsIn ?? []} title="📦 Top 5 สินค้ารับเข้า (ตามมูลค่า)" tone="indigo" />
+          <ProductRank rows={analytics?.topProductsOut ?? []} title="📦 Top 5 สินค้าขายออก (ตามมูลค่า)" tone="teal" />
+        </div>
+      ) : null}
+
+      {detailTab === 'sales' ? (
+        <div className="mb-4">
+          <SalespersonTable rows={analytics?.bySalesperson ?? []} />
+        </div>
+      ) : null}
 
       {/* Floating Action Buttons */}
-      <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-50 flex flex-row gap-2">
+      <div className="mt-4 grid grid-cols-2 gap-2 pb-4 lg:fixed lg:bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:right-6 lg:z-50 lg:mt-0 lg:flex lg:flex-row lg:pb-0">
         <button
-          className="shadow-lg rounded-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2 text-sm font-semibold transition-all hover:scale-105 active:scale-95 outline-none"
+          className="shadow-lg rounded-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 text-sm font-semibold transition-all hover:scale-105 active:scale-95 outline-none"
           type="button"
           onClick={() => {
             alert('แชร์ข้อมูลสรุปไปที่ LINE OA เรียบร้อยแล้ว')
@@ -1031,7 +1066,7 @@ function AnalyticsDashboardView({ data, rangeFrom, rangeMode, rangeTo, setRangeF
           <span>🟢</span> Share รูปภาพ - LINE
         </button>
         <button
-          className="shadow-lg rounded-full px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-2 text-sm font-semibold transition-all hover:scale-105 active:scale-95 outline-none"
+          className="shadow-lg rounded-full px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center gap-2 text-sm font-semibold transition-all hover:scale-105 active:scale-95 outline-none"
           type="button"
           onClick={printReport}
         >
@@ -1150,7 +1185,7 @@ function OwnerDueTable({ rows, title, type }: { rows: OwnerDueRow[]; title: stri
 
       {/* Desktop view */}
       <div className="hidden lg:block max-h-64 overflow-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {columns.map((column, index) => (
               <col key={column.key} style={index === columns.length - 1 ? { minWidth: column.minWidth ?? 80 } : columnResize.getColumnStyle(column.key)} />
@@ -1250,7 +1285,7 @@ function OwnerSmallTable({ rows, tableKey, title }: { rows: OwnerSmallRow[]; tab
 
       {/* Desktop view */}
       <div className="hidden lg:block overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {ownerSmallColumns.map((column, index) => (
               <col key={column.key} style={index === ownerSmallColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : columnResize.getColumnStyle(column.key)} />
@@ -1301,7 +1336,7 @@ function OwnerSmallTable({ rows, tableKey, title }: { rows: OwnerSmallRow[]; tab
   )
 }
 
-function DailyBigCard({ count, icon, label, sub, tone, value, weight }: { count: number; icon: string; label: string; sub: string; tone: string; value: string; weight: string }) {
+function DailyBigCard({ icon, label, sub, tone, value, weight }: { icon: string; label: string; sub: string; tone: string; value: string; weight: string }) {
   const toneMap: Record<string, { bg: string; text: string; iconBg: string; border: string }> = {
     'from-blue-600 to-indigo-700': { bg: 'bg-white', text: 'text-blue-700', iconBg: 'bg-blue-50 text-blue-600', border: 'border-slate-100' },
     'from-emerald-600 to-teal-700': { bg: 'bg-white', text: 'text-emerald-700', iconBg: 'bg-emerald-50 text-emerald-600', border: 'border-slate-100' },
@@ -1314,9 +1349,8 @@ function DailyBigCard({ count, icon, label, sub, tone, value, weight }: { count:
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex justify-between items-center">
+        <div className="flex items-center">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{label}</span>
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">{count} บิล</span>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-4">
           <div>
@@ -1326,9 +1360,9 @@ function DailyBigCard({ count, icon, label, sub, tone, value, weight }: { count:
           <div>
             <div className="text-xs text-slate-400 font-semibold">ยอดเงินรวม</div>
             <div className="font-mono text-xl font-bold text-slate-900 leading-none mt-1">{value}</div>
-            <div className="text-xs text-slate-500 mt-1">{sub}</div>
           </div>
         </div>
+        <div className="mt-3 border-t border-slate-100 pt-2 text-xs font-medium tabular-nums text-slate-500">{sub}</div>
       </div>
     </div>
   )
@@ -1337,10 +1371,10 @@ function DailyBigCard({ count, icon, label, sub, tone, value, weight }: { count:
 function GroupBreakdown({ expandedGroup, groups, setExpandedGroup }: { expandedGroup: string; groups: MainPayload['dailyReport']['groupBreakdown']; setExpandedGroup: (value: string) => void }) {
   const max = Math.max(1, ...groups.map((row) => Math.max(row.buyAmt, row.sellAmt)))
   return (
-    <div className="rounded-xl bg-white p-5 shadow-sm border border-slate-100">
+    <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
       <h3 className="mb-3 font-bold text-slate-800 text-sm">📊 หมวดสินค้า — ซื้อ vs ขาย <span className="text-xs font-normal text-slate-500">(กดที่หมวด → ดูรายละเอียดสินค้า)</span></h3>
       {groups.length === 0 ? (
-        <div className="py-10 text-center text-slate-400 text-xs">ไม่มีรายการในวันนี้</div>
+        <div className="py-6 text-center text-slate-400 text-xs">ไม่มีรายการในวันนี้</div>
       ) : (
         <div className="space-y-3">
           {groups.map((group, idx) => (
@@ -1421,13 +1455,13 @@ function GroupProductTable({ rows, tableKey }: { rows: DailyGroupProductRow[]; t
           ) : null}
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {dailyGroupProductColumns.map((column, index) => (
                 <col key={column.key} style={index === dailyGroupProductColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : columnResize.getColumnStyle(column.key)} />
               ))}
             </colgroup>
-            <thead className="bg-slate-50 text-slate-500">
+            <thead className="bg-slate-100 text-slate-600">
               <tr>
                 <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="Code" resizeProps={columnResize.getResizeHandleProps('productCode', 'Code')} sortKey="productCode" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={handleSort} />
@@ -1486,12 +1520,11 @@ function GroupProductTable({ rows, tableKey }: { rows: DailyGroupProductRow[]; t
   )
 }
 
-function DailyBillTable({ rows, title, tone, total }: { rows: DailyBillRow[]; title: string; tone: 'blue' | 'emerald'; total: number }) {
+function DailyBillTable({ rows, title, tone }: { rows: DailyBillRow[]; title: string; tone: 'blue' | 'emerald' }) {
   const [sortKey, setSortKey] = useState<DailyBillSortKey>('amount')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const columnResize = useResizableColumns(`main.daily-report.bills.${tone}.v1`, dailyBillColumns)
-  const header = tone === 'blue' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'
-  const hover = tone === 'blue' ? 'hover:bg-blue-50/30' : 'hover:bg-emerald-50/30'
+  const hover = 'hover:bg-slate-50/60'
   const amountColor = tone === 'blue' ? 'text-blue-700' : 'text-emerald-700'
   const sortedRows = useMemo(() => {
     return [...rows].sort((left, right) => compareDashboardValues(left[sortKey], right[sortKey], sortDirection))
@@ -1505,13 +1538,12 @@ function DailyBillTable({ rows, title, tone, total }: { rows: DailyBillRow[]; ti
   }
 
   return (
-    <div className="overflow-hidden rounded-xl bg-white shadow-sm border border-slate-100">
-      <div className={`flex justify-between border-b p-3 font-bold text-sm ${header}`}>
-        <h3 className="font-bold">{title}</h3>
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+      <div className="flex justify-between border-b border-slate-100 bg-white p-3 text-sm">
+        <h3 className="font-bold text-slate-800">{title}</h3>
         <div className="flex items-center gap-2">
-          <span className="text-sm font-bold">{money(total)}</span>
           {columnResize.hasCustomWidths ? (
-            <button className="rounded border border-slate-200 bg-white/70 px-2 py-0.5 text-xs font-normal text-slate-500 hover:bg-white hover:text-slate-800" type="button" onClick={columnResize.resetColumnWidths}>
+            <button className="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-normal text-slate-500 hover:bg-slate-50 hover:text-slate-800" type="button" onClick={columnResize.resetColumnWidths}>
               คืนค่าเดิมตาราง
             </button>
           ) : null}
@@ -1520,13 +1552,13 @@ function DailyBillTable({ rows, title, tone, total }: { rows: DailyBillRow[]; ti
 
       {/* Desktop view */}
       <div className="hidden lg:block max-h-[300px] overflow-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {dailyBillColumns.map((column, index) => (
               <col key={column.key} style={index === dailyBillColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : columnResize.getColumnStyle(column.key)} />
             ))}
           </colgroup>
-          <thead className="sticky top-0 bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
+          <thead className="sticky top-0 bg-slate-100 border-b border-slate-100 text-xs text-slate-600">
             <tr>
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={handleSort} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label={tone === 'blue' ? 'Supplier' : 'Customer'} resizeProps={columnResize.getResizeHandleProps('name', tone === 'blue' ? 'Supplier' : 'Customer')} sortKey="name" onSort={handleSort} />
@@ -1545,7 +1577,7 @@ function DailyBillTable({ rows, title, tone, total }: { rows: DailyBillRow[]; ti
             ))}
             {rows.length === 0 && (
               <tr>
-                <td className="py-8 text-center text-slate-400" colSpan={4}>
+                <td className="py-6 text-center text-slate-400" colSpan={4}>
                   {tone === 'blue' ? 'ไม่มีบิลซื้อ' : 'ไม่มีบิลขาย'}
                 </td>
               </tr>
@@ -1555,7 +1587,7 @@ function DailyBillTable({ rows, title, tone, total }: { rows: DailyBillRow[]; ti
       </div>
 
       {/* Mobile view */}
-      <div className="block lg:hidden max-h-[300px] overflow-y-auto divide-y divide-slate-100 p-2 bg-slate-50/30">
+      <div className="block lg:hidden max-h-[300px] overflow-y-auto divide-y divide-slate-100 bg-slate-50/30 p-2">
         {sortedRows.map((row) => (
           <div key={row.docNo} className="p-2.5 bg-white rounded-lg border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
             <div className="flex justify-between items-start">
@@ -1569,7 +1601,7 @@ function DailyBillTable({ rows, title, tone, total }: { rows: DailyBillRow[]; ti
           </div>
         ))}
         {rows.length === 0 && (
-          <div className="py-6 text-center text-slate-400 text-xs">
+          <div className="py-5 text-center text-slate-400 text-xs">
             {tone === 'blue' ? 'ไม่มีบิลซื้อ' : 'ไม่มีบิลขาย'}
           </div>
         )}
@@ -1581,13 +1613,13 @@ function DailyBillTable({ rows, title, tone, total }: { rows: DailyBillRow[]; ti
 function ExpenseSummary({ rows, total }: { rows: { amount: number; count: number; name: string }[]; total: number }) {
   const max = Math.max(1, ...rows.map((row) => row.amount))
   return (
-    <div className="rounded-xl bg-white p-5 shadow-sm border border-slate-100">
+    <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex justify-between items-center">
         <h3 className="font-bold text-slate-800 text-sm">💸 ค่าใช้จ่ายประจำวัน ({rows.reduce((sum, row) => sum + row.count, 0)} รายการ)</h3>
         <span className="text-base font-bold text-red-600">รวม {money(total)} บาท</span>
       </div>
       {rows.length === 0 ? (
-        <div className="py-8 text-center text-slate-400 text-xs">ไม่มีค่าใช้จ่ายวันนี้</div>
+        <div className="py-6 text-center text-slate-400 text-xs">ไม่มีค่าใช้จ่ายวันนี้</div>
       ) : (
         <div className="space-y-3">
           {rows.map((row, idx) => (
@@ -1624,7 +1656,7 @@ function CashMovement({ movement }: { movement?: MainPayload['dailyReport']['cas
   }
 
   return (
-    <div className="rounded-xl bg-white p-5 shadow-sm border border-slate-100">
+    <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="font-bold text-slate-800 text-sm">💰 เงินหมุนประจำวัน</h3>
         {columnResize.hasCustomWidths ? (
@@ -1649,14 +1681,14 @@ function CashMovement({ movement }: { movement?: MainPayload['dailyReport']['cas
           </div>
         ))}
       </div>
-      <div className="hidden overflow-x-auto sm:block">
-        <table className="min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white sm:block">
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {cashAccountColumns.map((column, index) => (
               <col key={column.key} style={index === cashAccountColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : columnResize.getColumnStyle(column.key)} />
             ))}
           </colgroup>
-          <thead className="bg-slate-50 text-slate-500">
+          <thead className="bg-slate-100 text-slate-600">
             <tr>
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="บัญชี" resizeProps={columnResize.getResizeHandleProps('name', 'บัญชี')} sortKey="name" onSort={handleSort} />
               <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="เข้า" resizeProps={columnResize.getResizeHandleProps('cashIn', 'เข้า')} sortKey="cashIn" onSort={handleSort} />
@@ -1700,6 +1732,29 @@ function CashMovement({ movement }: { movement?: MainPayload['dailyReport']['cas
           )
         })}
       </div>
+    </div>
+  )
+}
+
+function AnalyticsTrendBar({ className, max, tone, value }: { className?: string; max: number; tone: 'blue' | 'emerald'; value: number }) {
+  const width = value > 0 ? Math.max(3, Math.min(100, value / Math.max(1, max) * 100)) : 0
+  const clipRight = 100 - width
+  const fillClassName = tone === 'blue' ? 'bg-blue-500' : 'bg-emerald-500'
+  const label = money(value)
+  return (
+    <div className={`${className ?? ''} relative h-6 overflow-hidden rounded-md bg-slate-200/90 shadow-inner ring-1 ring-slate-300/70`}>
+      <div className={`absolute inset-y-0 left-0 ${fillClassName}`} style={{ width: `${width}%` }} />
+      <div className="absolute inset-0 flex items-center justify-center px-1 text-center text-[11px] font-bold leading-none text-slate-700 tabular-nums">
+        {label}
+      </div>
+      {width > 0 ? (
+        <div
+          className="absolute inset-0 flex items-center justify-center px-1 text-center text-[11px] font-bold leading-none text-white tabular-nums drop-shadow-[0_1px_1px_rgba(15,23,42,0.55)]"
+          style={{ clipPath: `inset(0 ${clipRight}% 0 0)` }}
+        >
+          {label}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -1769,7 +1824,7 @@ function TopSimpleTable({ rows, title }: { rows: { amount: number; group: string
         ) : null}
       </div>
       <div className="min-w-0 overflow-x-auto">
-        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {topSimpleColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -1891,7 +1946,7 @@ function RankTable({ color, rows, title }: { color: 'blue' | 'emerald'; rows: Ra
 
       {/* Desktop view */}
       <div className="hidden min-w-0 overflow-x-auto sm:block">
-        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {columns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -2032,7 +2087,7 @@ function ProductRank({ rows, title, tone }: { rows: { amount: number; code: stri
 
       {/* Desktop view */}
       <div className="hidden min-w-0 overflow-x-auto sm:block">
-        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {productRankColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -2152,7 +2207,7 @@ function SalespersonTable({ rows }: { rows: { amount: number; bills: number; id:
 
       {/* Desktop view */}
       <div className="hidden sm:block overflow-x-auto">
-        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {salespersonColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -2251,7 +2306,11 @@ function AnalyticsKpiCard({
 }
 
 function money(value?: number) {
-  return formatMoney(value ?? 0)
+  return formatMoney(safeNumber(value))
+}
+
+function safeNumber(value?: number | null) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
 function toneClass(tone: string) {
