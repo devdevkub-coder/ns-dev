@@ -3,6 +3,7 @@ import { outwardCustomerReference } from '@/lib/server/customer-reference'
 import { requireBusinessCode } from '@/lib/business-code'
 import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { getSalesPlanLmeConfig, type SalesPlanLmeConfig } from '@/lib/server/sales-plan-lme'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
 
@@ -99,23 +100,11 @@ function lookupProduct(item: JsonItem, productsByKey: Map<string, ProductRef>) {
   ].map((value) => String(value ?? '').trim().toLowerCase()).filter(Boolean).map((key) => productsByKey.get(key)).find(Boolean)
 }
 
-function lmeConfig() {
-  return {
-    fxRate: 36,
-    kgPerContainer: 25000,
-    lmeAluminumUSD: 2400,
-    lmeBrassUSD: 7000,
-    lmeCopperUSD: 9000,
-    updatedAt: '2026-05-19T00:00:00',
-    updatedBy: 'source',
-  }
-}
-
-function lmeBaseFor(metalGroup: string) {
+function lmeBaseFor(metalGroup: string, config: SalesPlanLmeConfig) {
   const group = metalGroup.toLowerCase()
-  if (group.includes('ทองแดง') || group.includes('copper')) return lmeConfig().lmeCopperUSD
-  if (group.includes('ทองเหลือง') || group.includes('brass')) return lmeConfig().lmeBrassUSD
-  if (group.includes('อลูมิ') || group.includes('aluminum')) return lmeConfig().lmeAluminumUSD
+  if (group.includes('ทองแดง') || group.includes('copper')) return config.lmeCopperUSD
+  if (group.includes('ทองเหลือง') || group.includes('brass')) return config.lmeBrassUSD
+  if (group.includes('อลูมิ') || group.includes('aluminum')) return config.lmeAluminumUSD
   return 0
 }
 
@@ -127,9 +116,8 @@ function lmeBuyPercentFor(metalGroup: string) {
   return 0
 }
 
-function lmeTarget(metalGroup: string) {
-  const config = lmeConfig()
-  const base = lmeBaseFor(metalGroup)
+function lmeTarget(metalGroup: string, config: SalesPlanLmeConfig) {
+  const base = lmeBaseFor(metalGroup, config)
   const pct = lmeBuyPercentFor(metalGroup)
   return base > 0 && pct > 0 ? (base / 1000) * config.fxRate * (pct / 100) : 0
 }
@@ -192,6 +180,7 @@ function poSellItems(row: { items: unknown; product_id: bigint | null; qty: unkn
 }
 
 async function buildSalesPlanningSnapshot() {
+  const config = await getSalesPlanLmeConfig()
   const { byKey, refs } = await productsContext()
   const [poSells, poBuys, stockRows, customers, tradingDeals, purchaseBills] = await Promise.all([
     prisma.po_sells.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
@@ -217,7 +206,7 @@ async function buildSalesPlanningSnapshot() {
         gainVsLme: 0,
         gainVsWac: 0,
         lmeBuyPercent: lmeBuyPercentFor(metalGroup),
-        lmeTarget: lmeTarget(metalGroup),
+        lmeTarget: lmeTarget(metalGroup, config),
         metalGroup,
         poCount: 0,
         productCode: product?.code ?? values.productCode,
@@ -421,7 +410,7 @@ async function buildSalesPlanningSnapshot() {
       const code = requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`)
       return { active: customer.active ?? true, code, id: code, name: customer.name }
     }),
-    lmeConfig: lmeConfig(),
+    lmeConfig: config,
     metalGroups: Array.from(new Set(refs.map((product) => product.metalGroup).filter(Boolean))).sort(),
     pendingSaleTable,
     pendingSaleTotals,
@@ -431,7 +420,7 @@ async function buildSalesPlanningSnapshot() {
     reconTotals,
     sourceState: {
       basis: 'Sales planning design source from PO Sell, WTO pending_out, PO Buy, purchase bills, trading deals, stock ledger, and product master.',
-      limitations: ['LME config, LME percent save, export, matching, and sales-plan locks are disabled until target schemas and audit rules are designed.'],
+      limitations: ['LME reference pricing รองรับ manual + live fetch แล้ว แต่การบันทึกแผนขาย, matching, และ sales-plan locks ยังปิดอยู่จนกว่าจะออกแบบ persistence/audit ครบ'],
       writeActionsEnabled: false,
     },
     summary,
@@ -444,7 +433,7 @@ export async function buildSalesPlan() {
   const remainRows = pending.reconciliation.map((row) => {
     const lockedKg = 0
     const remainingKg = Math.max(0, row.stockQty - lockedKg)
-    const base = lmeBaseFor(row.metalGroup)
+    const base = lmeBaseFor(row.metalGroup, config)
     const pct = lmeBuyPercentFor(row.metalGroup)
     const bestPlanPrice = base > 0 && pct > 0 ? (base / 1000) * config.fxRate * (pct / 100) : 0
     const projectedRevenue = remainingKg * bestPlanPrice
@@ -476,11 +465,26 @@ export async function buildSalesPlan() {
       month: new Date().toISOString().slice(0, 7),
     },
     lmeConfig: config,
+    pendingSaleTable: pending.pendingSaleTable.map((row) => ({
+      avgPrice: row.avgPrice,
+      lockedBuy: row.lockedBuy,
+      lockedSell: row.lockedSell,
+      metalGroup: row.metalGroup,
+      pendingSaleQty: row.pendingSaleQty,
+      pendingSaleValue: row.pendingSaleValue,
+      productCode: row.productCode,
+      productId: String(row.productId),
+      productName: row.productName,
+      realPendingSale: row.realPendingSale,
+      stock: row.stock,
+      stockWAC: row.stockWAC,
+    })),
+    pendingSaleTotals: pending.pendingSaleTotals,
     planRows: [],
     productAnalysis: remainRows,
     sourceState: {
       basis: 'Sales Plan design source from current stock, WTO pending_out, and LME reference values.',
-      limitations: ['Add plan, remove plan, lock/unlock price, and export remain disabled until sales-plan persistence, stock reservation, permissions, and audit are designed.'],
+      limitations: ['LME reference pricing บันทึกได้แล้ว แต่ Add plan, remove plan, lock/unlock price และ stock reservation ยังปิดอยู่จนกว่าจะออกแบบ persistence/audit ครบ'],
       writeActionsEnabled: false,
     },
     summary: {
