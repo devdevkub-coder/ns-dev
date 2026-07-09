@@ -601,12 +601,16 @@ export function AssetRegisterPageClient() {
           <div className="border-t border-slate-100 pt-3 space-y-2">
             <label className="block font-semibold text-slate-600 text-xs">จัดการไฟล์และระบบนำเข้า</label>
             <div className="grid grid-cols-2 gap-2">
-              <a
-                href="/api/finance-accounting/asset-register?template=csv"
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMobileFilters(false)
+                  window.location.href = '/api/finance-accounting/asset-register?template=csv'
+                }}
                 className="flex h-10 items-center justify-center rounded-md border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
               >
                 แบบฟอร์มนำเข้า
-              </a>
+              </button>
               <button
                 type="button"
                 onClick={() => { setShowMobileFilters(false); openImport() }}
