@@ -32,3 +32,11 @@ When explaining work:
 - Explain tradeoffs clearly.
 - Surface risk early.
 - State whether a change affects legacy behavior, database structure, or migration assumptions.
+
+Default user-facing task reports to Thai and use the user's preferred combined table format:
+
+1. Problem / duplication report: columns `#`, `Problem found`, `Severity`, `Recommended action`.
+2. Files changed report: columns `File`, `What changed`, `Status`; use status symbols such as `✅` and `❌` in the `Status` column.
+3. Design decision report: columns `Topic`, `Decision`.
+
+After those tables, add only a short validation and remaining-risk summary. For tiny answers, a concise Thai confirmation is acceptable.

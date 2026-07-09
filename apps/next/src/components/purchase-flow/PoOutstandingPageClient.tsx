@@ -7,6 +7,8 @@ import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Download } from 'lucide-react'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 type OutstandingRow = { date: string; docNo: string; expectedDelivery: string; id: string; partnerName: string; productId: string; productName: string; qty: number; receivedQty?: number; remainingQty: number; remainingValue: number; soldQty?: number; status: string; unitPrice: number }
 type OutstandingPayload = {
@@ -185,39 +187,22 @@ export function PoOutstandingPageClient() {
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="flex flex-wrap items-center gap-2 rounded-md bg-white px-2 shadow-sm">
-        <button
-          className={`border-b-2 px-4 py-2 text-sm font-semibold transition-colors outline-none focus:outline-none ${
-            tab === 'buy'
-              ? 'border-slate-900 text-slate-900'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-          type="button"
-          onClick={() => {
-            setTab('buy')
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200">
+        <Tabs
+          className="min-w-0 flex-1 gap-0"
+          value={tab}
+          onValueChange={(value) => {
+            setTab(value as typeof tab)
             setPartnerFilter('')
             setProductFilter('')
             setSortKey(undefined)
           }}
         >
-          PO ซื้อ คงเหลือ ({data?.summary.buyCount ?? 0})
-        </button>
-        <button
-          className={`border-b-2 px-4 py-2 text-sm font-semibold transition-colors outline-none focus:outline-none ${
-            tab === 'sell'
-              ? 'border-slate-900 text-slate-900'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-          type="button"
-          onClick={() => {
-            setTab('sell')
-            setPartnerFilter('')
-            setProductFilter('')
-            setSortKey(undefined)
-          }}
-        >
-          PO ขาย คงเหลือ ({data?.summary.sellCount ?? 0})
-        </button>
+          <TabsList className="w-full flex-nowrap overflow-x-auto" variant="line">
+            <TabsTrigger value="buy" variant="line">PO ซื้อ คงเหลือ ({data?.summary.buyCount ?? 0})</TabsTrigger>
+            <TabsTrigger value="sell" variant="line">PO ขาย คงเหลือ ({data?.summary.sellCount ?? 0})</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         <div className="ml-auto flex items-center gap-2">
           {tab === 'buy' && buyResize.hasCustomWidths && (
@@ -244,7 +229,7 @@ export function PoOutstandingPageClient() {
             type="button"
             onClick={exportCsv}
           >
-            <Download className="h-4 w-4" /> ส่งออก CSV
+            <Download className="h-4 w-4" /> ส่งออก Excel
           </button>
         </div>
       </div>
@@ -254,7 +239,7 @@ export function PoOutstandingPageClient() {
         <Metric label={tab === 'buy' ? 'มูลค่ารอรับ' : 'มูลค่ารอส่ง'} tone={tab === 'buy' ? 'blue' : 'emerald'} emoji="💰" value={formatMoney(totals.remainingValue)} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <input
           className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition-colors focus:border-slate-400 focus:ring-0"
           placeholder="ค้นหา PO / คู่ค้า / สินค้า"
@@ -326,7 +311,7 @@ export function PoOutstandingPageClient() {
           <div className="rounded-t-md border-b border-amber-200 bg-amber-50/50 p-3 text-xs font-medium text-amber-800">
             ตัดต้นทุนเป็น write/cost-pool side effect ใน legacy จึงแสดงเป็นคอลัมน์อ่านอย่างเดียวใน Next จนกว่าจะออกแบบ audit และ permission
           </div>
-          <table className="w-full text-xs" style={{ minWidth: buyResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <table className="ns-table w-full text-xs" style={{ minWidth: buyResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {buyColumns.map((column) => {
                 const style = buyResize.getColumnStyle(column.key)
@@ -497,7 +482,7 @@ export function PoOutstandingPageClient() {
         </div>
       ) : (
         <div className="hidden overflow-x-auto lg:block">
-          <table className="w-full text-xs" style={{ minWidth: sellResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <table className="ns-table w-full text-xs" style={{ minWidth: sellResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {sellColumns.map((column) => {
                 const style = sellResize.getColumnStyle(column.key)
@@ -726,7 +711,7 @@ export function PoOutstandingPageClient() {
 
 function Metric({
   label,
-  tone,
+  tone = 'slate',
   value,
   emoji,
 }: {
@@ -735,24 +720,5 @@ function Metric({
   value: string
   emoji: string
 }) {
-  const toneClass =
-    tone === 'emerald'
-      ? { icon: 'bg-emerald-100 text-emerald-700', label: 'text-emerald-600' }
-      : tone === 'blue'
-      ? { icon: 'bg-blue-100 text-blue-700', label: 'text-blue-600' }
-      : tone === 'amber'
-      ? { icon: 'bg-amber-100 text-amber-700', label: 'text-amber-600' }
-      : { icon: 'bg-slate-100 text-slate-600', label: 'text-slate-500' }
-
-  return (
-    <div className="bg-white p-3 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0 ${toneClass.icon}`}>
-        {emoji}
-      </div>
-      <div className="min-w-0">
-        <div className={`text-xs ${toneClass.label}`}>{label}</div>
-        <div className="truncate font-bold text-slate-900 text-sm sm:text-base">{value}</div>
-      </div>
-    </div>
-  )
+  return <SharedKpiCard icon={emoji} label={label} tone={tone} value={value} />
 }

@@ -212,8 +212,7 @@ export function MatchLogPageClient() {
     <DualCostingPageSection>
       <DualCostingErrorBox error={error} />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
-        <DualCostingStatCard label="รวม Matches" value={String(visibleSummary.total)} />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <DualCostingStatCard label="Sales Match" tone="emerald" value={String(visibleSummary.sales)} />
         <DualCostingStatCard label="Regrade Match" tone="purple" value={String(visibleSummary.regrade)} />
         <DualCostingStatCard label="Active" tone="emerald" value={String(visibleSummary.active)} />
@@ -248,7 +247,7 @@ export function MatchLogPageClient() {
           </Select>
           {hasActiveFilters ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
           <Button asChild size="sm" variant="export">
-            <a href={exportHref}>ส่งออก XLSX</a>
+            <a href={exportHref}>ส่งออก Excel</a>
           </Button>
         </div>
       </DualCostingFilterCard>
@@ -258,7 +257,7 @@ export function MatchLogPageClient() {
           {listControls}
         </div>
         <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth, width: '100%' }}>
+      <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth, width: '100%' }}>
         <colgroup>
           {matchLogColumns.map((column, index) => {
             const style = columnResize.getColumnStyle(column.key)

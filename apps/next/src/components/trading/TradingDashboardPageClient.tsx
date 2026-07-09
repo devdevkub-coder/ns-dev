@@ -4,9 +4,11 @@ import Link from 'next/link'
 import { Plus, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -451,31 +453,38 @@ export function TradingDashboardPageClient() {
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 
-      <div className="flex flex-wrap rounded-md bg-white px-2 shadow-sm">
-        {tabs.map((item) => (
-          <button
-            key={item.key}
-            className={`border-b-2 px-4 py-3 text-sm font-semibold outline-none focus:outline-none focus:ring-0 ${tab === item.key ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
-            type="button"
-            onClick={() => setTab(item.key)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
+      <Tabs value={tab} onValueChange={(value) => setTab(value as TabKey)}>
+        <TabsList className="flex-wrap" variant="line">
+          {tabs.map((item) => (
+            <TabsTrigger key={item.key} value={item.key} variant="line">
+              {item.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
-      <div className="rounded-md bg-white p-3 shadow">
-        <div className="grid gap-2 lg:grid-cols-[140px_140px_minmax(180px,1fr)_minmax(180px,1fr)_minmax(180px,1fr)_minmax(180px,1fr)_auto_auto]">
-          <DatePickerInput ariaLabel="วันที่เริ่มต้น" className="h-10 text-sm" value={visibleFromDate} onChange={setFromDate} />
-          <DatePickerInput ariaLabel="วันที่สิ้นสุด" className="h-10 text-sm" value={visibleToDate} onChange={setToDate} />
-          <SearchCombobox hideLabel inputClassName="h-10 text-sm border-slate-300 rounded-md focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700" inputId="trading-dashboard-supplier" label="Supplier" options={supplierOptions} placeholder="ค้นหา Supplier" value={supplierId} onChange={setSupplierId} />
-          <SearchCombobox hideLabel inputClassName="h-10 text-sm border-slate-300 rounded-md focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700" inputId="trading-dashboard-customer" label="Customer" options={customerOptions} placeholder="ค้นหา Customer" value={customerId} onChange={setCustomerId} />
-          {tab === 'product' ? (
-            <SearchCombobox hideLabel inputClassName="h-10 text-sm border-slate-300 rounded-md focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700" inputId="trading-dashboard-product" label="สินค้า" options={productOptions} placeholder="ค้นหาสินค้า" value={productId} onChange={setProductId} />
-          ) : <div className="hidden lg:block" />}
-          <input className="h-10 rounded-md border border-slate-300 px-3 text-sm bg-white font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" placeholder="ค้นหาเลขบิล" value={billNo} onChange={(event) => setBillNo(event.target.value)} />
-          <button className="h-10 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer" type="button" onClick={() => void loadData()}>Refresh</button>
-          <button className="h-10 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer" type="button" onClick={clearFilters}>ล้าง</button>
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <input className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" placeholder="ค้นหาเลขบิล" value={billNo} onChange={(event) => setBillNo(event.target.value)} />
+            <DatePickerInput ariaLabel="วันที่เริ่มต้น" className="h-9 w-[11rem] text-sm" value={visibleFromDate} onChange={setFromDate} />
+            <DatePickerInput ariaLabel="วันที่สิ้นสุด" className="h-9 w-[11rem] text-sm" value={visibleToDate} onChange={setToDate} />
+            <div className="min-w-[180px]">
+              <SearchCombobox hideLabel inputClassName="h-9 text-sm border-slate-300 rounded-md focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700" inputId="trading-dashboard-supplier" label="Supplier" options={supplierOptions} placeholder="ค้นหา Supplier" value={supplierId} onChange={setSupplierId} />
+            </div>
+            <div className="min-w-[180px]">
+              <SearchCombobox hideLabel inputClassName="h-9 text-sm border-slate-300 rounded-md focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700" inputId="trading-dashboard-customer" label="Customer" options={customerOptions} placeholder="ค้นหา Customer" value={customerId} onChange={setCustomerId} />
+            </div>
+            {tab === 'product' ? (
+              <div className="min-w-[180px]">
+                <SearchCombobox hideLabel inputClassName="h-9 text-sm border-slate-300 rounded-md focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700" inputId="trading-dashboard-product" label="สินค้า" options={productOptions} placeholder="ค้นหาสินค้า" value={productId} onChange={setProductId} />
+              </div>
+            ) : null}
+            <button className="h-9 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-600 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus:ring-0" type="button" onClick={clearFilters}>ล้าง</button>
+          </div>
+          <div className="flex justify-end">
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-xs transition-colors hover:bg-slate-50 focus:outline-none focus:ring-0" type="button" onClick={() => void loadData()}>Refresh</button>
+          </div>
         </div>
       </div>
 
@@ -579,7 +588,7 @@ function CostSourceModal({
           </div>
         </DialogHeader>
         <div className="grid flex-1 gap-4 overflow-y-auto bg-slate-50 p-4 text-sm sm:p-5 grid-cols-2 lg:grid-cols-[360px_minmax(0,1fr)]">
-          <div className="rounded-md border border-slate-100 bg-white p-4 col-span-2 lg:col-span-1">
+          <div className="rounded-xl border border-slate-100 bg-white p-4 col-span-2 lg:col-span-1">
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2 sm:col-span-1">
                 <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="trading-cost-source-date">วันที่</label>
@@ -623,7 +632,7 @@ function CostSourceModal({
               <div className="col-span-2">
                 <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="trading-cost-source-notes">หมายเหตุ</label>
                 <textarea
-                  className="min-h-20 w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
+                  className="min-h-20 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
                   id="trading-cost-source-notes"
                   value={form.notes}
                   onChange={(event) => update('notes', event.target.value)}
@@ -649,7 +658,7 @@ function CostSourceModal({
                   <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
                 ) : null}
               </div>
-              <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+              <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
                 <colgroup>
                   {costSourceColumns.map((col) => (
                     <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -732,7 +741,7 @@ function ReadinessPanel({ isLoading, rows, summary }: { isLoading: boolean; rows
               <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
             ) : null}
           </div>
-          <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {readinessColumns.map((col) => (
                 <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -811,7 +820,7 @@ function ReadinessPanel({ isLoading, rows, summary }: { isLoading: boolean; rows
 function AgingPanel({ aging, isLoading }: { aging: DashboardPayload['aging'] | null; isLoading: boolean }) {
   const buckets: Array<keyof AgingBuckets> = ['0-7', '8-14', '15-30', '31+']
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="text-sm font-bold text-slate-800">Pending Aging</div>
       <div className="mt-1 text-xs text-slate-500">อายุเอกสารที่ยังมี remaining/pending</div>
       <div className="mt-3 space-y-3">
@@ -846,7 +855,7 @@ function ProductTable({ isLoading, rows, totals }: { isLoading: boolean; rows: D
             <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           ) : null}
         </div>
-        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {productColumns.map((col, index) => {
               if (index === productColumns.length - 1) {
@@ -940,7 +949,7 @@ function PurchaseTable({ isLoading, rows }: { isLoading: boolean; rows: Dashboar
             <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           ) : null}
         </div>
-        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {purchaseColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -1027,7 +1036,7 @@ function SalesTable({ isLoading, rows }: { isLoading: boolean; rows: DashboardPa
             <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           ) : null}
         </div>
-        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {salesColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -1115,24 +1124,7 @@ function SalesTable({ isLoading, rows }: { isLoading: boolean; rows: DashboardPa
 }
 
 function Metric({ label, tone, value }: { label: string; tone: 'emerald' | 'purple' | 'red' | 'slate'; value: string }) {
-  const tones = {
-    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', emoji: '📈' },
-    purple: { bg: 'bg-purple-50', text: 'text-purple-600', emoji: '💰' },
-    red: { bg: 'bg-red-50', text: 'text-red-600', emoji: '📉' },
-    slate: { bg: 'bg-slate-100', text: 'text-slate-600', emoji: '🏷️' }
-  }
-  const style = tones[tone] ?? tones.slate
-  return (
-    <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3 w-full">
-      <div className={`w-10 h-10 rounded-full ${style.bg} ${style.text} flex items-center justify-center text-lg shrink-0`}>
-        {style.emoji}
-      </div>
-      <div>
-        <div className="text-xs text-slate-500 font-semibold mb-0.5">{label}</div>
-        <div className="text-lg font-bold text-slate-800 leading-tight">{value}</div>
-      </div>
-    </div>
-  )
+  return <SharedKpiCard label={label} tone={tone} value={value} />
 }
 
 function GapLine({ label, meta, value }: { label: string; meta: string; value: string }) {

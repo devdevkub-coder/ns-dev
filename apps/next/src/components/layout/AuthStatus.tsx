@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { ChevronDown, KeyRound, LogOut, UserRound } from 'lucide-react'
+import { ChevronDown, LogOut, UserRound } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 import {
@@ -26,10 +26,11 @@ type AuthStatusProfile = {
 type AuthStatusProps = {
   compact?: boolean
   onMenuOpenChange?: (open: boolean) => void
+  profile: AuthStatusProfile
   variant?: 'default' | 'sidebar'
 }
 
-export function AuthStatus({ compact = false, onMenuOpenChange, variant = 'default' }: AuthStatusProps) {
+export function AuthStatus({ compact = false, onMenuOpenChange, profile: profileFromShell, variant = 'default' }: AuthStatusProps) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<AuthStatusProfile>({ roles: [], userEmail: '' })
   const [isLoading, setIsLoading] = useState(true)
@@ -52,38 +53,10 @@ export function AuthStatus({ compact = false, onMenuOpenChange, variant = 'defau
       }
 
       const fallbackEmail = nextSession.user.email ?? ''
-
-      try {
-        const response = await fetch('/api/auth/me', { cache: 'no-store' })
-        const payload = await response.json().catch(() => null)
-        if (!mounted || !response.ok) {
-          setProfile({ roles: [], userEmail: fallbackEmail })
-          return
-        }
-
-        const roles = Array.isArray(payload?.roles)
-          ? payload.roles
-            .map((role: unknown) => {
-              if (!role || typeof role !== 'object') return null
-              const candidate = role as Record<string, unknown>
-              return typeof candidate.id === 'string'
-                && typeof candidate.code === 'string'
-                && typeof candidate.name === 'string'
-                ? { code: candidate.code, id: candidate.id, name: candidate.name }
-                : null
-            })
-            .filter((role: AuthStatusProfile['roles'][number] | null): role is AuthStatusProfile['roles'][number] => role !== null)
-          : []
-
-        setProfile({
-          roles,
-          userEmail: typeof payload?.authUser?.email === 'string' ? payload.authUser.email : fallbackEmail,
-        })
-      } catch {
-        if (mounted) {
-          setProfile({ roles: [], userEmail: fallbackEmail })
-        }
-      }
+      setProfile({
+        roles: profileFromShell.roles,
+        userEmail: profileFromShell.userEmail || fallbackEmail,
+      })
     }
 
     void (async () => {
@@ -113,7 +86,7 @@ export function AuthStatus({ compact = false, onMenuOpenChange, variant = 'defau
       mounted = false
       listener.subscription.unsubscribe()
     }
-  }, [supabase])
+  }, [profileFromShell, supabase])
 
   async function logout() {
     if (!supabase) return

@@ -178,7 +178,7 @@ export function PaymentSplitsSection({
                 })
 
             return (
-              <div key={split.id ?? splitIndex} className="grid grid-cols-12 items-center gap-2 rounded-md border border-slate-200 bg-white p-2">
+              <div key={split.id ?? splitIndex} className="grid grid-cols-12 items-center gap-2 rounded-xl border border-slate-200 bg-white p-2">
                 <div className="col-span-1 text-center text-xs font-bold text-slate-500">#{splitIndex + 1}</div>
 
                 {paymentMethods ? (
@@ -322,7 +322,7 @@ export function PaymentSplitsSection({
 
         {/* Right Side: OD Summary Card */}
         {showSummaryCard && (
-          <div className="lg:col-span-4 rounded-lg border border-blue-200 bg-white p-3 space-y-2 text-xs shrink-0 self-start shadow-sm">
+          <div className="lg:col-span-4 rounded-xl border border-blue-200 bg-white p-3 space-y-2 text-xs shrink-0 self-start shadow-sm">
             <h5 className="font-bold text-slate-800 border-b border-slate-100 pb-1.5 mb-1.5">สรุปการใช้เงินของรายการนี้</h5>
             <div className="space-y-1.5">
               <div className="flex justify-between">

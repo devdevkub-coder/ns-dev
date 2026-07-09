@@ -15,9 +15,11 @@ type AppShellProps = {
 }
 
 type AuthContextSummary = {
+  authUserEmail: string
   isAdmin: boolean
+  mustChangePassword: boolean
   permissions: string[]
-  roles: Array<{ code: string; name: string }>
+  roles: Array<{ code: string; id: string; name: string }>
 }
 
 type MenuSearchResult = {
@@ -29,6 +31,25 @@ type MenuSearchResult = {
 }
 
 const PAGE_TITLE_EVENT = 'ns-scrap-erp-page-title'
+
+function emptyAuthContext(): AuthContextSummary {
+  return { authUserEmail: '', isAdmin: false, mustChangePassword: false, permissions: [], roles: [] }
+}
+
+function normalizeAuthRoles(value: unknown): AuthContextSummary['roles'] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((role) => {
+      if (!role || typeof role !== 'object') return null
+      const candidate = role as Record<string, unknown>
+      return typeof candidate.id === 'string'
+        && typeof candidate.code === 'string'
+        && typeof candidate.name === 'string'
+        ? { code: candidate.code, id: candidate.id, name: candidate.name }
+        : null
+    })
+    .filter((role): role is AuthContextSummary['roles'][number] => role !== null)
+}
 
 function flattenSearchItems(items: NavigationItem[], authContext: AuthContextSummary): MenuSearchResult[] {
   const sectionLabelByKey = new Map(navigationSections.map((section) => [section.key, section.label]))
@@ -108,6 +129,10 @@ export function AppShell({ children }: AppShellProps) {
       .filter((item) => `${item.label} ${item.href} ${item.parentLabel ?? ''} ${item.sectionLabel}`.toLowerCase().includes(query))
       .slice(0, 10)
   }, [authContext, menuSearch])
+  const authStatusProfile = useMemo(() => ({
+    roles: authContext?.roles ?? [],
+    userEmail: authContext?.authUserEmail ?? '',
+  }), [authContext])
 
   useEffect(() => {
     setBreadcrumbLabelOverride(null)
@@ -160,16 +185,18 @@ export function AppShell({ children }: AppShellProps) {
 
         if (mounted && response.ok) {
           setAuthContext({
+            authUserEmail: typeof payload?.authUser?.email === 'string' ? payload.authUser.email : '',
             isAdmin: payload?.isAdmin === true,
+            mustChangePassword: payload?.appUser?.mustChangePassword === true,
             permissions: Array.isArray(payload?.permissions) ? payload.permissions : [],
-            roles: Array.isArray(payload?.roles) ? payload.roles : [],
+            roles: normalizeAuthRoles(payload?.roles),
           })
         } else if (mounted) {
-          setAuthContext({ isAdmin: false, permissions: [], roles: [] })
+          setAuthContext(emptyAuthContext())
         }
       } catch {
         if (mounted) {
-          setAuthContext({ isAdmin: false, permissions: [], roles: [] })
+          setAuthContext(emptyAuthContext())
         }
       }
     }
@@ -183,27 +210,10 @@ export function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     if (isAuthPage || pathname === '/admin/change-password') return
-
-    let mounted = true
-    async function enforcePasswordChange() {
-      try {
-        const response = await fetch('/api/auth/me', { cache: 'no-store', credentials: 'include' })
-        const payload = await response.json().catch(() => null)
-        if (!mounted || !response.ok) return
-        if (payload?.appUser?.mustChangePassword === true) {
-          router.replace(`/admin/change-password?redirect=${encodeURIComponent(pathname)}`)
-        }
-      } catch {
-        // Auth enforcement is handled by the proxy; this guard only redirects active sessions.
-      }
+    if (authContext?.mustChangePassword === true) {
+      router.replace(`/admin/change-password?redirect=${encodeURIComponent(pathname)}`)
     }
-
-    void enforcePasswordChange()
-
-    return () => {
-      mounted = false
-    }
-  }, [isAuthPage, pathname, router])
+  }, [authContext?.mustChangePassword, isAuthPage, pathname, router])
 
   function handleSidebarBlur(event: FocusEvent<HTMLElement>) {
     if (event.currentTarget.contains(event.relatedTarget)) return
@@ -299,10 +309,11 @@ export function AppShell({ children }: AppShellProps) {
           ) : null}
         </div>
 
-        <AppNavigation compact={!desktopSidebarExpanded} onNavigate={() => setSidebarOpen(false)} />
+        <AppNavigation authContext={authContext} compact={!desktopSidebarExpanded} onNavigate={() => setSidebarOpen(false)} />
         <div className="border-t border-slate-800 p-2">
           <AuthStatus
             compact={!desktopSidebarExpanded}
+            profile={authStatusProfile}
             variant="sidebar"
             onMenuOpenChange={(open) => {
               setSidebarUserMenuOpen(open)
@@ -414,7 +425,7 @@ export function AppShell({ children }: AppShellProps) {
         <main className={`min-h-0 flex-1 overflow-y-auto p-4 lg:p-6 ${showMobileBottomNav ? 'pb-20 lg:pb-6' : ''}`}>{children}</main>
       </div>
       {showMobileBottomNav && !sidebarOpen ? (
-        <MobileBottomNavigation onOpenSidebar={() => setSidebarOpen(true)} />
+        <MobileBottomNavigation authContext={authContext} onOpenSidebar={() => setSidebarOpen(true)} />
       ) : null}
     </div>
   )

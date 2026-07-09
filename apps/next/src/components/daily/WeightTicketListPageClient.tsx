@@ -454,19 +454,19 @@ export function WeightTicketListPageClient() {
       {/* Desktop Filters (Hidden on Mobile) */}
       <Card className="hidden md:block p-4">
         <div className="space-y-3">
-          <label className="relative block">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              className="pl-9"
-              placeholder="ค้นหาเลขที่, ผู้ขาย/ลูกค้า, ทะเบียนรถ, สินค้า, สิ่งเจือปน"
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value)
-                setPage(1)
-              }}
-            />
-          </label>
           <div className="flex flex-wrap items-center gap-3">
+            <label className="relative block min-w-[260px] flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                className="pl-9"
+                placeholder="ค้นหาเลขที่, ผู้ขาย/ลูกค้า, ทะเบียนรถ, สินค้า, สิ่งเจือปน"
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value)
+                  setPage(1)
+                }}
+              />
+            </label>
             <label className="text-xs text-slate-500">วันที่:</label>
             <DatePickerInput value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
             <span className="text-slate-400">→</span>
@@ -486,6 +486,23 @@ export function WeightTicketListPageClient() {
               }}
             />
             <Button disabled={!activeFilters} type="button" variant="secondary" onClick={clearFilters}>ล้างตัวกรอง</Button>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500">สถานะเอกสาร:</span>
+              {statusOptions.map((option) => (
+                <SegmentMulti
+                  current={statusFilter}
+                  key={`${typeFilter}-${option.label}`}
+                  label={option.label}
+                  onClick={(values) => {
+                    setStatusFilter(values as WeightTicketStatus[])
+                    setPage(1)
+                  }}
+                  values={option.values}
+                />
+              ))}
+            </div>
             <div className="ml-auto flex items-center gap-2">
               <Button asChild className="gap-2" variant="export">
                 <a href={exportHref}>
@@ -499,26 +516,11 @@ export function WeightTicketListPageClient() {
               </Button>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-slate-500">สถานะเอกสาร:</span>
-            {statusOptions.map((option) => (
-              <SegmentMulti
-                current={statusFilter}
-                key={`${typeFilter}-${option.label}`}
-                label={option.label}
-                onClick={(values) => {
-                  setStatusFilter(values as WeightTicketStatus[])
-                  setPage(1)
-                }}
-                values={option.values}
-              />
-            ))}
-          </div>
         </div>
       </Card>
 
       {/* Mobile Filters Toolbar (Hidden on Desktop) */}
-      <div className="space-y-2 p-3 border border-slate-200 bg-white rounded-md md:hidden">
+      <div className="space-y-2 p-3 border border-slate-200 bg-white rounded-xl md:hidden">
         <div className="flex gap-2 items-center">
           <label className="relative block flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
@@ -650,11 +652,11 @@ export function WeightTicketListPageClient() {
       {/* Mobile Card List (Hidden on Desktop) */}
       <div className="block md:hidden space-y-3">
         {isLoading ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
+          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
         ) : loadError ? (
-          <div className="rounded-md bg-white p-8 text-center text-red-600 shadow-sm border border-slate-200">{loadError}</div>
+          <div className="rounded-xl bg-white p-8 text-center text-red-600 shadow-sm border border-slate-200">{loadError}</div>
         ) : tickets.length === 0 ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">ยังไม่มีรายการตามเงื่อนไข</div>
+          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">ยังไม่มีรายการตามเงื่อนไข</div>
         ) : (
           tickets.map((ticket) => {
             const isCancelled = ticket.status === 'cancelled'
@@ -807,7 +809,7 @@ export function WeightTicketListPageClient() {
       {/* Desktop Tables (Hidden on Mobile) */}
       <div className="hidden md:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {weightTicketColumns.map((column, index) => {
               const style = columnResize.getColumnStyle(column.key);

@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -282,48 +284,6 @@ export function AccountsPayablePageClient() {
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div className="relative overflow-hidden rounded-md bg-gradient-to-br from-red-600 via-rose-700 to-pink-800 dark:from-rose-950/60 dark:via-slate-900 dark:to-slate-900 border border-transparent dark:border-rose-950/40 p-6 text-white dark:text-slate-100 shadow-lg">
-          <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 dark:bg-rose-500/5" />
-          <div className="relative">
-            <div className="text-sm uppercase tracking-wider opacity-80">💸 ค้างจ่ายผู้ขายรวม</div>
-            <div className="mt-2 text-4xl font-bold">{formatMoney(totalAp)}</div>
-            <div className="mt-1 text-sm opacity-90">{data?.summary.bills ?? 0} ใบ · {data?.summary.suppliers ?? 0} ผู้ขาย</div>
-            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/20 pt-4">
-              <div>
-                <div className="text-xs opacity-75">⚠ อายุหนี้แล้ว</div>
-                <div className="text-lg font-bold text-amber-200">{formatMoney(overdueAp)}</div>
-                <div className="text-xs opacity-75">{overduePercent}%</div>
-              </div>
-              <div>
-                <div className="text-xs opacity-75">⏰ อายุไม่เกิน 7 วัน</div>
-                <div className="text-lg font-bold text-yellow-200">{formatMoney(dueIn7)}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-md bg-white p-4 shadow">
-          <div className="mb-3 text-sm font-bold text-slate-700">🏆 Top 5 ผู้ขายค้างจ่ายสูงสุด</div>
-          <div className="space-y-1.5">
-            {topSuppliers.map((supplier, index) => (
-              <div key={supplier.supplierName} className="flex items-center gap-2 text-xs">
-                <span className={`w-5 text-center font-bold ${index < 3 ? 'text-red-600' : 'text-slate-400'}`}>{index + 1}</span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-semibold text-slate-700">{supplier.supplierName}</div>
-                  <div className="text-xs text-slate-400">{supplier.bills} ใบ · เกินสุด {supplier.oldest} วัน</div>
-                </div>
-                <div className="h-2.5 w-20 rounded-full bg-slate-100 dark:bg-slate-950">
-                  <div className="h-2.5 rounded-full bg-red-500" style={{ width: percentage(supplier.total, topSuppliers[0]?.total ?? 0) }} />
-                </div>
-                <div className="w-24 text-right font-bold text-red-700">{formatMoney(supplier.total)}</div>
-              </div>
-            ))}
-            {!isLoading && topSuppliers.length === 0 ? <div className="py-4 text-center text-slate-400">ไม่มีเจ้าหนี้คงค้าง</div> : null}
-          </div>
-        </div>
-      </div>
-
       <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5 text-sm">
         <Metric label="ค้างจ่ายรวม" tone="red" value={formatMoney(totalAp)} />
         <Metric label="อายุหนี้แล้ว" tone="amber" value={formatMoney(overdueAp)} />
@@ -346,29 +306,39 @@ export function AccountsPayablePageClient() {
         })}
       </div>
 
-      <div className="flex overflow-x-auto rounded-md bg-white px-2 shadow-sm">
-        <button
-          className={`border-b-2 px-4 py-2 text-sm font-semibold transition-colors ${
-            tab === 'summary' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-          type="button"
-          onClick={() => setTab('summary')}
-        >
-          📊 สรุปตามผู้ขาย
-        </button>
-        <button
-          className={`border-b-2 px-4 py-2 text-sm font-semibold transition-colors ${
-            tab === 'detail' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-          type="button"
-          onClick={() => setTab('detail')}
-        >
-          📄 รายบิลรับซื้อ
-        </button>
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
+        <div className="mb-3 text-sm font-bold text-slate-700">🏆 Top 5 ผู้ขายค้างจ่ายสูงสุด</div>
+        <div className="space-y-1.5">
+          {topSuppliers.map((supplier, index) => (
+            <div key={supplier.supplierName} className="flex items-center gap-2 text-xs">
+              <span className={`w-5 text-center font-bold ${index < 3 ? 'text-red-600' : 'text-slate-400'}`}>{index + 1}</span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-semibold text-slate-700">{supplier.supplierName}</div>
+                <div className="text-xs text-slate-400">{supplier.bills} ใบ · เกินสุด {supplier.oldest} วัน</div>
+              </div>
+              <div className="h-2.5 w-20 rounded-full bg-slate-100 dark:bg-slate-950">
+                <div className="h-2.5 rounded-full bg-red-500" style={{ width: percentage(supplier.total, topSuppliers[0]?.total ?? 0) }} />
+              </div>
+              <div className="w-24 text-right font-bold text-red-700">{formatMoney(supplier.total)}</div>
+            </div>
+          ))}
+          {!isLoading && topSuppliers.length === 0 ? <div className="py-4 text-center text-slate-400">ไม่มีเจ้าหนี้คงค้าง</div> : null}
+        </div>
       </div>
 
+      <Tabs value={tab} onValueChange={(value) => setTab(value as 'summary' | 'detail')}>
+        <TabsList className="overflow-x-auto" variant="line">
+          <TabsTrigger value="summary" variant="line">
+          📊 สรุปตามผู้ขาย
+          </TabsTrigger>
+          <TabsTrigger value="detail" variant="line">
+          📄 รายบิลรับซื้อ
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {/* Filters Toolbar */}
-      <div className="rounded-md bg-white p-3 shadow">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         {/* Desktop View */}
         <div className="hidden lg:block space-y-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -377,7 +347,7 @@ export function AccountsPayablePageClient() {
             <div className="min-w-[260px]">
               <SearchCombobox
                 hideLabel
-                inputClassName="h-9 text-sm rounded-lg border-slate-300 focus:border-slate-400 focus:ring-0 outline-none"
+                inputClassName="h-9 text-sm rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none"
                 inputId="ap-supplier-filter"
                 label="ผู้ขาย"
                 options={supplierOptions}
@@ -399,7 +369,6 @@ export function AccountsPayablePageClient() {
               <option value=">90">&gt;90 วัน</option>
             </select>
             
-            <button className="ml-auto rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 hover:bg-emerald-700 transition-colors flex items-center" disabled={isExporting} type="button" onClick={() => void exportXlsx()}>{isExporting ? 'กำลังส่งออก...' : 'ส่งออก .xlsx'}</button>
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
@@ -422,7 +391,10 @@ export function AccountsPayablePageClient() {
               <button className="rounded-md bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors" type="button" onClick={() => { setBranchId(''); setBucket(''); setFrom(''); setPage(1); setQ(''); setStatus(''); setSupplierId(''); setTo('') }}>✕ ล้าง</button>
             )}
             
-            <span className="ml-auto text-xs text-slate-500">พบ {data?.pagination.totalRows ?? 0} รายการ</span>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <button className="flex h-9 items-center rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting} type="button" onClick={() => void exportXlsx()}>{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</button>
+              <span className="text-xs text-slate-500">พบ {data?.pagination.totalRows ?? 0} รายการ</span>
+            </div>
           </div>
         </div>
 
@@ -430,21 +402,21 @@ export function AccountsPayablePageClient() {
         <div className="block lg:hidden space-y-2.5">
           <div className="flex flex-wrap gap-2">
             <button
-              className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors flex items-center gap-1 shrink-0 ${
-                showMobileFilters ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-700 border-slate-200'
+              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
+                showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
               }`}
               type="button"
               onClick={() => setShowMobileFilters(!showMobileFilters)}
             >
-              🔍 ตัวกรอง
+              ตัวกรอง
             </button>
             <button
-              className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60 shrink-0 ml-auto"
+              className="ml-auto inline-flex h-9 shrink-0 items-center rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-60"
               disabled={isExporting}
               type="button"
               onClick={() => void exportXlsx()}
             >
-              {isExporting ? '...' : '📥 .xlsx'}
+              {isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}
             </button>
           </div>
 
@@ -462,7 +434,7 @@ export function AccountsPayablePageClient() {
             <div className="grid grid-cols-1 gap-2.5 pt-2 border-t border-slate-100 animate-in slide-in-from-top-2 duration-100">
               <SearchCombobox
                 hideLabel
-                inputClassName="h-9 text-sm rounded-lg border-slate-300 focus:border-slate-400 focus:ring-0 outline-none w-full"
+                inputClassName="h-9 text-sm rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none w-full"
                 inputId="ap-supplier-filter-mobile"
                 label="ผู้ขาย"
                 options={supplierOptions}
@@ -563,11 +535,11 @@ export function AccountsPayablePageClient() {
             onPrevious={() => setSummaryPage((current) => Math.max(1, current - 1))}
           />
           {isLoading ? (
-            <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-200">กำลังโหลดข้อมูล</div>
+            <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow border border-slate-200">กำลังโหลดข้อมูล</div>
           ) : null}
           
           {!isLoading && visibleSummaryRows.map((row) => (
-            <div key={row.supplierName} className="rounded-md border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+            <div key={row.supplierName} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
               <div className="flex justify-between items-start gap-2">
                 <span className="font-bold text-slate-900 text-[15px] leading-snug">{row.supplierName}</span>
                 <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold shrink-0 ${row.oldest > 30 ? 'bg-red-100 text-red-700' : row.oldest > 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
@@ -594,7 +566,7 @@ export function AccountsPayablePageClient() {
           ))}
 
           {!isLoading && summaryRows.length === 0 ? (
-            <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-200">
+            <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow border border-slate-200">
               ไม่มีเจ้าหนี้คงค้าง
             </div>
           ) : null}
@@ -615,13 +587,13 @@ export function AccountsPayablePageClient() {
             onPrevious={() => setPage((current) => Math.max(1, current - 1))}
           />
           {isLoading ? (
-            <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-200">กำลังโหลดข้อมูล</div>
+            <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow border border-slate-200">กำลังโหลดข้อมูล</div>
           ) : null}
           
           {!isLoading && (data?.rows ?? []).map((row) => (
             <div
               key={row.id}
-              className="rounded-md border border-slate-200 bg-white p-4 shadow-sm space-y-3 active:bg-slate-50 cursor-pointer"
+              className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3 active:bg-slate-50 cursor-pointer"
               onClick={() => setSelectedRow(row)}
             >
               <div className="flex justify-between items-start gap-2">
@@ -665,7 +637,7 @@ export function AccountsPayablePageClient() {
           ))}
 
           {!isLoading && (data?.rows ?? []).length === 0 ? (
-            <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-200">
+            <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow border border-slate-200">
               ไม่มีเจ้าหนี้คงค้าง
             </div>
           ) : null}
@@ -689,56 +661,7 @@ function Metric({
   value: string
   className?: string
 }) {
-  const configs = {
-    slate: {
-      bg: 'bg-slate-100 text-slate-600',
-      emoji: '📋',
-      labelColor: 'text-slate-500',
-      valueColor: 'text-slate-900',
-    },
-    red: {
-      bg: 'bg-red-100 text-red-600',
-      emoji: '💸',
-      labelColor: 'text-red-600',
-      valueColor: 'text-red-700',
-    },
-    amber: {
-      bg: 'bg-amber-100 text-amber-600',
-      emoji: '⚠️',
-      labelColor: 'text-amber-600',
-      valueColor: 'text-amber-700',
-    },
-    yellow: {
-      bg: 'bg-yellow-100 text-yellow-600',
-      emoji: '⏱️',
-      labelColor: 'text-yellow-600',
-      valueColor: 'text-yellow-700',
-    },
-  }
-
-  const numericValue = parseFloat(value.replace(/[^0-9.-]/g, ''))
-  const isZero = isNaN(numericValue) ? false : numericValue === 0
-
-  const config = isZero
-    ? {
-        bg: 'bg-slate-100 text-slate-600',
-        emoji: configs[tone].emoji,
-        labelColor: 'text-slate-500',
-        valueColor: 'text-slate-900',
-      }
-    : configs[tone]
-
-  return (
-    <div className={`bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 ${className}`}>
-      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-        {config.emoji}
-      </div>
-      <div>
-        <div className={`text-xs ${config.labelColor}`}>{label}</div>
-        <div className={`font-bold ${config.valueColor}`}>{value}</div>
-      </div>
-    </div>
-  )
+  return <SharedKpiCard className={className} label={label} tone={tone} value={value} />
 }
 
 function TableToolbar({
@@ -792,7 +715,7 @@ function MobileTablePagination({
   totalPages,
 }: TablePaginationProps) {
   return (
-    <div className="flex flex-col gap-3 rounded-md bg-white p-3 text-sm text-slate-600 shadow sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 rounded-xl bg-white p-3 text-sm text-slate-600 shadow sm:flex-row sm:items-center sm:justify-between">
       <div>{totalLabel}</div>
       <div className="flex flex-wrap items-center gap-2">
         <Button disabled={currentPage <= 1 || isLoading} size="xs" type="button" variant="outline" onClick={onPrevious}>ก่อนหน้า</Button>
@@ -841,7 +764,7 @@ function SummaryTable({
     <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
       <TableToolbar pagination={pagination} onResetWidths={columnResize.hasCustomWidths ? columnResize.resetColumnWidths : undefined} />
       <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+      <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
         <colgroup>
           {summaryColumns.map((column, index) => {
             if (index === summaryColumns.length - 1) {
@@ -936,7 +859,7 @@ function DetailTable({
     <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
       <TableToolbar pagination={pagination} onResetWidths={columnResize.hasCustomWidths ? columnResize.resetColumnWidths : undefined} />
       <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+      <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
         <colgroup>
           {detailColumns.map((column, index) => {
             if (index === detailColumns.length - 1) {
@@ -1007,7 +930,7 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: ApRow }) {
 
         <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4 text-sm">
           {/* ข้อมูลเอกสาร */}
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลเอกสาร</div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
               <DetailItem label="วันที่บิล" value={formatDateDisplay(row.date)} />
@@ -1019,7 +942,7 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: ApRow }) {
           </div>
 
           {/* ข้อมูลการเงิน */}
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลการเงิน</div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
               <DetailItem label="ยอดบิล" value={`${formatMoney(row.totalAmount)} บาท`} />
@@ -1054,7 +977,7 @@ function TraceSection({
   supplierAdvances: NonNullable<ApRow['drilldown']>['supplierAdvances']
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ที่มาของยอด</div>
       <div className="space-y-3">
         <TraceLink label="บิลรับซื้อ" href={purchaseBill?.href ?? '#'} docNo={purchaseBill?.docNo ?? '-'} amountLabel="ที่มา" amountValue={purchaseBill?.sourceOfTruth ?? '-'} />

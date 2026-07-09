@@ -12,7 +12,7 @@ export function PageHeader({ title, icon, actions, className, ...props }: PageHe
   return (
     <div
       className={cn(
-        'mb-4 flex flex-col gap-3 rounded-md bg-white p-3 shadow md:flex-row md:items-center md:justify-between',
+        'mb-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:flex-row md:items-center md:justify-between',
         className
       )}
       {...props}

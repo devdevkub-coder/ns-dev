@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage, readJsonResponse } from '@/lib/api-client'
 import { z } from 'zod'
@@ -547,7 +548,14 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   return (
     <section className="space-y-4">
       {/* Desktop Toolbar (Hidden on Mobile) */}
-      <div className="hidden lg:block rounded-md bg-white p-4 shadow">
+      <div className="hidden space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
+        <input
+          className="h-9 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="ค้นหา..."
+          type="search"
+          value={search}
+        />
         <div className="flex flex-wrap items-center gap-3">
           <div>
             <h2 className="text-xl font-bold text-slate-900">{pageTitle}</h2>
@@ -560,13 +568,6 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
             >
               คืนค่าเดิมตาราง
             </button>
-            <input
-              className="w-72 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 h-9"
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="ค้นหา..."
-              type="search"
-              value={search}
-            />
             {isUsersPage ? (
               <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 h-9 flex items-center" disabled={!data} type="button" onClick={openAddUser}>
                 + เพิ่มผู้ใช้
@@ -577,7 +578,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="lg:hidden rounded-md bg-white p-3.5 shadow space-y-2.5">
+      <div className="space-y-2.5 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div>
           <h2 className="text-lg font-bold text-slate-900">{pageTitle}</h2>
         </div>
@@ -652,7 +653,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     ชื่อผู้ใช้ *
                     <input className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" value={form.displayName} onChange={(event) => setForm((current) => ({ ...current, displayName: event.target.value }))} />
                   </label>
-                  <div className="md:col-span-2 rounded-lg border border-slate-100 bg-white p-4">
+                  <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูล Profile</div>
                     <div className="grid gap-3 md:grid-cols-[120px_1fr_1fr]">
                       <label className="text-sm font-medium text-slate-700">
@@ -673,7 +674,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                       <input className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" placeholder="https://..." value={form.profileImageUrl} onChange={(event) => setForm((current) => ({ ...current, profileImageUrl: event.target.value }))} />
                     </label>
                   </div>
-                  <div className="md:col-span-2 rounded-lg border border-slate-100 bg-white p-4">
+                  <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">Contact</div>
                     <div className="grid gap-3 md:grid-cols-2">
                       <label className="text-sm font-medium text-slate-700">
@@ -691,7 +692,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     </label>
                   </div>
 
-                  <div className="rounded-lg border border-slate-100 bg-white p-4">
+                  <div className="rounded-xl border border-slate-100 bg-white p-4">
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">Roles *</div>
                     <div className="grid gap-2">
                       {data?.roles.filter((role) => role.active).map((role) => (
@@ -704,7 +705,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-slate-100 bg-white p-4">
+                  <div className="rounded-xl border border-slate-100 bg-white p-4">
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">สาขาที่เข้าถึง</div>
                     <div className="grid gap-2">
                       {data?.branches.map((branch) => (
@@ -732,24 +733,14 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         </Dialog>
       ) : null}
 
-      <div className="rounded-md bg-white shadow overflow-hidden border border-slate-100">
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
         {!mode ? (
-        <div className="flex border-b border-slate-100 bg-slate-50">
-          <button
-            className={`border-b-2 px-5 py-3 text-sm font-bold transition-all outline-none ${currentTab === 'users' ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
-            type="button"
-            onClick={() => setTab('users')}
-          >
-            Users
-          </button>
-          <button
-            className={`border-b-2 px-5 py-3 text-sm font-bold transition-all outline-none ${currentTab === 'roles' ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
-            type="button"
-            onClick={() => setTab('roles')}
-          >
-            Roles
-          </button>
-        </div>
+          <Tabs className="gap-0" value={currentTab} onValueChange={(value) => setTab(value as TabKey)}>
+            <TabsList className="w-full" variant="line">
+              <TabsTrigger value="users" variant="line">Users</TabsTrigger>
+              <TabsTrigger value="roles" variant="line">Roles</TabsTrigger>
+            </TabsList>
+          </Tabs>
         ) : null}
 
         {error ? <div className="m-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
@@ -761,7 +752,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
           <>
             {/* Desktop Table View (Hidden on Mobile) */}
             <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-              <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: userColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: userColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
                 <colgroup>
                   {userColumns.map((column, index) => {
                     const style = userColumnResize.getColumnStyle(column.key)
@@ -905,7 +896,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
           <>
             {/* Desktop Table View (Hidden on Mobile) */}
             <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-              <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: roleColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: roleColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
                 <colgroup>
                   {roleColumns.map((column, index) => {
                     const style = roleColumnResize.getColumnStyle(column.key)

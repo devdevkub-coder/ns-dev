@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -137,14 +138,14 @@ export function CashFlowAnalysisPageClient() {
       {error ? <ErrorBox message={error} /> : null}
       
       {/* Desktop Filter Panel */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
+      <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex">
         <DateInput label="จาก" value={from} onChange={setFrom} />
         <DateInput label="ถึง" value={to} onChange={setTo} />
         <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden space-y-3">
+      <div className="mb-4 space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex gap-2 items-center">
           <div className="flex-1 grid grid-cols-2 gap-2">
             <div className="flex items-center gap-1.5">
@@ -214,8 +215,8 @@ export function CashFlowAnalysisPageClient() {
         <Panel title=" เงินจมที่ไหน"><TrapDonut ar={data?.summary.arNow ?? 0} cash={data?.summary.cashNow ?? 0} stock={data?.summary.stockNow ?? 0} /></Panel>
         <Panel title=" Burn Rate & OD Status">
           <Bar label=" OD ใช้แล้ว" max={Math.max(data?.summary.odLimit ?? 1, 1)} tone="emerald" value={data?.summary.odUsed ?? 0} />
-          <div className="rounded-md bg-slate-50 p-3 text-center"><div className="text-xs text-slate-500"> Burn Rate (เฉลี่ย/วัน)</div><div className="text-2xl font-bold text-rose-600">{money(data?.summary.burnRate)}</div><div className="text-xs text-slate-400">บาท/วัน</div></div>
-          <div className="mt-3 rounded-md bg-emerald-50 p-3 text-center"><div className="text-xs text-emerald-700"> OD จะเต็มวงเงินใน</div><div className="text-2xl font-bold text-emerald-700">{Math.round(data?.summary.daysToODMaxed ?? 0)} วัน</div></div>
+          <SharedKpiCard label="Burn Rate (เฉลี่ย/วัน)" note="บาท/วัน" tone="rose" value={money(data?.summary.burnRate)} />
+          <SharedKpiCard className="mt-3" label="OD จะเต็มวงเงินใน" tone="emerald" value={`${Math.round(data?.summary.daysToODMaxed ?? 0)} วัน`} />
         </Panel>
       </div>
       <Panel title=" Cash Projection (ปัจจุบัน → 7 วัน → 30 วัน)">
@@ -241,22 +242,22 @@ export function CashFlowForecastCalendarPageClient() {
       {error ? <ErrorBox message={error} /> : null}
       
       {/* Desktop Filter Panel */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
+      <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex">
         <span className="text-sm font-bold">Forecast:</span>
-        {[7, 30, 90].map((item) => <button key={item} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${horizon === item ? 'bg-[#0F172A] text-white' : 'bg-slate-50 border border-slate-100 text-slate-600 hover:bg-slate-100'}`} type="button" onClick={() => setHorizon(item)}>{item} วัน</button>)}
+        {[7, 30, 90].map((item) => <button key={item} className={`rounded-md border px-3 py-1 text-xs font-medium ${horizon === item ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`} type="button" onClick={() => setHorizon(item)}>{item} วัน</button>)}
         <DateInput label="เริ่ม" value={startDate} onChange={setStartDate} />
         <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
         <span className="text-xs text-slate-500">เริ่มจาก {money(data?.summary.startCash)} → จบที่ {money(data?.summary.endCash)}</span>
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden space-y-3">
+      <div className="mb-4 space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex gap-2 items-center justify-between">
           <div className="flex gap-1.5 overflow-x-auto">
             {[7, 30, 90].map((item) => (
               <button
                 key={item}
-                className={`h-9 px-3 rounded-md text-xs font-semibold ${horizon === item ? 'bg-[#0F172A] text-white' : 'bg-slate-50 border border-slate-200 text-slate-600'}`}
+                className={`h-9 rounded-md border px-3 text-xs font-medium ${horizon === item ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
                 type="button"
                 onClick={() => setHorizon(item)}
               >
@@ -324,7 +325,7 @@ export function CashFlowForecastCalendarPageClient() {
       ) : null}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <ForecastMega summary={data?.summary} horizon={horizon} />
-        <div className="col-span-1 rounded-md bg-white p-4 shadow md:col-span-2"><div className="mb-3 text-sm font-bold text-slate-700"> พยากรณ์เงินสดรายวัน ({horizon} วันข้างหน้า)</div><ProjectionSvg days={data?.dailyProjection ?? []} /></div>
+        <div className="col-span-1 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm md:col-span-2"><div className="mb-3 text-sm font-bold text-slate-700"> พยากรณ์เงินสดรายวัน ({horizon} วันข้างหน้า)</div><ProjectionSvg days={data?.dailyProjection ?? []} /></div>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Stat label="เงินสดเริ่มต้น" tone="blue" value={money(data?.summary.startCash)} />
@@ -361,7 +362,7 @@ function money(value?: number) {
 }
 
 function FilterPanel({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">{children}</div>
+  return <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">{children}</div>
 }
 
 function DateInput({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
@@ -373,7 +374,7 @@ function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; on
 }
 
 function Panel({ children, title }: { children: ReactNode; title: string }) {
-  return <div className="rounded-md bg-white p-5 shadow-lg"><h3 className="mb-3 font-bold text-slate-800">{title}</h3>{children}</div>
+  return <div className="rounded-xl border border-slate-200/60 bg-white p-5 shadow-sm"><h3 className="mb-3 font-bold text-slate-800">{title}</h3>{children}</div>
 }
 
 function Bar({ label, max, tone, value }: { label: string; max: number; tone: 'blue' | 'emerald'; value: number }) {
@@ -393,13 +394,13 @@ function Legend({ label, value }: { label: string; value: number }) {
 }
 
 function ProjectionCard({ index, row }: { index: number; row: AnalysisPayload['charts']['projection'][number] }) {
-  const cls = index === 0 ? 'from-blue-50 to-indigo-50' : index === 1 ? 'from-amber-50 to-orange-50' : 'from-emerald-50 to-teal-50'
-  return <div className={`rounded-md bg-gradient-to-br ${cls} p-4 shadow`}><div className="mb-1 text-xs text-slate-500">{row.label}</div><div className={`text-3xl font-bold ${row.projected >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{money(row.projected)}</div>{row.expectedIn > 0 ? <div className="mt-2 text-xs text-emerald-600"> จะรับ +{money(row.expectedIn)}</div> : null}{row.expectedOut > 0 ? <div className="text-xs text-red-600"> จะจ่าย -{money(row.expectedOut)}</div> : null}</div>
+  const accent = index === 0 ? 'border-l-blue-500' : index === 1 ? 'border-l-amber-500' : 'border-l-emerald-500'
+  return <div className={`rounded-xl border border-l-4 border-slate-200 bg-white p-4 shadow-sm ${accent}`}><div className="mb-1 text-xs text-slate-500">{row.label}</div><div className={`break-words font-mono text-2xl font-bold tabular-nums ${row.projected >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{money(row.projected)}</div>{row.expectedIn > 0 ? <div className="mt-2 text-xs text-emerald-600"> จะรับ +{money(row.expectedIn)}</div> : null}{row.expectedOut > 0 ? <div className="text-xs text-red-600"> จะจ่าย -{money(row.expectedOut)}</div> : null}</div>
 }
 
 function InsightCard({ insight }: { insight: Insight }) {
-  const cls = insight.type === 'danger' ? 'border-red-500 bg-red-50' : insight.type === 'warn' ? 'border-amber-500 bg-amber-50' : 'border-emerald-500 bg-emerald-50'
-  return <div className={`rounded-md border-l-4 p-5 shadow ${cls}`}><h3 className="mb-2 text-base font-bold">{insight.title}</h3><div className="mb-2 text-sm font-medium text-slate-700">{insight.body}</div><div className="text-xs text-slate-600">{insight.explain}</div></div>
+  const cls = insight.type === 'danger' ? 'border-l-red-500 bg-red-50' : insight.type === 'warn' ? 'border-l-amber-500 bg-amber-50' : 'border-l-emerald-500 bg-emerald-50'
+  return <div className={`rounded-xl border border-l-4 border-slate-200 p-5 shadow-sm ${cls}`}><h3 className="mb-2 text-base font-bold">{insight.title}</h3><div className="mb-2 text-sm font-medium text-slate-700">{insight.body}</div><div className="text-xs text-slate-600">{insight.explain}</div></div>
 }
 
 function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPayload['detailRows'] }) {
@@ -422,7 +423,7 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPa
       </div>
       {/* Desktop Table View */}
       <div className="hidden overflow-x-auto lg:block">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {detailColumns.map((column, index) => {
               if (index === detailColumns.length - 1) {
@@ -469,7 +470,8 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPa
 
 function ForecastMega({ horizon, summary }: { horizon: number; summary?: ForecastPayload['summary'] }) {
   const ok = (summary?.lowestBal ?? 0) >= 0
-  return <div className={`relative overflow-hidden rounded-md p-5 text-white shadow-xl ${ok ? 'bg-gradient-to-br from-emerald-500 to-teal-700' : 'bg-gradient-to-br from-red-500 to-rose-700 ring-4 ring-red-200'}`}><div className="text-xs opacity-80">{ok ? 'คาดการณ์: เงินพอ' : 'คาดการณ์: เงินขาด'}</div><div className="mt-1 text-4xl font-bold">{money(summary?.endCash)}</div><div className="mt-2 text-sm opacity-90">เงินสด ณ สิ้น {horizon} วัน</div><div className="mt-3 space-y-0.5 text-xs opacity-80"><div>เริ่มต้น: <b>{money(summary?.startCash)}</b></div><div>+ รับคาดการณ์: <b>+{money(summary?.totalIn)}</b></div><div>- จ่ายคาดการณ์: <b>-{money(summary?.totalOut)}</b></div><div> ต่ำสุด: <b>{money(summary?.lowestBal)}</b> {summary?.negCount ? `(${summary.negCount} วัน ติดลบ)` : ''}</div></div></div>
+  const tone = ok ? 'border-l-emerald-500 text-emerald-700' : 'border-l-red-500 text-red-700'
+  return <div className={`rounded-xl border border-l-4 border-slate-200 bg-white p-4 shadow-sm ${tone}`}><div className="text-xs font-semibold">{ok ? 'คาดการณ์: เงินพอ' : 'คาดการณ์: เงินขาด'}</div><div className="mt-1 break-words font-mono text-2xl font-bold leading-tight tabular-nums sm:text-3xl">{money(summary?.endCash)}</div><div className="mt-2 text-sm font-medium text-slate-600">เงินสด ณ สิ้น {horizon} วัน</div><div className="mt-3 grid gap-1 text-xs text-slate-600 sm:grid-cols-2"><div>เริ่มต้น: <b>{money(summary?.startCash)}</b></div><div>+ รับคาดการณ์: <b className="text-emerald-700">+{money(summary?.totalIn)}</b></div><div>- จ่ายคาดการณ์: <b className="text-red-700">-{money(summary?.totalOut)}</b></div><div>ต่ำสุด: <b>{money(summary?.lowestBal)}</b> {summary?.negCount ? `(${summary.negCount} วัน ติดลบ)` : ''}</div></div></div>
 }
 
 function ProjectionSvg({ days }: { days: ProjectionDay[] }) {
@@ -479,13 +481,12 @@ function ProjectionSvg({ days }: { days: ProjectionDay[] }) {
 }
 
 function Stat({ label, tone, value }: { label: string; tone: 'blue' | 'emerald' | 'red' | 'slate'; value: string }) {
-  const color = tone === 'blue' ? 'text-blue-700' : tone === 'emerald' ? 'text-emerald-700' : tone === 'red' ? 'text-red-700' : 'text-slate-700'
-  return <div className="rounded-md bg-white p-3 shadow"><div className={`text-xs ${color}`}>{label}</div><div className={`text-lg font-bold ${color}`}>{value}</div></div>
+  return <SharedKpiCard label={label} tone={tone} value={value} />
 }
 
 function CalendarGrid({ days, isLoading, onSelect }: { days: ProjectionDay[]; isLoading: boolean; onSelect: (day: ProjectionDay) => void }) {
-  if (isLoading) return <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow">กำลังโหลดข้อมูล</div>
-  return <div className="overflow-x-auto rounded-md bg-white p-3 shadow"><div className="mb-1 grid grid-cols-7 gap-1">{['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'].map((day) => <div className="py-1 text-center text-xs font-bold text-slate-500" key={day}>{day}</div>)}</div><div className="grid grid-cols-7 gap-1" style={{ minWidth: 560 }}>{days.length ? Array.from({ length: days[0].dayOfWeek }, (_, index) => <div key={`pad${index}`} />) : null}{days.map((day) => <button key={day.date} className={`min-h-24 rounded-md border p-2 text-left text-xs transition ${day.closing < 0 ? 'border-red-300 bg-red-50' : day.isToday ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-300' : 'border-slate-100 bg-white'} ${day.dayIn > 0 || day.dayOut > 0 ? 'border-2' : ''}`} type="button" onClick={() => onSelect(day)}><div className="mb-1 flex justify-between"><span className={`font-bold ${day.isToday ? 'text-blue-700' : 'text-slate-700'}`}>{day.dayOfMonth}{day.isToday ? ' (วันนี้)' : ''}</span><span className="text-slate-400">{day.date.slice(5, 7)}</span></div>{day.dayIn > 0 ? <div className="truncate text-emerald-700">+{money(day.dayIn)}</div> : null}{day.dayOut > 0 ? <div className="truncate text-red-600">-{money(day.dayOut)}</div> : null}<div className={`mt-1 truncate font-bold ${day.closing >= 0 ? 'text-slate-700' : 'text-red-700'}`}>{money(day.closing)}</div></button>)}</div></div>
+  if (isLoading) return <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-400 shadow-sm">กำลังโหลดข้อมูล</div>
+  return <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><div className="mb-1 grid grid-cols-7 gap-1">{['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'].map((day) => <div className="py-1 text-center text-xs font-bold text-slate-500" key={day}>{day}</div>)}</div><div className="grid grid-cols-7 gap-1" style={{ minWidth: 560 }}>{days.length ? Array.from({ length: days[0].dayOfWeek }, (_, index) => <div key={`pad${index}`} />) : null}{days.map((day) => <button key={day.date} className={`min-h-24 rounded-md border p-2 text-left text-xs transition ${day.closing < 0 ? 'border-red-300 bg-red-50' : day.isToday ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-300' : 'border-slate-100 bg-white'} ${day.dayIn > 0 || day.dayOut > 0 ? 'border-2' : ''}`} type="button" onClick={() => onSelect(day)}><div className="mb-1 flex justify-between"><span className={`font-bold ${day.isToday ? 'text-blue-700' : 'text-slate-700'}`}>{day.dayOfMonth}{day.isToday ? ' (วันนี้)' : ''}</span><span className="text-slate-400">{day.date.slice(5, 7)}</span></div>{day.dayIn > 0 ? <div className="truncate text-emerald-700">+{money(day.dayIn)}</div> : null}{day.dayOut > 0 ? <div className="truncate text-red-600">-{money(day.dayOut)}</div> : null}<div className={`mt-1 truncate font-bold ${day.closing >= 0 ? 'text-slate-700' : 'text-red-700'}`}>{money(day.closing)}</div></button>)}</div></div>
 }
 
 function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
@@ -515,7 +516,7 @@ function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
       
       {/* Desktop Table View */}
       <div className="hidden overflow-x-auto lg:block">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {topPartyColumns.map((column, index) => {
               if (index === topPartyColumns.length - 1) {
@@ -596,7 +597,7 @@ function TopAp({ rows }: { rows: ForecastPayload['insights']['topAP'] }) {
       
       {/* Desktop Table View */}
       <div className="hidden overflow-x-auto lg:block">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {topPartyColumns.map((column, index) => {
               if (index === topPartyColumns.length - 1) {
@@ -680,7 +681,7 @@ function DayModal({ day, onClose }: { day: ProjectionDay; onClose: () => void })
         <div className="flex-1 overflow-auto bg-white">
           {/* Desktop Table View */}
           <div className="hidden lg:block">
-            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 {dayEventColumns.map((column, index) => {
                   if (index === dayEventColumns.length - 1) {

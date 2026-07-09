@@ -325,12 +325,12 @@ export function CompanyProfilePageClient() {
   return (
     <section className="space-y-3">
       {/* Desktop Toolbar (Hidden on Mobile) */}
-      <div className="hidden lg:block rounded-md bg-gradient-to-r from-blue-700 to-cyan-600 p-4 text-white shadow">
+      <div className="hidden rounded-xl border border-slate-200/60 bg-white p-4 text-slate-900 shadow-sm lg:block">
         <h1 className="text-xl font-bold">🏢 ข้อมูลบริษัทตามสาขา</h1>
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="lg:hidden rounded-md bg-gradient-to-r from-blue-700 to-cyan-600 p-3.5 text-white shadow animate-fade-in">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-3.5 text-slate-900 shadow-sm animate-fade-in lg:hidden">
         <h1 className="text-lg font-bold">🏢 ข้อมูลบริษัทตามสาขา</h1>
       </div>
 
@@ -338,7 +338,7 @@ export function CompanyProfilePageClient() {
       {message ? <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 animate-fade-in">{message}</div> : null}
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <div className="rounded-md bg-white p-3 text-sm shadow h-fit">
+        <div className="rounded-xl bg-white p-3 text-sm shadow h-fit">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className="text-xs font-bold uppercase tracking-wide text-slate-500">สาขา</div>
             <div className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
@@ -350,7 +350,7 @@ export function CompanyProfilePageClient() {
               const selected = branch.id === selectedBranchId
               return (
                 <button
-                  className={`w-full rounded-md border px-3 py-2 text-left transition ${selected ? 'border-blue-500 bg-blue-50 text-blue-900' : 'border-slate-100 bg-white text-slate-700 hover:border-blue-300 hover:bg-slate-50'}`}
+                  className={`w-full rounded-xl border px-3 py-2 text-left transition ${selected ? 'border-blue-500 bg-blue-50 text-blue-900' : 'border-slate-100 bg-white text-slate-700 hover:border-blue-300 hover:bg-slate-50'}`}
                   disabled={isLoading || isSaving}
                   key={branch.id}
                   type="button"
@@ -367,7 +367,7 @@ export function CompanyProfilePageClient() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 rounded-md bg-white p-4 text-sm shadow md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 rounded-xl bg-white p-4 text-sm shadow md:grid-cols-2">
           <div className="md:col-span-2">
             <div className="text-xs font-bold uppercase tracking-wide text-slate-500">ข้อมูลหัวกระดาษ</div>
             <div className="mt-1 text-base font-bold text-slate-900">{selectedBranchName ?? 'ยังไม่ได้เลือกสาขา'}</div>
@@ -405,7 +405,7 @@ export function CompanyProfilePageClient() {
                   <img alt="โลโก้บริษัท" className="max-h-20 max-w-[200px]" src={form.logoUrl} />
                 </div>
               ) : (
-                <div className="rounded-md border border-dashed border-slate-300 bg-white p-4 text-xs text-slate-400">ยังไม่มีโลโก้</div>
+                <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-xs text-slate-400">ยังไม่มีโลโก้</div>
               )}
               <div className="flex flex-col gap-2">
                 <input accept="image/*" className="text-xs" type="file" onChange={(event) => uploadLogo(event.target.files?.[0])} />

@@ -47,7 +47,7 @@ export function PostingRulesTable({ rows }: { rows: readonly RuleGroup[] }) {
   }
 
   return (
-    <section className="overflow-hidden rounded-md bg-white shadow">
+    <section className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div>
@@ -66,7 +66,7 @@ export function PostingRulesTable({ rows }: { rows: readonly RuleGroup[] }) {
       </div>
 
       <div className="hidden overflow-x-auto md:block">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {ruleColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -97,7 +97,7 @@ export function PostingRulesTable({ rows }: { rows: readonly RuleGroup[] }) {
 
       <div className="space-y-3 p-3 md:hidden">
         {sortedRows.map((rule) => (
-          <div key={rule.group} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div key={rule.group} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
               <div className="min-w-0">
                 <p className="text-sm font-bold text-slate-900">{rule.group}</p>

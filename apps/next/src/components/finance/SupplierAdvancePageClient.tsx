@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -142,7 +143,7 @@ export function SupplierAdvancePageClient() {
         <Metric label="Advance คงเหลือรวม (THB)" value={formatMoney(data?.summary.totalRemainingThb ?? 0)} tone="amber" />
         <Metric label="จำนวนรายการ Active" value={`${data?.summary.activeCount ?? 0}`} />
         <div className="flex items-center justify-end gap-2">
-          <a className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50" href={exportHref}>Export XLSX</a>
+          <a className="inline-flex h-9 items-center rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700" href={exportHref}>ส่งออก Excel</a>
         </div>
       </div>
 
@@ -154,7 +155,7 @@ export function SupplierAdvancePageClient() {
             </button>
           ) : null}
         </div>
-        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {supplierAdvanceColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -198,15 +199,15 @@ export function SupplierAdvancePageClient() {
       {/* Mobile Card list */}
       <div className="block lg:hidden space-y-3">
         {isLoading ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-100">กำลังโหลดข้อมูล</div>
+          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow border border-slate-100">กำลังโหลดข้อมูล</div>
         ) : null}
         {!isLoading && sortedRows.length === 0 ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-100">ยังไม่มี Supplier Advance</div>
+          <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow border border-slate-100">ยังไม่มี Supplier Advance</div>
         ) : null}
         {!isLoading && sortedRows.map((row) => (
           <div
             key={row.id}
-            className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2"
+            className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm space-y-2"
           >
             <div className="flex justify-between items-start">
               <span className="font-bold text-slate-800 text-sm font-mono">{row.docNo}</span>
@@ -251,30 +252,8 @@ export function SupplierAdvancePageClient() {
   )
 }
 
-function Metric({ label, tone, value }: { label: string; tone?: 'amber'; value: string }) {
-  const configs = {
-    amber: { bg: 'bg-amber-100 text-amber-600', emoji: '💵', labelColor: 'text-amber-600', valueColor: 'text-amber-700' },
-    slate: { bg: 'bg-slate-100 text-slate-600', emoji: '📋', labelColor: 'text-slate-500', valueColor: 'text-slate-900' }
-  }
-
-  const numericValue = parseFloat(value.replace(/[^0-9.-]/g, ''))
-  const isZero = isNaN(numericValue) ? false : numericValue === 0
-
-  const config = isZero
-    ? { bg: 'bg-slate-100 text-slate-600', emoji: configs[tone || 'slate'].emoji, labelColor: 'text-slate-500', valueColor: 'text-slate-900' }
-    : configs[tone || 'slate']
-
-  return (
-    <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-        {config.emoji}
-      </div>
-      <div>
-        <div className={`text-xs ${config.labelColor}`}>{label}</div>
-        <div className={`font-bold ${config.valueColor}`}>{value}</div>
-      </div>
-    </div>
-  )
+function Metric({ label, tone = 'slate', value }: { label: string; tone?: 'amber' | 'slate'; value: string }) {
+  return <SharedKpiCard label={label} tone={tone} value={value} />
 }
 
 function StatusBadge({ status }: { status: string }) {

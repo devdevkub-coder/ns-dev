@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowUpDown, ClipboardList, Coins, Scale } from 'lucide-react'
+import { ArrowUpDown, Coins, Scale } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input } from '@/components/ui/Input'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -178,14 +179,7 @@ export function BillSwapHistoryPageClient({ tableKey = 'daily.bill-swap-history.
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Kpi
-          icon={<ClipboardList className="size-5" />}
-          label="จำนวนรายการเปลี่ยน"
-          value={totals.rows.toLocaleString('th-TH')}
-          iconBgColor="bg-slate-100"
-          iconColor="text-slate-600"
-        />
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <Kpi
           icon={<Scale className="size-5" />}
           label="น้ำหนักรวม (กก.)"
@@ -210,7 +204,7 @@ export function BillSwapHistoryPageClient({ tableKey = 'daily.bill-swap-history.
         />
       </div>
 
-      <div className="rounded-md bg-white p-3 shadow">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <Input
             className="min-w-[260px] flex-1 rounded-md"
@@ -251,11 +245,11 @@ export function BillSwapHistoryPageClient({ tableKey = 'daily.bill-swap-history.
       {/* Mobile Card List (Hidden on Desktop) */}
       <div className="block lg:hidden space-y-3">
         {isLoading ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
+          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
         ) : null}
         
         {!isLoading && pagedRows.map((row) => (
-          <div key={row.id} className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2">
+          <div key={row.id} className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm space-y-2">
             <div className="flex justify-between items-start">
               <span className="font-bold text-slate-800 text-sm">{row.billDocNo || row.billId}</span>
               <span className="text-xs text-slate-500">{row.swapDate}</span>
@@ -306,14 +300,14 @@ export function BillSwapHistoryPageClient({ tableKey = 'daily.bill-swap-history.
         ))}
 
         {!isLoading && totalRows === 0 ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
+          <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
             ยังไม่มีประวัติการเปลี่ยน Supplier
           </div>
         ) : null}
       </div>
 
       <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="w-full text-xs" style={{ minWidth: tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {billSwapColumns.map((column) => {
               const style = getColumnStyle(column.key);
@@ -384,20 +378,10 @@ interface KpiProps {
   valueColor?: string
 }
 
-function Kpi({ icon, label, value, iconBgColor, iconColor, valueColor = 'text-slate-900' }: KpiProps) {
-  return (
-    <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className={`flex size-12 shrink-0 items-center justify-center rounded-full ${iconBgColor} ${iconColor}`}>
-        {icon}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="text-xs font-semibold text-slate-500">{label}</div>
-        <div className={`mt-1 text-lg font-bold ${valueColor} tabular-nums leading-tight truncate`} title={value}>
-          {value}
-        </div>
-      </div>
-    </div>
-  )
+function Kpi({ icon, label, value, iconColor, valueColor = 'text-slate-900' }: KpiProps) {
+  const colorClass = `${iconColor} ${valueColor}`
+  const tone = colorClass.includes('emerald') ? 'emerald' : colorClass.includes('amber') ? 'amber' : colorClass.includes('red') ? 'red' : colorClass.includes('blue') ? 'blue' : 'slate'
+  return <SharedKpiCard icon={icon} label={label} tone={tone} value={value} />
 }
 
 function billSwapSortValue(row: ReturnType<typeof enrichBillSwapRow>, sort: BillSwapSortKey) {

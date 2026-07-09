@@ -58,17 +58,28 @@ function paymentSettlementAmount(payment: { amount: NumericLike; discount?: Nume
   return toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount)
 }
 
-function inYearMonth(date: Date, year: string | null, month: string | null) {
+function normalizedDateParam(value: string | null) {
+  const trimmed = value?.trim()
+  return trimmed && /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null
+}
+
+function inYearMonth(date: Date, year: string | null, month: string | null, dateFrom?: string | null, dateTo?: string | null) {
   const value = toDateOnly(date)
   if (year && value.slice(0, 4) !== year) return false
   if (month && value.slice(5, 7) !== month.padStart(2, '0')) return false
+  if (dateFrom && value < dateFrom) return false
+  if (dateTo && value > dateTo) return false
   return true
 }
 
-function yearMonthDateWhere(year: string, month: string | null) {
+function yearMonthDateWhere(year: string, month: string | null, dateFrom?: string | null, dateTo?: string | null) {
   const normalizedMonth = month?.padStart(2, '0')
-  const from = new Date(`${year}-${normalizedMonth ?? '01'}-01T00:00:00.000Z`)
-  const to = normalizedMonth
+  const from = dateFrom
+    ? new Date(`${dateFrom}T00:00:00.000Z`)
+    : new Date(`${year}-${normalizedMonth ?? '01'}-01T00:00:00.000Z`)
+  const to = dateTo
+    ? new Date(`${dateTo}T23:59:59.999Z`)
+    : normalizedMonth
     ? new Date(Date.UTC(Number(year), Number(normalizedMonth), 0, 23, 59, 59, 999))
     : new Date(`${year}-12-31T23:59:59.999Z`)
   return { gte: from, lte: to }
@@ -153,6 +164,8 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const year = url.searchParams.get('year') || String(new Date().getFullYear())
     const month = url.searchParams.get('month')
+    const dateFrom = normalizedDateParam(url.searchParams.get('dateFrom') ?? url.searchParams.get('from'))
+    const dateTo = normalizedDateParam(url.searchParams.get('dateTo') ?? url.searchParams.get('to'))
     const supplierId = url.searchParams.get('supplierId')
     const detailId = url.searchParams.get('detailId')
     const productCategory = url.searchParams.get('productCategory')?.trim() || null
@@ -206,14 +219,14 @@ export async function GET(request: Request) {
           ...branchScopedWeightTicketWhere(allowedBranchIds),
           cancelled_at: null,
           doc_type: 'WTI',
-          document_date: yearMonthDateWhere(year, month),
+          document_date: yearMonthDateWhere(year, month, dateFrom, dateTo),
           ...(supplier ? { supplier_id: supplier.id } : {}),
         },
       }),
       prisma.grade_adjustments.findMany({
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 5000,
-        where: { ...branchScopedGradeAdjustmentWhere(allowedBranchIds), date: yearMonthDateWhere(year, month), reversed_at: null, status: { not: 'cancelled' } },
+        where: { ...branchScopedGradeAdjustmentWhere(allowedBranchIds), date: yearMonthDateWhere(year, month, dateFrom, dateTo), reversed_at: null, status: { not: 'cancelled' } },
       }),
     ])
 
@@ -278,9 +291,9 @@ export async function GET(request: Request) {
     const visibleSuppliers = suppliers.filter((supplier) => visibleSupplierIds.has(supplier.id))
 
     const supplierRows = visibleSuppliers.map((supplier) => {
-      const supplierBills = scopedBills.filter((bill) => bill.supplier_id === supplier.id && inYearMonth(bill.date, year, month))
-      const supplierPayments = payments.filter((payment) => payment.supplier_id === supplier.id && inYearMonth(payment.date, year, month))
-      const supplierTickets = scopedWeightTickets.filter((ticket) => ticket.supplier_id === supplier.id && inYearMonth(ticket.document_date, year, month))
+      const supplierBills = scopedBills.filter((bill) => bill.supplier_id === supplier.id && inYearMonth(bill.date, year, month, dateFrom, dateTo))
+      const supplierPayments = payments.filter((payment) => payment.supplier_id === supplier.id && inYearMonth(payment.date, year, month, dateFrom, dateTo))
+      const supplierTickets = scopedWeightTickets.filter((ticket) => ticket.supplier_id === supplier.id && inYearMonth(ticket.document_date, year, month, dateFrom, dateTo))
       
       const ticketTotals = supplierTickets.reduce((sum, ticket) => {
         const matchingSummaries = ticket.weight_ticket_product_summaries.filter((summary) => ticketSummaryFilterMatches(summary, productCategory, productId))
@@ -319,10 +332,10 @@ export async function GET(request: Request) {
       
       const paidAmount = supplierPayments.reduce((sum, payment) => sum + paymentSettlementAmount(payment), 0)
 
-      const supplierYearBills = scopedBills.filter((bill) => bill.supplier_id === supplier.id && inYearMonth(bill.date, year, null))
+      const supplierYearBills = scopedBills.filter((bill) => bill.supplier_id === supplier.id && inYearMonth(bill.date, year, null, dateFrom, dateTo))
       const monthlyData = Array.from({ length: 12 }, (_, index) => {
         const monthKey = String(index + 1).padStart(2, '0')
-        const monthBills = supplierYearBills.filter((bill) => inYearMonth(bill.date, year, monthKey))
+        const monthBills = supplierYearBills.filter((bill) => inYearMonth(bill.date, year, monthKey, dateFrom, dateTo))
         const qty = monthBills.reduce((sum, bill) => {
           const matchingItems = bill.purchase_bill_items.filter((item) => purchaseItemFilterMatches(item, productCategory, productId))
           const itemQty = matchingItems.reduce((acc, item) => acc + toNumber(item.qty), 0)
@@ -366,7 +379,7 @@ export async function GET(request: Request) {
 
     const productMap = new Map<string, { amount: number; bills: Set<string>; productName: string; qty: number; suppliers: Set<bigint> }>()
     bills
-      .filter((bill) => inYearMonth(bill.date, year, month))
+      .filter((bill) => inYearMonth(bill.date, year, month, dateFrom, dateTo))
       .forEach((bill) => {
         purchaseBillItemRows(bill)
           .forEach((item) => {
@@ -392,7 +405,7 @@ export async function GET(request: Request) {
 
     const monthly = Array.from({ length: 12 }, (_, index) => {
       const monthKey = String(index + 1).padStart(2, '0')
-      const monthBills = bills.filter((bill) => inYearMonth(bill.date, year, monthKey))
+      const monthBills = bills.filter((bill) => inYearMonth(bill.date, year, monthKey, dateFrom, dateTo))
       return monthBills.reduce<{ amount: number; month: string; qty: number }>((sum, bill) => {
         const item = itemTotals(purchaseBillItemRows(bill))
         const amount = item.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
@@ -405,11 +418,11 @@ export async function GET(request: Request) {
     })
 
     const detail = detailSupplier && visibleSupplierIds.has(detailSupplier.id) ? (() => {
-      const detailBills = bills.filter((bill) => bill.supplier_id === detailSupplier.id && inYearMonth(bill.date, year, month))
-      const detailPayments = payments.filter((payment) => payment.supplier_id === detailSupplier.id && inYearMonth(payment.date, year, month))
-      const detailTickets = weightTickets.filter((ticket) => ticket.supplier_id === detailSupplier.id && inYearMonth(ticket.document_date, year, month))
-      const detailYearBills = bills.filter((bill) => bill.supplier_id === detailSupplier.id && inYearMonth(bill.date, year, null))
-      const detailYearPayments = payments.filter((payment) => payment.supplier_id === detailSupplier.id && inYearMonth(payment.date, year, null))
+      const detailBills = bills.filter((bill) => bill.supplier_id === detailSupplier.id && inYearMonth(bill.date, year, month, dateFrom, dateTo))
+      const detailPayments = payments.filter((payment) => payment.supplier_id === detailSupplier.id && inYearMonth(payment.date, year, month, dateFrom, dateTo))
+      const detailTickets = weightTickets.filter((ticket) => ticket.supplier_id === detailSupplier.id && inYearMonth(ticket.document_date, year, month, dateFrom, dateTo))
+      const detailYearBills = bills.filter((bill) => bill.supplier_id === detailSupplier.id && inYearMonth(bill.date, year, null, dateFrom, dateTo))
+      const detailYearPayments = payments.filter((payment) => payment.supplier_id === detailSupplier.id && inYearMonth(payment.date, year, null, dateFrom, dateTo))
       const detailProductMap = new Map<string, { amount: number; bills: Set<string>; productName: string; qty: number }>()
       const detailProductIds = new Set(detailTickets.flatMap((ticket) => ticket.weight_ticket_product_summaries.map((summary) => String(summary.product_id))))
       const detailGradeAdjustments = gradeAdjustments.filter((row) => [row.product_id, row.source_product_id, row.target_product_id].some((id) => id != null && detailProductIds.has(String(id)))).slice(0, 30)
@@ -463,8 +476,8 @@ export async function GET(request: Request) {
         })),
         monthly: Array.from({ length: 12 }, (_, index) => {
           const monthKey = String(index + 1).padStart(2, '0')
-          const monthBills = detailYearBills.filter((bill) => inYearMonth(bill.date, year, monthKey))
-          const monthPayments = detailYearPayments.filter((payment) => inYearMonth(payment.date, year, monthKey))
+          const monthBills = detailYearBills.filter((bill) => inYearMonth(bill.date, year, monthKey, dateFrom, dateTo))
+          const monthPayments = detailYearPayments.filter((payment) => inYearMonth(payment.date, year, monthKey, dateFrom, dateTo))
           const paidAmount = monthPayments.reduce((sum, payment) => sum + paymentSettlementAmount(payment), 0)
           return monthBills.reduce<{
             billCount: number

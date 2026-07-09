@@ -8,7 +8,7 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage, readBlobResponse, readJsonResponse } from '@/lib/api-client'
 import { formatDateDisplay } from '@/lib/format'
-import { SlidersHorizontal } from 'lucide-react'
+import { Download, SlidersHorizontal } from 'lucide-react'
 
 const transactionLedgerPayloadSchema = z.object({
   accounts: z.array(z.object({
@@ -98,23 +98,6 @@ function accountTypeLabel(type: string) {
   if (type === 'cash') return 'เงินสด'
   if (type === 'bank') return 'ธนาคาร'
   return type || 'อื่น ๆ'
-}
-
-function buildCsv(rows: LedgerRow[]) {
-  const header = ['วันที่', 'บัญชี', 'ประเภท', 'เลขที่', 'บิลที่เกี่ยวข้อง', 'ผู้รับ/ส่ง', 'รายละเอียด', 'เงินเข้า', 'เงินออก', 'คงเหลือหลังรายการ']
-  const body = rows.map((row) => [
-    row.date,
-    row.accountName,
-    row.refType,
-    row.refNo,
-    row.linkedBills.map((bill) => `${bill.type}:${bill.docNo}`).join(', '),
-    row.payee,
-    row.description || row.note,
-    String(row.amountIn),
-    String(row.amountOut),
-    row.runningBalance === null ? '' : String(row.runningBalance),
-  ])
-  return [header, ...body].map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n')
 }
 
 export function TransactionLedgerPageClient() {
@@ -214,19 +197,6 @@ export function TransactionLedgerPageClient() {
   const selectedComputedBalance = selectedAccount ? ledger.reduce((sum, row) => sum + row.amountIn - row.amountOut, 0) : null
   const selectedDiff = selectedAccount && selectedComputedBalance !== null ? selectedAccount.balance - selectedComputedBalance : null
 
-  function exportCsv() {
-    const csv = buildCsv(sortedLedger)
-    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `transaction_ledger_${new Date().toISOString().slice(0, 10)}.csv`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
-  }
-
   async function exportExcel() {
     setError(null)
     setIsExporting(true)
@@ -270,11 +240,11 @@ export function TransactionLedgerPageClient() {
 
   return (
     <section className="space-y-3">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 rounded-md bg-gradient-to-r from-cyan-700 to-blue-700 p-4 text-white shadow">
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-200/60 bg-white p-4 text-slate-900 shadow-sm md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-xl font-bold">📒 Transaction Ledger — เช็คเงินเข้า-ออกทุกบัญชี</h1>
         </div>
-        <button className="rounded-md bg-white/15 px-4 py-2 text-sm font-bold text-white shadow hover:bg-white/25 disabled:opacity-60 shrink-0 self-start md:self-auto" disabled={isLoading} type="button" onClick={() => void loadData()}>
+        <button className="shrink-0 self-start rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60 md:self-auto" disabled={isLoading} type="button" onClick={() => void loadData()}>
           {isLoading ? 'กำลังโหลด...' : '🔄 รีเฟรช'}
         </button>
       </div>
@@ -286,7 +256,7 @@ export function TransactionLedgerPageClient() {
         </div>
       ) : null}
 
-      <div className="rounded-md bg-white p-4 shadow-lg">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="font-bold text-slate-800">💰 ยอดคงเหลือทุกบัญชี</h3>
           <span className="text-xs text-slate-500">{accounts.length.toLocaleString('th-TH')} บัญชี</span>
@@ -308,7 +278,7 @@ export function TransactionLedgerPageClient() {
                   <div className={`font-mono text-base font-bold ${account.balance < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatMoney(account.balance)}</div>
                 </div>
                 <label>
-                  <span className="text-slate-500">🔍 นับจริง</span>
+                  <span className="text-slate-500">นับจริง</span>
                   <input className="w-full rounded-md border border-slate-300 bg-white px-1 py-0.5 text-right font-mono font-bold" placeholder="กรอกยอด..." step="0.01" type="number" value={account.actual ?? ''} onChange={(event) => setActualBalances((current) => ({ ...current, [account.id]: Number(event.target.value || 0) }))} />
                 </label>
               </div>
@@ -360,7 +330,7 @@ export function TransactionLedgerPageClient() {
       </div>
 
       {/* Desktop Toolbar (Hidden on Mobile) */}
-      <div className="hidden lg:block rounded-md bg-white p-3 shadow">
+      <div className="hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
         <div className="flex flex-wrap items-center gap-2">
           <input className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm h-9 border-slate-300" placeholder="ค้นหา เลขที่ / รายละเอียด / ผู้รับ-ส่ง..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <DatePickerInput className="w-[130px]" value={dateFrom} onChange={setDateFrom} />
@@ -377,8 +347,10 @@ export function TransactionLedgerPageClient() {
           {columnResize.hasCustomWidths ? (
             <button className="hidden h-9 shrink-0 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 xl:inline-flex xl:items-center" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           ) : null}
-          <button className="rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 h-9 flex items-center shrink-0" disabled={ledger.length === 0 || isExporting} type="button" onClick={() => void exportExcel()}>{isExporting ? 'กำลัง Export...' : '📊 Excel'}</button>
-          <button className="rounded-md bg-white px-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-60 h-9 flex items-center shrink-0" disabled={ledger.length === 0} type="button" onClick={exportCsv}>ส่งออก CSV</button>
+          <button className="flex h-9 shrink-0 items-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60" disabled={ledger.length === 0 || isExporting} type="button" onClick={() => void exportExcel()}>
+            <Download aria-hidden="true" className="size-4" />
+            <span>{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</span>
+          </button>
         </div>
         <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-600 pt-2 border-t border-slate-100">
           <span className="rounded-md bg-emerald-50 px-2 py-1">📥 เงินเข้ารวม <b className="text-emerald-700">{formatMoney(summary.totalIn)}</b></span>
@@ -390,7 +362,7 @@ export function TransactionLedgerPageClient() {
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="lg:hidden rounded-md bg-white p-3 shadow space-y-2">
+      <div className="space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex gap-2 items-center">
           <input className="flex-1 rounded-md border px-3 h-9 text-sm border-slate-300" placeholder="ค้นหา..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <button
@@ -492,7 +464,7 @@ export function TransactionLedgerPageClient() {
 
       {/* Desktop Table View (Hidden on Mobile) */}
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {ledgerColumns.map((column, index) => {
               const style = columnResize.getColumnStyle(column.key)
@@ -549,7 +521,7 @@ export function TransactionLedgerPageClient() {
       {!isLoading && sortedLedger.length > 0 ? (
         <div className="space-y-3 lg:hidden">
           {sortedLedger.map((row) => (
-            <div key={row.id} className="rounded-lg border border-slate-100 bg-white p-3.5 shadow-sm space-y-2.5 animate-fade-in">
+            <div key={row.id} className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm space-y-2.5 animate-fade-in">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <span className="inline-block rounded bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-700">{row.refType}</span>
@@ -598,13 +570,13 @@ export function TransactionLedgerPageClient() {
       ) : null}
 
       {!isLoading && sortedLedger.length === 0 ? (
-        <div className="rounded-lg border border-slate-100 bg-white p-12 text-center text-slate-400 shadow-sm lg:hidden">
+        <div className="rounded-xl border border-slate-100 bg-white p-12 text-center text-slate-400 shadow-sm lg:hidden">
           ไม่มีรายการ
         </div>
       ) : null}
 
       {isLoading ? (
-        <div className="rounded-lg border border-slate-100 bg-white p-12 text-center text-slate-400 shadow-sm lg:hidden">
+        <div className="rounded-xl border border-slate-100 bg-white p-12 text-center text-slate-400 shadow-sm lg:hidden">
           กำลังโหลด Transaction Ledger...
         </div>
       ) : null}

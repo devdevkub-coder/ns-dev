@@ -386,7 +386,7 @@ export function ProductsPageClient() {
       ) : null}
 
       {/* Desktop Toolbar (Hidden on Mobile) */}
-      <div className="hidden rounded-md bg-white p-3 shadow lg:mb-4 lg:block lg:space-y-3">
+      <div className="hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:mb-4 lg:block lg:space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <input
             className="min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm h-9 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
@@ -404,30 +404,6 @@ export function ProductsPageClient() {
             </button>
           ) : null}
 
-          <div className="ml-auto flex items-center gap-2">
-            <label className={`inline-flex h-9 cursor-pointer items-center gap-1 rounded-md bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2 focus-within:outline-none ${isImporting || isLoading ? 'pointer-events-none opacity-60' : ''}`}>
-              <Upload aria-hidden="true" className="h-4 w-4" />
-              <span className="text-xs sm:text-sm">{isImporting ? 'กำลัง Import...' : 'Import Excel'}</span>
-              <input
-                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                className="hidden"
-                disabled={isImporting || isLoading}
-                type="file"
-                onChange={(event) => {
-                  void handleImport(event.target.files?.[0] ?? null)
-                  event.currentTarget.value = ''
-                }}
-              />
-            </label>
-            <button className="inline-flex h-9 items-center gap-1 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60 focus:outline-none" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
-              <Download aria-hidden="true" className="h-4 w-4" />
-              <span className="text-xs sm:text-sm">{isExporting ? 'กำลัง Export...' : 'Export Excel'}</span>
-            </button>
-            <button className="inline-flex h-9 items-center gap-1 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 focus:outline-none" type="button" onClick={openCreateForm}>
-              <Plus aria-hidden="true" className="h-4 w-4" />
-              เพิ่มสินค้า
-            </button>
-          </div>
         </div>
 
         <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-50 pt-2 text-xs">
@@ -452,11 +428,35 @@ export function ProductsPageClient() {
             <MatchButton active={activeFilter === 'active'} label="ใช้งาน" tone="emerald" onClick={() => { setActiveFilter('active'); setPage(1); }} />
             <MatchButton active={activeFilter === 'inactive'} label="ปิด" tone="slate" onClick={() => { setActiveFilter('inactive'); setPage(1); }} />
           </div>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <label className={`inline-flex h-9 cursor-pointer items-center gap-1 rounded-md bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2 focus-within:outline-none ${isImporting || isLoading ? 'pointer-events-none opacity-60' : ''}`}>
+              <Upload aria-hidden="true" className="h-4 w-4" />
+              <span className="text-xs sm:text-sm">{isImporting ? 'กำลัง Import...' : 'Import Excel'}</span>
+              <input
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="hidden"
+                disabled={isImporting || isLoading}
+                type="file"
+                onChange={(event) => {
+                  void handleImport(event.target.files?.[0] ?? null)
+                  event.currentTarget.value = ''
+                }}
+              />
+            </label>
+            <button className="inline-flex h-9 items-center gap-1 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60 focus:outline-none" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
+              <Download aria-hidden="true" className="h-4 w-4" />
+              <span className="text-xs sm:text-sm">{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</span>
+            </button>
+            <button className="inline-flex h-9 items-center gap-1 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 focus:outline-none" type="button" onClick={openCreateForm}>
+              <Plus aria-hidden="true" className="h-4 w-4" />
+              เพิ่มสินค้า
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 space-y-2 rounded-md bg-white p-3 shadow lg:hidden">
+      <div className="mb-4 space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex gap-2 items-center">
           <input
             className="min-w-[200px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm h-9 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
@@ -562,7 +562,7 @@ export function ProductsPageClient() {
                   </label>
                   <button className="flex-1 inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting || isLoading} type="button" onClick={() => { void handleExport(); setShowMobileFilters(false); }}>
                     <Download aria-hidden="true" className="h-4 w-4" />
-                    <span>{isExporting ? 'Exporting...' : 'Export Excel'}</span>
+                    <span>{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</span>
                   </button>
                 </div>
               </div>
@@ -636,7 +636,7 @@ export function ProductsPageClient() {
         </DialogContent>
       </Dialog>
 
-      {isLoading ? <div className="rounded-md bg-white p-6 text-center text-sm text-slate-500 shadow">กำลังโหลดข้อมูลสินค้า</div> : null}
+      {isLoading ? <div className="rounded-xl bg-white p-6 text-center text-sm text-slate-500 shadow">กำลังโหลดข้อมูลสินค้า</div> : null}
 
       {!isLoading ? (
         <>
@@ -715,12 +715,12 @@ export function ProductsPageClient() {
             {paginatedProducts.map((product) => (
               <div
                 key={product.id}
-                className="rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 transition-colors"
+                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 transition-colors"
                 onClick={() => openEditForm(product)}
               >
                 <div className="flex gap-3 items-start">
                   {/* Product Thumbnail on the Left */}
-                  <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center">
+                  <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center">
                     {product.thumbnailUrl ? (
                       <Image
                         fill
@@ -772,7 +772,7 @@ export function ProductsPageClient() {
               </div>
             ))}
             {paginatedProducts.length === 0 ? (
-              <div className="rounded-md bg-white p-8 text-center text-sm text-slate-500 shadow-sm border border-slate-200">
+              <div className="rounded-xl bg-white p-8 text-center text-sm text-slate-500 shadow-sm border border-slate-200">
                 ไม่พบข้อมูลที่ค้นหา
               </div>
             ) : null}
@@ -869,7 +869,7 @@ function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, 
       </div>
 
       <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50 px-5 py-5">
-        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h4 className="mb-4 text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">ข้อมูลสินค้า</h4>
           <div className="grid gap-3 md:grid-cols-4">
             {form.id ? <TextField error={errors.code} label="รหัสสินค้า" readOnly value={form.code ?? ''} onChange={(value) => update('code', value)} /> : null}
@@ -1002,14 +1002,7 @@ function TextField({ className = '', error, label, list, readOnly = false, type 
   )
 }
 
-function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
-  const activeClass = {
-    amber: 'border-amber-600 bg-amber-600 text-white',
-    dark: 'border-slate-700 bg-slate-700 text-white',
-    emerald: 'border-emerald-600 bg-emerald-600 text-white',
-    red: 'border-red-600 bg-red-600 text-white',
-    slate: 'border-slate-500 bg-slate-500 text-white',
-  }[tone]
-  const idleClass = tone === 'amber' ? 'border-slate-300 bg-white hover:bg-amber-50' : tone === 'emerald' ? 'border-slate-300 bg-white hover:bg-emerald-50' : tone === 'red' ? 'border-slate-300 bg-white hover:bg-red-50' : 'border-slate-300 bg-white hover:bg-slate-100'
-  return <button className={`rounded-md border px-3.5 py-1.5 text-sm font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
+function MatchButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
+  const className = active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+  return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${className}`} type="button" onClick={onClick}>{label}</button>
 }

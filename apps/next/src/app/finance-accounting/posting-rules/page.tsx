@@ -93,13 +93,13 @@ const pendingWork = [
 export default function PostingRulesPage() {
   return (
     <section className="space-y-4">
-      <section className="rounded-md bg-white p-4 shadow">
+      <section className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="mb-3">
           <h3 className="text-sm font-bold text-slate-900">เงื่อนไขก่อนเปิดใช้งานจริง</h3>
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {controlRules.map((rule) => (
-            <div key={rule.title} className="rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+            <div key={rule.title} className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
               <h4 className="text-sm font-bold text-slate-900">{rule.title}</h4>
               <p className="mt-3 text-xs leading-5 text-slate-600">{rule.detail}</p>
             </div>
@@ -110,11 +110,11 @@ export default function PostingRulesPage() {
       <PostingRulesTable rows={ruleGroups} />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-        <section className="rounded-md bg-white p-4 shadow">
+        <section className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
           <h3 className="text-sm font-bold text-slate-900">Boundary ที่ยังต้องรักษา</h3>
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
             {boundaries.map(([title, detail]) => (
-              <div key={title} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <div key={title} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="text-sm font-bold text-slate-800">{title}</h4>
                 <p className="mt-2 text-xs leading-5 text-slate-600">{detail}</p>
               </div>
@@ -122,11 +122,11 @@ export default function PostingRulesPage() {
           </div>
         </section>
 
-        <section className="rounded-md bg-white p-4 shadow">
+        <section className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
           <h3 className="text-sm font-bold text-slate-900">งานที่ยังต้องออกแบบก่อนเปิดใช้</h3>
           <div className="mt-3 space-y-2">
             {pendingWork.map((item, index) => (
-              <div key={item} className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+              <div key={item} className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">
                   {index + 1}
                 </span>

@@ -49,7 +49,7 @@ export function DatePicker({
           {value ? format(value, 'PPP') : <span>{placeholder}</span>}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent className="w-[20rem] max-w-[calc(100vw_-_1rem)] p-0" align="start">
         <Calendar
           mode="single"
           selected={value}

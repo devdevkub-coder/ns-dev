@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
@@ -373,50 +374,27 @@ function WaitingAllocationsView() {
         </div>
       </DualCostingPanel>
 
-      <div className="flex overflow-x-auto rounded-md bg-white px-2 shadow-sm">
-        <button
-          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors focus-visible:outline-none ${
-            activeTab === 'po'
-              ? 'border-slate-900 text-slate-900 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-          onClick={() => {
-            setActiveTab('po')
-            setSortKey('date')
-            setSortDirection('desc')
-          }}
-        >
-          PO ขาย <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600 font-medium">{data?.po.count ?? 0}</span>
-        </button>
-        <button
-          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors focus-visible:outline-none ${
-            activeTab === 'bill'
-              ? 'border-slate-900 text-slate-900 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-          onClick={() => {
-            setActiveTab('bill')
-            setSortKey('date')
-            setSortDirection('desc')
-          }}
-        >
-          บิลขาย <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600 font-medium">{data?.bill.count ?? 0}</span>
-        </button>
-        <button
-          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors focus-visible:outline-none ${
-            activeTab === 'production'
-              ? 'border-slate-900 text-slate-900 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-          onClick={() => {
-            setActiveTab('production')
-            setSortKey('date')
-            setSortDirection('desc')
-          }}
-        >
-          Production <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600 font-medium">{data?.production.count ?? 0}</span>
-        </button>
-      </div>
+      <Tabs
+        className="gap-0"
+        value={activeTab}
+        onValueChange={(value) => {
+          setActiveTab(value as typeof activeTab)
+          setSortKey('date')
+          setSortDirection('desc')
+        }}
+      >
+        <TabsList className="w-full flex-nowrap overflow-x-auto" variant="line">
+          <TabsTrigger value="po" variant="line">
+            PO ขาย <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{data?.po.count ?? 0}</span>
+          </TabsTrigger>
+          <TabsTrigger value="bill" variant="line">
+            บิลขาย <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{data?.bill.count ?? 0}</span>
+          </TabsTrigger>
+          <TabsTrigger value="production" variant="line">
+            Production <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{data?.production.count ?? 0}</span>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       <DualCostingFilterCard>
         {/* Desktop View */}
@@ -442,13 +420,13 @@ function WaitingAllocationsView() {
           <div className="flex gap-2">
             <Input className="flex-1 h-10 rounded-md border-slate-300 focus-visible:ring-emerald-100 text-sm" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <button
-              className={`h-10 rounded-md border px-3 text-sm font-semibold transition-colors flex items-center gap-1 shrink-0 ${
-                showMobileFilters ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-700 border-slate-200'
+              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
+                showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
               }`}
               type="button"
               onClick={() => setShowMobileFilters(!showMobileFilters)}
             >
-              🔍 ตัวกรอง
+              ตัวกรอง
             </button>
           </div>
 
@@ -500,7 +478,7 @@ function WaitingAllocationsView() {
 
       {/* Desktop View */}
       <div className="hidden overflow-x-auto lg:block" style={{ width: '100%', overflowX: 'auto' }}>
-        <table className="w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {currentColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -567,7 +545,7 @@ function WaitingAllocationsView() {
                     <StatusPill status={row.allocationStatus} />
                   </td>
                   <td className="p-3 pr-4 text-center">
-                    <Button asChild size="xs" type="button" className="rounded-lg font-semibold focus-visible:ring-2 focus-visible:ring-emerald-100">
+                    <Button asChild size="xs" type="button" className="rounded-md font-semibold focus-visible:ring-2 focus-visible:ring-emerald-100">
                       <Link href={allocatorHref}>
                         {row.allocatedQty > 0 ? 'จัดสรรต่อ' : 'จัดสรร'}
                       </Link>
@@ -631,7 +609,7 @@ function WaitingAllocationsView() {
                 </div>
               </div>
               <div className="pt-1">
-                <Button asChild size="sm" type="button" className="w-full rounded-lg font-semibold focus-visible:ring-2 focus-visible:ring-emerald-100">
+                <Button asChild size="sm" type="button" className="w-full rounded-md font-semibold focus-visible:ring-2 focus-visible:ring-emerald-100">
                   <Link href={allocatorHref}>
                     {row.allocatedQty > 0 ? 'จัดสรรต่อ' : 'จัดสรร'}
                   </Link>
@@ -777,8 +755,8 @@ function AllocationLedgerView() {
           <div className="flex gap-2">
             <Input className="h-9 flex-1 rounded-md border-slate-300 text-sm focus-visible:ring-emerald-100" placeholder="ค้นหา match id / doc / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <button
-              className={`h-9 shrink-0 rounded-md border px-3 text-sm font-semibold transition-colors ${
-                showMobileFilters ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-700 border-slate-200'
+              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
+                showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
               }`}
               type="button"
               onClick={() => setShowMobileFilters(!showMobileFilters)}
@@ -1054,11 +1032,11 @@ function DualCostingReportView() {
       
       {!isLoading && report ? (
         <>
-          <div className="grid grid-cols-2 gap-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 p-5 text-white shadow-lg border border-emerald-500/20 md:grid-cols-4">
-            <HeroMetric label="Total Revenue (Allocated)" value={formatMoney((report?.po.revenue ?? 0) + (report?.spotAllocated.revenue ?? 0))} />
-            <HeroMetric label="Total Cost (Deal Cost)" value={formatMoney(report?.total.cost ?? 0)} />
-            <HeroMetric label="กำไรรวม / Gross Profit (Deal Cost)" value={formatMoney(report?.total.gp ?? 0)} />
-            <HeroMetric label="GP%" value={`${(report?.total.gpPct ?? 0).toFixed(2)}%`} />
+          <div className="grid min-w-0 grid-cols-2 gap-3 md:grid-cols-4">
+            <DualCostingStatCard icon="💰" label="Total Revenue (Allocated)" tone="emerald" value={formatMoney((report?.po.revenue ?? 0) + (report?.spotAllocated.revenue ?? 0))} />
+            <DualCostingStatCard icon="💳" label="Total Cost (Deal Cost)" tone="red" value={formatMoney(report?.total.cost ?? 0)} />
+            <DualCostingStatCard icon="📈" label="กำไรรวม / Gross Profit (Deal Cost)" tone={(report?.total.gp ?? 0) >= 0 ? 'emerald' : 'red'} value={formatMoney(report?.total.gp ?? 0)} />
+            <DualCostingStatCard icon="%" label="GP%" tone={(report?.total.gpPct ?? 0) >= 0 ? 'emerald' : 'red'} value={`${(report?.total.gpPct ?? 0).toFixed(2)}%`} />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <ReportCard metric={report?.po} title="ขายผ่าน PO Sell" />
@@ -1185,10 +1163,6 @@ function LedgerStatusText({ status }: { status: string }) {
 
 function TargetPill({ type }: { type: string }) {
   return <span className={`inline-flex whitespace-nowrap rounded border px-2 py-0.5 text-xs font-semibold ${type === 'PO_SELL' ? 'bg-blue-50 text-blue-700 border-blue-200/50' : 'bg-purple-50 text-purple-700 border-purple-200/50'}`}>{type === 'PO_SELL' ? 'PO' : 'Spot'}</span>
-}
-
-function HeroMetric({ label, value }: { label: string; value: string }) {
-  return <div><div className="text-xs text-white/80">{label}</div><div className="mt-1 text-lg font-bold">{value}</div></div>
 }
 
 function ReportCard({ metric, title }: { metric?: ReportMetric; title: string }) {

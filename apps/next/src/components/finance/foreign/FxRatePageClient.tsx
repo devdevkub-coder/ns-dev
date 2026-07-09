@@ -266,7 +266,7 @@ export function FxRatePageClient() {
       </div>
 
       {/* Filters Toolbar */}
-      <div className="rounded-md bg-white p-3 shadow">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         {/* Desktop View */}
         <div className="hidden lg:flex flex-wrap items-center gap-2">
           <h2 className="mr-auto text-base font-semibold text-slate-950">FX Rate History</h2>
@@ -290,20 +290,22 @@ export function FxRatePageClient() {
             <button className="rounded-md bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors" type="button" onClick={() => { setFromDate(''); setToDate(''); setFromCurrency('all'); setActive('true') }}>✕ ล้าง</button>
           )}
 
-          <button className="rounded-md bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition-colors flex items-center justify-center" type="button" onClick={openCreate}>+ เพิ่ม FX Rate</button>
+        </div>
+        <div className="mt-2 hidden justify-end lg:flex">
+          <button className="flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700" type="button" onClick={openCreate}>+ เพิ่ม FX Rate</button>
         </div>
 
         {/* Mobile View */}
         <div className="block lg:hidden space-y-2.5">
           <div className="flex gap-2">
             <button
-              className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold transition-colors flex items-center justify-center gap-1 ${
-                showMobileFilters ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-700 border-slate-100'
+              className={`inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
+                showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
               }`}
               type="button"
               onClick={() => setShowMobileFilters(!showMobileFilters)}
             >
-              🔍 ตัวกรอง {hasFilters ? '(มี)' : ''}
+              ตัวกรอง {hasFilters ? '(มี)' : ''}
             </button>
             <button className="rounded-md bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-semibold text-white flex items-center justify-center" type="button" onClick={openCreate}>+ เพิ่ม</button>
           </div>
@@ -354,7 +356,7 @@ export function FxRatePageClient() {
           {tableControls}
         </div>
         <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth, width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth, width: '100%' }}>
           <colgroup>
             {fxRateColumns.map((column, index) => {
               const style = columnResize.getColumnStyle(column.key)
@@ -399,15 +401,15 @@ export function FxRatePageClient() {
       {/* Mobile Card list */}
       <div className="block lg:hidden space-y-3">
         {isLoading ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-100">กำลังโหลดข้อมูล</div>
+          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow border border-slate-100">กำลังโหลดข้อมูล</div>
         ) : null}
         {!isLoading && !error && sortedRows.length === 0 ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-100">ยังไม่มี FX Rate</div>
+          <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow border border-slate-100">ยังไม่มี FX Rate</div>
         ) : null}
         {!isLoading && sortedRows.map((row) => (
           <div
             key={row.id}
-            className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2 text-sm"
+            className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm space-y-2 text-sm"
           >
             <div className="flex justify-between items-start">
               <span className="font-mono text-slate-500 text-xs">{formatDateDisplay(row.rateDate)}</span>

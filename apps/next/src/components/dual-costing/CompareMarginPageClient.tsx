@@ -103,7 +103,7 @@ export function CompareMarginPageClient() {
               <DatePickerInput id="compare-margin-from" value={fromDate} onChange={setFromDate} />
               <span className="text-slate-400">→</span>
               <DatePickerInput id="compare-margin-to" value={toDate} onChange={setToDate} />
-              {hasActiveFilters ? <Button size="xs" type="button" variant="secondary" className="rounded-lg h-9" onClick={() => { setFromDate(''); setToDate('') }}>✕ ล้าง</Button> : null}
+              {hasActiveFilters ? <Button size="xs" type="button" variant="secondary" className="h-9 rounded-md" onClick={() => { setFromDate(''); setToDate('') }}>✕ ล้าง</Button> : null}
             </div>
             <div className="text-xs text-slate-500 font-semibold">ช่วงวันที่มีผลกับทั้ง deal และ sales bill comparison</div>
           </div>
@@ -113,13 +113,13 @@ export function CompareMarginPageClient() {
         <div className="block lg:hidden space-y-2">
           <div className="flex gap-2">
             <button
-              className={`flex-1 h-10 rounded-md border px-3 text-sm font-semibold transition-colors flex items-center justify-center gap-1 ${
-                showMobileFilters ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-700 border-slate-200'
+              className={`inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
+                showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
               }`}
               type="button"
               onClick={() => setShowMobileFilters(!showMobileFilters)}
             >
-              🔍 ตัวกรอง
+              ตัวกรอง
             </button>
           </div>
 
@@ -192,16 +192,9 @@ function MarginCard({ label, tone, totals }: { label: string; tone: 'deal' | 'st
   )
 }
 
-function DiffCard({ goodWhenPositive = false, label, prominent = false, value }: { goodWhenPositive?: boolean; label: string; prominent?: boolean; value: number }) {
+function DiffCard({ goodWhenPositive = false, label, value }: { goodWhenPositive?: boolean; label: string; prominent?: boolean; value: number }) {
   const isZero = value === 0
   const good = goodWhenPositive ? value >= 0 : value <= 0
-  const colorClass = isZero ? 'text-slate-600' : good ? 'text-emerald-600' : 'text-red-600'
-  return (
-    <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
-      <div className="text-xs text-slate-500 font-semibold mb-1">{label}</div>
-      <div className={`${prominent ? 'text-2xl' : 'text-xl'} font-mono font-bold ${colorClass}`}>
-        {formatMoney(value)}
-      </div>
-    </div>
-  )
+  const tone = isZero ? 'slate' : good ? 'emerald' : 'red'
+  return <DualCostingStatCard label={label} tone={tone} value={formatMoney(value)} />
 }

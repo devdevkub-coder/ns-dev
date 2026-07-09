@@ -91,7 +91,7 @@ const pendingWork = [
 export default function AccountingPeriodsPage() {
   return (
     <section className="space-y-4">
-      <section className="rounded-md bg-white p-4 shadow">
+      <section className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-sm font-bold text-slate-900">สถานะงวดบัญชี</h3>
@@ -99,7 +99,7 @@ export default function AccountingPeriodsPage() {
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
           {periodStates.map((state) => (
-            <div key={state.code} className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+            <div key={state.code} className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h4 className="text-sm font-bold text-slate-900">{state.label}</h4>
                 <StatusBadge tone={state.tone}>{state.code}</StatusBadge>
@@ -110,13 +110,13 @@ export default function AccountingPeriodsPage() {
         </div>
       </section>
 
-      <section className="rounded-md bg-white p-4 shadow">
+      <section className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="mb-3">
           <h3 className="text-sm font-bold text-slate-900">ความพร้อมก่อนปิดงวด</h3>
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {readinessChecks.map((check) => (
-            <div key={check.area} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <div key={check.area} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <h4 className="text-sm font-bold text-slate-800">{check.area}</h4>
                 <StatusBadge tone="slate">{check.status}</StatusBadge>
@@ -130,11 +130,11 @@ export default function AccountingPeriodsPage() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
         <AccountingPeriodsLockImpactTable rows={lockImpacts} />
 
-        <section className="rounded-md bg-white p-4 shadow">
+        <section className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
           <h3 className="text-sm font-bold text-slate-900">งานที่ยังต้องออกแบบก่อนเปิดใช้</h3>
           <div className="mt-3 space-y-2">
             {pendingWork.map((item, index) => (
-              <div key={item} className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+              <div key={item} className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">
                   {index + 1}
                 </span>

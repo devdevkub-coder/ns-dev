@@ -14,7 +14,7 @@ export default function SitemapPage() {
           if (!items.length) return null
 
           return (
-            <section key={section.key} className="rounded-md bg-white p-4 shadow">
+            <section key={section.key} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">{section.label}</h3>
               <div className="mt-3 divide-y divide-slate-100">
                 {items.map((item) => (

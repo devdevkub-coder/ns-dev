@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 
@@ -135,12 +136,7 @@ export function CashPositionPageClient() {
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="grid grid-cols-1 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
-        <div className={`relative overflow-hidden rounded-xl p-5 text-white shadow-xl ${netCash >= 0 ? 'bg-gradient-to-br from-emerald-500 to-teal-700' : 'bg-gradient-to-br from-red-500 to-rose-700'}`}>
-          <div className="absolute right-3 top-2 text-7xl opacity-15">{netCash >= 0 ? '💰' : '⚠️'}</div>
-          <div className="text-xs opacity-90">Net Cash Position</div>
-          <div className="mt-1 text-4xl font-bold">{formatMoney(netCash)}</div>
-          <div className="mt-3 text-sm opacity-90">= Cash + Bank + FCD + AR − AP − OD ใช้</div>
-        </div>
+        <SharedKpiCard icon={netCash >= 0 ? '💰' : '⚠️'} label="Net Cash Position" note="= Cash + Bank + FCD + AR − AP − OD ใช้" tone={netCash >= 0 ? 'emerald' : 'red'} value={formatMoney(netCash)} />
 
         <div className="bg-white p-4 border border-slate-200 rounded-xl shadow-sm">
           <div className="mb-2 text-sm font-bold text-slate-700">🥧 องค์ประกอบเงิน (Liquid)</div>
@@ -198,48 +194,19 @@ export function CashPositionPageClient() {
         <Metric tone="emerald" label="เงินสดรวม" value={formatMoney(cashTotal)} />
         <Metric tone="blue" label="ธนาคารรวม" value={formatMoney(bankTotal)} />
         <Metric tone="indigo" label="FCD (THB equiv.)" value={formatMoney(fcdTotal)} />
-        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${odUsedTotal === 0 ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-600'} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-            ⚠️
-          </div>
-          <div>
-            <div className={`text-xs ${odUsedTotal === 0 ? 'text-slate-500' : 'text-amber-600'}`}>⚠ OD ใช้ไป</div>
-            <div className={`text-2xl font-bold ${odUsedTotal === 0 ? 'text-slate-900' : 'text-amber-600'}`}>{formatMoney(odUsedTotal)}</div>
-            <div className="text-xs text-slate-500 mt-0.5">เหลือใช้ {formatMoney(odAvailTotal)}</div>
-          </div>
-        </div>
-        <div className="col-span-2 bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${arTotal === 0 ? 'bg-slate-100 text-slate-600' : 'bg-emerald-100 text-emerald-600'} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-            📥
-          </div>
-          <div>
-            <div className={`text-xs ${arTotal === 0 ? 'text-slate-500' : 'text-emerald-600'}`}>📥 ลูกหนี้รวม (เงินที่จะได้รับ)</div>
-            <div className={`text-2xl font-bold ${arTotal === 0 ? 'text-slate-900' : 'text-emerald-700'}`}>{formatMoney(arTotal)}</div>
-          </div>
-        </div>
-        <div className="col-span-2 bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${apTotal === 0 ? 'bg-slate-100 text-slate-600' : 'bg-red-100 text-red-600'} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-            📤
-          </div>
-          <div>
-            <div className={`text-xs ${apTotal === 0 ? 'text-slate-500' : 'text-red-600'}`}>📤 เจ้าหนี้รวม (เงินที่ต้องจ่าย)</div>
-            <div className={`text-2xl font-bold ${apTotal === 0 ? 'text-slate-900' : 'text-red-700'}`}>{formatMoney(apTotal)}</div>
-          </div>
-        </div>
+        <SharedKpiCard icon="⚠️" label="OD ใช้ไป" note={`เหลือใช้ ${formatMoney(odAvailTotal)}`} tone={odUsedTotal === 0 ? 'slate' : 'amber'} value={formatMoney(odUsedTotal)} />
+        <SharedKpiCard className="col-span-2" icon="📥" label="ลูกหนี้รวม (เงินที่จะได้รับ)" tone={arTotal === 0 ? 'slate' : 'emerald'} value={formatMoney(arTotal)} />
+        <SharedKpiCard className="col-span-2" icon="📤" label="เจ้าหนี้รวม (เงินที่ต้องจ่าย)" tone={apTotal === 0 ? 'slate' : 'red'} value={formatMoney(apTotal)} />
       </div>
 
-      <div className="rounded-md bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white shadow-lg">
-        <div className="text-sm opacity-80">Net Cash Position (สภาพคล่องสุทธิ)</div>
-        <div className="text-4xl font-bold">{formatMoney(netCash)}</div>
-        <div className="mt-2 text-xs opacity-70">= เงินสด + ธนาคาร + FCD + ลูกหนี้ - เจ้าหนี้ - OD ใช้ไป</div>
-      </div>
+      <SharedKpiCard icon={netCash >= 0 ? '💰' : '⚠️'} label="Net Cash Position (สภาพคล่องสุทธิ)" note="= เงินสด + ธนาคาร + FCD + ลูกหนี้ - เจ้าหนี้ - OD ใช้ไป" tone={netCash >= 0 ? 'emerald' : 'red'} value={formatMoney(netCash)} />
 
       <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-4 py-3 flex items-center justify-between">
           <h3 className="font-semibold text-slate-900">รายละเอียดบัญชีเงินทั้งหมด</h3>
           {columnResize.hasCustomWidths ? (
             <button
-              className="rounded-md border border-slate-300 px-2 py-0.5 bg-white text-slate-700 hover:bg-slate-50 text-xs"
+              className="rounded-xl border border-slate-300 px-2 py-0.5 bg-white text-slate-700 hover:bg-slate-50 text-xs"
               type="button"
               onClick={columnResize.resetColumnWidths}
             >
@@ -247,7 +214,7 @@ export function CashPositionPageClient() {
             </button>
           ) : null}
         </div>
-        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {cashPositionColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -327,36 +294,6 @@ export function CashPositionPageClient() {
   )
 }
 
-function Metric({ label, tone, value }: { label: string; tone?: 'emerald' | 'blue' | 'indigo' | 'amber'; value: string }) {
-  const configs = {
-    emerald: { bg: 'bg-emerald-100 text-emerald-600', emoji: '💵', labelColor: 'text-emerald-600', valueColor: 'text-emerald-700' },
-    blue: { bg: 'bg-blue-100 text-blue-600', emoji: '🏦', labelColor: 'text-blue-600', valueColor: 'text-blue-700' },
-    indigo: { bg: 'bg-indigo-100 text-indigo-600', emoji: '💱', labelColor: 'text-indigo-600', valueColor: 'text-indigo-700' },
-    amber: { bg: 'bg-amber-100 text-amber-600', emoji: '⚠️', labelColor: 'text-amber-600', valueColor: 'text-amber-700' },
-    slate: { bg: 'bg-slate-100 text-slate-600', emoji: '📋', labelColor: 'text-slate-500', valueColor: 'text-slate-900' },
-  }
-
-  const numericValue = parseFloat(value.replace(/[^0-9.-]/g, ''))
-  const isZero = isNaN(numericValue) ? false : numericValue === 0
-
-  const config = isZero
-    ? {
-        bg: 'bg-slate-100 text-slate-600',
-        emoji: configs[tone || 'slate'].emoji,
-        labelColor: 'text-slate-500',
-        valueColor: 'text-slate-900',
-      }
-    : configs[tone || 'slate']
-
-  return (
-    <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-        {config.emoji}
-      </div>
-      <div>
-        <div className={`text-xs ${config.labelColor}`}>{label}</div>
-        <div className={`text-2xl font-bold ${config.valueColor}`}>{value}</div>
-      </div>
-    </div>
-  )
+function Metric({ label, tone = 'slate', value }: { label: string; tone?: 'emerald' | 'blue' | 'indigo' | 'amber' | 'slate'; value: string }) {
+  return <SharedKpiCard label={label} tone={tone} value={value} />
 }

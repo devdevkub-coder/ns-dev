@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 
 type CatalogTab = 'accounting' | 'all' | 'daily' | 'finance' | 'main' | 'production' | 'stock' | 'tracking'
@@ -116,7 +117,7 @@ const columnsByTab: Record<LegacyTab, Column[]> = {
 }
 
 const reports: ReportLink[] = [
-  { category: 'main', href: '/dashboard', label: 'Dashboard', owner: 'Main' },
+  { category: 'main', href: '/dashboard', label: 'Dashboard Overview', owner: 'Main' },
   { category: 'main', href: '/owner-daily', label: 'Owner Daily Control', owner: 'Main' },
   { category: 'main', href: '/daily-report', label: 'Daily Report', owner: 'Main' },
   { category: 'main', href: '/profit-cost-analysis', label: 'Profit & Cost Analysis', owner: 'Main' },
@@ -315,35 +316,30 @@ export function ReportsIndexPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap gap-2 rounded-md bg-white px-2 shadow-sm">
-        {legacyTabs.map((item) => (
-          <button
-            className={`border-b-2 px-4 py-2 text-sm font-semibold transition-colors outline-none focus:outline-none ${
-              legacyTab === item.k
-                ? 'border-slate-900 text-slate-900'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-            key={item.k}
-            onClick={() => setLegacyTab(item.k)}
-            type="button"
-          >
-            {item.l}
-          </button>
-        ))}
-      </div>
+      <Tabs value={legacyTab} onValueChange={(value) => setLegacyTab(value as LegacyTab)}>
+        <TabsList className="flex-wrap" variant="line">
+          {legacyTabs.map((item) => (
+            <TabsTrigger key={item.k} value={item.k} variant="line">
+              {item.l}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
-      <div className="rounded-md bg-white p-3 shadow">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <DatePickerInput className="w-[130px] border-slate-100" onChange={setFromDate} value={fromDate} />
           <DatePickerInput className="w-[130px] border-slate-100" onChange={setToDate} value={toDate} />
           <span className="text-xs font-medium text-slate-400">เว้นว่างเพื่อดูทุกช่วงเวลา</span>
+        </div>
+        <div className="mt-2 flex justify-end">
           <button
-            className="ml-auto rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition-colors disabled:cursor-not-allowed disabled:opacity-60 outline-none focus:outline-none"
+            className="h-9 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 outline-none focus:outline-none"
             disabled={loading}
             onClick={exportActiveTab}
             type="button"
           >
-            Export CSV รายงานนี้
+            ส่งออก Excel
           </button>
         </div>
       </div>
@@ -366,7 +362,7 @@ export function ReportsIndexPageClient() {
         </div>
         {/* Desktop View */}
         <div className="hidden overflow-x-auto bg-white lg:block">
-          <table className="min-w-full divide-y divide-slate-200 text-sm text-slate-700" style={{ tableLayout: 'fixed', minWidth: aggregateColumnResize.tableMinWidth }}>
+          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm text-slate-700" style={{ tableLayout: 'fixed', minWidth: aggregateColumnResize.tableMinWidth }}>
             <colgroup>
               {aggregateColumns.map((column, index) => {
                 const style = aggregateColumnResize.getColumnStyle(column.key)
@@ -464,13 +460,13 @@ export function ReportsIndexPageClient() {
       </div>
 
       {/* Reports Directory Section */}
-      <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <div>
             <h2 className="text-base font-bold text-slate-950">รายงานอื่นในระบบ</h2>
           </div>
           <input
-            className="ml-auto min-w-52 h-9 rounded-lg border border-slate-100 px-3 py-2 text-sm outline-none focus:outline-none focus:border-slate-300 transition-colors"
+            className="ml-auto h-9 min-w-52 rounded-md border border-slate-300 px-3 text-sm outline-none transition-colors focus:border-slate-300 focus:outline-none"
             onChange={(event) => setQuery(event.target.value)}
             placeholder="ค้นหาชื่อรายงาน / module / path"
             type="search"
@@ -481,10 +477,10 @@ export function ReportsIndexPageClient() {
         <div className="mt-4 flex flex-wrap gap-2">
           {catalogTabs.map((item) => (
             <button
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold border transition-all duration-150 outline-none focus:outline-none ${
+              className={`inline-flex h-7 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors outline-none focus:outline-none ${
                 catalogTab === item.k
-                  ? 'bg-slate-800 border-slate-800 text-white shadow-sm'
-                  : 'bg-white border-slate-100 text-slate-700 hover:bg-slate-50'
+                  ? 'border-slate-700 bg-slate-700 text-white'
+                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
               }`}
               key={item.k}
               onClick={() => setCatalogTab(item.k)}
@@ -517,7 +513,7 @@ export function ReportsIndexPageClient() {
           </div>
           {/* Desktop View */}
           <div className="hidden overflow-x-auto bg-white lg:block">
-            <table className="min-w-full divide-y divide-slate-200 text-sm text-slate-700" style={{ tableLayout: 'fixed', minWidth: catalogColumnResize.tableMinWidth }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm text-slate-700" style={{ tableLayout: 'fixed', minWidth: catalogColumnResize.tableMinWidth }}>
               <colgroup>
                 {catalogColumns.map((column, index) => {
                   const style = catalogColumnResize.getColumnStyle(column.key)
@@ -541,7 +537,7 @@ export function ReportsIndexPageClient() {
                       <div className="font-mono text-xs text-slate-400 mt-0.5">{report.href}</div>
                     </td>
                     <td className="p-3 text-slate-600 font-medium">{report.owner}</td>                    <td className="p-3 text-right">
-                      <Link className="rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white transition-colors outline-none focus:outline-none" href={report.href} prefetch={false}>
+                      <Link className="rounded-md bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white transition-colors outline-none focus:outline-none" href={report.href} prefetch={false}>
                         เปิดรายงาน
                       </Link>
                     </td>
@@ -565,7 +561,7 @@ export function ReportsIndexPageClient() {
                   </div>
                 </div>                <div className="flex justify-between items-center text-xs">
                   <span className="font-semibold text-slate-500">หมวด: {report.owner}</span>
-                  <Link className="rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white transition-colors outline-none focus:outline-none" href={report.href} prefetch={false}>
+                  <Link className="rounded-md bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white transition-colors outline-none focus:outline-none" href={report.href} prefetch={false}>
                     เปิดรายงาน
                   </Link>
                 </div>

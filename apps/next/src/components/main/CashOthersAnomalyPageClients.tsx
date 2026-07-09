@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
@@ -68,7 +69,7 @@ export function CashOthersSummaryPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <label className="text-xs font-bold text-slate-500">As of</label>
         <DatePickerInput className="w-[140px]" value={asOf} onChange={setAsOf} />
         <span className="flex-1" />
@@ -97,20 +98,7 @@ export function CashOthersSummaryPageClient() {
 }
 
 function Grand({ danger = false, icon, label, value }: { danger?: boolean; icon: string; label: string; value: unknown }) {
-  const iconBg = danger ? 'bg-red-50 text-red-600' : 'bg-slate-50 text-slate-600'
-  return (
-    <div className="flex items-center gap-4 rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-2xl ${iconBg}`}>
-        {icon}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="text-xs font-semibold text-slate-500">{label}</div>
-        <div className={`mt-0.5 break-words text-xl font-bold tracking-tight text-slate-900 ${danger ? 'text-red-600 font-extrabold' : ''}`}>
-          {money(value)}
-        </div>
-      </div>
-    </div>
-  )
+  return <SharedKpiCard icon={icon} label={label} tone={danger ? 'red' : 'slate'} value={money(value)} />
 }
 
 
@@ -121,7 +109,7 @@ function TradingPendingBlock({ summary }: { summary: Record<string, number> }) {
         <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
           <span className="text-xl">🔄</span> Trading Pending รับเงิน — Trading ซื้อจ่ายแล้ว แต่ Sales ยังไม่เปิด
         </h3>
-        <Link className="rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-bold text-white transition-colors outline-none focus:outline-none" href="/trading/matching">
+        <Link className="rounded-md bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-bold text-white transition-colors outline-none focus:outline-none" href="/trading/matching">
           Trading Matching →
         </Link>
       </div>
@@ -340,7 +328,7 @@ function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
         </div>
       ) : null}
       <div className="hidden overflow-x-auto lg:block">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {columns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

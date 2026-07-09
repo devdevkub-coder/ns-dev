@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -134,7 +135,7 @@ export function PlStatementPageClient() {
     <section className="space-y-4">
       {error ? <ErrorBox message={error} /> : null}
       {/* Desktop Filter Panel */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
+      <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex">
         <Segment active> ช่วงวันที่</Segment><Segment> รายเดือน</Segment><Segment> ตารางรายปี (12 เดือน)</Segment>
         <QuickButton onClick={() => { const now = new Date(); setFrom(new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)); setTo(today()) }}> ปีนี้</QuickButton>
         <QuickButton onClick={() => setFrom(monthStart())}>เดือนนี้</QuickButton>
@@ -146,7 +147,7 @@ export function PlStatementPageClient() {
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden space-y-3">
+      <div className="mb-4 space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex gap-2">
           <button 
             type="button" 
@@ -280,14 +281,14 @@ export function BalanceSheetPageClient() {
       {error ? <ErrorBox message={error} /> : null}
       
       {/* Desktop Filter Panel */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
+      <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex">
         <DateInput label="ณ วันที่" value={asOf} onChange={setAsOf} />
         <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
         <BalanceCheckPill balanced={data?.balanceCheck.balanced} difference={data?.balanceCheck.difference} />
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden space-y-3">
+      <div className="mb-4 space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex gap-2 items-center">
           <div className="flex-1 flex items-center gap-2">
             <span className="text-xs text-slate-500 font-semibold shrink-0">ณ วันที่</span>
@@ -383,13 +384,13 @@ export function CashFlowStatementPageClient() {
       {error ? <ErrorBox message={error} /> : null}
       
       {/* Desktop Filter Panel */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
+      <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex">
         <DateInput label="จาก" value={from} onChange={setFrom} /><DateInput label="ถึง" value={to} onChange={setTo} />
         <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden space-y-3">
+      <div className="mb-4 space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex gap-2">
           <button 
             type="button" 
@@ -513,7 +514,7 @@ function money(value?: number) {
 }
 
 function FilterPanel({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">{children}</div>
+  return <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">{children}</div>
 }
 
 function DateInput({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
@@ -526,14 +527,14 @@ function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; on
 
 function Segment({ active = false, children }: { active?: boolean; children: ReactNode }) {
   return (
-    <span className={`rounded-md px-3 py-1.5 text-xs font-semibold outline-none focus:ring-0 ${active ? 'bg-[#0F172A] text-white' : 'bg-slate-50 border border-slate-100 text-slate-600 hover:bg-slate-100 transition'}`}>
+    <span className={`rounded-md border px-3 py-1 text-xs font-medium outline-none focus:ring-0 ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition'}`}>
       {children}
     </span>
   )
 }
 
 function QuickButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
-  return <button className="rounded-md bg-slate-50 border border-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition outline-none focus:ring-0" type="button" onClick={onClick}>{children}</button>
+  return <button className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50 outline-none focus:ring-0" type="button" onClick={onClick}>{children}</button>
 }
 
 function BalanceCheckPill({ balanced, difference }: { balanced?: boolean; difference?: number }) {
@@ -545,45 +546,16 @@ function BalanceCheckPill({ balanced, difference }: { balanced?: boolean; differ
 }
 
 function MegaCard({ footer, label, tone, value }: { footer: string; label: string; tone: 'bs' | 'cf' | 'pl'; value: string }) {
-  const toneColors = {
-    pl: { text: 'text-emerald-600', bg: 'bg-emerald-50 text-emerald-600', icon: '' },
-    bs: { text: 'text-blue-600', bg: 'bg-blue-50 text-blue-600', icon: '' },
-    cf: { text: 'text-cyan-600', bg: 'bg-cyan-50 text-cyan-600', icon: '' }
-  }
-  const current = toneColors[tone]
-  return (
-    <div className="bg-white p-5 border border-slate-100 rounded-md shadow-sm flex items-center gap-4 lg:col-span-2">
-      <div className="min-w-0 flex-1">
-        <div className={`text-xs font-semibold ${current.text} uppercase`}>{label}</div>
-        <div className="mt-0.5 text-2xl font-extrabold text-slate-900 tracking-tight">{value}</div>
-        <div className="mt-3 text-xs text-slate-400 pt-2 border-t border-slate-100">{footer}</div>
-      </div>
-    </div>
-  )
+  const sharedTone: KpiCardTone = tone === 'pl' ? 'emerald' : tone === 'bs' ? 'blue' : 'cyan'
+  return <SharedKpiCard className="lg:col-span-2" label={label} note={footer} tone={sharedTone} value={value} />
 }
 
 function Panel({ children, title }: { children: ReactNode; title: string }) {
-  return <div className="rounded-md border border-slate-100 bg-white p-4 shadow-sm"><h2 className="mb-3 text-xs font-bold text-slate-800">{title}</h2>{children}</div>
+  return <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm"><h2 className="mb-3 text-xs font-bold text-slate-800">{title}</h2>{children}</div>
 }
 
-function StatCard({ label, tone, value }: { label: string; tone: 'blue' | 'cyan' | 'emerald' | 'purple' | 'red' | 'slate'; value: string }) {
-  const toneStyles = {
-    blue: { text: 'text-blue-600', bg: 'bg-blue-50', icon: '' },
-    cyan: { text: 'text-cyan-600', bg: 'bg-cyan-50', icon: '' },
-    emerald: { text: 'text-emerald-600', bg: 'bg-emerald-50', icon: '' },
-    purple: { text: 'text-purple-600', bg: 'bg-purple-50', icon: '' },
-    red: { text: 'text-red-600', bg: 'bg-red-50', icon: '' },
-    slate: { text: 'text-slate-600', bg: 'bg-slate-100', icon: '' }
-  }
-  const current = toneStyles[tone]
-  return (
-    <div className="bg-white p-3.5 border border-slate-100 rounded-md shadow-sm flex items-center gap-3">
-      <div className="min-w-0 flex-1">
-        <div className="text-xs sm:text-xs font-semibold text-slate-500 truncate">{label}</div>
-        <div className="mt-0.5 text-sm sm:text-base font-bold text-slate-900 tracking-tight">{value}</div>
-      </div>
-    </div>
-  )
+function StatCard({ label, tone, value }: { label: string; tone: KpiCardTone; value: string }) {
+  return <SharedKpiCard label={label} tone={tone} value={value} />
 }
 
 function SplitCard({ cogs, label, revenue, tone }: { cogs: number; label: string; revenue: number; tone: 'emerald' | 'purple' }) {
@@ -639,7 +611,7 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title = 'Statement
       </div>
       <div className="overflow-x-auto">
         {/* Desktop Table View */}
-        <table className="hidden min-w-full divide-y divide-slate-200 text-sm lg:table" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table hidden min-w-full divide-y divide-slate-200 text-sm lg:table" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {statementColumns.map((column, index) => {
               if (index === statementColumns.length - 1) {
@@ -738,7 +710,7 @@ function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: Detai
         ) : null}
         <div className="flex-1 overflow-auto bg-white">
           {/* Desktop Table View */}
-          <table className="hidden min-w-full divide-y divide-slate-200 text-sm lg:table" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <table className="ns-table hidden min-w-full divide-y divide-slate-200 text-sm lg:table" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {drillColumns.map((column, index) => {
                 if (index === drillColumns.length - 1) {

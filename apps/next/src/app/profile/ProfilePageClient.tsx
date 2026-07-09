@@ -5,6 +5,7 @@ import { Eye, EyeOff, KeyRound, ShieldCheck, UserRound, LogOut } from 'lucide-re
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { changePasswordSchema, userProfileSchema } from '@/lib/auth'
 import { getSupabaseClient } from '@/lib/supabase'
 
@@ -213,12 +214,12 @@ export function ProfilePageClient() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 font-sans">
       {/* Desktop Header */}
-      <div className="hidden lg:block rounded-md bg-white p-4 shadow border border-slate-200/60">
+      <div className="hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
         <h2 className="text-xl font-bold text-slate-900">โปรไฟล์ & ตั้งค่าบัญชี</h2>
       </div>
 
       {/* Mobile Header */}
-      <div className="lg:hidden rounded-md bg-white p-3.5 shadow border border-slate-200/60 animate-fade-in">
+      <div className="lg:hidden rounded-xl bg-white p-3.5 shadow border border-slate-200/60 animate-fade-in">
         <h2 className="text-lg font-bold text-slate-900">โปรไฟล์ & ตั้งค่าบัญชี</h2>
       </div>
 
@@ -226,26 +227,16 @@ export function ProfilePageClient() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] animate-fade-in">
         <div className="space-y-4">
           {/* Tabs header */}
-          <div className="flex border-b border-slate-200">
-            <button
-              className={`px-4 py-2.5 text-sm font-semibold transition-colors duration-150 border-b-2 outline-none ${activeTab === 'profile' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-              type="button"
-              onClick={() => startTransition(() => setActiveTab('profile'))}
-            >
-              ข้อมูลส่วนตัว
-            </button>
-            <button
-              className={`px-4 py-2.5 text-sm font-semibold transition-colors duration-150 border-b-2 outline-none ${activeTab === 'security' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-              type="button"
-              onClick={() => startTransition(() => setActiveTab('security'))}
-            >
-              ความปลอดภัย
-            </button>
-          </div>
+          <Tabs className="gap-0" value={activeTab} onValueChange={(value) => startTransition(() => setActiveTab(value as typeof activeTab))}>
+            <TabsList variant="line">
+              <TabsTrigger value="profile" variant="line">ข้อมูลส่วนตัว</TabsTrigger>
+              <TabsTrigger value="security" variant="line">ความปลอดภัย</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
           {/* Profile Tab Panel */}
           {activeTab === 'profile' && (
-            <form className="space-y-4 rounded-md bg-white p-5 shadow border border-slate-200/60 animate-fade-in" onSubmit={updateProfile}>
+            <form className="space-y-4 rounded-xl border border-slate-200/60 bg-white p-5 shadow-sm animate-fade-in" onSubmit={updateProfile}>
               <div className="space-y-4">
                 <div>
                   <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider">บัญชีผู้ใช้ (Username)</span>
@@ -287,7 +278,7 @@ export function ProfilePageClient() {
 
           {/* Security Tab Panel */}
           {activeTab === 'security' && (
-            <form className="space-y-4 rounded-md bg-white p-5 shadow border border-slate-200/60 animate-fade-in" onSubmit={updatePassword}>
+            <form className="space-y-4 rounded-xl border border-slate-200/60 bg-white p-5 shadow-sm animate-fade-in" onSubmit={updatePassword}>
               {user?.mustChangePassword ? (
                 <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 animate-pulse">
                   รหัสผ่านของคุณยังเป็นค่าเริ่มต้น กรุณาเปลี่ยนรหัสผ่านเพื่อความปลอดภัยของระบบ
@@ -352,7 +343,7 @@ export function ProfilePageClient() {
 
         {/* Sidebar Info Card */}
         <div className="space-y-3">
-          <div className="rounded-md bg-white p-4 shadow border border-slate-200/60">
+          <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="flex size-10 items-center justify-center rounded bg-slate-900 text-white shrink-0">
                 <UserRound className="size-5" />

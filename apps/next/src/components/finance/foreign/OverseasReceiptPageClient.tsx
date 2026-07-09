@@ -193,7 +193,7 @@ export function OverseasReceiptPageClient() {
           {tableControls}
         </div>
         <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth, width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth, width: '100%' }}>
           <colgroup>
             {overseasReceiptColumns.map((column, index) => {
               const style = columnResize.getColumnStyle(column.key)
@@ -246,15 +246,15 @@ export function OverseasReceiptPageClient() {
       {/* Mobile Card list */}
       <div className="block lg:hidden space-y-3">
         {isLoading ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-100">กำลังโหลดข้อมูล</div>
+          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow border border-slate-100">กำลังโหลดข้อมูล</div>
         ) : null}
         {!isLoading && !error && sortedRows.length === 0 ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-100">ยังไม่มีรายการรับเงินต่างประเทศ</div>
+          <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow border border-slate-100">ยังไม่มีรายการรับเงินต่างประเทศ</div>
         ) : null}
         {!isLoading && sortedRows.map((row) => (
           <div
             key={row.id}
-            className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2 text-sm"
+            className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm space-y-2 text-sm"
           >
             <div className="flex justify-between items-start">
               <span className="font-bold text-slate-800 text-sm font-mono">{row.docNo}</span>

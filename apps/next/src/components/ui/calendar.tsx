@@ -33,7 +33,7 @@ function Calendar({
     <DayPicker
       showOutsideDays={showOutsideDays}
       className={cn(
-        'group/calendar bg-background p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent',
+        'group/calendar bg-background p-3 [--cell-size:2.25rem] [[data-slot=card-content]_&]:bg-transparent',
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
         className,
@@ -45,9 +45,9 @@ function Calendar({
         ...formatters,
       }}
       classNames={{
-        root: cn('w-fit', defaultClassNames.root),
+        root: cn('w-[19rem]', defaultClassNames.root),
         months: cn(
-          'relative flex flex-col gap-4 md:flex-row',
+          'relative flex w-full flex-col gap-4 md:flex-row',
           defaultClassNames.months,
         ),
         month: cn('flex w-full flex-col gap-4', defaultClassNames.month),
@@ -57,20 +57,20 @@ function Calendar({
         ),
         button_previous: cn(
           buttonVariants({ variant: buttonVariant }),
-          'size-(--cell-size) p-0 select-none aria-disabled:opacity-50',
+          'size-[var(--cell-size)] p-0 select-none aria-disabled:opacity-50',
           defaultClassNames.button_previous,
         ),
         button_next: cn(
           buttonVariants({ variant: buttonVariant }),
-          'size-(--cell-size) p-0 select-none aria-disabled:opacity-50',
+          'size-[var(--cell-size)] p-0 select-none aria-disabled:opacity-50',
           defaultClassNames.button_next,
         ),
         month_caption: cn(
-          'flex h-(--cell-size) w-full items-center justify-center px-(--cell-size)',
+          'flex h-[var(--cell-size)] w-full items-center justify-center px-[var(--cell-size)]',
           defaultClassNames.month_caption,
         ),
         dropdowns: cn(
-          'flex h-(--cell-size) w-full items-center justify-center gap-1.5 text-sm font-medium',
+          'flex h-[var(--cell-size)] w-full items-center justify-center gap-1.5 text-sm font-medium',
           defaultClassNames.dropdowns,
         ),
         dropdown_root: cn(
@@ -93,7 +93,7 @@ function Calendar({
         ),
         week: cn('mt-2 flex w-full', defaultClassNames.week),
         week_number_header: cn(
-          'w-(--cell-size) select-none',
+          'w-[var(--cell-size)] select-none',
           defaultClassNames.week_number_header,
         ),
         week_number: cn(
@@ -101,15 +101,15 @@ function Calendar({
           defaultClassNames.week_number,
         ),
         day: cn(
-          'group/day relative aspect-square h-full w-full p-0 text-center select-none [&:last-child[data-selected=true]_button]:rounded-md-r-md',
+          'group/day relative aspect-square h-full w-full p-0 text-center select-none [&:last-child[data-selected=true]_button]:rounded-r-md',
           props.showWeekNumber
-            ? '[&:nth-child(2)[data-selected=true]_button]:rounded-md-l-md'
-            : '[&:first-child[data-selected=true]_button]:rounded-md-l-md',
+            ? '[&:nth-child(2)[data-selected=true]_button]:rounded-l-md'
+            : '[&:first-child[data-selected=true]_button]:rounded-l-md',
           defaultClassNames.day,
         ),
-        range_start: cn('rounded-md-l-md bg-blue-50', defaultClassNames.range_start),
+        range_start: cn('rounded-l-md bg-blue-50', defaultClassNames.range_start),
         range_middle: cn('rounded-md-none', defaultClassNames.range_middle),
-        range_end: cn('rounded-md-r-md bg-blue-50', defaultClassNames.range_end),
+        range_end: cn('rounded-r-md bg-blue-50', defaultClassNames.range_end),
         today: cn(
           'rounded-md bg-slate-100 text-slate-900 data-[selected=true]:rounded-md-none',
           defaultClassNames.today,
@@ -146,7 +146,7 @@ function Calendar({
         DayButton: CalendarDayButton,
         WeekNumber: ({ children, ...props }) => (
           <td {...props}>
-            <div className="flex size-(--cell-size) items-center justify-center text-center">
+            <div className="flex size-[var(--cell-size)] items-center justify-center text-center">
               {children}
             </div>
           </td>
@@ -187,7 +187,7 @@ function CalendarDayButton({
       data-range-end={modifiers.range_end}
       data-range-middle={modifiers.range_middle}
       className={cn(
-        'flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:border-blue-500 group-data-[focused=true]/day:ring-[3px] group-data-[focused=true]/day:ring-blue-100 data-[range-end=true]:rounded-md data-[range-end=true]:rounded-md-r-md data-[range-end=true]:bg-blue-600 data-[range-end=true]:text-white data-[range-middle=true]:rounded-md-none data-[range-middle=true]:bg-blue-50 data-[range-middle=true]:text-blue-900 data-[range-start=true]:rounded-md data-[range-start=true]:rounded-md-l-md data-[range-start=true]:bg-blue-600 data-[range-start=true]:text-white data-[selected-single=true]:bg-blue-600 data-[selected-single=true]:text-white [&>span]:text-xs [&>span]:opacity-70',
+        'flex aspect-square h-[var(--cell-size)] w-full min-w-[var(--cell-size)] flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:border-blue-500 group-data-[focused=true]/day:ring-[3px] group-data-[focused=true]/day:ring-blue-100 data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-end=true]:bg-blue-600 data-[range-end=true]:text-white data-[range-middle=true]:rounded-md-none data-[range-middle=true]:bg-blue-50 data-[range-middle=true]:text-blue-900 data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md data-[range-start=true]:bg-blue-600 data-[range-start=true]:text-white data-[selected-single=true]:bg-blue-600 data-[selected-single=true]:text-white [&>span]:text-xs [&>span]:opacity-70',
         defaultClassNames.day,
         className,
       )}

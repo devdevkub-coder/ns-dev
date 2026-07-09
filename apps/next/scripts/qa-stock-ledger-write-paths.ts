@@ -149,7 +149,7 @@ async function qaProductionInputOutputReverse(): Promise<QaResult> {
     where: { ref_no: { in: refs }, ref_type: { in: ['PI', 'PI-REV', 'PO2', 'PO2-REV'] } },
   })
   for (const refType of ['PI', 'PI-REV', 'PO2', 'PO2-REV']) {
-    assert(ledgerRows.some((row) => row.ref_type === refType), `Production QA ${order.docNo} missing ${refType}`)
+    assert(ledgerRows.some((row: { ref_type: string | null }) => row.ref_type === refType), `Production QA ${order.docNo} missing ${refType}`)
   }
 
   return { docNo: order.docNo, kind: 'PRODUCTION_LEDGER', refs }

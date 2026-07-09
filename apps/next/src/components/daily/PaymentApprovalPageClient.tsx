@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Select } from '@/components/ui/Select'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
@@ -620,7 +622,7 @@ export function PaymentApprovalPageClient() {
 
         <div className="space-y-2">
           {splitDrafts.map((split, index) => (
-            <div key={split.id} className="grid grid-cols-12 gap-2 rounded-md border border-slate-200 bg-white p-3">
+            <div key={split.id} className="grid grid-cols-12 gap-2 rounded-xl border border-slate-200 bg-white p-3">
               <div className="col-span-12 text-xs font-semibold text-slate-500 md:col-span-1 md:pt-2">#{index + 1}</div>
               <div className="col-span-12 md:col-span-6">
                 <label className="block text-xs text-slate-600">
@@ -653,15 +655,15 @@ export function PaymentApprovalPageClient() {
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div className="rounded-md bg-white p-3 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <div className="text-xs text-slate-500">รวมอนุมัติรอบนี้</div>
             <div className="text-lg font-bold text-slate-900">{formatMoney(splitTotal)}</div>
           </div>
-          <div className="rounded-md bg-white p-3 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <div className="text-xs text-slate-500">ยอดคงเหลือที่อนุมัติได้</div>
             <div className="text-lg font-bold text-red-700">{formatMoney(approvalBalance)}</div>
           </div>
-          <div className={`rounded-md p-3 shadow-sm ${splitDiff >= -0.01 ? 'bg-white' : 'bg-red-50'}`}>
+          <div className={`rounded-xl p-3 shadow-sm ${splitDiff >= -0.01 ? 'bg-white' : 'bg-red-50'}`}>
             <div className="text-xs text-slate-500">คงเหลือหลังแตก approval</div>
             <div className={`text-lg font-bold ${splitDiff >= -0.01 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(splitDiff)}</div>
           </div>
@@ -675,64 +677,32 @@ export function PaymentApprovalPageClient() {
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4 text-sm">
-        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-lg sm:text-xl shrink-0">
-            💰
-          </div>
-          <div>
-            <div className="text-xs text-blue-600">ยอดเต็ม</div>
-            <div className="font-mono text-lg sm:text-2xl font-bold text-blue-700">{formatMoney(summary.totalFull)}</div>
-          </div>
-        </div>
-        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 text-lg sm:text-xl shrink-0">
-            ✅
-          </div>
-          <div>
-            <div className="text-xs text-emerald-600">ชำระแล้ว</div>
-            <div className="font-mono text-lg sm:text-2xl font-bold text-emerald-700">{formatMoney(summary.totalPaid)}</div>
-          </div>
-        </div>
-        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-lg sm:text-xl shrink-0">
-            🚨
-          </div>
-          <div>
-            <div className="text-xs text-red-600">คงเหลือ</div>
-            <div className="font-mono text-lg sm:text-2xl font-bold text-red-700">{formatMoney(summary.totalRemain)}</div>
-          </div>
-        </div>
-        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-lg sm:text-xl shrink-0">
-            ⏱️
-          </div>
-          <div>
-            <div className="text-xs text-amber-600">อนุมัติ / รอ / ยกเลิก</div>
-            <div className="font-mono text-lg sm:text-2xl font-bold text-amber-700">
-              {summary.approvedCount} / {summary.pendingCount} / {summary.voidedCount}
-            </div>
-          </div>
-        </div>
+        <SharedKpiCard icon={<Coins className="size-4 sm:size-5" />} label="ยอดเต็ม" tone="blue" value={formatMoney(summary.totalFull)} />
+        <SharedKpiCard icon={<CheckCircle className="size-4 sm:size-5" />} label="ชำระแล้ว" tone="emerald" value={formatMoney(summary.totalPaid)} />
+        <SharedKpiCard icon={<AlertCircle className="size-4 sm:size-5" />} label="คงเหลือ" tone="red" value={formatMoney(summary.totalRemain)} />
+        <SharedKpiCard icon={<FileCheck2 className="size-4 sm:size-5" />} label="อนุมัติ / รอ / ยกเลิก" tone="amber" value={`${summary.approvedCount} / ${summary.pendingCount} / ${summary.voidedCount}`} />
       </div>
 
-      <div className="overflow-hidden rounded-md bg-white shadow">
-        <div className="flex border-b border-slate-100">
-          <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'ap' ? 'border-red-600 text-red-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('ap')}>
-            ต้นทุน / Supplier <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">{pendingTabCounts.ap}</span>
-          </button>
-          <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'advance' ? 'border-amber-600 text-amber-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('advance')}>
-            จ่ายเงินล่วงหน้า / มัดจำ <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700">{pendingTabCounts.advance}</span>
-          </button>
-          <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'expense' ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('expense')}>
-            ค่าใช้จ่าย <span className="ml-2 rounded-full bg-purple-100 px-2 py-0.5 text-xs text-purple-700">{pendingTabCounts.expense}</span>
-          </button>
-          <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'pettyReturn' ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('pettyReturn')}>
-            การคืนเงินสำรองจ่าย / คืนเงินกู้กรรมการ <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">{pendingTabCounts.pettyReturn}</span>
-          </button>
-        </div>
+      <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm">
+        <Tabs className="gap-0" value={tab} onValueChange={(value) => setTab(value as ApprovalTab)}>
+          <TabsList className="w-full flex-nowrap overflow-x-auto" variant="line">
+            <TabsTrigger value="ap" variant="line">
+              ต้นทุน / Supplier <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{pendingTabCounts.ap}</span>
+            </TabsTrigger>
+            <TabsTrigger value="advance" variant="line">
+              จ่ายเงินล่วงหน้า / มัดจำ <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{pendingTabCounts.advance}</span>
+            </TabsTrigger>
+            <TabsTrigger value="expense" variant="line">
+              ค่าใช้จ่าย <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{pendingTabCounts.expense}</span>
+            </TabsTrigger>
+            <TabsTrigger value="pettyReturn" variant="line">
+              การคืนเงินสำรองจ่าย / คืนเงินกู้กรรมการ <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{pendingTabCounts.pettyReturn}</span>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         {/* Desktop Filters (Hidden on Mobile) */}
-        <div className="hidden lg:block space-y-3 border-b border-slate-100 p-3">
+        <div className="hidden space-y-3 border-b border-slate-100 p-4 lg:block">
           <div className="flex flex-wrap items-center gap-2">
             <Input className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหาเลขที่ / ชื่อ / ช่องทางจ่าย..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <label className="text-xs text-slate-500">วันที่:</label>
@@ -845,7 +815,7 @@ export function PaymentApprovalPageClient() {
                     return (
                       <button
                         key={option.label}
-                        className={`rounded-md border px-3 py-1.5 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`}
+                        className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`}
                         type="button"
                         onClick={() => toggleApprovalStatusFilter(option.values)}
                       >
@@ -861,14 +831,14 @@ export function PaymentApprovalPageClient() {
       {/* Mobile Card List */}
       <div className="block lg:hidden space-y-3">
         {isLoading ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
+          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
         ) : null}
 
         {/* AP / Advance Card List */}
         {!isLoading && (tab === 'ap' || tab === 'advance') && apRows.map((row) => (
           <div
             key={row.id}
-            className="rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
+            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
             onClick={() => openDetail({ row, tab: 'ap' })}
           >
             <div className="flex justify-between items-start mb-2">
@@ -925,7 +895,7 @@ export function PaymentApprovalPageClient() {
           return (
             <div
               key={row.id}
-              className="rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
+              className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
               onClick={() => openDetail({ row, tab: isPettyReturn ? 'pettyReturn' : 'expense' })}
             >
               <div className="flex justify-between items-start mb-2">
@@ -983,7 +953,7 @@ export function PaymentApprovalPageClient() {
         })}
 
         {!isLoading && totalRows === 0 ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
+          <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
             {tab === 'ap' ? 'ไม่มีรายการต้นทุน / Supplier รออนุมัติ' : tab === 'advance' ? 'ไม่มีรายการจ่ายเงินล่วงหน้า / มัดจำรออนุมัติ' : tab === 'pettyReturn' ? 'ไม่มีรายการคืนเงินสำรองจ่าย / คืนเงินกู้กรรมการรออนุมัติ' : 'ไม่มีค่าใช้จ่ายค้างจ่าย'}
           </div>
         ) : null}
@@ -993,7 +963,7 @@ export function PaymentApprovalPageClient() {
       <div className="hidden lg:block">
         {tab === 'ap' || tab === 'advance' ? (
           <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow">
-            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: apColumnResize.tableMinWidth + selectionColumnWidth, tableLayout: 'fixed' }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: apColumnResize.tableMinWidth + selectionColumnWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: selectionColumnWidth }} />
                 {paymentApprovalApColumns.map((column, index) => {
@@ -1090,7 +1060,7 @@ export function PaymentApprovalPageClient() {
           </div>
           ) : (
             <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow">
-              <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: expenseColumnResize.tableMinWidth + selectionColumnWidth, tableLayout: 'fixed' }}>
+              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: expenseColumnResize.tableMinWidth + selectionColumnWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: selectionColumnWidth }} />
                 {paymentApprovalExpenseColumns.map((column, index) => {
@@ -1219,7 +1189,7 @@ export function PaymentApprovalPageClient() {
           {detail?.tab === 'ap' ? (
             <div className="space-y-4">
               {/* Reference Document Section */}
-              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">ข้อมูลเอกสารต้นทาง</div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                   <DetailItem label="เลขที่เอกสารอ้างอิง" value={detail.row.sourceDocNo} />
@@ -1237,7 +1207,7 @@ export function PaymentApprovalPageClient() {
               </div>
 
               {/* Financial Section */}
-              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">รายละเอียดการเงิน</div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                   <DetailItem label="ยอดเต็ม" value={formatMoney(detail.row.totalAmount)} />
@@ -1254,7 +1224,7 @@ export function PaymentApprovalPageClient() {
               </div>
 
               {detail.row.approvalStatus === 'pending' ? renderSplitApprovalSection(detail.row) : (
-                <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">รายละเอียดการอนุมัติ</div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                     <DetailItem label="เลขที่อนุมัติ" value={detail.row.approvalDisplayDocNo ?? detail.row.docNo} />
@@ -1270,7 +1240,7 @@ export function PaymentApprovalPageClient() {
           ) : detail?.tab === 'expense' || detail?.tab === 'pettyReturn' ? (
             <div className="space-y-4">
               {/* Reference Document Section */}
-              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">ข้อมูลเอกสารต้นทาง</div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                   <DetailItem label="เลขที่ Source / PMA" value={detail.row.docNo} />
@@ -1283,7 +1253,7 @@ export function PaymentApprovalPageClient() {
               </div>
 
               {/* Financial Section */}
-              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">รายละเอียดการเงิน</div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                   <DetailItem label={detail.row.sourceType === 'petty_advance_return' ? 'บัญชีรับคืน' : 'ช่องทางจ่าย'} value={detail.row.destinationLabel || detail.row.accountName || '-'} />
@@ -1293,7 +1263,7 @@ export function PaymentApprovalPageClient() {
               </div>
 
               {detail.row.approvalStatus === 'pending' ? renderSplitApprovalSection(detail.row) : (
-                <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">รายละเอียดการอนุมัติ</div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                     <DetailItem label="เลขที่อนุมัติ" value={detail.row.approvalDisplayDocNo ?? detail.row.docNo} />

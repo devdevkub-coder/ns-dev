@@ -434,7 +434,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
       ) : null}
 
       {/* Desktop Toolbar (Hidden on Mobile) */}
-      <div className="hidden rounded-md bg-white p-3 shadow lg:mb-4 lg:block lg:space-y-2">
+      <div className="hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:mb-4 lg:block lg:space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <input
             className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm h-9 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
@@ -451,13 +451,6 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
               ✕ ล้าง
             </button>
           ) : null}
-          <button
-            className="ml-auto rounded-md bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm text-white disabled:opacity-60 h-9 flex items-center justify-center font-semibold shadow-sm focus:outline-none transition"
-            type="button"
-            onClick={openCreateForm}
-          >
-            + {config.createLabel}
-          </button>
         </div>
         {config.supportsActive !== false ? (
           <div className="flex flex-wrap items-center gap-2">
@@ -465,13 +458,30 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
             <MatchButton active={activeFilter === 'all'} label="ทั้งหมด" onClick={() => setActiveFilter('all')} />
             <MatchButton active={activeFilter === 'active'} label="ใช้งาน" tone="emerald" onClick={() => setActiveFilter('active')} />
             <MatchButton active={activeFilter === 'inactive'} label="ปิด" tone="slate" onClick={() => setActiveFilter('inactive')} />
+            <button
+              className="ml-auto flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60 focus:outline-none"
+              type="button"
+              onClick={openCreateForm}
+            >
+              + {config.createLabel}
+            </button>
           </div>
-        ) : null}
+        ) : (
+          <div className="flex justify-end">
+            <button
+              className="flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60 focus:outline-none"
+              type="button"
+              onClick={openCreateForm}
+            >
+              + {config.createLabel}
+            </button>
+          </div>
+        )}
         {config.description ? <div className="text-xs text-slate-500 mt-1">{config.description}</div> : null}
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 space-y-2 rounded-md bg-white p-3 shadow lg:hidden">
+      <div className="mb-4 space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex gap-2 items-center">
           <input
             className="min-w-[200px] flex-1 rounded-md border px-3 py-2 text-sm h-9 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
@@ -562,7 +572,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
         </DialogContent>
       </Dialog>
 
-      {isLoading ? <div className="rounded-md bg-white p-6 text-center text-sm text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
+      {isLoading ? <div className="rounded-xl bg-white p-6 text-center text-sm text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
 
       {!isLoading ? (
         <div className="space-y-2">
@@ -684,7 +694,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
             {paginatedRecords.map((record) => (
               <div
                 key={record.id}
-                className="rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 transition-colors cursor-pointer"
+                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 transition-colors cursor-pointer"
                 onClick={() => openEditForm(record)}
               >
                 <div className="flex items-start justify-between mb-2">
@@ -728,7 +738,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
               </div>
             ))}
             {filteredRecords.length === 0 ? (
-              <div className="rounded-md bg-white p-8 text-center text-sm text-slate-500 shadow-sm border border-slate-200">
+              <div className="rounded-xl bg-white p-8 text-center text-sm text-slate-500 shadow-sm border border-slate-200">
                 {config.emptyMessage}
               </div>
             ) : null}
@@ -878,7 +888,7 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
         {hasFieldSections ? (
           <div className="space-y-5">
             {fieldSections.map((section, index) => (
-              <section key={`${section.title ?? 'default'}-${index}`} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+              <section key={`${section.title ?? 'default'}-${index}`} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
                 {section.title ? <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">{section.title}</h4> : null}
                 <div className="grid gap-4 md:grid-cols-3">
                   {section.fields.map(renderField)}
@@ -898,7 +908,7 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
             ))}
           </div>
         ) : (
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="grid gap-4 md:grid-cols-3">
               {visibleFields.map(renderField)}
             </div>
@@ -906,10 +916,10 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
         )}
 
         {config.apiPath === '/api/master-data/accounts' && record && (
-          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
             <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">ข้อมูลคำนวณจาก Bank Statement (อ่านอย่างเดียว)</h4>
             <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-              <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-4">
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
                 <div className="text-xs text-emerald-800 font-semibold mb-1">ยอดคงเหลือจริง</div>
                 <div className="text-lg font-bold text-emerald-900 tabular-nums">
                   {formatNumber(typeof (record as any).realBalance === 'number' ? (record as any).realBalance : null)}
@@ -917,13 +927,13 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
               </div>
               {form.subtype === 'current' && (
                 <>
-                  <div className="rounded-lg border border-orange-100 bg-orange-50/50 p-4">
+                  <div className="rounded-xl border border-orange-100 bg-orange-50/50 p-4">
                     <div className="text-xs text-orange-800 font-semibold mb-1">OD ใช้ไป</div>
                     <div className="text-lg font-bold text-orange-900 tabular-nums">
                       {formatNumber(typeof (record as any).odUsed === 'number' ? (record as any).odUsed : null)}
                     </div>
                   </div>
-                  <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-4">
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
                     <div className="text-xs text-emerald-800 font-semibold mb-1">OD คงเหลือ</div>
                     <div className="text-lg font-bold text-emerald-900 tabular-nums">
                       {formatNumber(typeof (record as any).odRemaining === 'number' ? (record as any).odRemaining : null)}
@@ -931,7 +941,7 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
                   </div>
                 </>
               )}
-              <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-4">
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
                 <div className="text-xs text-emerald-800 font-semibold mb-1">ยอดที่ใช้จ่ายได้</div>
                 <div className="text-lg font-bold text-emerald-900 tabular-nums">
                   {formatNumber(form.subtype === 'current' ? (typeof (record as any).availableToPay === 'number' ? (record as any).availableToPay : null) : (typeof (record as any).realBalance === 'number' ? (record as any).realBalance : null))}
@@ -1067,15 +1077,8 @@ function FormField({ error, field, value, onChange }: FormFieldProps) {
   )
 }
 
-function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
-  const activeClass = {
-    amber: 'border-amber-600 bg-amber-600 text-white',
-    dark: 'border-slate-700 bg-slate-700 text-white',
-    emerald: 'border-emerald-600 bg-emerald-600 text-white',
-    red: 'border-red-600 bg-red-600 text-white',
-    slate: 'border-slate-500 bg-slate-500 text-white',
-  }[tone]
-  const idleClass = tone === 'amber' ? 'border-slate-300 bg-white hover:bg-amber-50' : tone === 'emerald' ? 'border-slate-300 bg-white hover:bg-emerald-50' : tone === 'red' ? 'border-slate-300 bg-white hover:bg-red-50' : 'border-slate-300 bg-white hover:bg-slate-100'
-  return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
+function MatchButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
+  const className = active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+  return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${className}`} type="button" onClick={onClick}>{label}</button>
 }
 

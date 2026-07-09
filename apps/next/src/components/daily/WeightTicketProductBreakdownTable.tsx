@@ -316,7 +316,7 @@ function PendingOutRowsTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="hidden min-w-full divide-y divide-slate-100 text-sm lg:table">
+      <table className="ns-table hidden min-w-full divide-y divide-slate-100 text-sm lg:table">
         <thead className="border-b border-slate-100 bg-slate-50 text-xs font-semibold text-slate-500">
           <tr>
             <th className="px-3 py-3 text-left">เต๋า / สินค้า</th>
@@ -477,7 +477,7 @@ export function WeightTicketProductBreakdownTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="hidden lg:table min-w-full divide-y divide-slate-100 text-sm">
+      <table className="ns-table hidden lg:table min-w-full divide-y divide-slate-100 text-sm">
         <thead className="border-b border-slate-100 bg-slate-50 text-xs font-semibold text-slate-500">
           <tr>
             <th className="px-3 py-3 text-left">สินค้า / ที่มา</th>
@@ -641,7 +641,7 @@ export function WeightTicketProductBreakdownTable({
           return (
             <div key={group.summary.id} className="p-4 space-y-4">
               {/* Product Title */}
-              <div className="flex justify-between items-start gap-2 bg-slate-50 p-3 rounded-lg border border-slate-200/60">
+              <div className="flex justify-between items-start gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200/60">
                 <div>
                   <div className="font-bold text-slate-900 text-base">
                     {groupIndex + 1}. {group.summary.productName}
@@ -657,7 +657,7 @@ export function WeightTicketProductBreakdownTable({
               </div>
 
               {/* Weight Summaries Layout */}
-              <div className="space-y-2 text-sm bg-slate-50/60 p-3.5 rounded-lg border border-slate-200/50">
+              <div className="space-y-2 text-sm bg-slate-50/60 p-3.5 rounded-xl border border-slate-200/50">
                 <div className="flex justify-between items-center pb-1.5 border-b border-slate-100">
                   <span className="text-slate-500 font-medium">น้ำหนักรวม:</span>
                   <span className="font-semibold text-slate-800 tabular-nums">{formatWeight(group.summary.grossWeight)} กก.</span>
@@ -705,7 +705,7 @@ export function WeightTicketProductBreakdownTable({
                       จากเตาจริง ({group.realLotLines.length} เตา)
                     </div>
                     {group.realLotLines.map((line, idx) => (
-                      <div key={line.id} className="text-sm bg-white p-3.5 rounded-lg border border-slate-200/80 shadow-sm space-y-2">
+                      <div key={line.id} className="text-sm bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-sm space-y-2">
                         <div className="flex justify-between items-center">
                           <span className="font-bold text-slate-800">เตาที่ {idx + 1}</span>
                           <div className="text-right">
@@ -754,7 +754,7 @@ export function WeightTicketProductBreakdownTable({
                       หักสิ่งเจือปนของสินค้านี้ ({group.impurityLines.length} รายการ)
                     </div>
                     {group.impurityLines.map((line) => (
-                      <div key={line.id} className="text-sm bg-white p-3.5 rounded-lg border border-slate-200/80 shadow-sm space-y-2">
+                      <div key={line.id} className="text-sm bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-sm space-y-2">
                         <div className="flex justify-between items-center">
                           <span className="font-bold text-slate-800">{weightTicketImpurityDisplayName(line)}</span>
                           <span className="font-semibold text-red-600 tabular-nums">หัก {formatWeight(line.deductionWeight)} กก.</span>
@@ -772,7 +772,7 @@ export function WeightTicketProductBreakdownTable({
                       ซื้อเพิ่มจากสิ่งเจือปน ({group.purchaseLines.length} รายการ)
                     </div>
                     {group.purchaseLines.map((line) => (
-                      <div key={line.id} className="text-sm bg-white p-3.5 rounded-lg border border-slate-200/80 shadow-sm space-y-2">
+                      <div key={line.id} className="text-sm bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-sm space-y-2">
                         <div className="flex justify-between items-center">
                           <span className="font-bold text-slate-800">สิ่งเจือปนที่ซื้อ</span>
                           <span className="font-bold text-slate-900 tabular-nums">{formatWeight(line.netWeight)} กก.</span>

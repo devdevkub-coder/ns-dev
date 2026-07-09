@@ -115,16 +115,16 @@ export function MigrationToolsPageClient() {
   return (
     <section className="space-y-4">
       {/* Desktop Toolbar (Hidden on Mobile) */}
-      <div className="hidden lg:block rounded-md bg-gradient-to-r from-purple-700 to-pink-600 p-4 text-white shadow">
+      <div className="hidden rounded-xl border border-slate-200/60 bg-white p-4 text-slate-900 shadow-sm lg:block">
         <h1 className="text-xl font-bold">💾 Backup / Restore — สำรองข้อมูล</h1>
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="lg:hidden rounded-md bg-gradient-to-r from-purple-700 to-pink-600 p-3.5 text-white shadow animate-fade-in">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-3.5 text-slate-900 shadow-sm animate-fade-in lg:hidden">
         <h1 className="text-lg font-bold">💾 Backup / Restore — สำรองข้อมูล</h1>
       </div>
 
-      <div className="rounded-md bg-white p-4 shadow border border-slate-100">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <h2 className="mb-3 font-bold text-slate-800">📊 สถานะ Storage (browser localStorage)</h2>
         <div className="grid grid-cols-2 gap-3.5 text-sm sm:grid-cols-3 md:grid-cols-5">
           <div className="bg-slate-50 p-2.5 rounded border border-slate-100"><div className="text-xs text-slate-500 font-semibold">ขนาดรวม</div><div className="text-lg font-bold text-emerald-700 mt-0.5">{storageInfo.sizeMB} MB</div></div>
@@ -144,7 +144,7 @@ export function MigrationToolsPageClient() {
         </div>
       </div>
 
-      <div className="rounded-md bg-white p-4 shadow border border-slate-100">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <h2 className="mb-3 font-bold text-slate-800">📋 จำนวน Records ในระบบ</h2>
         <div className="grid grid-cols-3 gap-2.5 text-sm md:grid-cols-6">
           {recordStats.map(([label, value]) => (
@@ -156,7 +156,7 @@ export function MigrationToolsPageClient() {
         </div>
       </div>
 
-      <div className="rounded-md bg-white p-4 shadow border border-slate-100">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="mb-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-bold text-slate-700">🗂 Snapshot อัตโนมัติ (Browser นี้ — เก็บ 7 วันล่าสุด)</h2>
           {snapshotColumnResize.hasCustomWidths ? (
@@ -166,7 +166,7 @@ export function MigrationToolsPageClient() {
           ) : null}
         </div>
         <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
-          <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: snapshotColumnResize.tableMinWidth }}>
+          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: snapshotColumnResize.tableMinWidth }}>
             <colgroup>
               {snapshotColumns.map((column, index) => {
                 const style = snapshotColumnResize.getColumnStyle(column.key)

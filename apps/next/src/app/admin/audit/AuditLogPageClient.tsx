@@ -249,8 +249,8 @@ export function AuditLogPageClient() {
   return (
     <section className="space-y-4">
       {/* Desktop Toolbar (Hidden on Mobile) */}
-      <div className="hidden lg:block rounded-md bg-white p-4 shadow">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="hidden lg:block">
+        <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-slate-900">Audit & Activity Log</h2>
           </div>
@@ -261,7 +261,7 @@ export function AuditLogPageClient() {
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="lg:hidden rounded-md bg-white p-3.5 shadow space-y-2.5 animate-fade-in">
+      <div className="space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div>
           <h2 className="text-lg font-bold text-slate-900">Audit & Activity Log</h2>
         </div>
@@ -364,7 +364,7 @@ export function AuditLogPageClient() {
         {eventGroups.filter((item) => item.value !== 'all').map((item) => (
           <button
             key={item.value}
-            className={`rounded-md border bg-white p-3 text-left shadow-sm transition hover:bg-slate-50 ${group === item.value ? 'border-slate-500 bg-slate-50' : 'border-slate-100'}`}
+            className={`rounded-xl border bg-white p-3 text-left shadow-sm transition hover:bg-slate-50 ${group === item.value ? 'border-slate-500 bg-slate-50' : 'border-slate-100'}`}
             type="button"
             onClick={() => {
               setGroup(item.value)
@@ -379,18 +379,18 @@ export function AuditLogPageClient() {
       </div>
 
       {/* Desktop Filter Panel (Hidden on Mobile) */}
-      <div className="hidden lg:block rounded-md bg-white p-4 shadow">
+      <div className="hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
         <div className="grid gap-3 lg:grid-cols-5">
           <label className="block text-sm font-medium lg:col-span-2">
             ค้นหา
-            <input className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none focus:border-slate-700 text-sm" placeholder="event, user, metadata, user agent" value={query} onChange={(event) => {
+            <input className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-3 outline-none focus:border-slate-700 text-sm" placeholder="event, user, metadata, user agent" value={query} onChange={(event) => {
               setQuery(event.target.value)
               setPage(1)
             }} />
           </label>
           <label className="block text-sm font-medium">
             กลุ่ม
-            <select className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none focus:border-slate-700 text-sm" value={group} onChange={(event) => {
+            <select className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-3 outline-none focus:border-slate-700 text-sm" value={group} onChange={(event) => {
               setGroup(event.target.value as EventGroup)
               setPage(1)
             }}>
@@ -399,7 +399,7 @@ export function AuditLogPageClient() {
           </label>
           <label className="block text-sm font-medium">
             Event Type
-            <input className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none focus:border-slate-700 text-sm" list="audit-event-types" placeholder="app_user.updated" value={eventType} onChange={(event) => {
+            <input className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-3 outline-none focus:border-slate-700 text-sm" list="audit-event-types" placeholder="app_user.updated" value={eventType} onChange={(event) => {
               setEventType(event.target.value)
               setPage(1)
             }} />
@@ -409,7 +409,7 @@ export function AuditLogPageClient() {
           </label>
           <label className="block text-sm font-medium">
             ต่อหน้า
-            <select className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none focus:border-slate-700 text-sm" value={pageSize} onChange={(event) => {
+            <select className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-3 outline-none focus:border-slate-700 text-sm" value={pageSize} onChange={(event) => {
               setPageSize(Number(event.target.value))
               setPage(1)
             }}>
@@ -418,21 +418,21 @@ export function AuditLogPageClient() {
           </label>
           <label className="block text-sm font-medium">
             ผู้ทำรายการ
-            <input className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none focus:border-slate-700 text-sm" placeholder="username/display" value={actor} onChange={(event) => {
+            <input className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-3 outline-none focus:border-slate-700 text-sm" placeholder="username/display" value={actor} onChange={(event) => {
               setActor(event.target.value)
               setPage(1)
             }} />
           </label>
           <label className="block text-sm font-medium">
             เป้าหมาย
-            <input className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none focus:border-slate-700 text-sm" placeholder="username/display" value={target} onChange={(event) => {
+            <input className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-3 outline-none focus:border-slate-700 text-sm" placeholder="username/display" value={target} onChange={(event) => {
               setTarget(event.target.value)
               setPage(1)
             }} />
           </label>
           <div className="flex items-end gap-2 lg:col-span-3">
             <button className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 h-9 flex items-center shrink-0" type="button" onClick={resetFilters}>ล้าง filter</button>
-            <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 h-9 flex items-center shrink-0 ml-auto" disabled={isLoading || data.rows.length === 0} type="button" onClick={() => exportAuditCsv(sortedRows)}>Export CSV หน้านี้</button>
+            <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 h-9 flex items-center shrink-0 ml-auto" disabled={isLoading || data.rows.length === 0} type="button" onClick={() => exportAuditCsv(sortedRows)}>ส่งออก Excel</button>
           </div>
         </div>
       </div>
@@ -456,7 +456,7 @@ export function AuditLogPageClient() {
         {/* Desktop Table View (Hidden on Mobile) */}
         {!isLoading && (
           <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 {auditColumns.map((column, index) => {
                   const style = columnResize.getColumnStyle(column.key)
@@ -557,7 +557,7 @@ export function AuditLogPageClient() {
             <div className="space-y-4 p-5 bg-slate-50 flex-1 overflow-y-auto">
               <div className="grid gap-4 md:grid-cols-2">
                 {/* ข้อมูลเหตุการณ์ */}
-                <div className="rounded-lg border border-slate-100 bg-white p-4 shadow-sm">
+                <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
                   <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลเหตุการณ์</div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
                     <DetailItem label="กลุ่ม" value={eventGroup(selectedRow.eventType)} />
@@ -567,7 +567,7 @@ export function AuditLogPageClient() {
                 </div>
 
                 {/* ผู้ทำและเป้าหมาย */}
-                <div className="rounded-lg border border-slate-100 bg-white p-4 shadow-sm">
+                <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
                   <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ผู้ทำและเป้าหมาย</div>
                   <div className="grid grid-cols-1 gap-3">
                     <DetailItem label="ผู้ทำรายการ" value={userLabel(selectedRow.actor)} />
@@ -577,7 +577,7 @@ export function AuditLogPageClient() {
               </div>
 
               {/* ข้อมูลระบบและเมทาดาตา */}
-              <div className="rounded-lg border border-slate-100 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
                 <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลระบบและเมทาดาตา</div>
                 <div className="space-y-4">
                   <DetailItem label="User Agent" value={selectedRow.userAgent || '-'} />

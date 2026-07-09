@@ -89,10 +89,17 @@ function isJsonItem(value: unknown): value is JsonItem {
   return typeof value === 'object' && value !== null
 }
 
-function inYearMonth(date: Date, year: string | null, month: string | null) {
+function normalizedDateParam(value: string | null) {
+  const trimmed = value?.trim()
+  return trimmed && /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null
+}
+
+function inYearMonth(date: Date, year: string | null, month: string | null, dateFrom?: string | null, dateTo?: string | null) {
   const value = toDateOnly(date)
   if (year && value.slice(0, 4) !== year) return false
   if (month && value.slice(5, 7) !== month.padStart(2, '0')) return false
+  if (dateFrom && value < dateFrom) return false
+  if (dateTo && value > dateTo) return false
   return true
 }
 
@@ -231,6 +238,8 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const year = url.searchParams.get('year') || String(new Date().getFullYear())
     const month = url.searchParams.get('month')
+    const dateFrom = normalizedDateParam(url.searchParams.get('dateFrom') ?? url.searchParams.get('from'))
+    const dateTo = normalizedDateParam(url.searchParams.get('dateTo') ?? url.searchParams.get('to'))
     const productId = url.searchParams.get('productId')
     const detailId = url.searchParams.get('detailId')
     const metalGroup = url.searchParams.get('metalGroup')
@@ -333,27 +342,6 @@ export async function GET(request: Request) {
     const visibleCustomers = customers.filter((customer) => visibleCustomerIds.has(customer.id))
     const salesLines = await salesBillLineFactsForBills(salesBills.map((bill) => bill.id))
 
-    const stockMap = new Map<string, { qty: number; value: number }>()
-    const stockQuery = await prisma.$queryRaw<Array<{ code: string; qty: number | null; value: number | null }>>`
-      select
-        p.code,
-        sum(coalesce(sl.qty_in, 0) - coalesce(sl.qty_out, 0)) as qty,
-        sum(coalesce(sl.value_in, 0) - coalesce(sl.value_out, 0)) as value
-      from public.stock_ledger sl
-      join public.products p on p.id = sl.product_id
-      where 1=1
-        ${branch?.id != null ? Prisma.sql`and sl.branch_id = ${branch.id}` : Prisma.sql``}
-      group by p.code
-    `
-    stockQuery.forEach((row) => {
-      if (row.code) {
-        stockMap.set(row.code.trim().toUpperCase(), {
-          qty: toNumber(row.qty),
-          value: toNumber(row.value)
-        })
-      }
-    })
-
     const productsByKey = new Map<string, ProductRef>()
     products.forEach((product) => productLookupKeys(product).forEach((key) => productsByKey.set(key, product)))
 
@@ -374,7 +362,7 @@ export async function GET(request: Request) {
     }
 
     purchaseBills
-      .filter((bill) => inYearMonth(bill.date, year, month))
+      .filter((bill) => inYearMonth(bill.date, year, month, dateFrom, dateTo))
       .forEach((bill) => {
         purchaseBillItemRows(bill).forEach((item) => {
             const row = ensureRow(item)
@@ -386,7 +374,7 @@ export async function GET(request: Request) {
       })
 
     salesLines
-      .filter((line) => inYearMonth(line.date, year, month))
+      .filter((line) => inYearMonth(line.date, year, month, dateFrom, dateTo))
       .forEach((line) => {
         const row = ensureRowForLine(line)
         if (!row) return
@@ -398,7 +386,7 @@ export async function GET(request: Request) {
       })
 
     productionOrders
-      .filter((order) => inYearMonth(order.date, year, month))
+      .filter((order) => inYearMonth(order.date, year, month, dateFrom, dateTo))
       .forEach((order) => {
         order.production_inputs.forEach((input) => {
           const product = input.product_id != null ? productsByKey.get(String(input.product_id)) : undefined
@@ -422,7 +410,7 @@ export async function GET(request: Request) {
       })
 
     visibleAllocationFacts
-      .filter((fact) => inYearMonth(fact.date, year, month))
+      .filter((fact) => inYearMonth(fact.date, year, month, dateFrom, dateTo))
       .forEach((fact) => {
         const product = fact.product_id != null ? productsByKey.get(String(fact.product_id)) : undefined
         if ((productId || metalGroup) && !product) return
@@ -448,7 +436,7 @@ export async function GET(request: Request) {
       const mKey = String(mIdx + 1).padStart(2, '0')
 
       purchaseBills
-        .filter((bill) => inYearMonth(bill.date, year, mKey))
+        .filter((bill) => inYearMonth(bill.date, year, mKey, dateFrom, dateTo))
         .forEach((bill) => {
           purchaseBillItemRows(bill).forEach((item) => {
             const product = itemLookupKeys(item).map((k) => productsByKey.get(k)).find(Boolean)
@@ -461,7 +449,7 @@ export async function GET(request: Request) {
         })
 
       salesLines
-        .filter((line) => inYearMonth(line.date, year, mKey))
+        .filter((line) => inYearMonth(line.date, year, mKey, dateFrom, dateTo))
         .forEach((line) => {
           const product = lineLookupKeys(line).map((k) => productsByKey.get(k)).find(Boolean)
           if (!product) return
@@ -474,9 +462,6 @@ export async function GET(request: Request) {
 
     const rows = Array.from(rowsByKey.values())
       .map((row) => {
-        const stockData = row.code ? stockMap.get(row.code.trim().toUpperCase()) : undefined
-        const stock = stockData?.qty ?? 0
-        const wac = stock > 0 ? (stockData?.value ?? 0) / stock : 0
         return {
           avgBuy: row.buyQty > 0 ? row.buyAmount / row.buyQty : 0,
           avgSell: row.sellQty > 0 ? row.revenue / row.sellQty : 0,
@@ -511,8 +496,6 @@ export async function GET(request: Request) {
           type: row.type,
           unit: row.unit,
           revenue: row.revenue,
-          stock,
-          wac,
           monthlyData: productMonthlyMap.get(row.matchKey) ?? productMonthlyMap.get(row.id) ?? Array.from({ length: 12 }, () => ({ qty: 0, buyAmount: 0, sellQty: 0, salesAmount: 0 })),
         }
       })
@@ -522,7 +505,7 @@ export async function GET(request: Request) {
 
     const monthly = Array.from({ length: 12 }, (_, index) => {
       const monthKey = String(index + 1).padStart(2, '0')
-      const buy = purchaseBills.filter((bill) => inYearMonth(bill.date, year, monthKey)).reduce((sum, bill) => {
+      const buy = purchaseBills.filter((bill) => inYearMonth(bill.date, year, monthKey, dateFrom, dateTo)).reduce((sum, bill) => {
         purchaseBillItemRows(bill).forEach((item) => {
           const row = ensureRow(item)
           if (row && rows.some((product) => product.matchKey === row.matchKey)) {
@@ -532,7 +515,7 @@ export async function GET(request: Request) {
         })
         return sum
       }, { amount: 0, qty: 0 })
-      const sell = salesLines.filter((line) => inYearMonth(line.date, year, monthKey)).reduce((sum, line) => {
+      const sell = salesLines.filter((line) => inYearMonth(line.date, year, monthKey, dateFrom, dateTo)).reduce((sum, line) => {
         const row = ensureRowForLine(line)
         if (row && rows.some((product) => product.matchKey === row.matchKey)) {
           sum.gp += line.gp
@@ -541,7 +524,7 @@ export async function GET(request: Request) {
         }
         return sum
       }, { gp: 0, qty: 0, revenue: 0 })
-      const production = productionOrders.filter((order) => inYearMonth(order.date, year, monthKey)).reduce((sum, order) => {
+      const production = productionOrders.filter((order) => inYearMonth(order.date, year, monthKey, dateFrom, dateTo)).reduce((sum, order) => {
         order.production_inputs.forEach((input) => {
           if (input.product_id != null && rows.some((product) => product.matchKey === String(input.product_id))) sum.inputQty += toNumber(input.qty)
         })
@@ -576,7 +559,7 @@ export async function GET(request: Request) {
       const matchesDetailProduct = (item: JsonItem) => itemLookupKeys(item).some((key) => detailKeys.has(key))
       const matchesDetailLine = (line: SalesBillLineFactRow) => lineLookupKeys(line).some((key) => detailKeys.has(key))
       const purchaseLines = purchaseBills
-        .filter((bill) => inYearMonth(bill.date, year, month))
+        .filter((bill) => inYearMonth(bill.date, year, month, dateFrom, dateTo))
         .flatMap((bill) => purchaseBillItemRows(bill)
           .filter(matchesDetailProduct)
           .map((item) => {
@@ -595,7 +578,7 @@ export async function GET(request: Request) {
           }))
         .slice(0, 80)
       const detailSalesLines = salesLines
-        .filter((line) => inYearMonth(line.date, year, month) && matchesDetailLine(line))
+        .filter((line) => inYearMonth(line.date, year, month, dateFrom, dateTo) && matchesDetailLine(line))
         .map((line) => ({
           avgSell: line.qty > 0 ? line.lineAmount / line.qty : 0,
           cogs: line.cogs,
@@ -610,7 +593,7 @@ export async function GET(request: Request) {
         }))
         .slice(0, 80)
       const detailProductionOrders = productionOrders
-        .filter((order) => inYearMonth(order.date, year, month))
+        .filter((order) => inYearMonth(order.date, year, month, dateFrom, dateTo))
         .map((order) => {
           const inputQty = order.production_inputs.filter((input) => input.product_id === detailProduct.id).reduce((sum, input) => sum + toNumber(input.qty), 0)
           const outputQty = order.production_outputs.filter((output) => output.product_id === detailProduct.id && !isLossOutput(output)).reduce((sum, output) => sum + toNumber(output.qty), 0)
@@ -629,7 +612,7 @@ export async function GET(request: Request) {
         .filter((order) => order.inputQty > 0 || order.outputQty > 0 || order.lossQty > 0)
         .slice(0, 80)
       const allocationLines = visibleAllocationFacts
-        .filter((fact) => fact.product_id === detailProduct.id && inYearMonth(fact.date, year, month))
+        .filter((fact) => fact.product_id === detailProduct.id && inYearMonth(fact.date, year, month, dateFrom, dateTo))
         .map((fact) => {
           const salesDocNo = fact.sales_doc_no ?? '-'
           const sourceDocNo = fact.source_doc_no ?? '-'
@@ -651,20 +634,20 @@ export async function GET(request: Request) {
         .slice(0, 80)
       const detailMonthly = Array.from({ length: 12 }, (_, index) => {
         const monthKey = String(index + 1).padStart(2, '0')
-        const buy = purchaseBills.filter((bill) => inYearMonth(bill.date, year, monthKey)).reduce((sum, bill) => {
+        const buy = purchaseBills.filter((bill) => inYearMonth(bill.date, year, monthKey, dateFrom, dateTo)).reduce((sum, bill) => {
           purchaseBillItemRows(bill).filter(matchesDetailProduct).forEach((item) => {
             sum.amount += itemAmount(item)
             sum.qty += itemQty(item)
           })
           return sum
         }, { amount: 0, qty: 0 })
-        const sell = salesLines.filter((line) => inYearMonth(line.date, year, monthKey) && matchesDetailLine(line)).reduce((sum, line) => {
+        const sell = salesLines.filter((line) => inYearMonth(line.date, year, monthKey, dateFrom, dateTo) && matchesDetailLine(line)).reduce((sum, line) => {
           sum.gp += line.gp
           sum.qty += line.qty
           sum.revenue += line.lineAmount
           return sum
         }, { gp: 0, qty: 0, revenue: 0 })
-        const production = productionOrders.filter((order) => inYearMonth(order.date, year, monthKey)).reduce((sum, order) => {
+        const production = productionOrders.filter((order) => inYearMonth(order.date, year, monthKey, dateFrom, dateTo)).reduce((sum, order) => {
           sum.inputQty += order.production_inputs.filter((input) => input.product_id === detailProduct.id).reduce((total, input) => total + toNumber(input.qty), 0)
           sum.outputQty += order.production_outputs.filter((output) => output.product_id === detailProduct.id && !isLossOutput(output)).reduce((total, output) => total + toNumber(output.qty), 0)
           sum.lossQty += order.production_outputs.filter((output) => output.product_id === detailProduct.id && isLossOutput(output)).reduce((total, output) => total + toNumber(output.qty), 0)
@@ -730,8 +713,6 @@ export async function GET(request: Request) {
         Product: row.name,
         Revenue: row.revenue,
         SellQty: row.sellQty,
-        Stock: row.stock,
-        WAC: row.wac,
       }))), `tracking_product_${year}${month ? `_${month}` : ''}.xlsx`)
     }
 

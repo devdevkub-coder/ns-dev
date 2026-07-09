@@ -538,7 +538,7 @@ function ExportButton({ isExporting, onClick }: { isExporting: boolean; onClick:
         <TooltipTrigger asChild>
           <Button aria-label="Export" className="hidden lg:inline-flex ml-auto gap-2" disabled={isExporting} type="button" variant="export" onClick={onClick}>
             <Download aria-hidden="true" className="h-4 w-4 shrink-0" />
-            <span className="hidden sm:inline">{isExporting ? 'กำลัง Export...' : 'ส่งออก Excel'}</span>
+            <span className="hidden sm:inline">{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent>ส่งออกข้อมูลตาม filter ปัจจุบัน</TooltipContent>
@@ -2756,7 +2756,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       {/* Desktop Toolbar (Hidden on Mobile) */}
-      <div className="hidden lg:block space-y-2 rounded-md bg-white p-3 shadow">
+      <div className="hidden space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
         <div className="flex flex-wrap items-center gap-2">
           <Input
             className="min-w-[260px] flex-1 rounded-md"
@@ -2783,10 +2783,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
             />
           ) : null}
           {activeFilters ? <Button size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้างตัวกรอง</Button> : null}
-          {mode === 'purchase' ? <ExportButton isExporting={isExporting} onClick={() => void exportExcel()} /> : null}
-          {mode === 'purchase' ? <Button type="button" className="hidden lg:inline-flex" onClick={openPurchaseForm}>+ บิลรับซื้อใหม่</Button> : null}
-          {mode === 'sales' ? <ExportButton isExporting={isExporting} onClick={() => void exportExcel()} /> : null}
-          {mode === 'sales' ? <Button disabled={isSaving} type="button" className="hidden lg:inline-flex" onClick={openSalesForm}>+ บิลขายใหม่</Button> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="w-14 shrink-0 text-xs text-slate-500">ประเภท:</span>
@@ -2799,11 +2795,17 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           {statusOptions.map((option) => (
             <SegmentMulti key={option.label} current={statusFilter} label={option.label} onClick={setStatusFilter} values={option.values} />
           ))}
+          <div className="ml-auto flex items-center gap-2">
+            {mode === 'purchase' ? <ExportButton isExporting={isExporting} onClick={() => void exportExcel()} /> : null}
+            {mode === 'purchase' ? <Button type="button" className="hidden lg:inline-flex" onClick={openPurchaseForm}>+ บิลรับซื้อใหม่</Button> : null}
+            {mode === 'sales' ? <ExportButton isExporting={isExporting} onClick={() => void exportExcel()} /> : null}
+            {mode === 'sales' ? <Button disabled={isSaving} type="button" className="hidden lg:inline-flex" onClick={openSalesForm}>+ บิลขายใหม่</Button> : null}
+          </div>
         </div>
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="space-y-2 rounded-md bg-white p-3 shadow lg:hidden">
+      <div className="space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex gap-2 items-center">
           <Input
             className="min-w-[200px] flex-1 rounded-md h-9"
@@ -2918,7 +2920,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       {/* Mobile Card List (Hidden on Desktop) */}
       <div className="block lg:hidden space-y-3">
         {isLoading ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
+          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
         ) : null}
         
         {!isLoading && pageRows.map((row) => {
@@ -2929,7 +2931,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           return (
             <div
               key={row.id}
-              className={`rounded-md border border-slate-100 p-4 shadow-sm transition-colors ${row.status === 'cancelled' ? 'bg-red-100/60 active:bg-red-200/60 text-slate-400' : 'bg-white active:bg-slate-50'} cursor-pointer`}
+              className={`rounded-xl border border-slate-100 p-4 shadow-sm transition-colors ${row.status === 'cancelled' ? 'bg-red-100/60 active:bg-red-200/60 text-slate-400' : 'bg-white active:bg-slate-50'} cursor-pointer`}
               onClick={() => openListRow(row)}
             >
               <div className="flex justify-between items-start mb-2">
@@ -3044,7 +3046,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         })}
 
         {!isLoading && totalRows === 0 ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
+          <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
             ยังไม่มีรายการ
           </div>
         ) : null}
@@ -3217,18 +3219,18 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-6 text-sm">
               {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
-              <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="amber">1</StepBadge>ประเภทบิล</h4>
                 <div className="grid gap-3 md:grid-cols-2">
                   <RadioCard active={form.transactionMode === 'STOCK'} disabled={stockReceiptLocked} label="📦 STOCK" note="ซื้อเข้าสต๊อก · เข้า Stock + คำนวณ WAC ภายหลัง" onClick={() => updateForm('transactionMode', 'STOCK')} />
                   <RadioCard active={form.transactionMode === 'TRADING'} disabled={stockReceiptLocked} label="🔄 TRADING" note="ซื้อขายผ่านมือ · ไม่เข้า Stock ไม่กระทบ WAC" onClick={() => updateForm('transactionMode', 'TRADING')} />
                 </div>
                 {form.transactionMode === 'TRADING' ? (
-                  <div className="mt-3 rounded-md border border-slate-200 bg-white p-2 text-xs text-slate-600">รายการ Trading ไม่เข้า Stock และจะใช้สำหรับจับคู่ขายใน Trading Matching ภายหลัง</div>
+                  <div className="mt-3 rounded-xl border border-slate-200 bg-white p-2 text-xs text-slate-600">รายการ Trading ไม่เข้า Stock และจะใช้สำหรับจับคู่ขายใน Trading Matching ภายหลัง</div>
                 ) : null}
               </div>
 
-              <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="blue">2</StepBadge>ข้อมูลบิล</h4>
                 <div className="grid gap-3 md:grid-cols-[160px_220px_420px] md:justify-start">
                   <BranchSelectCombobox branches={activeBranches} disabled={stockReceiptLocked} error={fieldErrors.branchId} errorKey="branchId" inputId="purchase-bill-branch-search" label="สาขา *" placeholder="เลือกสาขา" value={form.branchId} widthClassName="max-w-[160px]" onChange={(branchId) => updateForm('branchId', branchId ?? '')} />
@@ -3311,7 +3313,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                       onChange={(value) => updateForm('receiptTicketId', value || null)}
                     />
                     {selectedReceipt ? (
-                      <div className="mt-3 space-y-3 rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-700">
+                      <div className="mt-3 space-y-3 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
                         <div className="grid gap-3 md:grid-cols-5">
                         <div><div className="font-semibold text-slate-500">เลขที่ใบรับของ</div><div className="text-slate-900">{selectedReceipt.documentNo}</div></div>
                         <div><div className="font-semibold text-slate-500">ผู้ขาย</div><div className="text-slate-900">{selectedReceipt.partyName}</div></div>
@@ -3329,7 +3331,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 ) : null}
               </div>
 
-              <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="mb-3 flex items-center justify-between">
                   <h4 className="flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="emerald">3</StepBadge>{form.transactionMode === 'STOCK' ? `รายการจากใบรับของ (${form.items.length})` : `รายการสินค้า (${form.items.length})`}</h4>
                   {form.transactionMode === 'TRADING' ? <button className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" onClick={() => setForm((current) => ({ ...current, items: [...current.items, blankItem()] }))}>+ เพิ่มรายการ</button> : null}
@@ -3346,7 +3348,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                         </div>
                       ) : null}
                       <div className="overflow-x-auto rounded-md border border-slate-200/60">
-                      <table className="w-full min-w-[1120px] text-sm">
+                      <table className="ns-table w-full min-w-[1120px] text-sm">
                         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
                           <tr>
                             <th className="w-[220px] p-2 text-left">สินค้า</th>
@@ -3479,7 +3481,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   )
                 ) : (
                   <div className="overflow-x-auto rounded-md border border-slate-200/60">
-                    <table className="w-full min-w-[1040px] text-sm">
+                    <table className="ns-table w-full min-w-[1040px] text-sm">
                       <colgroup>
                         <col className="w-[150px]" />
                         <col className="w-[150px]" />
@@ -3569,7 +3571,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 )}
               </div>
 
-              <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="purple">4</StepBadge>VAT & ยอดรวม</h4>
                 {!stockReceiptSelected ? (
                   <div className="mb-4 rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-500">
@@ -3578,7 +3580,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 ) : null}
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-3">
-                    <label className={`flex cursor-pointer items-center gap-3 rounded-md border-2 p-3 ${form.hasVat ? 'border-amber-500 bg-amber-50' : 'border-slate-200 bg-white'}`}>
+                    <label className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 ${form.hasVat ? 'border-amber-500 bg-amber-50' : 'border-slate-200 bg-white'}`}>
                       <input checked={form.hasVat} className="size-5" disabled={!stockReceiptSelected} type="checkbox" onChange={(event) => updateForm('hasVat', event.target.checked)} />
                       <span className="font-bold text-slate-700">มี {vatLabel}</span>
                     </label>
@@ -3621,8 +3623,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     ) : null}
                     <MoneyInputField disabled={!stockReceiptSelected} error={fieldErrors.discountTotal} errorKey="discountTotal" label="ส่วนลดท้ายบิล (บาท)" value={form.discountTotal} onChange={(value) => updateForm('discountTotal', value)} />
                   </div>
-                  <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="mb-2 flex justify-between rounded-md border border-slate-200 bg-white p-2 font-bold text-slate-800"><span>น้ำหนักรวมที่ซื้อ</span><span className="tabular-nums">{formatMoney(formTotalWeight)} กก.</span></div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="mb-2 flex justify-between rounded-xl border border-slate-200 bg-white p-2 font-bold text-slate-800"><span>น้ำหนักรวมที่ซื้อ</span><span className="tabular-nums">{formatMoney(formTotalWeight)} กก.</span></div>
                     <SummaryLine label="ยอดรวมรายการ" value={formatMoney(formSubtotal)} />
                     {form.discountTotal > 0 ? <SummaryLine label="หักส่วนลด" tone="red" value={`-${formatMoney(form.discountTotal)}`} /> : null}
                     <SummaryLine label="หลังส่วนลด" value={formatMoney(formAfterDiscount)} />
@@ -3635,7 +3637,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               </div>
 
               {selectedSupplier?.bankAccounts && selectedSupplier.bankAccounts.length > 0 ? (
-                <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="mb-2 text-xs font-semibold text-slate-800">ข้อมูลการชำระเงิน</div>
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                     <Field className="col-span-2 md:col-span-1" label="วิธีชำระเงิน">
@@ -3673,7 +3675,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 </div>
               ) : null}
 
-              <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <Field error={fieldErrors.note ?? fieldErrors.notes} label="หมายเหตุ"><textarea data-error-key={fieldErrors.note ? 'note' : fieldErrors.notes ? 'notes' : undefined} className={`w-full rounded-md border px-3 py-2 ${(fieldErrors.note ?? fieldErrors.notes) ? 'border-red-400 bg-red-50 text-red-700' : ''}`} disabled={!stockReceiptSelected} rows={2} value={form.note ?? form.notes ?? ''} onChange={(event) => {
                   const value = event.target.value || null
                   updateForm('note', value)
@@ -3698,7 +3700,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-6 text-sm">
               {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
-              <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="emerald">1</StepBadge>ประเภทบิล</h4>
                 <div className="grid gap-3 md:grid-cols-2">
                   <RadioCard active={salesForm.transactionMode === 'STOCK'} disabled={salesIdentityLocked || stockDeliveryLocked} label="📦 STOCK" note="ขายจากสต๊อกจริง" onClick={() => updateSalesForm('transactionMode', 'STOCK')} />
@@ -3708,11 +3710,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600">โหมดแก้ไขจะคงประเภทบิล สาขา ลูกค้า และแหล่งที่มาเดิม เพื่อให้ข้อมูล Stock/Trading และ audit ต่อเนื่อง</div>
                 ) : null}
                 {salesForm.transactionMode === 'TRADING' ? (
-                  <div className="mt-3 rounded-md border border-slate-200 bg-white p-2 text-xs text-slate-600">รายการจากบิลซื้อ Trading จะเข้า Trading Matching และไม่ตัด Stock; ถ้าเลือก WTO พ่วง รายการจาก WTO จะตัด Stock ตาม flow บิลขาย Stock ในบิลเดียวกัน</div>
+                  <div className="mt-3 rounded-xl border border-slate-200 bg-white p-2 text-xs text-slate-600">รายการจากบิลซื้อ Trading จะเข้า Trading Matching และไม่ตัด Stock; ถ้าเลือก WTO พ่วง รายการจาก WTO จะตัด Stock ตาม flow บิลขาย Stock ในบิลเดียวกัน</div>
                 ) : null}
               </div>
 
-              <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="blue">2</StepBadge>ข้อมูลบิล</h4>
                 <div className={`grid gap-3 ${isExportSalesBill ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
                   <BranchSelectCombobox branches={activeBranches} disabled={salesIdentityLocked || stockDeliveryLocked} error={salesFieldErrors.branchId} errorKey="branchId" inputId="sales-bill-branch-search" label="สาขา/คลัง *" placeholder="เลือกสาขา/คลัง" value={salesForm.branchId} onChange={(branchId) => updateSalesForm('branchId', branchId ?? '')} />
@@ -3765,7 +3767,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     onChange={(value) => updateSalesForm('deliveryTicketId', value || null)}
                   />
                   {selectedDelivery ? (
-                    <div className="mt-3 grid gap-3 rounded-md border border-slate-200 bg-white p-3 text-xs md:grid-cols-4">
+                    <div className="mt-3 grid gap-3 rounded-xl border border-slate-200 bg-white p-3 text-xs md:grid-cols-4">
                       <div><div className="font-semibold text-slate-500">เลขที่ใบส่งของ</div><div className="text-slate-900">{selectedDelivery.documentNo}</div></div>
                       <div><div className="font-semibold text-slate-500">ลูกค้า</div><div className="text-slate-900">{selectedDelivery.partyName}</div></div>
                       <div><div className="font-semibold text-slate-500">สาขา</div><div className="text-slate-900">{selectedDelivery.branchName}</div></div>
@@ -3776,14 +3778,14 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 ) : null}
               </div>
 
-              <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="mb-3 flex items-center justify-between">
                   <h4 className="flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="emerald">3</StepBadge>{salesForm.transactionMode === 'STOCK' ? `รายการจากใบส่งของ (${selectedDelivery ? salesForm.items.length : 0})` : `แหล่งสินค้าและรายการ (${salesForm.items.length})`}</h4>
                 </div>
                 {salesFieldErrors.items ? <div className="mb-2 text-xs text-red-600">{salesFieldErrors.items}</div> : null}
                 {salesForm.transactionMode === 'TRADING' ? (
                   <div className="mb-4 space-y-3">
-                    <div className="rounded-md border border-slate-200 bg-white p-3">
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
                       <div className="mb-2 text-xs font-bold text-slate-700">เลือกบิลซื้อ Trading</div>
                       {activeTradingPurchaseBills.length > 0 ? (
                         <div className="space-y-3">
@@ -3827,10 +3829,10 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                           </div>
                         </div>
                       ) : (
-                        <div className="rounded-md border border-dashed border-slate-200 bg-white p-3 text-xs text-slate-500">ไม่พบบิลซื้อ Trading ที่ยังมียอดคงเหลือ</div>
+                        <div className="rounded-xl border border-dashed border-slate-200 bg-white p-3 text-xs text-slate-500">ไม่พบบิลซื้อ Trading ที่ยังมียอดคงเหลือ</div>
                       )}
                     </div>
-                    <div className="rounded-md border border-slate-200 bg-white p-3">
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
                       <div className="mb-2 text-xs font-bold text-slate-700">ใบส่งของ WTO พ่วงในบิล</div>
                       <SearchCombobox
 	                        disabled={salesIdentityLocked || !stockDeliveryPrerequisiteReady}
@@ -3849,7 +3851,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                         onChange={(value) => updateSalesForm('deliveryTicketId', value || null)}
                       />
                       {selectedDelivery ? (
-                        <div className="mt-3 grid gap-3 rounded-md border border-slate-200 bg-white p-3 text-xs md:grid-cols-4">
+                        <div className="mt-3 grid gap-3 rounded-xl border border-slate-200 bg-white p-3 text-xs md:grid-cols-4">
                           <div><div className="font-semibold text-slate-500">เลขที่ใบส่งของ</div><div className="text-slate-900">{selectedDelivery.documentNo}</div></div>
                           <div><div className="font-semibold text-slate-500">ลูกค้า</div><div className="text-slate-900">{selectedDelivery.partyName}</div></div>
                           <div><div className="font-semibold text-slate-500">สาขา</div><div className="text-slate-900">{selectedDelivery.branchName}</div></div>
@@ -3870,7 +3872,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                        </div>
 	                      ) : null}
 	                      <div className="overflow-x-auto rounded-md border border-slate-200/60">
-	                      <table className="w-full min-w-[1300px] text-sm">
+	                      <table className="ns-table w-full min-w-[1300px] text-sm">
                         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
                           <tr>
                             <th className="p-2 text-left">สินค้า</th>
@@ -3956,7 +3958,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                                  {salesFieldErrors[`items.${index}.deductWeight`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.deductWeight`]}</div> : null}
 	                                </td>
 	                                <td className="p-2">
-	                                  <div data-error-key={`items.${index}.qty`} className={`rounded-md border px-2 py-2 text-right font-bold tabular-nums ${salesFieldErrors[`items.${index}.qty`] ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-900'}`}>{formatMoney(item.qty)}</div>
+	                                  <div data-error-key={`items.${index}.qty`} className={`rounded-xl border px-2 py-2 text-right font-bold tabular-nums ${salesFieldErrors[`items.${index}.qty`] ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-900'}`}>{formatMoney(item.qty)}</div>
 	                                </td>
                                 <td className="p-2">
                                   <select className="h-10 w-2/3 rounded-md border bg-white px-2 text-xs" value={hasSelectedPoSell ? item.poSellId ?? '' : ''} onChange={(event) => updateSalesItemPoSell(index, event.target.value || null)}>
@@ -4046,7 +4048,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   </div>
                 ) : (
                   <div className="overflow-x-auto rounded-md border border-slate-200/60">
-                    <table className="w-full min-w-[1360px] text-sm">
+                    <table className="ns-table w-full min-w-[1360px] text-sm">
                       <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium text-xs">
                         <tr>
                           <th className="p-2 text-left">สินค้า</th>
@@ -4144,7 +4146,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                 {salesFieldErrors[`items.${index}.deductWeight`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.deductWeight`]}</div> : null}
                               </td>
                               <td className="p-2">
-                                <div data-error-key={`items.${index}.qty`} className={`rounded-md border px-2 py-2 text-right font-bold tabular-nums ${salesFieldErrors[`items.${index}.qty`] ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-900'}`}>{formatMoney(item.qty)}</div>
+                                <div data-error-key={`items.${index}.qty`} className={`rounded-xl border px-2 py-2 text-right font-bold tabular-nums ${salesFieldErrors[`items.${index}.qty`] ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-900'}`}>{formatMoney(item.qty)}</div>
                                 {salesFieldErrors[`items.${index}.qty`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.qty`]}</div> : null}
                                 {costSourceVariance ? <div className={`mt-1 text-xs font-semibold ${costSourceVariance.className}`}>{costSourceVariance.text}</div> : null}
                               </td>
@@ -4179,11 +4181,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 )}
               </div>
 
-              <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="purple">4</StepBadge>VAT & ยอดรวม</h4>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-3">
-                    <label className={`flex cursor-pointer items-center gap-3 rounded-md border-2 p-3 ${salesForm.hasVat ? 'border-amber-500 bg-amber-50' : 'border-slate-200 bg-white'}`}>
+                    <label className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 ${salesForm.hasVat ? 'border-amber-500 bg-amber-50' : 'border-slate-200 bg-white'}`}>
                       <input checked={salesForm.hasVat} className="size-5" type="checkbox" onChange={(event) => updateSalesForm('hasVat', event.target.checked)} />
                       <span className="font-bold text-slate-700">มี {vatLabel}</span>
                     </label>
@@ -4216,8 +4218,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     ) : null}
                     <MoneyInputField error={salesFieldErrors.discountTotal} errorKey="discountTotal" label="ส่วนลดท้ายบิล (บาท)" value={salesForm.discountTotal} onChange={(value) => updateSalesForm('discountTotal', value)} />
                   </div>
-                  <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="mb-2 flex justify-between rounded-md border border-slate-200 bg-white p-2 font-bold text-slate-800"><span>น้ำหนักรวมที่ขาย</span><span className="tabular-nums">{formatMoney(salesForm.items.reduce((sum, item) => sum + item.qty, 0))} กก.</span></div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="mb-2 flex justify-between rounded-xl border border-slate-200 bg-white p-2 font-bold text-slate-800"><span>น้ำหนักรวมที่ขาย</span><span className="tabular-nums">{formatMoney(salesForm.items.reduce((sum, item) => sum + item.qty, 0))} กก.</span></div>
                     <SummaryLine label="ยอดรวมรายการ" value={formatMoney(salesSubtotal)} />
                     {salesForm.discountTotal > 0 ? <SummaryLine label="หักส่วนลด" tone="red" value={`-${formatMoney(salesForm.discountTotal)}`} /> : null}
                     <SummaryLine label="หลังส่วนลด" value={formatMoney(salesAfterDiscount)} />
@@ -4244,7 +4246,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 </div>
               ) : null}
 
-              <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <Field error={salesFieldErrors.note} label="หมายเหตุ"><textarea data-error-key="note" className={`w-full rounded-md border px-3 py-2 ${salesFieldErrors.note ? 'border-red-400 bg-red-50' : ''}`} rows={2} value={salesForm.note ?? ''} onChange={(event) => updateSalesForm('note', event.target.value || null)} /></Field>
               </div>
             </div>
@@ -4387,7 +4389,7 @@ function PurchaseBillDetailModal({
         ) : detail ? (
           <div className="space-y-4 p-4 text-sm">
             {/* ข้อมูลทั่วไป */}
-            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลเอกสาร</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
                 <DetailItem label="เลขที่บิล" value={detail.docNo} />
@@ -4400,7 +4402,7 @@ function PurchaseBillDetailModal({
             </div>
 
             {/* สถานะและการชำระเงิน */}
-            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">สถานะและการชำระเงิน</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
                 <div className="flex flex-col py-1">
@@ -4427,10 +4429,10 @@ function PurchaseBillDetailModal({
             </div>
 
             {/* สรุปต่อสินค้า */}
-            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">สรุปต่อสินค้า</div>
               <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
-                <table className="w-full min-w-[880px] text-sm">
+                <table className="ns-table w-full min-w-[880px] text-sm">
                   <thead className="bg-slate-50 text-slate-600">
                     <tr>
                       <th className="px-3 py-2 text-left font-medium">สินค้า</th>
@@ -4463,10 +4465,10 @@ function PurchaseBillDetailModal({
             </div>
 
             {/* รายละเอียด allocation */}
-            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+            <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4">
               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">รายละเอียด allocation รายแถว</div>
               <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
-                <table className="w-full min-w-[1100px] text-sm">
+                <table className="ns-table w-full min-w-[1100px] text-sm">
                   <thead className="bg-slate-50 text-slate-600">
                     <tr>
                       <th className="px-3 py-2 text-left font-medium">สินค้า</th>
@@ -4659,7 +4661,7 @@ function SalesBillDetailModal({
             </div>
           ) : detail ? (
             <div className="space-y-4 p-4 text-sm">
-            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">ข้อมูลเอกสาร</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
                 <DetailItem label="เลขที่บิล" value={detail.docNo} />
@@ -4675,7 +4677,7 @@ function SalesBillDetailModal({
               </div>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">สถานะและการรับเงิน</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
                 <div className="flex flex-col py-1">
@@ -4702,7 +4704,7 @@ function SalesBillDetailModal({
               </div>
             ) : null}
 
-            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="text-sm font-bold text-slate-800">รายการสินค้า / Source</div>
                 {detail.transactionMode === 'TRADING' ? (
@@ -4772,7 +4774,7 @@ function SalesBillDetailModal({
                 </div>
               ) : null}
               <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
-                <table className="w-full min-w-[1100px] text-sm">
+                <table className="ns-table w-full min-w-[1100px] text-sm">
                   <thead className="bg-slate-50 text-slate-600">
                     <tr>
                       <th className="px-3 py-2 text-left font-medium">สินค้า</th>
@@ -4969,7 +4971,7 @@ function SalesBillSourceUsageTimelineTable({ facts }: { facts: SalesBillDetail['
         <div className="border-t border-slate-100 px-3 py-3 text-center text-xs text-slate-500">ยังไม่มีข้อมูลต้นทางสินค้าและต้นทุนสำหรับบิลนี้</div>
       ) : (
         <div className="max-h-[360px] overflow-auto border-t border-slate-100">
-          <table className="w-full min-w-[760px] text-xs">
+          <table className="ns-table w-full min-w-[760px] text-xs">
             <thead className="bg-slate-50 text-slate-600">
               <tr>
                 <th className="px-3 py-2 text-left font-medium">รายการ</th>

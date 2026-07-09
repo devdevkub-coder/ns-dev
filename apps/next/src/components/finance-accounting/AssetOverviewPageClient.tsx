@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
@@ -84,7 +85,7 @@ export function AssetOverviewPageClient() {
 
   return (
     <section className="space-y-4 text-slate-800">
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200/80 bg-white p-3 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <DatePickerInput
           className="w-[140px] border-slate-300 bg-white text-slate-900 outline-none focus:ring-0 h-9 rounded-md"
           value={asOf}
@@ -132,39 +133,9 @@ export function AssetOverviewPageClient() {
 }
 
 function DarkKpi({ danger = false, label, up = false, value }: { danger?: boolean; label: string; up?: boolean; value: unknown }) {
-  const toneStyles = danger ? {
-    border: 'border-red-200',
-    bg: 'bg-red-50/30',
-    text: 'text-red-700',
-    sub: 'แรงกดดันเงินสด'
-  } : up ? {
-    border: 'border-emerald-200',
-    bg: 'bg-emerald-50/30',
-    text: 'text-emerald-700',
-    sub: 'สินทรัพย์ - หนี้สิน'
-  } : label === 'สินทรัพย์รวม' ? {
-    border: 'border-blue-200',
-    bg: 'bg-blue-50/30',
-    text: 'text-blue-700',
-    sub: 'มูลค่าฝั่งบริหาร'
-  } : {
-    border: 'border-purple-200',
-    bg: 'bg-purple-50/30',
-    text: 'text-purple-700',
-    sub: 'หนี้สินรวม'
-  }
-
-  return (
-    <div className={`rounded-md border bg-white p-4 shadow-sm ${toneStyles.border}`}>
-      <div>
-        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</div>
-        <div className={`text-lg font-bold mt-0.5 ${toneStyles.text}`}>{money(value)}</div>
-        <div className="text-xs text-slate-400 font-medium mt-0.5">
-          {toneStyles.sub}
-        </div>
-      </div>
-    </div>
-  )
+  const tone: KpiCardTone = danger ? 'red' : up ? 'emerald' : label === 'สินทรัพย์รวม' ? 'blue' : 'purple'
+  const note = danger ? 'แรงกดดันเงินสด' : up ? 'สินทรัพย์ - หนี้สิน' : label === 'สินทรัพย์รวม' ? 'มูลค่าฝั่งบริหาร' : 'หนี้สินรวม'
+  return <SharedKpiCard label={label} note={note} tone={tone} value={money(value)} />
 }
 
 function TradingPendingBlock({ summary }: { summary: Record<string, number> }) {
@@ -211,7 +182,7 @@ function Mini({ label, tone, value }: { label: string; tone: string; value: stri
 function DonutPanel({ empty, items, title, total, tone }: { empty?: string; items: Array<{ color: string; name: string; val: number }>; title: string; total: number; tone: string }) {
   const gradient = conic(items, total)
   return (
-    <div className="rounded-md border border-slate-100 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
       <h3 className={`mb-4 font-bold text-sm ${tone === 'red' ? 'text-red-700' : 'text-emerald-700'}`}>{title}</h3>
       <div className="mx-auto flex h-40 w-40 items-center justify-center rounded-full p-9 shadow-inner transition-transform" style={{ background: gradient }}>
         <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-center text-xs font-bold text-slate-800 border border-slate-100 shadow-sm leading-tight">
@@ -249,7 +220,7 @@ function conic(items: Array<{ color: string; val: number }>, total: number) {
 function ArAging({ aging, total }: { aging: Record<string, number>; total: number }) {
   const max = Math.max(1, ...Object.values(aging))
   return (
-    <div className="rounded-md border border-slate-100 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
       <h3 className="mb-4 font-bold text-sm text-blue-700"> AR Aging - อายุลูกหนี้</h3>
       <div className="space-y-3">
         {Object.entries(aging).map(([key, amount]) => (
@@ -337,7 +308,7 @@ function CashTable({ rows, total }: { rows: AnyRow[]; total: number }) {
             </button>
           </div>
         ) : null}
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {cashColumns.map((column, index) => {
               if (index === cashColumns.length - 1) {

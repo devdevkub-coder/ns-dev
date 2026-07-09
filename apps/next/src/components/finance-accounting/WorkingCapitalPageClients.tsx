@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
 import { RotateCcw } from 'lucide-react'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -186,7 +187,7 @@ export function WorkingCapitalPageClient() {
       {error ? <ErrorBox message={error} /> : null}
       
       {/* Desktop Filter Panel */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
+      <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex">
         <span className="text-sm">ช่วงวิเคราะห์</span>
         <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={periodDays} onChange={(event) => setPeriodDays(Number(event.target.value))}>
           {[30, 60, 90, 180, 365].map((days) => <option key={days} value={days}>{days} วันล่าสุด{days === 90 ? ' (แนะนำ)' : ''}</option>)}
@@ -197,7 +198,7 @@ export function WorkingCapitalPageClient() {
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden space-y-3">
+      <div className="mb-4 space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex gap-2 items-center">
           <select 
             aria-label="Period days select"
@@ -266,7 +267,7 @@ export function WorkingCapitalPageClient() {
         </MobileFilterSheet>
       ) : null}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <div className="bg-white p-5 border border-slate-100 rounded-md shadow-sm flex items-center gap-4">
+        <div className="bg-white p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-4">
           <div className="min-w-0 flex-1">
             <div className={`text-xs font-semibold ${(s?.ccc ?? 0) < 60 ? 'text-emerald-600' : (s?.ccc ?? 0) < 90 ? 'text-amber-600' : 'text-red-600'} truncate`}>
               {(s?.ccc ?? 0) < 60 ? 'Cash Conversion Cycle (ดี)' : (s?.ccc ?? 0) < 90 ? 'Cash Conversion Cycle (พอใช้)' : 'Cash Conversion Cycle (เสี่ยง)'}
@@ -333,7 +334,7 @@ export function StockFinancePageClient() {
     <section className="space-y-4">
       {error ? <ErrorBox message={error} /> : null}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
-        <div className="rounded-md border border-amber-100 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-amber-100 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <div className="text-xs font-bold uppercase text-amber-600">ภาพรวมมูลค่าสต็อก</div>
@@ -406,7 +407,7 @@ export function StockFinancePageClient() {
         </Panel>
       </div>
       <Tabs className="gap-3" value={stockTableTab} onValueChange={(value) => setStockTableTab(value as StockTableTab)}>
-        <TabsList className="w-full overflow-x-auto rounded-md bg-white px-2 shadow-sm" variant="line">
+        <TabsList className="w-full overflow-x-auto" variant="line">
           <TabsTrigger value="products" variant="line">
             Stock ทั้งหมด <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{data?.products.length ?? 0}</span>
           </TabsTrigger>
@@ -439,7 +440,7 @@ export function ProfitLeakPageClient() {
       {error ? <ErrorBox message={error} /> : null}
       
       {/* Desktop Filter Panel */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
+      <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex">
         <DateInput label="จาก" value={from} onChange={setFrom} />
         <DateInput label="ถึง" value={to} onChange={setTo} />
         <label className="flex items-center gap-2 text-xs text-slate-600 font-semibold">
@@ -451,7 +452,7 @@ export function ProfitLeakPageClient() {
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden space-y-3">
+      <div className="mb-4 space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex gap-2 items-center">
           <div className="flex-1 grid grid-cols-2 gap-2">
             <div className="flex items-center gap-1">
@@ -530,7 +531,7 @@ export function ProfitLeakPageClient() {
         </MobileFilterSheet>
       ) : null}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <div className="bg-white p-5 border border-red-200 rounded-md shadow-sm flex items-center gap-4">
+        <div className="bg-white p-5 border border-red-200 rounded-xl shadow-sm flex items-center gap-4">
           <div className="min-w-0 flex-1">
             <div className="text-xs font-semibold text-red-600">รวมเงินที่รั่วไหล</div>
             <div className="mt-0.5 text-2xl font-extrabold text-red-700 tracking-tight">{money(data?.summary.totalLeak)}</div>
@@ -587,7 +588,7 @@ function percent(value: number, total: number) {
 }
 
 function FilterPanel({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">{children}</div>
+  return <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">{children}</div>
 }
 
 function DateInput({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
@@ -599,7 +600,7 @@ function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; on
 }
 
 function Panel({ children, className = '', title }: { children: ReactNode; className?: string; title: string }) {
-  return <div className={`rounded-md border border-slate-100 bg-white p-4 shadow-sm ${className}`}><div className="mb-3 text-xs font-bold text-slate-800">{title}</div>{children}</div>
+  return <div className={`rounded-xl border border-slate-100 bg-white p-4 shadow-sm ${className}`}><div className="mb-3 text-xs font-bold text-slate-800">{title}</div>{children}</div>
 }
 
 function BreakdownBar({ amount, label, max, tone, value }: { amount: number; label: string; max: number; tone: 'amber' | 'blue' | 'emerald'; value: number }) {
@@ -625,26 +626,8 @@ function Gauge({ footer, kind, title, value }: { footer: string; kind: 'current'
   return <Panel title={title}><svg viewBox="0 0 200 110" className="h-[100px] w-full"><path d="M 30 90 A 70 70 0 0 1 170 90" stroke="#e2e8f0" strokeLinecap="round" strokeWidth="14" fill="none" /><path d="M 30 90 A 70 70 0 0 1 170 90" stroke={color} strokeDasharray={`${dash} 220`} strokeLinecap="round" strokeWidth="14" fill="none" /><text fill={color} fontSize="28" fontWeight="bold" textAnchor="middle" x="100" y="80">{value.toFixed(2)}</text><text fill="#64748b" fontSize="12" textAnchor="middle" x="100" y="100">{text}</text></svg><div className="mt-1 text-center text-xs text-slate-500">{footer}</div></Panel>
 }
 
-function Kpi({ label, tone, value }: { label: string; tone: string; value: string }) {
-  const map: Record<string, string> = {
-    amber: 'border-amber-200 bg-amber-50/40 text-amber-800',
-    blue: 'border-blue-200 bg-blue-50/40 text-blue-800',
-    cyan: 'border-cyan-200 bg-cyan-50/40 text-cyan-800',
-    emerald: 'border-emerald-200 bg-emerald-50/40 text-emerald-800',
-    orange: 'border-orange-200 bg-orange-50/40 text-orange-800',
-    purple: 'border-purple-200 bg-purple-50/40 text-purple-800',
-    red: 'border-red-200 bg-red-50/40 text-red-800',
-    rose: 'border-rose-200 bg-rose-50/40 text-rose-800',
-    slate: 'border-slate-100 bg-slate-50/40 text-slate-800',
-    yellow: 'border-yellow-200 bg-yellow-50/40 text-yellow-800'
-  }
-  const cls = map[tone] ?? map.slate
-  return (
-    <div className={`rounded-md border p-3 shadow-sm ${cls}`}>
-      <div className="text-xs text-slate-500 font-semibold uppercase">{label}</div>
-      <div className="text-sm font-bold tracking-tight mt-0.5">{value}</div>
-    </div>
-  )
+function Kpi({ label, tone, value }: { label: string; tone: KpiCardTone; value: string }) {
+  return <SharedKpiCard label={label} tone={tone} value={value} />
 }
 
 function Insight({ body, title, tone, value }: { body: string; title: string; tone: string; value: string }) {
@@ -715,7 +698,7 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: WorkingPay
       </div>
       <div className="overflow-x-auto">
         {/* Desktop View */}
-        <table className="hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {detailColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1105,7 +1088,7 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
       ) : null}
 
       <div className="hidden overflow-x-auto bg-white lg:block">
-        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {slowMovingColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1159,7 +1142,7 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
                 </div>
                 <span className="shrink-0 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{row.metalGroup}</span>
               </div>
-              <div className="grid grid-cols-2 gap-2 rounded-lg border border-slate-100/50 bg-slate-50/50 p-2.5 text-xs">
+              <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-100/50 bg-slate-50/50 p-2.5 text-xs">
                 <div><span className="text-slate-400">จำนวน:</span> <span className="font-semibold text-slate-800">{money(row.qty)} กก.</span></div>
                 <div><span className="text-slate-400">มูลค่า:</span> <span className="font-bold text-slate-900">{money(row.value)}</span></div>
                 <div><span className="text-slate-400">WAC:</span> <span className="font-medium text-slate-600">{money(row.wac)}</span></div>
@@ -1323,7 +1306,7 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
       <StockTablePagination
         currentPage={currentPage}
         pageSize={pageSize}
-        summary={totalRows !== rows.length ? <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold">จากทั้งหมด {rows.length}</span> : undefined}
+        summary={totalRows !== rows.length ? <span className="rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold">จากทั้งหมด {rows.length}</span> : undefined}
         totalPages={totalPages}
         totalRows={totalRows}
         onPageChange={setPage}
@@ -1411,7 +1394,7 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
 
       {/* Desktop View */}
       <div className="hidden lg:block overflow-x-auto bg-white">
-        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {stockProductColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1466,7 +1449,7 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
                 </div>
                 <span className="shrink-0 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{row.metalGroup}</span>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50">
+              <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/50 p-2.5 rounded-xl border border-slate-100/50">
                 <div><span className="text-slate-400">จำนวน:</span> <span className="font-semibold text-slate-800">{money(row.qty)} กก.</span></div>
                 <div><span className="text-slate-400">มูลค่าสต็อก:</span> <span className="font-bold text-slate-900">{money(row.value)}</span></div>
                 <div><span className="text-slate-400">WAC:</span> <span className="font-medium text-slate-600">{money(row.wac)}</span></div>
@@ -1537,7 +1520,7 @@ function NegativeMarginTable({ rows, total }: { rows: ProfitPayload['negMarginIt
       
       {/* Desktop View */}
       <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {negMarginColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1588,7 +1571,7 @@ function NegativeMarginTable({ rows, total }: { rows: ProfitPayload['negMarginIt
                 <span className="rounded bg-red-50 border border-red-100 px-2 py-0.5 text-xs font-bold text-red-700">ขาดทุน {money(row.loss)}</span>
               </div>
               <div className="font-bold text-slate-900">{row.productName}</div>
-              <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50">
+              <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50/50 p-2.5 rounded-xl border border-slate-100/50">
                 <div><span className="text-slate-400 block text-xs">จำนวน</span><span className="font-semibold text-slate-800">{money(row.qty)} kg</span></div>
                 <div><span className="text-slate-400 block text-xs">ราคาขาย</span><span className="font-semibold text-slate-800">{money(row.price)}</span></div>
                 <div><span className="text-slate-400 block text-xs">ต้นทุน WAC</span><span className="font-semibold text-slate-800">{money(row.unitCost)}</span></div>
@@ -1653,7 +1636,7 @@ function LowMarginTable({ rows, targetMargin }: { rows: ProfitPayload['lowMargin
       
       {/* Desktop View */}
       <div className="hidden lg:block overflow-x-auto">
-        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {lowMarginColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1756,7 +1739,7 @@ function LowCustomerTable({ rows }: { rows: ProfitPayload['lowCustomers'] }) {
       
       {/* Desktop View */}
       <div className="hidden lg:block overflow-x-auto">
-        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {lowCustomerColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1862,7 +1845,7 @@ function HighSupplierTable({ rows }: { rows: ProfitPayload['highSuppliers'] }) {
       
       {/* Desktop View */}
       <div className="hidden lg:block overflow-x-auto">
-        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {highSupplierColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -1964,7 +1947,7 @@ function OutlierTable({ rows }: { rows: ProfitPayload['outliers'] }) {
       </div>
       <div className="overflow-x-auto">
         {/* Desktop View */}
-        <table className="hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {outlierColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

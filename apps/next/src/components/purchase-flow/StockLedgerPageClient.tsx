@@ -41,20 +41,6 @@ const stockLedgerColumns: Array<ResizableColumnDefinition<StockLedgerColumnKey>>
 
 type StockLedgerColumnKey = StockLedgerSortKey
 
-function LedgerViewTab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return (
-    <button
-      className={`border-b-2 px-5 py-3 text-sm font-medium transition-colors outline-none focus:outline-none focus:ring-0 ${active ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
-      type="button"
-      onClick={onClick}
-    >
-      {label}
-    </button>
-  )
-}
-
-
-
 type StockLedgerPayload = {
   movementTypes: string[]
   page: number
@@ -190,7 +176,7 @@ export function StockLedgerPageClient() {
 
       
       {/* Desktop Toolbar (Hidden on Mobile) */}
-      <div className="hidden lg:block mb-4 space-y-3 rounded-md bg-white p-3 shadow">
+      <div className="hidden lg:block mb-4 space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[200px] flex-1">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -265,7 +251,7 @@ export function StockLedgerPageClient() {
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 space-y-3 rounded-md bg-white p-3 shadow lg:hidden animate-fade-in">
+      <div className="mb-4 space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden animate-fade-in">
         <div className="flex gap-2 items-center">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -397,13 +383,13 @@ export function StockLedgerPageClient() {
       {/* Mobile Card list */}
       <div className="block lg:hidden space-y-3">
         {isLoading ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
+          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
         ) : null}
         
         {!isLoading && rows.map((row) => (
           <div
             key={row.id}
-            className={`rounded-md border p-4 shadow-sm space-y-2 active:bg-slate-50 cursor-pointer ${row.runningBalanceByProduct < 0 ? 'border-red-200 bg-red-50/60' : 'border-slate-100 bg-white'}`}
+            className={`rounded-xl border p-4 shadow-sm space-y-2 active:bg-slate-50 cursor-pointer ${row.runningBalanceByProduct < 0 ? 'border-red-200 bg-red-50/60' : 'border-slate-100 bg-white'}`}
             onClick={() => setSelectedRow(row)}
           >
             <div className="flex justify-between items-start">
@@ -450,7 +436,7 @@ export function StockLedgerPageClient() {
         ))}
 
         {!isLoading && rows.length === 0 ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
+          <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
             ยังไม่มี Stock Movement
           </div>
         ) : null}
@@ -475,7 +461,7 @@ export function StockLedgerPageClient() {
           </div>
         </div>
         <div className="overflow-x-auto">
-        <table className="w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {stockLedgerColumns.map((column) => {
               const style = columnResize.getColumnStyle(column.key);
@@ -685,7 +671,7 @@ function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: St
             </div>
           </DetailPanel>
 
-          <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <div className="text-sm font-semibold text-slate-700">หมายเหตุ</div>
             <div className="mt-2 min-h-10 whitespace-pre-wrap rounded-md bg-slate-50 px-3 py-2 text-slate-600">{row.note || '-'}</div>
             {row.notAvailableForSale ? <div className="mt-3 text-xs font-semibold text-red-700">รายการนี้ถูกทำเครื่องหมายว่าไม่พร้อมขายใน ledger source</div> : null}
@@ -699,7 +685,7 @@ function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: St
 
 function DetailPanel({ children, title }: { children: ReactNode; title: string }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="mb-3 border-b border-slate-100 pb-1 text-xs font-bold text-slate-600 sm:text-sm">{title}</div>
       <div className="space-y-2">{children}</div>
     </div>
@@ -714,7 +700,7 @@ function DetailMetric({ label, tone = 'normal', value }: { label: string; tone?:
     red: 'text-red-700',
   }[tone]
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
       <div className="text-xs font-medium text-slate-500">{label}</div>
       <div className={`mt-1 text-base font-bold tabular-nums ${toneClass}`}>{value}</div>
     </div>

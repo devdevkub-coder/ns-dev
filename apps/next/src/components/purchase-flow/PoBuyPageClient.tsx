@@ -9,6 +9,7 @@ import { Button as UiButton } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input as UiInput } from '@/components/ui/Input'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Select as UiSelect } from '@/components/ui/Select'
@@ -280,14 +281,14 @@ type PoBuyColumnKey = 'action' | 'checkbox' | 'date' | 'docNo' | 'expectedDelive
 
 const poBuyColumns: Array<ResizableColumnDefinition<PoBuyColumnKey>> = [
   { key: 'checkbox', defaultWidth: 40, minWidth: 40 },
-  { key: 'docNo', defaultWidth: 110, minWidth: 90 },
-  { key: 'date', defaultWidth: 95, minWidth: 80 },
+  { key: 'docNo', defaultWidth: 155, minWidth: 145 },
+  { key: 'date', defaultWidth: 160, minWidth: 150 },
   { key: 'supplierName', defaultWidth: 260, minWidth: 120 },
   { key: 'productName', defaultWidth: 180, minWidth: 100 },
   { key: 'qty', defaultWidth: 110, minWidth: 90 },
   { key: 'totalAmount', defaultWidth: 135, minWidth: 110 },
   { key: 'remainingQty', defaultWidth: 110, minWidth: 90 },
-  { key: 'expectedDelivery', defaultWidth: 110, minWidth: 90 },
+  { key: 'expectedDelivery', defaultWidth: 160, minWidth: 150 },
   { key: 'note', defaultWidth: 85, minWidth: 70 },
   { key: 'status', defaultWidth: 110, minWidth: 90 },
   { key: 'updatedAt', defaultWidth: 180, minWidth: 150 },
@@ -780,7 +781,7 @@ export function PoBuyPageClient() {
       </div>
 
       {/* Desktop Toolbar (Hidden on Mobile) */}
-      <div className="hidden lg:block space-y-2 rounded-md bg-white p-3 shadow">
+      <div className="hidden space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
         <div className="flex flex-wrap items-center gap-2">
           <UiInput className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหาเลข PO / ชื่อผู้ขาย / ชื่อสินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <label className="text-xs text-slate-500">วันที่:</label>
@@ -788,8 +789,6 @@ export function PoBuyPageClient() {
           <span className="text-slate-400">→</span>
           <DatePickerInput id="po-buy-date-to" value={toDate} onChange={setToDate} />
           {hasFilters ? <UiButton size="xs" type="button" variant="secondary" onClick={resetFilters}>✕ ล้าง</UiButton> : null}
-          <ExportButton href={exportHref} />
-          <UiButton type="button" onClick={openCreateForm}>+ PO Buy ใหม่</UiButton>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500">สถานะเอกสาร:</span>
@@ -828,11 +827,15 @@ export function PoBuyPageClient() {
             onClick={() => toggleStatusFilter('Cancelled', setStatuses)}
             tone="cancelled"
           />
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <ExportButton href={exportHref} />
+            <UiButton size="sm" type="button" onClick={openCreateForm}>+ PO Buy ใหม่</UiButton>
+          </div>
         </div>
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="space-y-2 rounded-md bg-white p-3 shadow lg:hidden">
+      <div className="space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex gap-2 items-center">
           <UiInput className="min-w-[200px] flex-1 rounded-md h-9" placeholder="ค้นหาเลข PO / ผู้ขาย / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <button
@@ -958,13 +961,13 @@ export function PoBuyPageClient() {
       {/* Mobile Card List (Hidden on Desktop) */}
       <div className="block lg:hidden space-y-3">
         {isLoading ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-100">กำลังโหลดข้อมูล</div>
+          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-100">กำลังโหลดข้อมูล</div>
         ) : null}
         
         {!isLoading && pageRows.map((row) => (
           <div
             key={row.id}
-            className="rounded-md border border-slate-100 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
+            className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
             onClick={() => setSelectedRow(row)}
           >
             <div className="flex justify-between items-start mb-2">
@@ -1009,7 +1012,7 @@ export function PoBuyPageClient() {
         ))}
 
         {!isLoading && totalRows === 0 ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-100">
+          <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-100">
             ยังไม่มี PO Buy
           </div>
         ) : null}
@@ -1019,8 +1022,11 @@ export function PoBuyPageClient() {
       <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
         <Table className="text-xs font-semibold" style={{ fontFamily: "'Noto Sans Thai', Arial, sans-serif", tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
           <colgroup>
-            {poBuyColumns.map((column) => {
+            {poBuyColumns.map((column, index) => {
               const style = columnResize.getColumnStyle(column.key)
+              if (index === poBuyColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />
+              }
               return <col key={column.key} style={style} />
             })}
           </colgroup>
@@ -1047,8 +1053,8 @@ export function PoBuyPageClient() {
             {!isLoading && pageRows.map((row, index) => (
               <TableRow key={row.id} className={`cursor-pointer border-slate-100 hover:bg-slate-50 ${index % 2 === 1 ? 'bg-slate-50/40' : ''}`} onClick={() => setSelectedRow(row)}>
                 <TableCell className="text-center"><input aria-label={`เลือก ${row.docNo}`} checked={selectedPoIds.includes(row.id)} type="checkbox" onChange={() => toggleRowSelection(row.id)} onClick={(event) => event.stopPropagation()} /></TableCell>
-                <TableCell className="w-36 whitespace-nowrap font-mono">{row.docNo}</TableCell>
-                <TableCell className="w-28 whitespace-nowrap">{formatDateDisplay(row.date)}</TableCell>
+                <TableCell className="whitespace-nowrap font-mono">{row.docNo}</TableCell>
+                <TableCell className="whitespace-nowrap">{formatDateDisplay(row.date)}</TableCell>
                 <TableCell className="w-36">{row.supplierName}</TableCell>
                 <TableCell className="w-[280px] max-w-[280px]">
                   <PoBuyItemSummary fallbackText={row.productName} items={row.items} />
@@ -1056,7 +1062,7 @@ export function PoBuyPageClient() {
                 <TableNumberCell value={formatMoney(row.qty)} />
                 <TableNumberCell strong value={formatMoney(row.totalAmount)} />
                 <TableNumberCell tone="amber" value={formatMoney(row.remainingQty)} />
-                <TableCell className="w-28 whitespace-nowrap">{formatDateDisplay(row.expectedDelivery)}</TableCell>
+                <TableCell className="whitespace-nowrap">{formatDateDisplay(row.expectedDelivery)}</TableCell>
                 <TableCell className="text-center"><PoBuyNoteIndicator note={row.notes} poNo={row.docNo} /></TableCell>
                 <TableCell className="w-28 whitespace-nowrap text-center">
                   <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${statusBadge(row.status)}`}>
@@ -1193,47 +1199,7 @@ function SummaryCard({
   tone?: 'blue' | 'amber' | 'emerald' | 'slate'
   value: string
 }) {
-  const configs = {
-    slate: {
-      bg: 'bg-slate-100 text-slate-600',
-      emoji: '📋',
-      labelColor: 'text-slate-500',
-      valueColor: 'text-slate-900',
-    },
-    blue: {
-      bg: 'bg-blue-100 text-blue-600',
-      emoji: '📋',
-      labelColor: 'text-blue-600',
-      valueColor: 'text-blue-700',
-    },
-    amber: {
-      bg: 'bg-amber-100 text-amber-600',
-      emoji: '⏱️',
-      labelColor: 'text-amber-600',
-      valueColor: 'text-amber-700',
-    },
-    emerald: {
-      bg: 'bg-emerald-100 text-emerald-600',
-      emoji: '💰',
-      labelColor: 'text-emerald-600',
-      valueColor: 'text-emerald-700',
-    },
-  }
-
-  const config = configs[tone]
-
-  return (
-    <div className={`bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 ${className}`}>
-      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-        {config.emoji}
-      </div>
-      <div>
-        <div className={`text-xs ${config.labelColor}`}>{label}</div>
-        <div className={`font-mono text-lg sm:text-2xl font-bold ${config.valueColor}`}>{value}</div>
-        {sublabel ? <div className="text-xs text-slate-400 font-medium mt-0.5">{sublabel}</div> : null}
-      </div>
-    </div>
-  )
+  return <SharedKpiCard className={className} label={label} note={sublabel} tone={tone} value={value} />
 }
 
 function PoBuyNoteIndicator({ note, poNo }: { note: string; poNo: string }) {
@@ -1458,24 +1424,13 @@ function PoBuySegment({
   active,
   label,
   onClick,
-  tone = 'default',
 }: {
   active: boolean
   label: string
   onClick: () => void
   tone?: 'cancelled' | 'default' | 'open' | 'partial' | 'received' | 'shortClosed'
 }) {
-  const className = tone === 'open'
-    ? active ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white hover:bg-blue-50'
-    : tone === 'partial'
-      ? active ? 'border-amber-600 bg-amber-600 text-white' : 'border-slate-300 bg-white hover:bg-amber-50'
-      : tone === 'received'
-        ? active ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 bg-white hover:bg-emerald-50'
-        : tone === 'shortClosed'
-          ? active ? 'border-red-600 bg-red-600 text-white' : 'border-slate-300 bg-white hover:bg-red-50'
-        : tone === 'cancelled'
-          ? active ? 'border-slate-500 bg-slate-500 text-white' : 'border-slate-300 bg-white hover:bg-slate-100'
-          : active ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white hover:bg-slate-100'
+  const className = active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
 
   return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${className}`} type="button" onClick={onClick}>{label}</button>
 }
@@ -1752,7 +1707,7 @@ function PoBuyFormModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 lg:col-span-1">
-              <label className={`flex h-full items-center gap-3 rounded-md border p-3 cursor-pointer ${form.hasVat ? 'border-amber-500 bg-amber-50' : 'border-slate-300 bg-white'}`}>
+              <label className={`flex h-full items-center gap-3 rounded-xl border p-3 cursor-pointer ${form.hasVat ? 'border-amber-500 bg-amber-50' : 'border-slate-300 bg-white'}`}>
                 <input
                   checked={form.hasVat}
                   className="size-5"
@@ -1860,7 +1815,7 @@ function PoBuyDetailModal({
 
         <div className="flex-1 overflow-y-auto bg-slate-50 p-4 space-y-4 text-sm">
           {/* Card 1: ข้อมูลหลัก */}
-          <div className="rounded-lg border border-slate-100 bg-white p-5 shadow-sm">
+          <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
             <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">ข้อมูลหลัก</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
               <div>
@@ -1882,7 +1837,7 @@ function PoBuyDetailModal({
           </div>
 
           {/* Card 2: ยอดเงินและจำนวน */}
-          <div className="rounded-lg border border-slate-100 bg-white p-5 shadow-sm">
+          <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
             <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">ยอดเงินและจำนวน</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
               <div>

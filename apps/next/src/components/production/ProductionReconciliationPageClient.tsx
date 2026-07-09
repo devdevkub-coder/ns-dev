@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CheckCircle2, RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -234,7 +235,7 @@ export function ProductionReconciliationPageClient() {
       </div>
 
       {/* Desktop Toolbar (Hidden on Mobile) */}
-      <div className="hidden lg:block rounded-md bg-white p-3 shadow">
+      <div className="hidden lg:block rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[260px] flex-1">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -250,19 +251,19 @@ export function ProductionReconciliationPageClient() {
             <option value="all">ทุกประเภท issue</option>
             {issueKeys.map((issue) => <option key={issue} value={issue}>{issueLabel(issue)}</option>)}
           </select>
-          <button className="inline-flex h-9 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60 ml-auto" disabled={isLoading} type="button" onClick={() => void loadData()}>
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            รีเฟรช
-          </button>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
           {totalIssues === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}
           <span>{totalIssues === 0 ? 'ไม่พบ production reconciliation issue' : `พบ ${totalIssues} issue จาก production facts/ledger`}</span>
+          <button className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60" disabled={isLoading} type="button" onClick={() => void loadData()}>
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            รีเฟรช
+          </button>
         </div>
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="lg:hidden rounded-md bg-white p-3 shadow space-y-2">
+      <div className="lg:hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm space-y-2">
         <div className="flex gap-2 items-center">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
@@ -340,7 +341,7 @@ export function ProductionReconciliationPageClient() {
           ) : null}
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {reconciliationColumns.map((col, index) => {
                 if (index === reconciliationColumns.length - 1) {
@@ -428,13 +429,13 @@ export function ProductionReconciliationPageClient() {
       ) : null}
 
       {!isLoading && sortedRows.length === 0 ? (
-        <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-400 shadow-sm lg:hidden">
+        <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-400 shadow-sm lg:hidden">
           ไม่พบ issue ตามเงื่อนไข
         </div>
       ) : null}
       
       {isLoading ? (
-        <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-400 shadow-sm lg:hidden">
+        <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-400 shadow-sm lg:hidden">
           กำลังตรวจข้อมูล...
         </div>
       ) : null}
@@ -444,10 +445,9 @@ export function ProductionReconciliationPageClient() {
 
 function Metric({
   emoji,
-  iconBg = 'bg-slate-100',
   label,
   sub,
-  tone,
+  tone = 'slate',
   value,
   className,
 }: {
@@ -459,26 +459,5 @@ function Metric({
   value: string
   className?: string
 }) {
-  const color = tone === 'blue'
-    ? 'text-blue-600'
-    : tone === 'emerald'
-      ? 'text-emerald-700'
-      : tone === 'amber'
-        ? 'text-amber-700'
-        : tone === 'red'
-          ? 'text-red-600'
-          : 'text-slate-900'
-
-  return (
-    <div className={`bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-3 ${className || ''}`}>
-      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${iconBg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-        {emoji}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold text-slate-500 truncate">{label}</div>
-        <div className={`text-base font-bold ${color} mt-0.5 tabular-nums`}>{value}</div>
-        {sub ? <div className="text-xs text-slate-500 font-medium mt-0.5 truncate">{sub}</div> : null}
-      </div>
-    </div>
-  )
+  return <SharedKpiCard className={className} icon={emoji} label={label} note={sub} tone={tone} value={value} />
 }

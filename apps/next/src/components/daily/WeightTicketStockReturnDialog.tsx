@@ -125,9 +125,9 @@ export function WeightTicketStockReturnDialog({
         <div className="flex-1 overflow-y-auto bg-slate-50 p-4">
           {error ? <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</div> : null}
           {isLoading ? (
-            <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">กำลังโหลดรายการ pending_out</div>
+            <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">กำลังโหลดรายการ pending_out</div>
           ) : options.length === 0 ? (
-            <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">ไม่มี pending_out ที่ต้องรับคืน</div>
+            <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">ไม่มี pending_out ที่ต้องรับคืน</div>
           ) : (
             <>
             <div className="space-y-3 lg:hidden">
@@ -136,7 +136,7 @@ export function WeightTicketStockReturnDialog({
                 const lossQty = Math.max(0, option.pendingQty - (Number.isFinite(returnedQty) ? returnedQty : 0))
                 const requiresReason = lossQty > 0.0001
                 return (
-                  <div key={option.pendingOutKey} className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+                  <div key={option.pendingOutKey} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="font-semibold text-slate-900">{option.productName}</div>
@@ -188,7 +188,7 @@ export function WeightTicketStockReturnDialog({
                       <div>
                         <label className="mb-1 block text-xs font-semibold text-slate-600">เหตุผลส่วนต่าง <span className="text-red-600">*</span></label>
                         <textarea
-                          className={`min-h-[88px] w-full resize-y rounded-md border px-2 py-2 ${requiresReason && !reasonByPendingOut[option.pendingOutKey]?.trim() ? 'border-red-300 bg-red-50' : 'border-slate-300 bg-white'}`}
+                          className={`min-h-[88px] w-full resize-y rounded-xl border px-2 py-2 ${requiresReason && !reasonByPendingOut[option.pendingOutKey]?.trim() ? 'border-red-300 bg-red-50' : 'border-slate-300 bg-white'}`}
                           placeholder={requiresReason ? 'ระบุเหตุผลส่วนต่าง' : '-'}
                           required={requiresReason}
                           value={reasonByPendingOut[option.pendingOutKey] ?? ''}
@@ -210,7 +210,7 @@ export function WeightTicketStockReturnDialog({
               })}
             </div>
             <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white lg:block">
-              <table className="w-full min-w-[900px] table-fixed text-xs">
+              <table className="ns-table w-full min-w-[900px] table-fixed text-xs">
                 <colgroup>
                   <col className="w-[18%]" />
                   <col className="w-[12%]" />
@@ -261,7 +261,7 @@ export function WeightTicketStockReturnDialog({
                         <td className="px-3 py-2 text-right font-semibold tabular-nums text-amber-700">{formatMoney(option.pendingQty)}</td>
                         <td className="px-3 py-2">
                           <input
-                            className={`w-full rounded-md border px-2 py-2 text-right tabular-nums ${requiresReason ? 'border-amber-300 bg-amber-50' : 'border-slate-300 bg-white'}`}
+                            className={`w-full rounded-xl border px-2 py-2 text-right tabular-nums ${requiresReason ? 'border-amber-300 bg-amber-50' : 'border-slate-300 bg-white'}`}
                             min="0"
                             max={option.pendingQty}
                             step="0.01"
@@ -273,7 +273,7 @@ export function WeightTicketStockReturnDialog({
                         <td className={`px-3 py-2 text-right font-semibold tabular-nums ${requiresReason ? 'text-red-700' : 'text-emerald-700'}`}>{formatMoney(lossQty)}</td>
                         <td className="px-3 py-2">
                           <textarea
-                            className={`min-h-[72px] w-full resize-y rounded-md border px-2 py-2 ${requiresReason && !reasonByPendingOut[option.pendingOutKey]?.trim() ? 'border-red-300 bg-red-50' : 'border-slate-300 bg-white'}`}
+                            className={`min-h-[72px] w-full resize-y rounded-xl border px-2 py-2 ${requiresReason && !reasonByPendingOut[option.pendingOutKey]?.trim() ? 'border-red-300 bg-red-50' : 'border-slate-300 bg-white'}`}
                             placeholder={requiresReason ? 'ระบุเหตุผลส่วนต่าง' : '-'}
                             required={requiresReason}
                             value={reasonByPendingOut[option.pendingOutKey] ?? ''}

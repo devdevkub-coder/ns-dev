@@ -575,7 +575,7 @@ export function ReceiptVouchersPageClient() {
         {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
         {/* Desktop Toolbar (Hidden on Mobile) */}
-        <div className="hidden lg:block rounded-md bg-white p-3 shadow">
+        <div className="hidden lg:block rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center gap-2">
             <Input
               className="min-w-[260px] flex-1 rounded-md"
@@ -593,15 +593,6 @@ export function ReceiptVouchersPageClient() {
             </div>
 
             {hasActiveFilter ? <Button size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้างตัวกรอง</Button> : null}
-            <div className="ml-auto flex items-center gap-2">
-              <Button asChild className="gap-2" size="sm" variant="export">
-                <a href={exportHref}>
-                  <Download className="size-4" />
-                  <span>ส่งออก Excel</span>
-                </a>
-              </Button>
-              <Button size="sm" type="button" onClick={openCreateForm}>+ สร้างใบสำคัญรับเงิน</Button>
-            </div>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className="text-xs text-slate-500">สถานะ:</span>
@@ -619,11 +610,20 @@ export function ReceiptVouchersPageClient() {
                 {label}
               </button>
             ))}
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <Button asChild className="gap-2" size="sm" variant="export">
+                <a href={exportHref}>
+                  <Download className="size-4" />
+                  <span>ส่งออก Excel</span>
+                </a>
+              </Button>
+              <Button size="sm" type="button" onClick={openCreateForm}>+ สร้างใบสำคัญรับเงิน</Button>
+            </div>
           </div>
         </div>
 
         {/* Mobile Toolbar (Hidden on Desktop) */}
-        <div className="block lg:hidden rounded-md bg-white p-3 shadow">
+        <div className="block lg:hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2">
             <Input
               className="flex-1 min-w-0 rounded-md"
@@ -730,12 +730,12 @@ export function ReceiptVouchersPageClient() {
         {/* Mobile Card List */}
         <div className="block lg:hidden space-y-3">
           {isLoading ? (
-            <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-200">กำลังโหลดข้อมูล</div>
+            <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow border border-slate-200">กำลังโหลดข้อมูล</div>
           ) : null}
           {!isLoading && pagedRows.map((row) => (
             <div
               key={row.id}
-              className={`rounded-md border border-slate-200 p-4 shadow-sm transition-colors ${row.status === 'cancelled' ? 'bg-red-100/60 active:bg-red-200/60 text-slate-400' : 'bg-white active:bg-slate-50'} cursor-pointer`}
+              className={`rounded-xl border border-slate-200 p-4 shadow-sm transition-colors ${row.status === 'cancelled' ? 'bg-red-100/60 active:bg-red-200/60 text-slate-400' : 'bg-white active:bg-slate-50'} cursor-pointer`}
               onClick={() => setDetailRow(row)}
             >
               <div className="flex justify-between items-start mb-2">
@@ -763,7 +763,7 @@ export function ReceiptVouchersPageClient() {
             </div>
           ))}
           {!isLoading && totalRows === 0 ? (
-            <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-200">ยังไม่มีใบสำคัญรับเงิน</div>
+            <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow border border-slate-200">ยังไม่มีใบสำคัญรับเงิน</div>
           ) : null}
         </div>
 
@@ -966,7 +966,7 @@ function ReceiptVoucherFormModal({
         <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain bg-slate-50 p-3 pb-4 sm:p-4">
           {formError ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{formError}</div> : null}
 
-          <section className="rounded-md border border-slate-200 !bg-white p-3 shadow-sm sm:p-4">
+          <section className="rounded-xl border border-slate-200 !bg-white p-3 shadow-sm sm:p-4">
             <div className="mb-3 border-b border-slate-100 pb-2 text-sm font-semibold text-slate-800">ข้อมูลหลัก</div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_180px]">
               <div className="sm:col-span-2 lg:col-span-1">
@@ -1030,12 +1030,12 @@ function ReceiptVoucherFormModal({
             ) : null}
           </section>
 
-          <section className="rounded-md border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+          <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <div className="mb-1.5 md:mb-2 flex items-center justify-between gap-2">
               <div className="text-xs md:text-sm font-semibold text-slate-800">รายการค่าใช้จ่าย/สินค้า ({form.items.length})</div>
             </div>
             <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
-              <table className="w-full min-w-[820px] text-xs">
+              <table className="ns-table w-full min-w-[820px] text-xs">
                 <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
                   <tr>
                     <th className="w-10 p-1.5 md:p-2 text-center">#</th>
@@ -1106,7 +1106,7 @@ function ReceiptVoucherFormModal({
             </div>
           </section>
 
-          <section className="rounded-md border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+          <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <div className="mb-2 md:mb-3 text-xs md:text-sm font-semibold text-slate-800">หมายเหตุและผู้ลงนาม</div>
             <div className="grid grid-cols-2 gap-2 md:gap-3">
               <FormField className="col-span-2" label="หมายเหตุ">
@@ -1206,7 +1206,7 @@ function ReceiptVoucherDetailModal({ onClose, onPrint, row }: { onClose: () => v
           ) : null}
 
           <section className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <h4 className="mb-3 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">ข้อมูลเอกสาร</h4>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                 <DetailField label="วันที่ออกเอกสาร" value={formatDateDisplay(row.date)} />
@@ -1216,7 +1216,7 @@ function ReceiptVoucherDetailModal({ onClose, onPrint, row }: { onClose: () => v
                 <DetailField label="ที่อยู่" value={row.sellerAddress || '-'} />
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <h4 className="mb-3 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">ยอดและผู้ติดต่อ</h4>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                 <DetailField label="เบอร์โทร" value={row.sellerPhone || '-'} />

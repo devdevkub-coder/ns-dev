@@ -2,6 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -621,7 +622,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             </button>
           ) : null}
           <button className="rounded-md bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-sm font-semibold text-white focus:outline-none sm:ml-auto w-full sm:w-auto text-center shrink-0" type="button" onClick={exportCostCsv}>
-            Export CSV
+            ส่งออก Excel
           </button>
         </div>
         <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 lg:grid-cols-7 text-sm">
@@ -645,7 +646,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
 
         <div className="overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm hidden lg:block">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: costBreakdownResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: costBreakdownResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
                 {productionCostBreakdownColumns.map((column, index) => (
                   <col
@@ -740,7 +741,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               </div>
             )
           })}
-          {costRows.length === 0 ? <div className="py-6 text-center text-slate-400 bg-white rounded-md shadow border border-slate-200">ไม่มีข้อมูล</div> : null}
+          {costRows.length === 0 ? <div className="py-6 text-center text-slate-400 bg-white rounded-xl shadow border border-slate-200">ไม่มีข้อมูล</div> : null}
         </div>
       </section>
     )
@@ -753,17 +754,17 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
     const daily = data?.daily ?? []
     const machineUtil = sortedDashboardMachineUtil
     const dashboardRangeControls = (
-      <div className="w-full rounded-lg border border-slate-200 bg-slate-50/80 p-2 sm:w-auto">
+      <div className="w-full rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm sm:w-auto">
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           {dashboardRangeOptions.map((option) => {
             const isActive = rangeType === option.value
             return (
               <button
                 key={option.value}
-                className={`h-8 rounded-md px-3 text-xs font-semibold transition-colors ${
+                className={`inline-flex h-7 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors ${
                   isActive
-                    ? 'border border-purple-700 bg-purple-700 text-white shadow-sm'
-                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    ? 'border-slate-700 bg-slate-700 text-white'
+                    : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
                 }`}
                 type="button"
                 onClick={() => applyDashboardRange(option.value)}
@@ -775,13 +776,13 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         </div>
         <div className="mt-2 flex w-full items-center justify-end gap-1.5">
           <DatePickerInput
-            className="h-8 min-w-0 flex-1 bg-white text-slate-900 sm:w-[130px] sm:flex-none"
+            className="h-9 min-w-0 flex-1 bg-white text-slate-900 sm:w-[130px] sm:flex-none"
             value={dateFrom}
             onChange={(val) => { setDateFrom(val); setRangeType('custom') }}
           />
           <span className="px-1 text-xs font-bold text-slate-400">→</span>
           <DatePickerInput
-            className="h-8 min-w-0 flex-1 bg-white text-slate-900 sm:w-[130px] sm:flex-none"
+            className="h-9 min-w-0 flex-1 bg-white text-slate-900 sm:w-[130px] sm:flex-none"
             value={dateTo}
             onChange={(val) => { setDateTo(val); setRangeType('custom') }}
           />
@@ -794,7 +795,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           <h3 className="text-sm font-bold text-indigo-700">Machine Utilization (ปริมาณผลิตต่อเครื่อง)</h3>
           {dashboardMachineResize.hasCustomWidths ? (
             <button
-              className="hidden rounded-md border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 lg:inline-flex"
+              className="hidden rounded-xl border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 lg:inline-flex"
               type="button"
               onClick={dashboardMachineResize.resetColumnWidths}
             >
@@ -804,7 +805,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         </div>
 
         <div className="hidden overflow-x-auto lg:block">
-          <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: dashboardMachineResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: dashboardMachineResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               {dashboardMachineColumns.map((column, index) => (
                 <col
@@ -856,10 +857,10 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
       <section className="space-y-4">
         {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-        {/* Desktop Header: Premium Gradient Card */}
-        <div className="hidden lg:block rounded-xl bg-gradient-to-r from-purple-700 to-pink-600 p-5 text-white shadow-sm border border-transparent">
+        {/* Desktop Header */}
+        <div className="hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:block">
           <div className="flex items-center justify-between gap-3">
-            <h1 className="text-2xl font-bold">แดชบอร์ดการผลิต</h1>
+            <h1 className="text-2xl font-bold text-slate-900">แดชบอร์ดการผลิต</h1>
           </div>
         </div>
 
@@ -876,7 +877,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             return (
               <button
                 key={tab}
-                className={`flex-1 rounded-lg py-2 text-xs font-bold text-center transition-all ${
+                className={`flex-1 rounded-md py-2 text-xs font-bold text-center transition-all ${
                   isActive
                     ? 'bg-white text-slate-900 shadow-sm border border-slate-200/20'
                     : 'text-slate-500 hover:text-slate-700'
@@ -918,7 +919,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               <h3 className="font-bold text-emerald-700 text-sm">Top 10 สินค้าที่ผลิตมากสุด</h3>
               {dashboardTopProductResize.hasCustomWidths ? (
                 <button
-                  className="hidden rounded-md border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 lg:inline-flex"
+                  className="hidden rounded-xl border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 lg:inline-flex"
                   type="button"
                   onClick={dashboardTopProductResize.resetColumnWidths}
                 >
@@ -929,7 +930,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
 
             {/* Desktop View */}
             <div className="hidden lg:block overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: dashboardTopProductResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: dashboardTopProductResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
                 <colgroup>
                   {dashboardTopProductColumns.map((column, index) => (
                     <col
@@ -1011,7 +1012,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
   }
 
   const filterCard = (
-    <div className="rounded-md bg-white p-3 shadow">
+    <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center gap-2 w-full">
           <div className="w-full lg:min-w-[260px] lg:flex-1 relative">
             <input
@@ -1098,7 +1099,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         setPage(1)
       }}
     >
-      <TabsList className="w-full overflow-x-auto rounded-md bg-white px-2 shadow-sm" variant="line">
+      <TabsList className="w-full overflow-x-auto" variant="line">
         <TabsTrigger value="orders" variant="line">รายการใบสั่งผลิต</TabsTrigger>
         <TabsTrigger value="wip" variant="line">WIP คงเหลือ</TabsTrigger>
         <TabsTrigger value="products" variant="line">สรุปตามสินค้า</TabsTrigger>
@@ -1142,7 +1143,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               {/* Desktop View */}
               <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: wipResize.tableMinWidth, tableLayout: 'fixed' }}>
+                  <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: wipResize.tableMinWidth, tableLayout: 'fixed' }}>
                     <colgroup>
                       {configs.wip.columns.map((col, index) => {
                         const columnDefinition = wipColumns.find((column) => column.key === col.key)
@@ -1238,7 +1239,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                       </div>
                     )
                   })}
-                  {!wipRows.length ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">ไม่มี WIP คงเหลือ</div> : null}
+                  {!wipRows.length ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">ไม่มี WIP คงเหลือ</div> : null}
               </div>
             </div>
           ) : null}
@@ -1258,7 +1259,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               {/* Desktop View */}
               <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
                 <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: productSummaryResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: productSummaryResize.tableMinWidth, tableLayout: 'fixed' }}>
                 <colgroup>
                   {productSummaryTableColumns.map((col, index) => {
                     const columnDefinition = productSummaryColumns.find((column) => column.key === col.key)
@@ -1326,7 +1327,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                   </div>
                 </div>
               ))}
-                {!productSummary.length ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">ไม่มีข้อมูล</div> : null}
+                {!productSummary.length ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">ไม่มีข้อมูล</div> : null}
               </div>
             </div>
           ) : null}
@@ -1376,7 +1377,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
       {/* Desktop view for other modes */}
       <div className={mode === 'report' && reportTab !== 'orders' ? 'hidden' : 'hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block'}>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {config.columns.map((col, index) => {
                 const columnDefinition = activeResizableColumns.find((column) => column.key === col.key)
@@ -1442,14 +1443,14 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             return (
               <div
                 key={String(row.id ?? index)}
-                className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm space-y-3"
+                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3"
               >
                 <div className="flex items-start justify-between gap-3">
                   <span className="font-mono text-base font-bold text-slate-900">{String(row.docNo ?? '')}</span>
                   <span className="shrink-0 text-sm font-medium text-slate-500">{formatDateDisplay(String(row.date ?? ''))}</span>
                 </div>
 
-                <div className="space-y-1.5 rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">
+                <div className="space-y-1.5 rounded-xl border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">
                   <div>
                     <span className="font-semibold text-slate-500">ประเภทเครื่องจักร: </span>
                     <span className="text-slate-900">{String(row.productionType ?? '-')}</span>
@@ -1553,67 +1554,20 @@ function Metric({
   metricKey?: string
   className?: string
 }) {
-  let emoji = '📄'
+  let icon = '??'
   let tone: 'amber' | 'blue' | 'emerald' | 'red' | 'slate' | 'purple' = 'slate'
-  let iconBg = 'bg-slate-100 text-slate-700'
-
   const key = metricKey?.toLowerCase() || ''
-  if (key.includes('count') || key.includes('batches')) {
-    emoji = '📋'
-  } else if (key.includes('input')) {
-    emoji = '📦'
-    tone = 'blue'
-    iconBg = 'bg-blue-100 text-blue-700'
-  } else if (key.includes('output')) {
-    emoji = '✅'
-    tone = 'emerald'
-    iconBg = 'bg-emerald-100 text-emerald-700'
-  } else if (key.includes('wip')) {
-    emoji = '⚙️'
-    tone = 'amber'
-    iconBg = 'bg-amber-100 text-amber-700'
-  } else if (key.includes('loss')) {
-    emoji = '📉'
-    tone = 'red'
-    iconBg = 'bg-red-100 text-red-700'
-  } else if (key.includes('yieldpct')) {
-    emoji = '📈'
-    tone = 'emerald'
-    iconBg = 'bg-emerald-100 text-emerald-700'
-  } else if (key.includes('cost') || key.includes('value') || key.includes('pnl')) {
-    emoji = '💰'
-    tone = 'slate'
-    iconBg = 'bg-slate-100 text-slate-700'
-  } else if (key.includes('purple')) {
-    tone = 'purple'
-    iconBg = 'bg-purple-100 text-purple-700'
-  }
-
-  const color = tone === 'blue'
-    ? 'text-blue-600'
-    : tone === 'emerald'
-      ? 'text-emerald-700'
-      : tone === 'amber'
-        ? 'text-amber-700'
-        : tone === 'red'
-          ? 'text-red-600'
-          : tone === 'purple'
-            ? 'text-purple-700'
-            : 'text-slate-900'
+  if (key.includes('count') || key.includes('batches')) icon = '??'
+  else if (key.includes('input')) { icon = '??'; tone = 'blue' }
+  else if (key.includes('output')) { icon = '?'; tone = 'emerald' }
+  else if (key.includes('wip')) { icon = '??'; tone = 'amber' }
+  else if (key.includes('loss')) { icon = '??'; tone = 'red' }
+  else if (key.includes('yieldpct')) { icon = '??'; tone = 'emerald' }
+  else if (key.includes('cost') || key.includes('value') || key.includes('pnl')) icon = '??'
+  else if (key.includes('purple')) tone = 'purple'
   const unit = metricUnit(metricKey, type, label)
   const renderedValue = `${formatCell(value, type)}${unit ? ` ${unit}` : ''}`
-
-  return (
-    <div className={`bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-3 ${className || ''}`}>
-      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${iconBg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-        {emoji}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold text-slate-500 truncate">{label}</div>
-        <div className={`text-base font-bold ${color} mt-0.5 tabular-nums`}>{renderedValue}</div>
-      </div>
-    </div>
-  )
+  return <SharedKpiCard className={className} icon={icon} label={label} tone={tone} value={renderedValue} />
 }
 
 function metricUnit(metricKey?: string, type?: Column['type'], label = '') {
@@ -1635,35 +1589,16 @@ function metricUnit(metricKey?: string, type?: Column['type'], label = '') {
 
 function ImpactCard({ label, tone, value }: { label: string; tone: 'gain' | 'loss' | 'netBad' | 'netGood'; value: number }) {
   let emoji = '💰'
-  let toneColor: 'emerald' | 'red' | 'blue' | 'amber' = 'emerald'
-  let iconBg = 'bg-emerald-100 text-emerald-700'
 
   if (tone === 'gain' || tone === 'netGood') {
     emoji = tone === 'gain' ? '📈' : '💰'
-    toneColor = 'emerald'
-    iconBg = 'bg-emerald-100 text-emerald-700'
   } else if (tone === 'loss' || tone === 'netBad') {
     emoji = tone === 'loss' ? '📉' : '💸'
-    toneColor = 'red'
-    iconBg = 'bg-red-100 text-red-700'
   }
 
+  const isPositive = tone === 'gain' || tone === 'netGood'
   const prefix = tone === 'gain' || tone === 'netGood' ? '+' : tone === 'loss' ? '-' : ''
-  const color = toneColor === 'emerald' ? 'text-emerald-700' : 'text-red-600'
-
-  return (
-    <div className="bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-3">
-      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${iconBg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-        {emoji}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold text-slate-500 truncate">{label}</div>
-        <div className={`text-base font-bold ${color} mt-0.5 tabular-nums`}>
-          {prefix}{formatMoney(Math.abs(value))} ฿
-        </div>
-      </div>
-    </div>
-  )
+  return <SharedKpiCard icon={emoji} label={label} tone={isPositive ? 'emerald' : 'red'} value={`${prefix}${formatMoney(Math.abs(value))} ฿`} />
 }
 
 function DashboardKpi({
@@ -1679,34 +1614,7 @@ function DashboardKpi({
   value: string
   emoji: string
 }) {
-  const iconBg = tone === 'blue'
-    ? 'bg-blue-100 text-blue-700'
-    : tone === 'emerald'
-      ? 'bg-emerald-100 text-emerald-700'
-      : tone === 'amber'
-        ? 'bg-amber-100 text-amber-700'
-        : 'bg-purple-100 text-purple-700'
-
-  const color = tone === 'blue'
-    ? 'text-blue-600'
-    : tone === 'emerald'
-      ? 'text-emerald-700'
-      : tone === 'amber'
-        ? 'text-amber-700'
-        : 'text-purple-700'
-
-  return (
-    <div className="bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-3">
-      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${iconBg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-        {emoji}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold text-slate-500 truncate">{label}</div>
-        <div className={`text-base font-bold ${color} mt-0.5 tabular-nums`}>{value}</div>
-        <div className="text-xs text-slate-500 font-medium mt-0.5 whitespace-pre-wrap break-all sm:truncate">{note}</div>
-      </div>
-    </div>
-  )
+  return <SharedKpiCard icon={emoji} label={label} note={note} tone={tone} value={value} />
 }
 
 function DashboardStatusKpi({ items }: { items: Array<{ count: number; status: string }> }) {
@@ -1718,22 +1626,11 @@ function DashboardStatusKpi({ items }: { items: Array<{ count: number; status: s
   ]
 
   return (
-    <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-3 sm:p-4">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-lg text-emerald-700 sm:h-11 sm:w-11 sm:text-xl">
-        📋
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold text-slate-500">สถานะใบสั่งผลิต</div>
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          {visibleItems.map((item) => (
-            <div key={item.label} className="min-w-0 rounded-lg bg-slate-50 px-2 py-2 text-center">
-              <div className="truncate text-xs font-semibold text-slate-600">{item.label}</div>
-              <div className="mt-1 text-xl font-bold leading-none tabular-nums text-emerald-700">{item.value.toLocaleString('th-TH')}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+    <>
+      {visibleItems.map((item) => (
+        <SharedKpiCard key={item.label} icon="📋" label={item.label} tone="emerald" value={item.value.toLocaleString('th-TH')} />
+      ))}
+    </>
   )
 }
 
@@ -1803,7 +1700,7 @@ function ChartPanel({ controls, rows, title, type }: { controls?: ReactNode; row
               </span>
             ))}
           </div>
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+          <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
           {rows.length ? (
             <svg aria-label={title} className="h-[220px] sm:h-[260px] lg:h-[300px]" role="img" style={{ minWidth: chartWidth, width: '100%' }} viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
               <rect fill="white" height={chartHeight - 1} rx="8" width={chartWidth - 1} x="0.5" y="0.5" />
@@ -1889,18 +1786,16 @@ function CostCard({
   emoji: string
   iconBg?: string
 }) {
-  const color = tone === 'red' ? 'text-red-600' : 'text-slate-900'
-  return (
-    <div className="bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-3">
-      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${iconBg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-        {emoji}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold text-slate-500 truncate">{label}</div>
-        <div className={`text-base font-bold ${color} mt-0.5 tabular-nums`}>{formatMoney(value)}</div>
-      </div>
-    </div>
-  )
+  const sharedTone: KpiCardTone = tone === 'red'
+    ? 'red'
+    : iconBg.includes('blue')
+      ? 'blue'
+      : iconBg.includes('amber')
+        ? 'amber'
+        : iconBg.includes('purple')
+          ? 'purple'
+          : 'slate'
+  return <SharedKpiCard icon={emoji} label={label} tone={sharedTone} value={formatMoney(value)} />
 }
 
 function costBreakdown(row: Row) {

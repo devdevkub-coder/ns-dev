@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, RotateCcw,
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import {
   WeightTicketProductBreakdownTable,
   WeightTicketTimelinePendingOutChanges,
@@ -455,7 +456,7 @@ export function WeightTicketDetailModal({
                   <SectionTitle title="ประวัติการใช้งานใบรับของ" />
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="hidden lg:table min-w-full divide-y divide-slate-100 text-sm">
+                  <table className="ns-table hidden lg:table min-w-full divide-y divide-slate-100 text-sm">
                     <thead className="bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-500">
                       <tr>
                         <th className="px-3 py-3 text-left">เวลา</th>
@@ -594,7 +595,7 @@ export function WeightTicketDetailModal({
                             เปลี่ยนสถานะจาก {timelineStatusLabel(ticket.type, fromStatus)}
                           </div>
                         ) : null}
-                        <div className="mt-2 grid gap-1.5 rounded-md bg-white px-3 py-2.5 text-sm text-slate-600 shadow-sm border border-slate-100">
+                        <div className="mt-2 grid gap-1.5 rounded-xl bg-white px-3 py-2.5 text-sm text-slate-600 shadow-sm border border-slate-100">
                           {targetDocNo || productName || allocatedNetWeight != null ? (
                             <div className="flex flex-wrap gap-x-4 gap-y-1">
                               {targetDocNo ? (
@@ -853,12 +854,7 @@ function SectionTitle({ title }: { title: string }) {
 }
 
 function MetricCard({ className, icon, label, value }: { className?: string; icon: ReactNode; label: string; value: string }) {
-  return (
-    <div className={cn("rounded-md border border-slate-200 bg-white px-3 py-3 shadow-sm sm:px-4 sm:py-4", className)}>
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-500 sm:text-sm">{icon}{label}</div>
-      <div className="mt-2 text-base font-bold tabular-nums text-slate-950 sm:text-lg">{value}</div>
-    </div>
-  )
+  return <SharedKpiCard className={className} icon={icon} label={label} tone="slate" value={value} />
 }
 
 function DetailItem({ label, value, valueClassName }: { label: string; value: string; valueClassName?: string }) {

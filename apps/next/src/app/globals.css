@@ -346,6 +346,67 @@ table {
   font-variant-numeric: tabular-nums;
 }
 
+.ns-table-shell,
+:where(.overflow-x-auto, .overflow-auto):where(.rounded-md, .rounded-lg, .rounded-xl, .border, .shadow, .shadow-sm):has(> table.ns-table) {
+  overflow-x: auto;
+  border: 1px solid var(--color-slate-200);
+  border-radius: 0.375rem;
+  background: var(--color-white);
+  box-shadow: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+}
+
+:where(.overflow-x-auto, .overflow-auto):has(> table.ns-table) {
+  overflow-x: auto;
+}
+
+table.ns-table {
+  width: 100%;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--color-white);
+  color: var(--color-slate-900);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+}
+
+table.ns-table :where(thead) {
+  background: var(--color-slate-100) !important;
+  color: var(--color-slate-700);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: var(--text-xs--line-height);
+}
+
+table.ns-table :where(th) {
+  border-bottom: 1px solid var(--color-slate-200) !important;
+  background: inherit;
+  color: var(--color-slate-700);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: var(--text-xs--line-height);
+}
+
+table.ns-table :where(th:not([data-resizable-table-head])) {
+  padding: 0.5rem !important;
+}
+
+table.ns-table :where(td) {
+  padding: 0.75rem !important;
+}
+
+table.ns-table :where(tbody > tr) {
+  border-top: 0 !important;
+}
+
+table.ns-table :where(tbody > tr:not([class*="bg-"]):hover) {
+  background: var(--color-slate-50);
+}
+
+table.ns-table :where(td[colspan]:only-child) {
+  padding: 2rem !important;
+}
+
 th,
 td {
   min-width: 0;
@@ -374,6 +435,8 @@ td[class*="font-mono"] {
 /* Fix browser-specific sticky table header borders by applying soft border-bottom to th cells */
 thead th {
   border-bottom: 1px solid var(--color-scrap-line) !important;
+  overflow-wrap: normal;
+  white-space: nowrap;
 }
 
 input.border:not([class*="bg-"]),
@@ -723,6 +786,30 @@ aside a:visited {
 .dark :where(thead, thead tr, thead th) {
   background-color: var(--ns-dark-surface-soft) !important;
   color: var(--ns-dark-muted) !important;
+}
+
+.dark :where(.ns-table-shell, .overflow-x-auto:where(.rounded-md, .rounded-lg, .rounded-xl, .border, .shadow, .shadow-sm):has(> table.ns-table), .overflow-auto:where(.rounded-md, .rounded-lg, .rounded-xl, .border, .shadow, .shadow-sm):has(> table.ns-table)) {
+  background-color: var(--ns-dark-surface) !important;
+  border-color: var(--ns-dark-border-strong) !important;
+}
+
+.dark table.ns-table {
+  background-color: var(--ns-dark-surface) !important;
+  color: var(--ns-dark-text);
+}
+
+.dark table.ns-table :where(thead) {
+  background-color: var(--ns-dark-surface-soft) !important;
+  color: var(--ns-dark-muted) !important;
+}
+
+.dark table.ns-table :where(th) {
+  border-color: var(--ns-dark-border-strong) !important;
+  color: var(--ns-dark-muted) !important;
+}
+
+.dark table.ns-table :where(tbody > tr:not([class*="bg-"]):hover) {
+  background-color: var(--ns-dark-surface-hover) !important;
 }
 
 .dark :where(tbody tr) {

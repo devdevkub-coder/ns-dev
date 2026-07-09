@@ -6,6 +6,7 @@ import { openPoSellPrint, openPoSellPrintWindow, type PoSellPrintDocument } from
 import { Button as UiButton } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input as UiInput } from '@/components/ui/Input'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Select as UiSelect } from '@/components/ui/Select'
@@ -557,7 +558,7 @@ export function PoSellPageClient() {
       </div>
 
       {/* Desktop Toolbar (Hidden on Mobile) */}
-      <div className="hidden lg:block mb-4 space-y-2 rounded-md bg-white p-3 shadow">
+      <div className="mb-4 hidden space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
         <div className="flex flex-wrap items-center gap-2">
           <input autoComplete="off" className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหาเลข PO / ชื่อ Customer / ชื่อสินค้า / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <label className="text-sm text-slate-500">วันที่สร้างรายการ:</label>
@@ -565,8 +566,6 @@ export function PoSellPageClient() {
           <span className="text-slate-400">→</span>
           <DatePickerInput ariaLabel="ถึงวันที่" className="w-[130px]" title="ถึงวันที่" value={toDate} onChange={setToDate} />
           {hasFilters ? <button className="rounded-md bg-slate-100 px-3 py-2 text-xs hover:bg-slate-200" type="button" onClick={resetFilters}>✕ ล้าง</button> : null}
-          <a className="ml-auto rounded-md bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700" href={exportHref}>ส่งออก Excel</a>
-          <button className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={openCreateForm}>+ PO Sell ใหม่</button>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm text-slate-500">สถานะเอกสาร:</span>
@@ -574,6 +573,10 @@ export function PoSellPageClient() {
           {(data?.filters.statuses ?? []).map((item) => (
             <MatchButton key={item.value} active={documentStatus === item.value} label={item.label} tone={documentStatusTone(item.value)} onClick={() => setDocumentStatus(item.value)} />
           ))}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <a className="inline-flex h-9 items-center rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700" href={exportHref}>ส่งออก Excel</a>
+            <button className="inline-flex h-9 items-center rounded-md bg-blue-600 px-4 text-sm text-white hover:bg-blue-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={openCreateForm}>+ PO Sell ใหม่</button>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm text-slate-500">สถานะ Match:</span>
@@ -585,7 +588,7 @@ export function PoSellPageClient() {
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 space-y-2 rounded-md bg-white p-3 shadow lg:hidden">
+      <div className="mb-4 space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex gap-2 items-center">
           <input autoComplete="off" className="min-w-[200px] flex-1 rounded-md border px-3 py-2 text-sm h-9" placeholder="ค้นหาเลข PO / Customer / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <button
@@ -663,13 +666,13 @@ export function PoSellPageClient() {
       {/* Mobile Card List (Hidden on Desktop) */}
       <div className="block lg:hidden space-y-3">
         {isLoading ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
+          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
         ) : null}
 
         {!isLoading && pageRows.map((row) => (
           <div
             key={row.id}
-            className="rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
+            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
             onClick={() => setSelectedRow(row)}
           >
             <div className="flex justify-between items-start mb-2">
@@ -708,7 +711,7 @@ export function PoSellPageClient() {
         ))}
 
         {!isLoading && totalRows === 0 ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
+          <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
             ยังไม่มี PO Sell
           </div>
         ) : null}
@@ -923,7 +926,6 @@ function documentStatusPillTone(value: string): 'cancelled' | 'closed' | 'match'
 
 function Metric({
   emoji,
-  iconBg = 'bg-slate-100',
   label,
   subLabel,
   value,
@@ -936,25 +938,12 @@ function Metric({
   value: string
   className?: string
 }) {
-  return (
-    <div className={`bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 ${className}`}>
-      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${iconBg} flex items-center justify-center text-xl shrink-0`}>
-        {emoji}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-xs font-semibold text-slate-500">{label}</div>
-        <div className="font-bold text-slate-900 mt-0.5">{value}</div>
-        {subLabel ? <div className="text-xs text-slate-400 mt-1 truncate">{subLabel}</div> : null}
-      </div>
-    </div>
-  )
+  return <SharedKpiCard className={className} icon={emoji} label={label} note={subLabel} tone="slate" value={value} />
 }
 
-function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
-  void tone
-  const activeClass = 'border-slate-700 bg-slate-700 text-white'
-  const idleClass = 'border-slate-300 bg-white hover:bg-slate-50'
-  return <button className={`rounded-md border px-3.5 py-1.5 text-sm font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
+function MatchButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
+  const className = active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+  return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${className}`} type="button" onClick={onClick}>{label}</button>
 }
 
 function StatusPill({ label, tone = 'status' }: { label: string; tone?: 'cancelled' | 'closed' | 'match' | 'open' | 'partial' | 'status' }) {
@@ -1163,7 +1152,7 @@ function PoSellFormModal({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto bg-slate-50 p-5 text-sm space-y-4">
-          <div className="rounded-md border border-slate-200 bg-white p-4 shadow">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow">
             <div className="mb-3 text-sm font-bold text-slate-800">ข้อมูลเอกสาร</div>
             <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
               <div className="col-span-1">
@@ -1202,7 +1191,7 @@ function PoSellFormModal({
             </div>
           </div>
 
-          <div className="rounded-md border border-slate-200 bg-white p-4 shadow">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow">
             <div className="mb-2 flex items-center justify-between gap-3">
               <label className="font-medium text-slate-800">📋 รายการสินค้า ({form.items.length})</label>
               <UiButton className="h-9 rounded-md bg-emerald-600 font-normal hover:bg-emerald-700 text-white transition-colors outline-none focus:ring-0" size="xs" type="button" variant="default" onClick={onAddItem}>+ เพิ่มรายการ</UiButton>
@@ -1254,7 +1243,7 @@ function PoSellFormModal({
  
            <div className="grid gap-3 grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px]">
               <div className="flex flex-col gap-3">
-                <label className={`flex items-center gap-3 rounded-md border p-3 cursor-pointer select-none transition-colors ${form.hasVat ? 'border-amber-500 bg-amber-50/50' : 'border-slate-300 bg-white'}`}>
+                <label className={`flex items-center gap-3 rounded-xl border p-3 cursor-pointer select-none transition-colors ${form.hasVat ? 'border-amber-500 bg-amber-50/50' : 'border-slate-300 bg-white'}`}>
                   <input
                     checked={form.hasVat}
                     className="h-5 w-5 rounded border-slate-300 text-amber-600 focus:ring-0 outline-none"
@@ -1263,7 +1252,7 @@ function PoSellFormModal({
                   />
                   <span className="font-bold text-slate-700">มี VAT</span>
                 </label>
-                <div className="rounded-md border border-slate-200 bg-white p-4 shadow flex-1 flex flex-col">
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow flex-1 flex flex-col">
                   <label className="mb-1 block text-xs font-medium text-slate-600">หมายเหตุ</label>
                   <textarea className="min-h-16 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus-visible:outline-none focus:border-slate-400 focus:ring-0 outline-none transition-colors flex-1" rows={2} value={form.note ?? ''} onChange={(event) => onUpdate('note', event.target.value || null)} />
                   {fieldError('note')}
@@ -1372,7 +1361,7 @@ function PoSellDetailModal({
 
         <div className="flex-1 overflow-y-auto bg-slate-50 p-4 space-y-4 text-sm">
           {/* ข้อมูลเอกสาร */}
-          <div className="rounded-md border border-slate-200 bg-white p-5 shadow">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow">
             <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">ข้อมูลเอกสาร</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
               <DetailItem label="วันที่สร้างรายการ" value={formatDateDisplay(row.createdAt)} />
@@ -1384,7 +1373,7 @@ function PoSellDetailModal({
           </div>
 
           {/* สถานะรายการ */}
-          <div className="rounded-md border border-slate-200 bg-white p-5 shadow">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow">
             <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">สถานะรายการ</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
               <div>
@@ -1399,7 +1388,7 @@ function PoSellDetailModal({
           </div>
 
           {/* จำนวนและรายได้ */}
-          <div className="rounded-md border border-slate-200 bg-white p-5 shadow">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow">
             <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">จำนวนและรายได้</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
               <DetailItem label="จำนวนจองรวม" value={`${formatMoney(row.qty)} กก.`} />
@@ -1424,7 +1413,7 @@ function PoSellDetailModal({
           </div>
 
           {/* รายการสินค้า */}
-          <div className="rounded-md border border-slate-200 bg-white p-5 shadow">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow">
             <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">รายการสินค้า</h4>
             <div className="text-sm font-semibold text-slate-900 mt-1">{row.productName || '-'}</div>
           </div>

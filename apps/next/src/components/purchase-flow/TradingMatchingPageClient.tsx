@@ -3,8 +3,10 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -214,19 +216,21 @@ export function TradingMatchingPageClient() {
         <Metric label="ต้นทุนคงเหลือ" tone="amber" value={formatMoney(totals.remainingCost)} />
       </div>
 
-      <div className="flex flex-wrap items-center rounded-md bg-white px-2 shadow-sm">
-        <button className={`border-b-2 px-5 py-3.5 text-sm font-semibold outline-none focus:outline-none focus:ring-0 transition-colors ${tab === 'allocations' ? 'border-slate-700 text-slate-800' : 'border-transparent text-slate-500 hover:text-slate-850'}`} type="button" onClick={() => setTab('allocations')}>รายการจับคู่ ({filteredDeals.length})</button>
-        <button className={`border-b-2 px-5 py-3.5 text-sm font-semibold outline-none focus:outline-none focus:ring-0 transition-colors ${tab === 'remaining' ? 'border-slate-700 text-slate-800' : 'border-transparent text-slate-500 hover:text-slate-850'}`} type="button" onClick={() => setTab('remaining')}>ต้นทุนคงเหลือ ({remainingPurchases.length})</button>
-      </div>
+      <Tabs className="gap-0" value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
+        <TabsList className="w-full flex-nowrap overflow-x-auto" variant="line">
+          <TabsTrigger value="allocations" variant="line">รายการจับคู่ ({filteredDeals.length})</TabsTrigger>
+          <TabsTrigger value="remaining" variant="line">ต้นทุนคงเหลือ ({remainingPurchases.length})</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
-      <div className="rounded-md border border-slate-200 bg-white p-3 shadow">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
+          <input autoComplete="off" className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-750 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" placeholder="ค้นหาบิลขาย / บิลซื้อ / คู่ค้า / สินค้า" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <DatePickerInput ariaLabel="วันที่เริ่มต้น" className="h-9 text-sm" value={fromDate} onChange={setFromDate} />
           <DatePickerInput ariaLabel="วันที่สิ้นสุด" className="h-9 text-sm" value={toDate} onChange={setToDate} />
-          <input autoComplete="off" className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-750 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" placeholder="ค้นหาบิลขาย / บิลซื้อ / คู่ค้า / สินค้า" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           {hasFilters ? <button className="h-9 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-655 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus:ring-0" type="button" onClick={resetFilters}>ล้าง</button> : null}
           <button className="h-9 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-655 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus:ring-0" type="button" onClick={() => void loadData()}>รีเฟรช</button>
-          <a className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-slate-800 focus:outline-none focus:ring-0" href={exportHref}>ส่งออก Excel</a>
+          <a className="inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-0" href={exportHref}>ส่งออก Excel</a>
           <div className="flex flex-wrap gap-2 lg:ml-auto">
             {allocationLinks.map((item) => (
               <Link key={item.href} className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-xs transition-colors hover:bg-slate-50 focus:outline-none focus:ring-0" href={item.href}>
@@ -275,9 +279,9 @@ export function TradingMatchingPageClient() {
         {tab === 'allocations' ? (
           <>
             <div className="block space-y-3 p-3 lg:hidden">
-              {isLoading ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">กำลังโหลดข้อมูล</div> : null}
+              {isLoading ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">กำลังโหลดข้อมูล</div> : null}
               {!isLoading && pagedFilteredDeals.map((row) => (
-                <button key={row.id} className="block w-full rounded-md border border-slate-200 bg-white p-4 text-left shadow-sm hover:bg-slate-50/50 active:bg-slate-100/50 transition-all outline-none focus:outline-none focus:ring-0 cursor-pointer" type="button" onClick={() => setSelectedDeal(row)}>
+                <button key={row.id} className="block w-full rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:bg-slate-50/50 active:bg-slate-100/50 transition-all outline-none focus:outline-none focus:ring-0 cursor-pointer" type="button" onClick={() => setSelectedDeal(row)}>
                   <div className="flex justify-between gap-3 border-b border-slate-100 pb-2 mb-2">
                     <span className="font-bold text-slate-800 text-sm">{row.salesBillNo || '-'}</span>
                     <span className="text-xs text-slate-400 font-semibold">{formatDateDisplay(row.date)}</span>
@@ -291,7 +295,7 @@ export function TradingMatchingPageClient() {
                   </div>
                 </button>
               ))}
-              {!isLoading && filteredDeals.length === 0 ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">ยังไม่มี allocation ตามเงื่อนไขที่ค้นหา</div> : null}
+              {!isLoading && filteredDeals.length === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">ยังไม่มี allocation ตามเงื่อนไขที่ค้นหา</div> : null}
             </div>
 
             <div className="hidden overflow-x-auto lg:block">
@@ -302,7 +306,7 @@ export function TradingMatchingPageClient() {
                   </button>
                 ) : null}
               </div>
-              <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
                 <colgroup>
                   {allocationColumns.map((col) => (
                     <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -355,7 +359,7 @@ export function TradingMatchingPageClient() {
           <>
             <div className="block space-y-3 p-3 lg:hidden">
               {pagedRemainingPurchases.map((row) => <RemainingPurchaseCard key={row.id} row={row} />)}
-              {!isLoading && remainingPurchases.length === 0 ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">ไม่มีต้นทุน Trading คงเหลือ</div> : null}
+              {!isLoading && remainingPurchases.length === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">ไม่มีต้นทุน Trading คงเหลือ</div> : null}
             </div>
 
             <div className="hidden lg:block">
@@ -376,7 +380,7 @@ function Amount({ label, tone, value }: { label: string; tone: 'emerald' | 'purp
 
 function RemainingPurchaseCard({ row }: { row: TradingPurchaseRow }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4 text-xs shadow space-y-2.5">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs shadow space-y-2.5">
       <div className="flex justify-between gap-3 font-bold text-slate-800 border-b border-slate-100 pb-2">
         <span className="font-mono">{row.docNo}</span>
         <span className="text-slate-400 font-semibold">{formatDateDisplay(row.date)}</span>
@@ -422,7 +426,7 @@ function RemainingPurchaseTable({
         ) : null}
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {remainingColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -458,26 +462,7 @@ function RemainingPurchaseTable({
 }
 
 function Metric({ label, tone = 'slate', value }: { label: string; tone?: 'amber' | 'emerald' | 'purple' | 'red' | 'slate'; value: string }) {
-  const tones = {
-    amber: { bg: 'bg-amber-50', text: 'text-amber-600', emoji: '⏳' },
-    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', emoji: '📈' },
-    purple: { bg: 'bg-purple-50', text: 'text-purple-655', emoji: '💰' },
-    red: { bg: 'bg-red-50', text: 'text-red-650', emoji: '📉' },
-    slate: { bg: 'bg-slate-100', text: 'text-slate-600', emoji: '📋' },
-  }
-  const style = tones[tone] ?? tones.slate
-
-  return (
-    <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3 w-full">
-      <div className={`w-10 h-10 rounded-full ${style.bg} ${style.text} flex items-center justify-center text-lg shrink-0`}>
-        {style.emoji}
-      </div>
-      <div>
-        <div className="text-xs text-slate-500 font-semibold mb-0.5">{label}</div>
-        <div className="text-lg font-bold text-slate-800 leading-tight">{value}</div>
-      </div>
-    </div>
-  )
+  return <SharedKpiCard label={label} tone={tone} value={value} />
 }
 
 function DealDetailModal({ deal, onClose }: { deal: TradingDealRow; onClose: () => void }) {
@@ -497,7 +482,7 @@ function DealDetailModal({ deal, onClose }: { deal: TradingDealRow; onClose: () 
         </DialogHeader>
 
         <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4 text-sm sm:p-5">
-          <div className="grid gap-3 rounded-md border border-slate-100 bg-white p-5 shadow md:grid-cols-3">
+          <div className="grid gap-3 rounded-xl border border-slate-100 bg-white p-5 shadow md:grid-cols-3">
             <Detail label="วันที่" value={deal.date || '-'} />
             <Detail label="Qty" value={formatMoney(deal.matchedQty)} />
             <Detail label="GP %" value={`${formatMoney(deal.grossProfitPct)}%`} />

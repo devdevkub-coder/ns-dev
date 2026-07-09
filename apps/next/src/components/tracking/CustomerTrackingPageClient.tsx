@@ -2,14 +2,21 @@
 
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Download, Search } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
+import { TrackingPagination, trackingPageSizeOptions } from '@/components/tracking/TrackingPagination'
+import { trackingCurrentYear, trackingScopeYear, trackingYearEnd, trackingYearStart } from '@/components/tracking/trackingDateRange'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 
 type CustomerTrackingColumnKey =
   | 'code'
@@ -24,7 +31,7 @@ type CustomerTrackingColumnKey =
   | 'profitPerKg'
   | 'receivedAmount'
   | 'receivable'
-  | 'overdueArAmount'
+  | 'oldestArAgeDays'
 
 const trackingColumns: Array<ResizableColumnDefinition<CustomerTrackingColumnKey>> = [
   { key: 'code', defaultWidth: 90, minWidth: 80 },
@@ -39,7 +46,7 @@ const trackingColumns: Array<ResizableColumnDefinition<CustomerTrackingColumnKey
   { key: 'profitPerKg', defaultWidth: 90, minWidth: 80 },
   { key: 'receivedAmount', defaultWidth: 120, minWidth: 100 },
   { key: 'receivable', defaultWidth: 120, minWidth: 100 },
-  { key: 'overdueArAmount', defaultWidth: 110, minWidth: 90 },
+  { key: 'oldestArAgeDays', defaultWidth: 115, minWidth: 95 },
 ]
 
 type CustomerTrackingRow = {
@@ -128,6 +135,7 @@ const customerYearCompareColumns: Array<ResizableColumnDefinition<CustomerYearCo
 ]
 
 export function CustomerTrackingPageClient() {
+  const currentYear = trackingCurrentYear()
   const [productCategory, setProductCategory] = useState('')
   const [productId, setProductId] = useState('')
   const [data, setData] = useState<CustomerTrackingPayload | null>(null)
@@ -135,14 +143,18 @@ export function CustomerTrackingPageClient() {
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [month, setMonth] = useState('')
+  const [dateFrom, setDateFrom] = useState(trackingYearStart(currentYear))
+  const [dateTo, setDateTo] = useState(trackingYearEnd(currentYear))
   const [search, setSearch] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const [year, setYear] = useState(String(new Date().getFullYear()))
+  const [view, setView] = useState<'list' | 'top10' | 'yearCompare'>('list')
   const [sortKey, setSortKey] = useState<string | undefined>(undefined)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<(typeof trackingPageSizeOptions)[number]>(10)
+  const scopeYear = trackingScopeYear(dateFrom)
 
-  const columnResize = useResizableColumns('tracking.customer.main.v6', trackingColumns)
+  const columnResize = useResizableColumns('tracking.customer.main.v7', trackingColumns)
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -154,13 +166,14 @@ export function CustomerTrackingPageClient() {
   }
 
   const queryString = useMemo(() => {
-    const params = new URLSearchParams({ year })
-    if (month) params.set('month', month)
+    const params = new URLSearchParams({ year: scopeYear })
+    if (dateFrom) params.set('dateFrom', dateFrom)
+    if (dateTo) params.set('dateTo', dateTo)
     if (productCategory) params.set('productCategory', productCategory)
     if (productId) params.set('productId', productId)
     if (search.trim()) params.set('q', search.trim())
     return params.toString()
-  }, [month, productCategory, productId, search, year])
+  }, [dateFrom, dateTo, productCategory, productId, scopeYear, search])
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -168,7 +181,7 @@ export function CustomerTrackingPageClient() {
     try {
       setData(await dailyFetchJson<CustomerTrackingPayload>(`/api/tracking/customer?${queryString}`))
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'โหลด Customer Tracking ไม่ได้')
+      setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลลูกค้าไม่ได้')
     } finally {
       setIsLoading(false)
     }
@@ -177,6 +190,10 @@ export function CustomerTrackingPageClient() {
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  useEffect(() => {
+    setPage(1)
+  }, [queryString, sortDirection, sortKey, view])
 
   const openDetail = useCallback(async (row: CustomerTrackingRow) => {
     setIsDetailLoading(true)
@@ -207,12 +224,12 @@ export function CustomerTrackingPageClient() {
       const payload = await dailyFetchJson<CustomerTrackingPayload>(`/api/tracking/customer?${params.toString()}`)
       setDetail(payload.detail ?? null)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'โหลดรายละเอียด Customer ไม่ได้')
+      setError(caught instanceof Error ? caught.message : 'โหลดรายละเอียดลูกค้าไม่ได้')
       setDetail(null)
     } finally {
       setIsDetailLoading(false)
     }
-  }, [queryString])
+  }, [queryString, setDetail])
 
   const rows = useMemo(() => data?.rows ?? [], [data?.rows])
 
@@ -237,6 +254,14 @@ export function CustomerTrackingPageClient() {
     }
     return result
   }, [rows, sortKey, sortDirection])
+  const totalRows = sortedRows.length
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const pagedRows = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return sortedRows.slice(start, start + pageSize)
+  }, [currentPage, pageSize, sortedRows])
+  const overdueCustomerCount = useMemo(() => rows.filter((row) => row.overdueArAmount > 0).length, [rows])
 
   const topRevenue = [...rows].sort((left, right) => right.revenue - left.revenue).slice(0, 10)
   const topGp = [...rows].sort((left, right) => right.gp - left.gp).slice(0, 10)
@@ -253,14 +278,17 @@ export function CustomerTrackingPageClient() {
     }))
   }, [data?.filters?.products, productCategory])
 
-  const [view, setView] = useState<'list' | 'top10' | 'yearCompare'>('list')
   const exportHref = `/api/tracking/customer?${queryString}&format=xlsx`
-
-  useEffect(() => {
-    if (view === 'yearCompare') {
-      setMonth('')
-    }
-  }, [view, setMonth])
+  const defaultDateFrom = trackingYearStart(currentYear)
+  const defaultDateTo = trackingYearEnd(currentYear)
+  const hasActiveFilters = Boolean(search || productCategory || productId || dateFrom !== defaultDateFrom || dateTo !== defaultDateTo)
+  const resetFilters = () => {
+    setDateFrom(defaultDateFrom)
+    setDateTo(defaultDateTo)
+    setProductCategory('')
+    setProductId('')
+    setSearch('')
+  }
 
   return (
     <section className="space-y-4">
@@ -270,38 +298,43 @@ export function CustomerTrackingPageClient() {
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid grid-cols-2 gap-2.5 text-sm sm:gap-4 lg:grid-cols-5">
-        <SummaryCard icon="👥" label="ลูกค้า" tone="emerald" value={`${data?.summary.customers ?? 0}`} />
+      <div className="grid grid-cols-2 gap-2.5 text-sm sm:gap-4 lg:grid-cols-4">
         <SummaryCard icon="⚖️" label="น้ำหนัก" tone="blue" value={`${formatMoney(data?.summary.qty ?? 0)} กก.`} />
         <SummaryCard icon="💰" label="ยอดขาย" tone="emerald" value={formatMoney(data?.summary.revenue ?? 0)} />
-        <SummaryCard icon="📥" label="รับเงินแล้ว" tone="emerald" value={formatMoney(data?.summary.receivedAmount ?? 0)} />
-        <SummaryCard className="col-span-2 lg:col-span-1" icon="🧾" label="ลูกหนี้ค้าง" tone="amber" value={formatMoney(data?.summary.receivable ?? 0)} />
+        <SummaryCard icon="🧾" label="ลูกหนี้ค้าง" tone="amber" value={formatMoney(data?.summary.receivable ?? 0)} />
+        <SummaryCard icon="⏰" label="ลูกค้าเกินกำหนด" tone="amber" value={`${overdueCustomerCount.toLocaleString('th-TH')} ราย`} />
       </div>
 
+      <Tabs className="min-w-0" value={view} onValueChange={(value) => setView(value as 'list' | 'top10' | 'yearCompare')}>
+        <TabsList className="w-full min-w-0 overflow-x-auto" variant="line">
+          <TabsTrigger value="list" variant="line">รายการ</TabsTrigger>
+          <TabsTrigger value="top10" variant="line">Top 10 + วิเคราะห์</TabsTrigger>
+          <TabsTrigger value="yearCompare" variant="line">รายปี (12 เดือน)</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {/* Filters Toolbar */}
-      <div className="rounded-xl bg-white p-3 border border-slate-200/60 shadow-sm">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         {/* Desktop View */}
-        <div className="hidden lg:block space-y-3">
+        <div className="hidden lg:block space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <input
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
-              type="number"
-              placeholder="ปี ค.ศ."
-              value={year}
-              onChange={(event) => setYear(event.target.value)}
-            />
-            <select
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100 outline-none disabled:opacity-50"
-              value={month}
-              disabled={view === 'yearCompare'}
-              onChange={(event) => setMonth(event.target.value)}
-            >
-              <option value="">ทั้งปี</option>
-              {months.map((value, index) => <option key={value} value={value}>{monthLabels[index]}</option>)}
-            </select>
+            <label className="relative block min-w-[260px] flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 pl-9 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
+                placeholder="ค้นหาลูกค้า"
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
+            <label className="text-xs text-slate-500">วันที่:</label>
+            <DatePickerInput value={dateFrom} onChange={setDateFrom} />
+            <span className="text-slate-400">→</span>
+            <DatePickerInput value={dateTo} onChange={setDateTo} />
 
             <select
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100 outline-none"
+              className="h-9 w-[10rem] rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100 outline-none"
               value={productCategory}
               onChange={(event) => { setProductCategory(event.target.value); setProductId('') }}
             >
@@ -312,21 +345,20 @@ export function CustomerTrackingPageClient() {
             </select>
 
 
+            <div className="min-w-[190px]">
+              <SearchCombobox
+                hideLabel
+                inputClassName="h-9 text-sm"
+                inputId="tracking-customer-filter-product"
+                label="สินค้า"
+                options={productSearchOptions}
+                placeholder="เลือกสินค้า"
+                value={productId}
+                onChange={setProductId}
+              />
+            </div>
 
-            <input
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm min-w-[200px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
-              placeholder="ค้นหา Customer"
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-
-            <a
-              className="ml-auto inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-4 text-center text-sm font-bold text-white hover:bg-emerald-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
-              href={exportHref}
-            >
-              📥 Export Excel
-            </a>
+            <button className="h-9 rounded-md bg-slate-100 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-60" disabled={!hasActiveFilters} type="button" onClick={resetFilters}>ล้างตัวกรอง</button>
           </div>
         </div>
 
@@ -335,51 +367,54 @@ export function CustomerTrackingPageClient() {
           <div className="flex gap-2">
             <input
               className="min-w-0 flex-1 h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
-              placeholder="ค้นหา Customer..."
+              placeholder="ค้นหาลูกค้า..."
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
             <button
-              className={`h-9 rounded-md border px-2 text-xs font-semibold transition-colors flex items-center gap-1 shrink-0 focus-visible:outline-none sm:px-3 sm:text-sm ${
-                showMobileFilters ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-700 border-slate-100'
+              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors focus-visible:outline-none ${
+                showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
               }`}
               type="button"
               onClick={() => setShowMobileFilters(!showMobileFilters)}
             >
-              🔍 ตัวกรอง
+              ตัวกรอง
             </button>
             <a
-              className="h-9 inline-flex items-center justify-center rounded-md bg-emerald-600 px-2 text-xs font-bold text-white shrink-0 sm:px-3 sm:text-sm"
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 text-sm font-bold text-white hover:bg-emerald-700"
               href={exportHref}
             >
-              📥 XLSX
+              <Download aria-hidden="true" className="size-4" />
+              <span>ส่งออก Excel</span>
             </a>
           </div>
 
-              {showMobileFilters && (
-            <div className="grid grid-cols-1 gap-2.5 pt-2 border-t border-slate-100 animate-in slide-in-from-top-2 duration-100">
+          {showMobileFilters && (
+            <MobileFilterSheet
+              title="ตัวกรองลูกค้า"
+              onClose={() => setShowMobileFilters(false)}
+              footer={(
+                <>
+                  <button
+                    className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700"
+                    type="button"
+                    onClick={resetFilters}
+                  >
+                    ล้างตัวกรอง
+                  </button>
+                  <button className="h-9 rounded-md bg-slate-900 px-3 text-sm font-medium text-white" type="button" onClick={() => setShowMobileFilters(false)}>ใช้ตัวกรอง</button>
+                </>
+              )}
+            >
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-slate-500 font-semibold">
-                  ปี
-                  <input
-                    className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
-                    type="number"
-                    value={year}
-                    onChange={(event) => setYear(event.target.value)}
-                  />
+                  จากวันที่
+                  <DatePickerInput className="mt-1 w-full" value={dateFrom} onChange={setDateFrom} />
                 </label>
                 <label className="text-xs text-slate-500 font-semibold">
-                  เดือน
-                  <select
-                    className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100 disabled:opacity-50"
-                    value={month}
-                    disabled={view === 'yearCompare'}
-                    onChange={(event) => setMonth(event.target.value)}
-                  >
-                    <option value="">ทั้งปี</option>
-                    {months.map((value, index) => <option key={value} value={value}>{monthLabels[index]}</option>)}
-                  </select>
+                  ถึงวันที่
+                  <DatePickerInput className="mt-1 w-full" value={dateTo} onChange={setDateTo} />
                 </label>
               </div>
 
@@ -396,43 +431,33 @@ export function CustomerTrackingPageClient() {
                   ))}
                 </select>
               </label>
-
-
-
-              <div className="flex justify-end pt-1">
-                <button
-                  className="rounded-md bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors focus-visible:outline-none"
-                  type="button"
-                  onClick={() => {
-                    setYear(String(new Date().getFullYear()))
-                    setMonth('')
-                    setProductCategory('')
-                    setProductId('')
-                    setSearch('')
-                  }}
-                >
-                  ล้างตัวกรอง
-                </button>
-              </div>
-            </div>
+              <SearchCombobox inputClassName="h-9 text-sm" inputId="tracking-customer-mobile-product" label="สินค้า" options={productSearchOptions} placeholder="เลือกสินค้า" value={productId} onChange={setProductId} />
+            </MobileFilterSheet>
           )}
+        </div>
+
+        <div className="mt-3 hidden items-center justify-end gap-2 lg:flex">
+          <a
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-center text-sm font-bold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
+            href={exportHref}
+          >
+            <Download aria-hidden="true" className="size-4" />
+            <span>ส่งออก Excel</span>
+          </a>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-2 border border-slate-100 shadow-sm">
-        <Tab active={view === 'list'} label="รายการ + สถิติ" onClick={() => setView('list')} />
-        <Tab active={view === 'top10'} label="Top 10 + วิเคราะห์" onClick={() => setView('top10')} />
-        <Tab active={view === 'yearCompare'} label="รายปี (12 เดือน)" onClick={() => setView('yearCompare')} />
-        {columnResize.hasCustomWidths && (
+      {columnResize.hasCustomWidths && (
+        <div className="flex justify-end">
           <button
-            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors focus-visible:outline-none ml-auto"
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
             คืนค่าเดิมตาราง
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {view === 'yearCompare' ? <YearCompare rows={rows} /> : null}
       {view === 'top10' ? (
@@ -446,11 +471,20 @@ export function CustomerTrackingPageClient() {
 
       {view === 'list' ? (
         <>
+        <TrackingPagination
+          currentPage={currentPage}
+          isLoading={isLoading}
+          pageSize={pageSize}
+          totalPages={totalPages}
+          totalRows={totalRows}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
         <div className="space-y-3 lg:hidden">
           {isLoading ? <div className="rounded-xl border border-slate-100 bg-white p-8 text-center text-slate-500 shadow-sm">กำลังโหลดข้อมูล</div> : null}
-          {!isLoading && sortedRows.length === 0 ? <div className="rounded-xl border border-slate-100 bg-white p-8 text-center text-slate-400 shadow-sm">ไม่มีข้อมูล Customer Tracking</div> : null}
-          {!isLoading && sortedRows.map((row) => (
-            <div key={row.id} className="space-y-3 rounded-xl border border-slate-100 bg-white p-4 shadow-sm active:bg-slate-50/50 cursor-pointer transition-colors focus-visible:outline-none" role="button" tabIndex={0} onClick={() => void openDetail(row)} onKeyDown={(event) => { if (event.key === 'Enter') void openDetail(row) }}>
+          {!isLoading && sortedRows.length === 0 ? <div className="rounded-xl border border-slate-100 bg-white p-8 text-center text-slate-400 shadow-sm">ไม่มีข้อมูลลูกค้า</div> : null}
+          {!isLoading && pagedRows.map((row) => (
+            <div key={row.id} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50/50 cursor-pointer transition-colors focus-visible:outline-none" role="button" tabIndex={0} onClick={() => void openDetail(row)} onKeyDown={(event) => { if (event.key === 'Enter') void openDetail(row) }}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="truncate text-sm font-bold text-slate-800">{row.customerName}</div>
@@ -463,13 +497,13 @@ export function CustomerTrackingPageClient() {
                 <MiniLine label="GP" tone={row.gp >= 0 ? 'emerald' : 'red'} value={formatMoney(row.gp)} />
                 <MiniLine label="น้ำหนัก" value={`${formatMoney(row.qty)} กก.`} />
                 <MiniLine label="ลูกหนี้" tone="amber" value={formatMoney(row.receivable)} />
-                <MiniLine label="เกินกำหนด" tone={row.overdueArAmount > 0 ? 'red' : 'slate'} value={formatMoney(row.overdueArAmount)} />
+                <MiniLine label="อายุหนี้" tone={row.overdueArAmount > 0 ? 'red' : row.receivable > 0 ? 'amber' : 'slate'} value={debtAgeLabel(row)} />
               </div>
             </div>
           ))}
         </div>
-        <div className="hidden overflow-x-auto rounded-xl bg-white border border-slate-200/60 shadow-sm lg:block">
-          <table className="w-full text-sm border-collapse" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+          <table className="ns-table w-full text-sm border-collapse" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {trackingColumns.map((col) => (
                 <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -477,8 +511,8 @@ export function CustomerTrackingPageClient() {
             </colgroup>
             <thead className="bg-slate-100/75 text-slate-700 border-b border-slate-200">
               <tr>
-                <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="Code" resizeProps={columnResize.getResizeHandleProps('code', 'Code')} sortKey="code" onSort={handleSort} />
-                <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="Customer" resizeProps={columnResize.getResizeHandleProps('customerName', 'Customer')} sortKey="customerName" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} sortKey="code" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} sortKey="customerName" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="บิล" resizeProps={columnResize.getResizeHandleProps('billCount', 'บิล')} sortKey="billCount" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="น้ำหนัก" resizeProps={columnResize.getResizeHandleProps('qty', 'น้ำหนัก')} sortKey="qty" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ยอดขาย" resizeProps={columnResize.getResizeHandleProps('revenue', 'ยอดขาย')} sortKey="revenue" onSort={handleSort} />
@@ -489,13 +523,13 @@ export function CustomerTrackingPageClient() {
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="฿/กก." resizeProps={columnResize.getResizeHandleProps('profitPerKg', '฿/กก.')} sortKey="profitPerKg" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="รับเงิน" resizeProps={columnResize.getResizeHandleProps('receivedAmount', 'รับเงิน')} sortKey="receivedAmount" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ลูกหนี้" resizeProps={columnResize.getResizeHandleProps('receivable', 'ลูกหนี้')} sortKey="receivable" onSort={handleSort} />
-                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="เกินกำหนด" resizeProps={columnResize.getResizeHandleProps('overdueArAmount', 'เกินกำหนด')} sortKey="overdueArAmount" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="อายุหนี้" resizeProps={columnResize.getResizeHandleProps('oldestArAgeDays', 'อายุหนี้')} sortKey="oldestArAgeDays" onSort={handleSort} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={13}>กำลังโหลดข้อมูล</td></tr> : null}
-              {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-slate-400 text-center" colSpan={13}>ไม่มีข้อมูล Customer Tracking</td></tr> : null}
-              {!isLoading && sortedRows.map((row) => (
+              {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-slate-400 text-center" colSpan={13}>ไม่มีข้อมูลลูกค้า</td></tr> : null}
+              {!isLoading && pagedRows.map((row) => (
                 <tr key={row.id} className="cursor-pointer hover:bg-slate-50 transition-colors focus-visible:outline-none" onClick={() => void openDetail(row)}>
                   <td className="p-3 pl-4 font-mono text-xs text-slate-400 min-w-0 overflow-hidden"><div className="truncate" title={row.code || ''}>{row.code || '-'}</div></td>
                   <td className="p-3 font-medium text-slate-800 min-w-0 overflow-hidden"><div className="truncate" title={row.customerName || ''}>{row.customerName}</div></td>
@@ -509,7 +543,7 @@ export function CustomerTrackingPageClient() {
                   <td className="p-3 text-right font-mono text-slate-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.profitPerKg)}</td>
                   <td className="p-3 text-right font-mono text-slate-700 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.receivedAmount)}</td>
                   <td className="p-3 text-right font-mono text-amber-700 font-semibold whitespace-nowrap tabular-nums pl-4">{formatMoney(row.receivable)}</td>
-                  <td className="p-3 pr-4 text-right font-mono text-red-600 whitespace-nowrap tabular-nums pl-4">{formatMoney(row.overdueArAmount)}</td>
+                  <td className="p-3 pr-4 text-right whitespace-nowrap pl-4"><DebtAgeBadge row={row} /></td>
                 </tr>
               ))}
             </tbody>
@@ -554,20 +588,20 @@ export function CustomerTrackingPageClient() {
 
   return (
     <Dialog open={detail !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden rounded-md border-0 bg-slate-900 !p-0 shadow-2xl outline-none focus:outline-none flex flex-col" fallbackTitle="Customer Tracking Detail" hideClose>
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden rounded-md border-0 bg-slate-900 !p-0 shadow-2xl outline-none focus:outline-none flex flex-col" fallbackTitle="รายละเอียดลูกค้า" hideClose>
         <DialogHeader className="shrink-0 rounded-t-md bg-slate-900 px-5 py-4 text-white">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
             <div className="min-w-0 space-y-1">
-              <DialogTitle className="truncate text-xl font-bold text-white">{detail?.customer.name ?? 'รายละเอียด Customer'}</DialogTitle>
+              <DialogTitle className="truncate text-xl font-bold text-white">{detail?.customer.name ?? 'รายละเอียดลูกค้า'}</DialogTitle>
               <DialogDescription className="truncate text-xs text-slate-300">
-                {detail?.customer.code ? `${detail.customer.code} · ` : ''}Sales Bills / Receipts / Monthly movement / Product breakdown
+                {detail?.customer.code ? `${detail.customer.code} · ` : ''}บิลขาย / ใบรับเงิน / รายเดือน / สรุปสินค้า
               </DialogDescription>
             </div>
             <Button className="h-9 shrink-0 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={() => onOpenChange(false)}>ปิด</Button>
           </div>
         </DialogHeader>
         <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4 text-sm sm:p-5">
-          {isLoading ? <div className="rounded-md bg-white p-8 text-center text-sm text-slate-500 border border-slate-100">กำลังโหลดรายละเอียด...</div> : null}
+          {isLoading ? <div className="rounded-xl bg-white p-8 text-center text-sm text-slate-500 border border-slate-100">กำลังโหลดรายละเอียด...</div> : null}
           {!isLoading && detail ? (
             <>
               <DetailSection title="Decision Signals">
@@ -658,7 +692,7 @@ export function CustomerTrackingPageClient() {
                   rows={detail.monthly.map((row, index) => [monthLabels[index] ?? row.month, String(row.billCount), String(row.receiptCount), formatMoney(row.qty), formatMoney(row.revenue), formatMoney(row.gp), formatMoney(row.receivedAmount), formatMoney(row.receivable)])}
                 />
               </DetailSection>
-              <DetailSection title="Product Breakdown">
+              <DetailSection title="สรุปตามสินค้า">
                 <SimpleTable
                   headers={['สินค้า', 'น้ำหนัก', 'ยอดขาย', 'ราคาเฉลี่ย', 'COGS', 'GP', 'GP%']}
                   rows={detail.products.map((row) => [row.productName, formatMoney(row.qty), formatMoney(row.revenue), formatMoney(row.avgSell), formatMoney(row.cogs), formatMoney(row.gp), `${row.gpPct.toFixed(2)}%`])}
@@ -690,7 +724,7 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
     <>
       {/* Desktop Table View */}
       <div className="hidden lg:block overflow-x-auto bg-white">
-        <table className="w-full min-w-[760px] text-sm">
+        <table className="ns-table w-full min-w-[760px] text-sm">
           <thead className="bg-slate-50 border-b border-slate-100">
             <tr>
               {headers.map((header, idx) => (
@@ -775,6 +809,26 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
   )
 }
 
+function debtAgeLabel(row: Pick<CustomerTrackingRow, 'oldestArAgeDays' | 'overdueArAmount' | 'receivable'>) {
+  if (row.overdueArAmount > 0) return `เกิน ${Math.max(0, row.oldestArAgeDays).toLocaleString('th-TH')} วัน`
+  if (row.receivable > 0) return 'ยังไม่ถึงกำหนด'
+  return 'ไม่มีลูกหนี้'
+}
+
+function DebtAgeBadge({ row }: { row: Pick<CustomerTrackingRow, 'oldestArAgeDays' | 'overdueArAmount' | 'receivable'> }) {
+  const tone = row.overdueArAmount > 0
+    ? 'border-red-100 bg-red-50 text-red-700'
+    : row.receivable > 0
+      ? 'border-amber-100 bg-amber-50 text-amber-700'
+      : 'border-slate-100 bg-slate-50 text-slate-500'
+
+  return (
+    <span className={`inline-flex min-w-[6.5rem] justify-center rounded-md border px-2.5 py-1 text-xs font-semibold ${tone}`}>
+      {debtAgeLabel(row)}
+    </span>
+  )
+}
+
 function MiniLine({ label, tone = 'slate', value }: { label: string; tone?: 'amber' | 'emerald' | 'red' | 'slate'; value: string }) {
   const text = tone === 'amber' ? 'text-amber-700' : tone === 'emerald' ? 'text-emerald-700' : tone === 'red' ? 'text-red-700' : 'text-slate-800'
   return (
@@ -786,21 +840,7 @@ function MiniLine({ label, tone = 'slate', value }: { label: string; tone?: 'amb
 }
 
 function SummaryCard({ className = '', icon, label, tone, value }: { className?: string; icon: string; label: string; tone: 'amber' | 'blue' | 'emerald' | 'violet'; value: string }) {
-  const colors = {
-    amber: 'bg-amber-100 text-amber-700 border-amber-200/50',
-    blue: 'bg-blue-100 text-blue-700 border-blue-200/50',
-    emerald: 'bg-emerald-100 text-emerald-700 border-emerald-200/50',
-    violet: 'bg-violet-100 text-violet-700 border-violet-200/50',
-  }[tone]
-  return (
-    <div className={`flex items-center gap-2.5 rounded-xl border border-slate-100 bg-white p-3 shadow-sm sm:gap-4 sm:p-5 ${className}`}>
-      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl sm:h-12 sm:w-12 ${colors.split(' ')[0]}`}>{icon}</div>
-      <div className="min-w-0">
-        <div className={`text-xs ${colors.split(' ')[1]}`}>{label}</div>
-        <div className="truncate font-mono text-lg sm:text-2xl font-bold text-slate-900">{value}</div>
-      </div>
-    </div>
-  )
+  return <SharedKpiCard className={className} icon={icon} label={label} tone={tone} value={value} />
 }
 
 function SignalMetric({ label, value }: { label: string; value: string }) {
@@ -812,38 +852,37 @@ function SignalMetric({ label, value }: { label: string; value: string }) {
   )
 }
 
-function Tab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return (
-    <button
-      className={
-        active
-          ? 'rounded-md bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100'
-          : 'rounded-md bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 hover:text-slate-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200'
-      }
-      type="button"
-      onClick={onClick}
-    >
-      {label}
-    </button>
-  )
-}
-
 function TopPanel({ color, rows, suffix = '', title }: { color: 'amber' | 'blue' | 'emerald' | 'teal'; rows: { label: string; value: number }[]; suffix?: string; title: string }) {
+  const [expanded, setExpanded] = useState(false)
   const header = color === 'amber' ? 'bg-amber-50 text-amber-700 border-amber-100' : color === 'blue' ? 'bg-blue-50 text-blue-700 border-blue-100' : color === 'teal' ? 'bg-teal-50 text-teal-700 border-teal-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+  const hasMore = rows.length > 5
+  const visibleRows = rows.slice(0, expanded ? 10 : 5)
+
   return (
-    <div className="overflow-hidden rounded-xl bg-white border border-slate-100 shadow-sm">
+    <div className="overflow-hidden rounded-md bg-white border border-slate-100 shadow-sm">
       <div className={`border-b border-slate-100 p-3 font-bold ${header}`}>{title}</div>
-      <table className="w-full text-sm">
+      <table className="ns-table w-full text-sm">
         <tbody>
-          {rows.map((row, index) => (
-            <tr key={row.label} className="border-t border-slate-100 hover:bg-slate-50/50">
+          {visibleRows.map((row, index) => (
+            <tr key={`${title}-${row.label}-${index}`} className="border-t border-slate-100 hover:bg-slate-50/50">
               <td className="p-2.5 pl-4 font-bold text-slate-400 w-10">{index + 1}</td>
               <td className="p-2.5 font-medium text-slate-800">{row.label}</td>
-              <td className="p-2.5 pr-4 text-right font-mono font-bold text-slate-900">{formatMoney(row.value)}{suffix}</td>
+              <td className="p-2.5 pr-4 text-right font-mono font-bold text-slate-900">
+                {suffix ? `${row.value.toFixed(2)}${suffix}` : formatMoney(row.value)}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+      {hasMore ? (
+        <button
+          className="h-9 w-full border-t border-slate-100 bg-white text-xs font-semibold text-blue-700 hover:bg-blue-50"
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? 'ย่อเหลือ 5 รายการ' : 'ดูครบ 10 รายการ'}
+        </button>
+      ) : null}
     </div>
   )
 }
@@ -898,26 +937,12 @@ function YearCompare({ rows }: { rows: CustomerTrackingRow[] }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-semibold text-slate-500">แสดงผล:</span>
-        <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200/60 shadow-sm">
-          <button
-            className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none ${
-              mode === 'weight' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
-            }`}
-            type="button"
-            onClick={() => setMode('weight')}
-          >
-            น้ำหนัก (กก.)
-          </button>
-          <button
-            className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none ${
-              mode === 'sales' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
-            }`}
-            type="button"
-            onClick={() => setMode('sales')}
-          >
-            ยอดขาย
-          </button>
-        </div>
+        <Tabs value={mode} onValueChange={(value) => setMode(value as CustomerYearCompareMode)} className="gap-0">
+          <TabsList variant="line" className="flex-wrap overflow-x-auto">
+            <TabsTrigger variant="line" value="weight">น้ำหนัก (กก.)</TabsTrigger>
+            <TabsTrigger variant="line" value="sales">ยอดขาย</TabsTrigger>
+          </TabsList>
+        </Tabs>
         {columnResize.hasCustomWidths ? (
           <button
             className="ml-auto hidden h-8 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 lg:inline-flex"
@@ -929,8 +954,8 @@ function YearCompare({ rows }: { rows: CustomerTrackingRow[] }) {
         ) : null}
       </div>
 
-      <div className="hidden overflow-x-auto rounded-xl bg-white border border-slate-200/60 shadow-sm lg:block">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {customerYearCompareColumns.map((column, index) => (
               <col
@@ -941,7 +966,7 @@ function YearCompare({ rows }: { rows: CustomerTrackingRow[] }) {
           </colgroup>
           <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
             <tr>
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="Customer" resizeProps={columnResize.getResizeHandleProps('customer', 'Customer')} sortKey="customer" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} sortKey="customer" onSort={handleSort} />
               {monthLabels.map((label, index) => {
                 const key = `m${months[index]}` as CustomerYearCompareColumnKey
                 return (

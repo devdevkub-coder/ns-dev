@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
@@ -158,33 +159,9 @@ export function FcdLedgerPageClient() {
       </div>
 
       <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
-        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
-            🏦
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-xs text-slate-500">บัญชี</div>
-            <div className="truncate text-lg font-bold text-slate-800">{data?.account?.name ?? '-'}</div>
-          </div>
-        </div>
-        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${(data?.summary.foreignBalance ?? 0) === 0 ? 'bg-slate-100 text-slate-600' : 'bg-indigo-100 text-indigo-600'} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-            💱
-          </div>
-          <div>
-            <div className={`text-xs ${(data?.summary.foreignBalance ?? 0) === 0 ? 'text-slate-500' : 'text-indigo-600'}`}>ยอดคงเหลือ ({currency || '-'})</div>
-            <div className={`font-mono text-2xl font-bold ${(data?.summary.foreignBalance ?? 0) === 0 ? 'text-slate-900' : 'text-indigo-700'}`}>{formatMoney(data?.summary.foreignBalance ?? 0)}</div>
-          </div>
-        </div>
-        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${(data?.summary.thbBalance ?? 0) === 0 ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-600'} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-            💰
-          </div>
-          <div>
-            <div className={`text-xs ${(data?.summary.thbBalance ?? 0) === 0 ? 'text-slate-500' : 'text-blue-600'}`}>ยอดคงเหลือ THB Equivalent</div>
-            <div className={`font-mono text-2xl font-bold ${(data?.summary.thbBalance ?? 0) === 0 ? 'text-slate-900' : 'text-blue-700'}`}>{formatMoney(data?.summary.thbBalance ?? 0)}</div>
-          </div>
-        </div>
+        <SharedKpiCard icon="🏦" label="บัญชี" tone="slate" value={data?.account?.name ?? '-'} />
+        <SharedKpiCard icon="💱" label={`ยอดคงเหลือ (${currency || '-'})`} tone={(data?.summary.foreignBalance ?? 0) === 0 ? 'slate' : 'indigo'} value={formatMoney(data?.summary.foreignBalance ?? 0)} />
+        <SharedKpiCard icon="💰" label="ยอดคงเหลือ THB Equivalent" tone={(data?.summary.thbBalance ?? 0) === 0 ? 'slate' : 'blue'} value={formatMoney(data?.summary.thbBalance ?? 0)} />
       </div>
 
       <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:hidden">
@@ -196,7 +173,7 @@ export function FcdLedgerPageClient() {
           {tableControls}
         </div>
         <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth, width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth, width: '100%' }}>
           <colgroup>
             {fcdColumns.map((column, index) => {
               const style = columnResize.getColumnStyle(column.key)
@@ -247,17 +224,17 @@ export function FcdLedgerPageClient() {
       {/* Mobile Card list */}
       <div className="block lg:hidden space-y-3">
         {isLoading ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-100">กำลังโหลดข้อมูล</div>
+          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow border border-slate-100">กำลังโหลดข้อมูล</div>
         ) : null}
         {!isLoading && !error && sortedRows.length === 0 ? (
-          <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-100">ยังไม่มีรายการเดินบัญชี FCD</div>
+          <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow border border-slate-100">ยังไม่มีรายการเดินบัญชี FCD</div>
         ) : null}
         {!isLoading && sortedRows.map((row) => {
           const isOpening = isOpeningRow(row)
           return (
             <div
               key={row.id}
-              className={`rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2 text-xs ${isOpening ? 'bg-slate-50' : ''}`}
+              className={`rounded-xl border border-slate-100 bg-white p-4 shadow-sm space-y-2 text-xs ${isOpening ? 'bg-slate-50' : ''}`}
             >
               <div className="flex justify-between items-start">
                 <span className="font-mono text-slate-500 text-xs">{formatFcdDate(row.date)}</span>

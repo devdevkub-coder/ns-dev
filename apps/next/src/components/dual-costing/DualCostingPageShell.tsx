@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { cn } from '@/lib/utils'
 
 export function DualCostingPageSection({ children, className }: { children: ReactNode; className?: string }) {
@@ -8,7 +9,7 @@ export function DualCostingPageSection({ children, className }: { children: Reac
 }
 
 export function DualCostingFilterCard({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('rounded-xl bg-white p-3.5 border border-slate-200/80 shadow-sm', className)}>{children}</div>
+  return <div className={cn('rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm', className)}>{children}</div>
 }
 
 export function DualCostingPanel({
@@ -48,44 +49,7 @@ export function DualCostingStatCard({
   tone?: 'amber' | 'blue' | 'emerald' | 'purple' | 'red' | 'slate'
   value: string
 }) {
-  const tones = {
-    amber: 'bg-amber-100 text-amber-700 border-amber-200/50',
-    blue: 'bg-blue-100 text-blue-700 border-blue-200/50',
-    emerald: 'bg-emerald-100 text-emerald-700 border-emerald-200/50',
-    purple: 'bg-purple-100 text-purple-700 border-purple-200/50',
-    red: 'bg-red-100 text-red-700 border-red-200/50',
-    slate: 'bg-slate-100 text-slate-700 border-slate-200/50',
-  }[tone]
-
-  const textTones = {
-    amber: 'text-amber-700',
-    blue: 'text-blue-700',
-    emerald: 'text-emerald-700',
-    purple: 'text-purple-700',
-    red: 'text-red-600',
-    slate: 'text-slate-900',
-  }[tone]
-
-  if (icon) {
-    return (
-      <div className="min-w-0 flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
-        <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl', tones.split(' ')[0])}>{icon}</div>
-        <div className="min-w-0">
-          <div className={cn('text-xs font-semibold', tones.split(' ')[1])}>{label}</div>
-          <div className={cn('truncate font-mono font-bold text-slate-900 text-base sm:text-lg', textTones)}>{value}</div>
-          {children}
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
-      <div className="text-xs text-slate-500 font-semibold">{label}</div>
-      <div className={cn('mt-1 truncate text-base sm:text-lg font-bold font-mono', textTones)}>{value}</div>
-      {children ? <div className="mt-1">{children}</div> : null}
-    </div>
-  )
+  return <SharedKpiCard icon={icon} label={label} note={children} tone={tone} value={value} />
 }
 
 export function DualCostingCountRow({
@@ -123,7 +87,7 @@ export function DualCostingWorkflowStrip({ active }: { active: 'allocator' | 'le
     <div className="flex flex-wrap items-center gap-2 text-xs">
       {steps.map((step, index) => (
         <div key={step.key} className="flex items-center gap-2">
-          <span className={cn('rounded-lg border px-3 py-1 font-semibold transition-colors shadow-xs', active === step.key ? 'border-slate-800 bg-slate-900 text-white' : 'border-slate-200 bg-slate-50 text-slate-600')}>{step.label}</span>
+          <span className={cn('rounded-md border px-3 py-1 font-medium transition-colors', active === step.key ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700')}>{step.label}</span>
           {index < steps.length - 1 ? <span className="text-slate-400">→</span> : null}
         </div>
       ))}

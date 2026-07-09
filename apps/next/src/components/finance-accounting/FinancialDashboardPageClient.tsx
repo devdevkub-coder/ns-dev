@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 
 type BranchRow = { code: string; id: string; name: string }
@@ -39,7 +40,7 @@ export function FinancialDashboardPageClient() {
       ) : null}
 
       {/* กล่องตัวกรอง (Toolbar Filter) */}
-      <div className="flex flex-wrap items-center gap-4 rounded-md border border-slate-200/80 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex items-center gap-2 text-sm text-slate-600 font-medium">
           <span>ณ วันที่</span>
           <DatePickerInput
@@ -214,7 +215,7 @@ function money(value?: number) {
 
 function Panel({ children, className = '', title }: { children: ReactNode; className?: string; title: string }) {
   return (
-    <div className={`rounded-md border border-slate-200/80 bg-white p-5 shadow-sm ${className}`}>
+    <div className={`rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm ${className}`}>
       <h3 className="mb-4 font-bold text-slate-800 text-sm md:text-base">{title}</h3>
       {children}
     </div>
@@ -311,17 +312,8 @@ function Section({ children, subtitle, title }: { children: ReactNode; subtitle?
 
 function Card({ label, note, tone, value }: { label: string; note?: string; tone: string; value: string }) {
   const match = label.match(/^([\p{Emoji_Presentation}\p{Emoji}\u200d\u26A0\u2714]+)\s*(.*)$/u)
-  const cleanLabel = match ? match[2] : label
-
-  return (
-    <div className="bg-white shadow-sm border border-slate-200/80 rounded-md p-4">
-      <div className="flex-1 min-w-0">
-        <div className="text-xs text-slate-500 font-medium truncate">{cleanLabel}</div>
-        <div className="text-base md:text-lg font-mono font-bold text-slate-900 truncate mt-0.5">{value}</div>
-        {note ? <div className="text-xs text-slate-400 truncate mt-0.5" title={note}>{note}</div> : null}
-      </div>
-    </div>
-  )
+  const cleanLabel = (match ? match[2] : label).trim()
+  return <SharedKpiCard label={cleanLabel} note={note} tone={tone as KpiCardTone} value={value} />
 }
 
 function WideRow({ label, note, tone, value }: { label: string; note: string; tone: string; value: string }) {
@@ -329,7 +321,7 @@ function WideRow({ label, note, tone, value }: { label: string; note: string; to
   const cleanLabel = match ? match[2] : label
 
   return (
-    <div className="flex items-center justify-between bg-white border border-slate-200/80 rounded-md p-4 shadow-sm">
+    <div className="flex items-center justify-between bg-white border border-slate-200/80 rounded-xl p-4 shadow-sm">
       <div className="flex items-center gap-3">
         <div>
           <div className="text-xs text-slate-700 font-semibold">{cleanLabel}</div>
@@ -346,7 +338,7 @@ function InsightCard({ insight }: { insight: Payload['insights'][number] }) {
   const value = typeof insight.value === 'number' ? money(insight.value) : insight.value
   
   return (
-    <div className="bg-white shadow-sm border border-slate-200/80 rounded-md p-4">
+    <div className="bg-white shadow-sm border border-slate-200/80 rounded-xl p-4">
       <div className="flex-1 min-w-0">
         <div className="text-xs text-slate-700 font-semibold truncate">{insight.title}</div>
         <div className="text-base font-bold font-mono text-slate-900 mt-0.5">{value}</div>

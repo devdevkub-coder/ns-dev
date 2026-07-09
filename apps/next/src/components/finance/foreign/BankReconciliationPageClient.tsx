@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -150,7 +151,7 @@ export function BankReconciliationPageClient() {
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       {/* Filters Toolbar */}
-      <div className="rounded-md bg-white p-3 shadow">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         {/* Desktop View */}
         <div className="hidden lg:flex flex-wrap items-center gap-2">
           <select className="w-72 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
@@ -163,10 +164,7 @@ export function BankReconciliationPageClient() {
           {Boolean(fromDate || toDate) && (
             <button className="rounded-md bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors" type="button" onClick={() => { setFromDate(''); setToDate('') }}>✕ ล้าง</button>
           )}
-          <button className="ml-auto rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white opacity-60 flex items-center" disabled type="button">นำเข้า CSV</button>
-          <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white opacity-60 flex items-center" disabled type="button">จับคู่อัตโนมัติ</button>
         </div>
-
         {/* Mobile View (Collapsible Filters) */}
         <div className="block lg:hidden space-y-2.5">
           <div className="flex gap-2">
@@ -174,15 +172,14 @@ export function BankReconciliationPageClient() {
               {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.label}</option>)}
             </select>
             <button
-              className={`rounded-md border px-3 py-2 text-xs font-semibold transition-colors flex items-center gap-1 shrink-0 ${
-                showMobileFilters ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-700 border-slate-100'
+              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
+                showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
               }`}
               type="button"
               onClick={() => setShowMobileFilters(!showMobileFilters)}
             >
-              🔍 ตัวกรอง
+              ตัวกรอง
             </button>
-            <button className="rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white opacity-60 shrink-0" disabled type="button">CSV</button>
           </div>
 
           {showMobileFilters && (
@@ -271,17 +268,8 @@ function Stat({ label, tone, value }: { label: string; tone?: 'matched' | 'unmat
       }
     : configs[tone || 'slate']
 
-  return (
-    <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-        {config.emoji}
-      </div>
-      <div>
-        <div className={`text-xs ${config.labelColor}`}>{label}</div>
-        <div className={`text-xl font-bold ${config.valueColor}`}>{value}</div>
-      </div>
-    </div>
-  )
+  const sharedTone: KpiCardTone = isZero ? 'slate' : tone === 'matched' ? 'emerald' : tone === 'unmatched' ? 'amber' : tone === 'erp' ? 'red' : tone === 'ignored' ? 'slate' : 'blue'
+  return <SharedKpiCard icon={config.emoji} label={label} tone={sharedTone} value={value.toLocaleString('th-TH')} />
 }
 
 function Panel({
@@ -299,7 +287,7 @@ function Panel({
 }) {
   const heading = tone === 'bank' ? 'bg-blue-50/50 text-blue-900' : 'bg-emerald-50/50 text-emerald-900'
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200/60 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-200/60 bg-white shadow-sm">
       <div className={`border-b border-slate-100 px-4 py-3 flex items-center justify-between ${heading}`}>
         <h3 className="text-sm font-semibold">{title}</h3>
         {hasCustomWidths && onResetWidths && (
@@ -338,7 +326,7 @@ function ImportedTable({
 }) {
   return (
     <>
-      <table className="hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+      <table className="ns-table hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
         <colgroup>
           {importedColumns.map((column) => (
             <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -403,7 +391,7 @@ function ImportedTable({
           <div className="py-6 text-center text-slate-400 text-xs">ยังไม่ได้ import statement</div>
         ) : null}
         {!isLoading && rows.map((row) => (
-          <div key={row.id} className="rounded-md border border-slate-100 bg-white p-3.5 shadow-sm space-y-2 text-sm">
+          <div key={row.id} className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm space-y-2 text-sm">
             <div className="flex justify-between items-start">
               <span className="font-mono text-slate-500 text-xs">{formatDateDisplay(row.date)}</span>
               <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${row.matchStatus === 'Matched' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -449,7 +437,7 @@ function ErpTable({
 }) {
   return (
     <>
-      <table className="hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+      <table className="ns-table hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
         <colgroup>
           {erpColumns.map((column) => (
             <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -504,7 +492,7 @@ function ErpTable({
           <div className="py-6 text-center text-slate-400 text-xs">ไม่มีรายการใน ERP</div>
         ) : null}
         {!isLoading && rows.map((row) => (
-          <div key={row.id} className="rounded-md border border-slate-100 bg-white p-3.5 shadow-sm space-y-2 text-sm">
+          <div key={row.id} className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm space-y-2 text-sm">
             <div className="flex justify-between items-start">
               <span className="font-mono text-slate-500 text-xs">{formatDateDisplay(row.date)}</span>
               <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{row.type}</span>

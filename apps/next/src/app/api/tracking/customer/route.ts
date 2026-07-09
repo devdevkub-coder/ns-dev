@@ -14,10 +14,17 @@ import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
 
-function inYearMonth(date: Date, year: string | null, month: string | null) {
+function normalizedDateParam(value: string | null) {
+  const trimmed = value?.trim()
+  return trimmed && /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null
+}
+
+function inYearMonth(date: Date, year: string | null, month: string | null, dateFrom?: string | null, dateTo?: string | null) {
   const value = toDateOnly(date)
   if (year && value.slice(0, 4) !== year) return false
   if (month && value.slice(5, 7) !== month.padStart(2, '0')) return false
+  if (dateFrom && value < dateFrom) return false
+  if (dateTo && value > dateTo) return false
   return true
 }
 
@@ -96,6 +103,8 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const year = url.searchParams.get('year') || String(new Date().getFullYear())
     const month = url.searchParams.get('month')
+    const dateFrom = normalizedDateParam(url.searchParams.get('dateFrom') ?? url.searchParams.get('from'))
+    const dateTo = normalizedDateParam(url.searchParams.get('dateTo') ?? url.searchParams.get('to'))
     const customerId = url.searchParams.get('customerId')
     const detailId = url.searchParams.get('detailId')
     const productCategory = url.searchParams.get('productCategory')?.trim() || null
@@ -148,8 +157,8 @@ export async function GET(request: Request) {
     })
 
     const rows = visibleCustomers.map((customer) => {
-      const customerBills = scopedBills.filter((bill) => bill.customer_id === customer.id && inYearMonth(bill.date, year, month))
-      const customerReceipts = receipts.filter((receipt) => receipt.customer_id === customer.id && inYearMonth(receipt.date, year, month))
+      const customerBills = scopedBills.filter((bill) => bill.customer_id === customer.id && inYearMonth(bill.date, year, month, dateFrom, dateTo))
+      const customerReceipts = receipts.filter((receipt) => receipt.customer_id === customer.id && inYearMonth(receipt.date, year, month, dateFrom, dateTo))
       const totals = customerBills.reduce((sum, bill) => {
         const lineTotals = billLineTotals(bill.id)
         const revenue = lineTotals.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
@@ -184,10 +193,10 @@ export async function GET(request: Request) {
       const gp = totals.gp || totals.revenue - totals.cogs
       const creditLimit = toNumber(customer.credit_limit)
 
-      const customerYearBills = scopedBills.filter((bill) => bill.customer_id === customer.id && inYearMonth(bill.date, year, null))
+      const customerYearBills = scopedBills.filter((bill) => bill.customer_id === customer.id && inYearMonth(bill.date, year, null, dateFrom, dateTo))
       const monthlyData = Array.from({ length: 12 }, (_, index) => {
         const monthKey = String(index + 1).padStart(2, '0')
-        const monthBills = customerYearBills.filter((bill) => inYearMonth(bill.date, year, monthKey))
+        const monthBills = customerYearBills.filter((bill) => inYearMonth(bill.date, year, monthKey, dateFrom, dateTo))
         const qty = monthBills.reduce((sum, bill) => sum + billLineTotals(bill.id).qty, 0)
         const revenue = monthBills.reduce((sum, bill) => sum + (billLineTotals(bill.id).amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)), 0)
         return { qty, revenue }
@@ -226,7 +235,7 @@ export async function GET(request: Request) {
 
     const monthly = Array.from({ length: 12 }, (_, index) => {
       const monthKey = String(index + 1).padStart(2, '0')
-      const monthBills = scopedBills.filter((bill) => inYearMonth(bill.date, year, monthKey))
+      const monthBills = scopedBills.filter((bill) => inYearMonth(bill.date, year, monthKey, dateFrom, dateTo))
       return monthBills.reduce<{ gp: number; month: string; qty: number; revenue: number }>((sum, bill) => {
         const lineTotals = billLineTotals(bill.id)
         const revenue = lineTotals.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
@@ -240,10 +249,10 @@ export async function GET(request: Request) {
     })
 
     const detail = detailCustomer && visibleCustomerIds.has(detailCustomer.id) ? (() => {
-      const detailBills = scopedBills.filter((bill) => bill.customer_id === detailCustomer.id && inYearMonth(bill.date, year, month))
-      const detailReceipts = receipts.filter((receipt) => receipt.customer_id === detailCustomer.id && inYearMonth(receipt.date, year, month))
-      const detailYearBills = scopedBills.filter((bill) => bill.customer_id === detailCustomer.id && inYearMonth(bill.date, year, null))
-      const detailYearReceipts = receipts.filter((receipt) => receipt.customer_id === detailCustomer.id && inYearMonth(receipt.date, year, null))
+      const detailBills = scopedBills.filter((bill) => bill.customer_id === detailCustomer.id && inYearMonth(bill.date, year, month, dateFrom, dateTo))
+      const detailReceipts = receipts.filter((receipt) => receipt.customer_id === detailCustomer.id && inYearMonth(receipt.date, year, month, dateFrom, dateTo))
+      const detailYearBills = scopedBills.filter((bill) => bill.customer_id === detailCustomer.id && inYearMonth(bill.date, year, null, dateFrom, dateTo))
+      const detailYearReceipts = receipts.filter((receipt) => receipt.customer_id === detailCustomer.id && inYearMonth(receipt.date, year, null, dateFrom, dateTo))
       const channelMap = new Map<string, { billCount: number; channelName: string; cogs: number; gp: number; qty: number; revenue: number }>()
       const productMap = new Map<string, { cogs: number; gp: number; productName: string; qty: number; revenue: number }>()
 
@@ -339,8 +348,8 @@ export async function GET(request: Request) {
         customer: { code: detailCustomer.code, id: detailCustomer.code, name: detailCustomer.name },
         monthly: Array.from({ length: 12 }, (_, index) => {
           const monthKey = String(index + 1).padStart(2, '0')
-          const monthBills = detailYearBills.filter((bill) => inYearMonth(bill.date, year, monthKey))
-          const monthReceipts = detailYearReceipts.filter((receipt) => inYearMonth(receipt.date, year, monthKey))
+          const monthBills = detailYearBills.filter((bill) => inYearMonth(bill.date, year, monthKey, dateFrom, dateTo))
+          const monthReceipts = detailYearReceipts.filter((receipt) => inYearMonth(receipt.date, year, monthKey, dateFrom, dateTo))
           const receivedAmount = monthReceipts.reduce((sum, receipt) => sum + toNumber(receipt.amount) + toNumber(receipt.withholding_tax) + toNumber(receipt.discount), 0)
           return monthBills.reduce<{
             billCount: number

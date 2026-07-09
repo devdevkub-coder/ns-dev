@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { RotateCcw } from 'lucide-react'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -65,7 +66,7 @@ export function TaxVatWhtPageClient() {
       {error ? <ErrorBox message={error} /> : null}
       
       {/* Desktop Filter Panel */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
+      <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex">
         <div className="flex items-center gap-2">
           <label className="text-sm text-slate-600 font-medium">งวด</label>
           <select 
@@ -86,12 +87,11 @@ export function TaxVatWhtPageClient() {
         </div>
         <div className="ml-auto flex items-center gap-3">
           <span className="text-xs text-slate-500">ช่วง {data?.filters.periodStart ?? `${year}-${month}-01`} ถึง {data?.filters.periodEnd ?? '-'}</span>
-          <DisabledButton>📥 Excel</DisabledButton>
         </div>
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden space-y-3">
+      <div className="mb-4 space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex gap-2 items-center">
           <div className="flex-1 grid grid-cols-2 gap-2">
             <select 
@@ -123,12 +123,12 @@ export function TaxVatWhtPageClient() {
 
       {/* Bottom Sheet Filter for Mobile */}
       {showMobileFilters ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 lg:hidden">
-          <div className="w-full rounded-t-2xl bg-white p-5 shadow-xl border-t border-slate-200 max-h-[85vh] overflow-y-auto space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h4 className="font-bold text-slate-800 text-sm">ตัวกรองเพิ่มเติม</h4>
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/55 lg:hidden">
+          <div className="flex max-h-[calc(100dvh_-_env(safe-area-inset-top)_-_0.75rem)] w-full flex-col overflow-hidden rounded-t-md bg-slate-900 shadow-2xl">
+            <div className="flex items-center justify-between rounded-t-md bg-slate-900 px-4 py-4 text-white">
+              <h4 className="text-sm font-bold text-white">ตัวกรองเพิ่มเติม</h4>
               <button
-                className="p-1 text-slate-400 hover:text-slate-600 text-2xl font-bold focus:outline-none"
+                className="rounded-md p-1 text-xl font-bold text-slate-300 hover:bg-slate-800 hover:text-white"
                 onClick={() => setShowMobileFilters(false)}
                 type="button"
               >
@@ -136,12 +136,12 @@ export function TaxVatWhtPageClient() {
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="flex-1 space-y-4 overflow-y-auto bg-white p-4">
               <div>
                 <label className="mb-1 block font-semibold text-slate-600 text-xs">สาขา</label>
                 <select
                   aria-label="Branch select"
-                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-slate-400"
                   value={branchId}
                   onChange={(event) => setBranchId(event.target.value)}
                 >
@@ -154,31 +154,22 @@ export function TaxVatWhtPageClient() {
                 ช่วงเวลา: <span className="font-semibold">{data?.filters.periodStart ?? `${year}-${month}-01`} ถึง {data?.filters.periodEnd ?? '-'}</span>
               </div>
 
-              <div className="border-t border-slate-100 pt-3">
-                <button
-                  type="button"
-                  disabled
-                  className="w-full h-10 rounded-lg bg-slate-100 text-slate-400 font-semibold text-sm cursor-not-allowed flex items-center justify-center gap-1.5 opacity-60"
-                >
-                  📥 Export Excel
-                </button>
-              </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-100 flex gap-2">
+            <div className="grid grid-cols-2 gap-3 border-t border-slate-100 bg-white p-4 pb-[calc(env(safe-area-inset-bottom)_+_1rem)]">
               <button
                 type="button"
                 onClick={() => {
                   setBranchId('')
                 }}
-                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 ล้างตัวกรอง
               </button>
               <button
                 type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+                className="h-11 rounded-md bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700"
               >
                 ตกลง
               </button>
@@ -188,16 +179,15 @@ export function TaxVatWhtPageClient() {
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* VAT Payable Premium Box */}
-        <div className="bg-white shadow-sm border border-slate-100 rounded-xl p-5 flex flex-col justify-between">
-          <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">🧾 VAT Payable งวด {year}-{month}</div>
-            <div className="mt-2 text-3xl font-bold text-slate-900">{money(data?.summary.vatPayable)}</div>
-            <div className={`mt-1 text-xs font-medium ${(data?.summary.vatPayable ?? 0) >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-              บาท · {(data?.summary.vatPayable ?? 0) >= 0 ? 'ต้องนำส่ง' : 'ภาษีซื้อรอใช้เครดิต'}
-            </div>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+        <div className="space-y-3">
+          <SharedKpiCard
+            icon="🧾"
+            label={`VAT Payable งวด ${year}-${month}`}
+            note={`บาท · ${(data?.summary.vatPayable ?? 0) >= 0 ? 'ต้องนำส่ง' : 'ภาษีซื้อรอใช้เครดิต'}`}
+            tone={(data?.summary.vatPayable ?? 0) >= 0 ? 'rose' : 'emerald'}
+            value={money(data?.summary.vatPayable)}
+          />
+          <div className="grid grid-cols-2 gap-3">
             <MiniHero label="📤 VAT ขาย (Output)" tone="emerald" value={money(data?.summary.vatOut)} />
             <MiniHero label="📥 VAT ซื้อ (Input)" tone="blue" value={money(data?.summary.vatIn)} />
           </div>
@@ -232,11 +222,11 @@ export function TaxVatWhtPageClient() {
       </div>
 
       <Tabs className="gap-4" value={detailTab} onValueChange={(value) => setDetailTab(value as DetailTab)}>
-        <TabsList className="inline-flex w-full max-w-max flex-nowrap overflow-x-auto rounded-[28px] border-4 border-rose-700 bg-white px-4 pt-4 shadow-sm" variant="line">
+        <TabsList className="w-full flex-nowrap overflow-x-auto" variant="line">
           {detailTabs.map((tab) => (
             <TabsTrigger
               key={tab.value}
-              className="min-w-fit gap-2 px-5 pb-5 pt-1 text-[15px] font-bold text-slate-500 data-[state=active]:border-blue-600 data-[state=active]:text-slate-900"
+              className="min-w-fit gap-2 px-3 text-sm"
               value={tab.value}
               variant="line"
             >
@@ -298,7 +288,7 @@ function BaselineNotice({ sourceState }: { sourceState?: SourceState }) {
 }
 
 function FilterPanel({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">{children}</div>
+  return <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">{children}</div>
 }
 
 function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; onChange: (value: string) => void; value: string }) {
@@ -311,18 +301,6 @@ function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; on
       <option value="">ทุกสาขา</option>
       {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
     </select>
-  )
-}
-
-function DisabledButton({ children }: { children: ReactNode }) {
-  return (
-    <button
-      className="rounded-md bg-slate-900 px-3.5 py-1.5 text-sm font-medium text-white opacity-50 outline-none border border-slate-100 cursor-not-allowed"
-      disabled
-      type="button"
-    >
-      {children}
-    </button>
   )
 }
 
@@ -389,26 +367,7 @@ function CalendarBars({ max, row }: { max: number; row: TaxPayload['taxCalendar'
 }
 
 function StatCard({ label, sub, tone, value }: { label: string; sub?: string; tone: 'amber' | 'blue' | 'emerald' | 'purple' | 'red'; value: string }) {
-  const toneStyles = {
-    amber: { border: 'border-amber-200', bg: 'bg-amber-50/30', text: 'text-amber-700', iconBg: 'bg-amber-100/60 text-amber-600', emoji: '🪙' },
-    blue: { border: 'border-blue-200', bg: 'bg-blue-50/30', text: 'text-blue-700', iconBg: 'bg-blue-100/60 text-blue-600', emoji: '📥' },
-    emerald: { border: 'border-emerald-200', bg: 'bg-emerald-50/30', text: 'text-emerald-700', iconBg: 'bg-emerald-100/60 text-emerald-600', emoji: '📤' },
-    purple: { border: 'border-purple-200', bg: 'bg-purple-50/30', text: 'text-purple-700', iconBg: 'bg-purple-100/60 text-purple-600', emoji: '💰' },
-    red: { border: 'border-red-200', bg: 'bg-red-50/30', text: 'text-red-700', iconBg: 'bg-red-100/60 text-red-600', emoji: '⚠️' }
-  }[tone]
-
-  return (
-    <div className={`rounded-xl border bg-white p-4 shadow-sm flex items-center gap-3.5 ${toneStyles.border}`}>
-      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${toneStyles.iconBg}`}>
-        {toneStyles.emoji}
-      </div>
-      <div>
-        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</div>
-        <div className={`text-base font-bold mt-0.5 ${toneStyles.text}`}>{value}</div>
-        {sub ? <div className="text-xs text-slate-400 font-medium mt-0.5">{sub}</div> : null}
-      </div>
-    </div>
-  )
+  return <SharedKpiCard label={label} note={sub} tone={tone} value={value} />
 }
 
 function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tableKey }: { hasDoc?: boolean; isLoading: boolean; rows: TaxItem[]; title: string; tone: 'amber' | 'blue' | 'emerald' | 'purple'; valueKey: 'vat' | 'wht'; tableKey: string }) {
@@ -519,7 +478,7 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tabl
 
       {/* Desktop View */}
       <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {columns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -644,7 +603,7 @@ function CalendarTable({ rows }: { rows: TaxPayload['taxCalendar'] }) {
 
       {/* Desktop View */}
       <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {calendarColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />

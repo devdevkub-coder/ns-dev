@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 
@@ -362,9 +363,12 @@ export function BusinessCalendarPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <MonthControls month={month} setMonth={setMonth} />
-        <div className="flex flex-wrap gap-2 rounded-xl bg-white p-2 shadow-sm border border-slate-100">{(['combined', 'purchase', 'sales', 'expense'] as Mode[]).map((item) => <ModeButton key={item} active={mode === item} mode={item} onClick={() => setMode(item)} />)}</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-500">มุมมอง:</span>
+          {(['combined', 'purchase', 'sales', 'expense'] as Mode[]).map((item) => <ModeButton key={item} active={mode === item} mode={item} onClick={() => setMode(item)} />)}
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-7">
         <Metric label="ซื้อ" value={money(summary.purchaseAmount)} tone="blue" />
@@ -397,10 +401,10 @@ export function BusinessCalendarPageClient() {
 
 function MonthControls({ month, setMonth }: { month: string; setMonth: (month: string) => void }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-100">
-      <button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200 outline-none" type="button" onClick={() => setMonth(shiftMonth(month, -1))}>← เดือนก่อน</button>
-      <input className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
-      <button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200 outline-none" type="button" onClick={() => setMonth(shiftMonth(month, 1))}>เดือนถัดไป →</button>
+    <div className="flex flex-wrap items-center gap-2">
+      <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 outline-none" type="button" onClick={() => setMonth(shiftMonth(month, -1))}>← เดือนก่อน</button>
+      <input className="h-9 rounded-md border border-slate-300 px-3 text-sm font-medium outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
+      <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 outline-none" type="button" onClick={() => setMonth(shiftMonth(month, 1))}>เดือนถัดไป →</button>
     </div>
   )
 }
@@ -437,7 +441,7 @@ function BusinessCombinedTable({ days }: { days: BusinessDay[] }) {
         </div>
       ) : null}
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {businessCombinedColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -481,7 +485,7 @@ function BusinessCombinedTable({ days }: { days: BusinessDay[] }) {
       {/* Mobile view */}
       <div className="block lg:hidden divide-y divide-slate-100 bg-slate-50/30 p-2 max-h-[600px] overflow-y-auto">
         {sortedDays.map((day) => (
-          <div key={day.date} className={`p-3 rounded-lg border mb-2 shadow-sm flex flex-col gap-1.5 text-xs bg-white ${day.isWeekend ? 'border-red-100 bg-red-50/20' : 'border-slate-100'} ${day.purchaseAmount + day.saleAmount + day.expenseAmount + day.receiptAmount + day.paymentAmount === 0 ? 'opacity-75' : ''}`}>
+          <div key={day.date} className={`p-3 rounded-xl border mb-2 shadow-sm flex flex-col gap-1.5 text-xs bg-white ${day.isWeekend ? 'border-red-100 bg-red-50/20' : 'border-slate-100'} ${day.purchaseAmount + day.saleAmount + day.expenseAmount + day.receiptAmount + day.paymentAmount === 0 ? 'opacity-75' : ''}`}>
             <div className="flex justify-between items-center pb-1 border-b border-slate-50">
               <span className="font-bold text-slate-800">วันที่ {day.day}</span>
               {day.isToday && <span className="rounded bg-yellow-100 px-1.5 py-0.5 text-xs font-bold text-yellow-800">วันนี้</span>}
@@ -555,7 +559,7 @@ function BusinessModeTable({ days, mode }: { days: BusinessDay[]; mode: Exclude<
         </div>
       ) : null}
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {columns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -591,9 +595,9 @@ function BusinessModeTable({ days, mode }: { days: BusinessDay[]; mode: Exclude<
       </div>
 
       {/* Mobile view */}
-      <div className="block lg:hidden divide-y divide-slate-100 bg-slate-50/30 p-2 max-h-[500px] overflow-y-auto rounded-lg">
+      <div className="block lg:hidden divide-y divide-slate-100 bg-slate-50/30 p-2 max-h-[500px] overflow-y-auto rounded-xl">
         {sortedRows.map((doc) => (
-          <div key={`${mode}-${doc.id}`} className="p-3 bg-white rounded-lg border border-slate-100 mb-2 shadow-sm flex flex-col gap-1 text-xs">
+          <div key={`${mode}-${doc.id}`} className="p-3 bg-white rounded-xl border border-slate-100 mb-2 shadow-sm flex flex-col gap-1 text-xs">
             <div className="flex justify-between items-center">
               <span className="font-bold text-slate-800">{doc.docNo}</span>
               <span className="text-slate-500 text-xs">{doc.date}</span>
@@ -689,7 +693,7 @@ function CashDayModal({ day, onClose }: { day: CashDay; onClose: () => void }) {
             </div>
           ) : null}
           <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm sm:block">
-            <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+            <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
                 {cashEntryColumns.map((column) => (
                   <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -725,9 +729,9 @@ function CashDayModal({ day, onClose }: { day: CashDay; onClose: () => void }) {
           </div>
 
           {/* Mobile view inside Modal */}
-          <div className="block sm:hidden divide-y divide-slate-100 bg-slate-50/30 p-2 max-h-[300px] overflow-y-auto rounded-lg">
+          <div className="block sm:hidden divide-y divide-slate-100 bg-slate-50/30 p-2 max-h-[300px] overflow-y-auto rounded-xl">
             {sortedEntries.map((entry) => (
-              <div key={entry.id} className="p-2.5 bg-white rounded-lg border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
+              <div key={entry.id} className="p-2.5 bg-white rounded-xl border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
                 <div className="flex justify-between items-start">
                   <span className="font-bold text-slate-800">{entry.description || entry.type}</span>
                   <span className="font-mono text-xs text-slate-400">{entry.refNo}</span>
@@ -759,22 +763,8 @@ function cashEntryCellTone(key: CashEntryColumnKey) {
   return 'text-slate-700'
 }
 
-function Metric({ label, tone, value }: { label: string; tone: string; value: string }) {
-  const toneMap: Record<string, { bg: string; text: string }> = {
-    blue: { bg: 'bg-blue-50/50 text-blue-900 border-blue-100', text: 'text-blue-600' },
-    emerald: { bg: 'bg-emerald-50/50 text-emerald-900 border-emerald-100', text: 'text-emerald-600' },
-    red: { bg: 'bg-red-50/50 text-red-900 border-red-100', text: 'text-red-600' },
-    purple: { bg: 'bg-purple-50/50 text-purple-900 border-purple-100', text: 'text-purple-600' },
-    slate: { bg: 'bg-slate-50/50 text-slate-900 border-slate-100', text: 'text-slate-600' },
-    gradient: { bg: 'bg-indigo-50/50 text-indigo-900 border-indigo-100', text: 'text-indigo-600 font-bold' },
-  }
-  const style = toneMap[tone] || toneMap.slate
-  return (
-    <div className="bg-white p-4 shadow-sm border border-slate-100 rounded-xl flex flex-col justify-center">
-      <div className="text-xs font-semibold text-slate-500">{label}</div>
-      <div className={`mt-1 font-mono text-base sm:text-lg font-bold truncate ${style.text}`}>{value}</div>
-    </div>
-  )
+function Metric({ label, tone, value }: { label: string; tone: KpiCardTone; value: string }) {
+  return <SharedKpiCard label={label} tone={tone} value={value} />
 }
 
 function Panel({ children, title }: { children: ReactNode; title: string }) {
@@ -792,13 +782,7 @@ function Legend({ color, text }: { color: string; text: string }) {
 
 function ModeButton({ active, mode, onClick }: { active: boolean; mode: Mode; onClick: () => void }) {
   const label: Record<Mode, string> = { combined: 'Combined', expense: 'Expense', purchase: 'Purchase', sales: 'Sales' }
-  const activeClass: Record<Mode, string> = {
-    combined: 'bg-purple-600 border-purple-600 text-white',
-    expense: 'bg-red-600 border-red-600 text-white',
-    purchase: 'bg-blue-600 border-blue-600 text-white',
-    sales: 'bg-emerald-600 border-emerald-600 text-white'
-  }
-  return <button className={`rounded-lg border px-3 py-2 text-sm font-bold outline-none ${active ? activeClass[mode] : 'bg-white border-slate-100 text-slate-600 hover:bg-slate-50'}`} type="button" onClick={onClick} onPointerDown={onClick}>{label[mode]}</button>
+  return <button className={`rounded-md border px-3 py-1 text-xs font-medium outline-none ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`} type="button" onClick={onClick} onPointerDown={onClick}>{label[mode]}</button>
 }
 
 function ErrorBox({ text }: { text: string }) {

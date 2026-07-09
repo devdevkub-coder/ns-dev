@@ -355,23 +355,23 @@ export function CostPoolPageClient() {
             </label>
             {hasActiveFilters ? <Button className="h-9" size="sm" type="button" variant="secondary" onClick={resetFilters}>ล้างตัวกรอง</Button> : null}
             <Button asChild className="ml-auto focus-visible:ring-2 focus-visible:ring-emerald-100" size="sm" variant="export">
-              <a href={exportHref}>ส่งออก XLSX</a>
+              <a href={exportHref}>ส่งออก Excel</a>
             </Button>
           </div>
         </div>
 
         <div className="block space-y-2 xl:hidden">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Input
-              className="h-10 flex-1 rounded-md border-slate-300 focus-visible:ring-emerald-100"
+              className="h-10 min-w-[180px] flex-1 rounded-md border-slate-300 focus-visible:ring-emerald-100"
               placeholder="ค้นหาเลขที่ / คู่ค้า / สินค้า..."
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
             <button
-              className={`flex h-10 shrink-0 items-center gap-1 rounded-md border px-3 text-sm font-semibold transition-colors ${
-                showMobileFilters ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-100 bg-slate-100 text-slate-700'
+              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
+                showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
               }`}
               type="button"
               onClick={() => setShowMobileFilters(!showMobileFilters)}
@@ -379,7 +379,7 @@ export function CostPoolPageClient() {
               ตัวกรอง{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
             </button>
             <Button asChild className="h-10 shrink-0" size="sm" variant="export">
-              <a href={exportHref}>XLSX</a>
+              <a href={exportHref}>ส่งออก Excel</a>
             </Button>
           </div>
 
@@ -451,12 +451,12 @@ export function CostPoolPageClient() {
         {tableControls}
       </div>
 
-      <div className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm md:block">
+      <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
         <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 text-sm text-slate-600 lg:flex-row lg:items-center lg:justify-between">
           {tableControls}
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-100">
               <tr>
                 <GroupHeaderCell activeKey={groupSortKey} align="left" direction={groupSortDirection} label="สินค้า" sortKey="productName" onSort={handleGroupSort} />
@@ -496,9 +496,9 @@ export function CostPoolPageClient() {
                     {isExpanded ? (
                       <tr key={`${group.key}-details`} className="bg-slate-50/60">
                         <td className="px-4 pb-4 pt-0" colSpan={7}>
-                          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                          <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
                             <div className="overflow-x-auto">
-                              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm">
                                 <thead className="bg-slate-50">
                                   <tr>
                                     <th className="px-3 py-3 text-left font-semibold text-slate-700">แหล่งต้นทุน</th>
@@ -544,8 +544,8 @@ export function CostPoolPageClient() {
       </div>
 
       <div className="space-y-3 md:hidden">
-        {isLoading ? <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">กำลังโหลดข้อมูล</div> : null}
-        {!isLoading && !error && totalGroups === 0 ? <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm text-slate-400 shadow-sm">Cost Pool ว่างตามตัวกรองปัจจุบัน</div> : null}
+        {isLoading ? <div className="rounded-xl border border-slate-200 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">กำลังโหลดข้อมูล</div> : null}
+        {!isLoading && !error && totalGroups === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-4 text-center text-sm text-slate-400 shadow-sm">Cost Pool ว่างตามตัวกรองปัจจุบัน</div> : null}
         {!isLoading && pagedGroups.map((group) => {
           const isExpanded = expandedProductKeys.includes(group.key)
           return (
@@ -569,7 +569,7 @@ export function CostPoolPageClient() {
               {isExpanded ? (
                 <div className="mt-4 space-y-3 border-t border-slate-100 pt-3">
                   {group.rows.map((row) => (
-                    <div key={row.costPoolId} className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+                    <div key={row.costPoolId} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex flex-wrap gap-1.5">
@@ -581,7 +581,7 @@ export function CostPoolPageClient() {
                         <StatusIndicator status={row.status} />
                       </div>
 
-                      <div className="mt-3 rounded-lg border border-slate-100 bg-white p-3 text-sm text-slate-700">
+                      <div className="mt-3 rounded-xl border border-slate-100 bg-white p-3 text-sm text-slate-700">
                         <span className="font-semibold text-slate-500">คู่ค้า: </span>
                         <span className="text-slate-900">{row.counterparty}</span>
                       </div>

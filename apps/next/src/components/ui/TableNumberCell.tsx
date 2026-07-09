@@ -16,7 +16,7 @@ export function TableNumberCell({
   const colorClass = tone === 'amber' ? 'text-amber-700' : strong ? 'text-slate-900' : 'text-slate-700'
 
   return (
-    <td className={`p-2 pr-4 text-right font-semibold tabular-nums ${colorClass}`}>
+    <td className={`px-3 py-3 pr-4 text-right font-semibold tabular-nums ${colorClass}`}>
       <TooltipProvider delayDuration={150}>
         <Tooltip>
           <TooltipTrigger asChild>

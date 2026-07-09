@@ -186,18 +186,7 @@ export function DealMarginPageClient() {
     <DualCostingPageSection>
       <DualCostingErrorBox error={error} />
 
-      <div className="grid min-w-0 gap-3 md:grid-cols-3">
-        <div className={`min-w-0 rounded-xl p-5 text-white shadow ${marginPositive ? 'bg-gradient-to-br from-purple-600 to-pink-700' : 'bg-gradient-to-br from-red-500 to-rose-700'}`}>
-          <div className="text-xs opacity-90 font-semibold">กำไรดีล (Deal Margin)</div>
-          <div className="mt-1 truncate text-4xl font-bold">{formatMoney(data?.summary.margin ?? 0)}</div>
-          <div className="mt-2 text-sm opacity-90 font-medium">Margin {(data?.summary.marginPct ?? 0).toFixed(1)}%</div>
-          <div className="mt-3 space-y-0.5 text-xs opacity-80 font-mono">
-            <div>รายได้ดีล: <b>{formatMoney(data?.summary.revenue ?? 0)}</b></div>
-            <div>ต้นทุนที่จับคู่: <b>{formatMoney(data?.summary.cost ?? 0)}</b></div>
-            <div className="mt-1">{data?.summary.rows ?? 0} ดีล · {data?.summary.fullyMatched ?? 0} Fully Matched</div>
-          </div>
-        </div>
-
+      <div className="grid min-w-0 gap-3 md:grid-cols-2">
         <DualCostingPanel title="Top 5 Deal กำไรสูงสุด">
           {(data?.topDeals.length ?? 0) === 0 ? <div className="text-xs text-slate-400 py-4 text-center">ไม่มีข้อมูล</div> : null}
           <div className="space-y-2">
@@ -243,9 +232,9 @@ export function DealMarginPageClient() {
               <option value="all">ทุกช่องทาง</option>
               {(data?.filters.channels ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
             </Select>
-            {hasActiveFilters ? <Button size="sm" type="button" variant="secondary" className="h-9 rounded-lg" onClick={clearFilters}>ล้างตัวกรอง</Button> : null}
-            <Button asChild size="sm" variant="export" className="ml-auto rounded-lg h-9 px-3 text-xs font-semibold focus-visible:ring-slate-100">
-              <a href={exportHref}>ส่งออก XLSX</a>
+            {hasActiveFilters ? <Button size="sm" type="button" variant="secondary" className="h-9 rounded-md" onClick={clearFilters}>ล้างตัวกรอง</Button> : null}
+            <Button asChild size="sm" variant="export" className="ml-auto h-9 rounded-md px-3 text-xs font-semibold focus-visible:ring-slate-100">
+              <a href={exportHref}>ส่งออก Excel</a>
             </Button>
           </div>
         </div>
@@ -254,8 +243,8 @@ export function DealMarginPageClient() {
         <div className="block lg:hidden space-y-2">
           <div className="flex gap-2">
             <button
-              className={`flex-1 h-10 rounded-md border px-3 text-sm font-semibold transition-colors flex items-center justify-center gap-1 ${
-                showMobileFilters ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-700 border-slate-200'
+              className={`inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
+                showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
               }`}
               type="button"
               onClick={() => setShowMobileFilters(!showMobileFilters)}
@@ -263,7 +252,7 @@ export function DealMarginPageClient() {
               ตัวกรอง{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
             </button>
             <Button asChild size="sm" variant="export" className="h-10 rounded-md shrink-0">
-              <a href={exportHref}>XLSX</a>
+              <a href={exportHref}>ส่งออก Excel</a>
             </Button>
           </div>
 
@@ -312,7 +301,7 @@ export function DealMarginPageClient() {
           {tableControls}
         </div>
         <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth, width: '100%' }}>
+        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth, width: '100%' }}>
           <colgroup>
             {dealMarginColumns.map((column, index) => {
               const style = columnResize.getColumnStyle(column.key)

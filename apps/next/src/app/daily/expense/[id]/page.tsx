@@ -37,7 +37,7 @@ function expenseStatusLabel(value: string | null | undefined) {
 
 function DetailCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-slate-100 bg-white p-3">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
       <div className="text-xs text-slate-500">{label}</div>
       <div className="mt-1 text-sm font-medium text-slate-900">{value}</div>
     </div>
@@ -80,7 +80,7 @@ export default async function ExpenseDetailPage({ params }: PageProps) {
     <section className="space-y-4">
       <PageTitleOverride title={`รายละเอียดค่าใช้จ่าย ${row.doc_no}`} />
 
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white p-4 shadow">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div>
           <h1 className="text-xl font-bold text-slate-900">รายละเอียดค่าใช้จ่าย</h1>
         </div>
@@ -90,19 +90,19 @@ export default async function ExpenseDetailPage({ params }: PageProps) {
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <div className="rounded-md bg-red-50 p-3 shadow">
+        <div className="rounded-xl border border-red-100 bg-red-50 p-3 shadow-sm">
           <div className="text-xs text-red-700">Net Pay</div>
           <div className="text-lg font-bold text-red-800">{money(netAmount)}</div>
         </div>
-        <div className="rounded-md bg-blue-50 p-3 shadow">
+        <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 shadow-sm">
           <div className="text-xs text-blue-700">ยอดก่อน VAT</div>
           <div className="text-lg font-bold text-blue-800">{money(amount)}</div>
         </div>
-        <div className="rounded-md bg-emerald-50 p-3 shadow">
+        <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 shadow-sm">
           <div className="text-xs text-emerald-700">VAT</div>
           <div className="text-lg font-bold text-emerald-800">{money(vat)}</div>
         </div>
-        <div className="rounded-md bg-amber-50 p-3 shadow">
+        <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 shadow-sm">
           <div className="text-xs text-amber-700">WHT</div>
           <div className="text-lg font-bold text-amber-800">{money(wht)}</div>
         </div>

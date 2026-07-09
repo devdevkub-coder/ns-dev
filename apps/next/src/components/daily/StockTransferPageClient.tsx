@@ -339,7 +339,7 @@ export function StockTransferPageClient() {
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       {/* Desktop Toolbar (Hidden on Mobile) */}
-      <div className="hidden md:block rounded-md bg-white p-3 shadow">
+      <div className="hidden md:block rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <Input
             className="h-9 min-w-[260px] flex-1"
@@ -371,14 +371,16 @@ export function StockTransferPageClient() {
           {hasFilters ? (
             <Button size="sm" type="button" variant="secondary" className="h-9" onClick={clearFilters}>✕ ล้าง</Button>
           ) : null}
-          <Button size="sm" type="button" className="h-9 ml-auto bg-slate-900 font-normal text-white hover:bg-slate-800" onClick={openCreateForm}>
+        </div>
+        <div className="mt-2 hidden justify-end md:flex">
+          <Button size="sm" type="button" className="h-9 bg-slate-900 font-normal text-white hover:bg-slate-800" onClick={openCreateForm}>
             <Plus className="mr-1 h-4 w-4" />โอนใหม่
           </Button>
         </div>
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 space-y-2 rounded-md bg-white p-3 shadow md:hidden">
+      <div className="mb-4 space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm md:hidden">
         <div className="flex gap-2 items-center">
           <Input
             className="min-w-[200px] flex-1 h-9"
@@ -502,7 +504,7 @@ export function StockTransferPageClient() {
             </div>
 
             <div className="max-h-[76vh] overflow-y-auto bg-slate-50 p-4 sm:p-5 space-y-4 text-sm flex-1">
-              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm grid grid-cols-2 gap-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm grid grid-cols-2 gap-4">
                 <FormField error={fieldErrors.date} errorKey="date" label="วันที่เอกสาร *">
                   <DatePickerInput className="w-full h-9" value={form.date} onChange={(value) => updateForm('date', value)} />
                 </FormField>
@@ -512,7 +514,7 @@ export function StockTransferPageClient() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm col-span-2 md:col-span-1">
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm col-span-2 md:col-span-1">
                   <h4 className="mb-3 font-bold text-slate-700">1. ต้นทาง</h4>
                   <div className="grid gap-3">
                     <SelectField displayMode="name" error={fieldErrors.fromBranchId} errorKey="fromBranchId" label="สาขาต้นทาง *" options={branchOptions} placeholder="เลือกสาขาต้นทาง" value={form.fromBranchId} onChange={(value) => updateForm('fromBranchId', value)} />
@@ -530,7 +532,7 @@ export function StockTransferPageClient() {
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm col-span-2 md:col-span-1">
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm col-span-2 md:col-span-1">
                   <h4 className="mb-3 font-bold text-slate-700">2. ปลายทาง</h4>
                   <div className="grid gap-3">
                     <SelectField displayMode="name" error={fieldErrors.toBranchId} errorKey="toBranchId" label="สาขาปลายทาง *" options={destinationBranchOptions} placeholder="เลือกสาขาปลายทาง" value={form.toBranchId} onChange={(value) => updateForm('toBranchId', value)} />
@@ -549,7 +551,7 @@ export function StockTransferPageClient() {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div>
                     <h4 className="font-bold text-slate-700">3. รายการสินค้า ({form.items.length})</h4>
@@ -560,7 +562,7 @@ export function StockTransferPageClient() {
                 {fieldErrors.items ? <div className="mb-2 text-xs text-red-600">{fieldErrors.items}</div> : null}
                 {/* Desktop View (Table) */}
                 <div className="hidden md:block overflow-x-auto rounded-md border border-slate-200/60 bg-white shadow-sm overflow-hidden">
-                  <table className="w-full min-w-[920px] text-sm">
+                  <table className="ns-table w-full min-w-[920px] text-sm">
                     <thead className="border-b border-slate-100 bg-slate-100 text-slate-600">
                       <tr>
                         <th className="p-2 text-left">สินค้า</th>
@@ -627,7 +629,7 @@ export function StockTransferPageClient() {
                     const source = sourceStockByProductId.get(item.productId)
                     const lineValue = item.qty * (source?.sourceUnitCost ?? 0)
                     return (
-                      <div key={index} className="rounded-lg border border-slate-200 p-4 space-y-3 relative bg-slate-50/50">
+                      <div key={index} className="rounded-xl border border-slate-200 p-4 space-y-3 relative bg-slate-50/50">
                         <div className="flex justify-between items-center border-b border-slate-100 pb-2">
                           <span className="font-semibold text-slate-700 text-xs">รายการที่ {index + 1}</span>
                           <Button
@@ -695,7 +697,7 @@ export function StockTransferPageClient() {
                   })}
 
                   {/* Mobile Footer (Totals) */}
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs space-y-1.5 font-semibold">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs space-y-1.5 font-semibold">
                     <div className="flex justify-between">
                       <span className="text-slate-500">น้ำหนักรวม:</span>
                       <span className="text-blue-700 tabular-nums">{formatMoney(formTotalQty)} กก.</span>
@@ -708,7 +710,7 @@ export function StockTransferPageClient() {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h4 className="mb-3 font-bold text-slate-700">4. หมายเหตุ</h4>
                 <FormField error={fieldErrors.notes} errorKey="notes" label="หมายเหตุ">
                   <textarea
@@ -722,7 +724,7 @@ export function StockTransferPageClient() {
               </div>
 
               {form.fromBranchId && form.fromWarehouseId && form.items.some(item => item.productId) ? (
-                <div className="rounded-lg border border-indigo-100 bg-indigo-50/50 p-5 shadow-sm">
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-5 shadow-sm">
                   <h5 className="mb-3 font-bold text-indigo-800 text-xs flex items-center gap-1.5">
                     📦 ข้อมูล Stock ปัจจุบันของสินค้าที่จะโอนย้าย
                   </h5>
@@ -730,7 +732,7 @@ export function StockTransferPageClient() {
                     <div className="text-center py-4 text-xs text-slate-500">กำลังโหลด stock ต้นทาง...</div>
                   ) : (
                     <div className="overflow-x-auto rounded-md border border-indigo-100 bg-white">
-                      <table className="w-full text-xs">
+                      <table className="ns-table w-full text-xs">
                         <thead className="bg-indigo-50 text-indigo-700">
                           <tr>
                             <th className="p-2 text-left">สินค้า</th>
@@ -775,9 +777,9 @@ export function StockTransferPageClient() {
       ) : null}
 
       <div className="block space-y-3 md:hidden">
-        {isLoading ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
+        {isLoading ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
         {!isLoading && sortedRows.map((row) => (
-          <div key={row.id} className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+          <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-2 flex items-start justify-between">
               <span className="font-bold text-slate-800">{row.docNo}</span>
               <StatusBadge status={row.status} />
@@ -804,7 +806,7 @@ export function StockTransferPageClient() {
             </div>
           </div>
         ))}
-        {!isLoading && data.rows.length === 0 ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-400 shadow">ยังไม่มีรายการ</div> : null}
+        {!isLoading && data.rows.length === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-400 shadow">ยังไม่มีรายการ</div> : null}
       </div>
 
       <div className="hidden md:block">

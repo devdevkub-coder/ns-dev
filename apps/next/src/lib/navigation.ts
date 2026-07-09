@@ -188,7 +188,7 @@ export const navigationItems: NavigationItem[] = [
   { href: '/owner-daily', icon: '☀️', label: 'Owner Daily Control (เปิดทุกเช้า)', pageTitle: 'Owner Daily Control', section: 'main' },
   { href: '/daily-report', icon: '📰', label: 'Daily Report (รายงานประจำวัน)', pageTitle: 'Daily Report', section: 'main' },
   { href: '/analytics-dashboard', icon: '📈', label: 'Analytics Dashboard (วิเคราะห์ข้อมูล)', pageTitle: 'Analytics Dashboard', section: 'main' },
-  { href: '/dashboard', icon: '📊', label: 'Dashboard', pageTitle: 'Dashboard Overview', section: 'main' },
+  { href: '/dashboard', icon: '📊', label: 'Dashboard Overview', pageTitle: 'Dashboard Overview', section: 'main' },
   { href: '/profit-cost-analysis', icon: '💎', label: 'Profit & Cost Analysis', section: 'main' },
   { href: '/sales-plan', icon: '📋', label: 'วางแผนการขาย (LME)', pageTitle: 'วางแผนการขาย (Sales Plan) — ทองแดง / ทองเหลือง', section: 'main' },
   { href: '/sales-commission', icon: '💼', label: 'Sales Tracking Dashboard', pageTitle: 'Sales Tracking — ผลงานพนักงาน', section: 'main' },

@@ -8,6 +8,8 @@ export const metadata: Metadata = {
 type ProductTrackingPageProps = {
   searchParams?: Promise<{
     customerId?: string
+    dateFrom?: string
+    dateTo?: string
     metalGroup?: string
     month?: string
     productId?: string
@@ -22,6 +24,8 @@ export default async function ProductTrackingPage({ searchParams }: ProductTrack
   return (
     <ProductTrackingPageClient
       initialCustomerId={params?.customerId}
+      initialDateFrom={params?.dateFrom}
+      initialDateTo={params?.dateTo}
       initialMetalGroup={params?.metalGroup}
       initialMonth={params?.month}
       initialProductId={params?.productId}

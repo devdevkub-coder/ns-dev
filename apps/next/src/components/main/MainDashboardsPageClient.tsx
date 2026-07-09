@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
@@ -240,7 +241,7 @@ export function MainDashboardsPageClient({ mode }: { mode: Mode }) {
       {mode === 'daily-report' ? <DailyReportView data={data} date={date} setDate={setDate} /> : null}
       {mode === 'analytics-dashboard' ? <AnalyticsDashboardView data={data} rangeFrom={rangeFrom} rangeMode={rangeMode} rangeTo={rangeTo} setRangeFrom={setRangeFrom} setRangeMode={setRangeMode} setRangeTo={setRangeTo} /> : null}
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
-      {isLoading ? <div className="rounded-md bg-white p-4 text-center text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
+      {isLoading ? <div className="rounded-xl bg-white p-4 text-center text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
     </section>
   )
 }
@@ -584,11 +585,11 @@ function DashboardView(props: {
       </div>
       <div>
         {(data?.dashboard.historical.rows ?? 0) > 0 ? (
-          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white p-2 text-xs text-slate-600">
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 text-xs text-slate-600">
             <span className="font-bold text-slate-700">รวมยอด Historical:</span>
-            <span className="rounded-md bg-white px-2 py-0.5 border border-slate-100 font-semibold text-slate-700">Revenue <b className="text-emerald-700">{money(data?.dashboard.historical.revenue)}</b></span>
-            <span className="rounded-md bg-white px-2 py-0.5 border border-slate-100 font-semibold text-slate-700">COGS <b className="text-red-700">{money(data?.dashboard.historical.cogs)}</b></span>
-            <span className="rounded-md bg-white px-2 py-0.5 border border-slate-100 font-semibold text-slate-700">Expenses <b className="text-amber-700">{money(data?.dashboard.historical.expenses)}</b></span>
+            <span className="rounded-xl bg-white px-2 py-0.5 border border-slate-100 font-semibold text-slate-700">Revenue <b className="text-emerald-700">{money(data?.dashboard.historical.revenue)}</b></span>
+            <span className="rounded-xl bg-white px-2 py-0.5 border border-slate-100 font-semibold text-slate-700">COGS <b className="text-red-700">{money(data?.dashboard.historical.cogs)}</b></span>
+            <span className="rounded-xl bg-white px-2 py-0.5 border border-slate-100 font-semibold text-slate-700">Expenses <b className="text-amber-700">{money(data?.dashboard.historical.expenses)}</b></span>
             <span className="text-slate-500">({data?.dashboard.historical.rows ?? 0} rows)</span>
           </div>
         ) : null}
@@ -662,7 +663,7 @@ function DashboardView(props: {
               {sortedAgingRows.map((row) => {
                 const textTone = row.tone === 'emerald' ? 'text-emerald-700' : 'text-red-700'
                 return (
-                  <div key={row.key} className="rounded-lg border border-slate-100 bg-slate-50/60 p-2 text-xs">
+                  <div key={row.key} className="rounded-xl border border-slate-100 bg-slate-50/60 p-2 text-xs">
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <span className={`font-bold ${textTone}`}>{row.label}</span>
                       <span className={`font-bold ${textTone}`}>{money(row.total)}</span>
@@ -749,7 +750,7 @@ function DashboardView(props: {
           </div>
           <div className="space-y-2 sm:hidden">
             {sortedStockGroupRows.map((row) => (
-              <div key={row.group} className="rounded-lg border border-slate-100 bg-slate-50/60 p-2 text-xs">
+              <div key={row.group} className="rounded-xl border border-slate-100 bg-slate-50/60 p-2 text-xs">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <span className="font-bold text-slate-800 truncate">{row.group}</span>
                   <span className="font-bold text-indigo-700">{money(row.value)}</span>
@@ -855,26 +856,7 @@ function cashAccountValue(row: CashAccountRow, key: CashAccountSortKey) {
 }
 
 function DashboardKpi({ label, sub, tone, value }: { label: string; sub: string; tone: string; value: string }) {
-  const toneMap: Record<string, { accent: string; text: string }> = {
-    blue: { accent: 'bg-blue-500', text: 'text-blue-700' },
-    cyan: { accent: 'bg-cyan-500', text: 'text-cyan-700' },
-    emerald: { accent: 'bg-emerald-500', text: 'text-emerald-700' },
-    orange: { accent: 'bg-orange-500', text: 'text-orange-700' },
-    purple: { accent: 'bg-purple-500', text: 'text-purple-700' },
-    red: { accent: 'bg-rose-500', text: 'text-rose-700' },
-  }
-  const style = toneMap[tone] ?? { accent: 'bg-slate-400', text: 'text-slate-800' }
-
-  return (
-    <div className="relative flex min-h-[116px] min-w-0 flex-col justify-between overflow-hidden rounded-xl border border-slate-200 bg-white p-4 pl-5 shadow-sm">
-      <div className={`absolute inset-y-0 left-0 w-1 ${style.accent}`} />
-      <div className="min-w-0">
-        <div className="text-xs font-semibold text-slate-500">{label}</div>
-        {sub && <div className="mt-1 text-xs text-slate-400">{sub}</div>}
-      </div>
-      <div className={`mt-3 truncate font-mono text-xl font-bold tabular-nums ${style.text}`}>{value}</div>
-    </div>
-  )
+  return <SharedKpiCard label={label} note={sub} tone={tone as KpiCardTone} value={value} />
 }
 
 function DashboardChartCard({ children, className = '', title }: { children: ReactNode; className?: string; title: string }) {
@@ -905,7 +887,7 @@ function OwnerDailyView({ data }: { data: MainPayload | null }) {
         <LegacyKpi label="📤 คาดจ่ายวันนี้" sub={`AP ${money(data?.ownerDaily.due.ap.reduce((sum, row) => sum + row.amount, 0))} · Loan ${money(data?.ownerDaily.loanToday.reduce((sum, row) => sum + row.amount, 0))} · Exp ${money(data?.ownerDaily.expensesToday.reduce((sum, row) => sum + row.amount, 0))}`} tone="red" value={`-${money(plan?.expectedOut)}`} />
       </div>
       {(pending.tradingPending ?? 0) > 0 ? <PendingBlock color="purple" cta="→ ไป Trading Matching" title="🔄 Trading Pending รับเงิน — จ่ายซื้อ Trading แล้ว แต่ยังไม่เปิดบิลขาย" cards={[['📋 บิลซื้อ Trading', String(pending.tradingPending)], ['💸 จ่ายไปแล้ว', money(pending.tradingPaidTotal)], ['✓ Match แล้ว', money(pending.tradingMatchedTotal)], ['⏳ Pending รับเงิน', money(pending.tradingPendingValue)]]} /> : null}
-      <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-100">
+      <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
         <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">📊 ที่เกิดขึ้นจริงวันนี้แล้ว</h3>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
           <Tile tone="emerald" label="📥 รับเงินจริง" value={`+${money(actual?.cashIn)}`} />
@@ -1020,7 +1002,7 @@ function AnalyticsDashboardView({ data, rangeFrom, rangeMode, rangeTo, setRangeF
         </div>
       </div>
       <div className="mb-4 grid min-w-0 gap-4 lg:grid-cols-2">
-        <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm border border-slate-200">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
            <h3 className="mb-3 font-bold text-slate-700 text-sm">📈 ยอดซื้อ vs ขาย (รายวัน)</h3>
            {(analytics?.dailyTrend ?? []).map((row) => <div key={row.label} className="mb-2.5 grid grid-cols-12 items-center gap-2 text-xs"><div className="col-span-3 font-mono text-slate-600">{row.label}</div><AnalyticsTrendBar className="col-span-4" max={trendMax} tone="blue" value={row.purchase} /><AnalyticsTrendBar className="col-span-5" max={trendMax} tone="emerald" value={row.sales} /></div>)}
         </div>
@@ -1057,7 +1039,7 @@ function AnalyticsDashboardView({ data, rangeFrom, rangeMode, rangeTo, setRangeF
       {/* Floating Action Buttons */}
       <div className="mt-4 grid grid-cols-2 gap-2 pb-4 lg:fixed lg:bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:right-6 lg:z-50 lg:mt-0 lg:flex lg:flex-row lg:pb-0">
         <button
-          className="shadow-lg rounded-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 text-sm font-semibold transition-all hover:scale-105 active:scale-95 outline-none"
+          className="shadow-sm rounded-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 text-sm font-semibold transition-all hover:scale-105 active:scale-95 outline-none"
           type="button"
           onClick={() => {
             alert('แชร์ข้อมูลสรุปไปที่ LINE OA เรียบร้อยแล้ว')
@@ -1066,7 +1048,7 @@ function AnalyticsDashboardView({ data, rangeFrom, rangeMode, rangeTo, setRangeF
           <span>🟢</span> Share รูปภาพ - LINE
         </button>
         <button
-          className="shadow-lg rounded-full px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center gap-2 text-sm font-semibold transition-all hover:scale-105 active:scale-95 outline-none"
+          className="shadow-sm rounded-full px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center gap-2 text-sm font-semibold transition-all hover:scale-105 active:scale-95 outline-none"
           type="button"
           onClick={printReport}
         >
@@ -1083,27 +1065,10 @@ function rangeLabel(mode: string) {
 }
 
 function LegacyKpi({ label, sub, tone, value }: { label: string; sub: string; tone: string; value: string }) {
-  const toneMap: Record<string, { bg: string; text: string }> = {
-    blue: { bg: 'bg-blue-50', text: 'text-blue-600' },
-    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600' },
-    red: { bg: 'bg-red-50', text: 'text-red-600' },
-  }
-  const style = toneMap[tone] || { bg: 'bg-slate-50', text: 'text-slate-600' }
   const icon = label.slice(0, 2)
   const cleanLabel = label.slice(2).trim()
 
-  return (
-    <div className="flex items-center gap-3 bg-white p-4 shadow-sm border border-slate-100 rounded-xl">
-      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${style.bg} ${style.text} text-2xl`}>
-        {icon}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="text-xs font-semibold text-slate-500">{cleanLabel}</div>
-        {sub && <div className="text-xs text-slate-400 mt-0.5">{sub}</div>}
-        <div className={`mt-0.5 font-mono text-lg font-bold truncate ${style.text}`}>{value}</div>
-      </div>
-    </div>
-  )
+  return <SharedKpiCard icon={icon} label={cleanLabel} note={sub} tone={tone as KpiCardTone} value={value} />
 }
 
 function PendingBlock({ cards, color, cta, title }: { cards: [string, string][]; color: 'amber' | 'purple'; cta: string; title: string }) {
@@ -1113,7 +1078,7 @@ function PendingBlock({ cards, color, cta, title }: { cards: [string, string][];
     <div className="bg-white p-4 shadow-sm border border-slate-100 rounded-xl">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className={`text-sm font-bold ${text}`}>{title}</h3>
-        <button className={`rounded-lg ${button} px-3 py-1.5 text-xs font-bold opacity-80 outline-none`} disabled type="button">{cta}</button>
+        <button className={`rounded-md ${button} px-3 py-1.5 text-xs font-bold opacity-80 outline-none`} disabled type="button">{cta}</button>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {cards.map(([label, value]) => (
@@ -1127,29 +1092,12 @@ function PendingBlock({ cards, color, cta, title }: { cards: [string, string][];
   )
 }
 
-function Tile({ label, sub, tone, value, className }: { label: string; sub?: string; tone: string; value: string; className?: string }) {
-  const toneMap: Record<string, string> = {
-    amber: 'bg-amber-50 text-amber-700 border-amber-100',
-    blue: 'bg-blue-50 text-blue-700 border-blue-100',
-    cyan: 'bg-cyan-50 text-cyan-700 border-cyan-100',
-    emerald: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    orange: 'bg-orange-50 text-orange-700 border-orange-100',
-    purple: 'bg-purple-50 text-purple-700 border-purple-100',
-    red: 'bg-red-50 text-red-700 border-red-100',
-    slate: 'bg-slate-50 text-slate-700 border-slate-100',
-  }
-  const cls = toneMap[tone] || toneMap.slate
-  return (
-    <div className={`rounded-xl border p-3 text-center ${cls} ${className || ''}`}>
-      <div className="text-xs font-semibold">{label}</div>
-      <div className="font-mono text-lg font-bold mt-1">{value}</div>
-      {sub ? <div className="text-xs opacity-85 mt-0.5">{sub}</div> : null}
-    </div>
-  )
+function Tile({ label, sub, tone, value, className }: { label: string; sub?: string; tone: KpiCardTone; value: string; className?: string }) {
+  return <SharedKpiCard className={className} label={label} note={sub} tone={tone} value={value} />
 }
 
 function MiniLine({ label, value }: { label: string; value: string }) {
-  return <div className="flex items-center justify-between rounded-lg bg-slate-50 p-2 text-xs border border-slate-100"><span>{label}</span><span className="font-bold text-slate-800">{value}</span></div>
+  return <div className="flex items-center justify-between rounded-xl bg-slate-50 p-2 text-xs border border-slate-100"><span>{label}</span><span className="font-bold text-slate-800">{value}</span></div>
 }
 
 function OwnerDueTable({ rows, title, type }: { rows: OwnerDueRow[]; title: string; type: 'ap' | 'ar' }) {
@@ -1228,7 +1176,7 @@ function OwnerDueTable({ rows, title, type }: { rows: OwnerDueRow[]; title: stri
       {/* Mobile view (Dense Card List) */}
       <div className="block lg:hidden max-h-64 overflow-y-auto divide-y divide-slate-100 p-2 bg-slate-50/30">
         {sortedRows.map((row) => (
-          <div key={row.docNo} className="p-2.5 bg-white rounded-lg border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
+          <div key={row.docNo} className="p-2.5 bg-white rounded-xl border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
             <div className="flex justify-between items-start">
               <span className="font-bold text-slate-800 line-clamp-1">{row.name}</span>
               <span className="font-bold text-slate-900">{money(row.amount)}</span>
@@ -1318,7 +1266,7 @@ function OwnerSmallTable({ rows, tableKey, title }: { rows: OwnerSmallRow[]; tab
       {/* Mobile view */}
       <div className="block lg:hidden divide-y divide-slate-100 p-2 bg-slate-50/30">
         {sortedRows.map((row, index) => (
-          <div key={`${row.docNo ?? row.contractNo ?? index}`} className="p-2.5 bg-white rounded-lg border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
+          <div key={`${row.docNo ?? row.contractNo ?? index}`} className="p-2.5 bg-white rounded-xl border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
             <div className="flex justify-between items-center">
               <span className="font-mono text-slate-600">{row.docNo ?? row.contractNo}</span>
               <span className="font-bold text-slate-900">{money(row.amount)}</span>
@@ -1371,7 +1319,7 @@ function DailyBigCard({ icon, label, sub, tone, value, weight }: { icon: string;
 function GroupBreakdown({ expandedGroup, groups, setExpandedGroup }: { expandedGroup: string; groups: MainPayload['dailyReport']['groupBreakdown']; setExpandedGroup: (value: string) => void }) {
   const max = Math.max(1, ...groups.map((row) => Math.max(row.buyAmt, row.sellAmt)))
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <h3 className="mb-3 font-bold text-slate-800 text-sm">📊 หมวดสินค้า — ซื้อ vs ขาย <span className="text-xs font-normal text-slate-500">(กดที่หมวด → ดูรายละเอียดสินค้า)</span></h3>
       {groups.length === 0 ? (
         <div className="py-6 text-center text-slate-400 text-xs">ไม่มีรายการในวันนี้</div>
@@ -1491,18 +1439,18 @@ function GroupProductTable({ rows, tableKey }: { rows: DailyGroupProductRow[]; t
 
       <div className="block border-t border-slate-100 divide-y divide-slate-100 bg-slate-50/30 p-2 lg:hidden">
         {sortedRows.map((row, idx) => (
-          <div key={`${row.productId}_${idx}`} className="p-2.5 bg-white rounded-lg border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
+          <div key={`${row.productId}_${idx}`} className="p-2.5 bg-white rounded-xl border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
             <div className="flex justify-between items-start">
               <span className="font-bold text-slate-800">{row.productName}</span>
               <span className="font-mono text-xs text-slate-400">{row.productCode}</span>
             </div>
             <div className="grid grid-cols-2 gap-2 mt-1 text-xs">
-              <div className="text-blue-700 bg-blue-50/50 p-1.5 rounded-lg">
+              <div className="text-blue-700 bg-blue-50/50 p-1.5 rounded-xl">
                 <div className="font-semibold text-xs">📥 ซื้อ</div>
                 <div className="mt-0.5">{money(row.buyQty)} กก.</div>
                 <div className="font-bold mt-0.5">{money(row.buyAmt)} ฿</div>
               </div>
-              <div className="text-emerald-700 bg-emerald-50/50 p-1.5 rounded-lg">
+              <div className="text-emerald-700 bg-emerald-50/50 p-1.5 rounded-xl">
                 <div className="font-semibold text-xs">📤 ขาย</div>
                 <div className="mt-0.5">{money(row.sellQty)} กก.</div>
                 <div className="font-bold mt-0.5">{money(row.sellAmt)} ฿</div>
@@ -1589,7 +1537,7 @@ function DailyBillTable({ rows, title, tone }: { rows: DailyBillRow[]; title: st
       {/* Mobile view */}
       <div className="block lg:hidden max-h-[300px] overflow-y-auto divide-y divide-slate-100 bg-slate-50/30 p-2">
         {sortedRows.map((row) => (
-          <div key={row.docNo} className="p-2.5 bg-white rounded-lg border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
+          <div key={row.docNo} className="p-2.5 bg-white rounded-xl border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
             <div className="flex justify-between items-start">
               <span className="font-bold text-slate-800 line-clamp-1">{row.name}</span>
               <span className={`font-bold ${amountColor}`}>{money(row.amount)}</span>
@@ -1613,7 +1561,7 @@ function DailyBillTable({ rows, title, tone }: { rows: DailyBillRow[]; title: st
 function ExpenseSummary({ rows, total }: { rows: { amount: number; count: number; name: string }[]; total: number }) {
   const max = Math.max(1, ...rows.map((row) => row.amount))
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex justify-between items-center">
         <h3 className="font-bold text-slate-800 text-sm">💸 ค่าใช้จ่ายประจำวัน ({rows.reduce((sum, row) => sum + row.count, 0)} รายการ)</h3>
         <span className="text-base font-bold text-red-600">รวม {money(total)} บาท</span>
@@ -1656,7 +1604,7 @@ function CashMovement({ movement }: { movement?: MainPayload['dailyReport']['cas
   }
 
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="font-bold text-slate-800 text-sm">💰 เงินหมุนประจำวัน</h3>
         {columnResize.hasCustomWidths ? (
@@ -1716,7 +1664,7 @@ function CashMovement({ movement }: { movement?: MainPayload['dailyReport']['cas
         {sortedAccountRows.map((row) => {
           const net = row.cashIn - row.cashOut
           return (
-            <div key={row.name} className="rounded-lg border border-slate-100 bg-slate-50/60 p-2 text-xs">
+            <div key={row.name} className="rounded-xl border border-slate-100 bg-slate-50/60 p-2 text-xs">
               <div className="mb-2 flex items-start justify-between gap-2">
                 <div>
                   <div className="font-bold text-slate-800">{row.name}</div>
@@ -1810,7 +1758,7 @@ function TopSimpleTable({ rows, title }: { rows: { amount: number; group: string
   }, [rows, sortKey, sortDirection])
 
   return (
-    <div className="min-w-0 rounded-xl bg-white p-4 shadow-sm border border-slate-200">
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <h3 className="font-bold text-slate-700 text-sm">{title}</h3>
         {columnResize.hasCustomWidths ? (
@@ -1919,7 +1867,7 @@ function RankTable({ color, rows, title }: { color: 'blue' | 'emerald'; rows: Ra
   const visibleRows = (showAllRows ? sortedRows.slice(0, 10) : sortedRows.slice(0, 5))
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-md bg-white shadow-sm border border-slate-200">
+    <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className={`border-b p-3 font-bold text-sm ${header} flex items-center justify-between`}>
         <h3 className="font-bold">{title}</h3>
         <div className="flex items-center gap-2">
@@ -1995,7 +1943,7 @@ function RankTable({ color, rows, title }: { color: 'blue' | 'emerald'; rows: Ra
       {/* Mobile view */}
       <div className="block sm:hidden divide-y divide-slate-100 p-2 bg-slate-50/30">
         {visibleRows.map((row, index) => (
-          <div key={`${row.id || 'rank'}-${index}`} className="p-2.5 bg-white rounded-lg border border-slate-200 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
+          <div key={`${row.id || 'rank'}-${index}`} className="p-2.5 bg-white rounded-xl border border-slate-200 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
             <div className="flex justify-between items-start">
               <span className="font-bold text-slate-800 line-clamp-1">
                 <span className={`font-bold mr-1.5 ${text}`}>#{index + 1}</span>
@@ -2126,7 +2074,7 @@ function ProductRank({ rows, title, tone }: { rows: { amount: number; code: stri
       {/* Mobile view */}
       <div className="block sm:hidden divide-y divide-slate-100 p-2 bg-slate-50/30">
         {sortedRows.map((row, index) => (
-          <div key={`${row.id || 'prod'}-${index}`} className="p-2.5 bg-white rounded-lg border border-slate-200 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
+          <div key={`${row.id || 'prod'}-${index}`} className="p-2.5 bg-white rounded-xl border border-slate-200 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
             <div className="flex justify-between items-start">
               <span className="font-bold text-slate-800 line-clamp-1">
                 <span className={`font-bold mr-1.5 ${text}`}>#{index + 1}</span>
@@ -2191,7 +2139,7 @@ function SalespersonTable({ rows }: { rows: { amount: number; bills: number; id:
   }, [rows, sortKey, sortDirection])
 
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-200">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="font-bold text-slate-700 text-sm">🆕 ยอดซื้อแต่ละ Sale — จำนวน supplier/กก./ยอดซื้อ</h3>
         {columnResize.hasCustomWidths ? (
@@ -2244,7 +2192,7 @@ function SalespersonTable({ rows }: { rows: { amount: number; bills: number; id:
       {/* Mobile view */}
       <div className="block sm:hidden divide-y divide-slate-100 p-2 bg-slate-50/30">
         {sortedRows.map((row, index) => (
-          <div key={`${row.id || 'sales'}-${index}`} className="p-2.5 bg-white rounded-lg border border-slate-200 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
+          <div key={`${row.id || 'sales'}-${index}`} className="p-2.5 bg-white rounded-xl border border-slate-200 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
             <div className="flex justify-between items-start">
               <span className="font-bold text-slate-800">{row.name}</span>
               <span className="font-bold text-blue-600">{money(row.amount)}</span>
@@ -2278,31 +2226,7 @@ function AnalyticsKpiCard({
   unit?: string
   tone?: string
 }) {
-  const toneMap: Record<string, { bg: string; text: string }> = {
-    blue: { bg: 'bg-blue-50 text-blue-600', text: 'text-blue-600' },
-    emerald: { bg: 'bg-emerald-50 text-emerald-600', text: 'text-emerald-600' },
-    purple: { bg: 'bg-purple-50 text-purple-600', text: 'text-purple-600' },
-    cyan: { bg: 'bg-cyan-50 text-cyan-600', text: 'text-cyan-600' },
-    orange: { bg: 'bg-orange-50 text-orange-600', text: 'text-orange-600' },
-    slate: { bg: 'bg-slate-50 text-slate-600', text: 'text-slate-600' },
-  }
-  const cls = toneMap[tone] || toneMap.slate
-
-  return (
-    <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${cls.bg} ${cls.text} text-2xl`}>
-        {icon}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="text-xs font-semibold text-slate-500">{label}</div>
-        <div className="mt-1 flex items-baseline gap-1">
-          <span className="font-mono text-xl font-bold text-slate-900 truncate">{value}</span>
-          {unit && <span className="text-xs text-slate-400 font-semibold">{unit}</span>}
-        </div>
-        {subtext && <div className="text-xs text-slate-400 mt-0.5">{subtext}</div>}
-      </div>
-    </div>
-  )
+  return <SharedKpiCard icon={icon} label={label} note={subtext} tone={tone as KpiCardTone} value={unit ? `${value} ${unit}` : value} />
 }
 
 function money(value?: number) {
@@ -2327,44 +2251,12 @@ function toneClass(tone: string) {
   return map[tone] ?? map.slate
 }
 
-function Metric({ label, tone = 'slate', value }: { label: string; tone?: string; value: string }) {
-  const toneMap: Record<string, { bg: string; text: string }> = {
-    blue: { bg: 'bg-blue-50/50 text-blue-900 border-blue-100', text: 'text-blue-600' },
-    emerald: { bg: 'bg-emerald-50/50 text-emerald-900 border-emerald-100', text: 'text-emerald-600' },
-    red: { bg: 'bg-red-50/50 text-red-900 border-red-100', text: 'text-red-600' },
-    amber: { bg: 'bg-amber-50/50 text-amber-900 border-amber-100', text: 'text-amber-600' },
-    orange: { bg: 'bg-orange-50/50 text-orange-900 border-orange-100', text: 'text-orange-600' },
-    purple: { bg: 'bg-purple-50/50 text-purple-900 border-purple-100', text: 'text-purple-600' },
-    cyan: { bg: 'bg-cyan-50/50 text-cyan-900 border-cyan-100', text: 'text-cyan-600' },
-  }
-  const cls = toneMap[tone] || { bg: 'bg-slate-50/50 text-slate-900 border-slate-100', text: 'text-slate-500' }
-  const icon = label.slice(0, 2)
-  const isEmoji = /[\uD800-\uDFFF\u2600-\u27BF]/.test(icon)
-  const cleanLabel = isEmoji ? label.slice(2).trim() : label
-
-  return (
-    <div className={`rounded-xl border p-4 shadow-sm bg-white border-slate-100 flex items-center gap-3`}>
-      {isEmoji && (
-        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${cls.bg} ${cls.text} text-xl`}>
-          {icon}
-        </div>
-      )}
-      <div className="min-w-0 flex-1">
-        <div className="text-xs font-semibold text-slate-500">{cleanLabel}</div>
-        <div className="mt-0.5 font-mono text-lg font-bold text-slate-900 truncate">{value}</div>
-      </div>
-    </div>
-  )
+function Metric({ label, tone = 'slate', value }: { label: string; tone?: KpiCardTone; value: string }) {
+  return <SharedKpiCard label={label} tone={tone} value={value} />
 }
 
 function BigCard({ label, sub, tone, value }: { label: string; sub: string; tone: string; value: string }) {
-  return (
-    <div className="bg-white shadow-sm border border-slate-100 rounded-xl p-5">
-      <div className="text-xs font-semibold text-slate-500">{label}</div>
-      <div className="mt-2 font-mono text-2xl font-bold text-slate-950">{value}</div>
-      <div className="mt-1 text-xs text-slate-400">{sub}</div>
-    </div>
-  )
+  return <SharedKpiCard label={label} note={sub} tone={tone as KpiCardTone} value={value} />
 }
 
 function Panel({ children, title }: { children: ReactNode; title: string }) {

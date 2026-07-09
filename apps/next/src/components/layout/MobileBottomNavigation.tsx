@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
 import {
   User,
   Menu,
@@ -12,6 +11,7 @@ import {
 import { canAccessPath, navigationItems, sidebarNavigationPath } from '@/lib/navigation'
 
 type MobileBottomNavigationProps = {
+  authContext: { isAdmin: boolean; permissions: string[] } | null
   onOpenSidebar?: () => void
 }
 
@@ -30,40 +30,10 @@ const dashboardCandidates = [
   '/analytics-dashboard',
 ]
 
-export function MobileBottomNavigation({ onOpenSidebar }: MobileBottomNavigationProps) {
+export function MobileBottomNavigation({ authContext, onOpenSidebar }: MobileBottomNavigationProps) {
   const pathname = usePathname()
-  const [authContext, setAuthContext] = useState<{ isAdmin: boolean; permissions: string[] } | null>(null)
-  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    let mounted = true
-    async function loadAuthContext() {
-      try {
-        const response = await fetch('/api/auth/me', { cache: 'no-store', credentials: 'include' })
-        const payload = await response.json().catch(() => null)
-        if (mounted && response.ok) {
-          setAuthContext({
-            isAdmin: payload?.isAdmin === true,
-            permissions: Array.isArray(payload?.permissions) ? payload.permissions : [],
-          })
-        } else if (mounted) {
-          setAuthContext({ isAdmin: false, permissions: [] })
-        }
-      } catch (err) {
-        console.error('Failed to load auth context in bottom navigation', err)
-      } finally {
-        if (mounted) {
-          setLoading(false)
-        }
-      }
-    }
-    void loadAuthContext()
-    return () => {
-      mounted = false
-    }
-  }, [])
-
-  if (loading) {
+  if (!authContext) {
     return (
       <nav className="fixed bottom-0 left-0 right-0 z-40 h-16 border-t border-slate-200/80 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.03)] pb-safe lg:hidden">
         <div className="mx-auto flex h-full max-w-lg items-center justify-around px-2 animate-pulse">

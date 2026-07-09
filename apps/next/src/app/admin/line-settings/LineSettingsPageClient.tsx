@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { getErrorMessage } from '@/lib/api-client'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 // Validation Schema for credentials and basic configs
 const credentialsSchema = z.object({
@@ -1048,23 +1049,23 @@ export function LineSettingsPageClient() {
   return (
     <section className="line-settings-page w-full max-w-none space-y-6 px-6 py-5 lg:px-10 lg:py-8 animate-fade-in font-normal text-slate-800">
       {/* Page Title & Environment Details */}
-      <div className="rounded-xl bg-slate-900 px-6 py-5 text-white shadow-md flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200/60 bg-white px-6 py-5 text-slate-900 shadow-sm">
         <div>
           <h1 className="text-xl font-bold">🛠️ LINE Notification Control Center</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="px-2.5 py-1 rounded bg-[#0284c7] text-white font-bold text-xs uppercase select-none tracking-wider">
+          <span className="rounded-md border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-slate-700 select-none">
             {process.env.NODE_ENV === 'development' ? 'Development' : 'Production'}
           </span>
           <span
-            className="px-2.5 py-1 rounded bg-slate-700 text-slate-300 font-mono text-xs select-none tracking-wider"
+            className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 font-mono text-xs tracking-wider text-slate-500 select-none"
             title={`Build: ${process.env.NEXT_PUBLIC_BUILD_TIME || '-'}`}
           >
             v{process.env.NEXT_PUBLIC_BUILD_VERSION || '0.0.0'} · {process.env.NEXT_PUBLIC_BUILD_COMMIT || 'unknown'}
           </span>
           <button
             type="button"
-            className="px-3 py-1.5 text-xs text-slate-200 border border-slate-700 bg-slate-800 hover:bg-slate-700 hover:text-white rounded-md transition focus:outline-none h-8 select-none"
+            className="h-8 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 transition hover:bg-slate-50 focus:outline-none select-none"
             onClick={() => void initData()}
           >
             🔄 รีเฟรชหน้าจอนี้
@@ -1073,21 +1074,32 @@ export function LineSettingsPageClient() {
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 animate-fade-in flex items-center gap-2">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 animate-fade-in flex items-center gap-2">
           <span>⚠️</span>
           <span>{error}</span>
         </div>
       ) : null}
 
       {message ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 animate-fade-in flex items-center gap-2">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 animate-fade-in flex items-center gap-2">
           <span>✅</span>
           <span>{message}</span>
         </div>
       ) : null}
 
       {/* Tabs Menu Switcher */}
-      <div className="flex border-b border-slate-200 space-x-1 overflow-x-auto flex-nowrap scrollbar-hide select-none">
+      <Tabs
+        className="gap-0"
+        value={activeTab}
+        onValueChange={(value) => {
+          setActiveTab(value as typeof activeTab)
+          setError(null)
+          setMessage(null)
+          if (value === 'outbox') void loadJobs()
+          if (value === 'analytics') void loadAnalytics()
+        }}
+      >
+        <TabsList className="w-full flex-nowrap overflow-x-auto scrollbar-hide" variant="line">
         {[
           { key: 'overview', label: '📊 Overview' },
           { key: 'credentials', label: '🔌 Credentials' },
@@ -1097,24 +1109,16 @@ export function LineSettingsPageClient() {
           { key: 'outbox', label: '📥 Outbox Queue' },
           { key: 'analytics', label: '📈 Analytics' }
         ].map((tab) => (
-          <button
+          <TabsTrigger
             key={tab.key}
-            className={`px-4 py-2.5 text-xs lg:text-sm font-semibold rounded-t-lg transition focus:outline-none whitespace-nowrap ${activeTab === tab.key
-                ? 'bg-white border-t border-x border-slate-200 text-slate-900 border-b-2 border-b-white -mb-[1px]'
-                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-              }`}
-            onClick={() => {
-              setActiveTab(tab.key as any)
-              setError(null)
-              setMessage(null)
-              if (tab.key === 'outbox') void loadJobs()
-              if (tab.key === 'analytics') void loadAnalytics()
-            }}
+            value={tab.key}
+            variant="line"
           >
             {tab.label}
-          </button>
+          </TabsTrigger>
         ))}
-      </div>
+        </TabsList>
+      </Tabs>
 
       {/* Tab Render Area */}
       <div className="grid grid-cols-1 gap-6">
@@ -1245,7 +1249,7 @@ export function LineSettingsPageClient() {
               <div className="pt-4 border-t border-slate-100 flex flex-wrap gap-2.5">
                 <button
                   type="button"
-                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition focus:outline-none flex items-center gap-1.5 h-10"
+                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-md transition focus:outline-none flex items-center gap-1.5 h-10"
                   onClick={() => void testOAConnection()}
                   disabled={isTestingOA}
                 >
@@ -1253,7 +1257,7 @@ export function LineSettingsPageClient() {
                 </button>
                 <button
                   type="button"
-                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition focus:outline-none flex items-center gap-1.5 h-10"
+                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-md transition focus:outline-none flex items-center gap-1.5 h-10"
                   onClick={() => void testWebhookSignature()}
                   disabled={isTestingWebhook}
                 >
@@ -1261,7 +1265,7 @@ export function LineSettingsPageClient() {
                 </button>
                 <button
                   type="button"
-                  className="px-3.5 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition focus:outline-none flex items-center gap-1.5 h-10"
+                  className="px-3.5 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition focus:outline-none flex items-center gap-1.5 h-10"
                   onClick={() => void runOutboxWorker()}
                   disabled={isProcessingJobs}
                 >
@@ -1286,7 +1290,7 @@ export function LineSettingsPageClient() {
                 <div className="relative">
                   <input
                     type={showToken ? 'text' : 'password'}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none pr-10 h-10"
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none pr-10 h-10"
                     placeholder="ป้อนรหัสสิทธิ์ส่งบอทไลน์ Channel Access Token"
                     value={form.lineChannelAccessToken || ''}
                     onChange={(e) => setForm({ ...form, lineChannelAccessToken: e.target.value })}
@@ -1310,7 +1314,7 @@ export function LineSettingsPageClient() {
                 <div className="relative">
                   <input
                     type={showSecret ? 'text' : 'password'}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none pr-10 h-10"
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none pr-10 h-10"
                     placeholder="ป้อน Channel Secret สำหรับตรวจสอบลายเซ็น"
                     value={form.lineChannelSecret || ''}
                     onChange={(e) => setForm({ ...form, lineChannelSecret: e.target.value })}
@@ -1333,7 +1337,7 @@ export function LineSettingsPageClient() {
                 <label className="block text-sm font-bold text-slate-700">Storage Bucket เก็บเอกสาร PDF *</label>
                 <input
                   type="text"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none h-10"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none h-10"
                   value={form.pdfBucket}
                   onChange={(e) => setForm({ ...form, pdfBucket: e.target.value })}
                 />
@@ -1347,7 +1351,7 @@ export function LineSettingsPageClient() {
                 <label className="block text-sm font-bold text-slate-700">Public App URL (ต้นทางระบบเว็บ) *</label>
                 <input
                   type="text"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none h-10"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none h-10"
                   placeholder="เช่น https://ns-dev.devkub.com"
                   value={form.appUrl}
                   onChange={(e) => setForm({ ...form, appUrl: e.target.value })}
@@ -1383,7 +1387,7 @@ export function LineSettingsPageClient() {
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
               <button
                 type="button"
-                className="px-5 py-2.5 text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition focus:outline-none h-10"
+                className="px-5 py-2.5 text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition focus:outline-none h-10"
                 onClick={() => void saveCredentials()}
                 disabled={isSaving}
               >
@@ -1441,7 +1445,7 @@ export function LineSettingsPageClient() {
               {/* Lined table view with resize headers */}
               <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm hidden lg:block">
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-100 text-sm" style={{ minWidth: targetResize.tableMinWidth, tableLayout: 'fixed' }}>
+                  <table className="ns-table min-w-full divide-y divide-slate-100 text-sm" style={{ minWidth: targetResize.tableMinWidth, tableLayout: 'fixed' }}>
                     <colgroup>
                       {targetCols.map((col) => (
                         <col key={col.key} style={targetResize.getColumnStyle(col.key)} />
@@ -1723,7 +1727,7 @@ export function LineSettingsPageClient() {
               {/* Lined table view with resize headers (Desktop) */}
               <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm hidden lg:block">
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-100 text-sm" style={{ minWidth: ruleResize.tableMinWidth, tableLayout: 'fixed' }}>
+                  <table className="ns-table min-w-full divide-y divide-slate-100 text-sm" style={{ minWidth: ruleResize.tableMinWidth, tableLayout: 'fixed' }}>
                     <colgroup>
                       {ruleCols.map((col) => (
                         <col key={col.key} style={ruleResize.getColumnStyle(col.key)} />
@@ -1997,10 +2001,11 @@ export function LineSettingsPageClient() {
                   {['', 'pending', 'sent', 'failed', 'processing'].map((status) => (
                     <button
                       key={status}
-                      className={`px-3 py-1.5 border rounded-lg transition focus:outline-none ${jobStatusFilter === status
-                          ? 'bg-slate-900 border-slate-900 text-white font-bold'
-                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      className={`rounded-md border px-3 py-1 text-xs font-medium transition focus:outline-none ${jobStatusFilter === status
+                          ? 'border-slate-700 bg-slate-700 text-white'
+                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
                         }`}
+                      type="button"
                       onClick={() => {
                         setJobStatusFilter(status)
                         setJobPage(1)
@@ -2016,7 +2021,7 @@ export function LineSettingsPageClient() {
               <div className="flex gap-2 text-xs">
                 <input
                   type="text"
-                  className="w-full max-w-xs rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-slate-500 h-9"
+                  className="w-full max-w-xs rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-slate-500 h-9"
                   placeholder="ค้นหาเลขบิล, กลุ่มแชท..."
                   value={jobSearch}
                   onChange={(e) => setSearchVal(e.target.value)}
@@ -2034,7 +2039,7 @@ export function LineSettingsPageClient() {
               {/* Lined table view with resize headers (Desktop) */}
               <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm hidden lg:block">
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-100 text-sm" style={{ minWidth: jobResize.tableMinWidth, tableLayout: 'fixed' }}>
+                  <table className="ns-table min-w-full divide-y divide-slate-100 text-sm" style={{ minWidth: jobResize.tableMinWidth, tableLayout: 'fixed' }}>
                     <colgroup>
                       {jobCols.map((col) => (
                         <col key={col.key} style={jobResize.getColumnStyle(col.key)} />
@@ -2313,7 +2318,7 @@ export function LineSettingsPageClient() {
                 </h4>
                 <div className="space-y-3">
                   {analytics?.topTargets?.map((t, idx) => (
-                    <div key={idx} className="flex justify-between items-center text-xs text-slate-700 bg-slate-50/50 p-2.5 rounded-lg border border-slate-100">
+                    <div key={idx} className="flex justify-between items-center text-xs text-slate-700 bg-slate-50/50 p-2.5 rounded-xl border border-slate-100">
                       <div>
                         <span className="font-bold text-slate-800 block">{t.displayName}</span>
                         <span className="text-xs font-mono text-slate-400 mt-0.5 truncate block max-w-[200px] select-all">{t.targetId}</span>
@@ -2334,7 +2339,7 @@ export function LineSettingsPageClient() {
                 </h4>
                 <div className="space-y-3">
                   {analytics?.topErrors?.map((err, idx) => (
-                    <div key={idx} className="flex justify-between items-start text-xs text-slate-700 bg-slate-50/50 p-2.5 rounded-lg border border-slate-100">
+                    <div key={idx} className="flex justify-between items-start text-xs text-slate-700 bg-slate-50/50 p-2.5 rounded-xl border border-slate-100">
                       <span className="font-medium text-rose-800 break-words max-w-[320px]">{err.message}</span>
                       <span className="font-bold text-rose-900 font-mono bg-rose-50 px-2 py-1 rounded flex-shrink-0 ml-2">{err.count} ครั้ง</span>
                     </div>
@@ -2351,7 +2356,7 @@ export function LineSettingsPageClient() {
       </div>
 
       {/* FOOTER INFO */}
-      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-xs text-blue-800 space-y-1 select-none">
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs text-blue-800 space-y-1 select-none">
         <p className="font-bold">💡 ข้อแนะนำเพิ่มเติม:</p>
         <ul className="list-disc pl-5 space-y-0.5">
           <li>สำหรับการลงทะเบียนบอทรับสิทธิ: เชิญ LINE OA บอทเข้าร่วมกลุ่มแชท ➡️ พิมพ์คำสั่ง <code>/register สาขา=[code]</code> บอทจะทำการซิงค์โครงสร้างและอัปเดตลงตารางหน้านี้ทันที</li>
@@ -2398,7 +2403,7 @@ export function LineSettingsPageClient() {
                 <input
                   type="text"
                   required
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
                   placeholder="เช่น กลุ่มแชทหน้าเตาหลอม, บัญชีรับซื้อ"
                   value={editingTarget.display_name || ''}
                   onChange={(e) => setEditingTarget({ ...editingTarget, display_name: e.target.value })}
@@ -2408,7 +2413,7 @@ export function LineSettingsPageClient() {
               <div className="space-y-1">
                 <label className="block font-bold text-slate-700">ประเภทช่องทางแชท *</label>
                 <select
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
                   value={editingTarget.target_type}
                   onChange={(e) => setEditingTarget({ ...editingTarget, target_type: e.target.value as any })}
                 >
@@ -2424,7 +2429,7 @@ export function LineSettingsPageClient() {
                   type="text"
                   required
                   disabled={!!editingTarget.id}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10 disabled:bg-slate-50 disabled:text-slate-400"
                   placeholder="เช่น C12345abcd..."
                   value={editingTarget.target_id || ''}
                   onChange={(e) => setEditingTarget({ ...editingTarget, target_id: e.target.value })}
@@ -2435,7 +2440,7 @@ export function LineSettingsPageClient() {
               <div className="space-y-1">
                 <label className="block font-bold text-slate-700">ผูกเชื่อมโยงรหัสสาขา (ระบุสาขา)</label>
                 <select
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
                   value={editingTarget.branch_code || ''}
                   onChange={(e) => setEditingTarget({ ...editingTarget, branch_code: e.target.value || null })}
                 >
@@ -2516,7 +2521,7 @@ export function LineSettingsPageClient() {
                   <input
                     type="text"
                     required
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
                     placeholder="เช่น ส่งใบรับสินค้าชั่งทองแดงน้ำหนักสูงกว่า 5 ตัน ไปหน้าเตา"
                     value={editingRule.name || ''}
                     onChange={(e) => setEditingRule({ ...editingRule, name: e.target.value })}
@@ -2527,7 +2532,7 @@ export function LineSettingsPageClient() {
                   <label className="block font-bold text-slate-700">คำอธิบายเพิ่มเติม</label>
                   <textarea
                     rows={2}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none"
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none"
                     placeholder="รายละเอียดเพิ่มเติมของกฎนี้..."
                     value={editingRule.description || ''}
                     onChange={(e) => setEditingRule({ ...editingRule, description: e.target.value })}
@@ -2538,7 +2543,7 @@ export function LineSettingsPageClient() {
                   <label className="block font-bold text-slate-700">ผู้รับปลายทาง (LINE Target) *</label>
                   <select
                     required
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
                     value={editingRule.target_id || ''}
                     onChange={(e) => setEditingRule({ ...editingRule, target_id: e.target.value })}
                   >
@@ -2554,7 +2559,7 @@ export function LineSettingsPageClient() {
                   <input
                     type="number"
                     required
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
                     value={editingRule.priority ?? 100}
                     onChange={(e) => setEditingRule({ ...editingRule, priority: Number(e.target.value) })}
                   />
@@ -2725,7 +2730,7 @@ export function LineSettingsPageClient() {
                   <input
                     type="text"
                     required
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
                     placeholder="เช่น เทมเพลตมาตรฐาน, ธีมสีส้มบิลส่งทองแดง"
                     value={editingTemplate.name || ''}
                     onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
@@ -2760,7 +2765,7 @@ export function LineSettingsPageClient() {
                     <label className="block font-bold text-slate-700">หัวข้อหลัก</label>
                     <input
                       type="text"
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
+                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
                       value={templateFormConfig.title}
                       onChange={(e) => updateEditingTemplateConfig((config) => ({ ...config, title: e.target.value }))}
                     />
@@ -2770,7 +2775,7 @@ export function LineSettingsPageClient() {
                     <label className="block font-bold text-slate-700">ข้อความรอง</label>
                     <input
                       type="text"
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
+                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
                       value={templateFormConfig.subtitle}
                       onChange={(e) => updateEditingTemplateConfig((config) => ({ ...config, subtitle: e.target.value }))}
                     />
@@ -2794,7 +2799,7 @@ export function LineSettingsPageClient() {
                         />
                         <input
                           type="text"
-                          className="h-10 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none"
+                          className="h-10 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none"
                           value={templateFormConfig.theme.headerColorWti}
                           onChange={(e) => updateEditingTemplateConfig((config) => ({
                             ...config,
@@ -2817,7 +2822,7 @@ export function LineSettingsPageClient() {
                         />
                         <input
                           type="text"
-                          className="h-10 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none"
+                          className="h-10 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none"
                           value={templateFormConfig.theme.headerColorWto}
                           onChange={(e) => updateEditingTemplateConfig((config) => ({
                             ...config,
@@ -2833,7 +2838,7 @@ export function LineSettingsPageClient() {
                   <h4 className="font-bold text-slate-900">ข้อมูลที่จะแสดงในการ์ด</h4>
                   <div className="space-y-2">
                     {templateFormConfig.fields.map((field) => (
-                      <div key={field.key} className="grid grid-cols-[auto_1fr] items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                      <div key={field.key} className="grid grid-cols-[auto_1fr] items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
                         <input
                           type="checkbox"
                           className="h-4 w-4"
@@ -2845,7 +2850,7 @@ export function LineSettingsPageClient() {
                         />
                         <input
                           type="text"
-                          className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                          className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
                           value={field.label}
                           disabled={!field.enabled}
                           onChange={(e) => updateEditingTemplateConfig((config) => ({
@@ -2861,7 +2866,7 @@ export function LineSettingsPageClient() {
                 <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
                   <h4 className="font-bold text-slate-900">ปุ่มท้ายการ์ด</h4>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <label className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 font-semibold text-slate-700">
+                    <label className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 font-semibold text-slate-700">
                       <input
                         type="checkbox"
                         checked={templateFormConfig.buttons.pdf}
@@ -2872,7 +2877,7 @@ export function LineSettingsPageClient() {
                       />
                       <span>แสดงปุ่มเปิด PDF</span>
                     </label>
-                    <label className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 font-semibold text-slate-700">
+                    <label className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 font-semibold text-slate-700">
                       <input
                         type="checkbox"
                         checked={templateFormConfig.buttons.detail}
@@ -3027,7 +3032,7 @@ export function LineSettingsPageClient() {
                 <h4 className="font-bold text-slate-800">📊 บันทึกพยายามส่งข้อมูลในคิว (Attempts Trail):</h4>
                 <div className="space-y-2">
                   {selectedJob.line_notification_attempts.map((attempt) => (
-                    <div key={attempt.id} className="bg-white rounded-lg border border-slate-200 p-3 leading-relaxed">
+                    <div key={attempt.id} className="bg-white rounded-xl border border-slate-200 p-3 leading-relaxed">
                       <div className="flex justify-between items-center pb-1.5 border-b border-slate-100">
                         <span className="font-bold text-slate-700">พยายามส่งครั้งที่ #{attempt.attempt_no}</span>
                         <span className="text-xs text-slate-400">{new Date(attempt.created_at).toLocaleString('th-TH')}</span>

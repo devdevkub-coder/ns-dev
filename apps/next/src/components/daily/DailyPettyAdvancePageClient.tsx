@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
@@ -344,7 +345,7 @@ export function DailyPettyAdvancePageClient() {
       </div>
 
       {topRecipients.length ? (
-        <div className="rounded-md bg-white p-4 shadow">
+        <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
           <div className="mb-2 font-bold text-slate-700">Top 10 ผู้รับเงินที่ค้างคืน</div>
           <div className="grid gap-2 text-sm md:grid-cols-2">
             {topRecipients.map((recipient) => (
@@ -357,7 +358,7 @@ export function DailyPettyAdvancePageClient() {
         </div>
       ) : null}
 
-      <div className="rounded-md bg-white p-3 shadow">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <input autoComplete="off" className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-100" placeholder="ค้นหาเลขที่ / ผู้รับเงิน / หมายเหตุ" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
 
@@ -367,7 +368,7 @@ export function DailyPettyAdvancePageClient() {
             className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 lg:hidden"
             onClick={() => setShowMobileFilters(true)}
           >
-            <span>🔍</span> ตัวกรอง {(type || status !== 'active') ? '(1)' : ''}
+            ตัวกรอง {(type || status !== 'active') ? '(1)' : ''}
           </button>
 
           {hasActiveFilters ? (
@@ -375,7 +376,6 @@ export function DailyPettyAdvancePageClient() {
               ล้าง filter
             </button>
           ) : null}
-          <button className="hidden lg:inline-flex items-center justify-center ml-auto h-9 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700" type="button" onClick={openCreateForm}>+ ยืมเงินใหม่</button>
         </div>
 
         {/* Desktop Filters */}
@@ -392,6 +392,7 @@ export function DailyPettyAdvancePageClient() {
             <SegmentFilterButton active={status === 'active'} label="ค้างคืน" onClick={() => setStatus(status === 'active' ? '' : 'active')} />
             <SegmentFilterButton active={status === 'closed'} label="ปิดแล้ว" onClick={() => setStatus(status === 'closed' ? '' : 'closed')} />
             <SegmentFilterButton active={status === 'cancelled'} label="ยกเลิก" onClick={() => setStatus(status === 'cancelled' ? '' : 'cancelled')} />
+            <button className="ml-auto inline-flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700" type="button" onClick={openCreateForm}>+ ยืมเงินใหม่</button>
           </div>
         </div>
       </div>
@@ -702,7 +703,7 @@ export function DailyPettyAdvancePageClient() {
         </div>
 
         <div className="hidden overflow-x-auto lg:block">
-        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {pettyAdvanceColumns.map((column) => {
               const style = columnResize.getColumnStyle(column.key);
@@ -775,26 +776,26 @@ function DetailModal({ onClose, onReturn, row }: { onClose: () => void; onReturn
         <div className="space-y-4 bg-slate-50 p-5 text-sm">
           {/* สรุปยอดเงิน */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 text-center">
+            <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3 text-center">
               <div className="text-xs text-blue-700 font-semibold">ยอดยืม</div>
               <div className="text-lg font-bold mt-1 text-blue-900">{formatMoney(row.amount)}</div>
             </div>
-            <div className="rounded-lg border border-amber-100 bg-amber-50/50 p-3 text-center">
+            <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-3 text-center">
               <div className="text-xs text-amber-700 font-semibold">ใช้ไปแล้ว</div>
               <div className="text-lg font-bold mt-1 text-amber-900">{formatMoney(row.spent)}</div>
             </div>
-            <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-3 text-center">
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 text-center">
               <div className="text-xs text-emerald-700 font-semibold">คืนแล้ว</div>
               <div className="text-lg font-bold mt-1 text-emerald-900">{formatMoney(row.returned)}</div>
             </div>
-            <div className="rounded-lg border border-red-100 bg-red-50/50 p-3 text-center">
+            <div className="rounded-xl border border-red-100 bg-red-50/50 p-3 text-center">
               <div className="text-xs text-red-700 font-semibold">คงค้าง</div>
               <div className="text-lg font-bold mt-1 text-red-900">{formatMoney(row.remaining)}</div>
             </div>
           </div>
 
           {/* ข้อมูลบัญชีและผู้รับ */}
-          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4">
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลการยืมและผู้รับ</div>
             <div className="grid grid-cols-1 gap-y-3">
               <DetailItem label="บัญชีรับเงินของกรรมการ/พนักงาน" value={row.recipientAccountLabel || '-'} />
@@ -805,14 +806,14 @@ function DetailModal({ onClose, onReturn, row }: { onClose: () => void; onReturn
 
           <div>
             <div className="mb-2 font-bold text-slate-800">บิลค่าใช้จ่ายที่จ่ายจากเงินก้อนนี้</div>
-            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 text-center text-slate-400">ยังไม่มีบิลที่ link อยู่ใน payload ปัจจุบัน</div>
+            <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 text-center text-slate-400">ยังไม่มีบิลที่ link อยู่ใน payload ปัจจุบัน</div>
           </div>
 
           <div>
             <div className="mb-2 font-bold text-emerald-700">ประวัติการคืนเงิน ({returns.length} ครั้ง)</div>
             {returns.length ? (
-              <div className="overflow-x-auto rounded-lg border border-slate-100 bg-white">
-                <table className="w-full text-xs">
+              <div className="overflow-x-auto rounded-md border border-slate-100 bg-white">
+                <table className="ns-table w-full text-xs">
                   <thead className="bg-slate-50 text-slate-600">
                     <tr>
                       <th className="p-2 text-left">วันที่</th>
@@ -834,7 +835,7 @@ function DetailModal({ onClose, onReturn, row }: { onClose: () => void; onReturn
                 </table>
               </div>
             ) : (
-              <div className="rounded-lg border border-slate-100 bg-slate-50/50 py-4 text-center text-slate-400">ยังไม่มีประวัติคืนเงิน</div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50/50 py-4 text-center text-slate-400">ยังไม่มีประวัติคืนเงิน</div>
             )}
           </div>
         </div>
@@ -870,53 +871,8 @@ function StatusBadge({ status }: { status: string }) {
   return <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500"><span className="size-1.5 rounded-full bg-slate-400" />ยกเลิก</span>
 }
 
-function SummaryCard({ label, tone, value, className = '' }: { label: string; tone?: 'amber' | 'blue' | 'emerald' | 'red'; value: string; className?: string }) {
-  const configs = {
-    slate: {
-      bg: 'bg-slate-100 text-slate-600',
-      emoji: '📋',
-      labelColor: 'text-slate-500',
-      valueColor: 'text-slate-900',
-    },
-    amber: {
-      bg: 'bg-amber-100 text-amber-600',
-      emoji: '⏱️',
-      labelColor: 'text-amber-600',
-      valueColor: 'text-amber-700',
-    },
-    blue: {
-      bg: 'bg-blue-100 text-blue-600',
-      emoji: '💰',
-      labelColor: 'text-blue-600',
-      valueColor: 'text-blue-700',
-    },
-    emerald: {
-      bg: 'bg-emerald-100 text-emerald-600',
-      emoji: '✅',
-      labelColor: 'text-emerald-600',
-      valueColor: 'text-emerald-700',
-    },
-    red: {
-      bg: 'bg-red-100 text-red-600',
-      emoji: '🚨',
-      labelColor: 'text-red-600',
-      valueColor: 'text-red-700',
-    },
-  }
-
-  const config = configs[tone || 'slate']
-
-  return (
-    <div className={`bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 ${className}`}>
-      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-        {config.emoji}
-      </div>
-      <div>
-        <div className={`text-xs ${config.labelColor}`}>{label}</div>
-        <div className={`font-mono text-lg sm:text-2xl font-bold ${config.valueColor}`}>{value}</div>
-      </div>
-    </div>
-  )
+function SummaryCard({ label, tone = 'slate', value, className = '' }: { label: string; tone?: 'amber' | 'blue' | 'emerald' | 'red' | 'slate'; value: string; className?: string }) {
+  return <SharedKpiCard className={className} label={label} tone={tone} value={value} />
 }
 
 function ReadOnlyField(props: { label: string; value: string }) {
@@ -996,7 +952,7 @@ function TextAreaField(props: { error?: string; fieldName?: string; label: strin
       <span className="mb-1 block text-xs font-medium text-slate-600">{props.label}</span>
       <textarea
         aria-invalid={Boolean(props.error)}
-        className={`w-full rounded-md border bg-white px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 text-slate-900'}`}
+        className={`w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 text-slate-900'}`}
         rows={props.rows ?? 3}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}

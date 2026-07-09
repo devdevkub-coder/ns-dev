@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Plus } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
@@ -122,14 +123,14 @@ const statusConvertColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'refNo', defaultWidth: 120 },
   { key: 'productDisplay', defaultWidth: 180 },
   { key: 'locationDisplay', defaultWidth: 150 },
-  { key: 'qty', defaultWidth: 100 },
-  { key: 'unitCost', defaultWidth: 110 },
+  { key: 'qty', defaultWidth: 120 },
+  { key: 'unitCost', defaultWidth: 150 },
   { key: 'value', defaultWidth: 110 },
   { key: 'statusFlow', defaultWidth: 120 },
   { key: 'note', defaultWidth: 120 },
   { key: 'status', defaultWidth: 90 },
   { key: 'createdBy', defaultWidth: 110 },
-  { key: 'createdAt', defaultWidth: 120 },
+  { key: 'createdAt', defaultWidth: 160 },
   { key: 'action', defaultWidth: 90 },
 ]
 
@@ -589,7 +590,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
       <SummaryCards mode={mode} rows={rows} />
       {/* Desktop Toolbar (Hidden on Mobile) */}
-      <div className="hidden lg:block mb-4 space-y-2 rounded-md bg-white p-3 shadow">
+      <div className="mb-4 hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
         <div className="flex flex-wrap items-center gap-2">
           <input
             className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
@@ -647,7 +648,6 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
               </select>
               <DatePickerInput className="w-[130px] h-9" title="จากวันที่" value={fromDateFilter} onChange={setFromDateFilter} />
               <DatePickerInput className="w-[130px] h-9" title="ถึงวันที่" value={toDateFilter} onChange={setToDateFilter} />
-              <button className="h-9 rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-500 opacity-60 flex items-center justify-center border border-slate-200" disabled title="รอ export contract สำหรับ stock adjustment" type="button">📥 CSV</button>
             </>
           ) : mode === 'status-convert' ? (
             <>
@@ -681,32 +681,36 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
             </button>
           ) : null}
 
-          <a className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 transition-colors ml-auto" href={`${pathname}?new=1`}>
-            {mode === 'adjust' ? '+ ปรับสต๊อกใหม่' : mode === 'convert' ? '+ ปรับเกรดใหม่' : '+ ปรับสถานะใหม่'}
-          </a>
         </div>
-        {mode === 'adjust' ? (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
-            <span className="text-xs text-slate-500">ประเภท:</span>
-            <SegmentedButton active={!adjustTypeFilter} label="ทั้งหมด" onClick={() => setAdjustTypeFilter('')} />
-            <SegmentedButton active={adjustTypeFilter === 'LOSS'} label="นับขาด" onClick={() => setAdjustTypeFilter('LOSS')} />
-            <SegmentedButton active={adjustTypeFilter === 'GAIN'} label="นับเกิน" onClick={() => setAdjustTypeFilter('GAIN')} />
+        <div className="mt-2 grid w-full grid-cols-1 gap-2 border-t border-slate-100 pt-2 xl:grid-cols-[minmax(0,1fr)_auto]">
+          {mode === 'adjust' ? (
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500">ประเภท:</span>
+              <SegmentedButton active={!adjustTypeFilter} label="ทั้งหมด" onClick={() => setAdjustTypeFilter('')} />
+              <SegmentedButton active={adjustTypeFilter === 'LOSS'} label="นับขาด" onClick={() => setAdjustTypeFilter('LOSS')} />
+              <SegmentedButton active={adjustTypeFilter === 'GAIN'} label="นับเกิน" onClick={() => setAdjustTypeFilter('GAIN')} />
+            </div>
+          ) : null}
+          {mode === 'status-convert' ? (
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-slate-500">เส้นทางสถานะ:</span>
+              <SegmentedButton active={!statusFlowFilter} label="ทั้งหมด" onClick={() => setStatusFlowFilter('')} />
+              <SegmentedButton active={statusFlowFilter === 'RM-FG'} label="RM → FG" onClick={() => setStatusFlowFilter('RM-FG')} />
+              <SegmentedButton active={statusFlowFilter === 'FG-RM'} label="FG → RM" onClick={() => setStatusFlowFilter('FG-RM')} />
+              <SegmentedButton active={statusFlowFilter === 'RM-WIP'} label="RM → WIP" onClick={() => setStatusFlowFilter('RM-WIP')} />
+              <SegmentedButton active={statusFlowFilter === 'WIP-FG'} label="WIP → FG" onClick={() => setStatusFlowFilter('WIP-FG')} />
+            </div>
+          ) : null}
+          <div className="flex flex-wrap items-center justify-start gap-2 xl:justify-end">
+            <a className="inline-flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700" href={`${pathname}?new=1`}>
+              {mode === 'adjust' ? '+ ปรับสต๊อกใหม่' : mode === 'convert' ? '+ ปรับเกรดใหม่' : '+ ปรับสถานะใหม่'}
+            </a>
           </div>
-        ) : null}
-        {mode === 'status-convert' ? (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
-            <span className="text-xs text-slate-500 font-medium">เส้นทางสถานะ:</span>
-            <SegmentedButton active={!statusFlowFilter} label="ทั้งหมด" onClick={() => setStatusFlowFilter('')} />
-            <SegmentedButton active={statusFlowFilter === 'RM-FG'} label="RM → FG" onClick={() => setStatusFlowFilter('RM-FG')} />
-            <SegmentedButton active={statusFlowFilter === 'FG-RM'} label="FG → RM" onClick={() => setStatusFlowFilter('FG-RM')} />
-            <SegmentedButton active={statusFlowFilter === 'RM-WIP'} label="RM → WIP" onClick={() => setStatusFlowFilter('RM-WIP')} />
-            <SegmentedButton active={statusFlowFilter === 'WIP-FG'} label="WIP → FG" onClick={() => setStatusFlowFilter('WIP-FG')} />
-          </div>
-        ) : null}
+        </div>
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 space-y-2 rounded-md bg-white p-3 shadow lg:hidden">
+      <div className="mb-4 space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex gap-2 items-center">
           <input
             className="min-w-[150px] flex-1 rounded-md border border-slate-300 px-3 h-9 text-sm"
@@ -880,7 +884,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       {/* FAB for Mobile Creation */}
       <a
         aria-label="สร้างรายการใหม่"
-        className="h-14 w-14 rounded-full bg-slate-900 text-white shadow-lg fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 lg:hidden flex items-center justify-center hover:bg-slate-800"
+        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 lg:hidden"
         href={`${pathname}?new=1`}
       >
         <Plus className="h-6 w-6" />
@@ -1150,7 +1154,7 @@ function OperationTable({
   sortDirection?: SortDirection
   sortKey?: string
 }) {
-  const statusConvertResize = useResizableColumns('stock.operation.status-convert.v5', statusConvertColumns)
+  const statusConvertResize = useResizableColumns('stock.operation.status-convert.v7', statusConvertColumns)
   const convertResize = useResizableColumns('stock.operation.convert.v5', convertColumns)
   const adjustResize = useResizableColumns('stock.operation.adjust.v5', adjustColumns)
   const columnResize = mode === 'status-convert' ? statusConvertResize : mode === 'convert' ? convertResize : adjustResize
@@ -1160,7 +1164,7 @@ function OperationTable({
     <>
       {/* Mobile Card List (Hidden on Desktop) */}
       <div className="block space-y-3 lg:hidden">
-        {isLoading ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
+        {isLoading ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
         {!isLoading && rows.map((row, index) => {
           const id = String(row.id ?? index)
           const date = String(row.date ?? '')
@@ -1176,7 +1180,7 @@ function OperationTable({
             return (
               <div
                 key={id}
-                className="cursor-pointer rounded-md border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50"
+                className="cursor-pointer rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50"
                 role="button"
                 tabIndex={0}
                 onClick={() => onAdjustDetail?.(row)}
@@ -1242,7 +1246,7 @@ function OperationTable({
             const sourceTypeColor = sourceType.startsWith('Auto') ? 'bg-purple-100 text-purple-700' : sourceType === 'Legacy' ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-700'
 
             return (
-              <div key={id} className="rounded-md border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50">
+              <div key={id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50">
                 <div className="mb-2 flex items-start justify-between">
                   <span className="font-bold text-slate-800">{refNo}</span>
                   <div className="flex gap-1.5">
@@ -1298,7 +1302,7 @@ function OperationTable({
             const status = String(row.status ?? 'posted')
 
             return (
-              <div key={id} className="rounded-md border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50">
+              <div key={id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50">
                 <div className="mb-2 flex items-start justify-between">
                   <span className="font-bold text-slate-800">{refNo}</span>
                   <StatusText status={status} />
@@ -1345,11 +1349,11 @@ function OperationTable({
 
           return null
         })}
-        {!isLoading && !rows.length ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-400 shadow">{emptyTextFor(mode)}</div> : null}
+        {!isLoading && !rows.length ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-400 shadow">{emptyTextFor(mode)}</div> : null}
       </div>
 
       {/* Desktop Table (Hidden on Mobile) */}
-      <div className="hidden overflow-x-auto rounded-md bg-white shadow lg:block overflow-hidden">
+      <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
         <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
           {columnResize.hasCustomWidths ? (
             <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
@@ -1357,7 +1361,7 @@ function OperationTable({
             </button>
           ) : null}
         </div>
-        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {columns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -1595,7 +1599,7 @@ function formatOperationCell(mode: Mode, row: Record<string, string | number | b
             รายละเอียด
           </button>
           <button
-            className="rounded-md border border-red-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+            className="rounded-xl border border-red-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
             disabled={status === 'reversed' || !onConvertReverse}
             type="button"
             onClick={() => onConvertReverse?.(refNo)}
@@ -1703,17 +1707,17 @@ function AdjustDetailModal({
         </div>
         <div className="overflow-y-auto bg-slate-50 p-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Metric cardClassName="rounded-md border border-slate-200 bg-white p-3 shadow-sm" label="ยอดในระบบ" value={`${formatMoney(Number(detail.systemQty ?? 0))} กก.`} />
-            <Metric cardClassName="rounded-md border border-slate-200 bg-white p-3 shadow-sm" label="นับจริง" value={`${formatMoney(Number(detail.countedQty ?? 0))} กก.`} />
-            <Metric cardClassName="rounded-md border border-slate-200 bg-white p-3 shadow-sm" label="ส่วนต่าง" value={`${formatMoney(diffQty)} กก.`} valueClassName={diffQty < 0 ? 'text-red-600' : diffQty > 0 ? 'text-emerald-700' : 'text-slate-900'} />
-            <Metric cardClassName="rounded-md border border-slate-200 bg-white p-3 shadow-sm" label="มูลค่ารวม (บาท)" value={formatMoney(totalValue)} valueClassName={totalValue < 0 ? 'text-red-600' : totalValue > 0 ? 'text-emerald-700' : 'text-slate-900'} />
-            <Metric cardClassName="rounded-md border border-slate-200 bg-white p-3 shadow-sm" label="จองไว้" value={`${formatMoney(Number(detail.onHoldQty ?? 0))} กก.`} valueClassName="text-amber-700" />
-            <Metric cardClassName="rounded-md border border-slate-200 bg-white p-3 shadow-sm" label="พร้อมใช้" value={`${formatMoney(Number(detail.readyQty ?? 0))} กก.`} valueClassName="text-emerald-700" />
-            <Metric cardClassName="rounded-md border border-slate-200 bg-white p-3 shadow-sm" label="ราคา/กก." value={formatMoney(Number(detail.unitPricePerKg ?? 0))} />
-            <Metric cardClassName="rounded-md border border-slate-200 bg-white p-3 shadow-sm" label="ประเภทคลัง" value={formatCell(detail.outputCategory)} />
+            <Metric cardClassName="rounded-xl border border-slate-200 bg-white p-3 shadow-sm" label="ยอดในระบบ" value={`${formatMoney(Number(detail.systemQty ?? 0))} กก.`} />
+            <Metric cardClassName="rounded-xl border border-slate-200 bg-white p-3 shadow-sm" label="นับจริง" value={`${formatMoney(Number(detail.countedQty ?? 0))} กก.`} />
+            <Metric cardClassName="rounded-xl border border-slate-200 bg-white p-3 shadow-sm" label="ส่วนต่าง" value={`${formatMoney(diffQty)} กก.`} valueClassName={diffQty < 0 ? 'text-red-600' : diffQty > 0 ? 'text-emerald-700' : 'text-slate-900'} />
+            <Metric cardClassName="rounded-xl border border-slate-200 bg-white p-3 shadow-sm" label="มูลค่ารวม (บาท)" value={formatMoney(totalValue)} valueClassName={totalValue < 0 ? 'text-red-600' : totalValue > 0 ? 'text-emerald-700' : 'text-slate-900'} />
+            <Metric cardClassName="rounded-xl border border-slate-200 bg-white p-3 shadow-sm" label="จองไว้" value={`${formatMoney(Number(detail.onHoldQty ?? 0))} กก.`} valueClassName="text-amber-700" />
+            <Metric cardClassName="rounded-xl border border-slate-200 bg-white p-3 shadow-sm" label="พร้อมใช้" value={`${formatMoney(Number(detail.readyQty ?? 0))} กก.`} valueClassName="text-emerald-700" />
+            <Metric cardClassName="rounded-xl border border-slate-200 bg-white p-3 shadow-sm" label="ราคา/กก." value={formatMoney(Number(detail.unitPricePerKg ?? 0))} />
+            <Metric cardClassName="rounded-xl border border-slate-200 bg-white p-3 shadow-sm" label="ประเภทคลัง" value={formatCell(detail.outputCategory)} />
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <h4 className="mb-3 text-sm font-bold text-slate-800">สินค้าและคลัง</h4>
               <div className="grid gap-3 text-sm sm:grid-cols-2">
                 <DetailField label="สินค้า" value={`${formatCell(detail.productCode)} ${formatCell(detail.productName)}`} />
@@ -1722,7 +1726,7 @@ function AdjustDetailModal({
                 <DetailField label="คลัง" value={formatCell(detail.warehouseName)} />
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <h4 className="mb-3 text-sm font-bold text-slate-800">เหตุผลและ audit</h4>
               <div className="grid gap-3 text-sm sm:grid-cols-2">
                 <DetailField label="เหตุผล" value={formatCell(detail.reason)} />
@@ -1764,23 +1768,23 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
             <div className="mt-1 text-xs text-slate-400">{detail.date} · {detail.branchWarehouse || '-'} · {detail.status}</div>
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
-            <button className="h-9 rounded-md border border-emerald-600 bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:border-emerald-700 hover:bg-emerald-700 disabled:opacity-50" disabled={isLoading} type="button" onClick={onExport}>ส่งออก CSV</button>
+            <button className="h-9 rounded-md border border-emerald-600 bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:border-emerald-700 hover:bg-emerald-700 disabled:opacity-50" disabled={isLoading} type="button" onClick={onExport}>ส่งออก Excel</button>
             <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" type="button" onClick={onClose}>ปิด</button>
           </div>
         </div>
         <div className="overflow-y-auto bg-slate-50">
           <div className="grid grid-cols-2 gap-3 border-b border-slate-100 p-4 md:grid-cols-4 lg:grid-cols-5">
-            <Metric cardClassName="rounded-md bg-white border border-slate-200/60 p-3 shadow-sm" label="Source Qty" value={`${formatMoney(detail.sourceQty)} กก.`} />
-            <Metric cardClassName="rounded-md bg-white border border-slate-200/60 p-3 shadow-sm" label="Target Qty" value={`${formatMoney(detail.targetQty)} กก.`} />
-            <Metric cardClassName="rounded-md bg-white border border-slate-200/60 p-3 shadow-sm" label="Loss" value={`${formatMoney(detail.lossQty)} กก.`} />
-            <Metric cardClassName="rounded-md bg-white border border-slate-200/60 p-3 shadow-sm" label="Allocated Qty" value={`${formatMoney(totalQty)} กก.`} />
-            <Metric cardClassName="rounded-md bg-white border border-slate-200/60 p-3 shadow-sm" label="Allocated Cost" value={formatMoney(totalCost)} />
-            <Metric cardClassName="rounded-md bg-white border border-slate-200/60 p-3 shadow-sm" label="Target Policy" value={detail.targetCostPolicy} />
-            <Metric cardClassName="rounded-md bg-white border border-slate-200/60 p-3 shadow-sm" label="Target ฿/กก." value={formatMoney(detail.targetUnitCost)} />
-            <Metric cardClassName="rounded-md bg-white border border-slate-200/60 p-3 shadow-sm" label="Variance" value={formatMoney(detail.targetCostVariance)} />
+            <Metric cardClassName="rounded-xl bg-white border border-slate-200/60 p-3 shadow-sm" label="Source Qty" value={`${formatMoney(detail.sourceQty)} กก.`} />
+            <Metric cardClassName="rounded-xl bg-white border border-slate-200/60 p-3 shadow-sm" label="Target Qty" value={`${formatMoney(detail.targetQty)} กก.`} />
+            <Metric cardClassName="rounded-xl bg-white border border-slate-200/60 p-3 shadow-sm" label="Loss" value={`${formatMoney(detail.lossQty)} กก.`} />
+            <Metric cardClassName="rounded-xl bg-white border border-slate-200/60 p-3 shadow-sm" label="Allocated Qty" value={`${formatMoney(totalQty)} กก.`} />
+            <Metric cardClassName="rounded-xl bg-white border border-slate-200/60 p-3 shadow-sm" label="Allocated Cost" value={formatMoney(totalCost)} />
+            <Metric cardClassName="rounded-xl bg-white border border-slate-200/60 p-3 shadow-sm" label="Target Policy" value={detail.targetCostPolicy} />
+            <Metric cardClassName="rounded-xl bg-white border border-slate-200/60 p-3 shadow-sm" label="Target ฿/กก." value={formatMoney(detail.targetUnitCost)} />
+            <Metric cardClassName="rounded-xl bg-white border border-slate-200/60 p-3 shadow-sm" label="Variance" value={formatMoney(detail.targetCostVariance)} />
           </div>
           <div className="p-4">
-            <div className="overflow-auto rounded-md bg-white shadow overflow-hidden">
+            <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
               <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
                 {columnResize.hasCustomWidths ? (
                   <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
@@ -1788,7 +1792,7 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
                   </button>
                 ) : null}
               </div>
-              <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
                 <colgroup>
                   {detailColumns.map((col) => (
                     <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -1833,7 +1837,7 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
                 </tbody>
               </table>
             </div>
-            <div className="mt-3 rounded-md border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500 shadow-sm">
+            <div className="mt-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500 shadow-sm">
               เหตุผล: {detail.reason || '-'} · หมายเหตุ: {detail.notes || '-'} · เหตุผล override: {detail.targetCostReason || '-'}
             </div>
           </div>
@@ -1844,11 +1848,8 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
 }
 
 function Metric({
-  cardClassName,
   emoji,
-  iconBg = 'bg-slate-100',
   label,
-  labelClassName = 'text-slate-500',
   value,
   valueClassName = 'text-slate-900',
   className = '',
@@ -1862,21 +1863,8 @@ function Metric({
   valueClassName?: string
   className?: string
 }) {
-  if (cardClassName) {
-    return <div className={cardClassName}><div className="text-xs text-slate-500">{label}</div><div className={`mt-1 font-mono text-lg sm:text-2xl font-bold ${valueClassName}`}>{value}</div></div>
-  }
-
-  return (
-    <div className={`bg-white p-3 sm:p-4 border border-slate-200 rounded-md shadow-sm flex items-center gap-2.5 sm:gap-3 ${className}`}>
-      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-md ${iconBg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-        {emoji ?? '•'}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className={`text-xs font-semibold ${labelClassName} truncate`}>{label}</div>
-        <div className={`font-mono text-lg sm:text-2xl font-bold ${valueClassName} mt-0.5`}>{value}</div>
-      </div>
-    </div>
-  )
+  const tone = valueClassName.includes('emerald') ? 'emerald' : valueClassName.includes('amber') ? 'amber' : valueClassName.includes('red') ? 'red' : valueClassName.includes('blue') ? 'blue' : 'slate'
+  return <SharedKpiCard className={className} icon={emoji} label={label} tone={tone} value={value} />
 }
 
 function Field(props: { disabled?: boolean; label: string; onChange: (value: string) => void; type?: string; value: string }) {
@@ -2011,7 +1999,7 @@ function StatusConvertForm(props: { isSaving: boolean; error?: string | null; on
   }, [props.reference.products])
 
   return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={() => props.onSubmit(values)}>
-    <div className="md:col-span-2 grid gap-4 rounded-md border border-slate-200 bg-white p-4 shadow-sm sm:p-5 md:grid-cols-2">
+    <div className="md:col-span-2 grid gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 md:grid-cols-2">
       <div className="w-full">
         <SearchCombobox
           inputId="status-convert-product-search"
@@ -2121,7 +2109,7 @@ function CostPoolPreview({
   const totalQty = previewRows.reduce((sum, line) => sum + line.qty, 0)
   const totalValue = previewRows.reduce((sum, line) => sum + line.qty * line.entry.unitCost, 0)
   return (
-    <div className="rounded-md border border-red-100 bg-white p-3">
+    <div className="rounded-xl border border-red-100 bg-white p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="text-xs font-semibold text-red-700">Cost Pool Lots</div>
         <div className="text-xs text-slate-500">
@@ -2131,7 +2119,7 @@ function CostPoolPreview({
       {shortageQty > 0 ? <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">Cost Pool ไม่พอ ขาด {formatMoney(shortageQty)} กก.</div> : null}
       {method === 'MANUAL' ? (
         <div className="max-h-48 overflow-y-auto rounded-md border border-slate-100">
-          <table className="w-full text-xs">
+          <table className="ns-table w-full text-xs">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
                 <th className="p-2 text-left">Source</th>
@@ -2167,7 +2155,7 @@ function CostPoolPreview({
         </div>
       ) : (
         <div className="max-h-44 overflow-y-auto rounded-md border border-slate-100">
-          <table className="w-full text-xs">
+          <table className="ns-table w-full text-xs">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
                 <th className="p-2 text-left">Source</th>
@@ -2264,7 +2252,7 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
   }, [props.reference.products])
 
   return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={() => props.onSubmit(values)}>
-    <div className="md:col-span-2 rounded-md border border-slate-200 bg-white p-5 shadow-sm grid gap-4 md:grid-cols-2 animate-fade-in">
+    <div className="md:col-span-2 rounded-xl border border-slate-200 bg-white p-5 shadow-sm grid gap-4 md:grid-cols-2 animate-fade-in">
       <BaseDateDoc values={values} setValues={setValues} />
       <BranchWarehouseFields branchId={values.branchId} reference={props.reference} setBranchId={(branchId) => setValues({ ...values, branchId, warehouseId: '' })} setWarehouseId={(warehouseId) => setValues({ ...values, warehouseId })} warehouseId={values.warehouseId} />
     </div>
@@ -2344,7 +2332,7 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
         ) : null}
       </div>
     </div>
-    <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm md:col-span-2">
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:col-span-2">
       <div className="mb-3 text-sm font-bold text-slate-700">Loss / Yield / Cost Flow</div>
       <div className="grid gap-4 md:grid-cols-3">
         <ReadOnlyBox label="Loss" value={`${formatMoney(lossQty)} กก.`} />
@@ -2419,7 +2407,7 @@ function AdjustForm(props: { isSaving: boolean; error?: string | null; onCancel:
   const diffQty = snapshot?.diffQty ?? 0
 
   return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={() => props.onSubmit(values)}>
-    <div className="md:col-span-2 grid gap-3 rounded-md bg-white p-4 shadow md:grid-cols-2">
+    <div className="grid gap-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm md:col-span-2 md:grid-cols-2">
       <div className="md:col-span-2 border-b border-slate-100 pb-2">
         <h4 className="text-sm font-bold text-slate-800">ข้อมูลการนับจริง</h4>
       </div>
@@ -2540,7 +2528,7 @@ function ProductStockPreview({
       
       {/* Desktop Table View */}
       <div className="hidden md:block overflow-x-auto rounded-md bg-white border border-indigo-100">
-        <table className="w-full text-xs">
+        <table className="ns-table w-full text-xs">
           <thead className="bg-indigo-50 text-indigo-700">
             <tr>
               <th className="p-2 text-left">สาขา / คลัง</th>

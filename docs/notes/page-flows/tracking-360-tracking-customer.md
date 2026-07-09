@@ -182,6 +182,8 @@ Target detail payload fields:
 - Return signal/count is removed by requirement; customer corrections use Sales Bill void/cancel instead of a separate Customer Return source.
 - Authenticated browser QA now covers desktop row detail, dense mobile card detail, SB source navigation, RCP source navigation, RCP/detail/product/monthly breakdown rendering, XLSX export, and no page-level mobile horizontal overflow.
 - UI now follows the `docs/design.md` list-page order more closely: compact KPI cards first, then filter shell, then tabs/data area. The old pre-filter hero/chart blocks are removed from the default top flow.
+- UI duplicate-data cleanup 2026-07-07: the top `customers` count card is removed because it duplicated the pagination/result summary (`พบทั้งหมด X รายการ`). Row count belongs with the table controls; KPI cards remain for decision metrics only. The first tab label is simplified to `รายการ`. The top KPI set uses overdue customer count instead of an overdue money amount, and the table shows `ลูกหนี้` as the money amount while `อายุหนี้` shows overdue status/days, so receivable and overdue values do not repeat as adjacent money columns.
+- UI wording follow-up 2026-07-08: table/filter/detail wording uses Thai for active customer/product labels (`รหัส`, `ลูกค้า`, `ค้นหาลูกค้า`, `สินค้า`, `เลือกสินค้า`) while keeping the route/module name `Customer Tracking 360°`.
 - Finance AR remains the owner flow for settlement/payment-cycle mutation; Tracking Customer only consumes the read-only due-aging signal.
 - Customer advance allocation is out of scope here and should come from Sales/Payment flow facts.
 

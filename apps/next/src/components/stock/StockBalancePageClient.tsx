@@ -5,6 +5,8 @@ import { Download } from 'lucide-react'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
@@ -39,8 +41,8 @@ type DisplayBalanceRow = BalanceRow & {
 function SegmentedButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button
-      className={`rounded-md border px-3.5 py-1.5 text-sm font-semibold ${
-        active ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+      className={`rounded-md border px-3 py-1 text-xs font-medium ${
+        active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
       } outline-none focus:outline-none`}
       type="button"
       onClick={onClick}
@@ -640,7 +642,7 @@ export function StockBalancePageClient() {
         ))}
       </div>
 
-      <div className="overflow-hidden rounded-md bg-white shadow">
+      <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm">
         <StockViewTabs
           detailCount={displayRows.length}
           matrixCount={matrixRows.length}
@@ -674,10 +676,6 @@ export function StockBalancePageClient() {
                 ✕ ล้างทั้งหมด
               </button>
             ) : null}
-            <button className="ml-auto inline-flex h-9 items-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm text-white outline-none transition-colors hover:bg-emerald-700 focus:ring-0" type="button" onClick={exportXlsx}>
-              <Download className="size-4" aria-hidden="true" />
-              ส่งออก Excel
-            </button>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
@@ -713,11 +711,15 @@ export function StockBalancePageClient() {
               <option value="">ทุกสาขา</option>
               {data?.reference.branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
+            <button className="ml-auto inline-flex h-9 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm text-white outline-none transition-colors hover:bg-emerald-700 focus:ring-0" type="button" onClick={exportXlsx}>
+              <Download className="size-4" aria-hidden="true" />
+              ส่งออก Excel
+            </button>
           </div>
         </div>
 
         {/* Mobile Toolbar (Hidden on Desktop) */}
-        <div className="space-y-3 p-3.5 lg:hidden animate-fade-in">
+        <div className="space-y-2 p-3 lg:hidden animate-fade-in">
           <div className="flex gap-2 items-center">
             <div className="min-w-[150px] flex-1">
               <SearchCombobox
@@ -857,7 +859,7 @@ export function StockBalancePageClient() {
           
           {detailRow ? (
             <div className="flex-1 overflow-y-auto bg-slate-50 p-3 sm:p-4 space-y-3 text-sm">
-              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">ข้อมูลสินค้า</h4>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   <StockDetailField className="col-span-2 sm:col-span-3" label="สินค้า" value={`${detailRow.productCode} - ${detailRow.productName}`} />
@@ -869,7 +871,7 @@ export function StockBalancePageClient() {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">จำนวนและมูลค่าสต๊อก</h4>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   <StockMetric label="คงเหลือสุทธิ" value={`${formatMoney(detailRow.qty)} กก.`} tone={detailRow.qty < 0 ? 'red' : 'emerald'} />
@@ -880,7 +882,7 @@ export function StockBalancePageClient() {
                   <StockMetric label="มูลค่ารวม" value={`${formatMoney(detailRow.value)} บาท`} tone="emerald" />
                 </div>
               </div>
-              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="mb-3 flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
                   <h4 className="text-sm font-bold text-slate-800">Drilldown</h4>
                   <a className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800" href={ledgerLinkFor(detailRow)}>
@@ -894,7 +896,7 @@ export function StockBalancePageClient() {
                     <div>
                       <div className="mb-2 text-xs font-bold text-amber-700">pending_out จาก WTO ที่ยัง active ({detailData?.holds.length ?? 0})</div>
                       <div className="max-h-36 overflow-auto rounded-md border border-slate-100">
-                        <table className="w-full text-xs">
+                        <table className="ns-table w-full text-xs">
                           <thead className="bg-amber-50 text-slate-600"><tr><th className="p-1.5 text-left">WTO</th><th className="p-1.5 text-left">ลูกค้า</th><th className="p-1.5 text-right">Qty</th><th className="p-1.5 text-left">Held</th></tr></thead>
                           <tbody>
                             {detailData?.holds.map((hold) => (
@@ -913,7 +915,7 @@ export function StockBalancePageClient() {
                     <div>
                       <div className="mb-2 text-xs font-bold text-slate-700">Movement ล่าสุด ({detailData?.ledgerRows.length ?? 0})</div>
                       <div className="max-h-36 overflow-auto rounded-md border border-slate-100">
-                        <table className="w-full text-xs">
+                        <table className="ns-table w-full text-xs">
                           <thead className="bg-slate-50 text-slate-600"><tr><th className="p-1.5 text-left">วันที่</th><th className="p-1.5 text-left">Ref</th><th className="p-1.5 text-right">เข้า</th><th className="p-1.5 text-right">ออก</th><th className="p-1.5 text-left">วันที่ทำ</th></tr></thead>
                           <tbody>
                             {detailData?.ledgerRows.map((ledger) => (
@@ -1012,42 +1014,35 @@ function StockViewTabs({ detailCount, matrixCount, onChange, value }: {
   onChange: (value: 'detail' | 'summary') => void
   value: 'detail' | 'summary'
 }) {
-  const tabs: Array<{ activeClass: string; badgeClass: string; count: number; label: string; value: 'detail' | 'summary' }> = [
-    { activeClass: 'border-blue-600 text-blue-700', badgeClass: 'bg-blue-100 text-blue-700', count: matrixCount, label: 'Matrix', value: 'summary' },
-    { activeClass: 'border-emerald-600 text-emerald-700', badgeClass: 'bg-emerald-100 text-emerald-700', count: detailCount, label: 'รายสินค้า', value: 'detail' },
+  const tabs: Array<{ count: number; label: string; value: 'detail' | 'summary' }> = [
+    { count: matrixCount, label: 'Matrix', value: 'summary' },
+    { count: detailCount, label: 'รายสินค้า', value: 'detail' },
   ]
   return (
-    <div className="flex border-b border-slate-100">
+    <Tabs className="gap-0" value={value} onValueChange={(nextValue) => onChange(nextValue as 'detail' | 'summary')}>
+      <TabsList className="w-full flex-nowrap overflow-x-auto" variant="line">
       {tabs.map((tab) => {
-        const active = value === tab.value
         return (
-          <button
+          <TabsTrigger
             key={tab.value}
-            className={`border-b-2 px-5 py-3 text-sm font-medium ${active ? tab.activeClass : 'border-transparent text-slate-500'}`}
-            type="button"
-            onClick={() => onChange(tab.value)}
+            value={tab.value}
+            variant="line"
           >
             {tab.label}
-            <span className={`ml-2 rounded-md-full px-2 py-0.5 text-xs ${tab.badgeClass}`}>
+            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
               {tab.count.toLocaleString('th-TH')}
             </span>
-          </button>
+          </TabsTrigger>
         )
       })}
-    </div>
+      </TabsList>
+    </Tabs>
   )
 }
 
-function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
-  const activeClass = {
-    amber: 'border-amber-600 bg-amber-600 text-white',
-    dark: 'border-slate-700 bg-slate-700 text-white',
-    emerald: 'border-emerald-600 bg-emerald-600 text-white',
-    red: 'border-red-600 bg-red-600 text-white',
-    slate: 'border-slate-500 bg-slate-500 text-white',
-  }[tone]
-  const idleClass = tone === 'amber' ? 'border-slate-300 bg-white hover:bg-amber-50' : tone === 'emerald' ? 'border-slate-300 bg-white hover:bg-emerald-50' : tone === 'red' ? 'border-slate-300 bg-white hover:bg-red-50' : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-700'
-  return <button className={`rounded-md border px-3.5 py-1.5 text-sm font-medium transition outline-none focus:ring-0 ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
+function MatchButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
+  const className = active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+  return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${className}`} type="button" onClick={onClick}>{label}</button>
 }
 
 
@@ -1056,7 +1051,7 @@ function Metric({
   iconBg = 'bg-slate-100',
   label,
   sub,
-  tone,
+  tone = 'slate',
   value,
 }: {
   emoji: string
@@ -1066,27 +1061,7 @@ function Metric({
   tone?: 'amber' | 'blue' | 'emerald' | 'red' | 'slate'
   value: string
 }) {
-  const color = tone === 'blue'
-    ? 'text-blue-600'
-    : tone === 'emerald'
-      ? 'text-emerald-700'
-      : tone === 'amber'
-        ? 'text-amber-700'
-        : tone === 'red'
-          ? 'text-red-600'
-          : 'text-slate-900'
-  return (
-    <div className="bg-white p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-3">
-      <div className={`w-10 h-10 rounded-full ${iconBg} flex items-center justify-center text-lg shrink-0`}>
-        {emoji}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">{label}</div>
-        <div className={`text-base font-bold ${color} mt-0.5 tabular-nums`}>{value}</div>
-        {sub ? <div className="text-xs text-slate-400 mt-0.5 truncate leading-tight">{sub}</div> : null}
-      </div>
-    </div>
-  )
+  return <SharedKpiCard icon={emoji} label={label} note={sub} tone={tone} value={value} />
 }
 
 function StatusCard({ item }: { item: StatusSummary }) {
@@ -1135,23 +1110,23 @@ function ProductPanel({ averageCost, info, onClose, onOpen, rows }: {
         </button>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <div className="rounded-lg bg-white border border-slate-200 p-3 shadow-sm">
+        <div className="rounded-xl bg-white border border-slate-200 p-3 shadow-sm">
           <div className="text-xs text-slate-400 font-semibold uppercase">📊 คงเหลือ</div>
           <div className={`text-lg font-bold mt-1 tabular-nums ${info.qty > 0 ? 'text-emerald-700' : 'text-red-650'}`}>{formatMoney(info.qty)} <span className="text-xs font-normal">กก.</span></div>
         </div>
-        <div className="rounded-lg bg-white border border-slate-200 p-3 shadow-sm">
+        <div className="rounded-xl bg-white border border-slate-200 p-3 shadow-sm">
           <div className="text-xs text-slate-400 font-semibold uppercase">💰 มูลค่ารวม (WAC)</div>
           <div className="text-lg font-bold mt-1 text-blue-700 tabular-nums">{formatMoney(info.value)} <span className="text-xs font-normal">บาท</span></div>
         </div>
-        <div className="rounded-lg bg-white border border-slate-200 p-3 shadow-sm">
+        <div className="rounded-xl bg-white border border-slate-200 p-3 shadow-sm">
           <div className="text-xs text-slate-400 font-semibold uppercase">⚖ ราคาเฉลี่ย/กก.</div>
           <div className="text-lg font-bold mt-1 text-amber-700 tabular-nums">{formatMoney(averageCost)} <span className="text-xs font-normal">บ./กก.</span></div>
         </div>
-        <div className="rounded-lg bg-white border border-slate-200 p-3 shadow-sm">
+        <div className="rounded-xl bg-white border border-slate-200 p-3 shadow-sm">
           <div className="text-xs text-slate-400 font-semibold uppercase">รอออก</div>
           <div className="text-lg font-bold mt-1 text-amber-700 tabular-nums">{formatMoney(info.onHold)} <span className="text-xs font-normal">กก.</span></div>
         </div>
-        <div className="rounded-lg bg-white border border-slate-200 p-3 shadow-sm">
+        <div className="rounded-xl bg-white border border-slate-200 p-3 shadow-sm">
           <div className="text-xs text-slate-400 font-semibold uppercase">พร้อมส่ง</div>
           <div className="text-lg font-bold mt-1 text-emerald-700 tabular-nums">{formatMoney(info.ready)} <span className="text-xs font-normal">กก.</span></div>
         </div>
@@ -1162,7 +1137,7 @@ function ProductPanel({ averageCost, info, onClose, onOpen, rows }: {
           <span className="text-xs text-slate-400 font-medium">กดรายการเพื่อดูข้อมูลย่อย</span>
         </div>
         <div className="max-h-[400px] overflow-auto">
-          <table className="w-full text-xs text-slate-750">
+          <table className="ns-table w-full text-xs text-slate-750">
             <thead className="sticky top-0 bg-slate-50 border-b border-slate-200/60 text-slate-600 font-semibold z-10">
               <tr>
                 <th className="p-3 text-left">วันที่ล่าสุด</th>
@@ -1343,7 +1318,7 @@ function MatrixTable({
   return (
     <>
       {/* Desktop View (Table) */}
-      <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-200/85 bg-white shadow-sm overflow-hidden">
+      <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
           {columnResize.hasCustomWidths ? (
             <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
@@ -1351,7 +1326,7 @@ function MatrixTable({
             </button>
           ) : null}
         </div>
-        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {matrixColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
@@ -1466,7 +1441,7 @@ function MatrixTable({
                 <span className="ml-2 text-xs font-medium text-slate-400">{row.products.length.toLocaleString('th-TH')} รายการสินค้า</span>
               </div>
               <div className="space-y-2 text-xs text-slate-600">
-                <div className="flex justify-between items-center bg-blue-50/50 p-2 rounded-lg">
+                <div className="flex justify-between items-center bg-blue-50/50 p-2 rounded-xl">
                   <span className="font-medium text-blue-800">📦 RM (วัตถุดิบ)</span>
                   <span className="font-semibold text-right text-blue-700 tabular-nums flex flex-col items-end">
                     <span>{row.rmQty ? `${formatMoney(row.rmQty)} กก.` : '-'} {row.rmVal ? `(${formatMoney(row.rmVal)} บ.)` : ''}</span>
@@ -1475,7 +1450,7 @@ function MatrixTable({
                     ) : null}
                   </span>
                 </div>
-                <div className="flex justify-between items-center bg-amber-50/50 p-2 rounded-lg">
+                <div className="flex justify-between items-center bg-amber-50/50 p-2 rounded-xl">
                   <span className="font-medium text-amber-800">⚙️ WIP (ระหว่างผลิต)</span>
                   <span className="font-semibold text-right text-amber-700 tabular-nums flex flex-col items-end">
                     <span>{row.wipQty ? `${formatMoney(row.wipQty)} กก.` : '-'} {row.wipVal ? `(${formatMoney(row.wipVal)} บ.)` : ''}</span>
@@ -1484,7 +1459,7 @@ function MatrixTable({
                     ) : null}
                   </span>
                 </div>
-                <div className="flex justify-between items-center bg-emerald-50/50 p-2 rounded-lg">
+                <div className="flex justify-between items-center bg-emerald-50/50 p-2 rounded-xl">
                   <span className="font-medium text-emerald-800">✅ FG (สินค้าสำเร็จรูป)</span>
                   <span className="font-semibold text-right text-emerald-700 tabular-nums flex flex-col items-end">
                     <span>{row.fgQty ? `${formatMoney(row.fgQty)} กก.` : '-'} {row.fgVal ? `(${formatMoney(row.fgVal)} บ.)` : ''}</span>
@@ -1505,7 +1480,7 @@ function MatrixTable({
               </div>
               <div className="space-y-2 border-t border-slate-100 pt-2">
                 {row.products.map((product) => (
-                  <div key={`${row.group}-${product.productId}`} className="rounded-lg bg-slate-50/80 p-2.5 text-xs min-w-0 overflow-hidden">
+                  <div key={`${row.group}-${product.productId}`} className="rounded-xl bg-slate-50/80 p-2.5 text-xs min-w-0 overflow-hidden">
                     <div className="truncate font-semibold text-slate-800" title={`${product.productCode} ${product.productName}`}>
                       {product.productCode} {product.productName}
                     </div>
@@ -1681,7 +1656,7 @@ function DetailTable({
       </div>
 
       {/* Desktop View */}
-      <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-200/85 bg-white shadow-sm overflow-hidden">
+      <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
           {columnResize.hasCustomWidths ? (
             <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
@@ -1689,7 +1664,7 @@ function DetailTable({
             </button>
           ) : null}
         </div>
-        <table className="w-full text-sm text-slate-700" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <table className="ns-table w-full text-sm text-slate-700" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {detailColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
