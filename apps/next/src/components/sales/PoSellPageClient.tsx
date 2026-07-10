@@ -89,6 +89,10 @@ type PoSellRow = {
   subtotal: number
 }
 
+function canShortClosePoSell(row: PoSellRow) {
+  return (row.documentStatus === 'open' || row.documentStatus === 'partial') && row.remainingQty > 0
+}
+
 type StatusFilterOption = {
   label: string
   value: string
@@ -182,6 +186,9 @@ export function PoSellPageClient() {
   const [documentStatus, setDocumentStatus] = useState('all')
   const [toDate, setToDate] = useState('')
   const [printingPoDocNo, setPrintingPoDocNo] = useState<string | null>(null)
+  const [shortCloseNote, setShortCloseNote] = useState('')
+  const [shortCloseNoteError, setShortCloseNoteError] = useState('')
+  const [shortClosingRow, setShortClosingRow] = useState<PoSellRow | null>(null)
 
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
@@ -410,6 +417,17 @@ export function PoSellPageClient() {
     setError(null)
   }
 
+  function openShortCloseDialog(row: PoSellRow) {
+    if (!canShortClosePoSell(row)) {
+      setError('รายการนี้ยังไม่สามารถปิดส่งไม่ครบได้')
+      return
+    }
+    setShortClosingRow(row)
+    setShortCloseNote('')
+    setShortCloseNoteError('')
+    setError(null)
+  }
+
   function updateForm<K extends keyof PoSellFormValues>(key: K, value: PoSellFormValues[K]) {
     setForm((current) => {
       const next = { ...current, [key]: value }
@@ -499,6 +517,33 @@ export function PoSellPageClient() {
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'ยกเลิก PO Sell ไม่ได้')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function submitShortClose() {
+    if (!shortClosingRow) return
+    const note = shortCloseNote.trim()
+    if (!note) {
+      setShortCloseNoteError('กรอกเหตุผลการปิดส่งไม่ครบ')
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+    setShortCloseNoteError('')
+    try {
+      await dailyFetchJson<{ docNo: string }>('/api/sales/po-sell', {
+        body: JSON.stringify({ action: 'shortClose', docNo: shortClosingRow.docNo, note }),
+        method: 'PATCH',
+      })
+      setSearch(shortClosingRow.docNo)
+      setShortClosingRow(null)
+      setShortCloseNote('')
+      await loadData()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'ปิดส่งไม่ครบไม่สำเร็จ')
     } finally {
       setIsSaving(false)
     }
@@ -807,6 +852,20 @@ export function PoSellPageClient() {
                     <Printer className="size-3" />
                     {printingPoDocNo === row.docNo ? 'เตรียม...' : 'พิมพ์'}
                   </button>
+                  {canShortClosePoSell(row) ? (
+                    <button
+                      className="rounded-md border border-amber-200 px-2 py-1 text-xs text-amber-700 hover:bg-amber-50 disabled:cursor-wait disabled:opacity-50"
+                      disabled={isSaving}
+                      title={`ปิดส่งไม่ครบ ${row.docNo}`}
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        openShortCloseDialog(row)
+                      }}
+                    >
+                      ปิดส่งไม่ครบ
+                    </button>
+                  ) : null}
                   {row.canCancel ? (
                     <button
                       className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-wait disabled:opacity-50"
@@ -846,6 +905,10 @@ export function PoSellPageClient() {
           isPrinting={printingPoDocNo === selectedRow.docNo}
           row={selectedRow}
           onClose={() => setSelectedRow(null)}
+          onShortClose={(rowToShortClose) => {
+            setSelectedRow(null)
+            openShortCloseDialog(rowToShortClose)
+          }}
           onPrint={(rowToPrint) => void printPoSell(rowToPrint)}
         />
       ) : null}
@@ -895,6 +958,25 @@ export function PoSellPageClient() {
           onSubmit={submitCancel}
         />
       ) : null}
+      {shortClosingRow ? (
+        <PoSellShortCloseModal
+          error={shortCloseNoteError}
+          isSaving={isSaving}
+          note={shortCloseNote}
+          row={shortClosingRow}
+          onChangeNote={(value) => {
+            setShortCloseNote(value)
+            setShortCloseNoteError('')
+          }}
+          onClose={() => {
+            if (isSaving) return
+            setShortClosingRow(null)
+            setShortCloseNote('')
+            setShortCloseNoteError('')
+          }}
+          onSubmit={submitShortClose}
+        />
+      ) : null}
     </section>
   )
 }
@@ -910,16 +992,18 @@ function formatTimestampDisplay(value: string | null | undefined) {
   return date.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
 }
 
-function documentStatusTone(value: string): 'amber' | 'dark' | 'emerald' | 'red' | 'slate' {
+function documentStatusTone(value: string): 'amber' | 'dark' | 'emerald' | 'red' | 'rose' | 'slate' {
   if (value === 'cancelled') return 'slate'
   if (value === 'closed') return 'emerald'
+  if (value === 'short_closed') return 'rose'
   if (value === 'partial') return 'amber'
   return 'dark'
 }
 
-function documentStatusPillTone(value: string): 'cancelled' | 'closed' | 'match' | 'open' | 'partial' | 'status' {
+function documentStatusPillTone(value: string): 'cancelled' | 'closed' | 'match' | 'open' | 'partial' | 'shortClosed' | 'status' {
   if (value === 'cancelled') return 'cancelled'
   if (value === 'closed') return 'closed'
+  if (value === 'short_closed') return 'shortClosed'
   if (value === 'partial') return 'partial'
   return 'open'
 }
@@ -941,18 +1025,21 @@ function Metric({
   return <SharedKpiCard className={className} icon={emoji} label={label} note={subLabel} tone="slate" value={value} />
 }
 
-function MatchButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
-  const className = active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-  return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${className}`} type="button" onClick={onClick}>{label}</button>
+function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'rose' | 'slate' }) {
+  void tone
+  const activeClass = 'border-slate-700 bg-slate-700 text-white'
+  const idleClass = 'border-slate-300 bg-white hover:bg-slate-50'
+  return <button className={`rounded-md border px-3.5 py-1.5 text-sm font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
 }
 
-function StatusPill({ label, tone = 'status' }: { label: string; tone?: 'cancelled' | 'closed' | 'match' | 'open' | 'partial' | 'status' }) {
+function StatusPill({ label, tone = 'status' }: { label: string; tone?: 'cancelled' | 'closed' | 'match' | 'open' | 'partial' | 'shortClosed' | 'status' }) {
   const color = {
     cancelled: 'text-slate-500',
     closed: 'text-emerald-700',
     match: 'text-cyan-700',
     open: 'text-amber-700',
     partial: 'text-cyan-700',
+    shortClosed: 'text-rose-700',
     status: 'text-slate-700',
   }[tone]
   if (tone === 'match') return <span className={`text-xs font-semibold ${color}`}>{label || '-'}</span>
@@ -1321,15 +1408,66 @@ function PoSellCancelModal({
   )
 }
 
+function PoSellShortCloseModal({
+  error,
+  isSaving,
+  note,
+  onChangeNote,
+  onClose,
+  onSubmit,
+  row,
+}: {
+  error: string
+  isSaving: boolean
+  note: string
+  onChangeNote: (value: string) => void
+  onClose: () => void
+  onSubmit: () => void
+  row: PoSellRow
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => {
+      if (!open && !isSaving) onClose()
+    }}>
+      <DialogContent aria-labelledby="po-sell-short-close-title" className="top-auto bottom-0 w-full max-w-lg translate-x-[-50%] translate-y-0 rounded-t-md md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-md border-0 bg-slate-900 shadow-2xl !p-0 overflow-hidden outline-none focus:outline-none" hideClose>
+        <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-md flex flex-row items-center shrink-0">
+          <div>
+            <DialogTitle id="po-sell-short-close-title" className="text-white">ปิดส่งไม่ครบ {row.docNo}</DialogTitle>
+            <DialogDescription className="text-slate-300">{row.customerName} · คงเหลือ {formatMoney(row.remainingQty)} กก.</DialogDescription>
+          </div>
+        </DialogHeader>
+        <div className="space-y-2 bg-slate-50 p-5 text-sm">
+          <label className="block text-xs font-medium text-slate-600" htmlFor="po-sell-short-close-note">เหตุผลการปิดส่งไม่ครบ *</label>
+          <textarea
+            id="po-sell-short-close-note"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:ring-0 outline-none transition-colors"
+            maxLength={500}
+            rows={3}
+            value={note}
+            onChange={(event) => onChangeNote(event.target.value)}
+          />
+          {error ? <div className="text-xs text-red-600">{error}</div> : null}
+        </div>
+        <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-white flex justify-end gap-2 shrink-0 md:rounded-b-md">
+          <UiButton className="font-normal transition-colors outline-none focus:ring-0" disabled={isSaving} type="button" variant="outline" onClick={onClose}>ปิด</UiButton>
+          <UiButton className="rounded-md bg-amber-600 hover:bg-amber-700 text-white font-medium transition-colors outline-none focus:ring-0 px-5" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังบันทึก...' : 'ยืนยันปิดส่งไม่ครบ'}</UiButton>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function PoSellDetailModal({
   onClose,
   row,
   isPrinting,
+  onShortClose,
   onPrint,
 }: {
   onClose: () => void
   row: PoSellRow
   isPrinting: boolean
+  onShortClose: (row: PoSellRow) => void
   onPrint: (row: PoSellRow) => void
 }) {
   return (
@@ -1344,6 +1482,16 @@ function PoSellDetailModal({
             <DialogDescription className="truncate text-slate-300">{row.customerName}</DialogDescription>
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
+            {canShortClosePoSell(row) ? (
+              <UiButton
+                className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white"
+                type="button"
+                variant="outline"
+                onClick={() => onShortClose(row)}
+              >
+                ปิดส่งไม่ครบ
+              </UiButton>
+            ) : null}
             <UiButton
               className="h-9 gap-2 border-emerald-600 bg-emerald-600 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white"
               disabled={isPrinting}

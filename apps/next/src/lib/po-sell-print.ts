@@ -343,7 +343,7 @@ export function buildPoSellPrintHtml(po: PoSellPrintDocument, profile: CompanyPr
                 </div>
                 <div>
                   <div class="field-label">สถานะเอกสาร / Document Status</div>
-                  <div class="field-value">${escapeHtml(po.documentStatus === 'open' ? 'เปิดอยู่ / Open' : po.documentStatus === 'partial' ? 'ออกบิลบางส่วน / Partial' : po.documentStatus === 'closed' ? 'ปิดแล้ว / Closed' : 'ยกเลิก / Cancelled')}</div>
+                  <div class="field-value">${escapeHtml(po.documentStatus === 'open' ? 'เปิดอยู่ / Open' : po.documentStatus === 'partial' ? 'ออกบิลบางส่วน / Partial' : po.documentStatus === 'short_closed' ? 'ปิดส่งไม่ครบ / Short Closed' : po.documentStatus === 'closed' ? 'ปิดแล้ว / Closed' : 'ยกเลิก / Cancelled')}</div>
                 </div>
                 <div>
                   <div class="field-label">ผู้บันทึก / Created By</div>
