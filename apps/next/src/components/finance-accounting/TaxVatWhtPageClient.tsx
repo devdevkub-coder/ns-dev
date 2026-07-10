@@ -248,8 +248,8 @@ export function TaxVatWhtPageClient() {
 
         <TabsContent value="wht-calendar" className="space-y-4">
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <TaxTable isLoading={isLoading} rows={data?.whtCharged.items ?? []} title="🪙 WHT เราหักไว้ (ต้องนำส่ง ภงด.3/53)" tone="amber" valueKey="wht" tableKey="finance.tax.wht-charged.v5" />
-            <TaxTable isLoading={isLoading} rows={data?.whtWithheld.items ?? []} title="💰 WHT ลูกค้าหักจากเรา (ใช้เครดิต)" tone="purple" valueKey="wht" tableKey="finance.tax.wht-withheld.v5" />
+            <TaxTable isLoading={isLoading} rows={data?.whtCharged.items ?? []} title="🪙 WHT เราหักไว้ (ต้องนำส่ง ภงด.3/53)" tone="amber" valueKey="wht" tableKey="tax-wht-charged" />
+            <TaxTable isLoading={isLoading} rows={data?.whtWithheld.items ?? []} title="💰 WHT ลูกค้าหักจากเรา (ใช้เครดิต)" tone="purple" valueKey="wht" tableKey="tax-wht-withheld" />
           </div>
           <CalendarTable rows={data?.taxCalendar ?? []} />
         </TabsContent>

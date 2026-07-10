@@ -37,7 +37,7 @@ export async function POST(request: Request) {
             type: 'user',
             userId: 'U1234567890abcdef1234567890abcdef',
           },
-          replyToken: 'nH7w3O5g5aIpjCYZOgoG',
+          replyToken: 'test-reply-token',
         },
       ],
     }

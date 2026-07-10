@@ -1,0 +1,24 @@
+# Dependencies and build output
+node_modules/
+apps/*/node_modules/
+dist/
+.next/
+apps/*/.next/
+.vite/
+*.tsbuildinfo
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+apps/*/.env
+apps/*/.env.local
+apps/*/.env.*.local
+
+# Local tool state
+.git/
+.DS_Store
+.claude/
+.codex/
+.playwright-mcp/
+.vercel/
