@@ -72,9 +72,9 @@ sales plan/LME planning ก่อน PO Sell/stock issue
 
 | Field | Source / behavior | Required |
 |---|---|---|
-| `สินค้า` | เลือกจากรายการสินค้าใน `productAnalysis` ของหน้า | Yes |
+| `สินค้า` | ค้นหาและเลือกจาก Master Data สินค้าที่ active ของหมวดโลหะที่รองรับ | Yes |
 | `ช่องทาง` | เลือกจาก `filters.channels` | Yes |
-| `ลูกค้า` | กรอกข้อความชื่อคู่ค้าโดยตรง | Yes |
+| `ลูกค้า` | ค้นหาและเลือกจาก Master Data ลูกค้าที่ active | Yes |
 | `จำนวนตู้` | กรอกจำนวนตู้ | Yes |
 | `กก./ตู้` | default จาก `LME Reference Pricing.kgPerContainer` แต่แก้ได้ในฟอร์ม | Yes |
 | `LME cf (USD/MT)` | default จาก LME ตามหมวดสินค้าที่เลือก แต่ผู้ใช้แก้ได้สำหรับแผนนี้ | Yes |
