@@ -933,35 +933,25 @@ export function SalesPlanPageClient() {
 
       <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3">
-          <h3 className="font-bold text-slate-800 text-sm">📋 ตารางรอขาย</h3>
-          <p className="mt-1 text-xs font-medium text-slate-500">เฉพาะทองแดง / ทองเหลือง · ของใน Cost Pool ที่ยังไม่ allocate</p>
-          <p className="mt-2 text-xs text-slate-500">รอขายจริง = STOCK + PO ซื้อรอส่ง − ล๊อกขายรอส่ง ถ้าติดลบแปลว่าของจริงและของกำลังเข้าไม่พอกับยอดที่ล๊อกขาย</p>
-        </div>
-        <div className="grid grid-cols-2 gap-3 border-b border-slate-100 bg-slate-50/30 p-4 lg:grid-cols-5">
-          <PendingStatCard label="💰 รอขาย (Cost Pool)" sublabel={`≈ ${money(pendingSaleTotals.totalPendingSaleValue)} ฿`} value={`${money(pendingSaleTotals.totalPendingSaleQty)} กก.`} />
-          <PendingStatCard label="🔒 ล๊อกขายรอส่ง" sublabel="PO Sell (Open)" value={`${money(pendingSaleTotals.totalLockedSell)} กก.`} />
-          <PendingStatCard label="📦 PO ซื้อรอส่ง" sublabel="PO Buy (Open)" value={`${money(pendingSaleTotals.totalLockedBuy)} กก.`} />
-          <PendingStatCard label="🏷 STOCK" sublabel="ของจริงในคลัง" value={`${money(pendingSaleTotals.totalStock)} กก.`} />
-          <PendingStatCard
-            label="⚖ รอขายจริง (รวม)"
-            sublabel={num(pendingSaleTotals.shortageCount) > 0 ? `ขาด ${money(pendingSaleTotals.shortageCount)} รายการ` : '✓ ครบทุกรายการ'}
-            tone={num(pendingSaleTotals.totalRealPending) < 0 ? 'danger' : 'success'}
-            value={`${money(pendingSaleTotals.totalRealPending)} กก.`}
-          />
+          <h3 className="font-bold text-slate-800 text-sm">📋 ตารางรอขาย — ทองแดง / ทองเหลือง ({money(pendingSaleRows.length)} รายการ)</h3>
+          <p className="mt-1 text-xs text-slate-500">รอขายจริง = STOCK + PO ซื้อรอส่ง − ล็อกขายรอส่ง · ยอดติดลบหมายถึงของจริงและของกำลังเข้าไม่พอกับยอดขายที่ล็อกไว้</p>
         </div>
         <div className="hidden overflow-x-auto lg:block">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-100">
               <tr>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">สินค้า</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">รหัส / สินค้า</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">หมวด</th>
                 <th className="px-4 py-3 text-right font-semibold text-slate-700">รอขาย (กก.)</th>
-                <th className="px-4 py-3 text-right font-semibold text-slate-700">มูลค่ารอขาย</th>
-                <th className="px-4 py-3 text-right font-semibold text-slate-700">ล๊อกขายรอส่ง</th>
-                <th className="px-4 py-3 text-right font-semibold text-slate-700">PO ซื้อรอส่ง</th>
-                <th className="px-4 py-3 text-right font-semibold text-slate-700">STOCK</th>
-                <th className="px-4 py-3 text-right font-semibold text-slate-700">รอขายจริง</th>
-                <th className="px-4 py-3 text-right font-semibold text-slate-700">WAC</th>
+                <th className="px-4 py-3 text-right font-semibold text-slate-700">ต้นทุน Pool<br /><span className="text-xs font-medium text-slate-400">(บาท/กก.)</span></th>
+                <th className="px-4 py-3 text-right font-semibold text-slate-700">ราคาเสนอที่ดีสุด<br /><span className="text-xs font-medium text-slate-400">(บาท/กก.)</span></th>
+                <th className="px-4 py-3 text-right font-semibold text-slate-700">% LME</th>
+                <th className="px-4 py-3 text-right font-semibold text-emerald-700">กำไรคาดการณ์<br /><span className="text-xs font-medium text-emerald-600">(บาท)</span></th>
+                <th className="px-4 py-3 text-right font-semibold text-emerald-700">Margin %</th>
+                <th className="px-4 py-3 text-right font-semibold text-slate-700">รอขายจริง<br /><span className="text-xs font-medium text-slate-400">(กก.)</span></th>
+                <th className="px-4 py-3 text-right font-semibold text-rose-700">ล็อกขาย<br /><span className="text-xs font-medium text-rose-600">(กก.)</span></th>
+                <th className="px-4 py-3 text-right font-semibold text-violet-700">PO ซื้อรอส่ง<br /><span className="text-xs font-medium text-violet-600">(กก.)</span></th>
+                <th className="px-4 py-3 text-right font-semibold text-blue-700">STOCK<br /><span className="text-xs font-medium text-blue-600">(กก.)</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -974,19 +964,22 @@ export function SalesPlanPageClient() {
                       <div className="font-mono text-xs font-semibold text-slate-400">{text(row.productCode)}</div>
                     </td>
                     <td className="px-4 py-3 text-xs font-medium text-slate-500">{text(row.metalGroup)}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-slate-800">{money(row.pendingSaleQty)}</td>
-                    <td className="px-4 py-3 text-right text-slate-700">{money(row.pendingSaleValue)}</td>
-                    <td className="px-4 py-3 text-right text-amber-700">{money(row.lockedSell)}</td>
-                    <td className="px-4 py-3 text-right text-blue-700">{money(row.lockedBuy)}</td>
-                    <td className="px-4 py-3 text-right text-slate-700">{money(row.stock)}</td>
-                    <td className={`px-4 py-3 text-right font-bold ${shortage ? 'text-red-600' : 'text-emerald-600'}`}>{money(row.realPendingSale)}</td>
-                    <td className="px-4 py-3 text-right text-slate-500">{money(row.stockWAC)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-emerald-700">{money(row.pendingSaleQty)}</td>
+                    <td className="px-4 py-3 text-right text-slate-600">{num(row.avgPrice) > 0 ? money(row.avgPrice) : '-'}</td>
+                    <td className="bg-amber-50/40 px-4 py-3 text-right font-semibold text-amber-700">{num(row.bestPlanPrice) > 0 ? money(row.bestPlanPrice) : '-'}</td>
+                    <td className="bg-amber-50/40 px-4 py-3 text-right font-medium text-slate-700">{num(row.bestPlanPct) > 0 ? `${money(row.bestPlanPct)}%` : '-'}</td>
+                    <td className={`bg-emerald-50/40 px-4 py-3 text-right font-bold ${num(row.projectedProfit) < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{num(row.bestPlanPrice) > 0 ? money(row.projectedProfit) : '-'}</td>
+                    <td className={`bg-emerald-50/40 px-4 py-3 text-right font-semibold ${num(row.projectedMarginPct) < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{num(row.bestPlanPrice) > 0 ? `${money(row.projectedMarginPct)}%` : '-'}</td>
+                    <td className={`px-4 py-3 text-right font-bold ${shortage ? 'text-red-600' : 'text-emerald-700'}`}>{money(row.realPendingSale)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-rose-700">{money(row.lockedSell)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-violet-700">{money(row.lockedBuy)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-blue-700">{money(row.stock)}</td>
                   </tr>
                 )
               })}
               {!pendingSaleRows.length ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-xs font-semibold text-slate-400" colSpan={9}>ยังไม่มีข้อมูล ทองแดง / ทองเหลือง — เมื่อมี PO Buy / บิลซื้อ / PO Sell ระบบจะคำนวณให้อัตโนมัติ</td>
+                  <td className="px-4 py-8 text-center text-xs font-semibold text-slate-400" colSpan={12}>ยังไม่มีข้อมูล ทองแดง / ทองเหลือง — เมื่อมี PO Buy / บิลซื้อ / PO Sell ระบบจะคำนวณให้อัตโนมัติ</td>
                 </tr>
               ) : null}
             </tbody>
@@ -994,13 +987,12 @@ export function SalesPlanPageClient() {
               <tfoot className="border-t border-slate-200 bg-slate-50/50 font-bold text-slate-700">
                 <tr>
                   <td className="px-4 py-3 text-xs" colSpan={2}>รวม</td>
-                  <td className="px-4 py-3 text-right text-xs">{money(pendingSaleTotals.totalPendingSaleQty)}</td>
-                  <td className="px-4 py-3 text-right text-xs">{money(pendingSaleTotals.totalPendingSaleValue)}</td>
-                  <td className="px-4 py-3 text-right text-xs text-amber-700">{money(pendingSaleTotals.totalLockedSell)}</td>
-                  <td className="px-4 py-3 text-right text-xs text-blue-700">{money(pendingSaleTotals.totalLockedBuy)}</td>
-                  <td className="px-4 py-3 text-right text-xs">{money(pendingSaleTotals.totalStock)}</td>
-                  <td className={`px-4 py-3 text-right text-xs ${num(pendingSaleTotals.totalRealPending) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{money(pendingSaleTotals.totalRealPending)}</td>
-                  <td className="px-4 py-3" />
+                  <td className="px-4 py-3 text-right text-xs text-emerald-700">{money(pendingSaleTotals.totalPendingSaleQty)}</td>
+                  <td colSpan={5} />
+                  <td className={`px-4 py-3 text-right text-xs ${num(pendingSaleTotals.totalRealPending) < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{money(pendingSaleTotals.totalRealPending)}</td>
+                  <td className="px-4 py-3 text-right text-xs text-rose-700">{money(pendingSaleTotals.totalLockedSell)}</td>
+                  <td className="px-4 py-3 text-right text-xs text-violet-700">{money(pendingSaleTotals.totalLockedBuy)}</td>
+                  <td className="px-4 py-3 text-right text-xs text-blue-700">{money(pendingSaleTotals.totalStock)}</td>
                 </tr>
               </tfoot>
             ) : null}
