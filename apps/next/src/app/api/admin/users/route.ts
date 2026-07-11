@@ -26,7 +26,7 @@ const adminUserFormSchema = z.object({
   })).default([]),
   profileImageUrl: z.string().trim().max(500, 'URL รูป profile ยาวเกินไป').optional().default('')
     .refine((value) => !value || /^https?:\/\//i.test(value), 'URL รูป profile ต้องขึ้นต้นด้วย http:// หรือ https://'),
-  roleIds: z.array(z.string().trim().regex(/^\d+$/, 'หน้าที่งานไม่ถูกต้อง')).default([]),
+  roleIds: z.array(z.string().trim().regex(/^\d+$/, 'หน้าที่งานไม่ถูกต้อง')).length(1, 'เลือกหน้าที่งาน 1 รายการ'),
 })
 
 function toIso(value: Date | null) {
@@ -88,7 +88,7 @@ async function assertUserRefs(
   const [roles, branches, department, permissions] = await Promise.all([
     prisma.app_roles.findMany({
       select: { id: true },
-      where: { id: { in: parsedRoleIds }, active: true },
+      where: { id: { in: parsedRoleIds }, active: true, is_employee_role: true },
     }),
     findActiveBranchReferencesByCodes(branchIds),
     prisma.departments.findFirst({
@@ -105,7 +105,7 @@ async function assertUserRefs(
   ])
 
   if (roles.length !== new Set(parsedRoleIds.map((roleId) => roleId.toString())).size) {
-    throw new Error('Role ที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+    throw new Error('หน้าที่งานที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
   if (branchIds.length && branches.length !== new Set(branchIds).size) {
@@ -211,6 +211,7 @@ export async function GET() {
         code: role.code,
         description: role.description,
         id: role.id.toString(),
+        isEmployeeRole: role.is_employee_role,
         isSystem: role.is_system,
         name: role.name,
         permissionIds: role.app_role_permissions.map((permission) => permission.permission_id.toString()),

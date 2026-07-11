@@ -123,9 +123,50 @@ As of 2026-07-11, role permission selection is organized from the active Side me
 
 As of 2026-07-11, `/admin/roles-permissions` has separate `Role ตามฝ่าย` and `สิทธิ์รายหน้า` tabs. The Role tab filters reusable work-function templates by the selected department based on real user assignments; it does not duplicate department ownership onto the role record. The permission tab selects either one Role or one user, then displays Side menu pages as a permission matrix whose columns are the registered actions for that page. Saving a Role updates its template permissions. Saving a user writes only direct `allow` overrides through `PUT /api/admin/users/:id/permission-overrides`; it does not overwrite that user's profile, department, branches, or assigned templates. Why it stays this way: a department remains an organizational fact, while a reusable Role and a single-user exception remain separate authorization mechanisms.
 
+## Organization And Access Decision (2026-07-11)
+
+Employee directory synchronization on 2026-07-11: migration `20260711110000_sync_employee_directory.sql` updates the approved employee names and primary departments, clears name prefixes, and removes explicit branch rows for the listed employees so their branch scope stays `ทุกสาขา`. It creates the directory row for `photsathon.spd1@gmail.com` without an `auth_user_id`; that person appears in the employee list and must be invited through the normal User Admin flow before they can sign in. The new-user form defaults its optional name prefix to `คุณ`; editing an existing employee does not overwrite their stored prefix. Role assignments and permission overrides are deliberately unchanged in this directory-only batch.
+
+Role normalization follow-up on 2026-07-11: migration `20260711113000_normalize_employee_roles.sql` resets the approved directory users to `เจ้าหน้าที่` or `ผู้ดูแลระบบ`, so the `หน้าที่งาน` column on `/admin/users` matches the approved employee list. It deletes their legacy role assignments and direct permission overrides. `เจ้าหน้าที่` starts with no permission grant; `ผู้ดูแลระบบ` receives every active catalog permission through persisted `app_role_permissions`. What is what: the approved employee list is the only source for these users' Role. Why it stays this way: the organization explicitly reset the staff-role model, so old grants must not continue to affect access. The next permission batch configures pages/actions for each `ฝ่าย + Role` profile.
+
+Employee modal follow-up on 2026-07-11: `หน้าที่งาน` is a single required dropdown, not a multi-select checkbox group. Its options are data-driven from `app_roles.is_employee_role`, currently `เจ้าหน้าที่`, `หัวหน้างาน`, `ผู้บริหาร`, and `ผู้ดูแลระบบ`. The create/update API also accepts exactly one active marked role, so a browser cannot save a different or multiple role assignment. Other active roles remain usable as permission templates in the Roles & Permissions area but do not appear as job titles in the employee modal. This keeps the employee directory's job label unambiguous while retaining configurable page/action permission templates.
+
+The approved organization has four departments. Migration `20260711123000_sync_latest_employee_directory.sql` defines the current master as:
+
+| Code | ฝ่าย | หมวด Side menu |
+|---|---|---|
+| `DEP-001` | บริหาร | ทั้งหมด |
+| `DEP-002` | บัญชีและการเงิน | ประจำวัน, Stock, Dual Costing, Tracking 360 |
+| `DEP-003` | ประสานงาน | Stock, ประจำวัน, Dual Costing, วางแผนการขาย |
+| `DEP-004` | ผลิต | ผลิต, Stock, ส่งของ |
+
+`DEP-005 คัดแยก` is merged into `DEP-004 ผลิต` and removed. The current employee directory contains 21 active users: the submitted 20-person list plus `peach@admin.com` as `ผู้ดูแลระบบ` in `บริหาร`. `ns-kwan@nsscrap.com` and `ns-or@nsscrap.com` are removed from `app_users`. Every listed employee has exactly one marked employee role and all-branch scope. The employee page defaults to active users so its first view represents the current workforce; the status filter can still reveal other closed historical accounts if any remain.
+
+`ผู้ดูแลระบบ` is a Role, not a department. The owner belongs to `DEP-001 บริหาร` and receives system-wide access only when assigned the `ผู้ดูแลระบบ` role. Migration `20260711103000_retire_admin_department.sql` removed the former admin department, and migration `20260711123000_sync_latest_employee_directory.sql` subsequently merged `DEP-005 คัดแยก` into production. Department codes are not renumbered.
+
+This matrix controls category visibility only. Each category still expands into its registered pages and page actions, so a department-role can be granted a subset of its allowed pages/actions when needed. A user working across departments receives the union of the categories/pages granted through every active department-role assignment. The `ผู้ดูแลระบบ` role can be assigned in any department and receives all registered pages/actions through persisted grants, not through a department named ผู้ดูแลระบบ or a code bypass.
+
+Role is not a department name. The approved standard roles are `เจ้าหน้าที่`, `หัวหน้างาน`, `ผู้บริหาร`, and `ผู้ดูแลระบบ`. A user may be assigned more than one department-role pair because one person can work across operational teams and each department can own access to multiple Side menu categories/pages.
+
+Target assignment model:
+
+```text
+user
+  -> primary department (employee/profile information)
+  -> one or more department + role assignments
+       -> page/action permissions for that department-role
+  -> optional direct allow/deny override for an exceptional individual case
+```
+
+The effective permission set is the union of all active department-role grants, plus direct allows, minus direct denies. For example, a production employee who also supports coordination can receive grants from both operating scopes; the Side menu shows every category that contains at least one permitted page from either assignment. A category with no accessible pages stays hidden.
+
+Why it stays this way: one global role cannot accurately represent a person who works across operating scopes, while creating combined role names for every cross-functional pairing causes unmaintainable role growth. Department-role assignments keep organization, job level, and page-level authority separate.
+
+This is the approved target model. The deployed department master now has the five approved rows and `app_users.department_id` remains the employee's primary department. A dedicated migration to department-role assignments is still required before the multi-department model becomes runtime enforcement; the current role model is global `app_user_roles`.
+
 ## Current Gap
 
-P3 proof completed from current code. Role/permission matrix future changes should update System Supporting Flows. Profile image upload/storage is not implemented yet; current contract stores an optional URL only. User department linkage is now implemented; remaining cleanup is role naming/governance so legacy role codes that describe departments can gradually become permission-oriented roles.
+P3 proof completed from current code. Role/permission matrix future changes should update System Supporting Flows. Profile image upload/storage is not implemented yet; current contract stores an optional URL only. User department linkage is now implemented. The remaining authorization batch is to add persisted department-role assignments and migrate current global role grants without losing existing access; legacy role codes that describe departments must not remain the long-term governance model.
 
 ## Implementation Checklist
 

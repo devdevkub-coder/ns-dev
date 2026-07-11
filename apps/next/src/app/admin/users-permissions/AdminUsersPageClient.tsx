@@ -41,6 +41,7 @@ type AdminUsersPayload = {
     code: string
     description: string | null
     id: string
+    isEmployeeRole: boolean
     isSystem: boolean
     name: string
     permissionIds: string[]
@@ -117,6 +118,7 @@ const adminUsersPayloadSchema = z.object({
     code: z.string(),
     description: z.string().nullable(),
     id: z.string(),
+    isEmployeeRole: z.boolean(),
     isSystem: z.boolean(),
     name: z.string(),
     permissionIds: z.array(z.string()),
@@ -248,7 +250,7 @@ const emptyUserForm: UserFormState = {
   firstName: '',
   lastName: '',
   mustChangePassword: false,
-  namePrefix: '',
+  namePrefix: 'คุณ',
   profileImageUrl: '',
   permissionOverrides: [],
   roleIds: [],
@@ -330,7 +332,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const [branchFilter, setBranchFilter] = useState('all')
   const [departmentFilter, setDepartmentFilter] = useState('all')
   const [roleFilter, setRoleFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState<UserStatusFilter>('all')
+  const [statusFilter, setStatusFilter] = useState<UserStatusFilter>('active')
   const [tab, setTab] = useState<TabKey>(mode ?? 'users')
   const [rolesViewTab, setRolesViewTab] = useState<RolesViewTab>('roles')
   const [permissionSubjectType, setPermissionSubjectType] = useState<'role' | 'user'>('role')
@@ -475,6 +477,10 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       .flatMap((role) => role.permissionIds),
   ), [data?.roles, form.roleIds])
 
+  const employeeRoles = useMemo(() => (
+    (data?.roles ?? []).filter((role) => role.active && role.isEmployeeRole)
+  ), [data?.roles])
+
   const permissionsByModule = useMemo(() => {
     const groups = new Map<string, AdminUsersPayload['permissions']>()
     for (const permission of data?.permissions ?? []) {
@@ -594,13 +600,13 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       namePrefix: user.namePrefix ?? '',
       permissionOverrides: user.permissionOverrides,
       profileImageUrl: user.profileImageUrl ?? '',
-      roleIds: user.roles.map((role) => role.id),
+      roleIds: user.roles.slice(0, 1).map((role) => role.id),
     })
     setFormError(null)
     setFormOpen(true)
   }
 
-  function toggleFormArray(key: 'branchIds' | 'roleIds', value: string) {
+  function toggleFormArray(key: 'branchIds', value: string) {
     setForm((current) => ({
       ...current,
       [key]: current[key].includes(value)
@@ -1073,16 +1079,15 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                   </div>
 
                   <div className="rounded-xl border border-slate-100 bg-white p-4">
-                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">หน้าที่งาน (Template)</div>
-                    <div className="grid gap-2">
-                      {data?.roles.filter((role) => role.active).map((role) => (
-                        <label key={role.id} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                          <input checked={form.roleIds.includes(role.id)} type="checkbox" className="rounded border-slate-300 text-slate-800 focus:ring-blue-500" onChange={() => toggleFormArray('roleIds', role.id)} />
-                          <span>{role.name}</span>
-                          <span className="font-mono text-xs text-slate-400">{role.code}</span>
-                        </label>
-                      ))}
-                    </div>
+                    <label className="block text-sm font-medium text-slate-700">
+                      หน้าที่งาน *
+                      <select className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" required value={form.roleIds[0] ?? ''} onChange={(event) => setForm((current) => ({ ...current, roleIds: event.target.value ? [event.target.value] : [] }))}>
+                        <option value="" disabled>เลือกหน้าที่งาน</option>
+                        {employeeRoles.map((role) => (
+                          <option key={role.id} value={role.id}>{role.name}</option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
 
                   <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">

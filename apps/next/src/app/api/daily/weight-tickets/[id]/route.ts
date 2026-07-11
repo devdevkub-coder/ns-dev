@@ -25,7 +25,6 @@ import {
   buildWeightTicketLineRows,
   buildWeightTicketProductSummaryRows,
   canMutateWeightTicket,
-  defaultTicketStatus,
   getWeightTicketTimeline,
   getWeightTicketDownstreamAllocations,
   getWeightTicketUsageTimeline,
@@ -237,9 +236,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 
     const actor = currentActor(auth)
     const documentDate = toDateOnly(existing.document_date)
-    const nextStatus = existing.status === 'billed' || existing.status === 'delivered'
-      ? existing.status
-      : defaultTicketStatus(values.type)
+    const nextStatus = existing.status
     const totals = calculateTicketTotals(values.lines.map((line) => ({
       containerDeductionWeight: String(line.containerDeductionWeight),
       deductionMode: line.deductionMode,
@@ -491,24 +488,24 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const actor = currentActor(auth)
     const confirmParsed = weightTicketConfirmSchema.safeParse(rawValues)
     if (confirmParsed.success) {
-      if (existing.doc_type !== 'WTO') {
-        return NextResponse.json({ code: 'BAD_REQUEST', error: 'ยืนยันต้นทุนได้เฉพาะใบส่งของ WTO' }, { status: 400 })
-      }
       if (existing.status !== 'draft') {
-        return NextResponse.json({ code: 'BAD_REQUEST', error: 'ยืนยันได้เฉพาะใบส่งของสถานะร่าง' }, { status: 400 })
+        return NextResponse.json({ code: 'BAD_REQUEST', error: 'ยืนยันได้เฉพาะเอกสารสถานะแบบร่าง' }, { status: 400 })
       }
 
       const confirmedAt = new Date()
+      const nextStatus = existing.doc_type === 'WTO' ? 'delivered' : 'received'
       const updated = await prisma.$transaction(async (tx) => {
-        const confirmedHoldIds = await snapshotActiveWtoPendingOutCosts(tx, {
-          actor,
-          branchId: existing.branch_id,
-          source: 'WTO_CONFIRM',
-          weightTicketId: existing.id,
-        })
+        const confirmedHoldIds = existing.doc_type === 'WTO'
+          ? await snapshotActiveWtoPendingOutCosts(tx, {
+            actor,
+            branchId: existing.branch_id,
+            source: 'WTO_CONFIRM',
+            weightTicketId: existing.id,
+          })
+          : []
         await tx.weight_tickets.update({
           data: {
-            status: 'delivered',
+            status: nextStatus,
             updated_at: confirmedAt,
             updated_by: actor,
           },
@@ -520,19 +517,21 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           createdAt: confirmedAt,
           fromStatus: existing.status,
           meta: {
-            reason: 'wto_confirm_cost_snapshot',
+            reason: existing.doc_type === 'WTO' ? 'wto_confirm_cost_snapshot' : 'wti_confirm_receipt',
           },
-          toStatus: 'delivered',
+          toStatus: nextStatus,
           weightTicketId: existing.id,
         })
-        await appendWtoPendingOutEventsFromHolds(tx, {
-          actor,
-          eventTypeForHold: () => 'confirm_snapshot',
-          holdIds: confirmedHoldIds,
-          occurredAt: confirmedAt,
-          statusLogEventKey,
-          weightTicketId: existing.id,
-        })
+        if (existing.doc_type === 'WTO') {
+          await appendWtoPendingOutEventsFromHolds(tx, {
+            actor,
+            eventTypeForHold: () => 'confirm_snapshot',
+            holdIds: confirmedHoldIds,
+            occurredAt: confirmedAt,
+            statusLogEventKey,
+            weightTicketId: existing.id,
+          })
+        }
         return tx.weight_tickets.findUniqueOrThrow({
           include: ticketInclude,
           where: { id: existing.id },

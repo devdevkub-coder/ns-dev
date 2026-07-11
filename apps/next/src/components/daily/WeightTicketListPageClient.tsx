@@ -175,8 +175,14 @@ function canOpenSalesBillFromTicket(ticket: WeightTicketRecord) {
   return ticket.type === 'WTO' && ticket.status === 'delivered' && ticket.usedInSalesBillCount === 0
 }
 
-function canConfirmWto(ticket: WeightTicketRecord) {
-  return ticket.type === 'WTO' && ticket.status === 'draft' && ticket.usedInSalesBillCount === 0
+function canConfirmTicket(ticket: WeightTicketRecord) {
+  return ticket.status === 'draft'
+    && ticket.usedInPurchaseBillCount === 0
+    && ticket.usedInSalesBillCount === 0
+}
+
+function confirmTicketLabel(ticket: WeightTicketRecord) {
+  return ticket.type === 'WTI' ? 'ยืนยันรับของ' : 'ยืนยันส่งของ'
 }
 
 function canReturnWtoStock(ticket: WeightTicketRecord) {
@@ -358,7 +364,7 @@ export function WeightTicketListPageClient() {
       const updated = await confirmWeightTicket(ticket.id)
       setTickets((current) => current.map((row) => row.id === updated.id ? updated : row))
     } catch (caught) {
-      setLoadError(getErrorMessage(caught, 'ยืนยันใบส่งของไม่ได้'))
+      setLoadError(getErrorMessage(caught, 'ยืนยันใบรับ-ส่งของไม่ได้'))
     } finally {
       setConfirmingTicketId(null)
     }
@@ -739,14 +745,14 @@ export function WeightTicketListPageClient() {
                     เปิดบิลขาย
                   </button>
                 ) : null}
-                {canConfirmWto(ticket) ? (
+                {canConfirmTicket(ticket) ? (
                   <button
                     className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-3 py-1.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
                     disabled={confirmingTicketId === ticket.id}
                     type="button"
                     onClick={() => void handleConfirmTicket(ticket)}
                   >
-                    {confirmingTicketId === ticket.id ? 'ยืนยัน...' : 'ยืนยัน'}
+                    {confirmingTicketId === ticket.id ? 'ยืนยัน...' : confirmTicketLabel(ticket)}
                   </button>
                 ) : null}
                 {canReturnWtoStock(ticket) ? (
@@ -918,7 +924,7 @@ export function WeightTicketListPageClient() {
                             เปิดบิลขาย
                           </button>
                         ) : null}
-                        {canConfirmWto(ticket) ? (
+                        {canConfirmTicket(ticket) ? (
                           <button
                             className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
                             disabled={confirmingTicketId === ticket.id}
@@ -928,7 +934,7 @@ export function WeightTicketListPageClient() {
                               void handleConfirmTicket(ticket)
                             }}
                           >
-                            {confirmingTicketId === ticket.id ? 'ยืนยัน...' : 'ยืนยัน'}
+                            {confirmingTicketId === ticket.id ? 'ยืนยัน...' : confirmTicketLabel(ticket)}
                           </button>
                         ) : null}
                         {canReturnWtoStock(ticket) ? (

@@ -883,7 +883,7 @@ export async function confirmWeightTicket(id: string) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(values),
   })
-  return readJsonResponse(response, weightTicketRecordSchema, 'ยืนยันใบส่งของไม่ได้')
+  return readJsonResponse(response, weightTicketRecordSchema, 'ยืนยันใบรับ-ส่งของไม่ได้')
 }
 
 const weightTicketLineNotifyResultSchema = z.object({

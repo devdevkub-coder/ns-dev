@@ -41,7 +41,8 @@ Git branch boundary:
 
 ### Staging / UAT
 
-- Project ref: `oolzfvqhovmjhiocfqdw`
+- Active project ref: `ekeomeumqjvbhgwyaqwe`
+- Previous project ref: `oolzfvqhovmjhiocfqdw` (superseded for the current customer UAT deployment)
 - Current meaning in this project: customer-facing UAT database/environment
 - Purpose: user testing, customer UAT, migration rehearsal, release validation
 - Expected usage:
@@ -50,6 +51,13 @@ Git branch boundary:
   - let customer/user validate business flow
   - run reconciliation checks before any production cutover
 - Should be a separate Supabase project, not another database inside the same project
+
+Status update on 2026-07-11:
+- The active customer UAT deployment is `https://ns-erp-uat.vercel.app` and its Vercel Production environment now points Supabase URL, anon/publishable key, service-role/secret key, and PostgreSQL pooler connection to project ref `ekeomeumqjvbhgwyaqwe`.
+- The project started with no `public` tables or Auth users. Before restore, a local UAT snapshot was created under `/tmp/ns-erp-dev-to-uat-20260711-143907`.
+- Dev project `fhglqymcdmrgbsbadnwr` was cloned into the new UAT project for `public` schema/data, `auth.users`, `auth.identities`, and `supabase_migrations.schema_migrations`.
+- Exact reconciliation passed with no per-table row-count differences: both environments have 140 public base tables and 32,737 public rows, 44 Auth users, 43 Auth identities, 117 public RLS policies, 90 RLS-enabled public tables, 15 public routines, and 106 migration-history rows.
+- Supabase Storage objects were not copied in this PostgreSQL clone. Storage buckets, object metadata, and binary files must be provisioned or migrated as a separate controlled step before UAT flows that depend on stored PDFs/images are accepted.
 
 Status update on 2026-07-01:
 - Customer UAT Supabase is available at project ref `oolzfvqhovmjhiocfqdw`.

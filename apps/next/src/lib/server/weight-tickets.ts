@@ -285,8 +285,8 @@ export function enteredByLabel(context: AppAuthContext) {
   return context.appUser?.displayName ?? '-'
 }
 
-export function defaultTicketStatus(type: WeightTicketType): WeightTicketStatus {
-  return type === 'WTI' ? 'received' : 'draft'
+export function defaultTicketStatus(_type: WeightTicketType): WeightTicketStatus {
+  return 'draft'
 }
 
 export async function nextWeightTicketDocNo(

@@ -3891,6 +3891,7 @@ model app_roles {
   name                     String
   description              String?
   is_system                Boolean                @default(false)
+  is_employee_role         Boolean                @default(false)
   branch_scope             String                 @default("all")
   can_see_cost             Boolean                @default(false)
   can_see_profit           Boolean                @default(false)

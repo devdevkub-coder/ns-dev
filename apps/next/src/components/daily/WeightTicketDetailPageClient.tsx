@@ -36,10 +36,10 @@ function formatDateTime(value?: string | null) {
   })
 }
 
-function timelineLabel(eventKey: string, action: string) {
+function timelineLabel(eventKey: string, action: string, type: WeightTicketRecord['type']) {
   if (action === 'created') return 'สร้างเอกสาร'
   if (action === 'edited') return 'แก้ไขเอกสาร'
-  if (action === 'confirmed') return 'ยืนยันใบส่งของ'
+  if (action === 'confirmed') return type === 'WTI' ? 'ยืนยันรับของ' : 'ยืนยันส่งของ'
   if (action === 'cancelled') return 'ยกเลิกเอกสาร'
   if (action === 'status_synced') return 'ปรับสถานะปัจจุบัน'
   if (action === 'usage_status_changed') return 'เปลี่ยนสถานะจากการใช้งาน'
@@ -665,7 +665,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                   <div className={cn('absolute left-0 top-1.5 size-[18px] rounded-full border-2 bg-white', timelineDotClass(event.action))} />
                   <div className="rounded-xl border border-slate-100 bg-white px-3 py-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="font-medium text-slate-900">{timelineLabel(event.eventKey, event.action)}</div>
+                      <div className="font-medium text-slate-900">{timelineLabel(event.eventKey, event.action, ticket.type)}</div>
                       <div className="text-sm text-slate-500 font-medium">{formatDateTime(event.occurredAt)}</div>
                     </div>
                     <div className="mt-1 text-sm text-slate-600">{event.actorName}</div>
