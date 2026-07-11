@@ -24,7 +24,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const ticket = await prisma.weight_tickets.findFirst({
       select: { status: true },
       where: {
-        branch_id: { in: scopedBranchIds.map((branchId) => BigInt(branchId)) },
+        ...(scopedBranchIds.length ? { branches: { code: { in: scopedBranchIds } } } : {}),
         OR: [{ id: /^\d+$/.test(id) ? BigInt(id) : -1n }, { doc_no: id }],
       },
     })
