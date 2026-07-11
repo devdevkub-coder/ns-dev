@@ -607,8 +607,8 @@ export function SalesPlanPageClient() {
       setPlanDraftError('เลือกสินค้า')
       return
     }
-    if (!planDraftForm.customerName.trim()) {
-      setPlanDraftError('กรอกชื่อลูกค้า')
+    if (!planDraftForm.customerCode || !planDraftForm.customerName) {
+      setPlanDraftError('เลือกลูกค้า')
       return
     }
     if (!planDraftForm.channel) {
