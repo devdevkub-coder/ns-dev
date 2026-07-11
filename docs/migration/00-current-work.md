@@ -3001,4 +3001,10 @@ Tailwind dependency check:
   - Added persisted action permissions for create, update, confirm, cancel, and share. Existing roles that had `daily.weight_tickets.view` receive the action permissions through migration `20260711133000_add_weight_ticket_action_permissions.sql`; runtime APIs do not fall back to view permission.
   - Applied the permission migration to dev-target `fhglqymcdmrgbsbadnwr`; verification found 6 active weight-ticket permission codes, no view-enabled role missing the confirm action, and migration history version `20260711133000` recorded.
   - What is what: Draft is a saved, editable work document; confirmed WTI/WTO is the business event that may enter PB/SB follow-up and notification flows.
+
+- 2026-07-11: WTI/WTO form type-switch safety
+  - Switching between WTI and WTO now resets the complete form after explicit confirmation when any business data has been entered. Branch, supplier/customer, header warehouse, line warehouses, products, weights, notes, and attachments are no longer carried across document types.
+  - Draft WTO detail now states `ยังไม่จอง stock` beside the confirmation action. The reservation remains confirmation-owned; saving a draft does not reserve inventory.
+  - What is what: WTI and WTO are separate document contracts even though they share one creation surface. WTI uses Supplier and a header Warehouse ID; WTO uses Customer and a Warehouse ID per line.
+  - Why it has to be like this: carrying values across document types can create a visually valid but semantically invalid document. A full reset makes the type boundary explicit and prevents stale party/warehouse data from crossing the contract.
   - Why it has to be like this: saving incomplete field data must not create billing workload, snapshot outbound cost, or notify external LINE recipients before the responsible user confirms the physical receipt/delivery.

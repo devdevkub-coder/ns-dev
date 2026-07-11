@@ -125,6 +125,25 @@ function initialForm(type: WeightTicketType = 'WTI'): FormState {
   }
 }
 
+function hasEnteredTicketData(form: FormState) {
+  return Boolean(
+    form.branchId
+    || form.partyId
+    || form.remark.trim()
+    || form.vehicleNo.trim()
+    || form.vehicleImageFiles.length
+    || form.warehouseId
+    || form.lines.some((line) => (
+      line.productId
+      || line.grossWeight
+      || line.containerDeductionWeight
+      || line.deductionValue
+      || line.note.trim()
+      || line.imageFiles.length
+    )),
+  )
+}
+
 function makeFileId() {
   return `file-${Math.random().toString(36).slice(2, 10)}`
 }
@@ -1173,6 +1192,15 @@ export function WeightTicketsPageClient({
     }
   }
 
+  function changeTicketType(nextType: WeightTicketType) {
+    if (nextType === form.type) return
+    if (hasEnteredTicketData(form) && !window.confirm('การเปลี่ยนประเภทจะล้างข้อมูลในฟอร์มทั้งหมด ยืนยันเปลี่ยนประเภทหรือไม่?')) return
+    setForm(initialForm(nextType))
+    setTouched({})
+    setActiveLineId('')
+    setStockOptions({})
+  }
+
   async function saveTicket() {
     const nextTouched: Record<string, boolean> = {
       branchId: true,
@@ -1295,15 +1323,7 @@ export function WeightTicketsPageClient({
           </div>
       ) : (
         <div>
-          <Tabs value={form.type} onValueChange={(value) => setForm((current) => ({
-            ...current,
-            lines: current.lines.map((line) => ({ ...line, warehouseId: '', warehouseName: '', warehouseType: '' })),
-            partyId: '',
-            partyName: '',
-            type: value as WeightTicketType,
-            warehouseId: '',
-            warehouseName: '',
-          }))}>
+          <Tabs value={form.type} onValueChange={(value) => changeTicketType(value as WeightTicketType)}>
             <TabsList className="w-full justify-start" variant="line">
               <TabsTrigger value="WTI" variant="line">ใบรับของ WTI</TabsTrigger>
               <TabsTrigger value="WTO" variant="line">ใบส่งของ WTO</TabsTrigger>
