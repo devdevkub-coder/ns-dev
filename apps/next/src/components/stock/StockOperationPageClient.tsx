@@ -2205,6 +2205,9 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
     targetUnitCostReason: null,
     warehouseId: '',
   })
+  const [productStock, setProductStock] = useState<ProductStockPayload | null>(null)
+  const [productStockError, setProductStockError] = useState<string | null>(null)
+  const [isStockPreviewLoading, setIsStockPreviewLoading] = useState(false)
   const sourceProduct = props.reference.products.find((item) => item.id === values.sourceProductId)
   const lossQty = Math.max(0, Number(values.sourceQty) - Number(values.targetQty))
   const yieldPct = Number(values.sourceQty) > 0 ? (Number(values.targetQty) / Number(values.sourceQty)) * 100 : 0
@@ -2250,6 +2253,42 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
         searchText: `${option.code ?? ''} ${option.name}`.toLowerCase(),
       }))
   }, [props.reference.products])
+
+  useEffect(() => {
+    const productCode = props.reference.products.find((product) => product.id === values.sourceProductId)?.code
+    const branchCode = props.reference.branches.find((branch) => branch.id === values.branchId)?.code
+
+    if (!branchCode || !productCode) {
+      setProductStock(null)
+      setProductStockError(null)
+      setIsStockPreviewLoading(false)
+      return
+    }
+
+    let cancelled = false
+    async function loadProductStock() {
+      setIsStockPreviewLoading(true)
+      setProductStockError(null)
+      try {
+        const params = new URLSearchParams({
+          branchCode: branchCode ?? '',
+          productCode: productCode ?? '',
+          warehouseCode: '',
+        })
+        const payload = await dailyFetchJson<ProductStockPayload>(`/api/production/orders/product-stock?${params.toString()}`)
+        if (!cancelled) setProductStock(payload)
+      } catch (caught) {
+        if (cancelled) return
+        setProductStock(null)
+        setProductStockError(caught instanceof Error ? caught.message : 'โหลดสต๊อกสินค้าไม่ได้')
+      } finally {
+        if (!cancelled) setIsStockPreviewLoading(false)
+      }
+    }
+
+    void loadProductStock()
+    return () => { cancelled = true }
+  }, [props.reference.branches, props.reference.products, values.branchId, values.sourceProductId])
 
   return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={() => props.onSubmit(values)}>
     <div className="md:col-span-2 rounded-xl border border-slate-200 bg-white p-5 shadow-sm grid gap-4 md:grid-cols-2 animate-fade-in">
@@ -2298,6 +2337,16 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
             </div>
           </>
         ) : null}
+        <div className="md:col-span-2">
+          <ProductStockPreview
+            destinationWarehouseName=""
+            error={productStockError}
+            heading="ข้อมูล Stock ปัจจุบันของสินค้าที่จะปรับเกรดสินค้า"
+            isLoading={isStockPreviewLoading}
+            isReady={Boolean(values.branchId && values.sourceProductId)}
+            stock={productStock}
+          />
+        </div>
       </div>
     </div>
     <div className="rounded-md border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm md:col-span-2">
@@ -2505,12 +2554,14 @@ interface ProductStockPayload {
 function ProductStockPreview({
   destinationWarehouseName,
   error,
+  heading = 'ข้อมูล Stock ปัจจุบันของสินค้า',
   isLoading,
   isReady,
   stock,
 }: {
   destinationWarehouseName: string
   error: string | null
+  heading?: string
   isLoading: boolean
   isReady: boolean
   stock: ProductStockPayload | null
@@ -2523,7 +2574,7 @@ function ProductStockPreview({
   return (
     <div className="rounded-md border border-indigo-100 bg-indigo-50/50 p-4 space-y-2 text-left">
       <h5 className="font-bold text-indigo-800 text-xs flex items-center gap-1.5">
-        📦 ข้อมูล Stock ปัจจุบันของสินค้าที่จะปรับสถานะสินค้า: <span className="font-normal text-slate-600">{stock.productName} ({stock.productCode})</span>
+        📦 {heading}: <span className="font-normal text-slate-600">{stock.productName} ({stock.productCode})</span>
       </h5>
       
       {/* Desktop Table View */}

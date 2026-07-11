@@ -359,8 +359,15 @@ async function buildSalesPlanningSnapshot() {
       const lockedSell = poSellOpenByProduct.get(String(product.id)) ?? 0
       const lockedBuy = poBuyByProduct.get(product.id)?.qty ?? 0
       const realPendingSale = stock.qty + lockedBuy - lockedSell
+      const base = lmeBaseFor(product.metalGroup, config)
+      const bestPlanPct = lmeBuyPercentFor(product.metalGroup)
+      const bestPlanPrice = base > 0 && bestPlanPct > 0 ? (base / 1000) * config.fxRate * (bestPlanPct / 100) : 0
+      const projectedProfit = pendingSaleQty > 0 ? pendingSaleQty * (bestPlanPrice - avgPrice) : 0
+      const projectedMarginPct = avgPrice > 0 ? ((bestPlanPrice - avgPrice) / avgPrice) * 100 : 0
       return {
         avgPrice,
+        bestPlanPct,
+        bestPlanPrice,
         itemStatus: product.itemStatus,
         lockedBuy,
         lockedSell,
@@ -370,6 +377,8 @@ async function buildSalesPlanningSnapshot() {
         productCode: product.code,
         productId: product.id,
         productName: product.name,
+        projectedMarginPct,
+        projectedProfit,
         realPendingSale,
         stock: stock.qty,
         stockWAC: stock.qty > 0 ? stock.value / stock.qty : product.wac,
@@ -482,6 +491,8 @@ export async function buildSalesPlan() {
     planProductOptions: pending.planProductOptions,
     pendingSaleTable: pending.pendingSaleTable.map((row) => ({
       avgPrice: row.avgPrice,
+      bestPlanPct: row.bestPlanPct,
+      bestPlanPrice: row.bestPlanPrice,
       lockedBuy: row.lockedBuy,
       lockedSell: row.lockedSell,
       metalGroup: row.metalGroup,
@@ -490,6 +501,8 @@ export async function buildSalesPlan() {
       productCode: row.productCode,
       productId: String(row.productId),
       productName: row.productName,
+      projectedMarginPct: row.projectedMarginPct,
+      projectedProfit: row.projectedProfit,
       realPendingSale: row.realPendingSale,
       stock: row.stock,
       stockWAC: row.stockWAC,
