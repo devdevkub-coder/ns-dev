@@ -77,7 +77,7 @@ sales plan/LME planning ก่อน PO Sell/stock issue
 | Field | Source / behavior | Required |
 |---|---|---|
 | `สินค้า` | ค้นหาและเลือกจาก Master Data สินค้าที่ active ของหมวดโลหะที่รองรับ | Yes |
-| `ช่องทาง` | เลือกจาก `filters.channels` | Yes |
+| `ช่องทาง` | derive จาก `marketScope` ของลูกค้าและ map กับ `filters.channels` แบบ read-only | Yes |
 | `ลูกค้า` | ค้นหาและเลือกจาก Master Data ลูกค้าที่ active | Yes |
 | `จำนวนตู้` | กรอกจำนวนตู้ | Yes |
 | `กก./ตู้` | default จาก `LME Reference Pricing.kgPerContainer` แต่แก้ได้ในฟอร์ม | Yes |
@@ -98,12 +98,12 @@ sales plan/LME planning ก่อน PO Sell/stock issue
 - ต้องเลือก `สินค้า`
 - ต้องกรอก `ลูกค้า`
 - `จำนวนตู้`, `กก./ตู้`, `LME cf`, และ `% LME` ต้องมากกว่า 0
-- ถ้า validation ไม่ผ่าน ต้องไม่เพิ่ม row ลงตาราง draft
+- ถ้า validation ไม่ผ่าน ต้องไม่เรียกสร้างแผนขาย
 
 ### Add-To-Table Behavior
 
-- ปุ่ม `เพิ่มเข้าตาราง` สร้าง row สถานะ `Draft` ใน local client state ของหน้าเท่านั้น
-- การ refresh หน้า / reload browser ทำให้ draft ที่ยังไม่ persisted หายได้
+- ปุ่ม `เพิ่มเข้าตาราง` เรียก `POST /api/sales-plan` ด้วย `action = create-plan` เพื่อสร้างแผนสถานะ `Pending`
+- หลังบันทึกสำเร็จ dialog ปิด, ฟอร์ม reset, และหน้า reload read model ใหม่จาก server
 
 ### Data Contract
 

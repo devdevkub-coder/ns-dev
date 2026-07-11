@@ -186,7 +186,9 @@ function num(value: unknown) {
 }
 
 function sanitizeDecimalInput(value: string) {
-  return value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1')
+  const normalized = value.replace(/,/g, '').replace(/[^0-9.]/g, '')
+  const [whole, ...decimalParts] = normalized.split('.')
+  return decimalParts.length ? `${whole}.${decimalParts.join('')}` : whole
 }
 
 const salesPlanNumberInputClass = 'w-full rounded-xl border border-slate-300 bg-white px-3 text-right font-medium text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
@@ -619,6 +621,10 @@ export function SalesPlanPageClient() {
       setPlanDraftError('จำนวนตู้และ กก./ตู้ ต้องมากกว่า 0')
       return
     }
+    if (draftLmeCf <= 0) {
+      setPlanDraftError('กรอก LME cf มากกว่า 0')
+      return
+    }
     if (draftSellPct <= 0) {
       setPlanDraftError('กรอก % LME มากกว่า 0')
       return
@@ -770,25 +776,21 @@ export function SalesPlanPageClient() {
                 </label>
                 <label className="text-xs font-bold text-slate-600">
                   <span className="mb-1 block">LME cf (USD/MT)</span>
-                  <input className={`h-10 text-sm ${salesPlanNumberInputClass}`} min="0" onChange={(event) => setPlanDraftForm((current) => ({ ...current, lmeCf: event.target.value }))} placeholder="0.00" step="any" type="number" value={planDraftForm.lmeCf} />
+                  <input className={`h-10 text-sm ${salesPlanNumberInputClass}`} inputMode="decimal" min="0" onChange={(event) => setPlanDraftForm((current) => ({ ...current, lmeCf: sanitizeDecimalInput(event.target.value) }))} placeholder="0.00" step="any" type="text" value={planDraftForm.lmeCf} />
                 </label>
                 <label className="text-xs font-bold text-slate-600">
                   <span className="mb-1 block">% LME</span>
                   <input className={`h-10 text-sm ${salesPlanNumberInputClass}`} min="0" onChange={(event) => setPlanDraftForm((current) => ({ ...current, sellPctLme: event.target.value }))} type="number" value={planDraftForm.sellPctLme} />
                 </label>
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
                 <PendingStatCard label="หมวด" sublabel="อิงจากสินค้า" value={selectedDraftProduct?.metalGroup || '-'} />
                 <PendingStatCard label="รวม กก." sublabel="ตู้ x กก./ตู้" value={`${money(draftTotalKg)} กก.`} />
-                <PendingStatCard label="LME / FX" sublabel={`${money(draftLmeCf)} USD/MT`} value={money(draftFx)} />
+                <PendingStatCard label="LME cf / FX" sublabel={`${money(draftLmeCf)} USD/MT`} value={money(draftFx)} />
                 <PendingStatCard label="ราคา THB/kg" sublabel={`ที่ ${money(draftSellPct)}% LME`} value={money(draftSellPrice)} />
-                <PendingStatCard label="กำไรคาดการณ์" sublabel={selectedDraftProduct ? `WAC ${money(selectedDraftProduct.wac)}` : 'เลือกสินค้าเพื่อคำนวณ'} tone={selectedDraftProduct && draftSellPrice - selectedDraftProduct.wac < 0 ? 'danger' : 'success'} value={selectedDraftProduct ? money(draftTotalKg * (draftSellPrice - selectedDraftProduct.wac)) : '-'} />
               </div>
               {planDraftError ? <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-600">{planDraftError}</div> : null}
-              <div className="flex flex-wrap justify-end gap-2">
-                <button className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={resetPlanDraftForm} type="button">ล้างฟอร์ม</button>
-                <button className="h-10 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700" onClick={addDraftPlan} type="button">เพิ่มเข้าตาราง</button>
-              </div>
             </div>
             <DialogFooter className="shrink-0">
               <button className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={resetPlanDraftForm} type="button">ล้างฟอร์ม</button>
