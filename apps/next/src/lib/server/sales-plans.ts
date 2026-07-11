@@ -32,7 +32,6 @@ type SalesPlanDbRow = {
 }
 
 export type SalesPlanInput = {
-  channelCode: string
   containers: number
   customerCode: string
   kgPerContainer: number
@@ -147,7 +146,6 @@ export async function createSalesPlan(input: SalesPlanInput, context: AppAuthCon
   const planMonth = normalizeMonth(input.planMonth)
   const productCode = normalizeCode(input.productCode)
   const customerCode = normalizeCode(input.customerCode)
-  const channelCode = normalizeCode(input.channelCode)
   const containers = input.containers
   const kgPerContainer = input.kgPerContainer
   const totalKg = containers * kgPerContainer
@@ -159,22 +157,22 @@ export async function createSalesPlan(input: SalesPlanInput, context: AppAuthCon
   if (fxRate <= 0) throw new Error('FX ต้องมากกว่า 0 ก่อนบันทึกแผน')
 
   return prisma.$transaction(async (tx) => {
-    const [product, customer, channel] = await Promise.all([
+    const [product, customer] = await Promise.all([
       tx.products.findFirst({
         select: { code: true, id: true },
         where: { active: { not: false }, code: productCode },
       }),
       tx.customers.findFirst({
-        select: { code: true, id: true },
+        select: { code: true, id: true, market_scope: true },
         where: { active: true, code: customerCode },
-      }),
-      tx.sales_channels.findFirst({
-        select: { code: true, id: true },
-        where: { active: true, code: channelCode },
       }),
     ])
     if (!product) throw new Error('สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
     if (!customer) throw new Error('ลูกค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+    const channel = await tx.sales_channels.findFirst({
+      select: { code: true, id: true },
+      where: { active: true, name: customer.market_scope },
+    })
     if (!channel) throw new Error('ช่องทางขายไม่ถูกต้องหรือถูกปิดใช้งาน')
 
     const planNo = await nextSalesPlanNo(planMonth, tx)

@@ -32,7 +32,7 @@ type LmeConfig = {
   updatedBy: string
 }
 type SalesPlanPayload = {
-  customers: Array<{ active: boolean; code: string; id: string; name: string }>
+  customers: Array<{ active: boolean; code: string; id: string; marketScope: 'ต่างประเทศ' | 'ในประเทศ'; name: string }>
   filters: { channels: { id: string; name: string }[]; metalGroups: string[]; month: string }
   lmeConfig: LmeConfig
   pendingSaleTable: AnyRow[]
@@ -292,7 +292,7 @@ export function SalesPlanPageClient() {
   const [lmeForm, setLmeForm] = useState<LmeConfig | null>(null)
   const [planDraftError, setPlanDraftError] = useState<string | null>(null)
   const [planDraftForm, setPlanDraftForm] = useState<SalesPlanDraftForm>({
-    channel: 'export',
+    channel: '',
     containers: '1',
     customerCode: '',
     customerName: '',
@@ -341,8 +341,10 @@ export function SalesPlanPageClient() {
     .filter((row) => row.code && row.name), [data?.planProductOptions])
   const customerOptions = useMemo(() => (data?.customers ?? [])
     .filter((customer) => customer.active)
-    .map((customer) => ({ code: customer.code, name: customer.name })), [data?.customers])
+    .map((customer) => ({ code: customer.code, marketScope: customer.marketScope, name: customer.name })), [data?.customers])
   const selectedDraftProduct = useMemo(() => productOptions.find((option) => option.code === planDraftForm.productCode) ?? null, [planDraftForm.productCode, productOptions])
+  const selectedDraftCustomer = useMemo(() => customerOptions.find((option) => option.code === planDraftForm.customerCode) ?? null, [customerOptions, planDraftForm.customerCode])
+  const selectedDraftChannel = useMemo(() => (data?.filters.channels ?? []).find((channel) => channel.id === planDraftForm.channel) ?? null, [data?.filters.channels, planDraftForm.channel])
   const draftKgPerContainer = Math.max(0, Number(planDraftForm.kgPerContainer || 0))
   const draftContainers = Math.max(0, Number(planDraftForm.containers || 0))
   const parsedDraftLmeCf = Number(planDraftForm.lmeCf || 0)
@@ -353,7 +355,7 @@ export function SalesPlanPageClient() {
   const draftSellPrice = draftLmeCf > 0 ? (draftLmeCf / 1000) * draftFx * (draftSellPct / 100) : 0
   const filteredServerPlanRows = useMemo(() => (data?.planRows ?? [])
     .filter((row) => !filterGroup || text(row.metalGroup).includes(filterGroup))
-    .filter((row) => !filterChannel || text(row.channel) === filterChannel), [data?.planRows, filterChannel, filterGroup])
+    .filter((row) => !filterChannel || text(row.channel).toLowerCase() === filterChannel.toLowerCase()), [data?.planRows, filterChannel, filterGroup])
   const planRowsWithStatus = useMemo<AnyRow[]>(() => filteredServerPlanRows.map((row) => {
     const status = getPlanStatus(row.status)
     return {
@@ -539,7 +541,7 @@ export function SalesPlanPageClient() {
 
   function resetPlanDraftForm() {
     setPlanDraftForm({
-      channel: filterChannel || 'export',
+      channel: '',
       containers: '1',
       customerCode: '',
       customerName: '',
@@ -572,8 +574,10 @@ export function SalesPlanPageClient() {
 
   function handleDraftCustomerChange(customerCode: string) {
     const customer = customerOptions.find((option) => option.code === customerCode)
+    const channel = (data?.filters.channels ?? []).find((option) => option.name === customer?.marketScope)
     setPlanDraftForm((current) => ({
       ...current,
+      channel: channel?.id ?? '',
       customerCode: customer?.code ?? '',
       customerName: customer?.name ?? '',
     }))
@@ -605,6 +609,10 @@ export function SalesPlanPageClient() {
       setPlanDraftError('เลือกลูกค้า')
       return
     }
+    if (!planDraftForm.channel) {
+      setPlanDraftError('ไม่พบช่องทางขายจาก Master Customer')
+      return
+    }
     if (draftContainers <= 0 || draftKgPerContainer <= 0) {
       setPlanDraftError('จำนวนตู้และ กก./ตู้ ต้องมากกว่า 0')
       return
@@ -625,7 +633,6 @@ export function SalesPlanPageClient() {
         body: JSON.stringify({
           action: 'create-plan',
           plan: {
-            channelCode: planDraftForm.channel,
             containers: draftContainers,
             customerCode: planDraftForm.customerCode,
             kgPerContainer: draftKgPerContainer,
@@ -704,8 +711,7 @@ export function SalesPlanPageClient() {
         </select>
         <select className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white font-medium text-slate-700 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={filterChannel} onChange={(event) => setFilterChannel(event.target.value)}>
           <option value="">ทุกช่องทาง</option>
-          <option value="export">🌍 ส่งออก</option>
-          <option value="domestic">🇹🇭 ในประเทศ</option>
+          {(data?.filters.channels ?? []).map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
         </select>
         <span className="flex-1" />
         <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs h-10 flex items-center justify-center" onClick={openPlanForm} type="button">+ เพิ่มแผน</button>
@@ -741,14 +747,6 @@ export function SalesPlanPageClient() {
                   value={planDraftForm.productCode}
                   onChange={handleDraftProductChange}
                 />
-                <label className="text-xs font-bold text-slate-600">
-                  <span className="mb-1 block">ช่องทาง</span>
-                  <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={planDraftForm.channel} onChange={(event) => setPlanDraftForm((current) => ({ ...current, channel: event.target.value }))}>
-                    {data?.filters.channels.map((channel) => (
-                      <option key={channel.id} value={channel.id}>{channel.name}</option>
-                    ))}
-                  </select>
-                </label>
                 <SearchCombobox
                   inputClassName="h-10 text-sm font-medium text-slate-700"
                   inputId="sales-plan-draft-customer"
@@ -762,6 +760,10 @@ export function SalesPlanPageClient() {
                   value={planDraftForm.customerCode}
                   onChange={handleDraftCustomerChange}
                 />
+                <label className="text-xs font-bold text-slate-600">
+                  <span className="mb-1 block">ช่องทางขาย</span>
+                  <input className="h-10 w-full rounded-md border border-slate-300 bg-slate-100 px-3 text-sm font-medium text-slate-700 outline-none" readOnly value={selectedDraftChannel?.name ?? (selectedDraftCustomer ? 'ไม่พบช่องทางจาก Master Customer' : 'เลือกลูกค้าก่อน')} />
+                </label>
                 <label className="text-xs font-bold text-slate-600">
                   <span className="mb-1 block">จำนวนตู้</span>
                   <input className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-right text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" min="0" onChange={(event) => setPlanDraftForm((current) => ({ ...current, containers: event.target.value }))} type="number" value={planDraftForm.containers} />

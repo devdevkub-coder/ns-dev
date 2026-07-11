@@ -13,7 +13,6 @@ const salesPlanLmeRequestSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('create-plan'),
     plan: z.object({
-      channelCode: z.string().trim().min(1, 'เลือกช่องทางขาย').max(80),
       containers: z.coerce.number().finite().gt(0, 'จำนวนตู้ต้องมากกว่า 0'),
       customerCode: z.string().trim().min(1, 'เลือกลูกค้า').max(80),
       kgPerContainer: z.coerce.number().finite().gt(0, 'กก./ตู้ ต้องมากกว่า 0'),
