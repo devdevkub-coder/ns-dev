@@ -359,7 +359,7 @@ create table if not exists public.line_message_templates (
   "fields": [
     { "key": "partyName", "label": "ผู้ขาย/ลูกค้า", "enabled": true },
     { "key": "branchName", "label": "สาขา", "enabled": true },
-    { "key": "warehouseName", "label": "โกดัง", "enabled": true },
+    { "key": "godownName", "label": "โกดัง", "enabled": true },
     { "key": "grossWeight", "label": "น้ำหนักรวม", "enabled": true },
     { "key": "containerDeductionWeight", "label": "หักภาชนะ", "enabled": true },
     { "key": "deductionWeight", "label": "หักสิ่งเจือปน", "enabled": true },

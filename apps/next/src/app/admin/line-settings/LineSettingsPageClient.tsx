@@ -83,7 +83,7 @@ type TemplateConfig = {
 const templateFieldOptions: Array<{ key: string; defaultLabel: string }> = [
   { key: 'partyName', defaultLabel: 'ผู้ขาย/ลูกค้า' },
   { key: 'branchName', defaultLabel: 'สาขา' },
-  { key: 'warehouseName', defaultLabel: 'โกดัง' },
+  { key: 'godownName', defaultLabel: 'โกดัง' },
   { key: 'grossWeight', defaultLabel: 'น้ำหนักรวม' },
   { key: 'containerDeductionWeight', defaultLabel: 'หักภาชนะ' },
   { key: 'deductionWeight', defaultLabel: 'หักสิ่งเจือปน' },
@@ -99,7 +99,7 @@ const createDefaultTemplateConfig = (): TemplateConfig => ({
   fields: templateFieldOptions.map((field) => ({
     key: field.key,
     label: field.defaultLabel,
-    enabled: ['partyName', 'branchName', 'warehouseName', 'grossWeight', 'containerDeductionWeight', 'deductionWeight', 'netWeight'].includes(field.key),
+    enabled: ['partyName', 'branchName', 'godownName', 'grossWeight', 'containerDeductionWeight', 'deductionWeight', 'netWeight'].includes(field.key),
   })),
   buttons: { pdf: true, detail: true },
 })

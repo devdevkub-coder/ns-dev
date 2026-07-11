@@ -216,7 +216,6 @@ export function buildFlexMessageFromTemplate(ticket: any, templateConfig: any, p
     let value = '-'
     if (field.key === 'partyName') value = ticket.partyName || '-'
     else if (field.key === 'branchName') value = ticket.branchName || '-'
-    else if (field.key === 'warehouseName') value = ticket.godownName || '-'
     else if (field.key === 'netWeight') value = `${formatWeight(Number(ticket.totals?.netWeight || ticket.netWeight || 0))} กก.`
     else if (field.key === 'grossWeight') value = `${formatWeight(Number(ticket.totals?.grossWeight || ticket.grossWeight || 0))} กก.`
     else if (field.key === 'containerDeductionWeight') value = `${formatWeight(Number(ticket.totals?.containerWeight || ticket.containerWeight || 0))} กก.`
