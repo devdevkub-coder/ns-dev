@@ -308,7 +308,6 @@ export function SalesPlanPageClient() {
     void loadSalesPlan()
   }, [])
 
-  const s = data?.summary ?? {}
   const productOptions = useMemo(() => (data?.productAnalysis ?? [])
     .map((row) => ({
       code: text(row.code),
@@ -343,17 +342,6 @@ export function SalesPlanPageClient() {
       statusLabel: getPlanStatusLabel(status),
     }
   }), [mergedPlanRows, planStatusOverrides])
-  const liveSummary = useMemo(() => ({
-    avgPctLme: planRowsWithStatus.length ? planRowsWithStatus.reduce((sum, row) => sum + num(row.sellPctLme), 0) / planRowsWithStatus.length : 0,
-    lockedContainers: planRowsWithStatus.filter((row) => getPlanStatus(row.status) === 'locked').reduce((sum, row) => sum + num(row.containers), 0),
-    lockedCount: planRowsWithStatus.filter((row) => getPlanStatus(row.status) === 'locked').length,
-    pendingCount: planRowsWithStatus.filter((row) => getPlanStatus(row.status) !== 'locked').length,
-    plansCount: planRowsWithStatus.length,
-    totalContainers: planRowsWithStatus.reduce((sum, row) => sum + num(row.containers), 0),
-    totalKg: planRowsWithStatus.reduce((sum, row) => sum + num(row.totalKg), 0),
-    totalLockedProfit: planRowsWithStatus.filter((row) => getPlanStatus(row.status) === 'locked').reduce((sum, row) => sum + num(row.projectedProfit), 0),
-    totalProjectedProfit: planRowsWithStatus.reduce((sum, row) => sum + num(row.projectedProfit), 0),
-  }), [planRowsWithStatus])
   const pendingSaleRows = useMemo(() => (data?.pendingSaleTable ?? [])
     .filter((row) => !filterGroup || text(row.metalGroup).includes(filterGroup)), [data?.pendingSaleTable, filterGroup])
   const pendingSaleTotals = useMemo(() => ({
@@ -618,13 +606,6 @@ export function SalesPlanPageClient() {
         </div>
         {formError ? <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">{formError}</div> : null}
       </div>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5 text-sm">
-        <LmeStat label="🥉 ทองแดง LME" value={`${money(data?.lmeConfig.lmeCopperUSD)} USD/MT`} />
-        <LmeStat label="🌟 ทองเหลือง LME" value={`${money(data?.lmeConfig.lmeBrassUSD)} USD/MT`} />
-        <LmeStat label="💱 USD/THB" value={money(data?.lmeConfig.fxRate)} />
-        <LmeStat label="📦 กก./ตู้" value={`${money(data?.lmeConfig.kgPerContainer)} กก.`} />
-        <div className="text-xs text-slate-400 font-medium self-center px-2">ค่าชุดนี้ใช้คำนวณทั้งหน้า Sales Plan และแก้ไขได้จากกล่องด้านบน</div>
-      </div>
       <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
         <label className="text-xs font-bold text-slate-500">เดือน</label>
         <input className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white font-medium text-slate-700 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
@@ -642,49 +623,6 @@ export function SalesPlanPageClient() {
         <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs h-10 flex items-center justify-center" onClick={openPlanForm} type="button">+ เพิ่มแผน</button>
         <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs h-10 flex items-center justify-center" onClick={exportPlan} type="button">📥 Export CSV</button>
       </div>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-lg shrink-0">📋</div>
-          <div>
-            <div className="text-xs text-slate-500 font-semibold mb-0.5">รายการแผน</div>
-            <div className="text-lg font-bold text-slate-800 leading-tight">{money(liveSummary.plansCount || s.plansCount)}</div>
-            <div className="text-xs text-slate-400 font-medium mt-0.5">🔒 {money(liveSummary.lockedCount || s.lockedCount)} / ⏳ {money(liveSummary.pendingCount || s.pendingCount)}</div>
-          </div>
-        </div>
-        <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-lg shrink-0">📦</div>
-          <div>
-            <div className="text-xs text-slate-500 font-semibold mb-0.5">จำนวนตู้รวม</div>
-            <div className="text-lg font-bold text-blue-700 leading-tight">{money(liveSummary.totalContainers || s.totalContainers)}</div>
-            <div className="text-xs text-slate-400 font-medium mt-0.5">🔒 ล็อก {money(liveSummary.lockedContainers || s.lockedContainers)}</div>
-          </div>
-        </div>
-        <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg shrink-0">⚖️</div>
-          <div>
-            <div className="text-xs text-slate-500 font-semibold mb-0.5">น้ำหนักรวม</div>
-            <div className="text-lg font-bold text-slate-800 leading-tight">{money(liveSummary.totalKg || s.totalKg)} กก.</div>
-            <div className="text-xs text-slate-400 font-medium mt-0.5">เฉลี่ย {money(liveSummary.avgPctLme || s.avgPctLme)}% LME</div>
-          </div>
-        </div>
-        <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg shrink-0">💰</div>
-          <div>
-            <div className="text-xs text-slate-500 font-semibold mb-0.5">กำไรล็อกแล้ว</div>
-            <div className={`text-lg font-bold leading-tight ${num(liveSummary.totalLockedProfit || s.totalLockedProfit) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{money(liveSummary.totalLockedProfit || s.totalLockedProfit)}</div>
-            <div className="text-xs text-slate-400 font-medium mt-0.5">เฉพาะที่ล็อกราคาแล้ว</div>
-          </div>
-        </div>
-        <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center text-lg shrink-0">📈</div>
-          <div>
-            <div className="text-xs text-slate-500 font-semibold mb-0.5">กำไรคาดการณ์</div>
-            <div className={`text-lg font-bold leading-tight ${num(liveSummary.totalProjectedProfit || s.totalProjectedProfit) >= 0 ? 'text-amber-600' : 'text-red-500'}`}>{money(liveSummary.totalProjectedProfit || s.totalProjectedProfit)}</div>
-            <div className="text-xs text-slate-400 font-medium mt-0.5">ถ้าขายตามแผน</div>
-          </div>
-        </div>
-      </div>
-
       {/* 1. Sales Plan Section */}
       <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3 text-xs font-semibold text-slate-600">
@@ -2062,22 +2000,6 @@ function Panel({ children, title }: { children: ReactNode; title: string }) {
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="bg-slate-900 p-3 text-sm font-bold text-white">{title}</div>
       <div className="p-4">{children}</div>
-    </div>
-  )
-}
-
-function LmeStat({ label, value }: { label: string; value: string }) {
-  const icon = label.slice(0, 2)
-  const cleanLabel = label.slice(2).trim()
-  return (
-    <div className="bg-white p-3 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 flex-1 w-full">
-      <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-lg shrink-0">
-        {icon}
-      </div>
-      <div>
-        <div className="text-xs text-slate-500 font-semibold mb-0.5">{cleanLabel}</div>
-        <div className="text-sm font-bold text-slate-800">{value}</div>
-      </div>
     </div>
   )
 }
