@@ -170,6 +170,9 @@ const commissionSummaryColumns: Array<TableColumn<CommissionSummaryColumnKey>> =
   { key: 'amount', label: 'มูลค่ารวม (บาท)', defaultWidth: 160, minWidth: 130, align: 'right' },
 ]
 
+const salesPlanNumberInputClass = 'w-full rounded-xl border border-slate-300 bg-white px-3 text-right font-medium text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+const salesPlanReadonlyNumberInputClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 text-right font-medium text-slate-700 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+
 function money(value: unknown) {
   return formatMoney(typeof value === 'number' ? value : Number(value ?? 0))
 }
@@ -758,21 +761,25 @@ export function SalesPlanPageClient() {
                 </label>
                 <label className="text-xs font-bold text-slate-600">
                   <span className="mb-1 block">จำนวนตู้</span>
-                  <input className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-right text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" min="0" onChange={(event) => setPlanDraftForm((current) => ({ ...current, containers: event.target.value }))} type="number" value={planDraftForm.containers} />
+                  <input className={`h-10 text-sm ${salesPlanNumberInputClass}`} min="0" onChange={(event) => setPlanDraftForm((current) => ({ ...current, containers: event.target.value }))} type="number" value={planDraftForm.containers} />
                 </label>
                 <label className="text-xs font-bold text-slate-600">
                   <span className="mb-1 block">กก./ตู้</span>
-                  <input className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-right text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" min="0" onChange={(event) => setPlanDraftForm((current) => ({ ...current, kgPerContainer: event.target.value }))} type="number" value={planDraftForm.kgPerContainer} />
+                  <input className={`h-10 text-sm ${salesPlanNumberInputClass}`} min="0" onChange={(event) => setPlanDraftForm((current) => ({ ...current, kgPerContainer: event.target.value }))} type="number" value={planDraftForm.kgPerContainer} />
+                </label>
+                <label className="text-xs font-bold text-slate-600">
+                  <span className="mb-1 block">LME cf (USD/MT)</span>
+                  <input className={`h-10 text-sm ${salesPlanNumberInputClass}`} min="0" onChange={(event) => setPlanDraftForm((current) => ({ ...current, lmeCf: event.target.value }))} placeholder="0.00" step="any" type="number" value={planDraftForm.lmeCf} />
                 </label>
                 <label className="text-xs font-bold text-slate-600">
                   <span className="mb-1 block">% LME</span>
-                  <input className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-right text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" min="0" onChange={(event) => setPlanDraftForm((current) => ({ ...current, sellPctLme: event.target.value }))} type="number" value={planDraftForm.sellPctLme} />
+                  <input className={`h-10 text-sm ${salesPlanNumberInputClass}`} min="0" onChange={(event) => setPlanDraftForm((current) => ({ ...current, sellPctLme: event.target.value }))} type="number" value={planDraftForm.sellPctLme} />
                 </label>
               </div>
               <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
                 <PendingStatCard label="หมวด" sublabel="อิงจากสินค้า" value={selectedDraftProduct?.metalGroup || '-'} />
                 <PendingStatCard label="รวม กก." sublabel="ตู้ x กก./ตู้" value={`${money(draftTotalKg)} กก.`} />
-                <PendingStatCard label="LME / FX" sublabel={`${money(draftLme)} USD/MT`} value={money(draftFx)} />
+                <PendingStatCard label="LME / FX" sublabel={`${money(draftLmeCf)} USD/MT`} value={money(draftFx)} />
                 <PendingStatCard label="ราคา THB/kg" sublabel={`ที่ ${money(draftSellPct)}% LME`} value={money(draftSellPrice)} />
                 <PendingStatCard label="กำไรคาดการณ์" sublabel={selectedDraftProduct ? `WAC ${money(selectedDraftProduct.wac)}` : 'เลือกสินค้าเพื่อคำนวณ'} tone={selectedDraftProduct && draftSellPrice - selectedDraftProduct.wac < 0 ? 'danger' : 'success'} value={selectedDraftProduct ? money(draftTotalKg * (draftSellPrice - selectedDraftProduct.wac)) : '-'} />
               </div>
@@ -825,10 +832,10 @@ export function SalesPlanPageClient() {
                   <td className="p-1.5"><select className="w-full rounded-xl border border-slate-200 px-2 py-1 text-xs bg-slate-50 outline-none" disabled value={text(row.productId)}><option>{text(row.productName) || '-เลือก-'}</option></select></td>
                   <td className="p-1.5"><select className="w-full rounded-xl border border-slate-200 px-2 py-1 text-xs bg-slate-50 outline-none" disabled value={text(row.channel)}><option>{text(row.channel) || 'ส่งออก'}</option></select></td>
                   <td className="p-1.5"><select className="w-full rounded-xl border border-slate-200 px-2 py-1 text-xs bg-slate-50 outline-none" disabled value={text(row.customerId)}><option>{text(row.customerName) || '-เลือก-'}</option></select></td>
-                  <td className="p-1.5"><input className="w-full rounded-xl border border-slate-200 px-2 py-1 text-right text-xs bg-slate-50 outline-none" disabled type="number" value={num(row.containers)} /></td>
-                  <td className="p-1.5"><input className="w-full rounded-xl border border-slate-200 px-2 py-1 text-right text-xs bg-slate-50 outline-none" disabled type="number" value={num(row.kgPerContainer)} /></td>
+                  <td className="p-1.5"><input className={`py-1 text-xs ${salesPlanReadonlyNumberInputClass}`} min="0" readOnly step="1" type="number" value={num(row.containers)} /></td>
+                  <td className="p-1.5"><input className={`py-1 text-xs ${salesPlanReadonlyNumberInputClass}`} min="0" readOnly step="any" type="number" value={num(row.kgPerContainer)} /></td>
                   <td className="p-1.5 text-right font-semibold text-slate-800">{money(row.totalKg)}</td>
-                  <td className="p-1.5"><input className="w-full rounded-xl border border-amber-200 bg-amber-50/30 px-2 py-1 text-right text-xs font-bold text-amber-700 outline-none" disabled type="number" value={num(row.sellPctLme)} /></td>
+                  <td className="p-1.5"><input className={`border-amber-200 py-1 text-xs font-bold text-amber-700 ${salesPlanReadonlyNumberInputClass}`} min="0" readOnly step="any" type="number" value={num(row.sellPctLme)} /></td>
                   <td className="p-1.5 text-right text-xs text-slate-400 font-medium">{money(row.lme)}</td>
                   <td className="p-1.5 text-right text-xs text-slate-400 font-medium">{money(row.fx)}</td>
                   <td className="bg-emerald-50/20 p-1.5 text-right font-bold text-emerald-600">{money(row.sellPrice)}</td>
@@ -2123,6 +2130,7 @@ function LmeEditableCard({ label, manualOnly = false, onChange, readOnly = false
         disabled={readOnly}
         min="0"
         onChange={(event) => onChange(event.target.value)}
+        step="any"
         type="number"
         value={Number.isFinite(value) ? value : 0}
       />
