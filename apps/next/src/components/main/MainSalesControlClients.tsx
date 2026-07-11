@@ -6,6 +6,7 @@ import { formatDateDisplay } from '@/lib/format'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 
 type AnyRow = Record<string, number | string | boolean | null | undefined>
@@ -30,10 +31,12 @@ type LmeConfig = {
   updatedBy: string
 }
 type SalesPlanPayload = {
+  customers: Array<{ active: boolean; code: string; id: string; name: string }>
   filters: { channels: { id: string; name: string }[]; metalGroups: string[]; month: string }
   lmeConfig: LmeConfig
   pendingSaleTable: AnyRow[]
   pendingSaleTotals: Record<string, number>
+  planProductOptions: AnyRow[]
   planRows: AnyRow[]
   productAnalysis: AnyRow[]
   sourceState: { limitations: string[] }
@@ -42,6 +45,7 @@ type SalesPlanPayload = {
 type SalesPlanDraftForm = {
   channel: string
   containers: string
+  customerCode: string
   customerName: string
   kgPerContainer: string
   lmeCf: string
@@ -282,6 +286,7 @@ export function SalesPlanPageClient() {
   const [planDraftForm, setPlanDraftForm] = useState<SalesPlanDraftForm>({
     channel: 'export',
     containers: '1',
+    customerCode: '',
     customerName: '',
     kgPerContainer: '25000',
     lmeCf: '',
@@ -317,15 +322,17 @@ export function SalesPlanPageClient() {
     void loadSalesPlan()
   }, [])
 
-  const productOptions = useMemo(() => (data?.productAnalysis ?? [])
+  const productOptions = useMemo(() => (data?.planProductOptions ?? [])
     .map((row) => ({
       code: text(row.code),
       metalGroup: text(row.metalGroup),
       name: text(row.name),
-      stock: num(row.stock),
       wac: num(row.wac),
     }))
-    .filter((row) => row.code && row.name), [data?.productAnalysis])
+    .filter((row) => row.code && row.name), [data?.planProductOptions])
+  const customerOptions = useMemo(() => (data?.customers ?? [])
+    .filter((customer) => customer.active)
+    .map((customer) => ({ code: customer.code, name: customer.name })), [data?.customers])
   const selectedDraftProduct = useMemo(() => productOptions.find((option) => option.code === planDraftForm.productCode) ?? null, [planDraftForm.productCode, productOptions])
   const draftKgPerContainer = Math.max(0, Number(planDraftForm.kgPerContainer || 0))
   const draftContainers = Math.max(0, Number(planDraftForm.containers || 0))
@@ -495,6 +502,7 @@ export function SalesPlanPageClient() {
     setPlanDraftForm({
       channel: filterChannel || 'export',
       containers: '1',
+      customerCode: '',
       customerName: '',
       kgPerContainer: String(lmeForm?.kgPerContainer ?? data?.lmeConfig.kgPerContainer ?? 25000),
       lmeCf: '',
@@ -532,6 +540,15 @@ export function SalesPlanPageClient() {
     }))
   }
 
+  function handleDraftCustomerChange(customerCode: string) {
+    const customer = customerOptions.find((option) => option.code === customerCode)
+    setPlanDraftForm((current) => ({
+      ...current,
+      customerCode: customer?.code ?? '',
+      customerName: customer?.name ?? '',
+    }))
+  }
+
   function handlePlanStatusChange(rowId: string, nextStatus: 'locked' | 'pending') {
     setPlanStatusOverrides((current) => ({ ...current, [rowId]: nextStatus }))
   }
@@ -541,8 +558,8 @@ export function SalesPlanPageClient() {
       setPlanDraftError('เลือกสินค้า')
       return
     }
-    if (!planDraftForm.customerName.trim()) {
-      setPlanDraftError('กรอกชื่อลูกค้า')
+    if (!planDraftForm.customerCode || !planDraftForm.customerName) {
+      setPlanDraftError('เลือกลูกค้า')
       return
     }
     if (draftContainers <= 0 || draftKgPerContainer <= 0) {
@@ -561,7 +578,7 @@ export function SalesPlanPageClient() {
     setLocalPlanRows((rows) => [{
       channel: planDraftForm.channel,
       containers: draftContainers,
-      customerId: `draft:${Date.now()}`,
+      customerId: planDraftForm.customerCode,
       customerName: planDraftForm.customerName.trim(),
       fx: draftFx,
       id: `draft:${Date.now()}:${selectedDraftProduct.code}`,
@@ -658,15 +675,20 @@ export function SalesPlanPageClient() {
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">รายละเอียดแผนขาย</h4>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
-                <label className="text-xs font-bold text-slate-600">
-                  <span className="mb-1 block">สินค้า</span>
-                  <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={planDraftForm.productCode} onChange={(event) => handleDraftProductChange(event.target.value)}>
-                    <option value="">เลือกสินค้า</option>
-                    {productOptions.map((option) => (
-                      <option key={option.code} value={option.code}>{option.name} ({option.code})</option>
-                    ))}
-                  </select>
-                </label>
+                <SearchCombobox
+                  hideLabel={false}
+                  inputClassName="h-10 text-sm font-medium text-slate-700"
+                  inputId="sales-plan-draft-product"
+                  label="สินค้า *"
+                  options={productOptions.map((option) => ({
+                    id: option.code,
+                    label: `${option.code} - ${option.name}`,
+                    searchText: `${option.code} ${option.name} ${option.metalGroup}`,
+                  }))}
+                  placeholder="ค้นหารหัสหรือชื่อสินค้า"
+                  value={planDraftForm.productCode}
+                  onChange={handleDraftProductChange}
+                />
                 <label className="text-xs font-bold text-slate-600">
                   <span className="mb-1 block">ช่องทาง</span>
                   <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={planDraftForm.channel} onChange={(event) => setPlanDraftForm((current) => ({ ...current, channel: event.target.value }))}>
@@ -675,10 +697,19 @@ export function SalesPlanPageClient() {
                     ))}
                   </select>
                 </label>
-                <label className="text-xs font-bold text-slate-600">
-                  <span className="mb-1 block">ลูกค้า</span>
-                  <input className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" onChange={(event) => setPlanDraftForm((current) => ({ ...current, customerName: event.target.value }))} placeholder="ชื่อลูกค้า" value={planDraftForm.customerName} />
-                </label>
+                <SearchCombobox
+                  inputClassName="h-10 text-sm font-medium text-slate-700"
+                  inputId="sales-plan-draft-customer"
+                  label="ลูกค้า *"
+                  options={customerOptions.map((customer) => ({
+                    id: customer.code,
+                    label: `${customer.code} - ${customer.name}`,
+                    searchText: `${customer.code} ${customer.name}`,
+                  }))}
+                  placeholder="ค้นหารหัสหรือชื่อลูกค้า"
+                  value={planDraftForm.customerCode}
+                  onChange={handleDraftCustomerChange}
+                />
                 <label className="text-xs font-bold text-slate-600">
                   <span className="mb-1 block">จำนวนตู้</span>
                   <input className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-right text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" min="0" onChange={(event) => setPlanDraftForm((current) => ({ ...current, containers: event.target.value }))} type="number" value={planDraftForm.containers} />
