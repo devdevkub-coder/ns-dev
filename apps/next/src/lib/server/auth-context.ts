@@ -22,7 +22,6 @@ export type AppAuthContext = {
     username: string
   } | null
   authUser: User
-  fallbackRole: string | null
   isAdmin: boolean
   permissionCodes: Set<string>
   roles: AppRoleSummary[]
@@ -40,10 +39,6 @@ export class AuthContextError extends Error {
 
 function serializeInternalId(value: bigint | null | undefined) {
   return value == null ? null : value.toString()
-}
-
-function metadataRole(user: User) {
-  return String(user.app_metadata?.role ?? user.user_metadata?.role ?? '').toLowerCase() || null
 }
 
 const appUserAuthSelect = {
@@ -157,7 +152,6 @@ function buildAppUserContext(appUser: AppUserWithAuth | null, user: User): AppAu
       username: fallbackUsername(appUser, user),
     },
     authUser: user,
-    fallbackRole: null,
     isAdmin,
     permissionCodes,
     roles: roleSummaries,
@@ -201,68 +195,8 @@ export async function getCurrentAuthContext(): Promise<AppAuthContext> {
     throw new AuthContextError('กรุณาเข้าสู่ระบบ', 401)
   }
 
-  let appUser: AppUserWithAuth | null = null
-  try {
-    appUser = await findAppUserWithAuth({
-      auth_user_id: user.id,
-    })
-  } catch {
-    appUser = null
-  }
-
-  if (appUser) {
-    return buildAppUserContext(appUser, user)
-  }
-
-  const email = user.email?.trim()
-  if (email) {
-    let emailMatches: AppUserWithAuth[] = []
-    try {
-      emailMatches = await prisma.app_users.findMany({
-        select: appUserAuthSelect,
-        orderBy: [{ created_at: 'desc' }],
-        take: 2,
-        where: {
-          email: {
-            equals: email,
-            mode: 'insensitive',
-          },
-        },
-      })
-    } catch {
-      emailMatches = []
-    }
-
-    if (emailMatches.length === 1) {
-      return buildAppUserContext(emailMatches[0], user)
-    }
-  }
-
-  let legacyProfile: { active: boolean | null; role: string | null } | null = null
-  try {
-    legacyProfile = await prisma.user_profiles.findUnique({
-      where: {
-        user_id: user.id,
-      },
-    })
-  } catch {
-    legacyProfile = null
-  }
-  const fallbackRole = String(legacyProfile?.role ?? metadataRole(user) ?? '').toLowerCase() || null
-  const isActive = legacyProfile?.active !== false
-
-  if (!isActive) {
-    throw new AuthContextError('บัญชีนี้ถูกปิดใช้งาน', 403)
-  }
-
-  return {
-    appUser: null,
-    authUser: user,
-    fallbackRole,
-    isAdmin: fallbackRole === 'admin' || fallbackRole === 'owner',
-    permissionCodes: new Set(),
-    roles: fallbackRole ? [{ branchScope: 'all', code: fallbackRole, id: null, name: fallbackRole }] : [],
-  }
+  const appUser = await findAppUserWithAuth({ auth_user_id: user.id })
+  return buildAppUserContext(appUser, user)
 }
 
 export function hasPermission(context: AppAuthContext, permissionCode: string) {
@@ -320,7 +254,6 @@ export function serializeAuthContext(context: AppAuthContext) {
       id: context.authUser.id,
     },
     email: context.authUser.email,
-    fallbackRole: context.fallbackRole,
     isAdmin: context.isAdmin,
     mustChangePassword: context.appUser?.mustChangePassword ?? false,
     permissions: Array.from(context.permissionCodes).sort(),

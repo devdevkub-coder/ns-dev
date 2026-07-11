@@ -1,7 +1,7 @@
 import pg from 'pg'
 
 const databaseUrl = process.env.DATABASE_URL
-const adminEmail = process.env.APP_ADMIN_EMAIL || process.env.DEV_LOGIN_IDENTIFIER
+const adminEmail = process.env.APP_ADMIN_EMAIL
 const adminUsername = process.env.APP_ADMIN_USERNAME || adminEmail?.split('@')[0]
 const adminDisplayName = process.env.APP_ADMIN_DISPLAY_NAME || adminEmail
 
@@ -10,7 +10,7 @@ if (!databaseUrl) {
 }
 
 if (!adminEmail || !adminEmail.includes('@')) {
-  throw new Error('APP_ADMIN_EMAIL or DEV_LOGIN_IDENTIFIER must be an email address.')
+  throw new Error('APP_ADMIN_EMAIL must be an email address.')
 }
 
 const client = new pg.Client({ connectionString: databaseUrl })

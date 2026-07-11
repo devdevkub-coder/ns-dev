@@ -325,10 +325,10 @@ Current Next status as of 2026-05-17:
 - `/admin/transaction-ledger` exists as a Next read-only ledger view over `accounts` and `bank_statement`, protected by `finance.cash.view`, with account balance cards, table filters, summary totals, account verification helper, linked purchase/sales bill badges, source payee enrichment, running balance, non-destructive duplicate diagnostics, and XLSX export; write/edit/delete mutations are intentionally deferred until audit/reconciliation rules are defined.
 - `/admin/audit` reads the redesigned Audit / Activity feed for users with `system.audit.view`, with group/search/actor/target/event-type filters, server pagination, current-page CSV export, and detail metadata modal. The new dev-target source of truth is split into append-only `app_audit_logs` for trace-critical security/write/permission events and `app_activity_logs` for user/session/page/action activity; legacy `app_auth_events`, `audit_logs`, and deletion log tables are retained as compatibility/history sources only.
 - Functional Next pages now use normalized client/server error handling for implemented pages (`customers`, `suppliers`, `products`, `/admin/users-permissions`, `/admin/audit`): API errors return a consistent `{ code, error, fieldErrors }` shape where applicable, Zod validation returns field errors, DB/internal errors are sanitized, and the UI maps auth/permission/conflict/network/invalid-response cases to Thai user-facing messages.
-- Login prefill is supported for test-only convenience:
-  - local dev uses `DEV_LOGIN_IDENTIFIER` / `DEV_LOGIN_PASSWORD`
-  - Vercel production can temporarily enable test prefill through `NEXT_PUBLIC_ENABLE_TEST_LOGIN_PREFILL=1`, `NEXT_PUBLIC_TEST_LOGIN_IDENTIFIER`, and `NEXT_PUBLIC_TEST_LOGIN_PASSWORD`
-  - `NEXT_PUBLIC_*` values are visible to anyone visiting the site; remove these env vars before real UAT or production use, and never commit real credentials to git
+- Login and authorization security baseline:
+  - Login credential prefill has been removed from every environment. The Login page never reads or sends default email/password values from environment variables.
+  - Authorization requires a direct `auth.users.id -> app_users.auth_user_id` link. Email matching, legacy `user_profiles.role`, and Auth metadata role fallbacks are not accepted.
+  - Retired login-prefill environment variables must not be restored; browser-exposed `NEXT_PUBLIC_*` variables must never contain credentials
 - Supabase Auth email URL checklist:
   - Supabase Dashboard > Authentication > URL Configuration > `Site URL` should be `https://new-ns-scrap-erp.vercel.app`
   - add redirect allow-list entries for `https://new-ns-scrap-erp.vercel.app/**` and local dev such as `http://localhost:3000/**`

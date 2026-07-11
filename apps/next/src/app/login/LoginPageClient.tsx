@@ -6,13 +6,6 @@ import { useSearchParams } from 'next/navigation'
 import { loginSchema } from '@/lib/auth'
 import { getSupabaseClient } from '@/lib/supabase'
 
-type LoginPageClientProps = {
-  devLogin?: {
-    identifier: string
-    password: string
-  }
-}
-
 function safeRedirectPath(value: string | null) {
   if (!value || !value.startsWith('/') || value.startsWith('//')) return '/'
 
@@ -30,10 +23,10 @@ async function resolveDefaultLandingPath() {
   return '/'
 }
 
-export function LoginPageClient({ devLogin }: LoginPageClientProps) {
+export function LoginPageClient() {
   const searchParams = useSearchParams()
-  const [identifier, setIdentifier] = useState(devLogin?.identifier ?? '')
-  const [password, setPassword] = useState(devLogin?.password ?? '')
+  const [identifier, setIdentifier] = useState('')
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -98,12 +91,6 @@ export function LoginPageClient({ devLogin }: LoginPageClientProps) {
           </div>
         ) : null}
 
-        {devLogin?.identifier || devLogin?.password ? (
-          <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
-            เติมบัญชีทดสอบแล้ว
-          </div>
-        ) : null}
-
         <form className="space-y-4" onSubmit={submit}>
           <label className="block text-sm font-medium text-slate-700">
             Email
@@ -112,7 +99,7 @@ export function LoginPageClient({ devLogin }: LoginPageClientProps) {
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isLoading}
               onChange={(event) => setIdentifier(event.target.value)}
-              placeholder="ns-aom@nsscrap.com"
+              placeholder="name@company.com"
               type="email"
               value={identifier}
             />
