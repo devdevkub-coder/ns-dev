@@ -132,7 +132,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const auth = await getCurrentAuthContext()
-    requirePermission(auth, 'daily.weight_tickets.view')
+    requirePermission(auth, 'daily.weight_tickets.update')
 
     const { id } = await context.params
     const values = weightTicketFormSchema.parse(await request.json())
@@ -427,30 +427,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       targetType: 'weight_ticket',
     })
 
-    // Trigger auto-send to LINE if enabled for this document type on edit
-    const autoSendKey = mapped.type === 'WTI' ? 'LINE_AUTO_SEND_WTI' : 'LINE_AUTO_SEND_WTO'
-    const autoSendConfig = await prisma.system_settings.findUnique({
-      where: { key: autoSendKey },
-    })
-    if (autoSendConfig?.value === 'true') {
-      try {
-        // Auto-send: enqueue แล้ว execute ทันที (ไม่รอ worker) ตามแนวทาง A
-        const enqueueResult = await enqueueNotificationJob(mapped.documentNo, {
-          requestedBy: actor,
-          force: false,
-        })
-        for (const job of enqueueResult.jobs) {
-          try {
-            await executeNotificationJob(job.id, { force: false })
-          } catch (err) {
-            console.error('[weight-ticket-auto-send] failed to execute job on update:', job.id, err)
-          }
-        }
-      } catch (err) {
-        console.error('[weight-ticket-auto-send] failed to enqueue LINE notification on update:', err)
-      }
-    }
-
     const [timeline, pendingOutEvents] = await Promise.all([
       getWeightTicketTimeline(prisma, updated.id),
       getWeightTicketPendingOutEvents(prisma, updated.id),
@@ -488,6 +464,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const actor = currentActor(auth)
     const confirmParsed = weightTicketConfirmSchema.safeParse(rawValues)
     if (confirmParsed.success) {
+      requirePermission(auth, 'daily.weight_tickets.confirm')
       if (existing.status !== 'draft') {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'ยืนยันได้เฉพาะเอกสารสถานะแบบร่าง' }, { status: 400 })
       }
@@ -559,6 +536,25 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         targetLabel: updated.doc_no,
         targetType: 'weight_ticket',
       })
+      const autoSendKey = mapped.type === 'WTI' ? 'LINE_AUTO_SEND_WTI' : 'LINE_AUTO_SEND_WTO'
+      const autoSendConfig = await prisma.system_settings.findUnique({ where: { key: autoSendKey } })
+      if (autoSendConfig?.value === 'true') {
+        try {
+          const enqueueResult = await enqueueNotificationJob(mapped.documentNo, {
+            requestedBy: actor,
+            force: false,
+          })
+          for (const job of enqueueResult.jobs) {
+            try {
+              await executeNotificationJob(job.id, { force: false })
+            } catch (caught) {
+              console.error('[weight-ticket-auto-send] failed to execute confirmed job:', job.id, caught)
+            }
+          }
+        } catch (caught) {
+          console.error('[weight-ticket-auto-send] failed to enqueue confirmed document:', caught)
+        }
+      }
       const [timeline, pendingOutEvents] = await Promise.all([
         getWeightTicketTimeline(prisma, updated.id),
         getWeightTicketPendingOutEvents(prisma, updated.id),
@@ -570,6 +566,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       })
     }
 
+    requirePermission(auth, 'daily.weight_tickets.cancel')
     const values = weightTicketCancelSchema.parse(rawValues)
     const cancelledAt = new Date()
     const updated = await prisma.$transaction(async (tx) => {

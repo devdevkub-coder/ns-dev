@@ -700,7 +700,7 @@ Implementation separation checkpoint 2026-06-30:
 
 ### เป้าหมาย
 
-เมื่อผู้ใช้สร้าง/บันทึก `WTI` หรือ `WTO` เสร็จ ระบบต้องส่งสรุปเข้า LINE group ที่ตั้งค่าไว้
+เมื่อผู้ใช้ยืนยัน `WTI` หรือ `WTO` แล้ว ระบบจึงส่งสรุปเข้า LINE group ที่ตั้งค่าไว้
 พร้อม Flex Message ที่มี:
 
 - ข้อมูลหัวเอกสาร (เลขที่, ผู้ขาย/ลูกค้า, สาขา, น้ำหนักสุทธิ)
@@ -713,8 +713,8 @@ Implementation separation checkpoint 2026-06-30:
 
 | ทาง | เงื่อนไข | สถานะจริง | ไฟล์ |
 |---|---|---|---|
-| **Manual** ปุ่ม `แชร์ → ส่งเข้ากลุ่มหลัก` | ผูู้ใช้กดเองในหน้า list/detail | ✅ ทำงาน (force=true, execute ทันที) | `api/daily/weight-tickets/[id]/notify-line/route.ts` |
-| **Auto-send หลัง create/edit** | `LINE_AUTO_SEND_WTI`/`LINE_AUTO_SEND_WTO = 'true'` | ✅ ทำงาน (enqueue + execute ทันที) | `api/daily/weight-tickets/route.ts` + `[id]/route.ts` |
+| **Manual** ปุ่ม `แชร์ → ส่งเข้ากลุ่มหลัก` | ผู้ใช้กดเองหลังยืนยันเอกสารแล้ว | ✅ ทำงาน (force=true, execute ทันที); API ปฏิเสธเอกสารแบบร่าง | `api/daily/weight-tickets/[id]/notify-line/route.ts` |
+| **Auto-send หลังยืนยัน** | `LINE_AUTO_SEND_WTI`/`LINE_AUTO_SEND_WTO = 'true'` | ✅ ทำงานหลัง `draft -> received/delivered` เท่านั้น | `api/daily/weight-tickets/[id]/route.ts` |
 | **Worker drain** | กดปุ่ม `⚙️ เรียกใช้งาน Worker` ในหน้า admin/line-settings | ✅ ใช้สำหรับ retry/pending jobs ที่ execute ล้มเหลว | `api/admin/line-jobs/route.ts` action=process |
 
 ### ⚠️ ข้อจำกัดสำคัญที่ต้องเข้าใจ
@@ -723,12 +723,12 @@ Implementation separation checkpoint 2026-06-30:
 
 PDF ที่ `notifyWeightTicketLine` สร้างและอัปโหลดขึ้น Storage ต้องเริ่มด้วยเอกสารธุรกิจสำหรับพิมพ์: header บริษัท, ข้อมูลคู่ค้า, รายการน้ำหนัก, สรุป, ลายเซ็น และ footer ต้องอยู่ใน A4 ตาม template ใบพิมพ์เดียวกับระบบหน้า list/detail. หลังจากหน้าใบพิมพ์ ให้ต่อหน้า photo album เป็นหน้า 2+ จากรูปหลักฐานของเอกสารเดียวกัน เพื่อให้ไฟล์ PDF เดียวเปิดดูได้ครบทั้งใบชั่งและรูปหน้างาน. LINE ยังสามารถส่ง album/image path แยกได้เพื่อให้คนในแชทเห็นรูปทันที โดยไม่เปลี่ยนข้อกำหนดว่าหน้าแรกของ PDF ต้องยังเป็นใบพิมพ์ A4 ที่พอดี.
 
-#### 1. Auto-send ทำงานทันทีหลัง save (แนวทาง A)
+#### 1. Auto-send ทำงานทันทีหลังยืนยัน
 
-ตั้งแต่ 2026-06-26 create/edit path จะ **enqueue แล้ว execute ทันที** (ไม่รอ worker):
+ระบบจะ **enqueue แล้ว execute ทันที** หลังยืนยันเอกสาร (ไม่รอ worker) แต่จะไม่ส่งตอนสร้างหรือแก้ไข Draft:
 
 ```ts
-// api/daily/weight-tickets/route.ts (POST)
+// api/daily/weight-tickets/[id]/route.ts (PATCH confirm)
 if (autoSendConfig?.value === 'true') {
   const enqueueResult = await enqueueNotificationJob(mapped.documentNo, { requestedBy, force: false })
   for (const job of enqueueResult.jobs) {
@@ -742,7 +742,8 @@ if (autoSendConfig?.value === 'true') {
 ```
 
 ผลทางธุรกิจ:
-- เปิด `LINE_AUTO_SEND_WTI=true` → สร้าง WTI เสร็จแจ้งเตือนเข้า LINE **ทันที**
+- เปิด `LINE_AUTO_SEND_WTI=true` → แจ้งเตือนเข้า LINE หลังผู้ใช้กด `ยืนยันรับของ`
+- Draft ยังแก้ไขได้ ไม่เข้าคิว LINE และปุ่มแชร์จะยังไม่แสดง
 - ถ้า execute ล้มเหลว job จะกลายเป็น `status='failed'` และสามารถ retry ผ่าน
   Worker ในหน้า admin/line-settings หรือปุ่ม `🔄 ยิงใหม่` ในแท็บ Outbox
 - การสร้างเอกสาร **ไม่ rollback** ถ้าแจ้งเตือนล้มเหลว (error ถูก catch เท่านั้น)
@@ -765,7 +766,8 @@ if (autoSendConfig?.value === 'true') {
 
 ```mermaid
 flowchart TD
-  A["ผู้ใช้บันทึก WTI/WTO"] --> B{auto-send เปิดอยู่ไหม}
+  A["ผู้ใช้บันทึก WTI/WTO เป็น Draft"] --> A2["ผู้ใช้ตรวจสอบและยืนยันรับของ/ส่งของ"]
+  A2 --> B{auto-send เปิดอยู่ไหม}
   B -- "ใช่ (LINE_AUTO_SEND=true)" --> C["enqueueNotificationJob<br/>resolveLineTargetsForWeightTicket<br/>→ targets จาก line_targets + rules"]
   B -- "ไม่" --> D["รอผู้ใช้กด แชร์ → ส่งเข้ากลุ่มหลัก"]
   C --> F["executeNotificationJob ทันที<br/>(ไม่รอ worker ตามแนวทาง A)"]

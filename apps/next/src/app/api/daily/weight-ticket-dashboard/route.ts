@@ -253,12 +253,13 @@ export async function GET(request: Request) {
       }
 
       if (row.doc_type === 'WTI') {
-        const needsPurchaseBill = wtiRemainingWeight > 0.0001 && row.status !== 'billed'
+        const isConfirmed = row.status === 'received' || row.status === 'partially_billed'
+        const needsPurchaseBill = isConfirmed && wtiRemainingWeight > 0.0001
         wtiRows.push({
           branchName: branchBucket.branchName,
           date: toDateOnly(row.document_date),
           docNo: row.doc_no,
-          followUpWeight: wtiRemainingWeight,
+          followUpWeight: isConfirmed ? wtiRemainingWeight : 0,
           href: `/daily/weight-ticket-list/${encodeURIComponent(row.doc_no)}`,
           netWeight,
           partyName: row.party_name,
@@ -268,7 +269,7 @@ export async function GET(request: Request) {
         })
       }
 
-      if (row.doc_type === 'WTI' && wtiRemainingWeight > 0.0001 && row.status !== 'billed') {
+      if (row.doc_type === 'WTI' && wtiRemainingWeight > 0.0001 && (row.status === 'received' || row.status === 'partially_billed')) {
         summary.wtiWaitingBillCount += 1
         summary.wtiWaitingBillWeight += wtiRemainingWeight
         branchBucket.wtiWaitingBillWeight += wtiRemainingWeight
@@ -308,12 +309,13 @@ export async function GET(request: Request) {
       }
 
       if (row.doc_type === 'WTO') {
-        const needsSalesBill = wtoPendingOutWeight > 0.0001
+        const isConfirmed = row.status === 'delivered' || row.status === 'partially_billed'
+        const needsSalesBill = isConfirmed && wtoPendingOutWeight > 0.0001
         wtoRows.push({
           branchName: branchBucket.branchName,
           date: toDateOnly(row.document_date),
           docNo: row.doc_no,
-          followUpWeight: wtoPendingOutWeight,
+          followUpWeight: isConfirmed ? wtoPendingOutWeight : 0,
           href: `/daily/weight-ticket-list/${encodeURIComponent(row.doc_no)}`,
           netWeight,
           partyName: row.party_name,
@@ -323,7 +325,7 @@ export async function GET(request: Request) {
         })
       }
 
-      if (row.doc_type === 'WTO' && wtoPendingOutWeight > 0.0001) {
+      if (row.doc_type === 'WTO' && wtoPendingOutWeight > 0.0001 && (row.status === 'delivered' || row.status === 'partially_billed')) {
         summary.wtoPendingOutCount += 1
         summary.wtoPendingOutWeight += wtoPendingOutWeight
         branchBucket.pendingOutWeight += wtoPendingOutWeight

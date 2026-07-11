@@ -4,6 +4,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { branchScopeIds, enteredByLabel } from '@/lib/server/weight-tickets'
 import { enqueueNotificationJob, executeNotificationJob } from '@/lib/server/line-notification-jobs'
+import { prisma } from '@/lib/server/prisma'
 
 export const runtime = 'nodejs'
 
@@ -15,10 +16,22 @@ const notifySchema = z.object({
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const auth = await getCurrentAuthContext()
-    requirePermission(auth, 'daily.weight_tickets.view')
+    requirePermission(auth, 'daily.weight_tickets.share')
 
     const { id } = await context.params
     const body = notifySchema.parse(await request.json().catch(() => ({})))
+    const scopedBranchIds = branchScopeIds(auth)
+    const ticket = await prisma.weight_tickets.findFirst({
+      select: { status: true },
+      where: {
+        branch_id: { in: scopedBranchIds.map((branchId) => BigInt(branchId)) },
+        OR: [{ id: /^\d+$/.test(id) ? BigInt(id) : -1n }, { doc_no: id }],
+      },
+    })
+    if (!ticket) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบใบรับ-ส่งของ' }, { status: 404 })
+    if (ticket.status === 'draft') {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'ต้องยืนยันเอกสารก่อนส่ง LINE' }, { status: 400 })
+    }
 
     // Manual triggers always force: true
     const enqueueResult = await enqueueNotificationJob(id, {

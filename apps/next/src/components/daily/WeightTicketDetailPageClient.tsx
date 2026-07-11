@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, RotateCcw, Scale, SquarePen, XCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, RotateCcw, Scale, SquarePen, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
@@ -20,7 +20,7 @@ import {
 import { WeightTicketStockReturnDialog, type StockReturnPayload } from '@/components/daily/WeightTicketStockReturnDialog'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
-import { cancelWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, type WeightTicketRecord, type WeightTicketStatus, typeLabels, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
+import { cancelWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, type WeightTicketRecord, type WeightTicketStatus, typeLabels, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
 import { getErrorMessage } from '@/lib/api-client'
 
 function formatDateTime(value?: string | null) {
@@ -112,6 +112,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
   const [cancelNote, setCancelNote] = useState('')
   const [cancelError, setCancelError] = useState('')
   const [isCanceling, setIsCanceling] = useState(false)
+  const [isConfirming, setIsConfirming] = useState(false)
   const [previewImage, setPreviewImage] = useState<{ fileName: string; url: string } | null>(null)
   const [isPrinting, setIsPrinting] = useState(false)
   const [canReturnStock, setCanReturnStock] = useState(false)
@@ -213,6 +214,18 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
     }
   }
 
+  async function handleConfirmTicket() {
+    if (!ticket) return
+    setIsConfirming(true)
+    try {
+      setTicket(await confirmWeightTicket(ticket.id))
+    } catch (caught) {
+      window.alert(getErrorMessage(caught, 'ยืนยันใบรับ-ส่งของไม่ได้'))
+    } finally {
+      setIsConfirming(false)
+    }
+  }
+
   async function handlePrintReceipt() {
     if (!ticket) return
     setIsPrinting(true)
@@ -265,6 +278,12 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
           </Button>
         </div>
         <div className="flex flex-wrap gap-2">
+          {ticket.status === 'draft' ? (
+            <Button disabled={isConfirming} type="button" onClick={() => void handleConfirmTicket()}>
+              <CheckCircle2 className="mr-2 size-4" />
+              {isConfirming ? 'กำลังยืนยัน...' : ticket.type === 'WTI' ? 'ยืนยันรับของ' : 'ยืนยันส่งของ'}
+            </Button>
+          ) : null}
           <Button disabled={isPrinting} type="button" variant="outline" onClick={() => void handlePrintReceipt()}>
             <Printer className="mr-2 size-4" />
             {isPrinting ? 'กำลังเตรียมใบพิมพ์...' : ticket.type === 'WTI' ? 'พิมพ์ใบรับสินค้า' : 'พิมพ์ใบส่งของ'}

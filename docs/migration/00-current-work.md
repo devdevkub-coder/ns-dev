@@ -2985,3 +2985,12 @@ Tailwind dependency check:
   - What is what: `ยอดรวมตามหมวด` shows Table 1, `ยอดได้คอม` shows Table 2, `ผู้ขาย` shows Table 3, and `รายการสินค้า` shows Table 4.
   - Why it stays this way: when a drilldown has many table surfaces, users should choose the decision context first through shared line tabs; each business verification table gets its own tab so no table disappears and no tab becomes a two-table wall.
   - Runtime API behavior, commission formulas, filters, CSV export data, permissions, database schema, and DB state were not changed.
+- 2026-07-11: WTI/WTO draft lifecycle completion
+  - WTI/WTO detail page and detail modal now expose the matching confirmation action (`ยืนยันรับของ` / `ยืนยันส่งของ`) while status is `draft`.
+  - Draft WTI is not counted as `รอเปิด PB`; draft WTO is not counted as `รอออก SB` or pending-out follow-up. Downstream dashboard KPIs start only after confirmation.
+  - LINE auto-send no longer runs on create/edit. It runs after the successful `draft -> received/delivered` transition, and manual LINE send rejects draft documents.
+  - Printed draft documents remain available for checking but carry a visible draft/unconfirmed badge.
+  - Added persisted action permissions for create, update, confirm, cancel, and share. Existing roles that had `daily.weight_tickets.view` receive the action permissions through migration `20260711133000_add_weight_ticket_action_permissions.sql`; runtime APIs do not fall back to view permission.
+  - Applied the permission migration to dev-target `fhglqymcdmrgbsbadnwr`; verification found 6 active weight-ticket permission codes, no view-enabled role missing the confirm action, and migration history version `20260711133000` recorded.
+  - What is what: Draft is a saved, editable work document; confirmed WTI/WTO is the business event that may enter PB/SB follow-up and notification flows.
+  - Why it has to be like this: saving incomplete field data must not create billing workload, snapshot outbound cost, or notify external LINE recipients before the responsible user confirms the physical receipt/delivery.

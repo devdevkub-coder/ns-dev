@@ -405,6 +405,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
           </div>
           <div class="doc-head">
             <div class="doc-title">${escapeHtml(docTitle)}</div>
+            ${ticket.status === 'draft' ? `<div class="draft-badge">แบบร่าง - ${isReceipt ? 'ยังไม่ยืนยันรับของ' : 'ยังไม่ยืนยันส่งของ'}</div>` : ''}
           </div>
         </section>
 
@@ -537,6 +538,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .company-info { margin-top: 2px; color: #475569; font-size: 10px; }
       .doc-head { text-align: right; }
       .doc-title { font-size: 18px; font-weight: 700; color: #14532d; letter-spacing: 0; }
+      .draft-badge { display: inline-block; margin-top: 5px; border: 1px solid #d97706; border-radius: 4px; padding: 3px 7px; color: #92400e; background: #fffbeb; font-size: 10.5px; font-weight: 700; }
       .doc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; text-align: left; }
       .kv { border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 6px; background: #f8fafc; }
       .kv .label, .field-label, .summary-card .label { color: #475569; font-size: 10px; font-weight: 500; }
