@@ -191,9 +191,6 @@ function sanitizeDecimalInput(value: string) {
   return decimalParts.length ? `${whole}.${decimalParts.join('')}` : whole
 }
 
-const salesPlanNumberInputClass = 'w-full rounded-xl border border-slate-300 bg-white px-3 text-right font-medium text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
-const salesPlanReadonlyNumberInputClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 text-right font-medium text-slate-700 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
-
 function lmeDraftValueByMetalGroup(metalGroup: string, config: LmeConfig | null) {
   if (!config) return ''
   const group = metalGroup.toLowerCase()
@@ -858,6 +855,9 @@ export function SalesPlanPageClient() {
                       ) : (
                         <>
                           <span className="inline-flex rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">Pending</span>
+                          <button className="inline-flex h-8 items-center justify-center rounded-md bg-amber-500 px-3 text-xs font-semibold text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={isSavingPlan} onClick={() => handlePlanStatusChange(text(row.id), 'locked')} type="button">Lock %</button>
+                        </>
+                      )}
                           <button className="inline-flex h-8 items-center justify-center rounded-md bg-amber-500 px-3 text-xs font-semibold text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={isSavingPlan} onClick={() => handlePlanStatusChange(text(row.id), 'locked')} type="button">Lock %</button>
                         </>
                       )}
