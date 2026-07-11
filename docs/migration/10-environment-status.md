@@ -58,6 +58,8 @@ Status update on 2026-07-11:
 - Dev project `fhglqymcdmrgbsbadnwr` was cloned into the new UAT project for `public` schema/data, `auth.users`, `auth.identities`, and `supabase_migrations.schema_migrations`.
 - Exact reconciliation passed with no per-table row-count differences: both environments have 140 public base tables and 32,737 public rows, 44 Auth users, 43 Auth identities, 117 public RLS policies, 90 RLS-enabled public tables, 15 public routines, and 106 migration-history rows.
 - Supabase Storage objects were not copied in this PostgreSQL clone. Storage buckets, object metadata, and binary files must be provisioned or migrated as a separate controlled step before UAT flows that depend on stored PDFs/images are accepted.
+- Applied UAT migrations `20260711173000`, `20260711190000`, and `20260711200000` to project `ekeomeumqjvbhgwyaqwe` after a scoped WTI/WTO backup. The confirmation-owned WTO hold migration released 5 active holds that belonged to draft WTO documents. Post-migration checks found 0 draft active holds and 0 WTI/WTO reconciliation issues; weight columns are `numeric(18,2)`, and the active-hold guard trigger plus Warehouse FK are installed.
+- The Warehouse shape constraint remains intentionally `NOT VALID` because 45 historical WTI rows do not yet have an explicitly mapped Warehouse ID. They are listed by `public.weight_ticket_warehouse_migration_issues`; runtime must not guess from the legacy free-text warehouse value. New and edited WTI documents must use the real `warehouses.id`.
 
 Status update on 2026-07-01:
 - Customer UAT Supabase is available at project ref `oolzfvqhovmjhiocfqdw`.
