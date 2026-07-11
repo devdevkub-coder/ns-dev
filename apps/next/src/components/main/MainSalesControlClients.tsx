@@ -10,7 +10,7 @@ import { useResizableColumns, type ResizableColumnDefinition } from '@/component
 type AnyRow = Record<string, number | string | boolean | null | undefined>
 type SortDirection = 'asc' | 'desc'
 type TableColumn<TKey extends string> = ResizableColumnDefinition<TKey> & { align?: 'center' | 'left' | 'right'; label: string }
-type SalesPlanColumnKey = 'channel' | 'containers' | 'customerName' | 'fx' | 'kgPerContainer' | 'lme' | 'productName' | 'sellPctLme' | 'sellPrice' | 'status' | 'totalKg'
+type SalesPlanColumnKey = 'channel' | 'containers' | 'customerName' | 'fx' | 'kgPerContainer' | 'lme' | 'poSell' | 'productName' | 'sellPctLme' | 'sellPrice' | 'status' | 'totalKg'
 type SalesPlanAnalysisColumnKey = 'bestPlanPct' | 'bestPlanPrice' | 'lockedKg' | 'metalGroup' | 'name' | 'projectedMarginPct' | 'projectedProfit' | 'recommendation' | 'remainingKg' | 'stock' | 'wac'
 type SalesPlanRemainingColumnKey = 'code' | 'lockedContainers' | 'lockedKg' | 'metalGroup' | 'name' | 'remainingContainers' | 'remainingKg' | 'stock' | 'value' | 'wac'
 type CommissionCategoryColumnKey = 'amount' | 'category' | 'qty'
@@ -105,6 +105,7 @@ const salesPlanColumns: Array<TableColumn<SalesPlanColumnKey>> = [
   { key: 'lme', label: 'LME (USD/MT)', defaultWidth: 120, minWidth: 105, align: 'right' },
   { key: 'fx', label: 'FX', defaultWidth: 90, minWidth: 75, align: 'right' },
   { key: 'sellPrice', label: 'ราคา THB/kg', defaultWidth: 135, minWidth: 115, align: 'right' },
+  { key: 'poSell', label: 'PO ขาย', defaultWidth: 135, minWidth: 120, align: 'center' },
   { key: 'status', label: 'สถานะ', defaultWidth: 150, minWidth: 120, align: 'center' },
 ]
 const salesPlanAnalysisColumns: Array<TableColumn<SalesPlanAnalysisColumnKey>> = [
@@ -184,6 +185,14 @@ function lmeBaseByMetalGroup(metalGroup: string, config: LmeConfig | null) {
   return 0
 }
 
+function getPlanStatus(value: unknown): 'locked' | 'pending' {
+  return text(value).toLowerCase().includes('lock') ? 'locked' : 'pending'
+}
+
+function getPlanStatusLabel(value: unknown) {
+  return getPlanStatus(value) === 'locked' ? 'Locked %' : 'Pending'
+}
+
 function dateTime(value: string | null | undefined) {
   if (!value) return '-'
   const parsed = new Date(value)
@@ -261,6 +270,7 @@ export function SalesPlanPageClient() {
   const [lmeForm, setLmeForm] = useState<LmeConfig | null>(null)
   const [planDraftError, setPlanDraftError] = useState<string | null>(null)
   const [localPlanRows, setLocalPlanRows] = useState<AnyRow[]>([])
+  const [planStatusOverrides, setPlanStatusOverrides] = useState<Record<string, 'locked' | 'pending'>>({})
   const [planDraftForm, setPlanDraftForm] = useState<SalesPlanDraftForm>({
     channel: 'export',
     containers: '1',
@@ -323,17 +333,27 @@ export function SalesPlanPageClient() {
     .filter((row) => !filterGroup || text(row.metalGroup).includes(filterGroup))
     .filter((row) => !filterChannel || text(row.channel) === filterChannel), [filterChannel, filterGroup, localPlanRows])
   const mergedPlanRows = useMemo(() => [...filteredLocalPlanRows, ...filteredServerPlanRows], [filteredLocalPlanRows, filteredServerPlanRows])
+  const planRowsWithStatus = useMemo<AnyRow[]>(() => mergedPlanRows.map((row) => {
+    const rowId = text(row.id)
+    const status = planStatusOverrides[rowId] ?? getPlanStatus(row.status)
+    return {
+      ...row,
+      poSell: status === 'locked' ? 'ready' : 'pending',
+      status,
+      statusLabel: getPlanStatusLabel(status),
+    }
+  }), [mergedPlanRows, planStatusOverrides])
   const liveSummary = useMemo(() => ({
-    avgPctLme: mergedPlanRows.length ? mergedPlanRows.reduce((sum, row) => sum + num(row.sellPctLme), 0) / mergedPlanRows.length : 0,
-    lockedContainers: mergedPlanRows.filter((row) => text(row.status).toLowerCase().includes('lock')).reduce((sum, row) => sum + num(row.containers), 0),
-    lockedCount: mergedPlanRows.filter((row) => text(row.status).toLowerCase().includes('lock')).length,
-    pendingCount: mergedPlanRows.filter((row) => !text(row.status).toLowerCase().includes('lock')).length,
-    plansCount: mergedPlanRows.length,
-    totalContainers: mergedPlanRows.reduce((sum, row) => sum + num(row.containers), 0),
-    totalKg: mergedPlanRows.reduce((sum, row) => sum + num(row.totalKg), 0),
-    totalLockedProfit: mergedPlanRows.filter((row) => text(row.status).toLowerCase().includes('lock')).reduce((sum, row) => sum + num(row.projectedProfit), 0),
-    totalProjectedProfit: mergedPlanRows.reduce((sum, row) => sum + num(row.projectedProfit), 0),
-  }), [mergedPlanRows])
+    avgPctLme: planRowsWithStatus.length ? planRowsWithStatus.reduce((sum, row) => sum + num(row.sellPctLme), 0) / planRowsWithStatus.length : 0,
+    lockedContainers: planRowsWithStatus.filter((row) => getPlanStatus(row.status) === 'locked').reduce((sum, row) => sum + num(row.containers), 0),
+    lockedCount: planRowsWithStatus.filter((row) => getPlanStatus(row.status) === 'locked').length,
+    pendingCount: planRowsWithStatus.filter((row) => getPlanStatus(row.status) !== 'locked').length,
+    plansCount: planRowsWithStatus.length,
+    totalContainers: planRowsWithStatus.reduce((sum, row) => sum + num(row.containers), 0),
+    totalKg: planRowsWithStatus.reduce((sum, row) => sum + num(row.totalKg), 0),
+    totalLockedProfit: planRowsWithStatus.filter((row) => getPlanStatus(row.status) === 'locked').reduce((sum, row) => sum + num(row.projectedProfit), 0),
+    totalProjectedProfit: planRowsWithStatus.reduce((sum, row) => sum + num(row.projectedProfit), 0),
+  }), [planRowsWithStatus])
   const pendingSaleRows = useMemo(() => (data?.pendingSaleTable ?? [])
     .filter((row) => !filterGroup || text(row.metalGroup).includes(filterGroup)), [data?.pendingSaleTable, filterGroup])
   const pendingSaleTotals = useMemo(() => ({
@@ -350,14 +370,14 @@ export function SalesPlanPageClient() {
     .filter((row) => !filterGroup || text(row.metalGroup).includes(filterGroup))
     .filter((row) => !filterChannel || filterChannel), [data, filterGroup, filterChannel])
   const sortedPlanRows = useMemo(() => {
-    const rows = mergedPlanRows
+    const rows = planRowsWithStatus
     if (!planSortKey) return rows
 
     return [...rows].sort((left, right) => {
       const result = compareSortValues(getAnySortValue(left, planSortKey), getAnySortValue(right, planSortKey))
       return planSortDirection === 'asc' ? result : -result
     })
-  }, [mergedPlanRows, planSortDirection, planSortKey])
+  }, [planRowsWithStatus, planSortDirection, planSortKey])
   const sortedAnalysisRows = useMemo(() => {
     if (!analysisSortKey) return analysisRows
 
@@ -485,9 +505,27 @@ export function SalesPlanPageClient() {
     setPlanDraftError(null)
   }
 
+  function removeLocalPlanRow(rowId: string) {
+    setLocalPlanRows((rows) => rows.filter((row) => text(row.id) !== rowId))
+    setPlanStatusOverrides((current) => {
+      const next = { ...current }
+      delete next[rowId]
+      return next
+    })
+  }
+
+  function openPoSellForRow(rowId: string) {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams({ source: 'sales-plan', salesPlanRowId: rowId })
+    window.location.assign(`/sales/po-sell?${params.toString()}`)
+  }
   function openPlanForm() {
     resetPlanDraftForm()
     setIsPlanFormOpen(true)
+  }
+
+  function handlePlanStatusChange(rowId: string, nextStatus: 'locked' | 'pending') {
+    setPlanStatusOverrides((current) => ({ ...current, [rowId]: nextStatus }))
   }
 
   function addDraftPlan() {
@@ -526,7 +564,7 @@ export function SalesPlanPageClient() {
       projectedProfit,
       sellPctLme: draftSellPct,
       sellPrice: draftSellPrice,
-      status: 'Draft',
+      status: 'pending',
       totalKg: draftTotalKg,
     }, ...rows])
     resetPlanDraftForm()
@@ -650,7 +688,7 @@ export function SalesPlanPageClient() {
       {/* 1. Sales Plan Section */}
       <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3 text-xs font-semibold text-slate-600">
-          📝 ตารางวางแผน — ปลดล็อก = อยู่ในขั้นเสนอ / ล็อก = ราคายืนยันแล้วและกันยอดตามแผนขาย
+          📝 ตารางวางแผน — เพิ่มแผนแล้วเริ่มที่ `Pending` ก่อน จากนั้นค่อยกด `Lock %` เองเมื่อพร้อม และคอลัมน์ `PO ขาย` จะแยกต่างหาก
         </div>
         {isPlanFormOpen ? (
           <div className="border-b border-slate-100 bg-amber-50/40 p-4">
@@ -755,7 +793,26 @@ export function SalesPlanPageClient() {
                   <td className="p-1.5 text-right text-xs text-slate-400 font-medium">{money(row.lme)}</td>
                   <td className="p-1.5 text-right text-xs text-slate-400 font-medium">{money(row.fx)}</td>
                   <td className="bg-emerald-50/20 p-1.5 text-right font-bold text-emerald-600">{money(row.sellPrice)}</td>
-                  <td className="p-1.5 text-center"><span className={`inline-flex rounded-md px-2.5 py-1 text-xs font-semibold ${text(row.status) === 'Draft' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>{text(row.status) || 'Pending'}</span></td>
+                  <td className="p-1.5 text-center">
+                    {getPlanStatus(row.status) === 'locked' ? (
+                      <button className="inline-flex h-8 items-center justify-center rounded-md bg-violet-600 px-3 text-xs font-semibold text-white hover:bg-violet-700" onClick={() => openPoSellForRow(text(row.id))} type="button">เปิด PO ขาย</button>
+                    ) : (
+                      <span className="text-xs font-semibold text-slate-400">รอล็อก</span>
+                    )}
+                  </td>
+                  <td className="p-1.5 text-center">
+                    <div className="flex flex-col items-center gap-1.5">
+                      {getPlanStatus(row.status) === 'locked' ? (
+                        <span className="inline-flex rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{getPlanStatusLabel(row.status)}</span>
+                      ) : (
+                        <>
+                          <span className="inline-flex rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">Pending</span>
+                          <button className="inline-flex h-8 items-center justify-center rounded-md bg-amber-500 px-3 text-xs font-semibold text-white hover:bg-amber-600" onClick={() => handlePlanStatusChange(text(row.id), 'locked')} type="button">Lock %</button>
+                        </>
+                      )}
+                      {text(row.id).startsWith('draft:') ? <button className="text-xs font-semibold text-rose-500 hover:text-rose-600" onClick={() => removeLocalPlanRow(text(row.id))} type="button">ลบ</button> : null}
+                    </div>
+                  </td>
                 </tr>
               ))}
               {!sortedPlanRows.length ? <tr><td className="py-8 text-center text-slate-400 font-semibold" colSpan={salesPlanColumns.length}>ยังไม่มีรายการในเดือนนี้</td></tr> : null}
@@ -799,7 +856,22 @@ export function SalesPlanPageClient() {
               </div>
               <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-xs text-slate-400 font-semibold">สถานะ:</span>
-                <span className={`rounded-md px-2.5 py-1 text-xs font-semibold ${text(row.status) === 'Draft' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>{text(row.status) || 'Pending'}</span>
+                {getPlanStatus(row.status) === 'locked' ? (
+                  <span className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{getPlanStatusLabel(row.status)}</span>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">Pending</span>
+                    <button className="inline-flex h-8 items-center justify-center rounded-md bg-amber-500 px-3 text-xs font-semibold text-white hover:bg-amber-600" onClick={() => handlePlanStatusChange(text(row.id), 'locked')} type="button">Lock %</button>
+                  </div>
+                )}
+              </div>
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-xs text-slate-400 font-semibold">PO ขาย:</span>
+                {getPlanStatus(row.status) === 'locked' ? (
+                  <button className="inline-flex h-8 items-center justify-center rounded-md bg-violet-600 px-3 text-xs font-semibold text-white hover:bg-violet-700" onClick={() => openPoSellForRow(text(row.id))} type="button">เปิด PO ขาย</button>
+                ) : (
+                  <span className="text-xs font-semibold text-slate-400">รอล็อก</span>
+                )}
               </div>
             </div>
           ))}
