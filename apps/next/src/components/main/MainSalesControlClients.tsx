@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 
@@ -43,6 +44,7 @@ type SalesPlanDraftForm = {
   containers: string
   customerName: string
   kgPerContainer: string
+  lmeCf: string
   productCode: string
   sellPctLme: string
 }
@@ -176,6 +178,12 @@ function num(value: unknown) {
   return typeof value === 'number' ? value : Number(value ?? 0)
 }
 
+function sanitizeDecimalInput(value: string) {
+  const normalized = value.replace(/,/g, '').replace(/[^0-9.]/g, '')
+  const [whole, ...decimalParts] = normalized.split('.')
+  return decimalParts.length ? `${whole}.${decimalParts.join('')}` : whole
+}
+
 function lmeBaseByMetalGroup(metalGroup: string, config: LmeConfig | null) {
   if (!config) return 0
   const group = metalGroup.toLowerCase()
@@ -276,6 +284,7 @@ export function SalesPlanPageClient() {
     containers: '1',
     customerName: '',
     kgPerContainer: '25000',
+    lmeCf: '',
     productCode: '',
     sellPctLme: '',
   })
@@ -320,11 +329,12 @@ export function SalesPlanPageClient() {
   const selectedDraftProduct = useMemo(() => productOptions.find((option) => option.code === planDraftForm.productCode) ?? null, [planDraftForm.productCode, productOptions])
   const draftKgPerContainer = Math.max(0, Number(planDraftForm.kgPerContainer || 0))
   const draftContainers = Math.max(0, Number(planDraftForm.containers || 0))
+  const parsedDraftLmeCf = Number(planDraftForm.lmeCf || 0)
+  const draftLmeCf = Number.isFinite(parsedDraftLmeCf) ? Math.max(0, parsedDraftLmeCf) : 0
   const draftSellPct = Math.max(0, Number(planDraftForm.sellPctLme || 0))
   const draftTotalKg = draftContainers * draftKgPerContainer
-  const draftLme = selectedDraftProduct ? lmeBaseByMetalGroup(selectedDraftProduct.metalGroup, lmeForm) : 0
   const draftFx = lmeForm?.fxRate ?? 0
-  const draftSellPrice = draftLme > 0 ? (draftLme / 1000) * draftFx * (draftSellPct / 100) : 0
+  const draftSellPrice = draftLmeCf > 0 ? (draftLmeCf / 1000) * draftFx * (draftSellPct / 100) : 0
   const filteredServerPlanRows = useMemo(() => (data?.planRows ?? [])
     .filter((row) => !filterGroup || text(row.metalGroup).includes(filterGroup))
     .filter((row) => !filterChannel || text(row.channel) === filterChannel), [data?.planRows, filterChannel, filterGroup])
@@ -487,6 +497,7 @@ export function SalesPlanPageClient() {
       containers: '1',
       customerName: '',
       kgPerContainer: String(lmeForm?.kgPerContainer ?? data?.lmeConfig.kgPerContainer ?? 25000),
+      lmeCf: '',
       productCode: '',
       sellPctLme: '',
     })
@@ -512,6 +523,15 @@ export function SalesPlanPageClient() {
     setIsPlanFormOpen(true)
   }
 
+  function handleDraftProductChange(productCode: string) {
+    const product = productOptions.find((option) => option.code === productCode)
+    setPlanDraftForm((current) => ({
+      ...current,
+      lmeCf: product ? String(lmeBaseByMetalGroup(product.metalGroup, lmeForm)) : '',
+      productCode,
+    }))
+  }
+
   function handlePlanStatusChange(rowId: string, nextStatus: 'locked' | 'pending') {
     setPlanStatusOverrides((current) => ({ ...current, [rowId]: nextStatus }))
   }
@@ -529,13 +549,15 @@ export function SalesPlanPageClient() {
       setPlanDraftError('จำนวนตู้และ กก./ตู้ ต้องมากกว่า 0')
       return
     }
+    if (draftLmeCf <= 0) {
+      setPlanDraftError('กรอก LME cf มากกว่า 0')
+      return
+    }
     if (draftSellPct <= 0) {
       setPlanDraftError('กรอก % LME มากกว่า 0')
       return
     }
 
-    const projectedProfit = draftTotalKg * (draftSellPrice - selectedDraftProduct.wac)
-    const projectedMarginPct = draftSellPrice > 0 ? ((draftSellPrice - selectedDraftProduct.wac) / draftSellPrice) * 100 : 0
     setLocalPlanRows((rows) => [{
       channel: planDraftForm.channel,
       containers: draftContainers,
@@ -544,12 +566,10 @@ export function SalesPlanPageClient() {
       fx: draftFx,
       id: `draft:${Date.now()}:${selectedDraftProduct.code}`,
       kgPerContainer: draftKgPerContainer,
-      lme: draftLme,
+      lme: draftLmeCf,
       metalGroup: selectedDraftProduct.metalGroup,
       productId: selectedDraftProduct.code,
       productName: selectedDraftProduct.name,
-      projectedMarginPct,
-      projectedProfit,
       sellPctLme: draftSellPct,
       sellPrice: draftSellPrice,
       status: 'pending',
@@ -628,20 +648,19 @@ export function SalesPlanPageClient() {
         <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3 text-xs font-semibold text-slate-600">
           📝 ตารางวางแผน — เพิ่มแผนแล้วเริ่มที่ `Pending` ก่อน จากนั้นค่อยกด `Lock %` เองเมื่อพร้อม และคอลัมน์ `PO ขาย` จะแยกต่างหาก
         </div>
-        {isPlanFormOpen ? (
-          <div className="border-b border-slate-100 bg-amber-50/40 p-4">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-bold text-slate-800">+ เพิ่มแผนขาย</div>
-                  <div className="text-xs text-slate-500">รอบนี้บันทึกเป็น draft บนหน้าจอก่อน เพื่อให้เริ่มวางแผนและเห็นตัวเลขในตารางได้ทันที</div>
-                </div>
-                <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" onClick={() => setIsPlanFormOpen(false)} type="button">ปิดฟอร์ม</button>
-              </div>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <Dialog open={isPlanFormOpen} onOpenChange={setIsPlanFormOpen}>
+          <DialogContent className="max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" fallbackTitle="เพิ่มแผนขาย" hideClose>
+            <DialogHeader className="border-b border-slate-800 px-5 py-4">
+              <DialogTitle className="text-lg font-bold text-slate-100">+ เพิ่มแผนขาย</DialogTitle>
+              <p className="text-xs text-slate-400">บันทึกเป็น draft บนหน้าจอก่อน เพื่อให้เริ่มวางแผนและเห็นตัวเลขในตารางได้ทันที</p>
+            </DialogHeader>
+            <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4 text-sm sm:p-5">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <h4 className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">รายละเอียดแผนขาย</h4>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
                 <label className="text-xs font-bold text-slate-600">
                   <span className="mb-1 block">สินค้า</span>
-                  <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={planDraftForm.productCode} onChange={(event) => setPlanDraftForm((current) => ({ ...current, productCode: event.target.value }))}>
+                  <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={planDraftForm.productCode} onChange={(event) => handleDraftProductChange(event.target.value)}>
                     <option value="">เลือกสินค้า</option>
                     {productOptions.map((option) => (
                       <option key={option.code} value={option.code}>{option.name} ({option.code})</option>
@@ -669,25 +688,30 @@ export function SalesPlanPageClient() {
                   <input className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-right text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" min="0" onChange={(event) => setPlanDraftForm((current) => ({ ...current, kgPerContainer: event.target.value }))} type="number" value={planDraftForm.kgPerContainer} />
                 </label>
                 <label className="text-xs font-bold text-slate-600">
+                  <span className="mb-1 block">LME cf (USD/MT)</span>
+                  <input className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-right text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" inputMode="decimal" onChange={(event) => setPlanDraftForm((current) => ({ ...current, lmeCf: sanitizeDecimalInput(event.target.value) }))} placeholder="0.00" value={planDraftForm.lmeCf} />
+                </label>
+                <label className="text-xs font-bold text-slate-600">
                   <span className="mb-1 block">% LME</span>
                   <input className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-right text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" min="0" onChange={(event) => setPlanDraftForm((current) => ({ ...current, sellPctLme: event.target.value }))} type="number" value={planDraftForm.sellPctLme} />
                 </label>
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
                 <PendingStatCard label="หมวด" sublabel="อิงจากสินค้า" value={selectedDraftProduct?.metalGroup || '-'} />
                 <PendingStatCard label="รวม กก." sublabel="ตู้ x กก./ตู้" value={`${money(draftTotalKg)} กก.`} />
-                <PendingStatCard label="LME / FX" sublabel={`${money(draftLme)} USD/MT`} value={money(draftFx)} />
+                <PendingStatCard label="LME cf / FX" sublabel={`${money(draftLmeCf)} USD/MT`} value={money(draftFx)} />
                 <PendingStatCard label="ราคา THB/kg" sublabel={`ที่ ${money(draftSellPct)}% LME`} value={money(draftSellPrice)} />
-                <PendingStatCard label="กำไรคาดการณ์" sublabel={selectedDraftProduct ? `WAC ${money(selectedDraftProduct.wac)}` : 'เลือกสินค้าเพื่อคำนวณ'} tone={selectedDraftProduct && draftSellPrice - selectedDraftProduct.wac < 0 ? 'danger' : 'success'} value={selectedDraftProduct ? money(draftTotalKg * (draftSellPrice - selectedDraftProduct.wac)) : '-'} />
               </div>
               {planDraftError ? <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-600">{planDraftError}</div> : null}
-              <div className="flex flex-wrap justify-end gap-2">
-                <button className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={resetPlanDraftForm} type="button">ล้างฟอร์ม</button>
-                <button className="h-10 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700" onClick={addDraftPlan} type="button">เพิ่มเข้าตาราง</button>
-              </div>
             </div>
-          </div>
-        ) : null}
+            <DialogFooter className="shrink-0">
+              <button className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={resetPlanDraftForm} type="button">ล้างฟอร์ม</button>
+              <button className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={() => setIsPlanFormOpen(false)} type="button">ยกเลิก</button>
+              <button className="h-10 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800" onClick={addDraftPlan} type="button">เพิ่มเข้าตาราง</button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Desktop view */}
         {planResize.hasCustomWidths ? (

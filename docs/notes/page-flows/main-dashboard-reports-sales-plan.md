@@ -113,6 +113,7 @@ sales plan/LME planning ก่อน PO Sell/stock issue
 | `ลูกค้า` | กรอกข้อความชื่อคู่ค้าโดยตรง | Yes |
 | `จำนวนตู้` | กรอกจำนวนตู้ | Yes |
 | `กก./ตู้` | default จาก `LME Reference Pricing.kgPerContainer` แต่แก้ได้ในฟอร์ม | Yes |
+| `LME cf (USD/MT)` | default จาก LME ตามหมวดสินค้าที่เลือก แต่ผู้ใช้แก้ได้สำหรับแผนนี้ | Yes |
 | `% LME` | กรอกเปอร์เซ็นต์ที่ใช้คำนวณราคาเสนอขาย | Yes |
 
 ### Default Values
@@ -121,6 +122,7 @@ sales plan/LME planning ก่อน PO Sell/stock issue
 - `จำนวนตู้` default เป็น `1`
 - `กก./ตู้` default จากค่า `LME Reference Pricing` ล่าสุด
 - `ลูกค้า` เริ่มว่าง
+- `LME cf` เริ่มว่าง และเติมค่า LME ตามหมวดทันทีเมื่อเลือกสินค้า
 - `% LME` เริ่มว่าง
 
 ### Derived / Read-Only Preview
@@ -131,9 +133,8 @@ sales plan/LME planning ก่อน PO Sell/stock issue
 |---|---|
 | `หมวด` | มาจากสินค้า (`metalGroup`) |
 | `รวม กก.` | `จำนวนตู้ x กก./ตู้` |
-| `LME / FX` | LME base ของ metal group + FX ล่าสุด |
-| `ราคา THB/kg` | `(LME / 1000) x FX x (%LME / 100)` |
-| `กำไรคาดการณ์` | `รวม กก. x (ราคา THB/kg - WAC)` |
+| `LME cf / FX` | LME cf ที่ระบุในแผน + FX ล่าสุด |
+| `ราคา THB/kg` | `(LME cf / 1000) x FX x (%LME / 100)` |
 
 ### Validation Rules
 
@@ -141,6 +142,7 @@ sales plan/LME planning ก่อน PO Sell/stock issue
 - ต้องกรอก `ลูกค้า`
 - `จำนวนตู้` ต้องมากกว่า 0
 - `กก./ตู้` ต้องมากกว่า 0
+- `LME cf` ต้องมากกว่า 0
 - `% LME` ต้องมากกว่า 0
 - ถ้า validation ไม่ผ่าน ต้องไม่เพิ่ม row ลงตาราง draft
 
