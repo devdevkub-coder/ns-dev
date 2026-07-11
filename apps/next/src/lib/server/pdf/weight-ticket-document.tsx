@@ -740,7 +740,7 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
                   </View>
                   <View style={styles.field}>
                     <Text style={styles.fieldLabel}>{nt('โกดัง')}</Text>
-                    <Text style={styles.fieldValue}>{nt(ticket.warehouseName || '-')}</Text>
+                    <Text style={styles.fieldValue}>{nt(ticket.godownName || '-')}</Text>
                   </View>
                 </View>
               </View>

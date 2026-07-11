@@ -24,7 +24,7 @@ export type WeightTicketQuery = {
   page: number
   pageSize: number
   search?: string
-  sortBy: 'createdAt' | 'documentNo' | 'netWeight' | 'partyName' | 'branchName' | 'vehicleNo' | 'warehouseName' | 'deductionWeight' | 'impurityDeduction' | 'status' | 'updatedAt'
+  sortBy: 'createdAt' | 'documentNo' | 'netWeight' | 'partyName' | 'branchName' | 'vehicleNo' | 'godownName' | 'deductionWeight' | 'impurityDeduction' | 'status' | 'updatedAt'
   sortDir: 'asc' | 'desc'
   statuses: string[]
   type?: string
@@ -199,7 +199,7 @@ export function parseWeightTicketQuery(url: URL): WeightTicketQuery {
     'partyName',
     'branchName',
     'vehicleNo',
-    'warehouseName',
+    'godownName',
     'deductionWeight',
     'impurityDeduction',
     'status',
@@ -240,8 +240,8 @@ export function weightTicketOrderBy(query: WeightTicketQuery): Prisma.weight_tic
   if (query.sortBy === 'vehicleNo') {
     return [{ vehicle_no: direction }, { created_at: 'desc' }]
   }
-  if (query.sortBy === 'warehouseName') {
-    return [{ warehouse_name: direction }, { created_at: 'desc' }]
+  if (query.sortBy === 'godownName') {
+    return [{ godown_name: direction }, { created_at: 'desc' }]
   }
   if (query.sortBy === 'deductionWeight') {
     return [{ container_deduction_weight: direction }, { created_at: 'desc' }]
@@ -1013,7 +1013,7 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     vehicleImageCount: row.vehicle_image_count ?? 0,
     vehicleImageNames: row.vehicle_image_names ?? [],
     vehicleNo: row.vehicle_no,
-    warehouseName: row.warehouse_name ?? '',
+    godownName: row.godown_name,
   }
 }
 

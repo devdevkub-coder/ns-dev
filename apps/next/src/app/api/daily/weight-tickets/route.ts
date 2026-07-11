@@ -99,7 +99,7 @@ async function buildWeightTicketWorkbook(rows: WeightTicketMappedRow[]) {
     คู่ค้า: row.partyName,
     สาขา: row.branchName,
     ทะเบียนรถ: row.vehicleNo,
-    คลัง: row.warehouseName,
+    โกดัง: row.godownName,
     น้ำหนักรวม: row.totals.grossWeight,
     หักภาชนะ: row.totals.containerDeductionWeight,
     น้ำหนักสุทธิ: row.totals.netWeight,
@@ -296,6 +296,7 @@ export async function POST(request: Request) {
           entered_by: enteredBy,
           container_deduction_weight: totals.containerDeductionWeight,
           gross_weight: totals.grossWeight,
+          godown_name: values.godownName,
           image_count: values.vehicleImageNames.length,
           net_weight: totals.netWeight,
           party_name: partySnapshot.partyName,
@@ -328,12 +329,9 @@ export async function POST(request: Request) {
       if (bridgeRows.length) {
         await tx.weight_ticket_product_summary_lines.createMany({ data: bridgeRows })
       }
-      const warehouseName = values.warehouseName || null
-
       await tx.weight_tickets.update({
         data: { 
           image_count: imageCount,
-          warehouse_name: warehouseName,
         },
         where: { id: createdTicket.id },
       })

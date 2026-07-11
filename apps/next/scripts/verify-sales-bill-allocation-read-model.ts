@@ -73,6 +73,7 @@ async function main() {
         doc_type: 'WTO',
         document_date: today,
         entered_by: 'QA allocation verifier',
+        godown_name: `${qaPrefix} Godown`,
         gross_weight: 105,
         net_weight: 100,
         party_name: customer.name,

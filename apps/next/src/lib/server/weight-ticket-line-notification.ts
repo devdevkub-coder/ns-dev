@@ -359,8 +359,7 @@ function buildFlexMessage(
     docTimeStr = '--:--'
   }
 
-  const uniqueWarehouses = [...new Set(ticket.lines.map(l => l.warehouseName).filter(Boolean))]
-  const warehouseDisplay = ticket.warehouseName || (uniqueWarehouses.length > 0 ? uniqueWarehouses.join(', ') : '-')
+  const godownDisplay = ticket.godownName
 
   const productTypesCount = ticket.productSummaries?.length || 1
   const productDetailRows = buildProductDetailRows(ticket)
@@ -455,7 +454,7 @@ function buildFlexMessage(
                 },
                 {
                   type: 'text' as const,
-                  text: warehouseDisplay,
+                  text: godownDisplay,
                   color: '#0f172a',
                   size: 'sm' as const,
                   weight: 'bold' as const,
@@ -737,7 +736,7 @@ function buildFlexMessage(
                     },
                     {
                       type: 'text' as const,
-                      text: `โกดัง ${warehouseDisplay}`,
+                      text: `โกดัง ${godownDisplay}`,
                       color: isWti ? '#a7f3d0' : '#bae6fd',
                       size: 'xxs' as const
                     }

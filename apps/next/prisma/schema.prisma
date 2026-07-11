@@ -2867,7 +2867,7 @@ model weight_tickets {
   customer_id                       BigInt?
   id                                BigInt                              @id @default(autoincrement())
   container_deduction_weight        Decimal                             @default(0) @db.Decimal(18, 2)
-  warehouse_name                    String?
+  godown_name                       String
   purchase_bill_receipt_allocations purchase_bill_receipt_allocations[]
   sales_bill_source_allocations     sales_bill_source_allocations[]
   stock_holds                       stock_holds[]

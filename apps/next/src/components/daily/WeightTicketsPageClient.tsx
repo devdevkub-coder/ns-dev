@@ -61,7 +61,7 @@ type FormState = {
   type: WeightTicketType
   vehicleImageFiles: AttachmentPreview[]
   vehicleNo: string
-  warehouseName: string
+  godownName: string
 }
 
 type WeightTicketOptionsPayload = {
@@ -112,7 +112,7 @@ function initialForm(type: WeightTicketType = 'WTI'): FormState {
     type,
     vehicleImageFiles: [],
     vehicleNo: '',
-    warehouseName: '',
+    godownName: '',
   }
 }
 
@@ -123,7 +123,7 @@ function hasEnteredTicketData(form: FormState) {
     || form.remark.trim()
     || form.vehicleNo.trim()
     || form.vehicleImageFiles.length
-    || form.warehouseName.trim()
+    || form.godownName.trim()
     || form.lines.some((line) => (
       line.productId
       || line.grossWeight
@@ -410,7 +410,7 @@ function ticketToFormState(ticket: WeightTicketRecord): FormState {
     type: ticket.type,
     vehicleImageFiles: ticket.vehicleImageNames.map(createAttachmentPreview),
     vehicleNo: ticket.vehicleNo,
-    warehouseName: ticket.warehouseName ?? '',
+    godownName: ticket.godownName,
   }
 }
 
@@ -797,7 +797,7 @@ export function WeightTicketsPageClient({
     if (!form.branchId) next.branchId = 'เลือกสาขา'
     if (!form.partyId) next.partyId = form.type === 'WTI' ? 'เลือกผู้ขาย' : 'เลือกลูกค้า'
     if (form.vehicleNo.trim().length < 2) next.vehicleNo = 'กรอกทะเบียนรถ'
-    if (form.type === 'WTI' && (!form.warehouseName || form.warehouseName.trim().length === 0)) next.warehouseName = 'กรอกโกดัง'
+    if (!form.godownName || form.godownName.trim().length === 0) next.godownName = 'กรอกโกดัง'
 
     const parentLines = getMainParentLines(form.lines)
 
@@ -1247,7 +1247,7 @@ export function WeightTicketsPageClient({
         type: form.type,
         vehicleImageNames: form.vehicleImageFiles.map((file) => file.rawValue),
         vehicleNo: form.vehicleNo.trim(),
-        warehouseName: form.warehouseName.trim() || null,
+        godownName: form.godownName.trim(),
       })
       setLoadError('')
       setLoadedTicket(ticket)
@@ -1420,13 +1420,13 @@ export function WeightTicketsPageClient({
                   onChange={(event) => updateForm('vehicleNo', normalizeVehicleNo(event.target.value))}
                 />
               </FieldBlock>
-              <FieldBlock error={showError('warehouseName')} label={form.type === 'WTI' ? "โกดัง*" : "โกดัง"}>
-                <Input
-                  placeholder="เช่น โกดัง A"
-                  value={form.warehouseName}
-                  onBlur={() => markTouched('warehouseName')}
-                  onChange={(event) => updateForm('warehouseName', event.target.value)}
-                />
+	              <FieldBlock error={showError('godownName')} label="โกดัง*">
+	                <Input
+	                  placeholder="เช่น โกดัง A"
+	                  value={form.godownName}
+	                  onBlur={() => markTouched('godownName')}
+	                  onChange={(event) => updateForm('godownName', event.target.value)}
+	                />
               </FieldBlock>
               <FieldBlock label="รูปภาพรถส่งของ">
                 <AttachmentProfileGrid

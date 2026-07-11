@@ -140,7 +140,7 @@ export type WeightTicketRecord = {
   vehicleImageCount: number
   vehicleImageNames: string[]
   vehicleNo: string
-  warehouseName?: string | null
+  godownName: string
 }
 
 export type OptionItem = {
@@ -155,7 +155,7 @@ export type OptionItem = {
   searchText?: string
 }
 
-export type WeightTicketSortBy = 'createdAt' | 'documentNo' | 'partyName' | 'netWeight' | 'branchName' | 'vehicleNo' | 'warehouseName' | 'deductionWeight' | 'impurityDeduction' | 'status' | 'updatedAt'
+export type WeightTicketSortBy = 'createdAt' | 'documentNo' | 'partyName' | 'netWeight' | 'branchName' | 'vehicleNo' | 'godownName' | 'deductionWeight' | 'impurityDeduction' | 'status' | 'updatedAt'
 export type WeightTicketSortDir = 'asc' | 'desc'
 
 export type StoredImageAsset = {
@@ -314,17 +314,8 @@ export const weightTicketFormSchema = z.object({
     .min(2, 'กรอกทะเบียนรถ')
     .max(24, 'ทะเบียนรถยาวเกินไป')
     .regex(/^[\p{L}\p{M}\p{N}\s.-]+$/u, 'ทะเบียนรถมีรูปแบบไม่ถูกต้อง'),
-  warehouseName: z.string().trim().max(100, 'ชื่อโกดังยาวเกินไป').optional().nullable(),
+  godownName: z.string().trim().min(1, 'กรอกโกดัง').max(100, 'ชื่อโกดังยาวเกินไป'),
 }).superRefine((value, ctx) => {
-  if (value.type === 'WTI') {
-    if (!value.warehouseName || value.warehouseName.trim().length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'กรอกโกดัง',
-        path: ['warehouseName'],
-      })
-    }
-  }
   if (value.type !== 'WTO') return
   const parentBucketByKey = new Map<string, number>()
   value.lines.forEach((line, index) => {
@@ -522,7 +513,7 @@ export const weightTicketRecordSchema = z.object({
   vehicleImageCount: z.number().int().nonnegative(),
   vehicleImageNames: z.array(z.string()),
   vehicleNo: z.string(),
-  warehouseName: z.string().optional().nullable(),
+  godownName: z.string(),
 })
 
 const weightTicketListResultSchema = z.object({

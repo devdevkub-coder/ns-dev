@@ -272,6 +272,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           doc_no: docNo,
           doc_type: values.type,
           gross_weight: totals.grossWeight,
+          godown_name: values.godownName,
           image_count: values.vehicleImageNames.length,
           net_weight: totals.netWeight,
           party_name: partySnapshot.partyName,
@@ -356,12 +357,9 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       if (bridgeRows.length) {
         await tx.weight_ticket_product_summary_lines.createMany({ data: bridgeRows })
       }
-      const warehouseName = values.warehouseName || null
-
       await tx.weight_tickets.update({
-        data: { 
+        data: {
           image_count: imageCount,
-          warehouse_name: warehouseName,
         },
         where: { id: existing.id },
       })
