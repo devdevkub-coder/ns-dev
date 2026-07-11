@@ -24,6 +24,7 @@ export function SearchCombobox({
   label,
   options,
   optionsPanelClassName,
+  openOnFocus = true,
   placeholder,
   value,
   onChange,
@@ -38,6 +39,7 @@ export function SearchCombobox({
   label: string
   options: SearchComboboxOption[]
   optionsPanelClassName?: string
+  openOnFocus?: boolean
   placeholder?: string
   value: string
   onChange: (optionId: string) => void
@@ -238,6 +240,7 @@ export function SearchCombobox({
         value={query}
         onClick={() => {
           if (disabled) return
+          setOpen(true)
           if (!isSelectedValueQuery) return
           if (!shouldAutoSelectText()) return
           requestAnimationFrame(() => inputRef.current?.select())
@@ -255,7 +258,7 @@ export function SearchCombobox({
         }}
         onFocus={() => {
           if (disabled) return
-          setOpen(true)
+          if (openOnFocus) setOpen(true)
           if (!isSelectedValueQuery) return
           if (!shouldAutoSelectText()) return
           requestAnimationFrame(() => inputRef.current?.select())

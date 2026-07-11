@@ -717,6 +717,7 @@ export function SalesPlanPageClient() {
                   inputClassName="h-10 text-sm font-medium text-slate-700"
                   inputId="sales-plan-draft-product"
                   label="สินค้า *"
+                  openOnFocus={false}
                   options={productOptions.map((option) => ({
                     id: option.code,
                     label: `${option.code} - ${option.name}`,
