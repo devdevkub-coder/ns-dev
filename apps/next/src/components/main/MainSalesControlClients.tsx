@@ -9,10 +9,13 @@ import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiC
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { ArrowLeft, Download, RotateCcw, Search } from 'lucide-react'
 
 type AnyRow = Record<string, number | string | boolean | null | undefined>
 type SortDirection = 'asc' | 'desc'
+type CommissionDetailTab = 'categoryCommission' | 'categoryTotal' | 'supplier' | 'items'
 type TableColumn<TKey extends string> = ResizableColumnDefinition<TKey> & { align?: 'center' | 'left' | 'right'; label: string }
 type SalesPlanColumnKey = 'channel' | 'containers' | 'customerName' | 'fx' | 'kgPerContainer' | 'lme' | 'productName' | 'sellPctLme' | 'sellPrice' | 'status' | 'totalKg'
 type SalesPlanAnalysisColumnKey = 'bestPlanPct' | 'bestPlanPrice' | 'lockedKg' | 'metalGroup' | 'name' | 'projectedMarginPct' | 'projectedProfit' | 'recommendation' | 'remainingKg' | 'stock' | 'wac'
@@ -21,6 +24,7 @@ type CommissionCategoryColumnKey = 'amount' | 'category' | 'qty'
 type CommissionSupplierColumnKey = 'amount' | 'bills' | 'pct' | 'qty' | 'supplier'
 type CommissionBillColumnKey = 'amount' | 'commissionStatus' | 'date' | 'docNo' | 'price' | 'productName' | 'profitDiff' | 'qty' | 'salesPrice' | 'supplierName'
 type CommissionSummaryColumnKey = 'amount' | 'category' | 'qty' | 'salesName'
+type CommissionStatusFilter = 'all' | 'commissionable' | 'nonCommissionable'
 type LmeConfig = {
   fxRate: number
   kgPerContainer: number
@@ -101,6 +105,9 @@ type CommissionPayload = {
   totals: Record<string, number>
 }
 
+const detailPageSizeOptions = [10, 25, 50] as const
+type DetailPageSize = (typeof detailPageSizeOptions)[number]
+
 const salesPlanColumns: Array<TableColumn<SalesPlanColumnKey>> = [
   { key: 'productName', label: 'สินค้า', defaultWidth: 220, minWidth: 160 },
   { key: 'channel', label: 'ช่องทาง', defaultWidth: 125, minWidth: 105, align: 'center' },
@@ -145,16 +152,16 @@ const commissionCategoryColumns: Array<TableColumn<CommissionCategoryColumnKey>>
   { key: 'amount', label: 'ยอดซื้อ (บาท)', defaultWidth: 150, minWidth: 125, align: 'right' },
 ]
 const commissionSupplierColumns: Array<TableColumn<CommissionSupplierColumnKey>> = [
-  { key: 'supplier', label: 'Supplier', defaultWidth: 260, minWidth: 180 },
+  { key: 'supplier', label: 'ผู้ขาย', defaultWidth: 260, minWidth: 180 },
   { key: 'bills', label: 'บิล', defaultWidth: 95, minWidth: 80, align: 'right' },
   { key: 'qty', label: 'น้ำหนัก (กก.)', defaultWidth: 140, minWidth: 115, align: 'right' },
   { key: 'amount', label: 'ยอดรับซื้อ (บาท)', defaultWidth: 160, minWidth: 130, align: 'right' },
-  { key: 'pct', label: '% ของ Total', defaultWidth: 130, minWidth: 110, align: 'right' },
+  { key: 'pct', label: '% ของทั้งหมด', defaultWidth: 130, minWidth: 110, align: 'right' },
 ]
 const commissionBillColumns: Array<TableColumn<CommissionBillColumnKey>> = [
   { key: 'date', label: 'วันที่', defaultWidth: 115, minWidth: 100 },
   { key: 'docNo', label: 'เลขที่บิล', defaultWidth: 140, minWidth: 115 },
-  { key: 'supplierName', label: 'Supplier', defaultWidth: 200, minWidth: 150 },
+  { key: 'supplierName', label: 'ผู้ขาย', defaultWidth: 200, minWidth: 150 },
   { key: 'productName', label: 'สินค้า', defaultWidth: 220, minWidth: 160 },
   { key: 'qty', label: 'น้ำหนัก (กก.)', defaultWidth: 130, minWidth: 110, align: 'right' },
   { key: 'price', label: 'ราคาซื้อ', defaultWidth: 120, minWidth: 100, align: 'right' },
@@ -164,10 +171,10 @@ const commissionBillColumns: Array<TableColumn<CommissionBillColumnKey>> = [
   { key: 'commissionStatus', label: 'สถานะค่าคอม', defaultWidth: 150, minWidth: 125, align: 'center' },
 ]
 const commissionSummaryColumns: Array<TableColumn<CommissionSummaryColumnKey>> = [
-  { key: 'salesName', label: 'Sales', defaultWidth: 220, minWidth: 160 },
+  { key: 'salesName', label: 'พนักงานขาย', defaultWidth: 220, minWidth: 160 },
   { key: 'category', label: 'ประเภท / หมวดสินค้า', defaultWidth: 260, minWidth: 180 },
-  { key: 'qty', label: 'จำนวน KG', defaultWidth: 140, minWidth: 115, align: 'right' },
-  { key: 'amount', label: 'มูลค่ารวม (บาท)', defaultWidth: 160, minWidth: 130, align: 'right' },
+  { key: 'qty', label: 'ยอดซื้อ (กก.)', defaultWidth: 140, minWidth: 115, align: 'right' },
+  { key: 'amount', label: 'ยอดรับซื้อ (บาท)', defaultWidth: 160, minWidth: 130, align: 'right' },
 ]
 
 function money(value: unknown) {
@@ -204,6 +211,14 @@ function dateTime(value: string | null | undefined) {
   }).format(parsed)
 }
 
+function currentMonthDateRange() {
+  const date = new Date()
+  return {
+    from: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`,
+    to: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+  }
+}
+
 function compareSortValues(left: string | number, right: string | number) {
   if (typeof left === 'number' && typeof right === 'number') {
     return left - right
@@ -235,6 +250,23 @@ function sortedByKey<TRow, TKey extends string>(
     const result = compareSortValues(getValue(left, key), getValue(right, key))
     return direction === 'asc' ? result : -result
   })
+}
+
+function normalizeSearch(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function totalPagesFor(totalRows: number, pageSize: number) {
+  return Math.max(1, Math.ceil(totalRows / pageSize))
+}
+
+function safePageFor(page: number, totalRows: number, pageSize: number) {
+  return Math.min(Math.max(1, page), totalPagesFor(totalRows, pageSize))
+}
+
+function pagedRows<TRow>(rows: TRow[], page: number, pageSize: number) {
+  const safePage = safePageFor(page, rows.length, pageSize)
+  return rows.slice((safePage - 1) * pageSize, safePage * pageSize)
 }
 
 function csvEscape(value: string) {
@@ -1140,25 +1172,31 @@ function PendingStatCard({ label, sublabel, tone = 'neutral', value }: { label: 
 
 export function SalesCommissionPageClient() {
   const latestLoadRequestRef = useRef(0)
-  const [from, setFrom] = useState(() => {
-    const date = new Date()
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`
-  })
-  const [to, setTo] = useState(() => {
-    const date = new Date()
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-  })
+  const [from, setFrom] = useState(() => currentMonthDateRange().from)
+  const [to, setTo] = useState(() => currentMonthDateRange().to)
   const [branchId, setBranchId] = useState('')
   const [selectedSales, setSelectedSales] = useState('')
   const [data, setData] = useState<CommissionPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [showCommissionMobileFilters, setShowCommissionMobileFilters] = useState(false)
+  const [detailTab, setDetailTab] = useState<CommissionDetailTab>('categoryTotal')
 
   // Filters for tables in drilldown or overview
   const [summarySalesFilter, setSummarySalesFilter] = useState('ALL')
+  const [summaryPage, setSummaryPage] = useState(1)
+  const [summaryPageSize, setSummaryPageSize] = useState<DetailPageSize>(10)
+  const [table1Search, setTable1Search] = useState('')
+  const [table1Page, setTable1Page] = useState(1)
+  const [table1PageSize, setTable1PageSize] = useState<DetailPageSize>(10)
+  const [table2Search, setTable2Search] = useState('')
+  const [table2Page, setTable2Page] = useState(1)
+  const [table2PageSize, setTable2PageSize] = useState<DetailPageSize>(10)
+  const [table3Search, setTable3Search] = useState('')
   const [table3Page, setTable3Page] = useState(1)
+  const [table3PageSize, setTable3PageSize] = useState<DetailPageSize>(10)
   const [table4Page, setTable4Page] = useState(1)
+  const [table4PageSize, setTable4PageSize] = useState<DetailPageSize>(10)
   const [table1SortKey, setTable1SortKey] = useState<CommissionCategoryColumnKey | null>(null)
   const [table1SortDir, setTable1SortDir] = useState<SortDirection>('asc')
   const [table2SortKey, setTable2SortKey] = useState<CommissionCategoryColumnKey | null>(null)
@@ -1170,6 +1208,7 @@ export function SalesCommissionPageClient() {
   const [summarySortKey, setSummarySortKey] = useState<CommissionSummaryColumnKey | null>(null)
   const [summarySortDir, setSummarySortDir] = useState<SortDirection>('asc')
   const [table4Search, setTable4Search] = useState('')
+  const [table4CommissionFilter, setTable4CommissionFilter] = useState<CommissionStatusFilter>('all')
   const table1Resize = useResizableColumns('main.sales-commission.category-all.v1', commissionCategoryColumns)
   const table2Resize = useResizableColumns('main.sales-commission.category-commissionable.v1', commissionCategoryColumns)
   const table3Resize = useResizableColumns('main.sales-commission.suppliers.v1', commissionSupplierColumns)
@@ -1207,7 +1246,6 @@ export function SalesCommissionPageClient() {
   const sales = (data?.salesRows ?? []).find((row) => text(row.id) === selectedSales)
   const billRows = (data?.billRows ?? []).filter((row) => text(row.salesId) === selectedSales)
 
-  // Table 1: ยอดซื้อรวมตามหมวดสินค้า
   const table1Data = useMemo(() => {
     const groups: Record<string, { qty: number; amount: number }> = {}
     billRows.forEach((row) => {
@@ -1219,7 +1257,6 @@ export function SalesCommissionPageClient() {
     return Object.entries(groups).map(([category, d]) => ({ category, ...d }))
   }, [billRows])
 
-  // Table 2: ยอดซื้อที่ได้รับค่าคอมมิชชั่นตามหมวดสินค้า
   const table2Data = useMemo(() => {
     const groups: Record<string, { qty: number; amount: number }> = {}
     billRows.filter((row) => row.isCommissionable).forEach((row) => {
@@ -1230,10 +1267,20 @@ export function SalesCommissionPageClient() {
     })
     return Object.entries(groups).map(([category, d]) => ({ category, ...d }))
   }, [billRows])
-  const sortedTable1Data = useMemo(() => sortedByKey(table1Data, table1SortKey, table1SortDir, (row, key) => row[key]), [table1Data, table1SortDir, table1SortKey])
-  const sortedTable2Data = useMemo(() => sortedByKey(table2Data, table2SortKey, table2SortDir, (row, key) => row[key]), [table2Data, table2SortDir, table2SortKey])
+  const table1FilteredData = useMemo(() => {
+    const query = normalizeSearch(table1Search)
+    if (!query) return table1Data
+    return table1Data.filter((row) => row.category.toLowerCase().includes(query))
+  }, [table1Data, table1Search])
+  const table2FilteredData = useMemo(() => {
+    const query = normalizeSearch(table2Search)
+    if (!query) return table2Data
+    return table2Data.filter((row) => row.category.toLowerCase().includes(query))
+  }, [table2Data, table2Search])
+  const sortedTable1Data = useMemo(() => sortedByKey(table1FilteredData, table1SortKey, table1SortDir, (row, key) => row[key]), [table1FilteredData, table1SortDir, table1SortKey])
+  const sortedTable2Data = useMemo(() => sortedByKey(table2FilteredData, table2SortKey, table2SortDir, (row, key) => row[key]), [table2FilteredData, table2SortDir, table2SortKey])
 
-  // Table 3: Supplier ในความดูแล
+  // Supplier drilldown rows.
   const table3Data = useMemo(() => {
     const groups: Record<string, { billNos: Set<string>; qty: number; amount: number }> = {}
     billRows.forEach((row) => {
@@ -1252,19 +1299,26 @@ export function SalesCommissionPageClient() {
       pct: (d.amount / totalAmount) * 100
     }))
   }, [billRows, sales])
+  const table3FilteredData = useMemo(() => {
+    const query = normalizeSearch(table3Search)
+    if (!query) return table3Data
+    return table3Data.filter((row) => row.supplier.toLowerCase().includes(query))
+  }, [table3Data, table3Search])
 
-  // Table 4: รายการสินค้าละเอียด (filtered by search input)
+  // Item drilldown rows.
   const table4FilteredData = useMemo(() => {
     const searchLower = table4Search.trim().toLowerCase()
-    if (!searchLower) return billRows
     return billRows.filter((row) => {
+      if (table4CommissionFilter === 'commissionable' && !row.isCommissionable) return false
+      if (table4CommissionFilter === 'nonCommissionable' && row.isCommissionable) return false
+      if (!searchLower) return true
       return (
         text(row.docNo).toLowerCase().includes(searchLower) ||
         text(row.supplierName).toLowerCase().includes(searchLower) ||
         text(row.productName).toLowerCase().includes(searchLower)
       )
     })
-  }, [billRows, table4Search])
+  }, [billRows, table4CommissionFilter, table4Search])
   const sortedTable4Data = useMemo(() => sortedByKey(table4FilteredData, table4SortKey, table4SortDir, (row, key) => getCommissionBillSortValue(row, key, Boolean(sales?.commissionEligible))), [sales?.commissionEligible, table4FilteredData, table4SortDir, table4SortKey])
 
   // Grouped Summary Table for Page 1
@@ -1307,11 +1361,12 @@ export function SalesCommissionPageClient() {
     })
     return sortedByKey(rows, summarySortKey, summarySortDir, (row, key) => row[key])
   }, [summarySortDir, summarySortKey, summaryTableData])
+  const pagedSummaryRows = useMemo(() => pagedRows(summaryFlatRows, summaryPage, summaryPageSize), [summaryFlatRows, summaryPage, summaryPageSize])
 
-  // Helper for downloading CSV of Table 4
+  // Helper for item-detail export.
   const handleDownloadCsv = () => {
     if (!sales) return
-    const headers = ['วันที่', 'เลขที่บิล', 'Supplier', 'สินค้า', 'น้ำหนัก (กก.)', 'ราคาซื้อ/กก.', 'ราคาหน้าใบ', 'ส่วนต่างกำไร', 'ยอดรวม (บาท)', 'สถานะค่าคอม']
+    const headers = ['วันที่', 'เลขที่บิล', 'ผู้ขาย', 'สินค้า', 'น้ำหนัก (กก.)', 'ราคาซื้อ/กก.', 'ราคาหน้าใบ', 'ส่วนต่างกำไร', 'ยอดรวม (บาท)', 'สถานะค่าคอม']
     const rows = billRows.map((row) => [
       formatDateDisplay(text(row.date)),
       text(row.docNo),
@@ -1325,6 +1380,45 @@ export function SalesCommissionPageClient() {
       row.isCommissionable ? 'ได้คอมมิชชั่น' : 'ไม่ได้คอมมิชชั่น'
     ])
     downloadCsv(`sales_tracking_${sales.code || sales.id}.csv`, headers, rows)
+  }
+
+  const handleDownloadSummaryCsv = () => {
+    downloadCsv(
+      `sales_commission_summary_${from || 'all'}_${to || 'all'}.csv`,
+      ['พนักงานขาย', 'ประเภท / หมวดสินค้า', 'ยอดซื้อ (กก.)', 'ยอดรับซื้อ (บาท)'],
+      summaryFlatRows.map((row) => [row.salesName, row.category, money(row.qty), money(row.amount)]),
+    )
+  }
+
+  function resetCommissionFilters() {
+    const range = currentMonthDateRange()
+    setFrom(range.from)
+    setTo(range.to)
+    setBranchId('')
+    setSummarySalesFilter('ALL')
+    setSummaryPage(1)
+  }
+
+  function openSalesDetail(salesId: string) {
+    setSelectedSales(salesId)
+    setDetailTab('categoryTotal')
+    requestAnimationFrame(() => {
+      window.scrollTo({ behavior: 'smooth', top: 0 })
+    })
+  }
+
+  function closeSalesDetail() {
+    setSelectedSales('')
+    setTable1Search('')
+    setTable1Page(1)
+    setTable2Search('')
+    setTable2Page(1)
+    setTable3Search('')
+    setTable3Page(1)
+    setTable4CommissionFilter('all')
+    setTable4Page(1)
+    setTable4Search('')
+    setDetailTab('categoryTotal')
   }
 
   function changeTable1Sort(key: CommissionCategoryColumnKey) {
@@ -1373,25 +1467,32 @@ export function SalesCommissionPageClient() {
   }
 
   if (selectedSales && sales) {
-    // Sort Table 3
-    const sortedTable3 = [...table3Data].sort((a, b) => {
+    // Sort supplier rows.
+    const sortedTable3 = [...table3FilteredData].sort((a, b) => {
       const result = compareSortValues(a[table3Sort], b[table3Sort])
       return table3SortDir === 'asc' ? result : -result
     })
 
-    // Pagination constants
-    const table3PageSize = 10
-    const table4PageSize = 20
-
-    const totalTable3Pages = Math.ceil(sortedTable3.length / table3PageSize) || 1
-    const totalTable4Pages = Math.ceil(sortedTable4Data.length / table4PageSize) || 1
-
-    const pagedTable3 = sortedTable3.slice((table3Page - 1) * table3PageSize, table3Page * table3PageSize)
-    const pagedTable4 = sortedTable4Data.slice((table4Page - 1) * table4PageSize, table4Page * table4PageSize)
+    const pagedTable1 = pagedRows(sortedTable1Data, table1Page, table1PageSize)
+    const pagedTable2 = pagedRows(sortedTable2Data, table2Page, table2PageSize)
+    const pagedTable3 = pagedRows(sortedTable3, table3Page, table3PageSize)
+    const pagedTable4 = pagedRows(sortedTable4Data, table4Page, table4PageSize)
+    const table1Total = sortedTable1Data.reduce((sum, row) => ({ amount: sum.amount + row.amount, qty: sum.qty + row.qty }), { amount: 0, qty: 0 })
+    const table2Total = sortedTable2Data.reduce((sum, row) => ({ amount: sum.amount + row.amount, qty: sum.qty + row.qty }), { amount: 0, qty: 0 })
+    const table3Total = sortedTable3.reduce((sum, row) => ({ amount: sum.amount + row.amount, bills: sum.bills + row.bills, qty: sum.qty + row.qty }), { amount: 0, bills: 0, qty: 0 })
+    const table3TotalPct = sales.purchaseAmt ? (table3Total.amount / sales.purchaseAmt) * 100 : 0
 
     return (
       <section className="space-y-4 text-[13.5px]">
-        {/* Header Block */}
+        <button
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-xs outline-none transition-colors hover:bg-slate-50 hover:text-slate-900"
+          type="button"
+          onClick={closeSalesDetail}
+        >
+          <ArrowLeft className="size-4" aria-hidden="true" />
+          กลับหน้าหลัก
+        </button>
+
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
           <div>
             <div className="font-bold text-slate-800 text-base flex items-center gap-2">
@@ -1410,155 +1511,194 @@ export function SalesCommissionPageClient() {
               className="flex h-9 items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white shadow-xs outline-none transition-colors hover:bg-emerald-700"
               type="button"
             >
+              <Download className="size-4" aria-hidden="true" />
               ส่งออก Excel
-            </button>
-            <button
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 shadow-xs outline-none transition-colors h-10 flex items-center justify-center"
-              type="button"
-              onClick={() => {
-                setSelectedSales('')
-                setTable3Page(1)
-                setTable4Page(1)
-                setTable4Search('')
-              }}
-            >
-              ← กลับหน้าหลัก
             </button>
           </div>
         </div>
 
         {/* Metrics Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Metric label="จำนวนบิลรับซื้อ" value={`${money(sales.billCount)} บิล`} tone="blue" />
           <Metric label="น้ำหนักรวม" value={`${money(sales.qty)} กก.`} tone="amber" />
           <Metric label="ยอดรับซื้อรวม" value={`${money(sales.purchaseAmt)} บาท`} tone="blue" />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <Metric label="ค่าคอมเดือนนี้" value={`${money(sales.commission)} บาท`} tone={sales.commission > 0 ? 'amber' : 'slate'} />
           <Metric label="จำนวนที่ได้คอม" value={`${money(sales.commissionableQty)} กก.`} tone="emerald" />
           <Metric label="ยอดซื้อที่ได้คอม" value={`${money(sales.commissionableAmount)} บาท`} tone="emerald" />
           <Metric label="จำนวนที่ไม่ได้คอม" value={`${money(sales.nonCommissionableQty)} กก.`} tone="slate" />
           <Metric label="ยอดซื้อที่ไม่ได้คอม" value={`${money(sales.nonCommissionableAmount)} บาท`} tone="slate" />
         </div>
 
-        {/* Tables Grid */}
-        <div className="grid gap-4 lg:grid-cols-2">
-          {/* Table 1 */}
-          <Panel title="📦 Table 1: ยอดซื้อรวมตามหมวดสินค้า">
-            {table1Resize.hasCustomWidths ? (
-              <div className="mb-2 hidden justify-end lg:flex">
-                <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={table1Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
-              </div>
-            ) : null}
-            <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
-              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: table1Resize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
-                <colgroup>
-                  {commissionCategoryColumns.map((column) => (
-                    <col key={column.key} style={table1Resize.getColumnStyle(column.key)} />
-                  ))}
-                </colgroup>
-                <thead className="bg-slate-100">
-                  <tr>
-                    {commissionCategoryColumns.map((column) => (
-                      <ResizableTableHead
-                        key={column.key}
-                        activeSortKey={table1SortKey ?? undefined}
-                        align={column.align}
-                        direction={table1SortDir}
-                        label={column.label}
-                        sortKey={column.key}
-                        onSort={changeTable1Sort}
-                        resizeProps={table1Resize.getResizeHandleProps(column.key, column.label)}
-                      />
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {sortedTable1Data.map((row) => (
-                    <tr key={row.category} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="p-3 font-semibold text-slate-800">{row.category}</td>
-                      <td className="p-3 text-right font-mono tabular-nums text-slate-700">{money(row.qty)}</td>
-                      <td className="p-3 text-right font-mono tabular-nums text-slate-700">{money(row.amount)}</td>
-                    </tr>
-                  ))}
-                  {sortedTable1Data.length === 0 ? (
-                    <tr>
-                      <td className="py-8 text-center text-slate-400 font-semibold" colSpan={commissionCategoryColumns.length}>ไม่มีข้อมูลการซื้อ</td>
-                    </tr>
-                  ) : (
-                    <tr className="bg-slate-50/55 font-bold">
-                      <td className="p-3 text-slate-800">ผลรวมทั้งหมด</td>
-                      <td className="p-3 text-right font-mono tabular-nums text-slate-800">{money(sales.qty)}</td>
-                      <td className="p-3 text-right font-mono tabular-nums text-slate-800">{money(sales.purchaseAmt)}</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </Panel>
+        <Tabs className="gap-3" value={detailTab} onValueChange={(value) => setDetailTab(value as CommissionDetailTab)}>
+          <TabsList className="w-full min-w-0 overflow-x-auto" variant="line">
+            <TabsTrigger value="categoryTotal" variant="line">ยอดรวมตามหมวด</TabsTrigger>
+            <TabsTrigger value="categoryCommission" variant="line">ยอดได้คอม</TabsTrigger>
+            <TabsTrigger value="supplier" variant="line">ผู้ขาย</TabsTrigger>
+            <TabsTrigger value="items" variant="line">รายการสินค้า</TabsTrigger>
+          </TabsList>
 
-          {/* Table 2 */}
-          <Panel title="📈 Table 2: ยอดซื้อที่ได้รับค่าคอมมิชชั่นตามหมวดสินค้า">
-            {table2Resize.hasCustomWidths ? (
-              <div className="mb-2 hidden justify-end lg:flex">
-                <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={table2Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+          <TabsContent value="categoryTotal" className="space-y-4">
+            <Panel title="ยอดซื้อรวมตามหมวดสินค้า">
+              <TableToolbar reset={table1Resize.hasCustomWidths ? <ResetTableButton onClick={table1Resize.resetColumnWidths} /> : null}>
+                <TableSearchInput
+                  label="ค้นหาหมวดสินค้า"
+                  placeholder="ค้นหาหมวดสินค้า..."
+                  value={table1Search}
+                  onChange={(value) => {
+                    setTable1Search(value)
+                    setTable1Page(1)
+                  }}
+                />
+              </TableToolbar>
+              <div className="mb-3">
+                <TablePagination
+                  page={table1Page}
+                  pageSize={table1PageSize}
+                  totalRows={sortedTable1Data.length}
+                  onPageChange={setTable1Page}
+                  onPageSizeChange={setTable1PageSize}
+                />
               </div>
-            ) : null}
-            <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
-              <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: table2Resize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
-                <colgroup>
-                  {commissionCategoryColumns.map((column) => (
-                    <col key={column.key} style={table2Resize.getColumnStyle(column.key)} />
-                  ))}
-                </colgroup>
-                <thead className="bg-slate-100">
-                  <tr>
+              <div className="mb-3 overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
+                <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: table1Resize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+                  <colgroup>
                     {commissionCategoryColumns.map((column) => (
-                      <ResizableTableHead
-                        key={column.key}
-                        activeSortKey={table2SortKey ?? undefined}
-                        align={column.align}
-                        direction={table2SortDir}
-                        label={column.label}
-                        sortKey={column.key}
-                        onSort={changeTable2Sort}
-                        resizeProps={table2Resize.getResizeHandleProps(column.key, column.label)}
-                      />
+                      <col key={column.key} style={table1Resize.getColumnStyle(column.key)} />
                     ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {sortedTable2Data.map((row) => (
-                    <tr key={row.category} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="p-3 font-semibold text-slate-800">{row.category}</td>
-                      <td className="p-3 text-right font-mono tabular-nums text-slate-700">{money(row.qty)}</td>
-                      <td className="p-3 text-right font-mono tabular-nums text-slate-700">{money(row.amount)}</td>
-                    </tr>
-                  ))}
-                  {sortedTable2Data.length === 0 ? (
+                  </colgroup>
+                  <thead className="bg-slate-100">
                     <tr>
-                      <td className="py-8 text-center text-slate-400 font-semibold" colSpan={commissionCategoryColumns.length}>ไม่มีข้อมูลรายการที่ได้คอมมิชชั่น</td>
+                      {commissionCategoryColumns.map((column) => (
+                        <ResizableTableHead
+                          key={column.key}
+                          activeSortKey={table1SortKey ?? undefined}
+                          align={column.align}
+                          direction={table1SortDir}
+                          label={column.label}
+                          sortKey={column.key}
+                          onSort={changeTable1Sort}
+                          resizeProps={table1Resize.getResizeHandleProps(column.key, column.label)}
+                        />
+                      ))}
                     </tr>
-                  ) : (
-                    <tr className="bg-slate-50/55 font-bold">
-                      <td className="p-3 text-slate-800">ผลรวมทั้งหมด</td>
-                      <td className="p-3 text-right font-mono tabular-nums text-slate-800">{money(sales.commissionableQty)}</td>
-                      <td className="p-3 text-right font-mono tabular-nums text-slate-800">{money(sales.commissionableAmount)}</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </Panel>
-        </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {pagedTable1.map((row) => (
+                      <tr key={row.category} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-3 font-semibold text-slate-800">{row.category}</td>
+                        <td className="p-3 text-right font-mono tabular-nums text-slate-700">{money(row.qty)}</td>
+                        <td className="p-3 text-right font-mono tabular-nums text-slate-700">{money(row.amount)}</td>
+                      </tr>
+                    ))}
+                    {sortedTable1Data.length === 0 ? (
+                      <tr>
+                        <td className="py-8 text-center text-slate-400 font-semibold" colSpan={commissionCategoryColumns.length}>ไม่มีข้อมูลการซื้อ</td>
+                      </tr>
+                    ) : (
+                      <tr className="bg-slate-50/55 font-bold">
+                        <td className="p-3 text-slate-800">ผลรวมทั้งหมด</td>
+                        <td className="p-3 text-right font-mono tabular-nums text-slate-800">{money(table1Total.qty)}</td>
+                        <td className="p-3 text-right font-mono tabular-nums text-slate-800">{money(table1Total.amount)}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
+          </TabsContent>
 
-        {/* Table 3 */}
-        <Panel title="🏭 Table 3: Supplier ในความดูแล">
-          {table3Resize.hasCustomWidths ? (
-            <div className="mb-2 hidden justify-end lg:flex">
-              <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={table3Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
-            </div>
-          ) : null}
+          <TabsContent value="categoryCommission" className="space-y-4">
+            <Panel title="ยอดซื้อที่ได้ค่าคอมตามหมวดสินค้า">
+              <TableToolbar reset={table2Resize.hasCustomWidths ? <ResetTableButton onClick={table2Resize.resetColumnWidths} /> : null}>
+                <TableSearchInput
+                  label="ค้นหาหมวดสินค้าที่ได้ค่าคอม"
+                  placeholder="ค้นหาหมวดสินค้า..."
+                  value={table2Search}
+                  onChange={(value) => {
+                    setTable2Search(value)
+                    setTable2Page(1)
+                  }}
+                />
+              </TableToolbar>
+              <div className="mb-3">
+                <TablePagination
+                  page={table2Page}
+                  pageSize={table2PageSize}
+                  totalRows={sortedTable2Data.length}
+                  onPageChange={setTable2Page}
+                  onPageSizeChange={setTable2PageSize}
+                />
+              </div>
+              <div className="mb-3 overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
+                <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: table2Resize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+                  <colgroup>
+                    {commissionCategoryColumns.map((column) => (
+                      <col key={column.key} style={table2Resize.getColumnStyle(column.key)} />
+                    ))}
+                  </colgroup>
+                  <thead className="bg-slate-100">
+                    <tr>
+                      {commissionCategoryColumns.map((column) => (
+                        <ResizableTableHead
+                          key={column.key}
+                          activeSortKey={table2SortKey ?? undefined}
+                          align={column.align}
+                          direction={table2SortDir}
+                          label={column.label}
+                          sortKey={column.key}
+                          onSort={changeTable2Sort}
+                          resizeProps={table2Resize.getResizeHandleProps(column.key, column.label)}
+                        />
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {pagedTable2.map((row) => (
+                      <tr key={row.category} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-3 font-semibold text-slate-800">{row.category}</td>
+                        <td className="p-3 text-right font-mono tabular-nums text-slate-700">{money(row.qty)}</td>
+                        <td className="p-3 text-right font-mono tabular-nums text-slate-700">{money(row.amount)}</td>
+                      </tr>
+                    ))}
+                    {sortedTable2Data.length === 0 ? (
+                      <tr>
+                        <td className="py-8 text-center text-slate-400 font-semibold" colSpan={commissionCategoryColumns.length}>ไม่มีข้อมูลรายการที่ได้คอมมิชชั่น</td>
+                      </tr>
+                    ) : (
+                      <tr className="bg-slate-50/55 font-bold">
+                        <td className="p-3 text-slate-800">ผลรวมทั้งหมด</td>
+                        <td className="p-3 text-right font-mono tabular-nums text-slate-800">{money(table2Total.qty)}</td>
+                        <td className="p-3 text-right font-mono tabular-nums text-slate-800">{money(table2Total.amount)}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
+          </TabsContent>
+
+          <TabsContent value="supplier" className="space-y-4">
+            <Panel title="ผู้ขายในความดูแล">
+          <TableToolbar reset={table3Resize.hasCustomWidths ? <ResetTableButton onClick={table3Resize.resetColumnWidths} /> : null}>
+            <TableSearchInput
+              label="ค้นหาผู้ขาย"
+              placeholder="ค้นหาผู้ขาย..."
+              value={table3Search}
+              onChange={(value) => {
+                setTable3Search(value)
+                setTable3Page(1)
+              }}
+            />
+          </TableToolbar>
+          <div className="mb-3">
+            <TablePagination
+              page={table3Page}
+              pageSize={table3PageSize}
+              totalRows={sortedTable3.length}
+              onPageChange={setTable3Page}
+              onPageSizeChange={setTable3PageSize}
+            />
+          </div>
           <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm mb-3">
             <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: table3Resize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
@@ -1594,64 +1734,54 @@ export function SalesCommissionPageClient() {
                 ))}
                 {pagedTable3.length === 0 ? (
                   <tr>
-                    <td className="py-8 text-center text-slate-400 font-semibold" colSpan={commissionSupplierColumns.length}>ไม่มีข้อมูล Supplier</td>
+                    <td className="py-8 text-center text-slate-400 font-semibold" colSpan={commissionSupplierColumns.length}>ไม่มีข้อมูลผู้ขาย</td>
                   </tr>
                 ) : (
                   <tr className="bg-slate-50/55 font-bold">
-                    <td className="p-3 text-slate-800">รวมทั้งหมด ({table3Data.length} ราย)</td>
+                    <td className="p-3 text-slate-800">รวมทั้งหมด</td>
                     <td className="p-3 text-right font-mono tabular-nums text-slate-800">
-                      {table3Data.reduce((sum, r) => sum + r.bills, 0)}
+                      {table3Total.bills}
                     </td>
-                    <td className="p-3 text-right font-mono tabular-nums text-slate-800">{money(sales.qty)}</td>
-                    <td className="p-3 text-right font-mono tabular-nums text-slate-800">{money(sales.purchaseAmt)}</td>
-                    <td className="p-3 text-right font-mono tabular-nums text-slate-800">100.00%</td>
+                    <td className="p-3 text-right font-mono tabular-nums text-slate-800">{money(table3Total.qty)}</td>
+                    <td className="p-3 text-right font-mono tabular-nums text-slate-800">{money(table3Total.amount)}</td>
+                    <td className="p-3 text-right font-mono tabular-nums text-slate-800">{table3TotalPct.toFixed(2)}%</td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-          {/* Pagination */}
-          {totalTable3Pages > 1 && (
-            <div className="flex items-center justify-between pt-2">
-              <span className="text-xs text-slate-500 font-semibold">แสดงหน้า {table3Page} จาก {totalTable3Pages} (ทั้งหมด {table3Data.length} รายการ)</span>
-              <div className="flex gap-1">
-                <button
-                  className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 outline-none"
-                  disabled={table3Page <= 1}
-                  onClick={() => setTable3Page((p) => p - 1)}
-                >
-                  ย้อนกลับ
-                </button>
-                <button
-                  className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 outline-none"
-                  disabled={table3Page >= totalTable3Pages}
-                  onClick={() => setTable3Page((p) => p + 1)}
-                >
-                  ถัดไป
-                </button>
-              </div>
-            </div>
-          )}
-        </Panel>
+            </Panel>
+          </TabsContent>
 
-        {/* Table 4 */}
-        <Panel title="📊 Table 4: รายการสินค้าละเอียด">
-          <div className="mb-3 flex gap-2">
-            <input
-              className="border border-slate-200 rounded-md px-3 py-2 text-xs bg-white font-semibold text-slate-700 h-9 w-64 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200 transition-all"
-              placeholder="ค้นหาเลขที่บิล, Supplier, สินค้า..."
+          <TabsContent value="items" className="space-y-4">
+            <Panel title="รายการสินค้าละเอียด">
+          <TableToolbar reset={table4Resize.hasCustomWidths ? <ResetTableButton onClick={table4Resize.resetColumnWidths} /> : null}>
+            <TableSearchInput
+              label="ค้นหารายการสินค้า"
+              placeholder="ค้นหาเลขที่บิล, ผู้ขาย, สินค้า..."
               value={table4Search}
-              onChange={(e) => {
-                setTable4Search(e.target.value)
+              onChange={(value) => {
+                setTable4Search(value)
                 setTable4Page(1)
               }}
             />
+            <CommissionStatusFilterSegments
+              value={table4CommissionFilter}
+              onChange={(value) => {
+                setTable4CommissionFilter(value)
+                setTable4Page(1)
+              }}
+            />
+          </TableToolbar>
+          <div className="mb-3">
+            <TablePagination
+              page={table4Page}
+              pageSize={table4PageSize}
+              totalRows={sortedTable4Data.length}
+              onPageChange={setTable4Page}
+              onPageSizeChange={setTable4PageSize}
+            />
           </div>
-          {table4Resize.hasCustomWidths ? (
-            <div className="mb-2 hidden justify-end lg:flex">
-              <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={table4Resize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
-            </div>
-          ) : null}
           <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm mb-3">
             <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: table4Resize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
@@ -1709,29 +1839,9 @@ export function SalesCommissionPageClient() {
               </tbody>
             </table>
           </div>
-          {/* Pagination */}
-          {totalTable4Pages > 1 && (
-            <div className="flex items-center justify-between pt-2">
-              <span className="text-xs text-slate-500 font-semibold">แสดงหน้า {table4Page} จาก {totalTable4Pages} (ทั้งหมด {sortedTable4Data.length} รายการ)</span>
-              <div className="flex gap-1">
-                <button
-                  className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 outline-none"
-                  disabled={table4Page <= 1}
-                  onClick={() => setTable4Page((p) => p - 1)}
-                >
-                  ย้อนกลับ
-                </button>
-                <button
-                  className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 outline-none"
-                  disabled={table4Page >= totalTable4Pages}
-                  onClick={() => setTable4Page((p) => p + 1)}
-                >
-                  ถัดไป
-                </button>
-              </div>
-            </div>
-          )}
-        </Panel>
+            </Panel>
+          </TabsContent>
+        </Tabs>
       </section>
     )
   }
@@ -1757,31 +1867,35 @@ export function SalesCommissionPageClient() {
       </div>
 
       <div className="hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4 items-end">
-          <Field label="จากวันที่">
-            <DatePickerInput className="w-full mt-1" value={from} onChange={setFrom} />
-          </Field>
-          <Field label="ถึงวันที่">
-            <DatePickerInput className="w-full mt-1" value={to} onChange={setTo} />
-          </Field>
-          <Field label="สาขา">
-            <Select
-              options={data?.filters.branches ?? []}
-              value={branchId}
-              onChange={setBranchId}
-            />
-          </Field>
-          <div className="flex items-center ml-auto w-full xl:w-auto mt-2 md:mt-0 font-bold">
-            {isLoading ? (
-              <span className="text-xs font-bold text-slate-400 animate-pulse flex items-center gap-1.5">
-                ⏳ กำลังโหลดข้อมูล...
-              </span>
-            ) : null}
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="grid min-w-0 flex-1 gap-3 md:grid-cols-[minmax(180px,220px)_minmax(180px,220px)_minmax(180px,260px)]">
+            <Field label="ช่วงวันที่">
+              <DatePickerInput className="mt-1 w-full" value={from} onChange={setFrom} />
+            </Field>
+            <Field label="ถึงวันที่">
+              <DatePickerInput className="mt-1 w-full" value={to} onChange={setTo} />
+            </Field>
+            <Field label="สาขา">
+              <Select
+                options={data?.filters.branches ?? []}
+                value={branchId}
+                onChange={setBranchId}
+              />
+            </Field>
           </div>
-        </div>
-        <div className="mt-3.5 pt-3 border-t border-slate-100 text-xs flex items-center gap-1.5">
-          <span className="font-semibold text-slate-500">📋 บิลซื้อทั้งหมดในช่วงเวลา:</span>
-          <span className="rounded-xl bg-slate-100 text-slate-700 px-2.5 py-1 text-xs font-bold">{money(data?.totals.bills)} บิล</span>
+          <div className="flex h-9 items-center gap-2">
+            {isLoading ? (
+              <span className="text-xs font-semibold text-slate-400">กำลังโหลดข้อมูล...</span>
+            ) : null}
+            <button
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition hover:bg-slate-50 focus:ring-2 focus:ring-slate-200"
+              type="button"
+              onClick={resetCommissionFilters}
+            >
+              <RotateCcw className="size-4" aria-hidden="true" />
+              รีเซ็ตตัวกรอง
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1791,7 +1905,7 @@ export function SalesCommissionPageClient() {
           onClose={() => setShowCommissionMobileFilters(false)}
           footer={(
             <>
-              <button className="h-10 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700" type="button" onClick={() => setBranchId('')}>ล้าง</button>
+              <button className="h-10 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700" type="button" onClick={resetCommissionFilters}>ล้าง</button>
               <button className="h-10 rounded-md bg-blue-600 text-sm font-semibold text-white" type="button" onClick={() => setShowCommissionMobileFilters(false)}>ปิด</button>
             </>
           )}
@@ -1810,76 +1924,100 @@ export function SalesCommissionPageClient() {
         </MobileFilterSheet>
       ) : null}
 
-      {/* 8 Summary Metrics Cards */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
-        <Metric label="จำนวนที่ซื้อ" value={`${money(data?.totals.qty)} กก.`} tone="amber" />
+      {/* Summary Metrics Cards */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="จำนวนที่ซื้อ" value={`${money(data?.totals.qty)} กก.`} tone="orange" />
         <Metric label="ยอดซื้อ" value={`${money(data?.totals.amount)} บ.`} tone="blue" />
         <Metric label="จำนวนที่ได้คอม" value={`${money(data?.totals.commissionableQty)} กก.`} tone="emerald" />
         <Metric label="ยอดซื้อที่ได้คอม" value={`${money(data?.totals.commissionableAmount)} บ.`} tone="emerald" />
         <Metric label="จำนวนที่ไม่ได้คอม" value={`${money(data?.totals.nonCommissionableQty)} กก.`} tone="slate" />
         <Metric label="ยอดซื้อที่ไม่ได้คอม" value={`${money(data?.totals.nonCommissionableAmount)} บ.`} tone="slate" />
-        <Metric label="จำนวนซื้อทั้งปี" value={`${money(data?.totals.annualQty)} กก.`} tone="amber" />
+        <Metric label="จำนวนซื้อทั้งปี" value={`${money(data?.totals.annualQty)} กก.`} tone="orange" />
         <Metric label="ยอดซื้อทั้งปี" value={`${money(data?.totals.annualAmount)} บ.`} tone="blue" />
       </div>
 
       {/* Grid of Salesperson Cards */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {(data?.salesRows ?? []).map((row) => (
-          <button
-            key={text(row.id)}
-            className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-slate-400 hover:bg-slate-50/40 outline-none transition-all duration-200 focus:outline-none flex flex-col justify-between"
-            type="button"
-            onClick={() => setSelectedSales(text(row.id))}
-          >
-            <div>
-              <div className="flex items-start justify-between">
-                <div className="font-bold text-slate-800 text-base">{text(row.name)}</div>
-                <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-2xs font-bold leading-none ${row.commissionEligible ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-100 text-slate-500'}`}>
-                  {row.commissionEligible ? 'ได้ค่าคอม' : 'ไม่ได้คอม'}
+      <section className="space-y-3">
+        <h2 className="text-base font-bold text-slate-900">สรุปยอดตามพนักงานขาย</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {(data?.salesRows ?? []).map((row) => (
+            <button
+              key={text(row.id)}
+              className="group flex min-h-[340px] flex-col rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm outline-none transition hover:border-slate-300 hover:bg-slate-50/60 focus:ring-2 focus:ring-blue-100"
+              type="button"
+              onClick={() => openSalesDetail(text(row.id))}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 pr-2">
+                  <div className="truncate text-xl font-black leading-tight text-slate-950">{text(row.name)}</div>
+                  <div className="mt-1 truncate text-sm font-semibold text-slate-500">
+                    {text(row.code) || '-'} · {text(row.phone) || '-'}
+                  </div>
+                </div>
+                <span className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-bold ${row.commissionEligible ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                  {row.commissionEligible ? 'ได้คอม' : 'ไม่ได้คอม'}
                 </span>
               </div>
-              <div className="text-xs text-slate-500 font-semibold mt-0.5">{text(row.code)} · {text(row.phone) || '-'}</div>
-              <div className="mt-3.5 grid grid-cols-2 gap-2 text-xs">
-                <Mini label="บิล" value={money(row.billCount)} />
-                <Mini label="Supplier" value={money(row.supplierCount)} />
+
+              <div className="mt-4 grid flex-1 grid-cols-2 gap-3">
+                <SalesCardMetric align="center" label="บิล" tone="slate" value={money(row.billCount)} />
+                <SalesCardMetric align="center" label="Supplier" tone="slate" value={money(row.supplierCount)} />
+                <SalesCardMetric label="น้ำหนักรับซื้อ" tone="amber" value={`${money(row.qty)} กก.`} />
+                <SalesCardMetric label="น้ำหนักที่ได้คอม" tone="emerald" value={`${money(row.commissionableQty)} กก.`} />
+                <SalesCardMetric label="ยอดรับซื้อรวม" tone="blue" value={`${money(row.purchaseAmt)} บ.`} />
+                <SalesCardMetric label="ยอดซื้อที่ได้คอม" tone="emerald" value={`${money(row.commissionableAmount)} บ.`} />
+                <SalesCardMetric className="col-span-2" label="ค่าคอมเดือนนี้" tone={row.commission > 0 ? 'amber' : 'slate'} value={`${money(row.commission)} บ.`} />
               </div>
-              <div className="mt-4 space-y-2.5">
-                <Metric label="น้ำหนักรับซื้อ" value={`${money(row.qty)} กก.`} tone="amber" />
-                <Metric label="ยอดรับซื้อรวม" value={`${money(row.purchaseAmt)} บ.`} tone="blue" />
-                <Metric label="น้ำหนักที่ได้คอม" value={`${money(row.commissionableQty)} กก.`} tone="emerald" />
-                <Metric label="ยอดซื้อที่ได้คอม" value={`${money(row.commissionableAmount)} บ.`} tone="emerald" />
-                <Metric label="ค่าคอมเดือนนี้" value={`${money(row.commission)} บ.`} tone={row.commission > 0 ? 'emerald' : 'slate'} />
+
+              <div className="mt-4 border-t border-slate-100 pt-3 text-right text-sm font-bold text-blue-600 transition group-hover:text-blue-700">
+                คลิกเพื่อดูรายละเอียด →
               </div>
-            </div>
-            <div className="mt-4 text-right text-xs font-semibold text-blue-600 flex items-center justify-end gap-1 border-t border-slate-50 pt-2.5 w-full">
-              <span>คลิกเพื่อดูรายละเอียด</span>
-              <span>&rarr;</span>
-            </div>
-          </button>
-        ))}
-      </div>
+            </button>
+          ))}
+        </div>
+      </section>
 
       {/* Sales Summary / สรุปยอดซื้อราย Sales */}
-      <Panel title="สรุปยอดซื้อราย Sales">
-        <div className="mb-3.5 flex items-center gap-3">
-          <label className="text-xs font-bold text-slate-500">เลือกดูพนักงานขาย:</label>
+      <CommissionOverviewPanel title="สรุปยอดจัดการ Sales">
+        <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="text-xs font-bold text-slate-500">เลือกดูพนักงานขาย</label>
           <select
             className="border border-slate-200 rounded-md px-3 py-2 text-xs bg-white font-semibold text-slate-700 h-9 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200 transition-all cursor-pointer"
             value={summarySalesFilter}
-            onChange={(e) => setSummarySalesFilter(e.target.value)}
+            onChange={(e) => {
+              setSummarySalesFilter(e.target.value)
+              setSummaryPage(1)
+            }}
           >
             <option value="ALL">ทุก Sales</option>
             {(data?.salesRows ?? []).map((sale) => (
               <option key={text(sale.id)} value={text(sale.id)}>{text(sale.name)}</option>
             ))}
           </select>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {summaryResize.hasCustomWidths ? <ResetTableButton onClick={summaryResize.resetColumnWidths} /> : null}
+            <button
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white outline-none transition hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-200"
+              type="button"
+              onClick={handleDownloadSummaryCsv}
+            >
+              <Download className="size-4" aria-hidden="true" />
+              ส่งออก Excel
+            </button>
+          </div>
         </div>
 
-        {summaryResize.hasCustomWidths ? (
-          <div className="mb-2 hidden justify-end lg:flex">
-            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={summaryResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
-          </div>
-        ) : null}
+        <div className="mb-3">
+          <TablePagination
+            page={summaryPage}
+            pageSize={summaryPageSize}
+            totalRows={summaryFlatRows.length}
+            onPageChange={setSummaryPage}
+            onPageSizeChange={setSummaryPageSize}
+          />
+        </div>
         <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
           <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: summaryResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
@@ -1904,13 +2042,13 @@ export function SalesCommissionPageClient() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {summaryFlatRows.map((row) => (
+              {pagedSummaryRows.map((row) => (
                 <tr key={`${row.salesId}-${row.category}`} className="hover:bg-slate-50/50 transition-colors">
                   <td className="p-3 font-bold text-slate-800">
                     <button
                       className="text-blue-600 hover:text-blue-800 hover:underline outline-none text-left font-bold"
                       type="button"
-                      onClick={() => setSelectedSales(row.salesId)}
+                      onClick={() => openSalesDetail(row.salesId)}
                     >
                       {row.salesName}
                     </button>
@@ -1939,12 +2077,12 @@ export function SalesCommissionPageClient() {
           </table>
         </div>
         <div className="space-y-3 lg:hidden">
-          {summaryFlatRows.map((row) => (
+          {pagedSummaryRows.map((row) => (
             <button
               key={`${row.salesId}-${row.category}`}
               className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm active:bg-slate-50"
               type="button"
-              onClick={() => setSelectedSales(row.salesId)}
+              onClick={() => openSalesDetail(row.salesId)}
             >
               <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2">
                 <div className="min-w-0">
@@ -1962,7 +2100,7 @@ export function SalesCommissionPageClient() {
             <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm font-semibold text-slate-400">ไม่มีข้อมูล</div>
           ) : null}
         </div>
-      </Panel>
+      </CommissionOverviewPanel>
 
       {error ? <ErrorBox text={error} /> : null}
     </section>
@@ -2047,10 +2185,160 @@ function SimpleTable({ empty = 'ไม่มีข้อมูล', headers, row
   )
 }
 
+function TableSearchInput({
+  label,
+  onChange,
+  placeholder,
+  value,
+}: {
+  label: string
+  onChange: (value: string) => void
+  placeholder: string
+  value: string
+}) {
+  return (
+    <label className="relative block min-w-[260px] flex-1">
+      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+      <input
+        aria-label={label}
+        className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 pl-9 text-sm font-medium text-slate-700 outline-none transition focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  )
+}
+
+function ResetTableButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      className="hidden h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition hover:bg-slate-50 lg:inline-flex lg:items-center"
+      type="button"
+      onClick={onClick}
+    >
+      คืนค่าเดิมตาราง
+    </button>
+  )
+}
+
+function TablePagination({
+  onPageChange,
+  onPageSizeChange,
+  page,
+  pageSize,
+  totalRows,
+}: {
+  onPageChange: (value: number) => void
+  onPageSizeChange: (value: DetailPageSize) => void
+  page: number
+  pageSize: DetailPageSize
+  totalRows: number
+}) {
+  const totalPages = totalPagesFor(totalRows, pageSize)
+  const safePage = safePageFor(page, totalRows, pageSize)
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1 text-sm text-slate-600">
+      <div>พบทั้งหมด {totalRows.toLocaleString('th-TH')} รายการ</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          aria-label="จำนวนรายการต่อหน้า"
+          className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-semibold text-slate-700 outline-none transition focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
+          value={pageSize}
+          onChange={(event) => {
+            onPageSizeChange(Number(event.target.value) as DetailPageSize)
+            onPageChange(1)
+          }}
+        >
+          {detailPageSizeOptions.map((option) => (
+            <option key={option} value={option}>{option} / หน้า</option>
+          ))}
+        </select>
+        <button
+          className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={safePage <= 1}
+          type="button"
+          onClick={() => onPageChange(Math.max(1, safePage - 1))}
+        >
+          ก่อนหน้า
+        </button>
+        <span className="px-1">หน้า {safePage} / {totalPages}</span>
+        <button
+          className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={safePage >= totalPages}
+          type="button"
+          onClick={() => onPageChange(Math.min(totalPages, safePage + 1))}
+        >
+          ถัดไป
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function TableToolbar({
+  children,
+  reset,
+}: {
+  children: ReactNode
+  reset?: ReactNode
+}) {
+  return (
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{children}</div>
+      {reset ? <div className="ml-auto flex items-center gap-2">{reset}</div> : null}
+    </div>
+  )
+}
+
+function CommissionStatusFilterSegments({
+  onChange,
+  value,
+}: {
+  onChange: (value: CommissionStatusFilter) => void
+  value: CommissionStatusFilter
+}) {
+  const options: Array<{ label: string; value: CommissionStatusFilter }> = [
+    { label: 'ทั้งหมด', value: 'all' },
+    { label: 'ได้คอม', value: 'commissionable' },
+    { label: 'ไม่ได้คอม', value: 'nonCommissionable' },
+  ]
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs text-slate-500">สถานะค่าคอม:</span>
+      {options.map((option) => (
+        <button
+          key={option.value}
+          className={`rounded-md border px-3 py-1 text-xs font-medium ${value === option.value ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`}
+          type="button"
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function Panel({ children, title }: { children: ReactNode; title: string }) {
   return (
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-      <div className="bg-slate-900 p-3 text-sm font-bold text-white">{title}</div>
+      <div className="border-b border-slate-100 bg-white px-4 py-3">
+        <h3 className="text-sm font-bold text-slate-900">{title}</h3>
+      </div>
+      <div className="p-4">{children}</div>
+    </div>
+  )
+}
+
+function CommissionOverviewPanel({ children, title }: { children: ReactNode; title: string }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-100 px-4 py-3">
+        <h2 className="text-sm font-bold text-slate-900">{title}</h2>
+      </div>
       <div className="p-4">{children}</div>
     </div>
   )
@@ -2075,14 +2363,48 @@ function LmeEditableField({ label, onChange, suffix, value }: { label: string; o
   )
 }
 
-function Metric({ label, tone, value }: { label: string; tone: KpiCardTone; value: string }) {
-  return <SharedKpiCard label={label} tone={tone} value={value} />
+function Metric({ icon, label, tone, value }: { icon?: ReactNode; label: string; tone: KpiCardTone; value: string }) {
+  return <SharedKpiCard icon={icon} label={label} tone={tone} value={value} />
 }
 
 function BigCard({ label, tone, value }: { label: string; tone: string; value: string }) {
   const isWeight = label.includes('น้ำหนัก')
   const emoji = isWeight ? '📦' : '💰'
   return <SharedKpiCard className="w-full" icon={emoji} label={label} tone={(isWeight ? 'amber' : tone || 'blue') as KpiCardTone} value={value} />
+}
+
+function SalesCardMetric({
+  align = 'left',
+  className = '',
+  label,
+  tone,
+  value,
+}: {
+  align?: 'center' | 'left'
+  className?: string
+  label: string
+  tone: 'amber' | 'blue' | 'emerald' | 'slate'
+  value: string
+}) {
+  const labelColors = {
+    amber: 'text-orange-600',
+    blue: 'text-blue-600',
+    emerald: 'text-emerald-600',
+    slate: 'text-slate-400',
+  }
+  const valueColors = {
+    amber: 'text-orange-600',
+    blue: 'text-blue-600',
+    emerald: 'text-emerald-600',
+    slate: 'text-slate-900',
+  }
+
+  return (
+    <div className={`min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-xs ${align === 'center' ? 'text-center' : 'text-left'} ${className}`}>
+      <div className={`truncate text-sm font-bold ${labelColors[tone]}`}>{label}</div>
+      <div className={`mt-1 break-words font-mono text-[15px] font-black leading-tight tabular-nums ${valueColors[tone]}`}>{value}</div>
+    </div>
+  )
 }
 
 function Mini({ label, value }: { label: string; value: string }) {

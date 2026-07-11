@@ -46,29 +46,6 @@ const toneStyles: Record<KpiCardTone, { icon: string; label: string; value: stri
   yellow: { icon: 'bg-amber-100 text-amber-700', label: 'text-amber-600', value: 'text-amber-700' },
 }
 
-const defaultIcons: Record<KpiCardTone, ReactNode> = {
-  amber: '●',
-  allocated: '●',
-  blue: '●',
-  cyan: '●',
-  danger: '●',
-  emerald: '●',
-  gain: '●',
-  gradient: '●',
-  indigo: '●',
-  loss: '●',
-  net: '●',
-  normal: '●',
-  orange: '●',
-  pending: '●',
-  purple: '●',
-  red: '●',
-  rose: '●',
-  slate: '●',
-  violet: '●',
-  yellow: '●',
-}
-
 export function KpiCard({
   className,
   icon,
@@ -88,9 +65,11 @@ export function KpiCard({
 
   return (
     <div className={cn('flex min-w-0 items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-5', className)}>
-      <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg sm:h-12 sm:w-12 sm:text-xl', style.icon)}>
-        {icon ?? defaultIcons[tone] ?? defaultIcons.slate}
-      </div>
+      {icon ? (
+        <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg sm:h-12 sm:w-12 sm:text-xl', style.icon)}>
+          {icon}
+        </div>
+      ) : null}
       <div className="min-w-0 flex-1">
         <div className={cn('truncate text-xs font-medium', style.label)}>{label}</div>
         <div className={cn('mt-0.5 break-words font-mono text-base font-bold leading-tight tabular-nums sm:text-xl', style.value)}>{value}</div>

@@ -7,6 +7,7 @@
 - Keep commits focused by phase or module.
 - Push only to `new-origin` / `https://github.com/terner/new-ns-scrap-erp.git`.
 - Use `new-origin/uat` as the Git UAT branch. The old remote branch `new-origin/staging` has been deleted to avoid confusion; do not recreate it or promote through it.
+- Treat the Git branch name `uat` as workflow metadata only. The real UAT target is whichever deployment/database env the user is referring to. Before any promote/deploy/debug step, verify the actual UAT target from env/deployment settings instead of assuming it maps 1:1 to `new-origin/uat`.
 - Treat `origin` / `https://github.com/sirimasth/ns-scrap-erp.git` as legacy read-only reference material only.
 - Never push, force-push, create branches, delete branches, open PRs, write tags, or otherwise mutate `origin` / `https://github.com/sirimasth/ns-scrap-erp.git`.
 - Use `origin` only for read operations such as fetch, log, diff, show, and checkout-to-inspect.

@@ -333,7 +333,7 @@ export function SearchCombobox({
                   }}
                   id={`${inputId}-option-${index}`}
                   aria-selected={option.id === value}
-                  className={`block w-full overflow-hidden px-3 py-2 text-left text-slate-800 hover:bg-blue-50 dark:text-slate-100 dark:hover:bg-slate-700/70 ${option.id === value ? 'bg-blue-100 text-blue-800 dark:bg-slate-700 dark:text-white' : highlightedIndex === index ? 'bg-slate-100 text-slate-900 dark:bg-slate-700/70 dark:text-white' : ''}`}
+                  className={`block w-full overflow-hidden px-3 py-2 text-left text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:[background-color:var(--ns-dark-surface-hover)] ${option.id === value ? 'bg-slate-100 text-slate-900 dark:![background-color:var(--ns-dark-surface-hover)] dark:![color:var(--ns-dark-text)]' : highlightedIndex === index ? 'bg-slate-100 text-slate-900 dark:![background-color:var(--ns-dark-surface-hover)] dark:![color:var(--ns-dark-text)]' : ''}`}
                   role="option"
                   type="button"
                   onMouseDownCapture={(event) => {

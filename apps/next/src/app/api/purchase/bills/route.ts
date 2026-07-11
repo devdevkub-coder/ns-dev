@@ -956,6 +956,7 @@ async function validateAdvancePaymentSelection(
       status: true,
       subtotal_amount: true,
       supplier_id: true,
+      total_amount: true,
       vat_amount: true,
       vat_type: true,
     },
@@ -977,7 +978,7 @@ async function validateAdvancePaymentSelection(
   }
 
   const allocations = await tx.supplier_advance_allocations.findMany({
-    select: { allocated_amount: true, purchase_bill_id: true, status: true },
+    select: { allocated_amount: true, allocated_subtotal_amount: true, purchase_bill_id: true, status: true },
     where: {
       advance_payment_id: advancePayment.id,
       status: 'active',
@@ -985,23 +986,23 @@ async function validateAdvancePaymentSelection(
   })
 
   const allocatedToOtherBills = allocations.reduce((sum, allocation) => (
-    allocation.purchase_bill_id === billId ? sum : sum + toNumber(allocation.allocated_amount)
+    allocation.purchase_bill_id === billId ? sum : sum + (toNumber(allocation.allocated_subtotal_amount) || toNumber(allocation.allocated_amount))
   ), 0)
   const approvalSummary = await summarizeAdvancePaymentApprovalStatus(tx, advancePayment.id)
-  const paidCapacity = Math.min(toNumber(advancePayment.amount), approvalSummary.settledAmount)
+  const grossAmount = toNumber(advancePayment.total_amount) || toNumber(advancePayment.amount)
+  const subtotalAmount = toNumber(advancePayment.subtotal_amount) || grossAmount
+  const paidCapacity = grossAmount > 0
+    ? Math.min(subtotalAmount, approvalSummary.settledAmount * subtotalAmount / grossAmount)
+    : Math.min(subtotalAmount, approvalSummary.settledAmount)
   const availableAmount = Math.max(0, paidCapacity - allocatedToOtherBills)
   if (availableAmount <= 0.01) {
     throw new Error('เอกสาร ADV นี้ไม่มียอดคงเหลือสำหรับใช้หักบิลแล้ว')
   }
 
   const vatAmount = toNumber(advancePayment.vat_amount)
-  const subtotalAmount = toNumber(advancePayment.subtotal_amount) || toNumber(advancePayment.amount)
   const hasVat = advancePayment.vat_type !== 'NONE' && vatAmount > 0.01
-  if (hasVat && billTotals.vatAmount <= 0.01) {
-    throw new Error('ADV นี้มี VAT แต่บิลซื้อไม่มี VAT จึงหักรวมยอดตรง ๆ ไม่ได้')
-  }
-  if (hasVat && billTotals.subtotalAmount <= 0.01) {
-    throw new Error('ADV นี้มี VAT แต่บิลซื้อไม่มียอดก่อน VAT ให้หัก')
+  if (billTotals.subtotalAmount <= 0.01) {
+    throw new Error('บิลซื้อไม่มียอดก่อน VAT ให้หัก ADV')
   }
 
   return {
@@ -1018,35 +1019,15 @@ function buildAdvanceAllocationAmounts(
   advancePayment: NonNullable<Awaited<ReturnType<typeof validateAdvancePaymentSelection>>>,
   billTotals: { subtotalAmount: number; totalAmount: number; vatAmount: number },
 ) {
-  const availableTotalAmount = advancePayment.availableAmount
-  if (!advancePayment.hasVat) {
-    const allocatedTotalAmount = roundMoney(Math.min(billTotals.totalAmount, availableTotalAmount))
-    return {
-      allocatedSubtotalAmount: allocatedTotalAmount,
-      allocatedTotalAmount,
-      allocatedVatAmount: 0,
-    }
-  }
-
-  const advanceTotalAmount = advancePayment.subtotalAmount + advancePayment.vatAmount
-  const subtotalRatio = advanceTotalAmount > 0 ? advancePayment.subtotalAmount / advanceTotalAmount : 1
-  const vatRatio = advanceTotalAmount > 0 ? advancePayment.vatAmount / advanceTotalAmount : 0
-  const maxByBillBreakdown = Math.min(
-    billTotals.totalAmount,
-    billTotals.subtotalAmount / Math.max(subtotalRatio, 0.000001),
-    billTotals.vatAmount / Math.max(vatRatio, 0.000001),
-  )
-  const allocatedTotalAmount = roundMoney(Math.min(availableTotalAmount, maxByBillBreakdown))
-  const allocatedSubtotalAmount = roundMoney(allocatedTotalAmount * subtotalRatio)
-  const allocatedVatAmount = roundMoney(allocatedTotalAmount - allocatedSubtotalAmount)
-  if (allocatedTotalAmount <= 0.01) {
-    throw new Error('ยอด VAT ของ ADV ไม่สามารถหักกับบิลซื้อนี้ได้')
+  const allocatedSubtotalAmount = roundMoney(Math.min(billTotals.subtotalAmount, advancePayment.availableAmount))
+  if (allocatedSubtotalAmount <= 0.01) {
+    throw new Error('ยอดก่อน VAT ของ ADV ไม่พอสำหรับหักบิลซื้อนี้')
   }
 
   return {
     allocatedSubtotalAmount,
-    allocatedTotalAmount,
-    allocatedVatAmount,
+    allocatedTotalAmount: allocatedSubtotalAmount,
+    allocatedVatAmount: 0,
   }
 }
 
@@ -1696,6 +1677,15 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
         status: true,
         subtotal_amount: true,
         supplier_id: true,
+        supplier_advance_allocations: {
+          select: {
+            allocated_amount: true,
+            allocated_subtotal_amount: true,
+          },
+          where: {
+            status: 'active',
+          },
+        },
         vat_amount: true,
         vat_type: true,
       },
@@ -1777,22 +1767,30 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
   const supplierBranchCodesBySupplierId = await supplierBranchCodeMap(suppliers.map((supplier) => supplier.id))
 
   return {
-    advancePayments: advancePayments.map((advance) => ({
-      active: ['partially_paid', 'paid', 'partially_allocated', 'allocated'].includes(advance.status) && toNumber(advance.remaining_amount) > 0.01,
-      advanceDate: toDateOnly(advance.advance_date),
-      amount: toNumber(advance.amount),
-      branch_id: branchCodeById.get(advance.branch_id) ?? null,
-      invoiceNo: advance.invoice_no ?? '',
-      id: advance.doc_no,
-      label: `${advance.doc_no}${advance.invoice_no ? ` · INV ${advance.invoice_no}` : ''} · ${advance.vat_type === 'NONE' ? 'ไม่มี VAT' : 'มี VAT'} · คงเหลือ ${toNumber(advance.remaining_amount).toLocaleString('th-TH')} บาท`,
-      name: advance.doc_no,
-      remainingAmount: toNumber(advance.remaining_amount),
-      status: advance.status,
-      subtotalAmount: toNumber(advance.subtotal_amount),
-      supplier_id: supplierCodeById.get(advance.supplier_id) ?? null,
-      vatAmount: toNumber(advance.vat_amount),
-      vatType: advance.vat_type,
-    })),
+    advancePayments: advancePayments.map((advance) => {
+      const subtotalAmount = toNumber(advance.subtotal_amount) || toNumber(advance.amount)
+      const allocatedBaseAmount = advance.supplier_advance_allocations.reduce((sum, allocation) => (
+        sum + (toNumber(allocation.allocated_subtotal_amount) || toNumber(allocation.allocated_amount))
+      ), 0)
+      const remainingBaseAmount = Math.max(0, roundMoney(subtotalAmount - allocatedBaseAmount))
+      const remainingAmount = Math.min(toNumber(advance.remaining_amount), remainingBaseAmount)
+      return {
+        active: ['partially_paid', 'paid', 'partially_allocated', 'allocated'].includes(advance.status) && remainingAmount > 0.01,
+        advanceDate: toDateOnly(advance.advance_date),
+        amount: toNumber(advance.amount),
+        branch_id: branchCodeById.get(advance.branch_id) ?? null,
+        invoiceNo: advance.invoice_no ?? '',
+        id: advance.doc_no,
+        label: `${advance.doc_no} · ใช้หักได้ ${remainingAmount.toLocaleString('th-TH')} บาท`,
+        name: advance.doc_no,
+        remainingAmount,
+        status: advance.status,
+        subtotalAmount,
+        supplier_id: supplierCodeById.get(advance.supplier_id) ?? null,
+        vatAmount: toNumber(advance.vat_amount),
+        vatType: advance.vat_type,
+      }
+    }),
     branches: branches.map((branch) => ({
       ...branch,
       id: requireBusinessCode(branch.code, `สาขา ${branch.id}`),

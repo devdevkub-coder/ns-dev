@@ -249,7 +249,7 @@ export function AppShell({ children }: AppShellProps) {
         onMouseEnter={() => setDesktopSidebarExpanded(true)}
         onMouseLeave={handleSidebarMouseLeave}
       >
-        <div className={`flex items-center border-b border-slate-700 p-4 ${desktopSidebarExpanded ? 'gap-5' : 'gap-3 lg:justify-center lg:gap-0'}`}>
+        <div className={`flex min-h-[72px] items-center border-b border-slate-700 px-4 py-4 ${desktopSidebarExpanded ? 'gap-5' : 'gap-3 lg:justify-center lg:gap-0'}`}>
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 font-bold text-white">NS</div>
           <div className={`min-w-0 flex-1 pl-1 ${desktopSidebarExpanded ? '' : 'lg:hidden'}`.trim()}>
             <div className="truncate font-bold text-white">NS Scrap ERP</div>
@@ -324,7 +324,7 @@ export function AppShell({ children }: AppShellProps) {
       </aside>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:px-6">
+        <header className="flex min-h-[72px] items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:px-6">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             {!showMobileBottomNav && (
               <button
@@ -401,7 +401,7 @@ export function AppShell({ children }: AppShellProps) {
         </header>
 
         {renderedBreadcrumbs.length > 0 ? (
-          <nav aria-label="Breadcrumb" className="border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-500 lg:px-6">
+          <nav aria-label="Breadcrumb" className="bg-slate-50 px-4 py-2 text-xs text-slate-500 lg:px-6">
             <ol className="flex min-w-0 flex-wrap items-center gap-1.5">
               {renderedBreadcrumbs.map((breadcrumb, index) => {
                 const isLast = index === renderedBreadcrumbs.length - 1

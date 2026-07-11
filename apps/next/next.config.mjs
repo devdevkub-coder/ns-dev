@@ -60,6 +60,44 @@ function readBuildTime() {
   return new Date().toISOString()
 }
 
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseOrigin = (() => {
+  try {
+    return supabaseUrl ? new URL(supabaseUrl).origin : ''
+  } catch {
+    return ''
+  }
+})()
+const supabaseWsOrigin = supabaseOrigin ? supabaseOrigin.replace('https://', 'wss://') : ''
+const cspConnectSources = ['self', supabaseOrigin, supabaseWsOrigin].filter(Boolean).map((source) => source === 'self' ? "'self'" : source).join(' ')
+const cspImageSources = ['self', 'data:', 'blob:', supabaseOrigin].filter(Boolean).map((source) => source === 'self' ? "'self'" : source).join(' ')
+
+const cspHeader = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  'img-src ' + cspImageSources,
+  "font-src 'self' data:",
+  'connect-src ' + cspConnectSources,
+  "form-action 'self'",
+  'upgrade-insecure-requests',
+].join('; ')
+
+const securityHeaders = [
+  { key: 'Content-Security-Policy', value: cspHeader },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), accelerometer=(), gyroscope=(), magnetometer=(), fullscreen=(self)' },
+  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+  { key: 'Cross-Origin-Embedder-Policy', value: 'credentialless' },
+  { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
+]
+
 const BUILD_VERSION = process.env.NEXT_PUBLIC_BUILD_VERSION || readPackageVersion()
 const BUILD_COMMIT = process.env.NEXT_PUBLIC_BUILD_COMMIT || readShortCommitHash()
 const BUILD_TIME = process.env.NEXT_PUBLIC_BUILD_TIME || readBuildTime()
@@ -67,7 +105,16 @@ const BUILD_TIME = process.env.NEXT_PUBLIC_BUILD_TIME || readBuildTime()
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: workspaceRoot,
+  poweredByHeader: false,
   reactStrictMode: true,
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: securityHeaders,
+      },
+    ]
+  },
   // Externalize PDF/canvas packages so Turbopack ไม่ bundle Node-native internals
   // ของ @react-pdf/renderer (PDFKit/fontkit) และ @napi-rs/canvas (native Skia binary)
   // ป้องกันปัญหา bundling และรักษา performance ตอน runtime

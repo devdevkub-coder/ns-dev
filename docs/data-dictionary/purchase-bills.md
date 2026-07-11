@@ -103,8 +103,10 @@ Current source of truth:
 บิลรับซื้อสร้างภาระเจ้าหนี้โดยตรงผ่าน `purchase_bills.payable_balance`:
 
 1. สร้างบิลซื้อที่ `/api/purchase/bills`
-   - `paid_amount` รวมยอด PMT ที่ไม่ cancelled และ ADV allocation ที่ active
-   - `payable_balance = total_amount - paid_amount`
+   - ถ้ามี ADV/มัดจำ ระบบใช้เฉพาะยอดฐานก่อน VAT ของ ADV ไปหักยอดฐานก่อน VAT ของ PB ก่อน แล้วค่อยคำนวณ VAT ของ PB จากฐานที่เหลือ
+   - VAT ของ ADV ไม่ถูกนำมาหัก PB โดยตรง; `supplier_advance_allocations.allocated_amount` / `allocated_subtotal_amount` คือยอดฐาน ADV ที่ใช้กับ PB
+   - `paid_amount` รวมเฉพาะยอด PMT ที่ไม่ cancelled และไม่รวม ADV allocation
+   - `payable_balance = total_amount - paid_amount` โดย `total_amount` เป็นยอด PB หลังหักฐาน ADV และคำนวณ VAT ใหม่แล้ว
    - `status = unpaid / partial / paid / cancelled`
    - ถ้าเป็น `STOCK` จะเขียน `stock_ledger`; ถ้าเป็น `TRADING` ไม่เข้า stock
    - target flow: `STOCK` ต้องอ้างใบรับของและ allocate receipt line ไป PO/Spot ในบิล ส่วน `TRADING` ต้องกรอกจำนวน/น้ำหนักในบิลเอง
@@ -128,7 +130,7 @@ Current source of truth:
    - สูตร WHT ปัจจุบันใช้ cash amount เป็นฐาน: `withholding_tax = amount * rate / (100 - rate)` เพื่อให้ `amount + withholding_tax` ตัดยอดค้างได้ตรงกับยอด gross ของบิล
    - สูตรยอดตัดบิล: `amount + withholding_tax + discount`
    - ถ้า payment เดิมถูกแก้แล้วย้าย `bill_id` จะ refresh ทั้งบิลเก่าและบิลใหม่
-   - ถ้ายอดจ่ายรวมเกิน `purchase_bills.total_amount` เกิน 0.01 ระบบ reject และ rollback
+   - ถ้ายอดจ่ายรวมเกิน `purchase_bills.total_amount` หลังหักฐาน ADV และคำนวณ VAT ใหม่เกิน 0.01 ระบบ reject และ rollback
 
 หน้า `/purchase/bills` ไม่ใช้ `purchase_bills.status` ดิบเป็น filter หลักแล้ว แต่ derive read model จาก Payment Flow:
 
@@ -150,7 +152,7 @@ Current source of truth:
 | `payable_balance <= 0.01` | `paid` |
 | อื่น ๆ | `partial` |
 
-`purchase_bills.paid_amount` และ `purchase_bills.payable_balance` เป็น denormalized balance fields เพื่อให้หน้ารายการ, AP, dashboard และ report อ่านเร็วขึ้น แต่ source การชำระเงินจริงคือ `payments` ที่ผูกด้วย `payments.bill_id`
+`purchase_bills.total_amount`, `purchase_bills.vat_amount`, `purchase_bills.paid_amount` และ `purchase_bills.payable_balance` เป็น denormalized balance fields เพื่อให้หน้ารายการ, AP, dashboard และ report อ่านเร็วขึ้น หลังมี ADV active ระบบ refresh `total_amount`/`vat_amount` จากฐาน PB หลังหัก ADV ก่อน ส่วน source การชำระเงินจริงคือ `payments` ที่ผูกด้วย `payments.bill_id`
 
 ## `payments` Columns Used By Purchase Bills
 

@@ -59,6 +59,7 @@ codex/* or feature/*
 
 - `main` is production-ready only. Do not work directly on `main`, and do not push directly to `main` unless the user explicitly asks for a coordinated release or hotfix.
 - `uat` is for UAT/pre-production verification. Merge or promote from `dev` only after the integrated batch is ready for broader QA.
+- Important: the word `UAT` in task discussion means the active UAT environment determined by the deployment/database env in use, not merely whatever branch happens to be named `uat`. Always verify the actual target from env/deployment settings first.
 - The old remote branch `staging` has been deleted to avoid confusion. Do not recreate, push to, or promote through `staging`.
 - `dev` is the shared integration branch. Start normal feature, bugfix, migration, and refactor work from `dev`.
 - `codex/*` or `feature/*` branches are for scoped work. Keep each branch focused on one feature, bugfix, migration batch, or behavior change.
@@ -137,7 +138,9 @@ Do not treat this as a greenfield rewrite unless explicitly instructed.
 - Active branches on `new-origin`: `main`, `uat`, `dev`
 - Dev/target Supabase: `fhglqymcdmrgbsbadnwr`
 - Legacy production/source Supabase: `mqsgptraslgpyzbpndlg` read-only
-- Git UAT branch: `uat` (`staging` remote branch has been deleted)
+- Customer UAT Supabase: `oolzfvqhovmjhiocfqdw`
+- Git UAT branch on `new-origin`: `uat` (`staging` remote branch has been deleted)
+- Current customer-facing UAT deployment/environment must be identified from env/deployment settings; do not assume it is tied to `new-origin/uat`
 - New production: not created yet
 - Project MCP config: `.mcp.json`
 - Project skills: `.agents/skills/`

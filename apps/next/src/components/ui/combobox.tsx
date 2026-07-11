@@ -276,7 +276,7 @@ export function ComboboxItem({
   return (
     <button
       aria-selected={active}
-      className={`block w-full px-3 py-2 text-left text-slate-800 hover:bg-blue-50 dark:text-slate-100 dark:hover:bg-slate-700/70 ${active ? 'bg-blue-100 text-blue-800 dark:bg-slate-700 dark:text-white' : ''}`}
+      className={`block w-full px-3 py-2 text-left text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:[background-color:var(--ns-dark-surface-hover)] ${active ? 'bg-slate-100 text-slate-900 dark:![background-color:var(--ns-dark-surface-hover)] dark:![color:var(--ns-dark-text)]' : ''}`}
       role="option"
       type="button"
       onMouseDown={(event) => {

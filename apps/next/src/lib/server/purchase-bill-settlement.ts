@@ -12,14 +12,61 @@ type PurchaseBillSettlementTx = Pick<
   'payment_approvals' | 'payments' | 'purchase_bills' | 'supplier_advance_allocations' | 'supplier_advance_payments' | 'supplier_advance_status_logs'
 >
 
+type NumericValue = { toNumber: () => number } | number | null | undefined
+
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+function clampVatRate(value: number) {
+  return Math.max(0, Math.min(100, value))
+}
+
+function purchaseBillAmountAfterAdvance(
+  bill: {
+    discount: NumericValue
+    discount_total: NumericValue
+    has_vat: boolean | null
+    subtotal: NumericValue
+    total_amount: NumericValue
+    vat_rate_percent: NumericValue
+    vat_type: string | null
+  },
+  advanceBaseAllocatedAmount: number,
+) {
+  const subtotal = toNumber(bill.subtotal)
+  const discountTotal = toNumber(bill.discount_total) || toNumber(bill.discount)
+  const afterDiscount = Math.max(0, roundMoney(subtotal - discountTotal))
+  const vatRatePercent = clampVatRate(toNumber(bill.vat_rate_percent))
+  const hasVat = Boolean(bill.has_vat) && bill.vat_type !== 'NONE' && vatRatePercent > 0
+  const taxableBaseBeforeAdvance = hasVat && bill.vat_type === 'INCLUDE'
+    ? roundMoney(afterDiscount * 100 / (100 + vatRatePercent))
+    : afterDiscount
+  const taxableBaseAmount = Math.max(0, roundMoney(taxableBaseBeforeAdvance - advanceBaseAllocatedAmount))
+  const vatAmount = hasVat ? roundMoney(taxableBaseAmount * vatRatePercent / 100) : 0
+  const totalAmount = hasVat ? roundMoney(taxableBaseAmount + vatAmount) : taxableBaseAmount
+
+  return {
+    taxableBaseAmount,
+    totalAmount,
+    vatAmount,
+  }
 }
 
 export async function calculatePurchaseBillSettlement(tx: PurchaseBillSettlementTx, billId: bigint) {
   const [bill, payments, advanceAllocations] = await Promise.all([
     tx.purchase_bills.findUnique({
-      select: { id: true, status: true, total_amount: true },
+      select: {
+        discount: true,
+        discount_total: true,
+        has_vat: true,
+        id: true,
+        status: true,
+        subtotal: true,
+        total_amount: true,
+        vat_rate_percent: true,
+        vat_type: true,
+      },
       where: { id: billId },
     }),
     tx.payments.findMany({
@@ -27,7 +74,7 @@ export async function calculatePurchaseBillSettlement(tx: PurchaseBillSettlement
       where: { bill_id: billId, NOT: { status: 'cancelled' } },
     }),
     tx.supplier_advance_allocations.findMany({
-      select: { allocated_amount: true },
+      select: { allocated_amount: true, allocated_subtotal_amount: true },
       where: { purchase_bill_id: billId, status: 'active' },
     }),
   ])
@@ -37,22 +84,24 @@ export async function calculatePurchaseBillSettlement(tx: PurchaseBillSettlement
   const paymentAmount = payments.reduce((sum, payment) => (
     sum + toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount)
   ), 0)
-  const advanceAllocatedAmount = advanceAllocations.reduce((sum, allocation) => (
-    sum + toNumber(allocation.allocated_amount)
-  ), 0)
-  const paidAmount = roundMoney(paymentAmount + advanceAllocatedAmount)
-  const totalAmount = toNumber(bill.total_amount)
+  const advanceBaseAllocatedAmount = roundMoney(advanceAllocations.reduce((sum, allocation) => (
+    sum + (toNumber(allocation.allocated_subtotal_amount) || toNumber(allocation.allocated_amount))
+  ), 0))
+  const recalculatedBill = purchaseBillAmountAfterAdvance(bill, advanceBaseAllocatedAmount)
+  const paidAmount = roundMoney(paymentAmount)
+  const totalAmount = recalculatedBill.totalAmount
   if (paidAmount - totalAmount > 0.01) throw new Error('ยอดชำระรวมเกินยอดค้างของบิลซื้อ')
 
   const payableBalance = Math.max(0, roundMoney(totalAmount - paidAmount))
-  const status = paidAmount <= 0 ? 'unpaid' : payableBalance <= 0.01 ? 'paid' : 'partial'
+  const status = payableBalance <= 0.01 ? 'paid' : paidAmount <= 0 ? 'unpaid' : 'partial'
 
   return {
-    advanceAllocatedAmount: roundMoney(advanceAllocatedAmount),
+    advanceAllocatedAmount: advanceBaseAllocatedAmount,
     paidAmount,
     payableBalance,
     status,
     totalAmount,
+    vatAmount: recalculatedBill.vatAmount,
   }
 }
 
@@ -63,8 +112,10 @@ export async function refreshPurchaseBillSettlement(tx: PurchaseBillSettlementTx
       paid_amount: settlement.paidAmount,
       payable_balance: settlement.payableBalance,
       status: settlement.status,
+      total_amount: settlement.totalAmount,
       updated_at: new Date(),
       updated_by: actor,
+      vat_amount: settlement.vatAmount,
     },
     where: { id: billId },
   })
@@ -83,20 +134,20 @@ export async function refreshSupplierAdvancePaymentAllocation(
 ) {
   const [advancePayment, activeAllocations] = await Promise.all([
     tx.supplier_advance_payments.findUnique({
-      select: { amount: true, id: true, status: true },
+      select: { amount: true, id: true, status: true, subtotal_amount: true },
       where: { id: advancePaymentId },
     }),
     tx.supplier_advance_allocations.findMany({
-      select: { allocated_amount: true },
+      select: { allocated_amount: true, allocated_subtotal_amount: true },
       where: { advance_payment_id: advancePaymentId, status: 'active' },
     }),
   ])
 
   if (!advancePayment) throw new Error('ไม่พบรายการ ADV ที่ต้องการอัปเดตสถานะ')
 
-  const totalAmount = toNumber(advancePayment.amount)
+  const totalAmount = toNumber(advancePayment.subtotal_amount) || toNumber(advancePayment.amount)
   const allocatedAmount = roundMoney(activeAllocations.reduce((sum, allocation) => (
-    sum + toNumber(allocation.allocated_amount)
+    sum + (toNumber(allocation.allocated_subtotal_amount) || toNumber(allocation.allocated_amount))
   ), 0))
   if (allocatedAmount - totalAmount > 0.01) throw new Error('ยอดใช้หักบิลรวมเกินยอด ADV')
 
