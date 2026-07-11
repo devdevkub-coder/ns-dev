@@ -376,7 +376,7 @@ export function SalesPlanPageClient() {
 
     return (data?.pendingSaleTable ?? [])
       .filter((row) => !filterGroup || text(row.metalGroup).includes(filterGroup))
-      .map((row) => {
+      .map((row): AnyRow => {
         const plan = bestPlanByProduct.get(text(row.productCode).trim().toLowerCase()) ?? bestPlanByProduct.get(text(row.productId).trim().toLowerCase())
         if (!plan) return { ...row, bestPlanPct: 0, bestPlanPrice: 0, projectedMarginPct: 0, projectedProfit: 0 }
 
@@ -390,6 +390,12 @@ export function SalesPlanPageClient() {
           projectedMarginPct: poolCost > 0 ? ((plan.price - poolCost) / poolCost) * 100 : 0,
           projectedProfit,
         }
+      })
+      .sort((left, right) => {
+        const leftHasPlan = num(left.bestPlanPrice) > 0 && num(left.bestPlanPct) > 0
+        const rightHasPlan = num(right.bestPlanPrice) > 0 && num(right.bestPlanPct) > 0
+        if (leftHasPlan !== rightHasPlan) return leftHasPlan ? -1 : 1
+        return num(right.pendingSaleQty) - num(left.pendingSaleQty)
       })
   }, [data?.pendingSaleTable, filterGroup, planRowsWithStatus])
   const pendingSaleTotals = useMemo(() => ({
