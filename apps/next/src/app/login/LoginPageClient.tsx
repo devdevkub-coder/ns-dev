@@ -3,7 +3,7 @@
 import { FormEvent, KeyboardEvent, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { isEmailIdentifier, loginSchema } from '@/lib/auth'
+import { loginSchema } from '@/lib/auth'
 import { getSupabaseClient } from '@/lib/supabase'
 
 type LoginPageClientProps = {
@@ -11,12 +11,6 @@ type LoginPageClientProps = {
     identifier: string
     password: string
   }
-}
-
-type AuthMeResponse = {
-  roles?: Array<{
-    code?: string | null
-  }>
 }
 
 function safeRedirectPath(value: string | null) {
@@ -32,31 +26,8 @@ function safeRedirectPath(value: string | null) {
   }
 }
 
-function landingPathForRoleCodes(roleCodes: string[]) {
-  if (roleCodes.includes('admin') || roleCodes.includes('owner')) return '/owner-daily'
-  if (roleCodes.includes('production_department')) return '/production/dashboard'
-  if (roleCodes.includes('sorting_department')) return '/daily/weight-ticket-list'
-  return '/'
-}
-
 async function resolveDefaultLandingPath() {
-  try {
-    const response = await fetch('/api/auth/me', {
-      cache: 'no-store',
-      credentials: 'same-origin',
-    })
-
-    if (!response.ok) return '/'
-
-    const payload = await response.json() as AuthMeResponse
-    const roleCodes = (payload.roles ?? [])
-      .map((role) => String(role.code ?? '').toLowerCase())
-      .filter(Boolean)
-
-    return landingPathForRoleCodes(roleCodes)
-  } catch {
-    return '/'
-  }
+  return '/'
 }
 
 export function LoginPageClient({ devLogin }: LoginPageClientProps) {
@@ -69,26 +40,11 @@ export function LoginPageClient({ devLogin }: LoginPageClientProps) {
   const supabase = getSupabaseClient()
   const isSupabaseReady = Boolean(supabase)
 
-  async function resolveLoginEmail(loginIdentifier: string) {
-    if (!supabase) return null
-    if (isEmailIdentifier(loginIdentifier)) return loginIdentifier
-
-    const { data, error: lookupError } = await supabase.rpc('lookup_app_login_email', {
-      _identifier: loginIdentifier,
-    })
-
-    if (lookupError) {
-      throw new Error(lookupError.message)
-    }
-
-    return typeof data === 'string' && data.includes('@') ? data : null
-  }
-
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
 
-    const parsed = loginSchema.safeParse({ identifier, password })
+    const parsed = loginSchema.safeParse({ email: identifier, password })
 
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? 'ข้อมูล login ไม่ถูกต้อง')
@@ -102,24 +58,8 @@ export function LoginPageClient({ devLogin }: LoginPageClientProps) {
 
     setIsLoading(true)
 
-    let loginEmail: string | null = null
-
-    try {
-      loginEmail = await resolveLoginEmail(parsed.data.identifier)
-    } catch (caught) {
-      setIsLoading(false)
-      setError(caught instanceof Error ? `ตรวจสอบบัญชีไม่สำเร็จ: ${caught.message}` : 'ตรวจสอบบัญชีไม่สำเร็จ')
-      return
-    }
-
-    if (!loginEmail) {
-      setIsLoading(false)
-      setError('ไม่พบบัญชีผู้ใช้งานที่เปิดใช้งานอยู่')
-      return
-    }
-
     const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: loginEmail,
+      email: parsed.data.email,
       password: parsed.data.password,
     })
 
@@ -166,14 +106,14 @@ export function LoginPageClient({ devLogin }: LoginPageClientProps) {
 
         <form className="space-y-4" onSubmit={submit}>
           <label className="block text-sm font-medium text-slate-700">
-            Email / Username
+            Email
             <input
-              autoComplete="username"
+              autoComplete="email"
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isLoading}
               onChange={(event) => setIdentifier(event.target.value)}
               placeholder="ns-aom@nsscrap.com"
-              type="text"
+              type="email"
               value={identifier}
             />
           </label>

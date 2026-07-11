@@ -19,10 +19,6 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
 }
 
-function metadataRole(user: { app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> }) {
-  return String(user.app_metadata?.role ?? user.user_metadata?.role ?? '').toLowerCase()
-}
-
 function isPasswordChangeAllowedPath(pathname: string) {
   return pathname === '/admin/change-password' || pathname === '/api/auth/me' || pathname === '/api/auth/password-changed'
 }
@@ -87,11 +83,6 @@ export async function proxy(request: NextRequest) {
   }
 
   const requiredPermission = permissionForPath(pathname)
-  const { data: isAppAdmin, error: appAdminError } = await supabase.rpc('is_app_admin')
-
-  if (!appAdminError && isAppAdmin === true) {
-    return response
-  }
 
   if (requiredPermission) {
     const { data: hasPermission, error: permissionError } = await supabase.rpc('has_app_permission', {
@@ -107,21 +98,8 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('role, active')
-    .eq('user_id', user.id)
-    .maybeSingle<{ role: string; active: boolean | null }>()
-
-  const role = String(profile?.role ?? metadataRole(user)).toLowerCase()
-  const isActive = profile?.active !== false
-
-  if ((role !== 'admin' && role !== 'owner') || !isActive) {
-    const message = requiredPermission ? 'ไม่มีสิทธิ์ใช้งานส่วนนี้' : 'ต้องใช้บัญชีที่เปิดใช้งาน'
-    return pathname.startsWith('/api/') ? jsonError(message, 403) : NextResponse.redirect(new URL('/login', request.url))
-  }
-
-  return response
+  const message = requiredPermission ? 'ไม่มีสิทธิ์ใช้งานส่วนนี้' : 'ต้องใช้บัญชีที่เปิดใช้งาน'
+  return pathname.startsWith('/api/') ? jsonError(message, 403) : NextResponse.redirect(new URL('/login', request.url))
 }
 
 export const config = {

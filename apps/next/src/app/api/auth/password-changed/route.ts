@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     await prisma.app_users.update({
       data: {
         must_change_password: false,
-        updated_by: context.appUser.username ?? context.authUser.email ?? 'system',
+        updated_by: context.appUser.email ?? context.authUser.email ?? 'system',
       },
       where: { id: context.appUser.id },
     })

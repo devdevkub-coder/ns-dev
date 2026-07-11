@@ -377,7 +377,7 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
-    const actor = context.appUser?.username ?? context.authUser.email ?? null
+    const actor = context.appUser?.email ?? context.authUser.email ?? null
     await prisma.$transaction(async (tx) => {
       for (const [index, row] of validRows.entries()) {
         const payload = toCustomerWriteInput(row, {

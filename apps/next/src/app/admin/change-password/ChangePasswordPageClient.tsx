@@ -14,7 +14,6 @@ type CurrentUser = {
   email: string
   mustChangePassword: boolean
   name: string
-  username: string
 }
 
 function issueMap(issues: { message: string; path: PropertyKey[] }[]) {
@@ -67,14 +66,13 @@ export function ChangePasswordPageClient() {
         const payload = await response.json() as {
           email?: string | null
           mustChangePassword?: boolean
-          user?: { displayName?: string | null; username?: string | null }
+          user?: { displayName?: string | null; email?: string | null }
         }
         if (!mounted) return
         setUser({
           email: payload.email ?? '',
           mustChangePassword: payload.mustChangePassword === true,
-          name: payload.user?.displayName ?? payload.user?.username ?? payload.email ?? 'ผู้ใช้งาน',
-          username: payload.user?.username ?? '-',
+          name: payload.user?.displayName ?? payload.email ?? 'ผู้ใช้งาน',
         })
       } catch (caught) {
         if (!mounted) return
@@ -249,7 +247,7 @@ export function ChangePasswordPageClient() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-bold text-slate-900">{isFetchingUser ? 'กำลังโหลดผู้ใช้...' : user?.name ?? '-'}</div>
-                <div className="truncate text-xs text-slate-500 mt-0.5">@{user?.username ?? '-'}</div>
+                <div className="truncate text-xs text-slate-500 mt-0.5">{user?.email ?? '-'}</div>
               </div>
             </div>
             <div className="mt-3 truncate rounded border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600 font-medium">{user?.email || '-'}</div>

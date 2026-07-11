@@ -2370,7 +2370,7 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
             onChange={(event) => setValues({ ...values, targetCostPolicy: event.target.value as StockConvertFormValues['targetCostPolicy'], targetUnitCost: null, targetUnitCostReason: null })}
           >
             <option value="SOURCE_MATCHED">Source matched cost (default)</option>
-            <option value="CUSTOM_UNIT_COST">Custom unit cost (admin/owner)</option>
+            <option value="CUSTOM_UNIT_COST">กำหนดต้นทุนต่อหน่วยเอง</option>
           </select>
         </label>
         {values.targetCostPolicy === 'CUSTOM_UNIT_COST' ? (

@@ -19,8 +19,8 @@ export function normalizeDate(value: string) {
   return new Date(`${value}T00:00:00.000Z`)
 }
 
-export function currentActor(context: { appUser: { username: string } | null; authUser: { email?: string } }) {
-  return context.appUser?.username ?? context.authUser.email ?? '-'
+export function currentActor(context: { appUser: { email: string | null } | null; authUser: { email?: string } }) {
+  return context.appUser?.email ?? context.authUser.email ?? '-'
 }
 
 type DailyDocNoTable = 'bank_statement' | 'customer_receipts' | 'expenses' | 'payments' | 'petty_advance_returns' | 'petty_advances' | 'purchase_bills' | 'receipts' | 'sales_bills' | 'transfers'

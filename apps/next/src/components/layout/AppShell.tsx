@@ -16,7 +16,6 @@ type AppShellProps = {
 
 type AuthContextSummary = {
   authUserEmail: string
-  isAdmin: boolean
   mustChangePassword: boolean
   permissions: string[]
   roles: Array<{ code: string; id: string; name: string }>
@@ -33,7 +32,7 @@ type MenuSearchResult = {
 const PAGE_TITLE_EVENT = 'ns-scrap-erp-page-title'
 
 function emptyAuthContext(): AuthContextSummary {
-  return { authUserEmail: '', isAdmin: false, mustChangePassword: false, permissions: [], roles: [] }
+  return { authUserEmail: '', mustChangePassword: false, permissions: [], roles: [] }
 }
 
 function normalizeAuthRoles(value: unknown): AuthContextSummary['roles'] {
@@ -186,7 +185,6 @@ export function AppShell({ children }: AppShellProps) {
         if (mounted && response.ok) {
           setAuthContext({
             authUserEmail: typeof payload?.authUser?.email === 'string' ? payload.authUser.email : '',
-            isAdmin: payload?.isAdmin === true,
             mustChangePassword: payload?.appUser?.mustChangePassword === true,
             permissions: Array.isArray(payload?.permissions) ? payload.permissions : [],
             roles: normalizeAuthRoles(payload?.roles),

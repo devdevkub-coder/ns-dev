@@ -259,7 +259,7 @@ export async function POST(request: Request) {
       },
     )
 
-    const actor = context.appUser?.username ?? context.authUser.email ?? null
+    const actor = context.appUser?.email ?? context.authUser.email ?? null
     const customer = await prisma.$transaction(async (tx) => {
       const savedCustomer = existingCustomer
         ? await tx.customers.update({

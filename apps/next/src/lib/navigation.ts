@@ -23,6 +23,29 @@ export type NavigationItem = {
   section: NavigationSectionKey
 }
 
+export type PermissionCatalogEntry = {
+  action: string
+  code: string
+  description: string | null
+  id: string
+  module: string
+  resource: string
+}
+
+export type SidebarPermissionPage = {
+  actions: PermissionCatalogEntry[]
+  href: string
+  icon: string
+  label: string
+  requiredPermissionCode: string
+}
+
+export type SidebarPermissionSection = {
+  key: NavigationSectionKey
+  label: string
+  pages: SidebarPermissionPage[]
+}
+
 export type BreadcrumbItem = {
   href?: string
   label: string
@@ -161,10 +184,10 @@ export function permissionForPath(pathname: string) {
   return prefixPathPermissions.find(([prefix]) => normalizedPath === prefix.slice(0, -1) || normalizedPath.startsWith(prefix))?.[1] ?? null
 }
 
-export function canAccessPath(pathname: string, context: { isAdmin?: boolean; permissions?: string[] }) {
+export function canAccessPath(pathname: string, context: { permissions?: string[] }) {
   const requiredPermission = permissionForPath(pathname)
 
-  return !requiredPermission || context.isAdmin === true || (context.permissions ?? []).includes(requiredPermission)
+  return !requiredPermission || (context.permissions ?? []).includes(requiredPermission)
 }
 
 export const navigationSections: Array<{ key: NavigationSectionKey; label: string }> = [
@@ -266,7 +289,7 @@ export const navigationItems: NavigationItem[] = [
   // กลุ่มข้อมูลบริษัท
   { href: '/master-data/branches', icon: '🏢', label: 'สาขา', section: 'company-data' },
   { href: '/master-data/warehouses', icon: '🏬', label: 'คลัง', section: 'company-data' },
-  { href: '/master-data/departments', icon: '🏢', label: 'แผนก', section: 'company-data' },
+  { href: '/master-data/departments', icon: '🏢', label: 'ฝ่าย', section: 'company-data' },
   { href: '/master-data/salespersons', icon: '👨‍💼', label: 'พนักงานขาย (Sales)', section: 'company-data' },
   { href: '/master-data/directors', icon: '🧑‍💼', label: 'พนักงาน / กรรมการ', section: 'company-data' },
 
@@ -375,6 +398,53 @@ export const navigationItems: NavigationItem[] = [
     ],
   },
 ]
+
+/**
+ * Turns the rendered side menu into the permission-management catalog.
+ * Only pages with an existing access permission in the database are returned;
+ * a new permission must be explicitly registered before it can be assigned.
+ */
+export function sidebarPermissionSections(permissions: PermissionCatalogEntry[]): SidebarPermissionSection[] {
+  const permissionByCode = new Map(permissions.map((permission) => [permission.code, permission]))
+  const seenPaths = new Set<string>()
+  const pagesBySection = new Map<NavigationSectionKey, SidebarPermissionPage[]>()
+
+  for (const item of navigationItems) {
+    const visiblePages = item.children?.length ? item.children : [item]
+
+    for (const page of visiblePages) {
+      if (seenPaths.has(page.href)) continue
+      seenPaths.add(page.href)
+
+      const requiredPermissionCode = permissionForPath(page.href)
+      if (!requiredPermissionCode) continue
+
+      const requiredPermission = permissionByCode.get(requiredPermissionCode)
+      if (!requiredPermission) continue
+
+      const actions = permissions.filter((permission) => (
+        permission.module === requiredPermission.module
+        && permission.resource === requiredPermission.resource
+      ))
+      const current = pagesBySection.get(page.section) ?? []
+      current.push({
+        actions,
+        href: page.href,
+        icon: page.icon,
+        label: page.label,
+        requiredPermissionCode,
+      })
+      pagesBySection.set(page.section, current)
+    }
+  }
+
+  return navigationSections
+    .map((section) => ({
+      ...section,
+      pages: pagesBySection.get(section.key) ?? [],
+    }))
+    .filter((section) => section.pages.length > 0)
+}
 
 const sidebarParentPathByDetailPrefix: Array<[string, string]> = [
   ['/purchase/payment-approvals', '/daily/payment-approval'],

@@ -11,7 +11,7 @@ import {
 import { canAccessPath, navigationItems, sidebarNavigationPath } from '@/lib/navigation'
 
 type MobileBottomNavigationProps = {
-  authContext: { isAdmin: boolean; permissions: string[] } | null
+  authContext: { permissions: string[] } | null
   onOpenSidebar?: () => void
 }
 
@@ -134,4 +134,3 @@ export function MobileBottomNavigation({ authContext, onOpenSidebar }: MobileBot
     </nav>
   )
 }
-

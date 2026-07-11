@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { forgotPasswordSchema, isEmailIdentifier } from '@/lib/auth'
+import { forgotPasswordSchema } from '@/lib/auth'
 import { requestIp } from '@/lib/server/app-logging'
 import { prisma } from '@/lib/server/prisma'
 import { getSupabasePublicServerClient } from '@/lib/server/supabase-admin'
@@ -82,29 +82,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'ข้อมูลไม่ถูกต้อง' }, { status: 400 })
   }
 
-  const identifier = parsed.data.identifier
-  const identifierIsEmail = isEmailIdentifier(identifier)
+  const email = parsed.data.email
   const appUser = await prisma.app_users.findFirst({
     select: {
       active: true,
       email: true,
       id: true,
-      username: true,
     },
-    where: identifierIsEmail
-      ? { active: true, email: { equals: identifier, mode: 'insensitive' } }
-      : { active: true, username: { equals: identifier, mode: 'insensitive' } },
+    where: { active: true, email: { equals: email, mode: 'insensitive' } },
   })
 
   await recordPublicResetRequest(request, appUser?.id ?? null, {
     foundActiveAppUser: appUser != null,
-    identifierType: identifierIsEmail ? 'email' : 'username',
+    identifierType: 'email',
     source: 'self_service',
-    username: appUser?.username ?? null,
+    email: appUser?.email ?? email,
   })
 
-  const email = appUser?.email ?? (identifierIsEmail ? identifier : null)
-  if (!email) {
+  if (!appUser?.email) {
     return NextResponse.json({ sent: true })
   }
 
@@ -113,7 +108,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Supabase public env ยังไม่พร้อมสำหรับส่ง reset password' }, { status: 503 })
   }
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+  const { error } = await supabase.auth.resetPasswordForEmail(appUser.email, {
     redirectTo: resolveRedirectTo(request, body.redirectTo),
   })
 

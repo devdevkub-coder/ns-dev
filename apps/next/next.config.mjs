@@ -72,13 +72,19 @@ const supabaseOrigin = (() => {
 const supabaseWsOrigin = supabaseOrigin ? supabaseOrigin.replace('https://', 'wss://') : ''
 const cspConnectSources = ['self', supabaseOrigin, supabaseWsOrigin].filter(Boolean).map((source) => source === 'self' ? "'self'" : source).join(' ')
 const cspImageSources = ['self', 'data:', 'blob:', supabaseOrigin].filter(Boolean).map((source) => source === 'self' ? "'self'" : source).join(' ')
+const isDevelopment = process.env.NODE_ENV !== 'production'
+const cspScriptSources = [
+  "'self'",
+  "'unsafe-inline'",
+  ...(isDevelopment ? ["'unsafe-eval'"] : []),
+].join(' ')
 
 const cspHeader = [
   "default-src 'self'",
   "base-uri 'self'",
   "frame-ancestors 'none'",
   "object-src 'none'",
-  "script-src 'self' 'unsafe-inline'",
+  'script-src ' + cspScriptSources,
   "style-src 'self' 'unsafe-inline'",
   'img-src ' + cspImageSources,
   "font-src 'self' data:",

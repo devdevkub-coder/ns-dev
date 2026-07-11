@@ -61,7 +61,6 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
         display_name: true,
         email: true,
         id: true,
-        username: true,
       },
       where: { id },
     })
@@ -95,7 +94,7 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
         context,
         eventType: 'app_user.reset_sent',
         metadata: {
-          username: appUser.username,
+          email: appUser.email,
         },
         request,
         targetAppUserId: appUser.id.toString(),
@@ -113,7 +112,6 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
     const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(appUser.email, {
       data: {
         display_name: appUser.display_name,
-        username: appUser.username,
       },
       redirectTo,
     })
@@ -126,7 +124,7 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
       await prisma.app_users.update({
         data: {
           auth_user_id: data.user.id,
-          updated_by: context.appUser?.username ?? context.authUser.email ?? 'system',
+          updated_by: context.appUser?.email ?? context.authUser.email ?? 'system',
         },
         where: { id: appUser.id },
       })
@@ -137,7 +135,7 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
       eventType: 'app_user.invite_sent',
       metadata: {
         linkedAuthUser: Boolean(data.user?.id),
-        username: appUser.username,
+        email: appUser.email,
       },
       request,
       targetAppUserId: appUser.id.toString(),

@@ -43,7 +43,7 @@ export async function PATCH(request: Request, { params }: AdminUserStatusRoutePr
     const user = await prisma.app_users.update({
       data: {
         active: values.active,
-        updated_by: context.appUser?.username ?? context.authUser.email ?? 'system',
+        updated_by: context.appUser?.email ?? context.authUser.email ?? 'system',
       },
       where: {
         id,
@@ -55,7 +55,7 @@ export async function PATCH(request: Request, { params }: AdminUserStatusRoutePr
       eventType: 'app_user.status_updated',
       metadata: {
         active: user.active,
-        username: user.username,
+        email: user.email,
       },
       request,
       targetAppUserId: user.id.toString(),

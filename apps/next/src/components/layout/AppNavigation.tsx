@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { canAccessPath, navigationItems, navigationSections, sidebarNavigationPath, type NavigationSectionKey } from '@/lib/navigation'
 
 type AppNavigationProps = {
-  authContext: { isAdmin: boolean; permissions: string[] } | null
+  authContext: { permissions: string[] } | null
   compact?: boolean
   onNavigate?: () => void
 }

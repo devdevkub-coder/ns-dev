@@ -594,6 +594,7 @@ model departments {
   active     Boolean?  @default(true)
   created_at DateTime? @default(now()) @db.Timestamptz(6)
   updated_at DateTime? @default(now()) @db.Timestamptz(6)
+  app_users  app_users[]
 
   @@schema("public")
 }
@@ -3860,6 +3861,7 @@ model app_permissions {
   updated_at           DateTime               @default(now()) @db.Timestamptz(6)
   id                   BigInt                 @id @default(autoincrement())
   app_role_permissions app_role_permissions[]
+  app_user_permission_overrides app_user_permission_overrides[]
 
   @@index([active], map: "idx_app_permissions_active")
   @@index([module], map: "idx_app_permissions_module")
@@ -3936,12 +3938,28 @@ model app_user_roles {
   @@schema("public")
 }
 
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model app_user_permission_overrides {
+  user_id         BigInt
+  permission_id   BigInt
+  effect          String
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
+  created_by      String?
+  updated_at      DateTime        @default(now()) @db.Timestamptz(6)
+  updated_by      String?
+  app_permissions app_permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  app_users       app_users       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, permission_id])
+  @@index([permission_id], map: "idx_app_user_permission_overrides_permission_id")
+  @@schema("public")
+}
+
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model app_users {
   auth_user_id                                                  String?                  @unique @db.Uuid
-  username                                                      String
   display_name                                                  String?
   email                                                         String?
   active                                                        Boolean                  @default(true)
@@ -3952,6 +3970,7 @@ model app_users {
   created_by                                                    String?
   updated_by                                                    String?
   id                                                            BigInt                   @id @default(autoincrement())
+  department_id                                                 BigInt?
   name_prefix                                                   String?
   first_name                                                    String?
   last_name                                                     String?
@@ -3964,11 +3983,14 @@ model app_users {
   app_auth_events_app_auth_events_actor_app_user_idToapp_users  app_auth_events[]        @relation("app_auth_events_actor_app_user_idToapp_users")
   app_auth_events_app_auth_events_target_app_user_idToapp_users app_auth_events[]        @relation("app_auth_events_target_app_user_idToapp_users")
   app_user_branch_access                                        app_user_branch_access[]
+  app_user_permission_overrides                                 app_user_permission_overrides[]
   app_user_roles                                                app_user_roles[]
+  departments                                                   departments?             @relation(fields: [department_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   users                                                         auth_users?              @relation(fields: [auth_user_id], references: [id], onUpdate: NoAction)
 
   @@index([active], map: "idx_app_users_active")
   @@index([auth_user_id], map: "idx_app_users_auth_user_id")
+  @@index([department_id], map: "idx_app_users_department_id")
   @@schema("public")
 }
 

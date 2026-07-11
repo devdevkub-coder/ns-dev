@@ -525,7 +525,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'ข้อมูลต้นทุนที่เลือกไม่สมบูรณ์ กรุณาเปิด Preview ใหม่แล้วลองอีกครั้ง' }, { status: 400 })
     }
 
-    const actor = context.appUser?.username || context.authUser.email || 'system'
+    const actor = context.appUser?.email || context.authUser.email || 'system'
     const branch = await getDualCostingBranch()
     const result = await prisma.$transaction(async (tx) => {
       // 1. Find product

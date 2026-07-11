@@ -15,7 +15,6 @@ type CurrentUser = {
   email: string
   mustChangePassword: boolean
   roleNames: string[]
-  username: string
 }
 
 type PasswordFieldErrors = Partial<Record<'confirmPassword' | 'currentPassword' | 'password', string>>
@@ -81,7 +80,7 @@ export function ProfilePageClient() {
         const payload = await response.json() as {
           email?: string | null
           mustChangePassword?: boolean
-          user?: { displayName?: string | null; username?: string | null }
+          user?: { displayName?: string | null; email?: string | null }
           roles?: Array<{ name: string }>
           appUser?: { branchIds?: string[] }
         }
@@ -93,7 +92,6 @@ export function ProfilePageClient() {
           email: payload.email ?? '',
           mustChangePassword: payload.mustChangePassword === true,
           roleNames: (payload.roles ?? []).map((r) => r.name),
-          username: payload.user?.username ?? '-',
         }
 
         setUser(fetchedUser)
@@ -239,13 +237,6 @@ export function ProfilePageClient() {
             <form className="space-y-4 rounded-xl border border-slate-200/60 bg-white p-5 shadow-sm animate-fade-in" onSubmit={updateProfile}>
               <div className="space-y-4">
                 <div>
-                  <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider">บัญชีผู้ใช้ (Username)</span>
-                  <div className="mt-1.5 px-3 py-2 rounded-md border border-slate-200 bg-slate-50 text-slate-600 text-sm font-semibold">
-                    {isFetchingUser ? 'กำลังโหลด...' : user?.username}
-                  </div>
-                </div>
-
-                <div>
                   <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider">อีเมล (Email)</span>
                   <div className="mt-1.5 px-3 py-2 rounded-md border border-slate-200 bg-slate-50 text-slate-600 text-sm font-semibold">
                     {isFetchingUser ? 'กำลังโหลด...' : user?.email}
@@ -350,7 +341,7 @@ export function ProfilePageClient() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-bold text-slate-900">{isFetchingUser ? 'กำลังโหลด...' : user?.displayName || '-'}</div>
-                <div className="truncate text-xs text-slate-500 mt-0.5">@{isFetchingUser ? '...' : user?.username}</div>
+                <div className="truncate text-xs text-slate-500 mt-0.5">{isFetchingUser ? 'กำลังโหลด...' : user?.email}</div>
               </div>
             </div>
             

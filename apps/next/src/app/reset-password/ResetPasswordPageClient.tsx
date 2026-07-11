@@ -109,7 +109,7 @@ export function ResetPasswordPageClient() {
         ) : null}
 
         <form className="space-y-4" onSubmit={submit}>
-          <input autoComplete="username" className="hidden" readOnly type="text" value={sessionEmail} />
+          <input autoComplete="email" className="hidden" readOnly type="email" value={sessionEmail} />
           <label className="block text-sm font-medium text-slate-700">
             Password ใหม่
             <span className="relative mt-1 block">

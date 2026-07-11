@@ -514,7 +514,7 @@ export async function POST(request: Request) {
     const existingIds = new Set(existing.map((row) => row.code ?? '').filter(Boolean))
     const existingByCode = new Map(existing.map((row) => [row.code ?? '', row]))
 
-    const actor = context.appUser?.username ?? context.authUser.email ?? null
+    const actor = context.appUser?.email ?? context.authUser.email ?? null
     await prisma.$transaction(async (tx) => {
       for (const row of validRows) {
         const payload = toSupplierWriteInput(row, paymentMethods)

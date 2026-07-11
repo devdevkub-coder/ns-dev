@@ -274,13 +274,13 @@ function documentPeriod(date: string) {
 }
 
 export function branchScopeIds(context: AppAuthContext) {
-  return context.isAdmin ? [] : context.appUser?.branchIds ?? []
+  return context.appUser?.branchIds ?? []
 }
 
 export function enteredByLabel(context: AppAuthContext) {
   // NSERP-85: show only the system Display Name for the weighing staff on
   // weight tickets / receipts. If display_name is missing it shows '-'
-  // rather than leaking username/email, so the underlying user record is the
+  // rather than leaking the account email, so the underlying user record is the
   // single source of truth for the staff's name.
   return context.appUser?.displayName ?? '-'
 }

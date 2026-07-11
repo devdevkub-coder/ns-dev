@@ -14,19 +14,19 @@ const adminUserFormSchema = z.object({
   contactLineId: z.string().trim().max(120, 'LINE ID ยาวเกินไป').optional().default(''),
   contactNote: z.string().trim().max(500, 'หมายเหตุ contact ยาวเกินไป').optional().default(''),
   contactPhone: z.string().trim().max(80, 'เบอร์ติดต่อยาวเกินไป').optional().default(''),
-  displayName: z.string().trim().min(1, 'กรอกชื่อผู้ใช้').max(160, 'ชื่อผู้ใช้ยาวเกินไป'),
+  departmentId: z.string().trim().regex(/^\d+$/, 'เลือกฝ่ายให้ถูกต้อง'),
   email: z.string().trim().email('รูปแบบอีเมลไม่ถูกต้อง'),
   firstName: z.string().trim().max(120, 'ชื่อจริงยาวเกินไป').optional().default(''),
   lastName: z.string().trim().max(120, 'นามสกุลยาวเกินไป').optional().default(''),
   mustChangePassword: z.boolean().default(false),
-  namePrefix: z.string().trim().max(40, 'คำนำหน้าชื่อยาวเกินไป').optional().default(''),
+  namePrefix: z.enum(['', 'นาย', 'นาง', 'นางสาว', 'คุณ'], { message: 'คำนำหน้าชื่อไม่ถูกต้อง' }).optional().default(''),
+  permissionOverrides: z.array(z.object({
+    effect: z.enum(['allow', 'deny']),
+    permissionId: z.string().trim().regex(/^\d+$/, 'สิทธิ์ไม่ถูกต้อง'),
+  })).default([]),
   profileImageUrl: z.string().trim().max(500, 'URL รูป profile ยาวเกินไป').optional().default('')
     .refine((value) => !value || /^https?:\/\//i.test(value), 'URL รูป profile ต้องขึ้นต้นด้วย http:// หรือ https://'),
-  roleIds: z.array(z.string().trim().regex(/^\d+$/, 'Role ไม่ถูกต้อง')).min(1, 'เลือก role อย่างน้อย 1 รายการ'),
-  username: z.string().trim()
-    .min(3, 'Username ต้องมีอย่างน้อย 3 ตัวอักษร')
-    .max(60, 'Username ยาวเกินไป')
-    .regex(/^[A-Za-z0-9._-]+$/, 'Username ใช้ได้เฉพาะอังกฤษ ตัวเลข จุด ขีดกลาง และ underscore'),
+  roleIds: z.array(z.string().trim().regex(/^\d+$/, 'หน้าที่งานไม่ถูกต้อง')).default([]),
 })
 
 function toIso(value: Date | null) {
@@ -36,6 +36,13 @@ function toIso(value: Date | null) {
 function optionalText(value: string | undefined) {
   const trimmed = value?.trim() ?? ''
   return trimmed || null
+}
+
+function displayNameFromProfile(values: { email: string; firstName: string; lastName: string; namePrefix: string }) {
+  return [values.namePrefix, values.firstName, values.lastName]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(' ') || values.email
 }
 
 function parseRoleIds(roleIds: string[]) {
@@ -48,14 +55,53 @@ function parseRoleIds(roleIds: string[]) {
   return parsed as bigint[]
 }
 
-async function assertUserRefs(roleIds: string[], branchIds: string[]) {
+function parseDepartmentId(value: string) {
+  const parsed = parseInternalBigIntId(value)
+  if (parsed == null) {
+    throw new Error('ฝ่ายไม่ถูกต้อง')
+  }
+  return parsed
+}
+
+function parsePermissionOverrides(overrides: Array<{ effect: 'allow' | 'deny'; permissionId: string }>) {
+  const seen = new Set<string>()
+  const parsed = overrides.map((override) => {
+    const permissionId = parseInternalBigIntId(override.permissionId)
+    if (permissionId == null || seen.has(override.permissionId)) {
+      throw new Error('สิทธิ์รายผู้ใช้ไม่ถูกต้อง')
+    }
+    seen.add(override.permissionId)
+    return { effect: override.effect, permissionId }
+  })
+  return parsed
+}
+
+async function assertUserRefs(
+  roleIds: string[],
+  branchIds: string[],
+  departmentId: string,
+  permissionOverrides: Array<{ effect: 'allow' | 'deny'; permissionId: string }>,
+) {
   const parsedRoleIds = parseRoleIds(roleIds)
-  const [roles, branches] = await Promise.all([
+  const parsedDepartmentId = parseDepartmentId(departmentId)
+  const parsedPermissionOverrides = parsePermissionOverrides(permissionOverrides)
+  const [roles, branches, department, permissions] = await Promise.all([
     prisma.app_roles.findMany({
       select: { id: true },
       where: { id: { in: parsedRoleIds }, active: true },
     }),
     findActiveBranchReferencesByCodes(branchIds),
+    prisma.departments.findFirst({
+      select: { id: true },
+      where: { id: parsedDepartmentId, active: true },
+    }),
+    prisma.app_permissions.findMany({
+      select: { id: true },
+      where: {
+        active: true,
+        id: { in: parsedPermissionOverrides.map((override) => override.permissionId) },
+      },
+    }),
   ])
 
   if (roles.length !== new Set(parsedRoleIds.map((roleId) => roleId.toString())).size) {
@@ -66,8 +112,18 @@ async function assertUserRefs(roleIds: string[], branchIds: string[]) {
     throw new Error('สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
+  if (!department) {
+    throw new Error('ฝ่ายที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+  }
+
+  if (permissions.length !== parsedPermissionOverrides.length) {
+    throw new Error('สิทธิ์รายผู้ใช้ไม่ถูกต้องหรือถูกปิดใช้งาน')
+  }
+
   return {
     branchRefs: branches,
+    departmentId: parsedDepartmentId,
+    permissionOverrides: parsedPermissionOverrides,
     roleRefIds: parsedRoleIds,
   }
 }
@@ -77,7 +133,7 @@ export async function GET() {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'system.users.manage')
 
-    const [users, roles, branches] = await Promise.all([
+    const [users, roles, branches, departments, permissions] = await Promise.all([
       prisma.app_users.findMany({
         include: {
           app_user_branch_access: {
@@ -90,10 +146,21 @@ export async function GET() {
               app_roles: true,
             },
           },
+          app_user_permission_overrides: {
+            include: {
+              app_permissions: true,
+            },
+          },
+          departments: true,
         },
-        orderBy: [{ active: 'desc' }, { username: 'asc' }],
+        orderBy: [{ active: 'desc' }, { email: 'asc' }],
       }),
       prisma.app_roles.findMany({
+        include: {
+          app_role_permissions: {
+            select: { permission_id: true },
+          },
+        },
         orderBy: [{ is_system: 'desc' }, { name: 'asc' }],
       }),
       prisma.branches.findMany({
@@ -102,6 +169,16 @@ export async function GET() {
           active: true,
         },
       }),
+      prisma.departments.findMany({
+        orderBy: [{ code: 'asc' }, { name: 'asc' }],
+        where: {
+          active: true,
+        },
+      }),
+      prisma.app_permissions.findMany({
+        orderBy: [{ module: 'asc' }, { resource: 'asc' }, { action: 'asc' }],
+        where: { active: true },
+      }),
     ])
 
     return NextResponse.json({
@@ -109,6 +186,19 @@ export async function GET() {
         code: branch.code,
         id: branch.code,
         name: branch.name,
+      })),
+      departments: departments.map((department) => ({
+        code: department.code,
+        id: department.id.toString(),
+        name: department.name,
+      })),
+      permissions: permissions.map((permission) => ({
+        action: permission.action,
+        code: permission.code,
+        description: permission.description,
+        id: permission.id.toString(),
+        module: permission.module,
+        resource: permission.resource,
       })),
       roles: roles.map((role) => ({
         active: role.active,
@@ -123,6 +213,7 @@ export async function GET() {
         id: role.id.toString(),
         isSystem: role.is_system,
         name: role.name,
+        permissionIds: role.app_role_permissions.map((permission) => permission.permission_id.toString()),
       })),
       users: users.map((user) => ({
         active: user.active,
@@ -143,9 +234,23 @@ export async function GET() {
         mustChangePassword: user.must_change_password,
         namePrefix: user.name_prefix ?? null,
         profileImageUrl: user.profile_image_url ?? null,
+        permissionOverrides: user.app_user_permission_overrides
+          .filter((override) => override.app_permissions.active)
+          .map((override) => ({
+            effect: override.effect,
+            permissionId: override.permission_id.toString(),
+          })),
         contactPhone: user.contact_phone ?? null,
         contactLineId: user.contact_line_id ?? null,
         contactNote: user.contact_note ?? null,
+        department: user.departments
+          ? {
+              code: user.departments.code,
+              id: user.departments.id.toString(),
+              name: user.departments.name,
+            }
+          : null,
+        departmentId: user.department_id?.toString() ?? null,
         roles: user.app_user_roles.map((userRole) => ({
           branchScope: userRole.app_roles.branch_scope,
           code: userRole.app_roles.code,
@@ -153,7 +258,6 @@ export async function GET() {
           name: userRole.app_roles.name,
         })),
         updatedAt: toIso(user.updated_at),
-        username: user.username,
       })),
     })
   } catch (caught) {
@@ -167,22 +271,19 @@ export async function POST(request: Request) {
     requirePermission(context, 'system.users.manage')
 
     const values = adminUserFormSchema.parse(await request.json())
-    const { branchRefs, roleRefIds } = await assertUserRefs(values.roleIds, values.branchIds)
-
+    const { branchRefs, departmentId, permissionOverrides, roleRefIds } = await assertUserRefs(values.roleIds, values.branchIds, values.departmentId, values.permissionOverrides)
+    const displayName = displayNameFromProfile(values)
     const existing = await prisma.app_users.findFirst({
       where: {
-        OR: [
-          { username: { equals: values.username, mode: 'insensitive' } },
-          { email: { equals: values.email, mode: 'insensitive' } },
-        ],
+        email: { equals: values.email, mode: 'insensitive' },
       },
     })
 
     if (existing) {
-      return NextResponse.json({ error: 'Username หรือ email นี้มีอยู่แล้ว' }, { status: 409 })
+      return NextResponse.json({ error: 'อีเมลนี้มีอยู่แล้ว' }, { status: 409 })
     }
 
-    const actor = context.appUser?.username ?? context.authUser.email ?? 'system'
+    const actor = context.appUser?.email ?? context.authUser.email ?? 'system'
     const user = await prisma.$transaction(async (tx) => {
       const created = await tx.app_users.create({
         data: {
@@ -191,7 +292,8 @@ export async function POST(request: Request) {
           contact_note: optionalText(values.contactNote),
           contact_phone: optionalText(values.contactPhone),
           created_by: actor,
-          display_name: values.displayName,
+          department_id: departmentId,
+          display_name: displayName,
           email: values.email,
           first_name: optionalText(values.firstName),
           last_name: optionalText(values.lastName),
@@ -199,7 +301,6 @@ export async function POST(request: Request) {
           name_prefix: optionalText(values.namePrefix),
           profile_image_url: optionalText(values.profileImageUrl),
           updated_by: actor,
-          username: values.username,
         },
       })
 
@@ -210,6 +311,18 @@ export async function POST(request: Request) {
           user_id: created.id,
         })),
       })
+
+      if (permissionOverrides.length) {
+        await tx.app_user_permission_overrides.createMany({
+          data: permissionOverrides.map((override) => ({
+            created_by: actor,
+            effect: override.effect,
+            permission_id: override.permissionId,
+            updated_by: actor,
+            user_id: created.id,
+          })),
+        })
+      }
 
       if (values.branchIds.length) {
         await tx.app_user_branch_access.createMany({
@@ -230,8 +343,11 @@ export async function POST(request: Request) {
       metadata: {
         active: user.active,
         branchCount: values.branchIds.length,
+        departmentId: departmentId.toString(),
+        displayName,
         roleCount: values.roleIds.length,
-        username: user.username,
+        permissionOverrideCount: values.permissionOverrides.length,
+        email: user.email,
       },
       request,
       targetAppUserId: user.id.toString(),

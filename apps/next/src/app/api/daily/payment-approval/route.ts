@@ -566,7 +566,7 @@ export async function POST(request: Request) {
     requirePermission(context, 'finance.cash.view')
 
     const values = approvalRequestSchema.parse(await request.json())
-    const actor = context.appUser?.username ?? context.authUser.email ?? context.authUser.id
+    const actor = context.appUser?.email ?? context.authUser.email ?? context.authUser.id
     const paymentMethods = await getActivePaymentMethods()
 
     const result = await prisma.$transaction(async (tx) => {

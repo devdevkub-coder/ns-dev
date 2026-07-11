@@ -799,11 +799,11 @@ export function AssetRegisterPageClient() {
             <div className="w-full">
               <SearchCombobox
                 inputId="form-department"
-                label="แผนก"
+                label="ฝ่าย"
                 options={departmentOptions}
                 value={form.department}
                 onChange={(value) => updateForm('department', value)}
-                placeholder="เลือกหรือพิมพ์แผนก..."
+                placeholder="เลือกหรือพิมพ์ฝ่าย..."
               />
             </div>
             <Field label="สถานที่"><input className={fieldClass} value={form.location} onChange={(event) => updateForm('location', event.target.value)} /></Field>
@@ -1067,7 +1067,7 @@ export function DepreciationPageClient() {
           {categoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
         <select aria-label="Filter department" className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={filterDepartment} onChange={(event) => setFilterDepartment(event.target.value)}>
-          <option value="all">ทุกแผนก</option>
+          <option value="all">ทุกฝ่าย</option>
           {departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
 
@@ -1167,14 +1167,14 @@ export function DepreciationPageClient() {
           </div>
 
           <div>
-            <label className="mb-1 block font-semibold text-slate-600 text-xs">แผนก</label>
+            <label className="mb-1 block font-semibold text-slate-600 text-xs">ฝ่าย</label>
             <select
               aria-label="Filter department"
               className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
               value={filterDepartment}
               onChange={(event) => setFilterDepartment(event.target.value)}
             >
-              <option value="all">ทุกแผนก</option>
+              <option value="all">ทุกฝ่าย</option>
               {departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </div>

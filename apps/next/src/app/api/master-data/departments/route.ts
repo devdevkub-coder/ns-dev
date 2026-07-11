@@ -62,7 +62,7 @@ export async function GET() {
   } catch (caught) {
     console.error('API GET Departments Error:', caught)
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    return errorJson(caught, 'โหลดข้อมูลแผนกไม่ได้', 500)
+    return errorJson(caught, 'โหลดข้อมูลฝ่ายไม่ได้', 500)
   }
 }
 
@@ -87,6 +87,6 @@ export async function POST(request: Request) {
     return masterDataJson(mapDepartment(row))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    return errorJson(caught, 'บันทึกข้อมูลแผนกไม่ได้')
+    return errorJson(caught, 'บันทึกข้อมูลฝ่ายไม่ได้')
   }
 }

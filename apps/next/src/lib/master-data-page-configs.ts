@@ -485,16 +485,16 @@ export const assetCategoriesPageConfig: MasterDataPageConfig = {
 
 export const departmentsPageConfig: MasterDataPageConfig = {
   apiPath: '/api/master-data/departments',
-  createLabel: 'เพิ่มแผนก',
-  entityName: 'แผนก',
-  emptyMessage: 'ไม่พบข้อมูลแผนก',
+  createLabel: 'เพิ่มฝ่าย',
+  entityName: 'ฝ่าย',
+  emptyMessage: 'ไม่พบข้อมูลฝ่าย',
   fields: [
-    { key: 'code', label: 'รหัสแผนก' },
-    { key: 'name', label: 'ชื่อแผนก', required: true },
+    { key: 'code', label: 'รหัสฝ่าย' },
+    { key: 'name', label: 'ชื่อฝ่าย', required: true },
   ],
   columns: [
     { key: 'code', label: 'รหัส' },
-    { key: 'name', label: 'ชื่อแผนก' },
+    { key: 'name', label: 'ชื่อฝ่าย' },
     statusColumn,
   ],
 }

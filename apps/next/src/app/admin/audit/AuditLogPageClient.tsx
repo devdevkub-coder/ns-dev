@@ -9,7 +9,7 @@ import { useResizableColumns, type ResizableColumnDefinition } from '@/component
 import { SlidersHorizontal } from 'lucide-react'
 import { z } from 'zod'
 
-type AuditUser = { displayName: string | null; username: string } | null
+type AuditUser = { displayName: string | null; email: string } | null
 
 type AuditEvent = {
   actor: AuditUser
@@ -31,7 +31,7 @@ type AuditPayload = {
 
 const auditUserSchema = z.object({
   displayName: z.string().nullable(),
-  username: z.string(),
+  email: z.string(),
 }).nullable()
 
 const auditPayloadSchema = z.object({
@@ -78,7 +78,7 @@ function formatDate(value: string) {
 
 function userLabel(user: AuditUser) {
   if (!user) return '-'
-  return user.displayName ? `${user.displayName} (${user.username})` : user.username
+  return user.displayName ? `${user.displayName} (${user.email})` : user.email
 }
 
 function metadataText(metadata: unknown) {
@@ -334,7 +334,7 @@ export function AuditLogPageClient() {
 
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ผู้ทำรายการ</span>
-                <input className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" placeholder="username/display" value={actor} onChange={(event) => {
+                <input className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" placeholder="email/ชื่อแสดง" value={actor} onChange={(event) => {
                   setActor(event.target.value)
                   setPage(1)
                 }} />
@@ -342,7 +342,7 @@ export function AuditLogPageClient() {
 
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">เป้าหมาย</span>
-                <input className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" placeholder="username/display" value={target} onChange={(event) => {
+                <input className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" placeholder="email/ชื่อแสดง" value={target} onChange={(event) => {
                   setTarget(event.target.value)
                   setPage(1)
                 }} />
@@ -418,14 +418,14 @@ export function AuditLogPageClient() {
           </label>
           <label className="block text-sm font-medium">
             ผู้ทำรายการ
-            <input className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-3 outline-none focus:border-slate-700 text-sm" placeholder="username/display" value={actor} onChange={(event) => {
+            <input className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-3 outline-none focus:border-slate-700 text-sm" placeholder="email/ชื่อแสดง" value={actor} onChange={(event) => {
               setActor(event.target.value)
               setPage(1)
             }} />
           </label>
           <label className="block text-sm font-medium">
             เป้าหมาย
-            <input className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-3 outline-none focus:border-slate-700 text-sm" placeholder="username/display" value={target} onChange={(event) => {
+            <input className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-3 outline-none focus:border-slate-700 text-sm" placeholder="email/ชื่อแสดง" value={target} onChange={(event) => {
               setTarget(event.target.value)
               setPage(1)
             }} />
@@ -616,4 +616,3 @@ function DetailItem({ className = '', label, value, mono = false }: { className?
     </div>
   )
 }
-

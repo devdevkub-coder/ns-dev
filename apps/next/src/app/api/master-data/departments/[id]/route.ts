@@ -45,6 +45,6 @@ export async function PATCH(request: Request, { params }: MasterDataRouteProps) 
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    return errorJson(caught, 'อัปเดตสถานะแผนกไม่ได้')
+    return errorJson(caught, 'อัปเดตสถานะฝ่ายไม่ได้')
   }
 }

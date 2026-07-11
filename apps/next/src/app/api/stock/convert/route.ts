@@ -3,7 +3,7 @@ import { Prisma } from '../../../../../generated/prisma/client'
 import { requireBusinessCode, requireDocumentNo } from '@/lib/business-code'
 import { isCostPoolEligibleMetalGroup, stockConvertFormSchema } from '@/lib/stock'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, hasPermission, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { averageCostForStock, normalizeStockReferenceInput, quantityForStock, stockReferenceData } from '@/lib/server/stock'
@@ -558,8 +558,8 @@ export async function POST(request: Request) {
     if (!references.warehouseId) return NextResponse.json({ error: 'คลังไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (!sourceProductReference.productId) return NextResponse.json({ error: 'สินค้าต้นทางไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (!targetProductReference.productId) return NextResponse.json({ error: 'สินค้าปลายทางไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (values.targetCostPolicy === 'CUSTOM_UNIT_COST' && !context.isAdmin) {
-      return NextResponse.json({ error: 'Custom target unit cost ใช้ได้เฉพาะ admin/owner' }, { status: 403 })
+    if (values.targetCostPolicy === 'CUSTOM_UNIT_COST' && !hasPermission(context, 'finance.financials.manage')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์กำหนดต้นทุนปลายทางเอง' }, { status: 403 })
     }
     if (values.targetCostPolicy === 'CUSTOM_UNIT_COST' && values.targetUnitCost === null) {
       return NextResponse.json({ error: 'Custom target unit cost ต้องมากกว่า 0' }, { status: 400 })

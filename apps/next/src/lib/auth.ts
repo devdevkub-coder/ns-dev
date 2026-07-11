@@ -1,14 +1,14 @@
 import { z } from 'zod'
 
 export const loginSchema = z.object({
-  identifier: z.string().trim().min(1, 'กรุณากรอก email หรือ username'),
+  email: z.string().trim().email('รูปแบบอีเมลไม่ถูกต้อง'),
   password: z.string().min(1, 'กรุณากรอก password'),
 })
 
 export type LoginFormData = z.infer<typeof loginSchema>
 
 export const forgotPasswordSchema = z.object({
-  identifier: z.string().trim().min(1, 'กรุณากรอก email หรือ username'),
+  email: z.string().trim().email('รูปแบบอีเมลไม่ถูกต้อง'),
 })
 
 export type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>
@@ -43,13 +43,8 @@ export const changePasswordSchema = z.object({
 
 export type ChangePasswordFormData = z.infer<typeof changePasswordSchema>
 
-export function isEmailIdentifier(identifier: string) {
-  return z.string().email().safeParse(identifier).success
-}
-
 export const userProfileSchema = z.object({
   displayName: z.string().trim().min(1, 'กรุณากรอกชื่อแสดงผล (Display Name)'),
 })
 
 export type UserProfileFormData = z.infer<typeof userProfileSchema>
-

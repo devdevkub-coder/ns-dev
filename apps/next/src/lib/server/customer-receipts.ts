@@ -17,7 +17,7 @@ const SALES_BILL_STATUS_PAID = 'paid'
 const MONEY_EPSILON = 0.005
 
 type AuthContextForReceipt = {
-  appUser: { username: string } | null
+  appUser: { email: string | null } | null
   authUser: { email?: string }
 }
 

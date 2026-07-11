@@ -28,7 +28,7 @@ export async function PUT(request: Request) {
     const updatedUser = await prisma.app_users.update({
       data: {
         display_name: parsed.data.displayName,
-        updated_by: context.appUser.username ?? context.authUser.email ?? 'system',
+        updated_by: context.appUser.email ?? context.authUser.email ?? 'system',
       },
       where: { id: context.appUser.id },
     })
@@ -47,7 +47,7 @@ export async function PUT(request: Request) {
       ok: true,
       user: {
         displayName: updatedUser.display_name,
-        username: updatedUser.username,
+        email: updatedUser.email,
       },
     })
   } catch (caught) {
