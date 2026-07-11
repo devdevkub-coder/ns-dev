@@ -4,7 +4,10 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { SearchCombobox } from '@/components/ui/SearchCombobox'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 
 type AnyRow = Record<string, number | string | boolean | null | undefined>
@@ -29,10 +32,12 @@ type LmeConfig = {
   updatedBy: string
 }
 type SalesPlanPayload = {
+  customers: Array<{ active: boolean; code: string; id: string; marketScope: 'ต่างประเทศ' | 'ในประเทศ'; name: string }>
   filters: { channels: { id: string; name: string }[]; metalGroups: string[]; month: string }
   lmeConfig: LmeConfig
   pendingSaleTable: AnyRow[]
   pendingSaleTotals: Record<string, number>
+  planProductOptions: AnyRow[]
   planRows: AnyRow[]
   productAnalysis: AnyRow[]
   sourceState: { limitations: string[] }
@@ -41,8 +46,10 @@ type SalesPlanPayload = {
 type SalesPlanDraftForm = {
   channel: string
   containers: string
+  customerCode: string
   customerName: string
   kgPerContainer: string
+  lmeCf: string
   productCode: string
   sellPctLme: string
 }
@@ -175,6 +182,10 @@ function num(value: unknown) {
   return typeof value === 'number' ? value : Number(value ?? 0)
 }
 
+function sanitizeDecimalInput(value: string) {
+  return value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1')
+}
+
 const salesPlanNumberInputClass = 'w-full rounded-xl border border-slate-300 bg-white px-3 text-right font-medium text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
 const salesPlanReadonlyNumberInputClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 text-right font-medium text-slate-700 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
 
@@ -281,10 +292,12 @@ export function SalesPlanPageClient() {
   const [lmeForm, setLmeForm] = useState<LmeConfig | null>(null)
   const [planDraftError, setPlanDraftError] = useState<string | null>(null)
   const [planDraftForm, setPlanDraftForm] = useState<SalesPlanDraftForm>({
-    channel: 'export',
+    channel: '',
     containers: '1',
+    customerCode: '',
     customerName: '',
     kgPerContainer: '25000',
+    lmeCf: '',
     productCode: '',
     sellPctLme: '',
   })
@@ -317,26 +330,31 @@ export function SalesPlanPageClient() {
     void loadSalesPlan()
   }, [])
 
-  const productOptions = useMemo(() => (data?.productAnalysis ?? [])
+  const productOptions = useMemo(() => (data?.planProductOptions ?? [])
     .map((row) => ({
       code: text(row.code),
       metalGroup: text(row.metalGroup),
       name: text(row.name),
-      stock: num(row.stock),
       wac: num(row.wac),
     }))
-    .filter((row) => row.code && row.name), [data?.productAnalysis])
+    .filter((row) => row.code && row.name), [data?.planProductOptions])
+  const customerOptions = useMemo(() => (data?.customers ?? [])
+    .filter((customer) => customer.active)
+    .map((customer) => ({ code: customer.code, marketScope: customer.marketScope, name: customer.name })), [data?.customers])
   const selectedDraftProduct = useMemo(() => productOptions.find((option) => option.code === planDraftForm.productCode) ?? null, [planDraftForm.productCode, productOptions])
+  const selectedDraftCustomer = useMemo(() => customerOptions.find((option) => option.code === planDraftForm.customerCode) ?? null, [customerOptions, planDraftForm.customerCode])
+  const selectedDraftChannel = useMemo(() => (data?.filters.channels ?? []).find((channel) => channel.id === planDraftForm.channel) ?? null, [data?.filters.channels, planDraftForm.channel])
   const draftKgPerContainer = Math.max(0, Number(planDraftForm.kgPerContainer || 0))
   const draftContainers = Math.max(0, Number(planDraftForm.containers || 0))
+  const parsedDraftLmeCf = Number(planDraftForm.lmeCf || 0)
+  const draftLmeCf = Number.isFinite(parsedDraftLmeCf) ? Math.max(0, parsedDraftLmeCf) : 0
   const draftSellPct = Math.max(0, Number(planDraftForm.sellPctLme || 0))
   const draftTotalKg = draftContainers * draftKgPerContainer
-  const draftLme = selectedDraftProduct ? lmeBaseByMetalGroup(selectedDraftProduct.metalGroup, lmeForm) : 0
   const draftFx = lmeForm?.fxRate ?? 0
-  const draftSellPrice = draftLme > 0 ? (draftLme / 1000) * draftFx * (draftSellPct / 100) : 0
+  const draftSellPrice = draftLmeCf > 0 ? (draftLmeCf / 1000) * draftFx * (draftSellPct / 100) : 0
   const filteredServerPlanRows = useMemo(() => (data?.planRows ?? [])
     .filter((row) => !filterGroup || text(row.metalGroup).includes(filterGroup))
-    .filter((row) => !filterChannel || text(row.channel) === filterChannel), [data?.planRows, filterChannel, filterGroup])
+    .filter((row) => !filterChannel || text(row.channel).toLowerCase() === filterChannel.toLowerCase()), [data?.planRows, filterChannel, filterGroup])
   const planRowsWithStatus = useMemo<AnyRow[]>(() => filteredServerPlanRows.map((row) => {
     const status = getPlanStatus(row.status)
     return {
@@ -522,7 +540,7 @@ export function SalesPlanPageClient() {
 
   function resetPlanDraftForm() {
     setPlanDraftForm({
-      channel: filterChannel || 'export',
+      channel: '',
       containers: '1',
       customerName: '',
       kgPerContainer: String(lmeForm?.kgPerContainer ?? data?.lmeConfig.kgPerContainer ?? 25000),
@@ -553,8 +571,10 @@ export function SalesPlanPageClient() {
 
   function handleDraftCustomerChange(customerCode: string) {
     const customer = customerOptions.find((option) => option.code === customerCode)
+    const channel = (data?.filters.channels ?? []).find((option) => option.name === customer?.marketScope)
     setPlanDraftForm((current) => ({
       ...current,
+      channel: channel?.id ?? '',
       customerCode: customer?.code ?? '',
       customerName: customer?.name ?? '',
     }))
@@ -586,6 +606,10 @@ export function SalesPlanPageClient() {
       setPlanDraftError('กรอกชื่อลูกค้า')
       return
     }
+    if (!planDraftForm.channel) {
+      setPlanDraftError('ไม่พบช่องทางขายจาก Master Customer')
+      return
+    }
     if (draftContainers <= 0 || draftKgPerContainer <= 0) {
       setPlanDraftError('จำนวนตู้และ กก./ตู้ ต้องมากกว่า 0')
       return
@@ -602,7 +626,6 @@ export function SalesPlanPageClient() {
         body: JSON.stringify({
           action: 'create-plan',
           plan: {
-            channelCode: planDraftForm.channel,
             containers: draftContainers,
             customerCode: planDraftForm.customerCode,
             kgPerContainer: draftKgPerContainer,
@@ -679,8 +702,7 @@ export function SalesPlanPageClient() {
         </select>
         <select className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white font-medium text-slate-700 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={filterChannel} onChange={(event) => setFilterChannel(event.target.value)}>
           <option value="">ทุกช่องทาง</option>
-          <option value="export">🌍 ส่งออก</option>
-          <option value="domestic">🇹🇭 ในประเทศ</option>
+          {(data?.filters.channels ?? []).map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
         </select>
         <span className="flex-1" />
         <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs h-10 flex items-center justify-center" onClick={openPlanForm} type="button">+ เพิ่มแผน</button>
@@ -691,37 +713,47 @@ export function SalesPlanPageClient() {
         <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3 text-xs font-semibold text-slate-600">
           📝 ตารางวางแผน — เพิ่มแผนแล้วเริ่มที่ `Pending` ก่อน จากนั้นค่อยกด `Lock %` เองเมื่อพร้อม และคอลัมน์ `PO ขาย` จะแยกต่างหาก
         </div>
-        {isPlanFormOpen ? (
-          <div className="border-b border-slate-100 bg-amber-50/40 p-4">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-bold text-slate-800">+ เพิ่มแผนขาย</div>
-                  <div className="text-xs text-slate-500">รอบนี้บันทึกเป็น draft บนหน้าจอก่อน เพื่อให้เริ่มวางแผนและเห็นตัวเลขในตารางได้ทันที</div>
-                </div>
-                <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" onClick={() => setIsPlanFormOpen(false)} type="button">ปิดฟอร์ม</button>
-              </div>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <Dialog open={isPlanFormOpen} onOpenChange={setIsPlanFormOpen}>
+          <DialogContent className="max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" fallbackTitle="เพิ่มแผนขาย" hideClose>
+            <DialogHeader className="border-b border-slate-800 px-5 py-4">
+              <DialogTitle className="text-lg font-bold text-slate-100">+ เพิ่มแผนขาย</DialogTitle>
+              <p className="text-xs text-slate-400">บันทึกเป็น draft บนหน้าจอก่อน เพื่อให้เริ่มวางแผนและเห็นตัวเลขในตารางได้ทันที</p>
+            </DialogHeader>
+            <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4 text-sm sm:p-5">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <h4 className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">รายละเอียดแผนขาย</h4>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+                <SearchCombobox
+                  hideLabel={false}
+                  inputClassName="h-10 text-sm font-medium text-slate-700"
+                  inputId="sales-plan-draft-product"
+                  label="สินค้า *"
+                  openOnFocus={false}
+                  options={productOptions.map((option) => ({
+                    id: option.code,
+                    label: `${option.code} - ${option.name}`,
+                    searchText: `${option.code} ${option.name} ${option.metalGroup}`,
+                  }))}
+                  placeholder="ค้นหารหัสหรือชื่อสินค้า"
+                  value={planDraftForm.productCode}
+                  onChange={handleDraftProductChange}
+                />
+                <SearchCombobox
+                  inputClassName="h-10 text-sm font-medium text-slate-700"
+                  inputId="sales-plan-draft-customer"
+                  label="ลูกค้า *"
+                  options={customerOptions.map((customer) => ({
+                    id: customer.code,
+                    label: `${customer.code} - ${customer.name}`,
+                    searchText: `${customer.code} ${customer.name}`,
+                  }))}
+                  placeholder="ค้นหารหัสหรือชื่อลูกค้า"
+                  value={planDraftForm.customerCode}
+                  onChange={handleDraftCustomerChange}
+                />
                 <label className="text-xs font-bold text-slate-600">
-                  <span className="mb-1 block">สินค้า</span>
-                  <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={planDraftForm.productCode} onChange={(event) => setPlanDraftForm((current) => ({ ...current, productCode: event.target.value }))}>
-                    <option value="">เลือกสินค้า</option>
-                    {productOptions.map((option) => (
-                      <option key={option.code} value={option.code}>{option.name} ({option.code})</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  <span className="mb-1 block">ช่องทาง</span>
-                  <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={planDraftForm.channel} onChange={(event) => setPlanDraftForm((current) => ({ ...current, channel: event.target.value }))}>
-                    {data?.filters.channels.map((channel) => (
-                      <option key={channel.id} value={channel.id}>{channel.name}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  <span className="mb-1 block">ลูกค้า</span>
-                  <input className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" onChange={(event) => setPlanDraftForm((current) => ({ ...current, customerName: event.target.value }))} placeholder="ชื่อลูกค้า" value={planDraftForm.customerName} />
+                  <span className="mb-1 block">ช่องทางขาย</span>
+                  <input className="h-10 w-full rounded-md border border-slate-300 bg-slate-100 px-3 text-sm font-medium text-slate-700 outline-none" readOnly value={selectedDraftChannel?.name ?? (selectedDraftCustomer ? 'ไม่พบช่องทางจาก Master Customer' : 'เลือกลูกค้าก่อน')} />
                 </label>
                 <label className="text-xs font-bold text-slate-600">
                   <span className="mb-1 block">จำนวนตู้</span>

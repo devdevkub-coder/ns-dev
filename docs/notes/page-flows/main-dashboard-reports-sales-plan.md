@@ -32,7 +32,7 @@ sales plan/LME planning ก่อน PO Sell/stock issue
 - ช่วยวางแผนขาย/LME ก่อนสร้าง commitment หรือ stock issue
 - รองรับการแก้ `LME Reference Pricing` บนหน้าเดียวกันเพื่อใช้คำนวณ Sales Plan
 - รองรับการเพิ่ม Sales Plan ลงตาราง `sales_plans` เพื่อให้ refresh/reopen แล้วยังอยู่
-- ช่องทางขายในฟอร์มต้องใช้ `sales_channels.code` จาก master data โดยตรง เพื่อให้รหัสที่บันทึกตรงกับ foreign key ของแผนขาย
+- ช่องทางขายในฟอร์มต้องยึด `customers.market_scope` จาก Master Customer แล้ว resolve เป็น `sales_channels` ที่ active โดยอัตโนมัติ; ผู้ใช้ไม่สามารถเลือกช่องทางขัดกับลูกค้าได้
 - แสดง locked/approved plan state ถ้ามี
 - แสดง read model/report ตาม filter ของหน้า
 - ให้เลือกตารางวิเคราะห์ผู้บริหารหรือสต๊อกว่างขายคงเหลือผ่าน line tabs เพื่อแสดงทีละรายการ
@@ -131,7 +131,7 @@ sales plan/LME planning ก่อน PO Sell/stock issue
 
 ### Default Values
 
-- `ช่องทาง` default เป็น `export` หรือค่า filter ช่องทางปัจจุบันถ้ามี
+- `ช่องทางขาย` แสดงถัดจากลูกค้าแบบ read-only และเติมจาก `Master Customer.market_scope` ทันทีที่เลือกลูกค้า
 - `จำนวนตู้` default เป็น `1`
 - `กก./ตู้` default จากค่า `LME Reference Pricing` ล่าสุด
 - `ลูกค้า` เริ่มว่าง
@@ -153,6 +153,7 @@ sales plan/LME planning ก่อน PO Sell/stock issue
 
 - ต้องเลือก `สินค้า`
 - ต้องกรอก `ลูกค้า`
+- ลูกค้าต้องมี `market_scope` ที่ resolve เป็นช่องทางขาย active ได้
 - `จำนวนตู้` ต้องมากกว่า 0
 - `กก./ตู้` ต้องมากกว่า 0
 - `LME cf` ต้องมากกว่า 0
@@ -162,7 +163,7 @@ sales plan/LME planning ก่อน PO Sell/stock issue
 ### Add-To-Table Behavior
 
 - ปุ่ม `เพิ่มเข้าตาราง` เรียก `POST /api/sales-plan` ด้วย `action = create-plan`
-- server validate สินค้า/ลูกค้า/ช่องทางจาก Master Data และคำนวณ `totalKg` กับ `sellPrice`
+- server validate สินค้า/ลูกค้า และ derive ช่องทางขายจาก `Master Customer.market_scope` ก่อนคำนวณ `totalKg` กับ `sellPrice`
 - หลังบันทึก หน้า reload `GET /api/sales-plan`; refresh/reopen browser ต้องยังเห็นข้อมูลจาก `sales_plans`
 - แผนเริ่มที่สถานะ `draft` และต้องกด `Lock %` ก่อนเปิด PO Sell
 

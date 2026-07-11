@@ -192,7 +192,7 @@ async function buildSalesPlanningSnapshot() {
     prisma.po_sells.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
     prisma.po_buys.findMany({ orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
     prisma.stock_ledger.findMany({ orderBy: [{ date: 'desc' }], take: 50000 }),
-    prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
+    prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, market_scope: true, name: true } }),
     prisma.sales_channels.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true }, where: { active: true } }),
     prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 10000, where: { NOT: { status: { in: ['Cancelled', 'cancelled'] } } } }),
     prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } } }, orderBy: [{ date: 'desc' }], take: 10000, where: { status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] } } }),
@@ -428,7 +428,7 @@ async function buildSalesPlanningSnapshot() {
     }),
     customers: customers.map((customer) => {
       const code = requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`)
-      return { active: customer.active ?? true, code, id: code, name: customer.name }
+      return { active: customer.active ?? true, code, id: code, marketScope: customer.market_scope === 'ต่างประเทศ' ? 'ต่างประเทศ' : 'ในประเทศ', name: customer.name }
     }),
     lmeConfig: config,
     metalGroups: Array.from(new Set(refs.map((product) => product.metalGroup).filter(Boolean))).sort(),
