@@ -4,6 +4,7 @@ import { parseInternalBigIntId } from '@/lib/business-code'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
+import { getSupabaseAdminClient } from '@/lib/server/supabase-admin'
 
 export const runtime = 'nodejs'
 
@@ -40,10 +41,41 @@ export async function PATCH(request: Request, { params }: AdminUserStatusRoutePr
       return NextResponse.json({ error: 'ไม่สามารถปิดบัญชีของตัวเองได้' }, { status: 400 })
     }
 
+    const existing = await prisma.app_users.findUnique({
+      select: { account_status: true, auth_user_id: true, id: true },
+      where: { id },
+    })
+    if (!existing) {
+      return NextResponse.json({ error: 'ไม่พบผู้ใช้' }, { status: 404 })
+    }
+
+    const actor = context.appUser?.email ?? context.authUser.email ?? 'system'
+    const activatedAt = values.active ? new Date() : null
+    const accountStatus = values.active ? 'active' : 'disabled'
+    const replacesPendingInvitation = values.active && existing.account_status === 'pending' && Boolean(existing.auth_user_id)
+
+    if (replacesPendingInvitation && existing.auth_user_id) {
+      const supabaseAdmin = getSupabaseAdminClient()
+      if (!supabaseAdmin) {
+        return NextResponse.json({ error: 'ต้องตั้งค่า SUPABASE_SERVICE_ROLE_KEY ก่อนเปิดใช้งานแทนคำเชิญ' }, { status: 501 })
+      }
+      const { error } = await supabaseAdmin.auth.admin.deleteUser(existing.auth_user_id)
+      if (error) {
+        return NextResponse.json({ error: `ยกเลิกคำเชิญเดิมไม่สำเร็จ: ${error.message}` }, { status: 502 })
+      }
+    }
+
     const user = await prisma.app_users.update({
       data: {
+        account_status: accountStatus,
         active: values.active,
-        updated_by: context.appUser?.email ?? context.authUser.email ?? 'system',
+        ...(replacesPendingInvitation ? { auth_user_id: null } : {}),
+        ...(values.active ? {
+          activated_at: activatedAt,
+          activated_by: actor,
+          activation_source: 'admin',
+        } : {}),
+        updated_by: actor,
       },
       where: {
         id,
@@ -54,7 +86,10 @@ export async function PATCH(request: Request, { params }: AdminUserStatusRoutePr
       context,
       eventType: 'app_user.status_updated',
       metadata: {
+        accountStatus,
         active: user.active,
+        previousAccountStatus: existing.account_status,
+        replacedPendingInvitation: replacesPendingInvitation,
         email: user.email,
       },
       request,
@@ -62,7 +97,9 @@ export async function PATCH(request: Request, { params }: AdminUserStatusRoutePr
     })
 
     return NextResponse.json({
+      accountStatus,
       active: user.active,
+      activatedAt: activatedAt?.toISOString() ?? null,
       id: user.id.toString(),
       updatedAt: user.updated_at.toISOString(),
     })

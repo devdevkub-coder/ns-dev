@@ -5,7 +5,7 @@ tags:
   - menu
   - admin-system
 status: accepted-baseline
-updated: 2026-07-10
+updated: 2026-07-12
 route: /admin/users, /admin/roles-permissions
 ---
 
@@ -54,7 +54,7 @@ split admin user management from role/permission viewing:
 | Step | User action | System result |
 |---|---|---|
 | 1 | เปิด `/admin/users` | GET users/roles/departments/branches |
-| 2 | สร้าง user | POST email/namePrefix/firstName/lastName/departmentId/roleIds/branchIds; ระบบสร้าง displayName |
+| 2 | สร้าง user | POST email/namePrefix/firstName/lastName/departmentId/roleIds/branchIds; ระบบสร้าง displayName แล้วส่ง Supabase Invite อัตโนมัติ |
 | 3 | แก้ user | PATCH /api/admin/users/[id] |
 | 4 | เปิด/ปิด user | PATCH status; ห้ามปิดบัญชีตัวเอง |
 | 5 | invite/reset | POST invite; ใช้ Supabase invite/reset ตาม auth state |
@@ -96,7 +96,8 @@ Profile/contact fields are stored on `app_users` as application profile data:
 - roleIds required อย่างน้อย 1
 - branchIds resolve จาก active branch code
 - ห้ามปิดบัญชีตัวเอง
-- invite requires email and active user; service role required for new invite path
+- invite requires email and a `pending` account; password setup/reset requires an `active` account; `disabled` accounts cannot receive credential links
+- การส่ง Invite ล้มเหลวต้องไม่ย้อนลบ `app_users`; ตารางจะแสดง User ที่สร้างแล้วและให้ส่งคำเชิญซ้ำจากเมนูจัดการ
 
 ## Side Effects
 
@@ -110,6 +111,20 @@ Profile/contact fields are stored on `app_users` as application profile data:
 ## UI Table Mechanics
 
 As of 2026-07-02, the Users and Roles desktop tables follow the active Cost Pool / Weight Ticket table mechanics: sortable `ResizableTableHead` business headers, persisted resizable column widths, reset-width control, `colgroup`, fixed table layout, and mobile card lists rendered from the same sorted row sets as desktop. This is presentation-only; admin user APIs, Supabase Auth invite/reset flow, permission checks, role matrix semantics, branch access writes, audit events, and DB state remain unchanged.
+
+As of 2026-07-12, `/admin/users` no longer dedicates a `ตั้งรหัส` column to an occasional command. Each row has one `จัดการ` ellipsis menu containing `แก้ไข` and a conditional Supabase Auth action: invite, resend the password setup link, or reset password. Creating a User automatically attempts the Invite after the application profile is committed. If email delivery fails, the employee record remains valid and the administrator can retry from the same menu. Why it stays this way: authentication commands are row actions rather than comparable table data, and an external email failure must not destroy valid employee/profile assignments.
+
+As of 2026-07-12, each employee row shows the resolved full name once instead of repeating `displayName` and the same structured name on a second line. The default desktop column widths are compact while remaining resizable and horizontally scrollable when needed. The status control remains an optimistic switch: it disables during the request, rolls back on failure, and writes synchronized `account_status` / `active` values through the guarded status API. A pending or disabled application user cannot pass the server auth context or obtain permission codes. Why it stays this way: account lifecycle is application access state, while Supabase Auth owns credentials.
+
+As of 2026-07-12, a successful password login calls authenticated `POST /api/auth/login-complete`. The route resolves the current application user from the Supabase session, writes `app_users.last_login_at`, and records `app_user.login_completed` in the auth audit stream. It never accepts a user ID from the browser. The Users table reads this timestamp through `GET /api/admin/users` and formats it in `Login ล่าสุด`. Why it stays this way: Supabase validates the credential, while the application owns its employee activity timestamp and must bind that write to the authenticated identity.
+
+As of 2026-07-12, `/admin/users` orders its data surfaces as summary cards, filter/action toolbar, then employee table on both desktop and mobile. The summary gives context before the administrator narrows the dataset; filters remain immediately adjacent to the table they control.
+
+The row `จัดการ` control is a vertical Kebab/More Actions button. Its Dropdown Menu uses a white surface with dark text in light mode and a dark surface with light text in dark mode; trigger, hover, focus, and disabled states retain readable contrast in both themes.
+
+The add/edit User modal uses a dark header and a theme-aware scrolling form body. In dark mode the title, labels, inputs, selects, textareas, nested profile/contact/permission panels, borders, and action states remain readable rather than retaining a light header with white title text.
+
+The status segmented filter (`ทุกสถานะ`, `ใช้งาน`, `รอเปิดใช้งาน`, `ปิดใช้งาน`) has explicit light/dark selected and unselected states on both desktop and mobile. The selected option uses a filled blue surface with white text and `aria-pressed=true`; unselected options use the page surface, visible border, and theme-appropriate text. This keeps the current filter and account lifecycle visually unambiguous on a dark slate page.
 
 As of 2026-07-02, `/admin/users` summary cards intentionally show only active users and users who must change password. Branch access remains available in the user table and edit form, but the branch-scoped summary card was removed because it is not a primary user-management action.
 
@@ -140,7 +155,7 @@ The approved organization has four departments. Migration `20260711123000_sync_l
 | `DEP-003` | ประสานงาน | Stock, ประจำวัน, Dual Costing, วางแผนการขาย |
 | `DEP-004` | ผลิต | ผลิต, Stock, ส่งของ |
 
-`DEP-005 คัดแยก` is merged into `DEP-004 ผลิต` and removed. The current employee directory contains 21 active users: the submitted 20-person list plus `peach@admin.com` as `ผู้ดูแลระบบ` in `บริหาร`. `ns-kwan@nsscrap.com` and `ns-or@nsscrap.com` are removed from `app_users`. Every listed employee has exactly one marked employee role and all-branch scope. The employee page defaults to active users so its first view represents the current workforce; the status filter can still reveal other closed historical accounts if any remain.
+`DEP-005 คัดแยก` is merged into `DEP-004 ผลิต` and removed. The current employee directory contains 21 active users: the submitted 20-person list plus `peach@admin.com` as `ผู้ดูแลระบบ` in `บริหาร`. `ns-kwan@nsscrap.com` and `ns-or@nsscrap.com` are removed from `app_users`. Every listed employee has exactly one marked employee role and all-branch scope. The employee page defaults to active users so its first view represents the current workforce; clearing filters also returns to active users rather than all statuses. The status filter can still reveal other closed historical accounts if any remain.
 
 `ผู้ดูแลระบบ` is a Role, not a department. The owner belongs to `DEP-001 บริหาร` and receives system-wide access only when assigned the `ผู้ดูแลระบบ` role. Migration `20260711103000_retire_admin_department.sql` removed the former admin department, and migration `20260711123000_sync_latest_employee_directory.sql` subsequently merged `DEP-005 คัดแยก` into production. Department codes are not renumbered.
 
@@ -159,6 +174,29 @@ user
 ```
 
 The effective permission set is the union of all active department-role grants, plus direct allows, minus direct denies. For example, a production employee who also supports coordination can receive grants from both operating scopes; the Side menu shows every category that contains at least one permitted page from either assignment. A category with no accessible pages stays hidden.
+
+## User Invitation And Activation
+
+New employees follow an invitation-first lifecycle. Creating an employee always stores the application account as `pending` / inactive and immediately sends a Supabase invitation. The employee remains unable to use protected application pages until one of these two paths completes:
+
+```text
+Normal path
+create employee -> pending -> invitation sent -> employee sets password
+  -> password-changed callback -> active (activation_source = invitation)
+
+Admin override path
+create employee -> pending -> invitation sent -> admin activates employee
+  -> old invited Auth identity is removed so the invitation no longer controls activation
+  -> active (activation_source = admin), credentials not ready
+  -> admin chooses one credential path:
+       A. send password reset/setup link -> employee sets password -> credentials ready
+       B. issue one-time visible temporary password -> must_change_password = true
+          -> employee logs in -> forced change-password page -> credentials ready
+```
+
+`account_status` is the lifecycle source of truth with `pending`, `active`, and `disabled`. The existing `active` boolean remains synchronized for permission guards and older authorization helpers. `invitation_sent_at`, `password_link_sent_at`, and `password_set_at` record delivery/readiness without inferring password state from `last_login_at`; a user can set a password before their first login. Admin activation records `activated_at`, `activated_by`, and `activation_source` for audit. Disabling an active account changes it to `disabled`; enabling it again is an Admin activation and does not send mail automatically.
+
+The employee list opens on `active` by default, but after creating an employee it switches to the `pending` filter so the administrator can see the new row and resend a failed/expired invitation. When an administrator activates a pending employee, a compact credential-method dialog opens immediately. The recommended action sends a setup link; the alternative generates a strong temporary password on the server, stores it only in Supabase Auth, displays it once, and marks `must_change_password`. The raw password is never stored in application tables or audit metadata. The action menu allows invitation send/resend while pending, password setup/reset while active, and no credential email while disabled.
 
 Why it stays this way: one global role cannot accurately represent a person who works across operating scopes, while creating combined role names for every cross-functional pairing causes unmaintainable role growth. Department-role assignments keep organization, job level, and page-level authority separate.
 

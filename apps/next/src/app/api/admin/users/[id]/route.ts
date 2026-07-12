@@ -151,10 +151,6 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
     const { branchRefs, departmentId, permissionOverrides, roleRefIds } = await assertUserRefs(values.roleIds, values.branchIds, values.departmentId, values.permissionOverrides)
     const displayName = displayNameFromProfile(values)
 
-    if (context.appUser?.id === id && values.active === false) {
-      return NextResponse.json({ error: 'ไม่สามารถปิดบัญชีของตัวเองได้' }, { status: 400 })
-    }
-
     const existing = await prisma.app_users.findFirst({
       where: {
         id: { not: id },
@@ -171,7 +167,6 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
     await prisma.$transaction(async (tx) => {
       await tx.app_users.update({
         data: {
-          active: values.active,
           contact_line_id: optionalText(values.contactLineId),
           contact_note: optionalText(values.contactNote),
           contact_phone: optionalText(values.contactPhone),
@@ -227,7 +222,6 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
       context,
       eventType: 'app_user.updated',
       metadata: {
-        active: values.active,
         branchCount: values.branchIds.length,
         departmentId: departmentId.toString(),
         displayName,

@@ -33,6 +33,29 @@ function toIso(value: Date | null) {
   return value ? value.toISOString() : null
 }
 
+function credentialStatus(user: {
+  account_status: string
+  activated_at: Date | null
+  invitation_sent_at: Date | null
+  password_link_sent_at: Date | null
+  password_set_at: Date | null
+  temporary_password_issued_at: Date | null
+}) {
+  if (user.password_set_at) return 'ready'
+  if (user.account_status === 'pending' && user.invitation_sent_at) return 'link_sent'
+  if (
+    user.account_status === 'active'
+    && user.temporary_password_issued_at
+    && (!user.password_link_sent_at || user.temporary_password_issued_at > user.password_link_sent_at)
+  ) return 'temporary_password'
+  if (
+    user.account_status === 'active'
+    && user.password_link_sent_at
+    && (!user.activated_at || user.password_link_sent_at >= user.activated_at)
+  ) return 'link_sent'
+  return 'not_sent'
+}
+
 function optionalText(value: string | undefined) {
   const trimmed = value?.trim() ?? ''
   return trimmed || null
@@ -217,7 +240,10 @@ export async function GET() {
         permissionIds: role.app_role_permissions.map((permission) => permission.permission_id.toString()),
       })),
       users: users.map((user) => ({
+        accountStatus: user.account_status,
         active: user.active,
+        activatedAt: toIso(user.activated_at),
+        activationSource: user.activation_source,
         authUserId: user.auth_user_id,
         branchIds: user.app_user_branch_access.map((branch) => branch.branches.code),
         branches: user.app_user_branch_access.map((branch) => ({
@@ -234,6 +260,10 @@ export async function GET() {
         lastName: user.last_name ?? null,
         mustChangePassword: user.must_change_password,
         namePrefix: user.name_prefix ?? null,
+        invitationSentAt: toIso(user.invitation_sent_at),
+        passwordLinkSentAt: toIso(user.password_link_sent_at),
+        passwordSetAt: toIso(user.password_set_at),
+        temporaryPasswordIssuedAt: toIso(user.temporary_password_issued_at),
         profileImageUrl: user.profile_image_url ?? null,
         permissionOverrides: user.app_user_permission_overrides
           .filter((override) => override.app_permissions.active)
@@ -244,6 +274,7 @@ export async function GET() {
         contactPhone: user.contact_phone ?? null,
         contactLineId: user.contact_line_id ?? null,
         contactNote: user.contact_note ?? null,
+        credentialStatus: credentialStatus(user),
         department: user.departments
           ? {
               code: user.departments.code,
@@ -288,7 +319,8 @@ export async function POST(request: Request) {
     const user = await prisma.$transaction(async (tx) => {
       const created = await tx.app_users.create({
         data: {
-          active: values.active,
+          account_status: 'pending',
+          active: false,
           contact_line_id: optionalText(values.contactLineId),
           contact_note: optionalText(values.contactNote),
           contact_phone: optionalText(values.contactPhone),
@@ -342,7 +374,8 @@ export async function POST(request: Request) {
       context,
       eventType: 'app_user.created',
       metadata: {
-        active: user.active,
+        accountStatus: user.account_status,
+        active: false,
         branchCount: values.branchIds.length,
         departmentId: departmentId.toString(),
         displayName,

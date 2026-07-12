@@ -3963,7 +3963,15 @@ model app_users {
   auth_user_id                                                  String?                         @unique @db.Uuid
   display_name                                                  String?
   email                                                         String?
-  active                                                        Boolean                         @default(true)
+  active                                                        Boolean                         @default(false)
+  account_status                                                String                          @default("pending")
+  activation_source                                             String?
+  activated_at                                                  DateTime?                       @db.Timestamptz(6)
+  activated_by                                                  String?
+  invitation_sent_at                                            DateTime?                       @db.Timestamptz(6)
+  password_link_sent_at                                         DateTime?                       @db.Timestamptz(6)
+  password_set_at                                               DateTime?                       @db.Timestamptz(6)
+  temporary_password_issued_at                                  DateTime?                       @db.Timestamptz(6)
   must_change_password                                          Boolean                         @default(false)
   last_login_at                                                 DateTime?                       @db.Timestamptz(6)
   created_at                                                    DateTime                        @default(now()) @db.Timestamptz(6)
@@ -3990,6 +3998,7 @@ model app_users {
   users                                                         auth_users?                     @relation(fields: [auth_user_id], references: [id], onUpdate: NoAction)
 
   @@index([active], map: "idx_app_users_active")
+  @@index([account_status], map: "idx_app_users_account_status")
   @@index([auth_user_id], map: "idx_app_users_auth_user_id")
   @@index([department_id], map: "idx_app_users_department_id")
   @@schema("public")

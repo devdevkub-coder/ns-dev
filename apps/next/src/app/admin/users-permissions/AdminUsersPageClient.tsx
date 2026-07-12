@@ -1,9 +1,11 @@
 'use client'
 
 import Image from 'next/image'
+import { Copy, EllipsisVertical, KeyRound, Mail, Pencil, Send } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -47,7 +49,10 @@ type AdminUsersPayload = {
     permissionIds: string[]
   }>
   users: Array<{
+    accountStatus: 'active' | 'disabled' | 'pending'
     active: boolean
+    activatedAt: string | null
+    activationSource: 'admin' | 'existing' | 'invitation' | null
     authUserId: string | null
     branchIds: string[]
     branches: Array<{
@@ -59,6 +64,7 @@ type AdminUsersPayload = {
     contactLineId: string | null
     contactNote: string | null
     contactPhone: string | null
+    credentialStatus: 'link_sent' | 'not_sent' | 'ready' | 'temporary_password'
     department: {
       code: string
       id: string
@@ -73,6 +79,10 @@ type AdminUsersPayload = {
     lastName: string | null
     mustChangePassword: boolean
     namePrefix: string | null
+    invitationSentAt: string | null
+    passwordLinkSentAt: string | null
+    passwordSetAt: string | null
+    temporaryPasswordIssuedAt: string | null
     permissionOverrides: Array<{
       effect: 'allow' | 'deny'
       permissionId: string
@@ -124,7 +134,10 @@ const adminUsersPayloadSchema = z.object({
     permissionIds: z.array(z.string()),
   })),
   users: z.array(z.object({
+    accountStatus: z.enum(['active', 'disabled', 'pending']),
     active: z.boolean(),
+    activatedAt: z.string().nullable(),
+    activationSource: z.enum(['admin', 'existing', 'invitation']).nullable(),
     authUserId: z.string().nullable(),
     branchIds: z.array(z.string()),
     branches: z.array(z.object({
@@ -136,6 +149,7 @@ const adminUsersPayloadSchema = z.object({
     contactLineId: z.string().nullable(),
     contactNote: z.string().nullable(),
     contactPhone: z.string().nullable(),
+    credentialStatus: z.enum(['link_sent', 'not_sent', 'ready', 'temporary_password']),
     department: z.object({
       code: z.string(),
       id: z.string(),
@@ -150,6 +164,10 @@ const adminUsersPayloadSchema = z.object({
     lastName: z.string().nullable(),
     mustChangePassword: z.boolean(),
     namePrefix: z.string().nullable(),
+    invitationSentAt: z.string().nullable(),
+    passwordLinkSentAt: z.string().nullable(),
+    passwordSetAt: z.string().nullable(),
+    temporaryPasswordIssuedAt: z.string().nullable(),
     permissionOverrides: z.array(z.object({
       effect: z.enum(['allow', 'deny']),
       permissionId: z.string(),
@@ -166,12 +184,19 @@ const adminUsersPayloadSchema = z.object({
 })
 
 const statusUpdateSchema = z.object({
+  accountStatus: z.enum(['active', 'disabled']),
   active: z.boolean(),
+  activatedAt: z.string().nullable(),
 })
 
 const inviteResultSchema = z.object({
   mode: z.enum(['invite', 'reset']),
   sent: z.boolean(),
+})
+
+const temporaryPasswordResultSchema = z.object({
+  issuedAt: z.string(),
+  temporaryPassword: z.string().min(12),
 })
 
 const saveUserResultSchema = z.object({
@@ -182,10 +207,10 @@ type TabKey = 'users' | 'roles'
 type RolesViewTab = 'roles' | 'permissions'
 type AdminUser = AdminUsersPayload['users'][number]
 type AdminRole = AdminUsersPayload['roles'][number]
-type UserColumnKey = 'action' | 'active' | 'branches' | 'contact' | 'department' | 'email' | 'lastLoginAt' | 'name' | 'password' | 'roles'
+type UserColumnKey = 'action' | 'active' | 'branches' | 'contact' | 'department' | 'email' | 'lastLoginAt' | 'name' | 'roles'
 type RoleColumnKey = 'active' | 'branchScope' | 'description' | 'name' | 'permissionCount' | 'type' | 'users'
 type SortDirection = 'asc' | 'desc'
-type UserStatusFilter = 'all' | 'active' | 'inactive'
+type UserStatusFilter = 'all' | 'active' | 'disabled' | 'pending'
 
 type AdminUsersPageClientProps = {
   mode?: TabKey
@@ -217,16 +242,15 @@ type RoleFormState = {
 }
 
 const userColumns: Array<ResizableColumnDefinition<UserColumnKey>> = [
-  { key: 'name', defaultWidth: 230, minWidth: 170 },
-  { key: 'contact', defaultWidth: 180, minWidth: 130 },
-  { key: 'email', defaultWidth: 225, minWidth: 160 },
-  { key: 'department', defaultWidth: 145, minWidth: 115 },
-  { key: 'roles', defaultWidth: 190, minWidth: 140 },
-  { key: 'branches', defaultWidth: 210, minWidth: 150 },
-  { key: 'active', defaultWidth: 130, minWidth: 115 },
-  { key: 'password', defaultWidth: 125, minWidth: 105 },
-  { key: 'lastLoginAt', defaultWidth: 175, minWidth: 135 },
-  { key: 'action', defaultWidth: 110, minWidth: 90 },
+  { key: 'name', defaultWidth: 190, minWidth: 160 },
+  { key: 'contact', defaultWidth: 150, minWidth: 125 },
+  { key: 'email', defaultWidth: 210, minWidth: 170 },
+  { key: 'department', defaultWidth: 130, minWidth: 110 },
+  { key: 'roles', defaultWidth: 145, minWidth: 120 },
+  { key: 'branches', defaultWidth: 155, minWidth: 130 },
+  { key: 'active', defaultWidth: 115, minWidth: 105 },
+  { key: 'lastLoginAt', defaultWidth: 145, minWidth: 125 },
+  { key: 'action', defaultWidth: 72, minWidth: 64 },
 ]
 
 const roleColumns: Array<ResizableColumnDefinition<RoleColumnKey>> = [
@@ -240,7 +264,7 @@ const roleColumns: Array<ResizableColumnDefinition<RoleColumnKey>> = [
 ]
 
 const emptyUserForm: UserFormState = {
-  active: true,
+  active: false,
   branchIds: [],
   contactLineId: '',
   contactNote: '',
@@ -264,8 +288,10 @@ const emptyRoleForm: RoleFormState = {
   permissionIds: [],
 }
 
-function statusText(active: boolean) {
-  return active ? 'ใช้งาน' : 'ปิด'
+function statusText(accountStatus: AdminUser['accountStatus']) {
+  if (accountStatus === 'pending') return 'รอเปิดใช้งาน'
+  if (accountStatus === 'active') return 'ใช้งาน'
+  return 'ปิดใช้งาน'
 }
 
 function formatDate(value: string | null) {
@@ -306,7 +332,6 @@ function getUserSortValue(user: AdminUser, key: UserColumnKey) {
   if (key === 'roles') return user.roles.map((role) => role.name).join(' ')
   if (key === 'branches') return user.branches.length ? user.branches.map((branch) => branch.name).join(' ') : 'ทุกสาขา'
   if (key === 'active') return user.active ? 1 : 0
-  if (key === 'password') return (user.authUserId ? 'reset' : 'invite') + ' ' + (user.mustChangePassword ? 'must-change' : '')
   if (key === 'lastLoginAt') return user.lastLoginAt ? Date.parse(user.lastLoginAt) || 0 : 0
   return ''
 }
@@ -326,6 +351,8 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [actionUserId, setActionUserId] = useState<string | null>(null)
+  const [activationUser, setActivationUser] = useState<AdminUser | null>(null)
+  const [temporaryPasswordResult, setTemporaryPasswordResult] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [savingUserId, setSavingUserId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -357,7 +384,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const [userSortDirection, setUserSortDirection] = useState<SortDirection>('asc')
   const [userSortKey, setUserSortKey] = useState<UserColumnKey | null>(null)
   const roleColumnResize = useResizableColumns('admin.users-permissions.roles.v1', roleColumns)
-  const userColumnResize = useResizableColumns('admin.users-permissions.users.v3', userColumns)
+  const userColumnResize = useResizableColumns('admin.users-permissions.users.v5', userColumns)
 
   async function loadData() {
     setIsLoading(true)
@@ -386,7 +413,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const currentTab = mode ?? tab
   const isUsersPage = currentTab === 'users'
   const pageTitle = isUsersPage ? 'รายชื่อพนักงาน / Users' : 'หน้าที่งานและสิทธิ์'
-  const hasUserFilters = Boolean(search.trim() || roleFilter !== 'all' || branchFilter !== 'all' || departmentFilter !== 'all' || statusFilter !== 'all')
+  const hasUserFilters = Boolean(search.trim() || roleFilter !== 'all' || branchFilter !== 'all' || departmentFilter !== 'all' || statusFilter !== 'active')
 
   const filteredUsers = useMemo(() => {
     const rows = data?.users ?? []
@@ -409,7 +436,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       && (roleFilter === 'all' || user.roles.some((role) => role.id === roleFilter))
       && (branchFilter === 'all' || user.branchIds.length === 0 || user.branchIds.includes(branchFilter))
       && (departmentFilter === 'all' || user.departmentId === departmentFilter)
-      && (statusFilter === 'all' || (statusFilter === 'active' ? user.active : !user.active))
+      && (statusFilter === 'all' || user.accountStatus === statusFilter)
     ))
   }, [branchFilter, data?.users, departmentFilter, roleFilter, search, statusFilter])
 
@@ -515,14 +542,15 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const selectedMatrixUser = useMemo(() => data?.users.find((user) => user.id === permissionSubjectId) ?? null, [data?.users, permissionSubjectId])
 
   async function updateUserStatus(userId: string, active: boolean) {
-    const previousActive = data?.users.find((user) => user.id === userId)?.active
+    const previousUser = data?.users.find((user) => user.id === userId)
+    const previousActive = previousUser?.active
     setSavingUserId(userId)
     setError(null)
     setNotice(null)
     setData((current) => current
       ? {
           ...current,
-          users: current.users.map((user) => user.id === userId ? { ...user, active } : user),
+          users: current.users.map((user) => user.id === userId ? { ...user, accountStatus: active ? 'active' : 'disabled', active } : user),
         }
       : current)
 
@@ -537,15 +565,38 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       setData((current) => current
         ? {
             ...current,
-            users: current.users.map((user) => user.id === userId ? { ...user, active: payload.active } : user),
+            users: current.users.map((user) => user.id === userId ? {
+              ...user,
+              accountStatus: payload.accountStatus,
+              activatedAt: payload.activatedAt,
+              activationSource: payload.active ? 'admin' : user.activationSource,
+              active: payload.active,
+              credentialStatus: payload.active && !user.passwordSetAt ? 'not_sent' : user.credentialStatus,
+            } : user),
           }
         : current)
+      if (active && previousUser?.accountStatus === 'pending') {
+        setTemporaryPasswordResult(null)
+        setActivationUser({
+          ...previousUser,
+          accountStatus: 'active',
+          activatedAt: payload.activatedAt,
+          activationSource: 'admin',
+          active: true,
+          authUserId: null,
+          credentialStatus: 'not_sent',
+        })
+      }
     } catch (caught) {
       if (previousActive !== undefined) {
         setData((current) => current
           ? {
               ...current,
-              users: current.users.map((user) => user.id === userId ? { ...user, active: previousActive } : user),
+              users: current.users.map((user) => user.id === userId ? {
+                ...user,
+                accountStatus: previousUser?.accountStatus ?? user.accountStatus,
+                active: previousActive,
+              } : user),
             }
           : current)
       }
@@ -570,11 +621,79 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
 
       setNotice(payload?.mode === 'invite' ? `ส่ง invite ไปที่ ${user.email} แล้ว` : `ส่ง reset password ไปที่ ${user.email} แล้ว`)
       await loadData()
+      return true
     } catch (caught) {
       setError(getErrorMessage(caught, 'ส่ง invite/reset password ไม่สำเร็จ'))
+      return false
     } finally {
       setActionUserId(null)
     }
+  }
+
+  async function sendActivationPasswordLink() {
+    if (!activationUser) return
+    const sent = await sendUserInvite(activationUser)
+    if (sent) setActivationUser(null)
+  }
+
+  async function createTemporaryPassword() {
+    if (!activationUser) return
+    setActionUserId(activationUser.id)
+    setError(null)
+    try {
+      const response = await fetch(`/api/admin/users/${encodeURIComponent(activationUser.id)}/temporary-password`, {
+        method: 'POST',
+      })
+      const payload = await readJsonResponse(response, temporaryPasswordResultSchema, 'สร้างรหัสผ่านชั่วคราวไม่สำเร็จ')
+      setTemporaryPasswordResult(payload.temporaryPassword)
+      setNotice(`สร้างรหัสผ่านชั่วคราวสำหรับ ${activationUser.email} แล้ว`)
+      await loadData()
+    } catch (caught) {
+      setError(getErrorMessage(caught, 'สร้างรหัสผ่านชั่วคราวไม่สำเร็จ'))
+    } finally {
+      setActionUserId(null)
+    }
+  }
+
+  function userPasswordActionLabel(user: AdminUser) {
+    if (user.accountStatus === 'pending') return user.invitationSentAt ? 'ส่งคำเชิญอีกครั้ง' : 'ส่งคำเชิญ'
+    if (user.credentialStatus === 'temporary_password') return 'ส่งลิงก์รีเซ็ตรหัสผ่าน'
+    if (user.credentialStatus !== 'ready') return user.credentialStatus === 'link_sent' ? 'ส่งลิงก์ตั้งรหัสผ่านอีกครั้ง' : 'ส่งลิงก์ตั้งรหัสผ่าน'
+    return 'ส่งลิงก์รีเซ็ตรหัสผ่าน'
+  }
+
+  function renderUserActions(user: AdminUser) {
+    const passwordActionDisabled = !user.email || user.accountStatus === 'disabled' || actionUserId === user.id
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            aria-label={`จัดการ ${fullName(user)}`}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white dark:focus-visible:ring-slate-400"
+            disabled={actionUserId === user.id}
+            title="จัดการ"
+            type="button"
+          >
+            <EllipsisVertical aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-56 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+          <DropdownMenuItem className="cursor-pointer gap-2 text-slate-700 focus:text-slate-950 dark:text-slate-100 dark:focus:text-white" onSelect={() => openEditUser(user)}>
+            <Pencil aria-hidden="true" className="h-4 w-4" />
+            แก้ไข
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="cursor-pointer gap-2 text-slate-700 focus:text-slate-950 dark:text-slate-100 dark:focus:text-white"
+            disabled={passwordActionDisabled}
+            onSelect={() => void sendUserInvite(user)}
+          >
+            {user.authUserId ? <KeyRound aria-hidden="true" className="h-4 w-4" /> : <Send aria-hidden="true" className="h-4 w-4" />}
+            {actionUserId === user.id ? 'กำลังส่ง...' : userPasswordActionLabel(user)}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
   }
 
   function openAddUser() {
@@ -637,12 +756,30 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
-      await readJsonResponse(response, saveUserResultSchema, 'บันทึกผู้ใช้ไม่ได้')
+      const savedUser = await readJsonResponse(response, saveUserResultSchema, 'บันทึกผู้ใช้ไม่ได้')
 
       setFormOpen(false)
       setEditingUser(null)
       setForm(emptyUserForm)
+      let inviteErrorMessage: string | null = null
+
+      if (!editingUser) {
+        setStatusFilter('pending')
+        try {
+          const inviteResponse = await fetch(`/api/admin/users/${encodeURIComponent(savedUser.id)}/invite`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ redirectTo: `${window.location.origin}/reset-password` }),
+          })
+          await readJsonResponse(inviteResponse, inviteResultSchema, 'สร้างผู้ใช้แล้ว แต่ส่งคำเชิญไม่สำเร็จ')
+          setNotice(`สร้างผู้ใช้และส่งคำเชิญไปที่ ${form.email.trim()} แล้ว`)
+        } catch (caught) {
+          inviteErrorMessage = getErrorMessage(caught, 'สร้างผู้ใช้แล้ว แต่ส่งคำเชิญไม่สำเร็จ สามารถส่งอีกครั้งจากเมนูจัดการ')
+        }
+      }
+
       await loadData()
+      if (inviteErrorMessage) setError(inviteErrorMessage)
     } catch (caught) {
       setFormError(getErrorMessage(caught, 'บันทึกผู้ใช้ไม่ได้'))
     } finally {
@@ -787,11 +924,35 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     setRoleFilter('all')
     setBranchFilter('all')
     setDepartmentFilter('all')
-    setStatusFilter('all')
+    setStatusFilter('active')
   }
 
   return (
     <section className="space-y-4">
+      {/* AcexPOS Style KPI / Summary Cards */}
+      {isUsersPage ? (
+      <div className="grid grid-cols-2 gap-2.5 text-sm animate-fade-in sm:gap-4">
+        <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl shrink-0">
+            👥
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold text-slate-500 truncate">ผู้ใช้ Active</div>
+            <div className="text-sm font-bold text-emerald-700 mt-0.5 tabular-nums">{userSummary.active}</div>
+          </div>
+        </div>
+        <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xl shrink-0">
+            🔑
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold text-slate-500 truncate">ต้องเปลี่ยน Password</div>
+            <div className="text-sm font-bold text-purple-700 mt-0.5 tabular-nums">{userSummary.mustChange}</div>
+          </div>
+        </div>
+      </div>
+      ) : null}
+
       {/* Desktop Toolbar (Hidden on Mobile) */}
       <div className="hidden space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
         <div className="flex flex-wrap items-center gap-2">
@@ -854,15 +1015,17 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
           ) : null}
           {isUsersPage ? (
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500">สถานะ:</span>
+              <span className="text-xs text-slate-500 dark:text-slate-300">สถานะ:</span>
               {[
                 { label: 'ทุกสถานะ', value: 'all' },
                 { label: 'ใช้งาน', value: 'active' },
-                { label: 'ปิด', value: 'inactive' },
+                { label: 'รอเปิดใช้งาน', value: 'pending' },
+                { label: 'ปิดใช้งาน', value: 'disabled' },
               ].map((option) => (
                 <button
                   key={option.value}
-                  className={`rounded-md border px-3 py-1 text-xs font-medium ${statusFilter === option.value ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`}
+                  aria-pressed={statusFilter === option.value}
+                  className={`rounded-md border px-3 py-1 text-xs font-medium transition-colors ${statusFilter === option.value ? 'border-blue-600 bg-blue-600 text-white shadow-sm dark:border-blue-400 dark:bg-blue-600 dark:text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'}`}
                   type="button"
                   onClick={() => setStatusFilter(option.value as UserStatusFilter)}
                 >
@@ -952,15 +1115,17 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
               </select>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500">สถานะ:</span>
+              <span className="text-xs text-slate-500 dark:text-slate-300">สถานะ:</span>
               {[
                 { label: 'ทุกสถานะ', value: 'all' },
                 { label: 'ใช้งาน', value: 'active' },
-                { label: 'ปิด', value: 'inactive' },
+                { label: 'รอเปิดใช้งาน', value: 'pending' },
+                { label: 'ปิดใช้งาน', value: 'disabled' },
               ].map((option) => (
                 <button
                   key={option.value}
-                  className={`rounded-md border px-3 py-1 text-xs font-medium ${statusFilter === option.value ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`}
+                  aria-pressed={statusFilter === option.value}
+                  className={`rounded-md border px-3 py-1 text-xs font-medium transition-colors ${statusFilter === option.value ? 'border-blue-600 bg-blue-600 text-white shadow-sm dark:border-blue-400 dark:bg-blue-600 dark:text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'}`}
                   type="button"
                   onClick={() => setStatusFilter(option.value as UserStatusFilter)}
                 >
@@ -977,40 +1142,102 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         ) : null}
       </div>
 
-      {/* AcexPOS Style KPI / Summary Cards */}
-      {isUsersPage ? (
-      <div className="grid grid-cols-2 gap-2.5 text-sm animate-fade-in sm:gap-4">
-        {/* 1. ผู้ใช้ Active */}
-        <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl shrink-0">
-            👥
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold text-slate-500 truncate">ผู้ใช้ Active</div>
-            <div className="text-sm font-bold text-emerald-700 mt-0.5 tabular-nums">{userSummary.active}</div>
-          </div>
-        </div>
-        {/* 2. ต้องเปลี่ยน Password */}
-        <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xl shrink-0">
-            🔑
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold text-slate-500 truncate">ต้องเปลี่ยน Password</div>
-            <div className="text-sm font-bold text-purple-700 mt-0.5 tabular-nums">{userSummary.mustChange}</div>
-          </div>
-        </div>
-      </div>
+      {activationUser ? (
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setActivationUser(null)
+              setTemporaryPasswordResult(null)
+            }
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>กำหนดวิธีเข้าสู่ระบบ</DialogTitle>
+              <DialogDescription>{fullName(activationUser)} · {activationUser.email}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 bg-white p-5 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+              {temporaryPasswordResult ? (
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="text-sm font-semibold">รหัสผ่านชั่วคราว</h3>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">แสดงครั้งเดียว ผู้ใช้ต้องเปลี่ยนรหัสผ่านหลัง Login ครั้งแรก</p>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-md border border-slate-300 bg-slate-50 p-2 dark:border-slate-600 dark:bg-slate-950">
+                    <code className="min-w-0 flex-1 select-all break-all px-2 font-mono text-sm font-semibold">{temporaryPasswordResult}</code>
+                    <button
+                      aria-label="คัดลอกรหัสผ่านชั่วคราว"
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                      title="คัดลอก"
+                      type="button"
+                      onClick={() => void navigator.clipboard.writeText(temporaryPasswordResult)}
+                    >
+                      <Copy aria-hidden="true" className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                    ระบบไม่เก็บรหัสนี้ไว้ หลังปิดหน้าต่างจะไม่สามารถเปิดดูซ้ำได้
+                  </div>
+                  <button
+                    className="h-9 w-full rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                    type="button"
+                    onClick={() => {
+                      setActivationUser(null)
+                      setTemporaryPasswordResult(null)
+                    }}
+                  >
+                    เสร็จสิ้น
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-600 dark:text-slate-300">บัญชีเปิดใช้งานแล้ว เลือกวิธีให้ผู้ใช้ตั้งรหัสผ่าน</p>
+                  <button
+                    className="flex w-full items-start gap-3 rounded-md border border-blue-300 bg-blue-50 p-4 text-left hover:bg-blue-100 disabled:opacity-50 dark:border-blue-700 dark:bg-blue-950/40 dark:hover:bg-blue-950/70"
+                    disabled={actionUserId === activationUser.id}
+                    type="button"
+                    onClick={() => void sendActivationPasswordLink()}
+                  >
+                    <Mail aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-blue-700 dark:text-blue-300" />
+                    <span>
+                      <span className="block text-sm font-semibold text-blue-950 dark:text-blue-100">ส่งลิงก์ตั้งรหัสผ่าน</span>
+                      <span className="mt-1 block text-xs text-blue-700 dark:text-blue-300">แนะนำ · ผู้ใช้ตั้งรหัสผ่านเองจากอีเมล</span>
+                    </span>
+                  </button>
+                  <button
+                    className="flex w-full items-start gap-3 rounded-md border border-slate-300 bg-white p-4 text-left hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700"
+                    disabled={actionUserId === activationUser.id}
+                    type="button"
+                    onClick={() => void createTemporaryPassword()}
+                  >
+                    <KeyRound aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-slate-700 dark:text-slate-200" />
+                    <span>
+                      <span className="block text-sm font-semibold">สร้างรหัสผ่านชั่วคราว</span>
+                      <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">แสดงให้ Admin ครั้งเดียว และบังคับเปลี่ยนหลัง Login</span>
+                    </span>
+                  </button>
+                  <button
+                    className="h-9 w-full rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                    type="button"
+                    onClick={() => setActivationUser(null)}
+                  >
+                    ไว้ภายหลัง
+                  </button>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       ) : null}
 
       {formOpen ? (
         <Dialog open={formOpen} onOpenChange={setFormOpen}>
           <DialogContent className="max-w-2xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" hideClose>
             <form className="flex flex-col h-full overflow-hidden" onSubmit={saveUser}>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 px-5 py-4 shrink-0">
-                <DialogTitle className="text-lg font-bold text-slate-100">{editingUser ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้'}</DialogTitle>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 px-5 py-4 text-white shrink-0 dark:border-slate-700 dark:bg-slate-950">
+                <DialogTitle className="text-lg font-bold text-white">{editingUser ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้'}</DialogTitle>
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                  <ActiveToggle checked={form.active} onChange={(checked) => setForm((current) => ({ ...current, active: checked }))} />
                   <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700 disabled:opacity-50" disabled={isSaving} type="button" onClick={() => setFormOpen(false)}>ยกเลิก</button>
                   <button className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50" disabled={isSaving} type="submit">
                     {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
@@ -1018,7 +1245,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4">
+              <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4 dark:bg-slate-900 dark:text-slate-100">
                 <div className="grid gap-4 text-sm md:grid-cols-2">
                   <label className="text-sm font-medium text-slate-700">
                     Email *
@@ -1285,9 +1512,8 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     <ResizableTableHead activeSortKey={userSortKey ?? undefined} direction={userSortDirection} label="หน้าที่งาน" resizeProps={userColumnResize.getResizeHandleProps('roles', 'หน้าที่งาน')} sortKey="roles" onSort={handleUserSort} />
                     <ResizableTableHead activeSortKey={userSortKey ?? undefined} direction={userSortDirection} label="สาขา" resizeProps={userColumnResize.getResizeHandleProps('branches', 'สาขา')} sortKey="branches" onSort={handleUserSort} />
                     <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="สถานะ" resizeProps={userColumnResize.getResizeHandleProps('active', 'สถานะ')} sortKey="active" onSort={handleUserSort} />
-                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="ตั้งรหัส" resizeProps={userColumnResize.getResizeHandleProps('password', 'ตั้งรหัส')} sortKey="password" onSort={handleUserSort} />
                     <ResizableTableHead activeSortKey={userSortKey ?? undefined} direction={userSortDirection} label="Login ล่าสุด" resizeProps={userColumnResize.getResizeHandleProps('lastLoginAt', 'Login ล่าสุด')} sortKey="lastLoginAt" onSort={handleUserSort} />
-                    <ResizableTableHead align="center" label="แก้ไข" resizeProps={userColumnResize.getResizeHandleProps('action', 'แก้ไข')} />
+                    <ResizableTableHead align="center" label="จัดการ" resizeProps={userColumnResize.getResizeHandleProps('action', 'จัดการ')} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1301,8 +1527,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600 ring-1 ring-slate-200">{userInitials(user)}</span>
                           )}
                           <div className="min-w-0">
-                            <div className="font-medium text-slate-900">{fullName(user)}</div>
-                            <div className="text-xs text-slate-500">{user.displayName || '-'}</div>
+                            <div className="truncate font-medium text-slate-900">{fullName(user)}</div>
                           </div>
                         </div>
                       </td>
@@ -1315,23 +1540,11 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                       <td className="p-3 text-slate-700">{user.roles.map((role) => role.name).join(', ') || '-'}</td>
                       <td className="p-3 text-slate-700">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</td>
                       <td className="p-3 text-center">
-                        <ActiveToggle checked={user.active} disabled={savingUserId === user.id} label={statusText(user.active)} onChange={(checked) => void updateUserStatus(user.id, checked)} />
-                      </td>
-                      <td className="p-3 text-center">
-                        <button
-                          className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 font-semibold hover:bg-slate-50 disabled:opacity-50"
-                          disabled={!user.email || !user.active || actionUserId === user.id}
-                          type="button"
-                          onClick={() => void sendUserInvite(user)}
-                        >
-                          {actionUserId === user.id ? 'กำลังส่ง...' : user.authUserId ? 'Reset' : 'Invite'}
-                        </button>
+                        <ActiveToggle checked={user.accountStatus === 'active'} disabled={savingUserId === user.id} label={statusText(user.accountStatus)} onChange={(checked) => void updateUserStatus(user.id, checked)} />
                       </td>
                       <td className="p-3 text-slate-600">{formatDate(user.lastLoginAt)}</td>
                       <td className="p-3 text-center">
-                        <button className="text-blue-700 hover:underline font-bold" type="button" onClick={() => openEditUser(user)}>
-                          แก้ไข
-                        </button>
+                        {renderUserActions(user)}
                       </td>
                     </tr>
                   ))}
@@ -1350,11 +1563,10 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                 <div key={user.id} className="p-4 bg-white space-y-3 animate-fade-in">
                   <div className="flex items-start justify-between">
                     <div>
-                      <div className="font-bold text-slate-900 text-sm leading-snug">{user.displayName || '-'}</div>
-                      <div className="text-xs text-slate-600 mt-0.5">{fullName(user)}</div>
+                      <div className="font-bold text-slate-900 text-sm leading-snug">{fullName(user)}</div>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <ActiveToggle checked={user.active} disabled={savingUserId === user.id} onChange={(checked) => void updateUserStatus(user.id, checked)} />
+                      <ActiveToggle checked={user.accountStatus === 'active'} disabled={savingUserId === user.id} label={statusText(user.accountStatus)} onChange={(checked) => void updateUserStatus(user.id, checked)} />
                     </div>
                   </div>
 
@@ -1385,17 +1597,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                         <span className="text-slate-600 text-xs">{formatDate(user.lastLoginAt)}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button
-                          className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 font-bold hover:bg-slate-50 disabled:opacity-50"
-                          disabled={!user.email || !user.active || actionUserId === user.id}
-                          type="button"
-                          onClick={() => void sendUserInvite(user)}
-                        >
-                          {actionUserId === user.id ? 'ส่ง...' : user.authUserId ? 'Reset' : 'Invite'}
-                        </button>
-                        <button className="rounded bg-blue-600 text-white px-3 py-1 text-xs font-bold hover:bg-blue-700" type="button" onClick={() => openEditUser(user)}>
-                          แก้ไข
-                        </button>
+                        {renderUserActions(user)}
                       </div>
                     </div>
                   </div>
