@@ -4,6 +4,7 @@ import { prisma } from '@/lib/server/prisma'
 
 const SALES_PLAN_LME_CONFIG_KEY = 'SALES_PLAN_LME_CONFIG'
 const FX678_LME_URL = 'https://3g.fx678.com/Market/index/LME'
+const GOOGLE_FINANCE_USD_THB_URL = 'https://www.google.com/finance/beta/quote/USD-THB'
 
 const salesPlanLmeConfigSchema = z.object({
   fxRate: z.coerce.number().finite().min(0),
@@ -28,7 +29,7 @@ const defaultSalesPlanLmeConfig: SalesPlanLmeConfigInput = {
   lmeAluminumUSD: 2400,
   lmeBrassUSD: 7000,
   lmeCopperUSD: 9000,
-  liveFetchNote: 'Live fetch: USD/THB จาก exchangerate-api และ LME จาก fx678 — ส่วนทองเหลือง/กก./ตู้ ต้องกรอกเอง',
+  liveFetchNote: 'Live fetch: USD/THB จาก Google Finance และ LME จาก fx678 — ส่วนทองเหลือง/กก./ตู้ ต้องกรอกเอง',
   source: 'default',
 }
 
@@ -106,7 +107,63 @@ function toIsoFromUnixSeconds(value: string | null) {
   return new Date(seconds * 1000).toISOString()
 }
 
-async function fetchUsdThbRate() {
+function toIsoFromDateString(value: string | null) {
+  if (!value) return null
+  const parsedAt = Date.parse(value)
+  if (Number.isNaN(parsedAt)) return null
+  return new Date(parsedAt).toISOString()
+}
+
+function parseGoogleFinanceUsdThbPage(html: string) {
+  const lines = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, '\n')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/\u202f/g, ' ')
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((value) => value.trim())
+    .filter(Boolean)
+
+  const pairIndex = lines.findIndex((value) => value === 'United States Dollar / Thai Baht')
+  if (pairIndex < 0) return null
+
+  const rate = Number(lines[pairIndex + 1] ?? Number.NaN)
+  if (!Number.isFinite(rate) || rate <= 0) return null
+
+  const quotedAtCandidate = lines[pairIndex + 6] ?? ''
+  const quotedAt = quotedAtCandidate.endsWith('UTC')
+    ? toIsoFromDateString(quotedAtCandidate)
+    : null
+
+  return {
+    rate,
+    quotedAt,
+  }
+}
+
+async function fetchUsdThbRateFromGoogleFinance() {
+  const response = await fetch(GOOGLE_FINANCE_USD_THB_URL, {
+    cache: 'no-store',
+    headers: {
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9,th;q=0.8',
+      'User-Agent': 'Mozilla/5.0 (compatible; NS-Scrap-ERP/1.0; +https://example.local)',
+    },
+  })
+  if (!response.ok) {
+    return { error: `Google Finance ตอบกลับ ${response.status}` as const }
+  }
+
+  const parsed = parseGoogleFinanceUsdThbPage(await response.text())
+  if (!parsed) return { error: 'อ่านค่า USD/THB จาก Google Finance ไม่ได้' as const }
+  return parsed
+}
+
+async function fetchUsdThbRateFromExchangeRateApi() {
   const apiKey = process.env.EXCHANGERATE_API_KEY
   if (!apiKey) return { error: 'ไม่ได้ตั้งค่า EXCHANGERATE_API_KEY' as const }
 
@@ -120,6 +177,33 @@ async function fetchUsdThbRate() {
   const rate = parseFxRatePayload(await response.json())
   if (!rate) return { error: 'อ่านค่า USD/THB จาก ExchangeRate API ไม่ได้' as const }
   return { rate }
+}
+
+async function fetchUsdThbRate() {
+  const googleFinanceResult = await fetchUsdThbRateFromGoogleFinance()
+  if (!('error' in googleFinanceResult)) {
+    return {
+      ...googleFinanceResult,
+      provider: 'Google Finance' as const,
+      fallbackUsed: false,
+      fallbackReason: null,
+    }
+  }
+
+  const exchangeRateResult = await fetchUsdThbRateFromExchangeRateApi()
+  if (!('error' in exchangeRateResult)) {
+    return {
+      ...exchangeRateResult,
+      quotedAt: null,
+      provider: 'ExchangeRate API' as const,
+      fallbackUsed: true,
+      fallbackReason: googleFinanceResult.error,
+    }
+  }
+
+  return {
+    error: `${googleFinanceResult.error}; fallback ExchangeRate API: ${exchangeRateResult.error}` as const,
+  }
 }
 
 function parseFx678Row(html: string, instrumentCode: string) {
@@ -164,8 +248,16 @@ export async function fetchLiveSalesPlanLmeConfig(currentConfig: SalesPlanLmeCon
   ])
 
   const fetchedAt = new Date().toISOString()
-  const notes: string[] = ['Live fetch: USD/THB จาก exchangerate-api และ LME จาก fx678']
-  if ('error' in fxResult) notes.push(`USD/THB ใช้ค่าเดิม (${fxResult.error})`)
+  const notes: string[] = ['Live fetch: USD/THB จาก Google Finance และ LME จาก fx678']
+  if ('error' in fxResult) {
+    notes.push(`USD/THB ใช้ค่าเดิม (${fxResult.error})`)
+  } else {
+    notes.push(`USD/THB source ${fxResult.provider}`)
+    if (fxResult.quotedAt) notes.push(`USD/THB quote ${fxResult.quotedAt}`)
+    if (fxResult.fallbackUsed && fxResult.fallbackReason) {
+      notes.push(`USD/THB fallback จาก Google Finance (${fxResult.fallbackReason})`)
+    }
+  }
   if ('error' in metalsResult) {
     notes.push(`LME ใช้ค่าเดิม (${metalsResult.error})`)
   } else {
