@@ -101,8 +101,11 @@ sales plan/LME planning ก่อน PO Sell/stock issue
 
 - ปุ่ม `Fetch Live` ใช้เติมค่าลงในฟอร์มก่อนบันทึก ไม่ใช่ auto-save
 - ค่า `USD/THB` และโลหะที่รองรับจาก provider สามารถถูกเติมจาก API ได้
+- current provider baseline: `USD/THB` มาจาก `https://www.google.com/finance/beta/quote/USD-THB`; ถ้าอ่านไม่สำเร็จและตั้ง `EXCHANGERATE_API_KEY` ไว้จะ fallback ไป ExchangeRate API
+- `ทองแดง LME` / `อลูมิเนียม LME` มาจาก `https://3g.fx678.com/Market/index/LME` โดยอิงค่า `最新` ของแถว `LME铜` / `LME铝`
 - `กก./ตู้` ต้องคงเป็น manual field เสมอและห้ามถูกทับจาก API
 - `ทองเหลือง LME` ยังอนุญาตให้คง/manual override ได้ แม้ผู้ใช้จะกด fetch live
+- route cron ภายใน `/api/cron/sales-plan-lme` สามารถบันทึกค่า live อัตโนมัติได้เมื่อ deployment ตั้ง `CRON_SECRET` และใช้ Vercel Cron
 
 ### Save Rules
 

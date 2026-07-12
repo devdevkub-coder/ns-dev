@@ -205,10 +205,14 @@ VITE_SUPABASE_ANON_KEY=replace-with-dev-anon-key
 DATABASE_URL=postgresql://postgres.fhglqymcdmrgbsbadnwr:replace-with-dev-db-password@replace-with-dev-pooler-host:5432/postgres
 SUPABASE_DB_USER=postgres.fhglqymcdmrgbsbadnwr
 SUPABASE_DB_URL=postgresql://postgres.fhglqymcdmrgbsbadnwr:replace-with-dev-db-password@replace-with-dev-pooler-host:5432/postgres
+EXCHANGERATE_API_KEY=replace-with-api-key
+CRON_SECRET=replace-with-random-16-plus-char-secret
 ```
 
 Remaining manual updates:
 - replace dev database password and pooler host in `DATABASE_URL` / `SUPABASE_DB_URL`
+- add `EXCHANGERATE_API_KEY` only if Sales Plan live USD/THB should have fallback when Google Finance is unavailable
+- add `CRON_SECRET` in Vercel project settings before relying on `/api/cron/sales-plan-lme`
 
 Observed current state:
 - `VITE_SUPABASE_URL` points to `fhglqymcdmrgbsbadnwr`.
