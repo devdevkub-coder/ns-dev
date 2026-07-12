@@ -829,3 +829,39 @@ flowchart TD
 | เชื่อม Flex Message Template เข้า flow ส่งจริง | ตอนนี้ `buildFlexMessage` แบบ hardcoded ไม่ได้ดึงจาก `line_message_templates` |
 | เพิ่ม webhook handler `memberJoined`/`follow` | ตอนนี้รับแค่ `join`/`message`/`leave` |
 | พิจารณา cron/queue สำหรับงานที่เยอะมาก | auto-send แนว A execute ทันทีใน request — เหมาะกับโหลดปกติ แต่ถ้ามีการบันทึกเอกสารเป็นจำนวนมากพร้อมกันอาจต้องใช้ queue จริง |
+
+## Form architecture checkpoint (2026-07-12)
+
+ฟอร์มสร้าง/แก้ไข WTI และ WTO ใช้ข้อมูลหัวเอกสาร รายการเต๋า น้ำหนัก
+สิ่งเจือปน รูปภาพ และหมายเหตุร่วมกัน แต่มี source field ต่างกันดังนี้:
+
+| ประเภท | ส่วนเฉพาะของฟอร์ม | เหตุผล |
+|---|---|---|
+| WTI | เลือกสินค้า โดยไม่เลือกคลัง stock-out | WTI เป็นการรับสินค้าเข้า ยังไม่กัน `pending_out` จากคลัง |
+| WTO | เลือกสินค้าและคลัง พร้อมแสดง on hand / hold / available | WTO ต้องระบุ stock source ที่ใช้กัน `pending_out` |
+
+โครงสร้างหน้าแยกเป็น:
+
+```text
+WeightTicketsPageClient (tab router)
+├── WeightTicketWtiForm
+│   └── WeightTicketFormCore(type=WTI, locked)
+└── WeightTicketWtoForm
+    └── WeightTicketFormCore(type=WTO, locked)
+```
+
+`WeightTicketWtiForm` และ `WeightTicketWtoForm` เป็น entry point แยกของแต่ละ flow
+ส่วน `WeightTicketFormCore` เก็บ implementation ที่เหมือนกันจริง ได้แก่ state lifecycle,
+รายการเต๋า, สูตรน้ำหนัก, attachment state, validation และ save orchestration เพื่อไม่ให้
+business rule ถูกทำสำเนาแล้วเปลี่ยนไม่พร้อมกัน
+
+ภายใน product source ยังแยก presentation เป็น `WeightTicketWtiFormSection` และ
+`WeightTicketWtoFormSection`; WTO section เพิ่ม warehouse และ stock availability
+ส่วน WTI ไม่มี stock-out source การสลับ tab จะ mount form คนละตัว และถ้ามีข้อมูลที่ยัง
+ไม่บันทึกจะต้องยืนยันก่อนล้างข้อมูล
+
+รอบนี้เป็น structural refactor เท่านั้น ไม่มีการเปลี่ยน business rule, สูตรน้ำหนัก,
+stock validation หรือ API contract
+
+ลำดับ refactor ถัดไปคือแยก vehicle attachments, line attachments และ preview dialog
+ออกจาก container โดยใช้ attachment state contract เดิม
