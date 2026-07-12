@@ -311,20 +311,28 @@ export function PoSellPageClient() {
   const pageRows = sortedRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const activeBranches = (data?.options.branches ?? []).filter((option) => option.active !== false)
   const activeChannels = useMemo(() => (data?.options.salesChannels ?? []).filter((option) => option.active !== false), [data?.options.salesChannels])
-  const activeCustomers = useMemo(() => (data?.options.customers ?? []).filter((option) => (
-    option.active !== false
-    && Boolean(form.branchId)
-    && option.branchIds?.includes(form.branchId ?? '')
-  )), [data?.options.customers, form.branchId])
+  const allActiveCustomers = useMemo(
+    () => (data?.options.customers ?? []).filter((option) => option.active !== false),
+    [data?.options.customers],
+  )
+  const activeCustomers = useMemo(() => {
+    if (form.branchId) {
+      return allActiveCustomers.filter((option) => option.branchIds?.includes(form.branchId ?? ''))
+    }
+    if (form.customerId) {
+      return allActiveCustomers.filter((option) => option.id === form.customerId)
+    }
+    return []
+  }, [allActiveCustomers, form.branchId, form.customerId])
   const activeProducts = (data?.options.products ?? []).filter((option) => option.active !== false)
   const defaultSalesChannelForCustomer = useCallback((customerId: string) => {
-    const customer = activeCustomers.find((option) => option.id === customerId)
+    const customer = allActiveCustomers.find((option) => option.id === customerId)
     const targetScope = customer?.marketScope === 'ต่างประเทศ' ? 'ต่างประเทศ' : customer?.marketScope === 'ในประเทศ' ? 'ในประเทศ' : null
     if (!targetScope) return null
     return activeChannels.find((channel) => [channel.name, channel.code, channel.id].some((value) => String(value ?? '').trim() === targetScope))?.id ?? null
-  }, [activeChannels, activeCustomers])
+  }, [activeChannels, allActiveCustomers])
   const selectedCustomer = form.customerId
-    ? activeCustomers.find((customer) => customer.id === form.customerId) ?? null
+    ? allActiveCustomers.find((customer) => customer.id === form.customerId) ?? null
     : null
   const selectedChannel = form.channelId
     ? (data?.options.salesChannels ?? []).find((channel) => channel.id === form.channelId) ?? null
