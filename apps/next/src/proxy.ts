@@ -56,21 +56,35 @@ export async function proxy(request: NextRequest) {
 
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser()
+
+  if (authError) {
+    return pathname.startsWith('/api/') ? jsonError('ตรวจสอบ session ไม่สำเร็จ', 401) : loginRedirect(request)
+  }
 
   if (!user) {
     return pathname.startsWith('/api/') ? jsonError('กรุณาเข้าสู่ระบบ', 401) : loginRedirect(request)
   }
 
-  const { data: currentAppUser } = await supabase
-    .from('app_users')
-    .select('id, must_change_password')
-    .eq('auth_user_id', user.id)
-    .eq('active', true)
-    .maybeSingle<{ id: number; must_change_password: boolean }>()
-  const { data: currentAppUserId } = currentAppUser?.id == null
-    ? await supabase.rpc('current_app_user_id')
-    : { data: currentAppUser.id }
+  const { data: appUserAccessRows, error: appUserError } = await supabase.rpc('current_app_user_access_context')
+
+  if (appUserError) {
+    return pathname.startsWith('/api/')
+      ? jsonError('ตรวจสอบบัญชีผู้ใช้งานไม่สำเร็จ', 500)
+      : new NextResponse('ตรวจสอบบัญชีผู้ใช้งานไม่สำเร็จ', { status: 500 })
+  }
+
+  if (!Array.isArray(appUserAccessRows)) {
+    return pathname.startsWith('/api/')
+      ? jsonError('รูปแบบข้อมูลบัญชีผู้ใช้งานไม่ถูกต้อง', 500)
+      : new NextResponse('รูปแบบข้อมูลบัญชีผู้ใช้งานไม่ถูกต้อง', { status: 500 })
+  }
+
+  const currentAppUser = appUserAccessRows[0] as {
+    app_user_id: number
+    must_change_password: boolean
+  } | undefined
 
   if (currentAppUser?.must_change_password === true && !isPasswordChangeAllowedPath(pathname)) {
     if (pathname.startsWith('/api/')) {
@@ -89,11 +103,17 @@ export async function proxy(request: NextRequest) {
       _permission_code: requiredPermission,
     })
 
-    if (!permissionError && hasPermission === true) {
+    if (permissionError) {
+      return pathname.startsWith('/api/')
+        ? jsonError('ตรวจสอบสิทธิ์ไม่สำเร็จ', 500)
+        : new NextResponse('ตรวจสอบสิทธิ์ไม่สำเร็จ', { status: 500 })
+    }
+
+    if (hasPermission === true) {
       return response
     }
   } else {
-    if (currentAppUser?.id != null || currentAppUserId != null) {
+    if (currentAppUser?.app_user_id != null) {
       return response
     }
   }

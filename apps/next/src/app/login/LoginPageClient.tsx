@@ -23,6 +23,14 @@ async function resolveDefaultLandingPath() {
   return '/'
 }
 
+function loginContractErrorMessage(status: number, payload: unknown) {
+  if (status === 403 && payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string') {
+    return payload.error
+  }
+  if (status === 401) return 'Session เข้าสู่ระบบไม่ถูกต้อง กรุณาลองใหม่'
+  return 'ตรวจสอบบัญชีผู้ใช้งานไม่สำเร็จ กรุณาลองใหม่'
+}
+
 export function LoginPageClient() {
   const searchParams = useSearchParams()
   const [identifier, setIdentifier] = useState('')
@@ -51,22 +59,40 @@ export function LoginPageClient() {
 
     setIsLoading(true)
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: parsed.data.email,
-      password: parsed.data.password,
-    })
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: parsed.data.email,
+        password: parsed.data.password,
+      })
 
-    setIsLoading(false)
+      if (signInError) {
+        setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง')
+        return
+      }
 
-    if (signInError) {
-      setError(`เข้าสู่ระบบไม่สำเร็จ: ${signInError.message}`)
-      return
+      const loginCompleteResponse = await fetch('/api/auth/login-complete', {
+        cache: 'no-store',
+        credentials: 'include',
+        method: 'POST',
+      })
+      const loginCompletePayload = await loginCompleteResponse.json().catch(() => null)
+
+      if (!loginCompleteResponse.ok) {
+        await supabase.auth.signOut({ scope: 'local' })
+        setError(loginContractErrorMessage(loginCompleteResponse.status, loginCompletePayload))
+        return
+      }
+
+      setPassword('')
+      const redirectParam = searchParams.get('redirect')
+      const redirectPath = redirectParam ? safeRedirectPath(redirectParam) : await resolveDefaultLandingPath()
+      window.location.assign(redirectPath)
+    } catch {
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+      setError('เชื่อมต่อระบบเข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่')
+    } finally {
+      setIsLoading(false)
     }
-
-    setPassword('')
-    const redirectParam = searchParams.get('redirect')
-    const redirectPath = redirectParam ? safeRedirectPath(redirectParam) : await resolveDefaultLandingPath()
-    window.location.assign(redirectPath)
   }
 
   function submitOnPasswordEnter(event: KeyboardEvent<HTMLInputElement>) {

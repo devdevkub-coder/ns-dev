@@ -31,10 +31,6 @@ type MenuSearchResult = {
 
 const PAGE_TITLE_EVENT = 'ns-scrap-erp-page-title'
 
-function emptyAuthContext(): AuthContextSummary {
-  return { authUserEmail: '', mustChangePassword: false, permissions: [], roles: [] }
-}
-
 function normalizeAuthRoles(value: unknown): AuthContextSummary['roles'] {
   if (!Array.isArray(value)) return []
   return value
@@ -87,6 +83,7 @@ export function AppShell({ children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarUserMenuOpen, setSidebarUserMenuOpen] = useState(false)
   const [authContext, setAuthContext] = useState<AuthContextSummary | null>(null)
+  const [authLoadError, setAuthLoadError] = useState<string | null>(null)
   const [breadcrumbLabelOverride, setBreadcrumbLabelOverride] = useState<string | null>(null)
   const [menuSearch, setMenuSearch] = useState('')
   const [menuSearchFocused, setMenuSearchFocused] = useState(false)
@@ -183,18 +180,30 @@ export function AppShell({ children }: AppShellProps) {
         const payload = await response.json().catch(() => null)
 
         if (mounted && response.ok) {
+          setAuthLoadError(null)
           setAuthContext({
             authUserEmail: typeof payload?.authUser?.email === 'string' ? payload.authUser.email : '',
             mustChangePassword: payload?.appUser?.mustChangePassword === true,
             permissions: Array.isArray(payload?.permissions) ? payload.permissions : [],
             roles: normalizeAuthRoles(payload?.roles),
           })
+        } else if (mounted && response.status === 401) {
+          const redirect = `${pathname}${window.location.search}`
+          router.replace(`/login?redirect=${encodeURIComponent(redirect)}`)
         } else if (mounted) {
-          setAuthContext(emptyAuthContext())
+          setAuthContext(null)
+          setAuthLoadError(
+            typeof payload?.error === 'string'
+              ? payload.error
+              : response.status === 403
+                ? 'บัญชีนี้ไม่มีสิทธิ์ใช้งานระบบ'
+                : 'โหลดข้อมูลบัญชีและสิทธิ์ไม่สำเร็จ',
+          )
         }
       } catch {
         if (mounted) {
-          setAuthContext(emptyAuthContext())
+          setAuthContext(null)
+          setAuthLoadError('เชื่อมต่อระบบบัญชีและสิทธิ์ไม่สำเร็จ')
         }
       }
     }
@@ -204,7 +213,7 @@ export function AppShell({ children }: AppShellProps) {
     return () => {
       mounted = false
     }
-  }, [isAuthPage])
+  }, [isAuthPage, pathname, router])
 
   useEffect(() => {
     if (isAuthPage || pathname === '/admin/change-password') return
@@ -420,7 +429,14 @@ export function AppShell({ children }: AppShellProps) {
           </nav>
         ) : null}
 
-        <main className={`min-h-0 flex-1 overflow-y-auto p-4 lg:p-6 ${showMobileBottomNav ? 'pb-20 lg:pb-6' : ''}`}>{children}</main>
+        <main className={`min-h-0 flex-1 overflow-y-auto p-4 lg:p-6 ${showMobileBottomNav ? 'pb-20 lg:pb-6' : ''}`}>
+          {authLoadError ? (
+            <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-900/70 dark:bg-red-950/50 dark:text-red-200" role="alert">
+              {authLoadError}
+            </div>
+          ) : null}
+          {children}
+        </main>
       </div>
       {showMobileBottomNav && !sidebarOpen ? (
         <MobileBottomNavigation authContext={authContext} onOpenSidebar={() => setSidebarOpen(true)} />

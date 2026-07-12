@@ -12,6 +12,19 @@
 - ห้ามบันทึก password, token, service role key หรือข้อมูล credential จริงลงเอกสาร
 - ทุก schema migration ต้อง additive/non-destructive ก่อน UAT และห้ามลบข้อมูลเดิม
 
+## Login Flow Verification 2026-07-12
+
+- Local authenticated smoke test passed against the configured local Supabase environment: `/login` accepted the active email/password account, established the SSR cookie session, redirected to `/owner-daily`, and `GET /api/auth/me` returned HTTP 200 with the linked active `app_users` record, role `system_admin`, and 38 permission codes.
+- Local unauthenticated contract passed: `/owner-daily` redirected to `/login?redirect=%2Fowner-daily`, while `GET /api/auth/me` returned HTTP 401 with `กรุณาเข้าสู่ระบบ`.
+- Logout smoke test passed: the account menu called Supabase `signOut`, returned the browser to `/login`, and the subsequent `GET /api/auth/me` returned HTTP 401.
+- Current login UI accepts email only. Historical username-login notes below describe an older implementation and must not be treated as the current runtime contract.
+- Resolved hardening: migration `20260712120000_add_current_app_user_access_context.sql` adds the authenticated security-definer RPC `current_app_user_access_context()`. The proxy uses this RPC as its single active-app-user source because direct `app_users` reads are intentionally restricted by RLS; RPC and permission-read errors now return HTTP 500 instead of being converted into a normal 403/login redirect.
+- Resolved hardening: `AppShell` now redirects HTTP 401 to login and presents explicit 403/500/network errors. It no longer fabricates an empty role/permission context when `/api/auth/me` fails.
+- Resolved hardening: password login must complete `POST /api/auth/login-complete`, which validates the Prisma application-user context and records the successful login audit before navigation. A missing/inactive app user or server failure signs out the local Supabase session and displays an explicit error.
+- Invalid credentials now use a stable Thai message instead of exposing the raw Supabase provider error.
+- Dev-target migration apply passed for project `fhglqymcdmrgbsbadnwr`. Post-fix browser smoke passed invalid-password handling, `login-complete = 200`, `/api/auth/me = 200`, role `system_admin`, 38 permission codes, protected landing, logout, and post-logout `/api/auth/me = 401`.
+- Validation passed: Next type-check, lint with one pre-existing unrelated `qa-thai-font.tsx` warning, production build, and `git diff --check`.
+
 ## Current Status as of 2026-05-18
 
 - Next login page exists at `/login`.
