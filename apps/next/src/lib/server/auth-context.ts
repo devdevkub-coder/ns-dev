@@ -46,7 +46,8 @@ function serializeInternalId(value: bigint | null | undefined) {
   return value == null ? null : value.toString()
 }
 
-const appUserAuthInclude = {
+const appUserAuthSelect = {
+  active: true,
   app_user_branch_access: {
     include: {
       branches: {
@@ -56,6 +57,10 @@ const appUserAuthInclude = {
       },
     },
   },
+  display_name: true,
+  email: true,
+  id: true,
+  must_change_password: true,
   app_user_roles: {
     include: {
       app_roles: {
@@ -73,7 +78,7 @@ const appUserAuthInclude = {
 
 async function findAppUserWithAuth(where: Parameters<typeof prisma.app_users.findUnique>[0]['where']) {
   return prisma.app_users.findUnique({
-    include: appUserAuthInclude,
+    select: appUserAuthSelect,
     where,
   })
 }
@@ -105,6 +110,10 @@ function buildAppUserContext(appUser: AppUserWithAuth | null, user: User): AppAu
     name: role.name,
   }))
   const isAdmin = roleSummaries.some((role) => role.code === 'admin' || role.code === 'owner')
+  const username = appUser.email?.split('@')[0]?.trim()
+    || appUser.display_name?.trim()
+    || user.email?.split('@')[0]?.trim()
+    || user.id
 
   return {
     appUser: {
@@ -114,7 +123,7 @@ function buildAppUserContext(appUser: AppUserWithAuth | null, user: User): AppAu
       email: appUser.email,
       id: appUser.id,
       mustChangePassword: appUser.must_change_password,
-      username: appUser.username,
+      username,
     },
     authUser: user,
     fallbackRole: null,
@@ -172,7 +181,7 @@ export async function getCurrentAuthContext(): Promise<AppAuthContext> {
   const email = user.email?.trim()
   if (email) {
     const emailMatches = await prisma.app_users.findMany({
-      include: appUserAuthInclude,
+      select: appUserAuthSelect,
       orderBy: [{ created_at: 'desc' }],
       take: 2,
       where: {

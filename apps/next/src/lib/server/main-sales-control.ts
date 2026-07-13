@@ -191,6 +191,7 @@ async function buildSalesPlanningSnapshot() {
   const config = await getSalesPlanLmeConfig()
   const { byKey, refs } = await productsContext()
   const productById = new Map(refs.map((product) => [product.id, product] as const))
+  const salesPlanRefs = refs.filter((product) => isCopperOrBrassGroup(product.metalGroup))
   const [poSells, poBuys, stockRows, customers, salesChannels, tradingDeals, purchaseBills, samutSakhonWarehouses] = await Promise.all([
     prisma.po_sells.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
     prisma.po_buys.findMany({ orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
@@ -338,7 +339,7 @@ async function buildSalesPlanningSnapshot() {
     })
   })
 
-  const reconciliation = refs.map((product) => {
+  const reconciliation = salesPlanRefs.map((product) => {
     const stock = stockByProduct.get(product.id) ?? { qty: 0, value: 0 }
     const spotRaw = spotByProduct.get(product.id) ?? { amount: 0, qty: 0 }
     const matched = matchedByProduct.get(product.id) ?? 0
@@ -363,8 +364,7 @@ async function buildSalesPlanningSnapshot() {
     }
   }).filter((row) => row.poOnOrderQty > 0 || row.spotInPoolQty > 0 || row.stockQty !== 0)
 
-  const pendingSaleTable = refs
-    .filter((product) => isCopperOrBrassGroup(product.metalGroup))
+  const pendingSaleTable = salesPlanRefs
     .map((product) => {
       const stock = stockByProduct.get(product.id) ?? { qty: 0, value: 0 }
       const spotRaw = spotByProduct.get(product.id) ?? { amount: 0, qty: 0 }
@@ -436,9 +436,16 @@ async function buildSalesPlanningSnapshot() {
       return { active: customer.active ?? true, code, id: code, marketScope: customer.market_scope === 'ต่างประเทศ' ? 'ต่างประเทศ' : 'ในประเทศ', name: customer.name }
     }),
     lmeConfig: config,
-    metalGroups: Array.from(new Set(refs.map((product) => product.metalGroup).filter(Boolean))).sort(),
+    metalGroups: Array.from(new Set(salesPlanRefs.map((product) => product.metalGroup).filter(Boolean))).sort(),
     pendingSaleTable,
     pendingSaleTotals,
+    planProductOptions: salesPlanRefs.map((product) => ({
+      code: product.code,
+      id: product.code,
+      metalGroup: product.metalGroup,
+      name: product.name,
+      wac: product.wac,
+    })),
     productDetails: details,
     productRows,
     reconciliation,
@@ -492,6 +499,7 @@ export async function buildSalesPlan() {
   }).sort((left, right) => right.value - left.value)
 
   return {
+    customers: pending.customers,
     filters: {
       channels: pending.channels,
       metalGroups: pending.metalGroups,
@@ -513,6 +521,7 @@ export async function buildSalesPlan() {
       stockWAC: row.stockWAC,
     })),
     pendingSaleTotals: pending.pendingSaleTotals,
+    planProductOptions: pending.planProductOptions,
     planRows,
     productAnalysis: remainRows,
     sourceState: {

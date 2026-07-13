@@ -186,13 +186,12 @@ function num(value: unknown) {
   return typeof value === 'number' ? value : Number(value ?? 0)
 }
 
-function lmeBaseByMetalGroup(metalGroup: string, config: LmeConfig | null) {
-  if (!config) return 0
+function lmeDraftValueByMetalGroup(metalGroup: string, config: LmeConfig | null) {
+  if (!config) return ''
   const group = metalGroup.toLowerCase()
-  if (group.includes('ทองแดง') || group.includes('copper')) return config.lmeCopperUSD
-  if (group.includes('ทองเหลือง') || group.includes('brass')) return config.lmeBrassUSD
-  if (group.includes('อลูมิ') || group.includes('aluminum')) return config.lmeAluminumUSD
-  return 0
+  if (group.includes('ทองแดง') || group.includes('copper')) return String(config.lmeCopperUSD)
+  if (group.includes('ทองเหลือง') || group.includes('brass')) return ''
+  return ''
 }
 
 function getPlanStatus(value: unknown): 'locked' | 'pending' | 'po_created' {
@@ -564,7 +563,7 @@ export function SalesPlanPageClient() {
     const product = productOptions.find((option) => option.code === productCode)
     setPlanDraftForm((current) => ({
       ...current,
-      lmeCf: product ? String(lmeBaseByMetalGroup(product.metalGroup, lmeForm)) : '',
+      lmeCf: product ? lmeDraftValueByMetalGroup(product.metalGroup, lmeForm) : '',
       productCode,
     }))
   }
