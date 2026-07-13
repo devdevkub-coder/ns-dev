@@ -250,6 +250,31 @@ export async function lockSalesPlan(planId: string, context: AppAuthContext) {
   return getSalesPlanRow(rows[0].id)
 }
 
+export async function clearPendingSalesPlans(context: AppAuthContext, planIds?: string[]) {
+  const normalizedIds = Array.from(new Set((planIds ?? []).map((value) => value.trim()).filter((value) => /^\d+$/.test(value))))
+  if (planIds && normalizedIds.length === 0) return { deletedCount: 0 }
+
+  if (normalizedIds.length > 0) {
+    const ids = normalizedIds.map((value) => BigInt(value))
+    const result = await prisma.$executeRaw(
+      Prisma.sql`
+        delete from public.sales_plans
+        where id in (${Prisma.join(ids)})
+          and status = 'draft'
+          and po_sell_id is null
+      `,
+    )
+    return { deletedCount: Number(result ?? 0) }
+  }
+
+  const result = await prisma.$executeRaw`
+    delete from public.sales_plans
+    where status = 'draft'
+      and po_sell_id is null
+  `
+  return { deletedCount: Number(result ?? 0) }
+}
+
 export async function getSalesPlanRow(planId: bigint, tx: Prisma.TransactionClient | typeof prisma = prisma) {
   const rows = await tx.$queryRaw<SalesPlanDbRow[]>`
     select

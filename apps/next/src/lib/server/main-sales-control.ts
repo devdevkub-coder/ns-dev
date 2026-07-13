@@ -433,7 +433,7 @@ async function buildSalesPlanningSnapshot() {
     metalGroups: Array.from(new Set(salesPlanRefs.map((product) => product.metalGroup).filter(Boolean))).sort(),
     pendingSaleTable,
     pendingSaleTotals,
-    planProductOptions: salesPlanRefs.map((product) => ({
+    planProductOptions: refs.map((product) => ({
       code: product.code,
       id: product.code,
       metalGroup: product.metalGroup,

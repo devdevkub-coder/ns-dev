@@ -13,7 +13,7 @@ import { useResizableColumns, type ResizableColumnDefinition } from '@/component
 type AnyRow = Record<string, number | string | boolean | null | undefined>
 type SortDirection = 'asc' | 'desc'
 type TableColumn<TKey extends string> = ResizableColumnDefinition<TKey> & { align?: 'center' | 'left' | 'right'; label: string }
-type SalesPlanColumnKey = 'channel' | 'containers' | 'customerName' | 'fx' | 'kgPerContainer' | 'lme' | 'poSell' | 'productName' | 'sellPctLme' | 'sellPrice' | 'status' | 'totalKg'
+type SalesPlanColumnKey = 'channel' | 'containers' | 'customerName' | 'fx' | 'kgPerContainer' | 'lme' | 'poSell' | 'productName' | 'select' | 'sellPctLme' | 'sellPrice' | 'status' | 'totalKg'
 type SalesPlanAnalysisColumnKey = 'bestPlanPct' | 'bestPlanPrice' | 'lockedKg' | 'metalGroup' | 'name' | 'projectedMarginPct' | 'projectedProfit' | 'recommendation' | 'remainingKg' | 'stock' | 'wac'
 type SalesPlanRemainingColumnKey = 'lockedContainers' | 'lockedKg' | 'metalGroup' | 'name' | 'remainingContainers' | 'remainingKg' | 'stock' | 'value' | 'wac'
 type CommissionCategoryColumnKey = 'amount' | 'category' | 'qty'
@@ -102,6 +102,7 @@ type CommissionPayload = {
 }
 
 const salesPlanColumns: Array<TableColumn<SalesPlanColumnKey>> = [
+  { key: 'select', label: 'เลือก', defaultWidth: 72, minWidth: 64, align: 'center' },
   { key: 'productName', label: 'สินค้า', defaultWidth: 220, minWidth: 160 },
   { key: 'channel', label: 'ช่องทาง', defaultWidth: 125, minWidth: 105, align: 'center' },
   { key: 'customerName', label: 'ลูกค้า', defaultWidth: 190, minWidth: 145 },
@@ -189,6 +190,16 @@ function sanitizeDecimalInput(value: string) {
   const normalized = value.replace(/,/g, '').replace(/[^0-9.]/g, '')
   const [whole, ...decimalParts] = normalized.split('.')
   return decimalParts.length ? `${whole}.${decimalParts.join('')}` : whole
+}
+
+function normalizedProductFilterValue(value: unknown) {
+  return text(value).trim().toLowerCase()
+}
+
+function matchesProductFilter(row: AnyRow, filterProductCode: string) {
+  if (!filterProductCode) return true
+  const needle = normalizedProductFilterValue(filterProductCode)
+  return [row.productCode, row.productId, row.code].some((value) => normalizedProductFilterValue(value) === needle)
 }
 
 function lmeDraftValueByMetalGroup(metalGroup: string, config: LmeConfig | null) {
@@ -286,10 +297,15 @@ export function SalesPlanPageClient() {
   const [isFetchingLive, setIsFetchingLive] = useState(false)
   const [isSavingConfig, setIsSavingConfig] = useState(false)
   const [isSavingPlan, setIsSavingPlan] = useState(false)
+  const [isClearingPendingPlans, setIsClearingPendingPlans] = useState(false)
   const [isPlanFormOpen, setIsPlanFormOpen] = useState(false)
+  const [selectedPendingPlanIds, setSelectedPendingPlanIds] = useState<string[]>([])
   const [month, setMonth] = useState('')
-  const [filterGroup, setFilterGroup] = useState('')
-  const [filterChannel, setFilterChannel] = useState('')
+  const [planFilterGroup, setPlanFilterGroup] = useState('')
+  const [planFilterChannel, setPlanFilterChannel] = useState('')
+  const [planFilterProductCode, setPlanFilterProductCode] = useState('')
+  const [insightFilterGroup, setInsightFilterGroup] = useState('')
+  const [insightFilterProductCode, setInsightFilterProductCode] = useState('')
   const [lmeForm, setLmeForm] = useState<LmeConfig | null>(null)
   const [planDraftError, setPlanDraftError] = useState<string | null>(null)
   const [planDraftForm, setPlanDraftForm] = useState<SalesPlanDraftForm>({
@@ -343,6 +359,40 @@ export function SalesPlanPageClient() {
   const customerOptions = useMemo(() => (data?.customers ?? [])
     .filter((customer) => customer.active)
     .map((customer) => ({ code: customer.code, marketScope: customer.marketScope, name: customer.name })), [data?.customers])
+  const filterProductOptions = useMemo(() => {
+    const options = new Map<string, { id: string; label: string; searchText: string }>()
+    productOptions.forEach((option) => {
+      if (!option.code) return
+      options.set(option.code, {
+        id: option.code,
+        label: `${option.code} - ${option.name}`,
+        searchText: `${option.code} ${option.name} ${option.metalGroup}`,
+      })
+    })
+    ;(data?.pendingSaleTable ?? []).forEach((row) => {
+      const code = text(row.productCode)
+      if (!code || options.has(code)) return
+      const name = text(row.productName)
+      const metalGroup = text(row.metalGroup)
+      options.set(code, {
+        id: code,
+        label: name ? `${code} - ${name}` : code,
+        searchText: `${code} ${name} ${metalGroup}`,
+      })
+    })
+    ;(data?.productAnalysis ?? []).forEach((row) => {
+      const code = text(row.code)
+      if (!code || options.has(code)) return
+      const name = text(row.name)
+      const metalGroup = text(row.metalGroup)
+      options.set(code, {
+        id: code,
+        label: name ? `${code} - ${name}` : code,
+        searchText: `${code} ${name} ${metalGroup}`,
+      })
+    })
+    return Array.from(options.values()).sort((left, right) => left.label.localeCompare(right.label, 'th', { numeric: true }))
+  }, [data?.pendingSaleTable, data?.productAnalysis, productOptions])
   const selectedDraftProduct = useMemo(() => productOptions.find((option) => option.code === planDraftForm.productCode) ?? null, [planDraftForm.productCode, productOptions])
   const selectedDraftCustomer = useMemo(() => customerOptions.find((option) => option.code === planDraftForm.customerCode) ?? null, [customerOptions, planDraftForm.customerCode])
   const selectedDraftChannel = useMemo(() => (data?.filters.channels ?? []).find((channel) => channel.id === planDraftForm.channel) ?? null, [data?.filters.channels, planDraftForm.channel])
@@ -355,8 +405,9 @@ export function SalesPlanPageClient() {
   const draftFx = lmeForm?.fxRate ?? 0
   const draftSellPrice = draftLmeCf > 0 ? (draftLmeCf / 1000) * draftFx * (draftSellPct / 100) : 0
   const filteredServerPlanRows = useMemo(() => (data?.planRows ?? [])
-    .filter((row) => !filterGroup || text(row.metalGroup).includes(filterGroup))
-    .filter((row) => !filterChannel || text(row.channel).toLowerCase() === filterChannel.toLowerCase()), [data?.planRows, filterChannel, filterGroup])
+    .filter((row) => !planFilterGroup || text(row.metalGroup).includes(planFilterGroup))
+    .filter((row) => !planFilterChannel || text(row.channel).toLowerCase() === planFilterChannel.toLowerCase())
+    .filter((row) => matchesProductFilter(row, planFilterProductCode)), [data?.planRows, planFilterChannel, planFilterGroup, planFilterProductCode])
   const planRowsWithStatus = useMemo<AnyRow[]>(() => filteredServerPlanRows.map((row) => {
     const status = getPlanStatus(row.status)
     return {
@@ -366,6 +417,11 @@ export function SalesPlanPageClient() {
       statusLabel: getPlanStatusLabel(status),
     }
   }), [filteredServerPlanRows])
+  const visiblePlanRows = useMemo(() => planRowsWithStatus.filter((row) => getPlanStatus(row.status) !== 'po_created'), [planRowsWithStatus])
+  const pendingPlanCount = useMemo(() => visiblePlanRows.filter((row) => getPlanStatus(row.status) === 'pending').length, [visiblePlanRows])
+  const visiblePendingPlanIds = useMemo(() => visiblePlanRows.filter((row) => getPlanStatus(row.status) === 'pending').map((row) => text(row.id)).filter(Boolean), [visiblePlanRows])
+  const selectedVisiblePendingPlanIds = useMemo(() => selectedPendingPlanIds.filter((id) => visiblePendingPlanIds.includes(id)), [selectedPendingPlanIds, visiblePendingPlanIds])
+  const allVisiblePendingSelected = visiblePendingPlanIds.length > 0 && selectedVisiblePendingPlanIds.length === visiblePendingPlanIds.length
   const pendingSaleRows = useMemo<AnyRow[]>(() => {
     const bestPlanByProduct = new Map<string, { price: number; pct: number }>()
     planRowsWithStatus.forEach((plan) => {
@@ -380,7 +436,8 @@ export function SalesPlanPageClient() {
     })
 
     return (data?.pendingSaleTable ?? [])
-      .filter((row) => !filterGroup || text(row.metalGroup).includes(filterGroup))
+      .filter((row) => !insightFilterGroup || text(row.metalGroup).includes(insightFilterGroup))
+      .filter((row) => matchesProductFilter(row, insightFilterProductCode))
       .map((row): AnyRow => {
         const plan = bestPlanByProduct.get(text(row.productCode).trim().toLowerCase()) ?? bestPlanByProduct.get(text(row.productId).trim().toLowerCase())
         if (!plan) return { ...row, bestPlanPct: 0, bestPlanPrice: 0, projectedMarginPct: 0, projectedProfit: 0 }
@@ -402,7 +459,7 @@ export function SalesPlanPageClient() {
         if (leftHasPlan !== rightHasPlan) return leftHasPlan ? -1 : 1
         return num(right.pendingSaleQty) - num(left.pendingSaleQty)
       })
-  }, [data?.pendingSaleTable, filterGroup, planRowsWithStatus])
+  }, [data?.pendingSaleTable, insightFilterGroup, insightFilterProductCode, planRowsWithStatus])
   const pendingSaleTotals = useMemo(() => ({
     count: pendingSaleRows.length,
     shortageCount: pendingSaleRows.filter((row) => num(row.realPendingSale) < 0).length,
@@ -414,17 +471,17 @@ export function SalesPlanPageClient() {
     totalStock: pendingSaleRows.reduce((sum, row) => sum + num(row.stock), 0),
   }), [pendingSaleRows])
   const analysisRows = useMemo(() => (data?.productAnalysis ?? [])
-    .filter((row) => !filterGroup || text(row.metalGroup).includes(filterGroup))
-    .filter((row) => !filterChannel || filterChannel), [data, filterGroup, filterChannel])
+    .filter((row) => !insightFilterGroup || text(row.metalGroup).includes(insightFilterGroup))
+    .filter((row) => matchesProductFilter(row, insightFilterProductCode)), [data?.productAnalysis, insightFilterGroup, insightFilterProductCode])
   const sortedPlanRows = useMemo(() => {
-    const rows = planRowsWithStatus
+    const rows = visiblePlanRows
     if (!planSortKey) return rows
 
     return [...rows].sort((left, right) => {
       const result = compareSortValues(getAnySortValue(left, planSortKey), getAnySortValue(right, planSortKey))
       return planSortDirection === 'asc' ? result : -result
     })
-  }, [planRowsWithStatus, planSortDirection, planSortKey])
+  }, [visiblePlanRows, planSortDirection, planSortKey])
   const sortedAnalysisRows = useMemo(() => {
     if (!analysisSortKey) return analysisRows
 
@@ -449,11 +506,15 @@ export function SalesPlanPageClient() {
   const remainingValueTotal = analysisRows.reduce((sum, row) => sum + num(row.value), 0)
   const projectedProfitTotal = analysisRows.reduce((sum, row) => sum + num(row.projectedProfit), 0)
 
+  useEffect(() => {
+    setSelectedPendingPlanIds((current) => current.filter((id) => visiblePendingPlanIds.includes(id)))
+  }, [visiblePendingPlanIds])
+
   const exportPlan = () => {
     downloadCsv(
       `sales_plan_${month || data?.filters.month || 'current'}.csv`,
       ['Month', 'Product', 'ช่องทาง', 'Customer', 'Containers', 'Kg/ตู้', 'รวม กก.', '% LME', 'LME (USD/MT)', 'FX', 'ราคาขาย (THB/kg)', 'สถานะ'],
-      planRowsWithStatus.map((row) => [month || text(data?.filters.month), text(row.productName), text(row.channel), text(row.customerName), money(row.containers), money(row.kgPerContainer), money(row.totalKg), money(row.sellPctLme), money(row.lme), money(row.fx), money(row.sellPrice), text(row.status)]),
+      visiblePlanRows.map((row) => [month || text(data?.filters.month), text(row.productName), text(row.channel), text(row.customerName), money(row.containers), money(row.kgPerContainer), money(row.totalKg), money(row.sellPctLme), money(row.lme), money(row.fx), money(row.sellPrice), text(row.status)]),
     )
   }
 
@@ -601,6 +662,50 @@ export function SalesPlanPageClient() {
     }
   }
 
+  function togglePendingPlanSelection(planId: string, checked: boolean) {
+    setSelectedPendingPlanIds((current) => {
+      if (checked) return current.includes(planId) ? current : [...current, planId]
+      return current.filter((id) => id !== planId)
+    })
+  }
+
+  function toggleAllVisiblePendingPlans(checked: boolean) {
+    setSelectedPendingPlanIds((current) => {
+      if (checked) return Array.from(new Set([...current, ...visiblePendingPlanIds]))
+      return current.filter((id) => !visiblePendingPlanIds.includes(id))
+    })
+  }
+
+  async function handleClearPendingPlans() {
+    const targetPlanIds = selectedVisiblePendingPlanIds
+    const cleaningSelected = targetPlanIds.length > 0
+    const targetCount = cleaningSelected ? targetPlanIds.length : pendingPlanCount
+    if (!targetCount) return
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm(cleaningSelected
+        ? `ต้องการเคลียร์สถานะ Pending ของรายการที่เลือก ${targetCount} รายการใช่หรือไม่?`
+        : `ต้องการเคลียร์สถานะ Pending ทั้งหมด ${targetCount} รายการใช่หรือไม่?`)
+      if (!confirmed) return
+    }
+
+    setFormError(null)
+    setIsClearingPendingPlans(true)
+    try {
+      await dailyFetchJson<{ deletedCount: number }>('/api/sales-plan', {
+        body: JSON.stringify({ action: 'clear-pending-plans', ...(cleaningSelected ? { planIds: targetPlanIds } : {}) }),
+        method: 'POST',
+      })
+      if (cleaningSelected) {
+        setSelectedPendingPlanIds((current) => current.filter((id) => !targetPlanIds.includes(id)))
+      }
+      await loadSalesPlan()
+    } catch (caught) {
+      setFormError(caught instanceof Error ? caught.message : 'เคลียร์สถานะ Pending ไม่ได้')
+    } finally {
+      setIsClearingPendingPlans(false)
+    }
+  }
+
   async function addDraftPlan() {
     if (!selectedDraftProduct) {
       setPlanDraftError('เลือกสินค้า')
@@ -703,16 +808,50 @@ export function SalesPlanPageClient() {
       <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
         <label className="text-xs font-bold text-slate-500">เดือน</label>
         <input className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white font-medium text-slate-700 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
-        <select className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white font-medium text-slate-700 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={filterGroup} onChange={(event) => setFilterGroup(event.target.value)}>
+        <select className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white font-medium text-slate-700 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={planFilterGroup} onChange={(event) => setPlanFilterGroup(event.target.value)}>
           <option value="">ทุกหมวด (ทองแดง+ทองเหลือง)</option>
           <option value="ทองแดง">🥉 ทองแดง เท่านั้น</option>
           <option value="ทองเหลือง">🌟 ทองเหลือง เท่านั้น</option>
         </select>
-        <select className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white font-medium text-slate-700 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={filterChannel} onChange={(event) => setFilterChannel(event.target.value)}>
+        <select className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white font-medium text-slate-700 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={planFilterChannel} onChange={(event) => setPlanFilterChannel(event.target.value)}>
           <option value="">ทุกช่องทาง</option>
           {(data?.filters.channels ?? []).map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
         </select>
+        <div className="min-w-[240px] flex-1 sm:max-w-sm">
+          <SearchCombobox
+            hideLabel
+            inputClassName="h-10 text-sm font-medium text-slate-700"
+            inputId="sales-plan-filter-product"
+            label="สินค้า"
+            openOnFocus={false}
+            options={filterProductOptions}
+            placeholder="ค้นหาสินค้า"
+            value={planFilterProductCode}
+            onChange={setPlanFilterProductCode}
+          />
+        </div>
+        {planFilterProductCode ? (
+          <button
+            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs h-10 flex items-center justify-center"
+            onClick={() => setPlanFilterProductCode('')}
+            type="button"
+          >
+            ล้างสินค้า
+          </button>
+        ) : null}
         <span className="flex-1" />
+        <button
+          className="rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs h-10 flex items-center justify-center disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={!pendingPlanCount || isClearingPendingPlans || isSavingPlan}
+          onClick={() => handleClearPendingPlans()}
+          type="button"
+        >
+          {isClearingPendingPlans
+            ? 'กำลังเคลียร์สถานะ...'
+            : selectedVisiblePendingPlanIds.length > 0
+              ? `เคลียร์สถานะที่เลือก (${selectedVisiblePendingPlanIds.length})`
+              : `เคลียร์สถานะ Pending (${pendingPlanCount})`}
+        </button>
         <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs h-10 flex items-center justify-center" onClick={openPlanForm} type="button">+ เพิ่มแผน</button>
         <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs h-10 flex items-center justify-center" onClick={exportPlan} type="button">📥 Export CSV</button>
       </div>
@@ -818,10 +957,19 @@ export function SalesPlanPageClient() {
                     activeSortKey={planSortKey ?? undefined}
                     align={column.align}
                     direction={planSortDirection}
-                    label={column.label}
-                    sortKey={column.key}
-                    onSort={changePlanSort}
-                    resizeProps={planResize.getResizeHandleProps(column.key, column.label)}
+                    label={column.key === 'select' ? (
+                      <input
+                        aria-label="เลือก Pending ทั้งหมด"
+                        checked={allVisiblePendingSelected}
+                        className="size-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                        disabled={!visiblePendingPlanIds.length}
+                        type="checkbox"
+                        onChange={(event) => toggleAllVisiblePendingPlans(event.target.checked)}
+                      />
+                    ) : column.label}
+                    sortKey={column.key === 'select' ? undefined : column.key}
+                    onSort={column.key === 'select' ? undefined : changePlanSort}
+                    resizeProps={column.key === 'select' ? undefined : planResize.getResizeHandleProps(column.key, column.label)}
                   />
                 ))}
               </tr>
@@ -862,6 +1010,17 @@ export function SalesPlanPageClient() {
                         </>
                       )}
                     </div>
+                  </td>
+                  <td className="p-1.5 text-center">
+                    {getPlanStatus(row.status) === 'pending' ? (
+                      <input
+                        aria-label={`เลือกแผนขาย ${text(row.productName)}`}
+                        checked={selectedPendingPlanIds.includes(text(row.id))}
+                        className="size-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                        type="checkbox"
+                        onChange={(event) => togglePendingPlanSelection(text(row.id), event.target.checked)}
+                      />
+                    ) : <span className="text-xs font-semibold text-slate-300">-</span>}
                   </td>
                 </tr>
               ))}
@@ -1023,12 +1182,45 @@ export function SalesPlanPageClient() {
         </div>
       </div>
 
-      <Tabs value={salesPlanInsightTab} onValueChange={(value) => setSalesPlanInsightTab(value as 'analysis' | 'remaining')}>
-        <TabsList aria-label="ตารางวิเคราะห์แผนขาย" className="flex-wrap overflow-x-auto" variant="line">
-          <TabsTrigger value="analysis" variant="line">วิเคราะห์แผนขาย vs สต๊อกว่างขาย</TabsTrigger>
-          <TabsTrigger value="remaining" variant="line">สต๊อกว่างขายคงเหลือ</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+          <Tabs value={salesPlanInsightTab} onValueChange={(value) => setSalesPlanInsightTab(value as 'analysis' | 'remaining')}>
+            <TabsList aria-label="ตารางวิเคราะห์แผนขาย" className="flex-wrap overflow-x-auto" variant="line">
+              <TabsTrigger value="analysis" variant="line">วิเคราะห์แผนขาย vs สต๊อกว่างขาย</TabsTrigger>
+              <TabsTrigger value="remaining" variant="line">สต๊อกว่างขายคงเหลือ</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap xl:justify-end">
+            <select className="h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={insightFilterGroup} onChange={(event) => setInsightFilterGroup(event.target.value)}>
+              <option value="">ทุกหมวด (ตารางล่าง)</option>
+              <option value="ทองแดง">🥉 ทองแดง เท่านั้น</option>
+              <option value="ทองเหลือง">🌟 ทองเหลือง เท่านั้น</option>
+            </select>
+            <div className="min-w-[240px] flex-1 sm:max-w-sm">
+              <SearchCombobox
+                hideLabel
+                inputClassName="h-10 text-sm font-medium text-slate-700"
+                inputId="sales-plan-insight-filter-product"
+                label="สินค้า"
+                openOnFocus={false}
+                options={filterProductOptions}
+                placeholder="ค้นหาสินค้าในตารางล่าง"
+                value={insightFilterProductCode}
+                onChange={setInsightFilterProductCode}
+              />
+            </div>
+            {insightFilterProductCode ? (
+              <button
+                className="h-10 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                onClick={() => setInsightFilterProductCode('')}
+                type="button"
+              >
+                ล้างสินค้า
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
 
       {/* 2. Analysis Section */}
       {salesPlanInsightTab === 'analysis' ? (
