@@ -568,7 +568,7 @@ export function SalesPlanPageClient() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 className="text-2xl font-extrabold tracking-tight text-slate-700">📊 LME Reference Pricing <span className="text-lg font-semibold text-slate-400">(Real-time + Manual)</span></h2>
-            <div className="mt-1 text-sm font-medium text-slate-400">ดึงค่า API มาเติมเฉพาะ LME/FX แล้วแก้มือและบันทึกได้ ส่วน กก./ตู้ ต้องกรอกเอง</div>
+            <div className="mt-1 text-sm font-medium text-slate-400">กด Fetch Live เพื่อดึงและบันทึกค่า LME/FX ทันที ส่วน กก./ตู้ ต้องกรอกเอง</div>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
@@ -577,7 +577,7 @@ export function SalesPlanPageClient() {
               onClick={handleFetchLive}
               type="button"
             >
-              {isFetchingLive ? 'กำลัง Fetch...' : '↻ Fetch Live (USD/THB + Metals)'}
+              {isFetchingLive ? 'กำลัง Fetch...' : '↻ Fetch Live + Save (USD/THB + Metals)'}
             </button>
             <button
               className="h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
