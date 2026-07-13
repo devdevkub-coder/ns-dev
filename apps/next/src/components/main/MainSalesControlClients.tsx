@@ -259,6 +259,16 @@ function getCommissionBillSortValue(row: CommissionBillRow, key: CommissionBillC
   return row[key] ?? ''
 }
 
+function recommendationBadgeClass(recommendation: unknown) {
+  const value = text(recommendation).trim()
+  if (value === 'ควรขาย (กำไรดี)') return 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200'
+  if (value === 'พอกำไร') return 'bg-sky-100 text-sky-700 ring-1 ring-sky-200'
+  if (value === 'ขาดทุน - รอราคา') return 'bg-rose-100 text-rose-700 ring-1 ring-rose-200'
+  if (value === 'ล็อกครบแล้ว') return 'bg-slate-200 text-slate-700 ring-1 ring-slate-300'
+  if (value === 'ยังไม่มีแผนเสนอ') return 'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
+  return 'bg-slate-100 text-slate-600 ring-1 ring-slate-200'
+}
+
 function sortedByKey<TRow, TKey extends string>(
   rows: TRow[],
   key: TKey | null,
@@ -393,6 +403,9 @@ export function SalesPlanPageClient() {
     })
     return Array.from(options.values()).sort((left, right) => left.label.localeCompare(right.label, 'th', { numeric: true }))
   }, [data?.pendingSaleTable, data?.productAnalysis, productOptions])
+  const insightFilterGroupOptions = useMemo(() => Array.from(
+    new Set((data?.productAnalysis ?? []).map((row) => text(row.metalGroup).trim()).filter(Boolean)),
+  ).sort((left, right) => left.localeCompare(right, 'th', { numeric: true })), [data?.productAnalysis])
   const selectedDraftProduct = useMemo(() => productOptions.find((option) => option.code === planDraftForm.productCode) ?? null, [planDraftForm.productCode, productOptions])
   const selectedDraftCustomer = useMemo(() => customerOptions.find((option) => option.code === planDraftForm.customerCode) ?? null, [customerOptions, planDraftForm.customerCode])
   const selectedDraftChannel = useMemo(() => (data?.filters.channels ?? []).find((channel) => channel.id === planDraftForm.channel) ?? null, [data?.filters.channels, planDraftForm.channel])
@@ -436,7 +449,6 @@ export function SalesPlanPageClient() {
     })
 
     return (data?.pendingSaleTable ?? [])
-      .filter((row) => !insightFilterGroup || text(row.metalGroup).includes(insightFilterGroup))
       .filter((row) => matchesProductFilter(row, insightFilterProductCode))
       .map((row): AnyRow => {
         const plan = bestPlanByProduct.get(text(row.productCode).trim().toLowerCase()) ?? bestPlanByProduct.get(text(row.productId).trim().toLowerCase())
@@ -1193,8 +1205,7 @@ export function SalesPlanPageClient() {
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap xl:justify-end">
             <select className="h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={insightFilterGroup} onChange={(event) => setInsightFilterGroup(event.target.value)}>
               <option value="">ทุกหมวด (ตารางล่าง)</option>
-              <option value="ทองแดง">🥉 ทองแดง เท่านั้น</option>
-              <option value="ทองเหลือง">🌟 ทองเหลือง เท่านั้น</option>
+              {insightFilterGroupOptions.map((group) => <option key={group} value={group}>{group}</option>)}
             </select>
             <div className="min-w-[240px] flex-1 sm:max-w-sm">
               <SearchCombobox
@@ -1273,7 +1284,7 @@ export function SalesPlanPageClient() {
                   <td className="p-2.5 text-right text-xs font-semibold text-slate-500 whitespace-nowrap tabular-nums pl-4">{num(row.bestPlanPct) > 0 ? `${money(row.bestPlanPct)}%` : '-'}</td>
                   <td className={`bg-emerald-50/20 p-2.5 text-right font-bold whitespace-nowrap tabular-nums pl-4 ${num(row.projectedProfit) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{num(row.bestPlanPrice) > 0 ? money(row.projectedProfit) : '-'}</td>
                   <td className={`bg-emerald-50/20 p-2.5 text-right text-xs font-bold whitespace-nowrap tabular-nums pl-4 ${num(row.projectedMarginPct) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{num(row.bestPlanPrice) > 0 ? `${money(row.projectedMarginPct)}%` : '-'}</td>
-                  <td className="p-2.5 text-center min-w-0 overflow-hidden"><div className="rounded-xl bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 truncate" title={text(row.recommendation)}>{text(row.recommendation)}</div></td>
+                  <td className="p-2.5 text-center min-w-0 overflow-hidden"><div className={`rounded-xl px-2.5 py-1 text-xs font-bold truncate ${recommendationBadgeClass(row.recommendation)}`} title={text(row.recommendation)}>{text(row.recommendation)}</div></td>
                 </tr>
               ))}
               {!sortedAnalysisRows.length ? <tr><td className="py-8 text-center text-slate-400 font-semibold" colSpan={salesPlanAnalysisColumns.length}>ไม่มีสต๊อกทองแดง/ทองเหลืองให้วิเคราะห์</td></tr> : null}
@@ -1317,7 +1328,7 @@ export function SalesPlanPageClient() {
               </div>
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-xs text-slate-500 font-semibold">คำแนะนำ:</span>
-                <span className="rounded-xl bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{text(row.recommendation)}</span>
+                <span className={`rounded-xl px-2.5 py-1 text-xs font-bold ${recommendationBadgeClass(row.recommendation)}`}>{text(row.recommendation)}</span>
               </div>
             </div>
           ))}
