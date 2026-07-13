@@ -678,8 +678,10 @@ export function SalesPlanPageClient() {
             </button>
           </div>
         </div>
-        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
           <LmeEditableCard label="🥉 ทองแดง LME (USD/MT)" readOnly value={lmeForm?.lmeCopperUSD ?? 0} onChange={(value) => updateLmeField('lmeCopperUSD', value)} />
+          <LmeEditableCard label="🌟 ทองเหลือง LME (USD/MT)" value={lmeForm?.lmeBrassUSD ?? 0} onChange={(value) => updateLmeField('lmeBrassUSD', value)} />
+          <LmeEditableCard label="⚪ อลูมิเนียม LME (USD/MT)" value={lmeForm?.lmeAluminumUSD ?? 0} onChange={(value) => updateLmeField('lmeAluminumUSD', value)} />
           <LmeEditableCard label="💱 USD/THB" value={lmeForm?.fxRate ?? 0} onChange={(value) => updateLmeField('fxRate', value)} />
           <LmeEditableCard label="📦 กก./ตู้" manualOnly value={lmeForm?.kgPerContainer ?? 0} onChange={(value) => updateLmeField('kgPerContainer', value)} />
         </div>

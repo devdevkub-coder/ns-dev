@@ -40,16 +40,6 @@ type PendingProductRow = {
   wac: number
 }
 
-<<<<<<< HEAD
-=======
-const SALES_PLAN_STOCK_WAREHOUSE_NAME = 'คลังสมุทรสาคร'
-
-function isCostPoolEligibleMetalGroup(metalGroup: string) {
-  const normalized = metalGroup.toLowerCase()
-  return ['ทองแดง', 'ทองเหลือง', 'copper', 'brass'].some((key) => normalized.includes(key))
-}
-
->>>>>>> fe8e3893 (Update sales plan stock source and UI)
 function jsonNumber(value: unknown) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
   if (typeof value === 'string') {
@@ -160,22 +150,6 @@ async function productsContext() {
   return { byKey, refs }
 }
 
-async function getSalesPlanStockWarehouse() {
-  const warehouse = await prisma.warehouses.findFirst({
-    select: { id: true, name: true },
-    where: {
-      active: true,
-      name: SALES_PLAN_STOCK_WAREHOUSE_NAME,
-    },
-  })
-
-  if (!warehouse) {
-    throw new Error(`ไม่พบคลัง ${SALES_PLAN_STOCK_WAREHOUSE_NAME} สำหรับ Sales Plan`)
-  }
-
-  return warehouse
-}
-
 function poSellItems(row: { items: unknown; product_id: bigint | null; qty: unknown; remaining_qty: unknown; unit_price: unknown }, productsByKey: Map<string, ProductRef>) {
   if (Array.isArray(row.items) && row.items.length) {
     return row.items.filter(isJsonItem).map((item) => {
@@ -208,18 +182,11 @@ function poSellItems(row: { items: unknown; product_id: bigint | null; qty: unkn
 
 async function buildSalesPlanningSnapshot() {
   const config = await getSalesPlanLmeConfig()
-  const [{ byKey, refs }, salesPlanWarehouse] = await Promise.all([
-    productsContext(),
-    getSalesPlanStockWarehouse(),
-  ])
+  const { byKey, refs } = await productsContext()
   const [poSells, poBuys, stockRows, customers, salesChannels, tradingDeals, purchaseBills] = await Promise.all([
     prisma.po_sells.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
     prisma.po_buys.findMany({ orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
-    prisma.stock_ledger.findMany({
-      orderBy: [{ date: 'desc' }],
-      take: 50000,
-      where: { warehouse_id: salesPlanWarehouse.id },
-    }),
+    prisma.stock_ledger.findMany({ orderBy: [{ date: 'desc' }], take: 50000 }),
     prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, market_scope: true, name: true } }),
     prisma.sales_channels.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true }, where: { active: true } }),
     prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 10000, where: { NOT: { status: { in: ['Cancelled', 'cancelled'] } } } }),
@@ -458,7 +425,7 @@ async function buildSalesPlanningSnapshot() {
     reconciliation,
     reconTotals,
     sourceState: {
-      basis: `Sales planning design source from PO Sell, WTO pending_out, PO Buy, purchase bills, trading deals, stock ledger (${salesPlanWarehouse.name}), and product master.`,
+      basis: 'Sales planning design source from PO Sell, WTO pending_out, PO Buy, purchase bills, trading deals, stock ledger, and product master.',
       limitations: ['LME reference pricing รองรับ manual + live fetch แล้ว แต่การบันทึกแผนขาย, matching, และ sales-plan locks ยังปิดอยู่จนกว่าจะออกแบบ persistence/audit ครบ'],
       writeActionsEnabled: false,
     },
@@ -530,7 +497,7 @@ export async function buildSalesPlan() {
     planRows,
     productAnalysis: remainRows,
     sourceState: {
-      basis: `Sales Plan design source from current stock (${SALES_PLAN_STOCK_WAREHOUSE_NAME}), WTO pending_out, and LME reference values.`,
+      basis: 'Sales Plan design source from current stock, WTO pending_out, and LME reference values.',
       limitations: ['บันทึกแผนขายและล็อก % ได้แล้ว การหักสต๊อกจริงจะเกิดเมื่อเปิด PO ขายจากแผน'],
       writeActionsEnabled: true,
     },
