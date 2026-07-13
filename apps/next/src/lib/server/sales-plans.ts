@@ -55,6 +55,15 @@ function planNoPrefix(planMonth: string) {
   return `SP${planMonth.slice(2, 4)}${planMonth.slice(5, 7)}-`
 }
 
+function isSalesPlanMetalGroupFilter() {
+  return [
+    { metal_group: { contains: 'ทองแดง' } },
+    { metal_group: { contains: 'ทองเหลือง' } },
+    { metal_group: { contains: 'copper', mode: 'insensitive' as const } },
+    { metal_group: { contains: 'brass', mode: 'insensitive' as const } },
+  ]
+}
+
 async function nextSalesPlanNo(planMonth: string, tx: Prisma.TransactionClient) {
   const startsWith = planNoPrefix(planMonth)
   const rows = await tx.$queryRaw<Array<{ plan_no: string | null }>>`
@@ -136,6 +145,12 @@ export async function listSalesPlans(planMonth?: string) {
     left join public.po_sells ps on ps.id = sp.po_sell_id
     where (${month}::date is null or sp.plan_month = ${month}::date)
       and sp.status <> 'cancelled'
+      and (
+        p.metal_group ilike '%ทองแดง%'
+        or p.metal_group ilike '%ทองเหลือง%'
+        or p.metal_group ilike '%copper%'
+        or p.metal_group ilike '%brass%'
+      )
     order by sp.created_at desc, sp.id desc
   `
   return rows.map(mapSalesPlanRow)
@@ -160,14 +175,14 @@ export async function createSalesPlan(input: SalesPlanInput, context: AppAuthCon
     const [product, customer] = await Promise.all([
       tx.products.findFirst({
         select: { code: true, id: true },
-        where: { active: { not: false }, code: productCode },
+        where: { active: { not: false }, code: productCode, OR: isSalesPlanMetalGroupFilter() },
       }),
       tx.customers.findFirst({
         select: { code: true, id: true, market_scope: true },
         where: { active: true, code: customerCode },
       }),
     ])
-    if (!product) throw new Error('สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+    if (!product) throw new Error('สินค้าที่เลือกต้องอยู่ในหมวดทองแดงหรือทองเหลือง และต้องเปิดใช้งาน')
     if (!customer) throw new Error('ลูกค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
     const channel = await tx.sales_channels.findFirst({
       select: { code: true, id: true },
@@ -235,6 +250,31 @@ export async function lockSalesPlan(planId: string, context: AppAuthContext) {
   return getSalesPlanRow(rows[0].id)
 }
 
+export async function clearPendingSalesPlans(context: AppAuthContext, planIds?: string[]) {
+  const normalizedIds = Array.from(new Set((planIds ?? []).map((value) => value.trim()).filter((value) => /^\d+$/.test(value))))
+  if (planIds && normalizedIds.length === 0) return { deletedCount: 0 }
+
+  if (normalizedIds.length > 0) {
+    const ids = normalizedIds.map((value) => BigInt(value))
+    const result = await prisma.$executeRaw(
+      Prisma.sql`
+        delete from public.sales_plans
+        where id in (${Prisma.join(ids)})
+          and status = 'draft'
+          and po_sell_id is null
+      `,
+    )
+    return { deletedCount: Number(result ?? 0) }
+  }
+
+  const result = await prisma.$executeRaw`
+    delete from public.sales_plans
+    where status = 'draft'
+      and po_sell_id is null
+  `
+  return { deletedCount: Number(result ?? 0) }
+}
+
 export async function getSalesPlanRow(planId: bigint, tx: Prisma.TransactionClient | typeof prisma = prisma) {
   const rows = await tx.$queryRaw<SalesPlanDbRow[]>`
     select
@@ -268,6 +308,12 @@ export async function getSalesPlanRow(planId: bigint, tx: Prisma.TransactionClie
     left join public.sales_channels sc on sc.id = sp.channel_id
     left join public.po_sells ps on ps.id = sp.po_sell_id
     where sp.id = ${planId}
+      and (
+        p.metal_group ilike '%ทองแดง%'
+        or p.metal_group ilike '%ทองเหลือง%'
+        or p.metal_group ilike '%copper%'
+        or p.metal_group ilike '%brass%'
+      )
     limit 1
   `
   return rows[0] ? mapSalesPlanRow(rows[0]) : null

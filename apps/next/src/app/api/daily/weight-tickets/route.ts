@@ -31,61 +31,13 @@ import {
   parseWeightTicketQuery,
   weightTicketAuditSnapshot,
   weightTicketOrderBy,
+  weightTicketRowSelect,
   weightTicketWhere,
 } from '@/lib/server/weight-tickets'
 import { syncWeightTicketToGoogleSheets } from '@/lib/server/google-sheets-sync'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
-
-const ticketInclude = {
-  branches: true,
-  customers: true,
-  suppliers: true,
-  weight_ticket_product_summaries: {
-    include: {
-      products: {
-        select: { code: true, id: true },
-      },
-    },
-    orderBy: { product_name: 'asc' },
-  },
-  weight_ticket_lines: {
-    include: {
-      products: {
-        select: { code: true, id: true },
-      },
-      warehouses: {
-        select: { code: true, id: true, name: true, type: true },
-      },
-    },
-    orderBy: { line_no: 'asc' },
-  },
-  stock_holds: {
-    select: {
-      cost_snapshot_at: true,
-      cost_snapshot_note: true,
-      cost_snapshot_source: true,
-      consumed_at: true,
-      consumed_by_ref_no: true,
-      hold_key: true,
-      held_at: true,
-      product_id: true,
-      qty: true,
-      released_at: true,
-      source_doc_no: true,
-      source_line_no: true,
-      status: true,
-      unit_cost_snapshot: true,
-      value_snapshot: true,
-      warehouse_id: true,
-      warehouses: {
-        select: { code: true, id: true, name: true, type: true },
-      },
-    },
-    orderBy: { source_line_no: 'asc' },
-  },
-} as const
 
 type WeightTicketMappedRow = ReturnType<typeof mapWeightTicketRow>
 
@@ -140,7 +92,7 @@ export async function GET(request: Request) {
     const take = isXlsx ? 10000 : query.pageSize
     const [rows, totalRows] = await Promise.all([
       prisma.weight_tickets.findMany({
-        include: ticketInclude,
+        select: weightTicketRowSelect,
         orderBy,
         ...(isXlsx ? {} : { skip: (query.page - 1) * query.pageSize }),
         take,
@@ -357,7 +309,7 @@ export async function POST(request: Request) {
       })
 
       return tx.weight_tickets.findUniqueOrThrow({
-        include: ticketInclude,
+        select: weightTicketRowSelect,
         where: { id: createdTicket.id },
       })
     })

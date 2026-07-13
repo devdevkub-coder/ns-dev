@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { buildSalesPlan } from '@/lib/server/main-sales-control'
-import { createSalesPlan, getSalesPlanRow, lockSalesPlan } from '@/lib/server/sales-plans'
+import { clearPendingSalesPlans, createSalesPlan, getSalesPlanRow, lockSalesPlan } from '@/lib/server/sales-plans'
 import { fetchLiveSalesPlanLmeConfig, getSalesPlanLmeConfig, saveSalesPlanLmeConfig } from '../../../lib/server/sales-plan-lme'
 
 export const runtime = 'nodejs'
@@ -25,6 +25,10 @@ const salesPlanLmeRequestSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('lock-plan'),
     planId: z.string().trim().regex(/^\d+$/, 'แผนขายไม่ถูกต้อง'),
+  }),
+  z.object({
+    action: z.literal('clear-pending-plans'),
+    planIds: z.array(z.string().trim().regex(/^\d+$/, 'แผนขายไม่ถูกต้อง')).optional(),
   }),
   z.object({
     action: z.literal('save-config'),
@@ -67,9 +71,9 @@ export async function POST(request: Request) {
     const payload = salesPlanLmeRequestSchema.parse(await request.json())
     if (payload.action === 'fetch-live') {
       const currentConfig = await getSalesPlanLmeConfig()
-      const nextConfig = await fetchLiveSalesPlanLmeConfig(currentConfig)
+      const liveConfig = await fetchLiveSalesPlanLmeConfig(currentConfig)
       const savedConfig = await saveSalesPlanLmeConfig({
-        ...nextConfig,
+        ...liveConfig,
         source: 'mixed',
       }, context)
       return NextResponse.json({
@@ -84,6 +88,10 @@ export async function POST(request: Request) {
     if (payload.action === 'lock-plan') {
       const planRow = await lockSalesPlan(payload.planId, context)
       return NextResponse.json({ planRow })
+    }
+    if (payload.action === 'clear-pending-plans') {
+      const result = await clearPendingSalesPlans(context, payload.planIds)
+      return NextResponse.json(result)
     }
 
     const lmeConfig = await saveSalesPlanLmeConfig(payload.config, context)

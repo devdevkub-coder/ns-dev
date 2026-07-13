@@ -54,24 +54,39 @@ type PurchaseBillRow = Prisma.purchase_billsGetPayload<{
   }
 }>
 
+const weightTicketOptionSelect = {
+  branch_id: true,
+  branches: true,
+  cancelled_at: true,
+  deduct_weight: true,
+  doc_no: true,
+  doc_type: true,
+  document_date: true,
+  gross_weight: true,
+  id: true,
+  net_weight: true,
+  party_name: true,
+  status: true,
+  supplier_id: true,
+  suppliers: true,
+  vehicle_no: true,
+  weight_ticket_product_summaries: {
+    include: {
+      weight_ticket_product_summary_lines: true,
+    },
+    orderBy: {
+      product_name: 'asc',
+    },
+  },
+  weight_ticket_lines: {
+    orderBy: {
+      line_no: 'asc',
+    },
+  },
+} as const
+
 type WeightTicketOptionRow = Prisma.weight_ticketsGetPayload<{
-  include: {
-    branches: true
-    suppliers: true
-    weight_ticket_product_summaries: {
-      include: {
-        weight_ticket_product_summary_lines: true
-      }
-      orderBy: {
-        product_name: 'asc'
-      }
-    }
-    weight_ticket_lines: {
-      orderBy: {
-        line_no: 'asc'
-      }
-    }
-  }
+  select: typeof weightTicketOptionSelect
 }>
 
 type BillQuery = {
@@ -1223,17 +1238,7 @@ function derivePurchaseSource(items: Array<{ poBuyId?: string | null }>, fallbac
 
 async function loadReceiptAvailability(ticketDocNo: string, excludeBillId?: bigint) {
   const ticket = await prisma.weight_tickets.findUnique({
-    include: {
-      branches: true,
-      suppliers: true,
-      weight_ticket_product_summaries: {
-        include: {
-          weight_ticket_product_summary_lines: true,
-        },
-        orderBy: { product_name: 'asc' },
-      },
-      weight_ticket_lines: { orderBy: { line_no: 'asc' } },
-    },
+    select: weightTicketOptionSelect,
     where: { doc_no: ticketDocNo },
   })
   if (!ticket) return { ticket: null, usedQtyBySummaryId: new Map<string, number>() }
@@ -1514,17 +1519,7 @@ async function refreshWeightTicketStatuses(
   const changedAt = options.createdAt ?? new Date()
 
   const ticketRows = await tx.weight_tickets.findMany({
-    include: {
-      weight_ticket_product_summaries: {
-        include: {
-          weight_ticket_product_summary_lines: true,
-        },
-        orderBy: { product_name: 'asc' },
-      },
-      weight_ticket_lines: {
-        orderBy: { line_no: 'asc' },
-      },
-    },
+    select: weightTicketOptionSelect,
     where: {
       doc_type: 'WTI',
       id: { in: uniqueTicketIds },
@@ -1754,17 +1749,7 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
     }),
     activeVatRatePercent(new Date()),
     prisma.weight_tickets.findMany({
-      include: {
-        branches: true,
-        suppliers: true,
-        weight_ticket_product_summaries: {
-          include: {
-            weight_ticket_product_summary_lines: true,
-          },
-          orderBy: { product_name: 'asc' },
-        },
-        weight_ticket_lines: { orderBy: { line_no: 'asc' } },
-      },
+      select: weightTicketOptionSelect,
       orderBy: [{ document_date: 'desc' }, { doc_no: 'desc' }],
       take: 300,
       where: {

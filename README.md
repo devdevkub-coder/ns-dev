@@ -91,6 +91,21 @@ SUPABASE_DB_USER=postgres.fhglqymcdmrgbsbadnwr
 SUPABASE_DB_URL=postgresql://postgres.fhglqymcdmrgbsbadnwr:replace-with-dev-db-password@replace-with-dev-pooler-host:5432/postgres
 ```
 
+Optional server values for Sales Plan live pricing:
+
+```env
+EXCHANGERATE_API_KEY=replace-with-api-key
+CRON_SECRET=replace-with-random-16-plus-char-secret
+```
+
+Sales Plan live pricing notes:
+
+- `POST /api/sales-plan` action `fetch-live` reads `USD/THB` from `https://www.google.com/finance/beta/quote/USD-THB` and falls back to ExchangeRate API when `EXCHANGERATE_API_KEY` is set
+- `LME铜` / `LME铝` are read from `https://3g.fx678.com/Market/index/LME`
+- `ทองเหลือง LME` and `กก./ตู้` remain manual
+- `vercel.json` schedules `/api/cron/sales-plan-lme` on weekdays at `01:05 UTC` (`08:05` Thailand time)
+- Per Vercel docs, `CRON_SECRET` is sent to the cron route in the `Authorization: Bearer ...` header
+
 Keep `.env.local` private. It must not be committed.
 
 ## Supabase Environments
