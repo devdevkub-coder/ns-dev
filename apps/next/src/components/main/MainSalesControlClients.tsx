@@ -186,6 +186,20 @@ function num(value: unknown) {
   return typeof value === 'number' ? value : Number(value ?? 0)
 }
 
+function normalizedProductFilterValue(value: unknown) {
+  return text(value).trim().toLowerCase()
+}
+
+function matchesProductFilter(row: AnyRow, filterProductCode: string) {
+  if (!filterProductCode) return true
+  const needle = normalizedProductFilterValue(filterProductCode)
+  return [
+    row.productCode,
+    row.productId,
+    row.code,
+  ].some((value) => normalizedProductFilterValue(value) === needle)
+}
+
 function lmeDraftValueByMetalGroup(metalGroup: string, config: LmeConfig | null) {
   if (!config) return ''
   const group = metalGroup.toLowerCase()
@@ -285,6 +299,7 @@ export function SalesPlanPageClient() {
   const [month, setMonth] = useState('')
   const [filterGroup, setFilterGroup] = useState('')
   const [filterChannel, setFilterChannel] = useState('')
+  const [filterProductCode, setFilterProductCode] = useState('')
   const [lmeForm, setLmeForm] = useState<LmeConfig | null>(null)
   const [planDraftError, setPlanDraftError] = useState<string | null>(null)
   const [planDraftForm, setPlanDraftForm] = useState<SalesPlanDraftForm>({
@@ -338,6 +353,40 @@ export function SalesPlanPageClient() {
   const customerOptions = useMemo(() => (data?.customers ?? [])
     .filter((customer) => customer.active)
     .map((customer) => ({ code: customer.code, marketScope: customer.marketScope, name: customer.name })), [data?.customers])
+  const filterProductOptions = useMemo(() => {
+    const options = new Map<string, { id: string; label: string; searchText: string }>()
+    productOptions.forEach((option) => {
+      if (!option.code) return
+      options.set(option.code, {
+        id: option.code,
+        label: `${option.code} - ${option.name}`,
+        searchText: `${option.code} ${option.name} ${option.metalGroup}`,
+      })
+    })
+    ;(data?.pendingSaleTable ?? []).forEach((row) => {
+      const code = text(row.productCode)
+      if (!code || options.has(code)) return
+      const name = text(row.productName)
+      const metalGroup = text(row.metalGroup)
+      options.set(code, {
+        id: code,
+        label: name ? `${code} - ${name}` : code,
+        searchText: `${code} ${name} ${metalGroup}`,
+      })
+    })
+    ;(data?.productAnalysis ?? []).forEach((row) => {
+      const code = text(row.code)
+      if (!code || options.has(code)) return
+      const name = text(row.name)
+      const metalGroup = text(row.metalGroup)
+      options.set(code, {
+        id: code,
+        label: name ? `${code} - ${name}` : code,
+        searchText: `${code} ${name} ${metalGroup}`,
+      })
+    })
+    return Array.from(options.values()).sort((left, right) => left.label.localeCompare(right.label, 'th', { numeric: true }))
+  }, [data?.pendingSaleTable, data?.productAnalysis, productOptions])
   const selectedDraftProduct = useMemo(() => productOptions.find((option) => option.code === planDraftForm.productCode) ?? null, [planDraftForm.productCode, productOptions])
   const selectedDraftCustomer = useMemo(() => customerOptions.find((option) => option.code === planDraftForm.customerCode) ?? null, [customerOptions, planDraftForm.customerCode])
   const selectedDraftChannel = useMemo(() => (data?.filters.channels ?? []).find((channel) => channel.id === planDraftForm.channel) ?? null, [data?.filters.channels, planDraftForm.channel])
@@ -351,7 +400,8 @@ export function SalesPlanPageClient() {
   const draftSellPrice = draftLmeCf > 0 ? (draftLmeCf / 1000) * draftFx * (draftSellPct / 100) : 0
   const filteredServerPlanRows = useMemo(() => (data?.planRows ?? [])
     .filter((row) => !filterGroup || text(row.metalGroup).includes(filterGroup))
-    .filter((row) => !filterChannel || text(row.channel).toLowerCase() === filterChannel.toLowerCase()), [data?.planRows, filterChannel, filterGroup])
+    .filter((row) => !filterChannel || text(row.channel).toLowerCase() === filterChannel.toLowerCase())
+    .filter((row) => matchesProductFilter(row, filterProductCode)), [data?.planRows, filterChannel, filterGroup, filterProductCode])
   const planRowsWithStatus = useMemo<AnyRow[]>(() => filteredServerPlanRows.map((row) => {
     const status = getPlanStatus(row.status)
     return {
@@ -376,6 +426,7 @@ export function SalesPlanPageClient() {
 
     return (data?.pendingSaleTable ?? [])
       .filter((row) => !filterGroup || text(row.metalGroup).includes(filterGroup))
+      .filter((row) => matchesProductFilter(row, filterProductCode))
       .map((row): AnyRow => {
         const plan = bestPlanByProduct.get(text(row.productCode).trim().toLowerCase()) ?? bestPlanByProduct.get(text(row.productId).trim().toLowerCase())
         if (!plan) return { ...row, bestPlanPct: 0, bestPlanPrice: 0, projectedMarginPct: 0, projectedProfit: 0 }
@@ -397,7 +448,7 @@ export function SalesPlanPageClient() {
         if (leftHasPlan !== rightHasPlan) return leftHasPlan ? -1 : 1
         return num(right.pendingSaleQty) - num(left.pendingSaleQty)
       })
-  }, [data?.pendingSaleTable, filterGroup, planRowsWithStatus])
+  }, [data?.pendingSaleTable, filterGroup, filterProductCode, planRowsWithStatus])
   const pendingSaleTotals = useMemo(() => ({
     count: pendingSaleRows.length,
     shortageCount: pendingSaleRows.filter((row) => num(row.realPendingSale) < 0).length,
@@ -410,7 +461,8 @@ export function SalesPlanPageClient() {
   }), [pendingSaleRows])
   const analysisRows = useMemo(() => (data?.productAnalysis ?? [])
     .filter((row) => !filterGroup || text(row.metalGroup).includes(filterGroup))
-    .filter((row) => !filterChannel || filterChannel), [data, filterGroup, filterChannel])
+    .filter((row) => matchesProductFilter(row, filterProductCode))
+    .filter((row) => !filterChannel || filterChannel), [data?.productAnalysis, filterChannel, filterGroup, filterProductCode])
   const sortedPlanRows = useMemo(() => {
     const rows = planRowsWithStatus
     if (!planSortKey) return rows
@@ -707,6 +759,28 @@ export function SalesPlanPageClient() {
           <option value="">ทุกช่องทาง</option>
           {(data?.filters.channels ?? []).map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
         </select>
+        <div className="min-w-[240px] flex-1 sm:max-w-sm">
+          <SearchCombobox
+            hideLabel
+            inputClassName="h-10 text-sm font-medium text-slate-700"
+            inputId="sales-plan-filter-product"
+            label="สินค้า"
+            openOnFocus={false}
+            options={filterProductOptions}
+            placeholder="ค้นหาสินค้า"
+            value={filterProductCode}
+            onChange={setFilterProductCode}
+          />
+        </div>
+        {filterProductCode ? (
+          <button
+            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs h-10 flex items-center justify-center"
+            onClick={() => setFilterProductCode('')}
+            type="button"
+          >
+            ล้างสินค้า
+          </button>
+        ) : null}
         <span className="flex-1" />
         <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs h-10 flex items-center justify-center" onClick={openPlanForm} type="button">+ เพิ่มแผน</button>
         <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs h-10 flex items-center justify-center" onClick={exportPlan} type="button">📥 Export CSV</button>
