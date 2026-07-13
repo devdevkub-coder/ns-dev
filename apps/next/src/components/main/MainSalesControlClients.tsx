@@ -12,7 +12,7 @@ type SortDirection = 'asc' | 'desc'
 type TableColumn<TKey extends string> = ResizableColumnDefinition<TKey> & { align?: 'center' | 'left' | 'right'; label: string }
 type SalesPlanColumnKey = 'channel' | 'containers' | 'customerName' | 'fx' | 'kgPerContainer' | 'lme' | 'poSell' | 'productName' | 'sellPctLme' | 'sellPrice' | 'status' | 'totalKg'
 type SalesPlanAnalysisColumnKey = 'bestPlanPct' | 'bestPlanPrice' | 'lockedKg' | 'metalGroup' | 'name' | 'projectedMarginPct' | 'projectedProfit' | 'recommendation' | 'remainingKg' | 'stock' | 'wac'
-type SalesPlanRemainingColumnKey = 'code' | 'lockedContainers' | 'lockedKg' | 'metalGroup' | 'name' | 'remainingContainers' | 'remainingKg' | 'stock' | 'value' | 'wac'
+type SalesPlanRemainingColumnKey = 'lockedContainers' | 'lockedKg' | 'metalGroup' | 'name' | 'remainingContainers' | 'remainingKg' | 'stock' | 'value' | 'wac'
 type CommissionCategoryColumnKey = 'amount' | 'category' | 'qty'
 type CommissionSupplierColumnKey = 'amount' | 'bills' | 'pct' | 'qty' | 'supplier'
 type CommissionBillColumnKey = 'amount' | 'commissionStatus' | 'date' | 'docNo' | 'price' | 'productName' | 'profitDiff' | 'qty' | 'salesPrice' | 'supplierName'
@@ -122,8 +122,7 @@ const salesPlanAnalysisColumns: Array<TableColumn<SalesPlanAnalysisColumnKey>> =
   { key: 'recommendation', label: 'คำแนะนำ', defaultWidth: 180, minWidth: 140, align: 'center' },
 ]
 const salesPlanRemainingColumns: Array<TableColumn<SalesPlanRemainingColumnKey>> = [
-  { key: 'code', label: 'รหัส', defaultWidth: 110, minWidth: 90 },
-  { key: 'name', label: 'สินค้า', defaultWidth: 220, minWidth: 160 },
+  { key: 'name', label: 'สินค้า', defaultWidth: 250, minWidth: 190 },
   { key: 'metalGroup', label: 'หมวด', defaultWidth: 130, minWidth: 105 },
   { key: 'stock', label: 'Stock ทั้งหมด (กก.)', defaultWidth: 150, minWidth: 125, align: 'right' },
   { key: 'lockedKg', label: 'ล็อกแล้ว (กก.)', defaultWidth: 140, minWidth: 120, align: 'right' },
@@ -290,7 +289,7 @@ export function SalesPlanPageClient() {
   const [remainingSortDirection, setRemainingSortDirection] = useState<SortDirection>('asc')
   const planResize = useResizableColumns('main.sales-plan.plan.v1', salesPlanColumns)
   const analysisResize = useResizableColumns('main.sales-plan.analysis.v1', salesPlanAnalysisColumns)
-  const remainingResize = useResizableColumns('main.sales-plan.remaining.v1', salesPlanRemainingColumns)
+  const remainingResize = useResizableColumns('main.sales-plan.remaining.v2', salesPlanRemainingColumns)
 
   const loadSalesPlan = async () => {
     setError(null)
@@ -1064,8 +1063,10 @@ export function SalesPlanPageClient() {
             <tbody className="divide-y divide-slate-100">
               {sortedRemainingRows.map((row) => (
                 <tr className={`hover:bg-slate-50/50 transition-colors ${num(row.remainingKg) > 0 ? '' : 'opacity-60'}`} key={`${text(row.code)}-remain`}>
-                  <td className="p-2.5 font-mono text-xs text-slate-400 font-semibold min-w-0 overflow-hidden"><div className="truncate" title={text(row.code)}>{text(row.code)}</div></td>
-                  <td className="p-2.5 text-slate-800 font-medium min-w-0 overflow-hidden"><div className="truncate" title={text(row.name)}>{text(row.name)}</div></td>
+                  <td className="p-2.5 min-w-0 overflow-hidden">
+                    <div className="truncate text-slate-800 font-semibold" title={text(row.name)}>{text(row.name)}</div>
+                    <div className="truncate font-mono text-xs text-slate-400 font-semibold" title={text(row.code)}>{text(row.code)}</div>
+                  </td>
                   <td className="p-2.5 text-xs text-slate-500 font-medium min-w-0 overflow-hidden"><div className="truncate" title={text(row.metalGroup)}>{text(row.metalGroup)}</div></td>
                   <td className="p-2.5 text-right text-slate-700 font-medium whitespace-nowrap tabular-nums pl-4">{money(row.stock)}</td>
                   <td className="p-2.5 text-right font-semibold text-emerald-600 whitespace-nowrap tabular-nums pl-4">{money(row.lockedKg)}</td>
@@ -1078,7 +1079,7 @@ export function SalesPlanPageClient() {
               ))}
               {!sortedRemainingRows.length ? <tr><td className="py-8 text-center text-slate-400 font-semibold" colSpan={salesPlanRemainingColumns.length}>ไม่มีสต๊อกทองแดง/ทองเหลือง</td></tr> : null}
             </tbody>
-            {analysisRows.length ? <tfoot className="border-t border-slate-100 bg-slate-50/50 font-bold text-slate-700"><tr><td className="p-3 text-xs" colSpan={3}>รวม</td><td className="p-3 text-right text-slate-700 text-xs">{money(stockTotal)}</td><td className="p-3 text-right text-emerald-600 text-xs">{money(lockedTotal)}</td><td className="p-3 text-right text-emerald-600 text-xs">{money(0)}</td><td className="bg-yellow-50/20 p-3 text-right text-yellow-600 text-xs">{money(remainingKgTotal)}</td><td className="bg-yellow-50/20 p-3 text-right text-yellow-600 text-xs">{money(remainingContainers)}</td><td /><td className="p-3 text-right text-slate-700 text-xs">{money(remainingValueTotal)}</td></tr></tfoot> : null}
+            {analysisRows.length ? <tfoot className="border-t border-slate-100 bg-slate-50/50 font-bold text-slate-700"><tr><td className="p-3 text-xs" colSpan={2}>รวม</td><td className="p-3 text-right text-slate-700 text-xs">{money(stockTotal)}</td><td className="p-3 text-right text-emerald-600 text-xs">{money(lockedTotal)}</td><td className="p-3 text-right text-emerald-600 text-xs">{money(0)}</td><td className="bg-yellow-50/20 p-3 text-right text-yellow-600 text-xs">{money(remainingKgTotal)}</td><td className="bg-yellow-50/20 p-3 text-right text-yellow-600 text-xs">{money(remainingContainers)}</td><td /><td className="p-3 text-right text-slate-700 text-xs">{money(remainingValueTotal)}</td></tr></tfoot> : null}
           </table>
         </div>
 
