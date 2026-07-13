@@ -201,6 +201,16 @@ function matchesProductFilter(row: AnyRow, filterProductCode: string) {
   ].some((value) => normalizedProductFilterValue(value) === needle)
 }
 
+function productMatchKeys(row: AnyRow) {
+  return [
+    row.productCode,
+    row.productId,
+    row.productName,
+    row.code,
+    row.name,
+  ].map((value) => normalizedProductFilterValue(value)).filter(Boolean)
+}
+
 function lmeDraftValueByMetalGroup(metalGroup: string, config: LmeConfig | null) {
   if (!config) return ''
   const group = metalGroup.toLowerCase()
@@ -514,23 +524,31 @@ export function SalesPlanPageClient() {
   const visiblePendingPlanIds = useMemo(() => visiblePlanRows.filter((row) => getPlanStatus(row.status) === 'pending').map((row) => text(row.id)).filter(Boolean), [visiblePlanRows])
   const selectedVisiblePendingPlanIds = useMemo(() => selectedPendingPlanIds.filter((id) => visiblePendingPlanIds.includes(id)), [selectedPendingPlanIds, visiblePendingPlanIds])
   const allVisiblePendingSelected = visiblePendingPlanIds.length > 0 && selectedVisiblePendingPlanIds.length === visiblePendingPlanIds.length
-  const pendingSaleRows = useMemo<AnyRow[]>(() => {
-    const bestPlanByProduct = new Map<string, { price: number; pct: number }>()
-    planRowsWithStatus.forEach((plan) => {
+  const visiblePlanProductKeys = useMemo(() => {
+    const keys = new Set<string>()
+    visiblePlanRows.forEach((row) => {
+      productMatchKeys(row).forEach((key) => keys.add(key))
+    })
+    return keys
+  }, [visiblePlanRows])
+  const bestPlanByProduct = useMemo(() => {
+    const plans = new Map<string, { price: number; pct: number }>()
+    visiblePlanRows.forEach((plan) => {
       const price = num(plan.sellPrice)
       const pct = num(plan.sellPctLme)
       if (price <= 0 || pct <= 0) return
-      const keys = [text(plan.productId), text(plan.productCode)].map((key) => key.trim().toLowerCase()).filter(Boolean)
-      keys.forEach((key) => {
-        const current = bestPlanByProduct.get(key)
-        if (!current || price > current.price) bestPlanByProduct.set(key, { pct, price })
+      productMatchKeys(plan).forEach((key) => {
+        const current = plans.get(key)
+        if (!current || price > current.price) plans.set(key, { pct, price })
       })
     })
-
+    return plans
+  }, [visiblePlanRows])
+  const pendingSaleRows = useMemo<AnyRow[]>(() => {
     return (data?.pendingSaleTable ?? [])
       .filter((row) => matchesProductFilter(row, insightFilterProductCode))
       .map((row): AnyRow => {
-        const plan = bestPlanByProduct.get(text(row.productCode).trim().toLowerCase()) ?? bestPlanByProduct.get(text(row.productId).trim().toLowerCase())
+        const plan = productMatchKeys(row).map((key) => bestPlanByProduct.get(key)).find(Boolean)
         if (!plan) return { ...row, bestPlanPct: 0, bestPlanPrice: 0, projectedMarginPct: 0, projectedProfit: 0 }
 
         const poolCost = num(row.avgPrice)
@@ -550,7 +568,7 @@ export function SalesPlanPageClient() {
         if (leftHasPlan !== rightHasPlan) return leftHasPlan ? -1 : 1
         return num(right.pendingSaleQty) - num(left.pendingSaleQty)
       })
-  }, [data?.pendingSaleTable, insightFilterGroup, insightFilterProductCode, planRowsWithStatus])
+  }, [bestPlanByProduct, data?.pendingSaleTable, insightFilterGroup, insightFilterProductCode])
   const pendingSaleTotals = useMemo(() => ({
     count: pendingSaleRows.length,
     shortageCount: pendingSaleRows.filter((row) => num(row.realPendingSale) < 0).length,
@@ -562,8 +580,32 @@ export function SalesPlanPageClient() {
     totalStock: pendingSaleRows.reduce((sum, row) => sum + num(row.stock), 0),
   }), [pendingSaleRows])
   const analysisRows = useMemo(() => (data?.productAnalysis ?? [])
+    .filter((row) => productMatchKeys(row).some((key) => visiblePlanProductKeys.has(key)))
     .filter((row) => !insightFilterGroup || text(row.metalGroup).includes(insightFilterGroup))
-    .filter((row) => matchesProductFilter(row, insightFilterProductCode)), [data?.productAnalysis, insightFilterGroup, insightFilterProductCode])
+    .filter((row) => matchesProductFilter(row, insightFilterProductCode))
+    .map((row) => {
+      const plan = productMatchKeys(row).map((key) => bestPlanByProduct.get(key)).find(Boolean)
+      if (!plan) {
+        return {
+          ...row,
+          bestPlanPct: 0,
+          bestPlanPrice: 0,
+          projectedMarginPct: 0,
+          projectedProfit: 0,
+        }
+      }
+
+      const remainingKg = num(row.remainingKg)
+      const wac = num(row.wac)
+      const projectedProfit = remainingKg * (plan.price - wac)
+      return {
+        ...row,
+        bestPlanPct: plan.pct,
+        bestPlanPrice: plan.price,
+        projectedMarginPct: wac > 0 ? ((plan.price - wac) / wac) * 100 : 0,
+        projectedProfit,
+      }
+    }), [bestPlanByProduct, data?.productAnalysis, insightFilterGroup, insightFilterProductCode, visiblePlanProductKeys])
   const sortedPlanRows = useMemo(() => {
     const rows = visiblePlanRows
     if (!planSortKey) return rows
@@ -1324,64 +1366,42 @@ export function SalesPlanPageClient() {
         </div>
       </div>
 
-      <Tabs className="gap-3" value={salesPlanInsightTab} onValueChange={(value) => setSalesPlanInsightTab(value as 'analysis' | 'remaining')}>
-        <div className="overflow-x-auto">
-          <TabsList
-            aria-label="ตารางวิเคราะห์แผนขาย"
-            className="inline-flex w-full max-w-max flex-nowrap gap-2 bg-transparent p-0 shadow-none"
-          >
-            <TabsTrigger
-              className="min-w-fit rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-500 data-[state=active]:border-slate-900 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none"
-              value="analysis"
-            >
-              วิเคราะห์แผนขาย vs สต๊อกว่างขาย
-            </TabsTrigger>
-            <TabsTrigger
-              className="min-w-fit rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-500 data-[state=active]:border-slate-900 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none"
-              value="remaining"
-            >
-              สต๊อกว่างขายคงเหลือ
-            </TabsTrigger>
-          </TabsList>
-        </div>
-      </Tabs>
-
-      <div className="rounded-md bg-white p-3 shadow">
-        <div className="mb-2 text-xs font-medium text-slate-500">ตัวกรองข้อมูลของตารางที่เลือก</div>
-        <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-end">
-          <label className="flex min-w-[200px] flex-col gap-1 text-xs font-medium text-slate-500">
-            <span>หมวด</span>
-            <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={insightFilterGroup} onChange={(event) => setInsightFilterGroup(event.target.value)}>
-              <option value="">ทุกหมวด</option>
+      <div className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+          <Tabs value={salesPlanInsightTab} onValueChange={(value) => setSalesPlanInsightTab(value as 'analysis' | 'remaining')}>
+            <TabsList aria-label="ตารางวิเคราะห์แผนขาย" className="flex-wrap overflow-x-auto" variant="line">
+              <TabsTrigger value="analysis" variant="line">วิเคราะห์แผนขาย vs สต๊อกว่างขาย</TabsTrigger>
+              <TabsTrigger value="remaining" variant="line">สต๊อกว่างขายคงเหลือ</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap xl:justify-end">
+            <select className="h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={insightFilterGroup} onChange={(event) => setInsightFilterGroup(event.target.value)}>
+              <option value="">ทุกหมวด (ตารางล่าง)</option>
               {insightFilterGroupOptions.map((group) => <option key={group} value={group}>{group}</option>)}
             </select>
-          </label>
-          <div className="min-w-[260px] flex-1 lg:max-w-md">
-            <div className="mb-1 text-xs font-medium text-slate-500">สินค้า</div>
-            <SearchCombobox
-              hideLabel
-              inputClassName="h-9 text-sm font-medium text-slate-700"
-              inputId="sales-plan-insight-filter-product"
-              label="สินค้า"
-              openOnFocus={false}
-              options={filterProductOptions}
-              placeholder="ค้นหาสินค้าในตารางล่าง"
-              value={insightFilterProductCode}
-              onChange={setInsightFilterProductCode}
-            />
+            <div className="min-w-[240px] flex-1 sm:max-w-sm">
+              <SearchCombobox
+                hideLabel
+                inputClassName="h-10 text-sm font-medium text-slate-700"
+                inputId="sales-plan-insight-filter-product"
+                label="สินค้า"
+                openOnFocus={false}
+                options={filterProductOptions}
+                placeholder="ค้นหาสินค้าในตารางล่าง"
+                value={insightFilterProductCode}
+                onChange={setInsightFilterProductCode}
+              />
+            </div>
+            {insightFilterProductCode ? (
+              <button
+                className="h-10 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                onClick={() => setInsightFilterProductCode('')}
+                type="button"
+              >
+                ล้างสินค้า
+              </button>
+            ) : null}
           </div>
-          {insightFilterGroup || insightFilterProductCode ? (
-            <button
-              className="h-9 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 lg:ml-auto"
-              onClick={() => {
-                setInsightFilterGroup('')
-                setInsightFilterProductCode('')
-              }}
-              type="button"
-            >
-              ล้างตัวกรอง
-            </button>
-          ) : null}
         </div>
       </div>
 
