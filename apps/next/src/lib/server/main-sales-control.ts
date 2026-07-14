@@ -515,6 +515,7 @@ export async function buildSalesPlan() {
   }).sort((left, right) => right.value - left.value)
 
   return {
+    customers: pending.customers,
     filters: {
       channels: pending.channels,
       metalGroups: pending.metalGroups,
