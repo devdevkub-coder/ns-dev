@@ -77,6 +77,11 @@ type StockLedgerRow = {
   warehouseName: string
 }
 
+type StockLedgerMovementGroup = {
+  label: string
+  options: string[]
+}
+
 export function StockLedgerPageClient() {
   const latestLoadRequestRef = useRef(0)
   const [balanceMode, setBalanceMode] = useState<'product' | 'warehouse'>('warehouse')
@@ -143,6 +148,29 @@ export function StockLedgerPageClient() {
       label: item.code ? `${item.code} - ${item.name}` : item.name,
       searchText: `${item.code ?? ''} ${item.name} ${item.metalGroup ?? ''}`,
     })), [data?.reference.products])
+
+  const movementTypeGroups = useMemo<StockLedgerMovementGroup[]>(() => {
+    const uniqueMovementTypes = Array.from(new Set((data?.movementTypes ?? []).filter(Boolean)))
+    const pinnedOptions = ['SALE_OUT', 'ขายออก', 'รับซื้อเข้า']
+    const pinnedSet = new Set(pinnedOptions)
+    const compareByLabel = (left: string, right: string) => stockMovementTypeLabel(left).localeCompare(stockMovementTypeLabel(right), 'th')
+    const outgoing = uniqueMovementTypes
+      .filter((item) => !pinnedSet.has(item) && stockMovementTypeLabel(item).startsWith('ออก -'))
+      .sort(compareByLabel)
+    const incoming = uniqueMovementTypes
+      .filter((item) => !pinnedSet.has(item) && stockMovementTypeLabel(item).startsWith('เข้า -'))
+      .sort(compareByLabel)
+    const others = uniqueMovementTypes
+      .filter((item) => !pinnedSet.has(item) && !stockMovementTypeLabel(item).startsWith('ออก -') && !stockMovementTypeLabel(item).startsWith('เข้า -'))
+      .sort(compareByLabel)
+    const pinned = pinnedOptions.filter((item) => uniqueMovementTypes.includes(item))
+    return [
+      { label: 'รายการหลัก', options: pinned },
+      { label: 'ออก', options: outgoing },
+      { label: 'เข้า', options: incoming },
+      { label: 'อื่นๆ', options: others },
+    ].filter((group) => group.options.length > 0)
+  }, [data?.movementTypes])
 
   function changeSort(nextKey: StockLedgerSortKey) {
     setPage(1)
@@ -234,7 +262,11 @@ export function StockLedgerPageClient() {
           <span className="text-xs text-slate-500 ml-4 font-medium">ประเภท:</span>
           <select className="h-9 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={movementType} onChange={(event) => { setPage(1); setMovementType(event.target.value) }}>
             <option value="">ทุกประเภท</option>
-            {(data?.movementTypes ?? []).map((item) => <option key={item} value={item}>{stockMovementTypeLabel(item)}</option>)}
+            {movementTypeGroups.map((group) => (
+              <optgroup key={group.label} label={group.label}>
+                {group.options.map((item) => <option key={item} value={item}>{stockMovementTypeLabel(item)}</option>)}
+              </optgroup>
+            ))}
           </select>
 
           <span className="text-xs text-slate-500 ml-4 font-medium">ประเภทคลัง:</span>
@@ -336,7 +368,11 @@ export function StockLedgerPageClient() {
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภท</span>
                 <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={movementType} onChange={(event) => { setPage(1); setMovementType(event.target.value) }}>
                   <option value="">ทุกประเภท</option>
-                  {(data?.movementTypes ?? []).map((item) => <option key={item} value={item}>{stockMovementTypeLabel(item)}</option>)}
+                  {movementTypeGroups.map((group) => (
+                    <optgroup key={group.label} label={group.label}>
+                      {group.options.map((item) => <option key={item} value={item}>{stockMovementTypeLabel(item)}</option>)}
+                    </optgroup>
+                  ))}
                 </select>
               </label>
 
