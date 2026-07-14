@@ -53,6 +53,16 @@ type SalesPlanDraftForm = {
   productCode: string
   sellPctLme: string
 }
+type ClearPendingPlansDialogState = {
+  filters?: {
+    channel?: string
+    metalGroup?: string
+    month: string
+    productCode?: string
+  }
+  message: string
+  planIds?: string[]
+}
 
 type CommissionSalespersonRow = {
   id: string
@@ -389,6 +399,7 @@ export function SalesPlanPageClient() {
   const [isSavingPlan, setIsSavingPlan] = useState(false)
   const [isClearingPendingPlans, setIsClearingPendingPlans] = useState(false)
   const [isPlanFormOpen, setIsPlanFormOpen] = useState(false)
+  const [clearPendingPlansDialog, setClearPendingPlansDialog] = useState<ClearPendingPlansDialogState | null>(null)
   const [selectedPendingPlanIds, setSelectedPendingPlanIds] = useState<string[]>([])
   const [month, setMonth] = useState('')
   const [planFilterGroup, setPlanFilterGroup] = useState('')
@@ -830,35 +841,42 @@ export function SalesPlanPageClient() {
     const targetCount = cleaningSelected ? targetPlanIds.length : pendingPlanCount
     if (!targetCount) return
     const activeMonth = month || data?.filters.month || new Date().toISOString().slice(0, 7)
-    if (typeof window !== 'undefined') {
-      const confirmed = window.confirm(cleaningSelected
+    setClearPendingPlansDialog({
+      ...(cleaningSelected
+        ? { planIds: targetPlanIds }
+        : {
+          filters: {
+            channel: planFilterChannel || undefined,
+            metalGroup: planFilterGroup || undefined,
+            month: activeMonth,
+            productCode: planFilterProductCode || undefined,
+          },
+        }),
+      message: cleaningSelected
         ? `ต้องการเคลียร์สถานะ Pending ของรายการที่เลือก ${targetCount} รายการใช่หรือไม่?`
-        : `ต้องการเคลียร์สถานะ Pending ทั้งหมด ${targetCount} รายการตามตัวกรองปัจจุบันของเดือน ${activeMonth} ใช่หรือไม่?`)
-      if (!confirmed) return
-    }
+        : `ต้องการเคลียร์สถานะ Pending ทั้งหมด ${targetCount} รายการตามตัวกรองปัจจุบันของเดือน ${activeMonth} ใช่หรือไม่?`,
+    })
+  }
 
+  async function confirmClearPendingPlans() {
+    if (!clearPendingPlansDialog) return
+    const targetPlanIds = clearPendingPlansDialog.planIds ?? []
     setFormError(null)
     setIsClearingPendingPlans(true)
     try {
       await dailyFetchJson<{ deletedCount: number }>('/api/sales-plan', {
         body: JSON.stringify({
           action: 'clear-pending-plans',
-          ...(cleaningSelected
-            ? { planIds: targetPlanIds }
-            : {
-              filters: {
-                channel: planFilterChannel || undefined,
-                metalGroup: planFilterGroup || undefined,
-                month: activeMonth,
-                productCode: planFilterProductCode || undefined,
-              },
-            }),
+          ...(clearPendingPlansDialog.planIds
+            ? { planIds: clearPendingPlansDialog.planIds }
+            : { filters: clearPendingPlansDialog.filters }),
         }),
         method: 'POST',
       })
-      if (cleaningSelected) {
+      if (targetPlanIds.length > 0) {
         setSelectedPendingPlanIds((current) => current.filter((id) => !targetPlanIds.includes(id)))
       }
+      setClearPendingPlansDialog(null)
       await loadSalesPlan()
     } catch (caught) {
       setFormError(caught instanceof Error ? caught.message : 'เคลียร์สถานะ Pending ไม่ได้')
@@ -1021,6 +1039,18 @@ export function SalesPlanPageClient() {
         <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3 text-xs font-semibold text-slate-600">
           📝 ตารางวางแผน — เพิ่มแผนแล้วเริ่มที่ `Pending` ก่อน จากนั้นค่อยกด `Lock %` เองเมื่อพร้อม และคอลัมน์ `PO ขาย` จะแยกต่างหาก
         </div>
+        <Dialog open={Boolean(clearPendingPlansDialog)} onOpenChange={(open) => { if (!open && !isClearingPendingPlans) setClearPendingPlansDialog(null) }}>
+          <DialogContent className="max-w-lg rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 animate-fade-in" fallbackTitle="ยืนยันการเคลียร์สถานะ" hideClose>
+            <DialogHeader className="border-b border-slate-800 px-5 py-4">
+              <DialogTitle className="text-lg font-bold text-slate-100">Confirm เคลียร์สถานะ</DialogTitle>
+              <p className="text-sm text-slate-300">{clearPendingPlansDialog?.message}</p>
+            </DialogHeader>
+            <DialogFooter className="shrink-0">
+              <button className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" disabled={isClearingPendingPlans} onClick={() => setClearPendingPlansDialog(null)} type="button">ยกเลิก</button>
+              <button className="h-10 rounded-md bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60" disabled={isClearingPendingPlans} onClick={confirmClearPendingPlans} type="button">{isClearingPendingPlans ? 'กำลังเคลียร์สถานะ...' : 'Confirm'}</button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <Dialog open={isPlanFormOpen} onOpenChange={setIsPlanFormOpen}>
           <DialogContent className="max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" fallbackTitle="เพิ่มแผนขาย" hideClose>
             <DialogHeader className="border-b border-slate-800 px-5 py-4">
@@ -1354,42 +1384,64 @@ export function SalesPlanPageClient() {
         </div>
       </div>
 
-      <div className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-          <Tabs value={salesPlanInsightTab} onValueChange={(value) => setSalesPlanInsightTab(value as 'analysis' | 'remaining')}>
-            <TabsList aria-label="ตารางวิเคราะห์แผนขาย" className="flex-wrap overflow-x-auto" variant="line">
-              <TabsTrigger value="analysis" variant="line">วิเคราะห์แผนขาย vs สต๊อกว่างขาย</TabsTrigger>
-              <TabsTrigger value="remaining" variant="line">สต๊อกว่างขายคงเหลือ</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap xl:justify-end">
-            <select className="h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={insightFilterGroup} onChange={(event) => setInsightFilterGroup(event.target.value)}>
-              <option value="">ทุกหมวด (ตารางล่าง)</option>
+      <Tabs className="gap-3" value={salesPlanInsightTab} onValueChange={(value) => setSalesPlanInsightTab(value as 'analysis' | 'remaining')}>
+        <div className="overflow-x-auto">
+          <TabsList
+            aria-label="ตารางวิเคราะห์แผนขาย"
+            className="inline-flex w-full max-w-max flex-nowrap gap-2 bg-transparent p-0 shadow-none"
+          >
+            <TabsTrigger
+              className="min-w-fit rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-500 data-[state=active]:border-slate-900 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none"
+              value="analysis"
+            >
+              วิเคราะห์แผนขาย vs สต๊อกว่างขาย
+            </TabsTrigger>
+            <TabsTrigger
+              className="min-w-fit rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-500 data-[state=active]:border-slate-900 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none"
+              value="remaining"
+            >
+              สต๊อกว่างขายคงเหลือ
+            </TabsTrigger>
+          </TabsList>
+        </div>
+      </Tabs>
+
+      <div className="rounded-md bg-white p-3 shadow">
+        <div className="mb-2 text-xs font-medium text-slate-500">ตัวกรองข้อมูลของตารางที่เลือก</div>
+        <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-end">
+          <label className="flex min-w-[200px] flex-col gap-1 text-xs font-medium text-slate-500">
+            <span>หมวด</span>
+            <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={insightFilterGroup} onChange={(event) => setInsightFilterGroup(event.target.value)}>
+              <option value="">ทุกหมวด</option>
               {insightFilterGroupOptions.map((group) => <option key={group} value={group}>{group}</option>)}
             </select>
-            <div className="min-w-[240px] flex-1 sm:max-w-sm">
-              <SearchCombobox
-                hideLabel
-                inputClassName="h-10 text-sm font-medium text-slate-700"
-                inputId="sales-plan-insight-filter-product"
-                label="สินค้า"
-                openOnFocus={false}
-                options={filterProductOptions}
-                placeholder="ค้นหาสินค้าในตารางล่าง"
-                value={insightFilterProductCode}
-                onChange={setInsightFilterProductCode}
-              />
-            </div>
-            {insightFilterProductCode ? (
-              <button
-                className="h-10 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-                onClick={() => setInsightFilterProductCode('')}
-                type="button"
-              >
-                ล้างสินค้า
-              </button>
-            ) : null}
+          </label>
+          <div className="min-w-[260px] flex-1 lg:max-w-md">
+            <div className="mb-1 text-xs font-medium text-slate-500">สินค้า</div>
+            <SearchCombobox
+              hideLabel
+              inputClassName="h-9 text-sm font-medium text-slate-700"
+              inputId="sales-plan-insight-filter-product"
+              label="สินค้า"
+              openOnFocus={false}
+              options={filterProductOptions}
+              placeholder="ค้นหาสินค้าในตารางล่าง"
+              value={insightFilterProductCode}
+              onChange={setInsightFilterProductCode}
+            />
           </div>
+          {insightFilterGroup || insightFilterProductCode ? (
+            <button
+              className="h-9 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 lg:ml-auto"
+              onClick={() => {
+                setInsightFilterGroup('')
+                setInsightFilterProductCode('')
+              }}
+              type="button"
+            >
+              ล้างตัวกรอง
+            </button>
+          ) : null}
         </div>
       </div>
 
