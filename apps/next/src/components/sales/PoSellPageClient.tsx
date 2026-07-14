@@ -769,12 +769,9 @@ export function PoSellPageClient() {
         </div>
         <Table className="min-w-full divide-y divide-slate-200" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
         <colgroup>
-          {poSellColumns.map((column, index) => {
-            if (index === poSellColumns.length - 1) {
-              return <col key={column.key} style={{ minWidth: column.minWidth }} />
-            }
-            return <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
-          })}
+          {poSellColumns.map((column) => (
+            <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+          ))}
         </colgroup>
         <TableHeader>
           <tr>

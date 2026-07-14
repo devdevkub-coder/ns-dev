@@ -223,3 +223,7 @@ Target detail payload fields:
 - [x] Add read-only AP aging buckets from current PB payable facts
 - [ ] Add Return frequency after source ownership/schema is confirmed
 - [x] Reconcile paid/payable formulas with current payment settlement facts
+
+## 2026-07-12 Table consistency checkpoint
+
+`/tracking/supplier` detail tables now align numeric headers and bodies from the actual column values and use canonical `p-2` header / `p-3` body density. What is what: these remain read-only supplier performance, product, payment, and yearly facts. Why it stays this way: the detail surfaces must share one table rhythm while tracking formulas, exports, API behavior, permissions, database schema, and DB state remain unchanged.

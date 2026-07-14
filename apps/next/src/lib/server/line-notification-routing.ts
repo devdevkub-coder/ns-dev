@@ -11,6 +11,32 @@ export type RoutingDecision = {
   reason: string
 }
 
+export function lineRuleConditionsValidationError(conditions: Record<string, unknown>) {
+  const documentTypes = Array.isArray(conditions.documentTypes)
+    ? conditions.documentTypes.map(String)
+    : []
+  const hasWeightTicket = documentTypes.some((type) => type === 'WTI' || type === 'WTO')
+  const hasFinancialDocument = documentTypes.some((type) => type === 'PB' || type === 'SB' || type === 'PMT' || type === 'RCP')
+
+  if (hasWeightTicket && hasFinancialDocument) {
+    return 'กรุณาแยกใบรับ-ส่งของกับเอกสารการเงินเป็นคนละกฎ'
+  }
+
+  const hasWeightOrPhotoCondition = [
+    conditions.minNetWeight,
+    conditions.maxNetWeight,
+    conditions.minImpurityWeight,
+  ].some((value) => value !== undefined && value !== null && value !== '')
+    || conditions.requiresImages === true
+    || conditions.requiresScalePhoto === true
+
+  if (hasFinancialDocument && hasWeightOrPhotoCondition) {
+    return 'เงื่อนไขน้ำหนักและรูปภาพใช้ได้เฉพาะใบรับ-ส่งของ WTI/WTO'
+  }
+
+  return null
+}
+
 export function matchesLineNotificationRule(ticket: any, rule: any): boolean {
   const conds = rule.conditions as any
   if (!conds || typeof conds !== 'object') return true

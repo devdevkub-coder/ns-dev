@@ -38,6 +38,8 @@ Git branch boundary:
 - Status: project-level `.mcp.json` has been added so this repo points `supabase` to the dev project by default
 - Note: global Supabase MCP entries were removed to avoid cross-project confusion
 - Note: restart the Codex session before verifying MCP runtime tools
+- LINE config update on 2026-07-13: dev-target has independent active `PMT` and `RCP` rules routed to the single active group `ทดสอบ`, both with stop-after-match enabled. The RCP rule is named `รับเงิน Customer → กลุ่มทดสอบ`; real loader/resolver verification returned only that group, official LINE validation returned HTTP 200, and live RCP job `168` reached `sent` on attempt 1 without a duplicate job.
+- LINE link caveat on 2026-07-13: dev-target still has no `NEXT_PUBLIC_APP_URL`, so financial Flex messages fall back to `http://localhost:3000` for the open-system button. Do not copy the UAT URL into dev by assumption; configure the actual public dev URL when one exists.
 
 ### Staging / UAT
 

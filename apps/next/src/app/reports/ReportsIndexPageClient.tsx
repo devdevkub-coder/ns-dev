@@ -62,18 +62,18 @@ const catalogColumns: Array<ResizableColumnDefinition<CatalogColumnKey>> = [
 
 const catalogTabs: Array<{ k: CatalogTab; l: string }> = [
   { k: 'all', l: 'ทั้งหมด' },
-  { k: 'main', l: 'Dashboard / Control' },
+  { k: 'main', l: 'ภาพรวม / ควบคุม' },
   { k: 'finance', l: 'การเงิน / หนี้' },
-  { k: 'accounting', l: 'Finance Accounting' },
-  { k: 'stock', l: 'Stock' },
-  { k: 'tracking', l: 'Tracking' },
-  { k: 'production', l: 'Production' },
-  { k: 'daily', l: 'Daily / PO' },
+  { k: 'accounting', l: 'การเงิน / บัญชี' },
+  { k: 'stock', l: 'สินค้า' },
+  { k: 'tracking', l: 'ติดตาม' },
+  { k: 'production', l: 'การผลิต' },
+  { k: 'daily', l: 'รายวัน / PO' },
 ]
 
 const legacyTabs: Array<{ k: LegacyTab; l: string }> = [
   { k: 'purchase-channel', l: 'ซื้อตามช่องทาง' },
-  { k: 'purchase-supplier', l: 'ซื้อตาม Supplier' },
+  { k: 'purchase-supplier', l: 'ซื้อตามผู้ขาย' },
   { k: 'purchase-product', l: 'ซื้อตามสินค้า' },
   { k: 'sales-channel', l: 'ขายตามช่องทาง' },
   { k: 'sales-customer', l: 'ขายตามลูกค้า' },
@@ -94,7 +94,7 @@ const columnsByTab: Record<LegacyTab, Column[]> = {
     { key: 'avgPrice', label: 'ราคาเฉลี่ย', tone: 'amount', type: 'currency' },
   ],
   'purchase-supplier': [
-    { key: 'name', label: 'Supplier' },
+    { key: 'name', label: 'ผู้ขาย' },
     { key: 'count', label: 'บิล', type: 'number' },
     { key: 'weight', label: 'น้ำหนัก', type: 'weight' },
     { key: 'amount', label: 'มูลค่า', tone: 'amount', type: 'currency' },
@@ -106,10 +106,10 @@ const columnsByTab: Record<LegacyTab, Column[]> = {
     { key: 'amount', label: 'ยอดขาย', tone: 'amount', type: 'currency' },
     { key: 'cost', label: 'ต้นทุน', tone: 'cost', type: 'currency' },
     { key: 'profit', label: 'กำไร', tone: 'profit', type: 'currency' },
-    { key: 'marginPct', label: 'Margin%', tone: 'profit', type: 'percent' },
+    { key: 'marginPct', label: 'อัตรากำไร (%)', tone: 'profit', type: 'percent' },
   ],
   'sales-customer': [
-    { key: 'name', label: 'Customer' },
+    { key: 'name', label: 'ลูกค้า' },
     { key: 'count', label: 'บิล', type: 'number' },
     { key: 'amount', label: 'ยอดขาย', tone: 'amount', type: 'currency' },
     { key: 'profit', label: 'กำไร', tone: 'profit', type: 'currency' },
@@ -117,35 +117,35 @@ const columnsByTab: Record<LegacyTab, Column[]> = {
 }
 
 const reports: ReportLink[] = [
-  { category: 'main', href: '/dashboard', label: 'Dashboard Overview', owner: 'Main' },
-  { category: 'main', href: '/owner-daily', label: 'Owner Daily Control', owner: 'Main' },
-  { category: 'main', href: '/daily-report', label: 'Daily Report', owner: 'Main' },
-  { category: 'main', href: '/profit-cost-analysis', label: 'Profit & Cost Analysis', owner: 'Main' },
-  { category: 'main', href: '/sales-plan', label: 'Sales Plan — ทองแดง / ทองเหลือง', owner: 'Main' },
-  { category: 'main', href: '/sales-commission', label: 'Sales Tracking Dashboard', owner: 'Main' },
-  { category: 'main', href: '/cash-flow-calendar', label: 'Cash Flow Calendar', owner: 'Main' },
-  { category: 'main', href: '/business-calendar', label: 'Business Calendar', owner: 'Main' },
-  { category: 'main', href: '/cash-others-summary', label: 'Cash & Others Summary', owner: 'Main' },
-  { category: 'finance', href: '/finance/ar', label: 'ลูกหนี้ (AR)', owner: 'Finance' },
-  { category: 'finance', href: '/finance/ap', label: 'เจ้าหนี้ (AP)', owner: 'Finance' },
-  { category: 'finance', href: '/finance/bank', label: 'Cash / Bank Statement', owner: 'Finance' },
-  { category: 'finance', href: '/finance/cash-position', label: 'Cash Position', owner: 'Finance' },
-  { category: 'accounting', href: '/finance-accounting/financial-dashboard', label: 'Financial Dashboard', owner: 'Accounting' },
-  { category: 'accounting', href: '/finance-accounting/cash-flow-analysis', label: 'Cash Flow Analysis', owner: 'Accounting' },
-  { category: 'accounting', href: '/finance-accounting/pl-statement', label: 'งบกำไรขาดทุน (P&L)', owner: 'Accounting' },
-  { category: 'accounting', href: '/finance-accounting/balance-sheet', label: 'งบดุล', owner: 'Accounting' },
-  { category: 'accounting', href: '/finance-accounting/cash-flow-statement', label: 'งบกระแสเงินสด', owner: 'Accounting' },
-  { category: 'accounting', href: '/finance-accounting/tax-vat-wht', label: 'Tax / VAT / WHT', owner: 'Accounting' },
-  { category: 'stock', href: '/stock/balance', label: 'Stock Balance', owner: 'Stock' },
-  { category: 'stock', href: '/stock/ledger', label: 'Stock Ledger', owner: 'Stock' },
-  { category: 'stock', href: '/stock/status-convert', label: 'ปรับสถานะสินค้า', owner: 'Stock' },
-  { category: 'stock', href: '/stock/adjust', label: 'นับสต๊อก / Stock Count Adjust', owner: 'Stock' },
-  { category: 'tracking', href: '/tracking/customer', label: 'Customer Tracking', owner: 'Tracking' },
-  { category: 'tracking', href: '/tracking/supplier', label: 'Supplier Tracking', owner: 'Tracking' },
-  { category: 'tracking', href: '/tracking/product', label: 'Product Tracking', owner: 'Tracking' },
-  { category: 'production', href: '/production/report', label: 'รายงานการผลิต / Yield', owner: 'Production' },
-  { category: 'daily', href: '/po-reports/outstanding', label: 'PO ซื้อ/ขาย คงเหลือ', owner: 'PO Reports' },
-  { category: 'daily', href: '/admin/transaction-ledger', label: 'Transaction Ledger', owner: 'Admin' },
+  { category: 'main', href: '/dashboard', label: 'ภาพรวมแดชบอร์ด', owner: 'ภาพรวม' },
+  { category: 'main', href: '/owner-daily', label: 'ควบคุมรายวันผู้บริหาร', owner: 'ภาพรวม' },
+  { category: 'main', href: '/daily-report', label: 'รายงานประจำวัน', owner: 'ภาพรวม' },
+  { category: 'main', href: '/profit-cost-analysis', label: 'วิเคราะห์กำไรและต้นทุน', owner: 'ภาพรวม' },
+  { category: 'main', href: '/sales-plan', label: 'แผนการขาย — ทองแดง / ทองเหลือง', owner: 'ภาพรวม' },
+  { category: 'main', href: '/sales-commission', label: 'แดชบอร์ดติดตามการขาย', owner: 'ภาพรวม' },
+  { category: 'main', href: '/cash-flow-calendar', label: 'ปฏิทินกระแสเงินสด', owner: 'ภาพรวม' },
+  { category: 'main', href: '/business-calendar', label: 'ปฏิทินธุรกิจ', owner: 'ภาพรวม' },
+  { category: 'main', href: '/cash-others-summary', label: 'สรุปเงินสดและรายการอื่น', owner: 'ภาพรวม' },
+  { category: 'finance', href: '/finance/ar', label: 'ลูกหนี้ (AR)', owner: 'การเงิน' },
+  { category: 'finance', href: '/finance/ap', label: 'เจ้าหนี้ (AP)', owner: 'การเงิน' },
+  { category: 'finance', href: '/finance/bank', label: 'รายการเงินสด / ธนาคาร', owner: 'การเงิน' },
+  { category: 'finance', href: '/finance/cash-position', label: 'ฐานะเงินสด', owner: 'การเงิน' },
+  { category: 'accounting', href: '/finance-accounting/financial-dashboard', label: 'แดชบอร์ดการเงิน', owner: 'บัญชี' },
+  { category: 'accounting', href: '/finance-accounting/cash-flow-analysis', label: 'วิเคราะห์กระแสเงินสด', owner: 'บัญชี' },
+  { category: 'accounting', href: '/finance-accounting/pl-statement', label: 'งบกำไรขาดทุน (P&L)', owner: 'บัญชี' },
+  { category: 'accounting', href: '/finance-accounting/balance-sheet', label: 'งบดุล', owner: 'บัญชี' },
+  { category: 'accounting', href: '/finance-accounting/cash-flow-statement', label: 'งบกระแสเงินสด', owner: 'บัญชี' },
+  { category: 'accounting', href: '/finance-accounting/tax-vat-wht', label: 'ภาษี VAT / WHT', owner: 'บัญชี' },
+  { category: 'stock', href: '/stock/balance', label: 'คงเหลือสินค้า', owner: 'สินค้า' },
+  { category: 'stock', href: '/stock/ledger', label: 'สมุดบัญชีสินค้า', owner: 'สินค้า' },
+  { category: 'stock', href: '/stock/status-convert', label: 'ปรับสถานะสินค้า', owner: 'สินค้า' },
+  { category: 'stock', href: '/stock/adjust', label: 'ปรับปรุงผลนับสต็อก', owner: 'สินค้า' },
+  { category: 'tracking', href: '/tracking/customer', label: 'ติดตามลูกค้า', owner: 'ติดตาม' },
+  { category: 'tracking', href: '/tracking/supplier', label: 'ติดตามผู้ขาย', owner: 'ติดตาม' },
+  { category: 'tracking', href: '/tracking/product', label: 'ติดตามสินค้า', owner: 'ติดตาม' },
+  { category: 'production', href: '/production/report', label: 'รายงานการผลิต', owner: 'การผลิต' },
+  { category: 'daily', href: '/po-reports/outstanding', label: 'PO ซื้อ/ขายคงเหลือ', owner: 'รายงาน PO' },
+  { category: 'daily', href: '/admin/transaction-ledger', label: 'สมุดรายวันธุรกรรม', owner: 'ระบบ' },
 ]
 
 function numberFormat(value: number, digits = 0) {
@@ -166,24 +166,12 @@ function rowValue(row: AggregateRow, column: Column) {
   return numberFormat(numeric)
 }
 
-function csvEscape(value: string) {
-  return `"${value.replace(/"/g, '""')}"`
-}
-
-function downloadCsv(filename: string, columns: Column[], rows: AggregateRow[]) {
-  const csv = [
-    columns.map((column) => csvEscape(column.label)).join(','),
-    ...rows.map((row) => columns.map((column) => csvEscape(rowValue(row, column))).join(',')),
-  ].join('\n')
-  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  URL.revokeObjectURL(url)
+async function downloadExcel(filename: string, columns: Column[], rows: AggregateRow[]) {
+  const { default: writeXlsxFile } = await import('write-excel-file/browser')
+  await writeXlsxFile([
+    columns.map((column) => ({ fontWeight: 'bold' as const, value: column.label })),
+    ...rows.map((row) => columns.map((column) => rowValue(row, column))),
+  ], { sheet: 'รายงาน' }).toFile(filename)
 }
 
 export function ReportsIndexPageClient() {
@@ -288,9 +276,9 @@ export function ReportsIndexPageClient() {
     count: filtered.length,
   }), [filtered])
 
-  const exportActiveTab = () => {
+  const exportActiveTab = async () => {
     const tabLabel = legacyTabs.find((tab) => tab.k === legacyTab)?.l ?? 'report'
-    downloadCsv(`reports-${legacyTab}-${fromDate || 'all'}-${toDate || 'all'}.csv`, columns, sortedRows)
+    await downloadExcel(`reports-${legacyTab}-${fromDate || 'all'}-${toDate || 'all'}.xlsx`, columns, sortedRows)
     setError(sortedRows.length ? '' : `${tabLabel} ไม่มีข้อมูลให้ export`)
   }
 
@@ -334,7 +322,7 @@ export function ReportsIndexPageClient() {
         </div>
         <div className="mt-2 flex justify-end">
           <button
-            className="h-9 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 outline-none focus:outline-none"
+            className="h-9 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 outline-none focus:outline-none"
             disabled={loading}
             onClick={exportActiveTab}
             type="button"
@@ -364,13 +352,9 @@ export function ReportsIndexPageClient() {
         <div className="hidden overflow-x-auto bg-white lg:block">
           <table className="ns-table min-w-full divide-y divide-slate-200 text-sm text-slate-700" style={{ tableLayout: 'fixed', minWidth: aggregateColumnResize.tableMinWidth }}>
             <colgroup>
-              {aggregateColumns.map((column, index) => {
-                const style = aggregateColumnResize.getColumnStyle(column.key)
-                if (index === aggregateColumns.length - 1) {
-                  return <col key={column.key} style={{ minWidth: column.minWidth }} />
-                }
-                return <col key={column.key} style={style} />
-              })}
+              {aggregateColumns.map((column) => (
+                <col key={column.key} style={aggregateColumnResize.getColumnStyle(column.key)} />
+              ))}
             </colgroup>
             <thead className="bg-slate-100">
               <tr>
@@ -468,7 +452,7 @@ export function ReportsIndexPageClient() {
           <input
             className="ml-auto h-9 min-w-52 rounded-md border border-slate-300 px-3 text-sm outline-none transition-colors focus:border-slate-300 focus:outline-none"
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="ค้นหาชื่อรายงาน / module / path"
+            placeholder="ค้นหาชื่อรายงาน / หมวด / เส้นทาง"
             type="search"
             value={query}
           />
@@ -497,7 +481,7 @@ export function ReportsIndexPageClient() {
             <div className="text-xl font-bold text-slate-800 mt-0.5">{catalogSummary.count.toLocaleString('th-TH')}</div>
           </div>
           <div className="rounded-xl border border-slate-100 bg-slate-50/20 p-3 shadow-sm">
-            <div className="text-xs font-semibold text-slate-500">Accounting / Finance</div>
+            <div className="text-xs font-semibold text-slate-500">การเงิน / บัญชี</div>
             <div className="text-xl font-bold text-slate-800 mt-0.5">{catalogSummary.accounting.toLocaleString('th-TH')}</div>
           </div>
         </div>
@@ -515,21 +499,17 @@ export function ReportsIndexPageClient() {
           <div className="hidden overflow-x-auto bg-white lg:block">
             <table className="ns-table min-w-full divide-y divide-slate-200 text-sm text-slate-700" style={{ tableLayout: 'fixed', minWidth: catalogColumnResize.tableMinWidth }}>
               <colgroup>
-                {catalogColumns.map((column, index) => {
-                  const style = catalogColumnResize.getColumnStyle(column.key)
-                  if (index === catalogColumns.length - 1) {
-                    return <col key={column.key} style={{ minWidth: column.minWidth }} />
-                  }
-                  return <col key={column.key} style={style} />
-                })}
+                {catalogColumns.map((column) => (
+                  <col key={column.key} style={catalogColumnResize.getColumnStyle(column.key)} />
+                ))}
               </colgroup>
-              <thead className="bg-slate-100">
+              <thead className="bg-slate-100 [&>tr>th:nth-child(2)]:!text-right [&>tr>th:nth-child(2)>button]:!justify-end">
                 <tr>
                   <ResizableTableHead activeSortKey={catalogSortKey ?? undefined} direction={catalogSortDirection} label="รายงาน" resizeProps={catalogColumnResize.getResizeHandleProps('report', 'รายงาน')} sortKey="report" onSort={changeCatalogSort} />
                   <ResizableTableHead activeSortKey={catalogSortKey ?? undefined} direction={catalogSortDirection} label="หมวด" resizeProps={catalogColumnResize.getResizeHandleProps('owner', 'หมวด')} sortKey="owner" onSort={changeCatalogSort} />                  <ResizableTableHead align="right" label="เปิด" resizeProps={catalogColumnResize.getResizeHandleProps('action', 'เปิด')} />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 [&>tr>td:nth-child(2)]:text-right">
                 {sortedFiltered.map((report) => (
                   <tr className="hover:bg-slate-50/30 transition-colors" key={report.href}>
                     <td className="p-3">
@@ -537,7 +517,7 @@ export function ReportsIndexPageClient() {
                       <div className="font-mono text-xs text-slate-400 mt-0.5">{report.href}</div>
                     </td>
                     <td className="p-3 text-slate-600 font-medium">{report.owner}</td>                    <td className="p-3 text-right">
-                      <Link className="rounded-md bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white transition-colors outline-none focus:outline-none" href={report.href} prefetch={false}>
+                      <Link className="rounded-md bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-normal text-white transition-colors outline-none focus:outline-none" href={report.href} prefetch={false}>
                         เปิดรายงาน
                       </Link>
                     </td>
@@ -561,7 +541,7 @@ export function ReportsIndexPageClient() {
                   </div>
                 </div>                <div className="flex justify-between items-center text-xs">
                   <span className="font-semibold text-slate-500">หมวด: {report.owner}</span>
-                  <Link className="rounded-md bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white transition-colors outline-none focus:outline-none" href={report.href} prefetch={false}>
+                  <Link className="rounded-md bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-normal text-white transition-colors outline-none focus:outline-none" href={report.href} prefetch={false}>
                     เปิดรายงาน
                   </Link>
                 </div>

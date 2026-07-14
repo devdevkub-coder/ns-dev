@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server'
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { createProductionOrder, createProductionOrderSchema, ProductionOrderError } from '@/lib/server/production-orders'
+import { parseProductionOrdersQuery } from '@/lib/server/production-orders-query'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -15,8 +16,6 @@ const productionOutputCategories = [
   { availableForSale: true, code: 'RM', name: 'RM', stockEffect: 'stock_in' },
   { availableForSale: false, code: 'LOSS', name: 'LOSS', stockEffect: 'loss' },
 ]
-
-const allowedSorts = new Set(['date', 'docNo', 'status', 'qtyPlanned', 'inputCost', 'outputValue', 'variance'])
 
 const productionOrderInclude = {
   branches: true,
@@ -50,6 +49,7 @@ function mapProductionOrderRows(rows: ProductionOrderRecord[], warehouseById: Ma
     return {
       branchName: row.branches?.name ?? '-',
       closedAt: row.closed_at?.toISOString() ?? null,
+      createdAt: row.created_at?.toISOString() ?? null,
       date: toDateOnly(row.date),
       docNo: row.doc_no,
       id: row.doc_no,
@@ -114,7 +114,8 @@ type ProductionOrderPayloadRow = ReturnType<typeof mapProductionOrderRows>[numbe
 async function buildProductionOrdersWorkbook(rows: ProductionOrderPayloadRow[]) {
   const workbookRows = rows.map((row) => ({
     เลขที่: row.docNo,
-    วันที่: row.date,
+    วันที่ใบสั่งผลิต: row.date,
+    วันที่สร้างรายการ: row.createdAt,
     สาขา: row.branchName,
     สินค้าที่ผลิต: row.productName,
     รหัสสินค้า: row.productCode || row.productId,
@@ -164,17 +165,13 @@ export async function GET(request: Request) {
     requirePermission(context, 'production.orders.view')
 
     const url = new URL(request.url)
-    const page = Math.max(1, Number(url.searchParams.get('page') ?? 1) || 1)
-    const pageSize = Math.min(100, Math.max(10, Number(url.searchParams.get('pageSize') ?? 10) || 10))
-    const search = url.searchParams.get('search')?.trim() ?? ''
-    const status = url.searchParams.get('status')?.trim() ?? ''
-    const dateFrom = url.searchParams.get('dateFrom')?.trim() ?? ''
-    const dateTo = url.searchParams.get('dateTo')?.trim() ?? ''
-    const sort = allowedSorts.has(url.searchParams.get('sort') ?? '') ? url.searchParams.get('sort') as string : 'date'
-    const direction = url.searchParams.get('direction') === 'asc' ? 'asc' : 'desc'
+    const { branchCode, dateFrom, dateTo, direction, page, pageSize, search, sort, statuses } = parseProductionOrdersQuery(url.searchParams)
+    const allowedBranchCodes = getBranchCodeIntersection(context, branchCode)
+    const visibleBranchCodes = getBranchCodeIntersection(context)
 
     const where: Prisma.production_ordersWhereInput = {
-      ...(status ? { status } : {}),
+      ...(allowedBranchCodes ? { branches: { code: { in: allowedBranchCodes } } } : {}),
+      ...(statuses.length > 0 ? { status: { in: statuses } } : {}),
       ...(dateFrom || dateTo ? {
         date: {
           ...(dateFrom ? { gte: new Date(`${dateFrom}T00:00:00.000Z`) } : {}),
@@ -192,8 +189,8 @@ export async function GET(request: Request) {
 
     const isXlsx = url.searchParams.get('format') === 'xlsx'
     const take = isXlsx ? 10000 : pageSize
-    const [total, rows, warehouses] = await Promise.all([
-      prisma.production_orders.count({ where }),
+    const [total, rows, warehouses, branches] = await Promise.all([
+      isXlsx ? Promise.resolve(0) : prisma.production_orders.count({ where }),
       prisma.production_orders.findMany({
         include: productionOrderInclude,
         orderBy: orderBy(sort, direction),
@@ -203,6 +200,14 @@ export async function GET(request: Request) {
       }),
       prisma.warehouses.findMany({
         select: { code: true, id: true, name: true },
+      }),
+      isXlsx ? Promise.resolve([]) : prisma.branches.findMany({
+        orderBy: [{ code: 'asc' }],
+        select: { code: true, name: true },
+        where: {
+          active: true,
+          ...(visibleBranchCodes ? { code: { in: visibleBranchCodes } } : {}),
+        },
       }),
     ])
 
@@ -222,6 +227,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       categories: productionOutputCategories,
+      filters: {
+        branches,
+      },
       page,
       pageSize,
       rows: payloadRows,

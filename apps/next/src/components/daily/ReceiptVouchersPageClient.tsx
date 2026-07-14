@@ -770,13 +770,9 @@ export function ReceiptVouchersPageClient() {
         <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
           <Table className="[&_tbody_tr]:border-slate-100" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
-              {receiptVoucherColumns.map((column, index) => {
-                const style = columnResize.getColumnStyle(column.key);
-                if (index === receiptVoucherColumns.length - 1) {
-                  return <col key={column.key} style={{ minWidth: column.minWidth }} />;
-                }
-                return <col key={column.key} style={style} />;
-              })}
+              {receiptVoucherColumns.map((column) => (
+                <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+              ))}
             </colgroup>
             <TableHeader>
               <tr>

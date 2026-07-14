@@ -9,6 +9,7 @@ type SortDirection = 'asc' | 'desc'
 export function ResizableTableHead<TSortKey extends string>({
   activeSortKey,
   align = 'left',
+  className = '',
   direction,
   label,
   resizeProps,
@@ -17,6 +18,7 @@ export function ResizableTableHead<TSortKey extends string>({
 }: {
   activeSortKey?: TSortKey
   align?: Align
+  className?: string
   direction?: SortDirection
   label: ReactNode
   onSort?: (key: TSortKey) => void
@@ -25,36 +27,40 @@ export function ResizableTableHead<TSortKey extends string>({
 }) {
   const alignClass = align === 'right' ? 'justify-end text-right' : align === 'center' ? 'justify-center text-center' : 'justify-start text-left'
   const active = Boolean(sortKey && activeSortKey === sortKey)
+  const labelContent = <span className="min-w-0 whitespace-nowrap leading-snug">{label}</span>
+  const sortIndicator = sortKey ? (
+    <span className="shrink-0">
+      {active ? (
+        direction === 'asc' ? (
+          <ChevronUp className="size-3.5 text-slate-800" />
+        ) : (
+          <ChevronDown className="size-3.5 text-slate-800" />
+        )
+      ) : (
+        <ChevronsUpDown className="size-3.5 text-slate-400" />
+      )}
+    </span>
+  ) : null
   const content = (
     <>
-      <span className="min-w-0 whitespace-nowrap leading-snug">{label}</span>
-      {sortKey ? (
-        <span className="shrink-0">
-          {active ? (
-            direction === 'asc' ? (
-              <ChevronUp className="size-3.5 text-slate-800" />
-            ) : (
-              <ChevronDown className="size-3.5 text-slate-800" />
-            )
-          ) : (
-            <ChevronsUpDown className="size-3.5 text-slate-400" />
-          )}
-        </span>
-      ) : null}
+      {align === 'right' ? sortIndicator : null}
+      {labelContent}
+      {align !== 'right' ? sortIndicator : null}
     </>
   )
+  const contentPaddingClass = align === 'right' ? 'p-2 pr-3' : 'p-2 pr-4'
 
   return (
     <th
       data-resizable-table-head=""
-      className={`relative bg-inherit p-0 text-xs font-semibold text-slate-700 ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'}`}
+      className={`relative bg-inherit p-0 text-xs font-semibold text-slate-700 ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'} ${className}`}
     >
       {sortKey && onSort ? (
-        <button className={`flex w-full min-w-0 items-center gap-1 p-2 pr-4 hover:bg-slate-200 ${alignClass}`} type="button" onClick={() => onSort(sortKey)}>
+        <button className={`flex w-full min-w-0 items-center gap-1.5 hover:bg-slate-200 ${contentPaddingClass} ${alignClass}`} type="button" onClick={() => onSort(sortKey)}>
           {content}
         </button>
       ) : (
-        <div className={`flex min-w-0 items-center gap-1 p-2 pr-4 ${alignClass}`}>
+        <div className={`flex min-w-0 items-center gap-1.5 ${contentPaddingClass} ${alignClass}`}>
           {content}
         </div>
       )}

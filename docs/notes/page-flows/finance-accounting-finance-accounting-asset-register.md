@@ -99,3 +99,9 @@ Source tables:
 - [x] Add server validation and duplicate-code protection
 - [x] Keep destructive delete excluded
 - [ ] Add acquisition GL posting only after FA5 posting/period contract is approved
+
+## UI Checkpoint 2026-07-12
+
+- บนมือถือย้าย action `+ เพิ่มทรัพย์สิน` เข้า filter/action card เดียวกับ search และตัวกรอง แทน FAB วงกลมลอย
+- ปุ่ม filter, import, export, และยืนยันใน MobileFilterSheet ใช้น้ำหนักตัวอักษรปกติตาม baseline; desktop ยังใช้ filter สองแถวและ action row เดิม
+- เหตุผล: action ต้องอยู่ใกล้กับ data surface ที่ควบคุมและไม่ทับรายการ/แถบนำทางบนหน้าจอเล็ก

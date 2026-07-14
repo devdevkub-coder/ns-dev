@@ -1495,13 +1495,9 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
             <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
               <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: userColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
                 <colgroup>
-                  {userColumns.map((column, index) => {
-                    const style = userColumnResize.getColumnStyle(column.key)
-                    if (index === userColumns.length - 1) {
-                      return <col key={column.key} style={{ minWidth: column.minWidth }} />
-                    }
-                    return <col key={column.key} style={style} />
-                  })}
+                  {userColumns.map((column) => (
+                    <col key={column.key} style={userColumnResize.getColumnStyle(column.key)} />
+                  ))}
                 </colgroup>
                 <thead className="bg-slate-100">
                   <tr>
@@ -1640,13 +1636,9 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
             <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
               <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: roleColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
                 <colgroup>
-                  {roleColumns.map((column, index) => {
-                    const style = roleColumnResize.getColumnStyle(column.key)
-                    if (index === roleColumns.length - 1) {
-                      return <col key={column.key} style={{ minWidth: column.minWidth }} />
-                    }
-                    return <col key={column.key} style={style} />
-                  })}
+                  {roleColumns.map((column) => (
+                    <col key={column.key} style={roleColumnResize.getColumnStyle(column.key)} />
+                  ))}
                 </colgroup>
                 <thead className="bg-slate-100">
                   <tr>

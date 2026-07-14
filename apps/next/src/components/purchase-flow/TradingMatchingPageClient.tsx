@@ -114,7 +114,7 @@ export function TradingMatchingPageClient() {
     try {
       setData(await dailyFetchJson<TradingPayload>('/api/trading/matching'))
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'โหลด Trading Matching ไม่ได้')
+      setError(caught instanceof Error ? caught.message : 'โหลดหน้าจอจับคู่ดีลไม่สำเร็จ')
     } finally {
       setIsLoading(false)
     }
@@ -228,12 +228,14 @@ export function TradingMatchingPageClient() {
           <input autoComplete="off" className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-750 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" placeholder="ค้นหาบิลขาย / บิลซื้อ / คู่ค้า / สินค้า" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <DatePickerInput ariaLabel="วันที่เริ่มต้น" className="h-9 text-sm" value={fromDate} onChange={setFromDate} />
           <DatePickerInput ariaLabel="วันที่สิ้นสุด" className="h-9 text-sm" value={toDate} onChange={setToDate} />
-          {hasFilters ? <button className="h-9 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-655 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus:ring-0" type="button" onClick={resetFilters}>ล้าง</button> : null}
-          <button className="h-9 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-655 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus:ring-0" type="button" onClick={() => void loadData()}>รีเฟรช</button>
-          <a className="inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-0" href={exportHref}>ส่งออก Excel</a>
-          <div className="flex flex-wrap gap-2 lg:ml-auto">
+          {hasFilters ? <button className="h-9 rounded-md border border-slate-300 px-4 text-sm font-normal text-slate-655 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus:ring-0" type="button" onClick={resetFilters}>ล้าง</button> : null}
+          <button className="h-9 rounded-md border border-slate-300 px-4 text-sm font-normal text-slate-655 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus:ring-0" type="button" onClick={() => void loadData()}>รีเฟรช</button>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
+          <a className="inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-4 text-sm font-normal text-white shadow-xs transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-0" href={exportHref}>ส่งออก Excel</a>
+          <div className="flex flex-wrap gap-2">
             {allocationLinks.map((item) => (
-              <Link key={item.href} className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-xs transition-colors hover:bg-slate-50 focus:outline-none focus:ring-0" href={item.href}>
+              <Link key={item.href} className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 shadow-xs transition-colors hover:bg-slate-50 focus:outline-none focus:ring-0" href={item.href}>
                 {item.label}
               </Link>
             ))}
@@ -295,7 +297,7 @@ export function TradingMatchingPageClient() {
                   </div>
                 </button>
               ))}
-              {!isLoading && filteredDeals.length === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">ยังไม่มี allocation ตามเงื่อนไขที่ค้นหา</div> : null}
+              {!isLoading && filteredDeals.length === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">ยังไม่มีรายการจัดสรรตามเงื่อนไขที่ค้นหา</div> : null}
             </div>
 
             <div className="hidden overflow-x-auto lg:block">
@@ -330,7 +332,7 @@ export function TradingMatchingPageClient() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {isLoading ? <tr><td className="p-6 text-center text-slate-500 font-semibold" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
-                  {!isLoading && !error && filteredDeals.length === 0 ? <tr><td className="py-8 text-center text-slate-400 font-semibold" colSpan={12}>ยังไม่มี allocation ตามเงื่อนไขที่ค้นหา</td></tr> : null}
+                  {!isLoading && !error && filteredDeals.length === 0 ? <tr><td className="py-8 text-center text-slate-400 font-semibold" colSpan={12}>ยังไม่มีรายการจัดสรรตามเงื่อนไขที่ค้นหา</td></tr> : null}
                   {!isLoading && pagedFilteredDeals.map((row) => (
                     <tr key={row.id} className="hover:bg-slate-50/30 transition-colors">
                       <td className="p-2.5 font-mono font-semibold text-slate-800 overflow-hidden truncate">{row.salesBillNo || '-'}</td>
@@ -359,7 +361,7 @@ export function TradingMatchingPageClient() {
           <>
             <div className="block space-y-3 p-3 lg:hidden">
               {pagedRemainingPurchases.map((row) => <RemainingPurchaseCard key={row.id} row={row} />)}
-              {!isLoading && remainingPurchases.length === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">ไม่มีต้นทุน Trading คงเหลือ</div> : null}
+              {!isLoading && remainingPurchases.length === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">ไม่มีต้นทุนซื้อมาขายไปคงเหลือ</div> : null}
             </div>
 
             <div className="hidden lg:block">
@@ -418,7 +420,7 @@ function RemainingPurchaseTable({
   return (
     <div>
       <div className="flex items-center justify-between border-b border-slate-100 px-3 py-3">
-        <div className="font-bold text-emerald-755 text-sm">บิลซื้อ Trading / ต้นทุนที่ยังไม่ได้จับคู่</div>
+        <div className="font-bold text-emerald-755 text-sm">บิลซื้อซื้อมาขายไป / ต้นทุนที่ยังไม่ได้จับคู่</div>
         {columnResize.hasCustomWidths ? (
           <button className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>
             คืนค่าเดิมตาราง
@@ -453,7 +455,7 @@ function RemainingPurchaseTable({
                 <td className="p-2.5 text-right font-bold text-amber-700 overflow-hidden truncate">{formatMoney(row.remainingAmount)}</td>
               </tr>
             ))}
-            {rows.length === 0 ? <tr><td className="py-8 text-center text-slate-400 font-semibold" colSpan={6}>ไม่มีต้นทุน Trading คงเหลือ</td></tr> : null}
+            {rows.length === 0 ? <tr><td className="py-8 text-center text-slate-400 font-semibold" colSpan={6}>ไม่มีต้นทุนซื้อมาขายไปคงเหลือ</td></tr> : null}
           </tbody>
         </table>
       </div>
@@ -474,7 +476,7 @@ function DealDetailModal({ deal, onClose }: { deal: TradingDealRow; onClose: () 
             <div className="min-w-0">
               <DialogTitle className="text-white text-base font-bold">Sales Bill {deal.salesBillNo || '-'}</DialogTitle>
               <DialogDescription className="text-slate-300 text-xs mt-1">
-                Cost source {deal.purchaseBillNo || '-'} · {deal.productName}
+                แหล่งต้นทุน {deal.purchaseBillNo || '-'} · {deal.productName}
               </DialogDescription>
             </div>
             <Button className="h-9 shrink-0 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={onClose}>ปิด</Button>
@@ -484,7 +486,7 @@ function DealDetailModal({ deal, onClose }: { deal: TradingDealRow; onClose: () 
         <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4 text-sm sm:p-5">
           <div className="grid gap-3 rounded-xl border border-slate-100 bg-white p-5 shadow md:grid-cols-3">
             <Detail label="วันที่" value={deal.date || '-'} />
-            <Detail label="Qty" value={formatMoney(deal.matchedQty)} />
+            <Detail label="จำนวน" value={formatMoney(deal.matchedQty)} />
             <Detail label="GP %" value={`${formatMoney(deal.grossProfitPct)}%`} />
             <div className="md:col-span-3">
               <Detail label="บิลซื้อ / ผู้ขาย" value={`${deal.purchaseBillNo || '-'} · ${deal.supplierName}`} />

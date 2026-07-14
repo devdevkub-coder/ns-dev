@@ -87,6 +87,12 @@ finance/accounting read model: Loan / Leasing / BSL
 - No transaction, stock ledger, bank statement, AP/AR settlement, or source document status side effect is expected from this page.
 - Future changes should reconcile formula/source/cutoff details here before changing runtime behavior.
 
+## UI / Design Checkpoint (2026-07-12)
+
+- Desktop list filter follows the shared two-row card: search/type/reset on top and real contract-status segmentation below.
+- Contract status remains the API's internal value for filtering; the UI renders Thai labels (`ใช้งาน`, `ปิดสัญญา`, `เกินกำหนด`) so the page stays Thai-first without changing reporting logic or source data.
+- The contract-number column is the single leading left-aligned business column. Every later data, status, and action column is end-aligned to match the shared `/stock/convert` table baseline.
+
 ## Current Gap
 
 P2 proof completed against current Next page/API code. Remaining work is formula/source/cutoff refinement only when the target report definition changes or a page-specific discrepancy is found.

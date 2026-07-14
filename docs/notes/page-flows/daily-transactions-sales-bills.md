@@ -183,3 +183,7 @@ SB ตั้งลูกหนี้, consume WTO `pending_out`, ตัด stock
 - `GET /api/sales/bills/{docNo}` detail is now strict no-fallback: if `sales_bill_lines` durable facts are missing, the API returns `409 CONFLICT` and the UI must surface that as a data-contract/data-repair problem instead of trying to rebuild rows from `sales_bills.items` JSON.
 - WTO list/detail read-model optimization also removed the last sales-side JSON usage scan. WTO downstream bill counts and source usage now read `sales_bill_source_allocations` plus `weight_ticket_usage_logs`, not `sales_bills.items`.
 - [ ] Update this file and canonical reference if contract changes
+
+## 2026-07-12 Table consistency checkpoint
+
+`/sales/bills` now right-aligns the `รายการ`, `ยอดรวม`, `GP / Margin`, `รับแล้ว`, `ค้างชำระ`, and `จัดการ` headers with their numeric/action body content. What is what: these remain existing Sales Bill list facts and actions. Why it stays this way: the table must read consistently from header to row without changing Sales Bill formulas, source allocation, receipt/refund flows, API behavior, permissions, database schema, or DB state.

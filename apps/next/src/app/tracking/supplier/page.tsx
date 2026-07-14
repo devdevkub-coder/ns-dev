@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { SupplierTrackingPageClient } from '@/components/purchase-flow/SupplierTrackingPageClient'
 
 export const metadata: Metadata = {
-  title: 'Supplier Tracking | NS Scrap ERP',
+  title: 'ติดตามผู้ขาย | NS Scrap ERP',
 }
 
 export default function SupplierTrackingPage() {

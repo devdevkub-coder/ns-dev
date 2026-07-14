@@ -21,33 +21,33 @@ type PoOutstandingBuyColumnKey = 'costAllocation' | 'docNo' | 'date' | 'partnerN
 
 const buyColumns: Array<ResizableColumnDefinition<PoOutstandingBuyColumnKey>> = [
   { key: 'costAllocation', defaultWidth: 70, minWidth: 60 },
-  { key: 'docNo', defaultWidth: 120, minWidth: 100 },
-  { key: 'date', defaultWidth: 90, minWidth: 80 },
-  { key: 'partnerName', defaultWidth: 160, minWidth: 120 },
-  { key: 'productName', defaultWidth: 160, minWidth: 120 },
-  { key: 'qty', defaultWidth: 100, minWidth: 80 },
-  { key: 'unitPrice', defaultWidth: 100, minWidth: 80 },
-  { key: 'receivedQty', defaultWidth: 100, minWidth: 80 },
-  { key: 'remainingQty', defaultWidth: 100, minWidth: 80 },
-  { key: 'remainingValue', defaultWidth: 110, minWidth: 90 },
-  { key: 'expectedDelivery', defaultWidth: 100, minWidth: 80 },
-  { key: 'status', defaultWidth: 80, minWidth: 70 },
+  { key: 'docNo', defaultWidth: 140, minWidth: 115 },
+  { key: 'date', defaultWidth: 110, minWidth: 95 },
+  { key: 'partnerName', defaultWidth: 190, minWidth: 150 },
+  { key: 'productName', defaultWidth: 200, minWidth: 160 },
+  { key: 'qty', defaultWidth: 120, minWidth: 100 },
+  { key: 'unitPrice', defaultWidth: 120, minWidth: 100 },
+  { key: 'receivedQty', defaultWidth: 125, minWidth: 105 },
+  { key: 'remainingQty', defaultWidth: 125, minWidth: 105 },
+  { key: 'remainingValue', defaultWidth: 145, minWidth: 125 },
+  { key: 'expectedDelivery', defaultWidth: 130, minWidth: 110 },
+  { key: 'status', defaultWidth: 100, minWidth: 90 },
 ]
 
 type PoOutstandingSellColumnKey = 'docNo' | 'date' | 'partnerName' | 'productName' | 'qty' | 'unitPrice' | 'soldQty' | 'remainingQty' | 'remainingValue' | 'expectedDelivery' | 'status'
 
 const sellColumns: Array<ResizableColumnDefinition<PoOutstandingSellColumnKey>> = [
-  { key: 'docNo', defaultWidth: 120, minWidth: 100 },
-  { key: 'date', defaultWidth: 90, minWidth: 80 },
-  { key: 'partnerName', defaultWidth: 160, minWidth: 120 },
-  { key: 'productName', defaultWidth: 160, minWidth: 120 },
-  { key: 'qty', defaultWidth: 100, minWidth: 80 },
-  { key: 'unitPrice', defaultWidth: 100, minWidth: 80 },
-  { key: 'soldQty', defaultWidth: 100, minWidth: 80 },
-  { key: 'remainingQty', defaultWidth: 100, minWidth: 80 },
-  { key: 'remainingValue', defaultWidth: 110, minWidth: 90 },
-  { key: 'expectedDelivery', defaultWidth: 100, minWidth: 80 },
-  { key: 'status', defaultWidth: 80, minWidth: 70 },
+  { key: 'docNo', defaultWidth: 140, minWidth: 115 },
+  { key: 'date', defaultWidth: 110, minWidth: 95 },
+  { key: 'partnerName', defaultWidth: 190, minWidth: 150 },
+  { key: 'productName', defaultWidth: 200, minWidth: 160 },
+  { key: 'qty', defaultWidth: 120, minWidth: 100 },
+  { key: 'unitPrice', defaultWidth: 120, minWidth: 100 },
+  { key: 'soldQty', defaultWidth: 125, minWidth: 105 },
+  { key: 'remainingQty', defaultWidth: 125, minWidth: 105 },
+  { key: 'remainingValue', defaultWidth: 145, minWidth: 125 },
+  { key: 'expectedDelivery', defaultWidth: 130, minWidth: 110 },
+  { key: 'status', defaultWidth: 100, minWidth: 90 },
 ]
 
 export function PoOutstandingPageClient() {
@@ -67,8 +67,8 @@ export function PoOutstandingPageClient() {
     setPage(1)
   }, [partnerFilter, productFilter, search, tab])
 
-  const buyResize = useResizableColumns('po-reports.outstanding.buy.v5', buyColumns)
-  const sellResize = useResizableColumns('po-reports.outstanding.sell.v5', sellColumns)
+  const buyResize = useResizableColumns('po-reports.outstanding.buy.v6', buyColumns)
+  const sellResize = useResizableColumns('po-reports.outstanding.sell.v6', sellColumns)
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -166,21 +166,18 @@ export function PoOutstandingPageClient() {
     }))
   }, [productOptions])
 
-  function exportCsv() {
+  async function exportExcel() {
     const header = tab === 'buy'
       ? ['เลขที่', 'วันที่', 'Supplier', 'สินค้า', 'จำนวน', 'ราคา', 'รับแล้ว', 'รอรับ', 'มูลค่ารอรับ', 'สถานะ']
       : ['เลขที่', 'วันที่', 'Customer', 'สินค้า', 'จำนวน', 'ราคาขาย', 'ขายแล้ว', 'รอส่ง', 'มูลค่ารอส่ง', 'สถานะ']
     const body = rows.map((row) => tab === 'buy'
       ? [row.docNo, row.date, row.partnerName, row.productName, row.qty, row.unitPrice, row.receivedQty ?? row.qty - row.remainingQty, row.remainingQty, row.remainingValue, row.status]
       : [row.docNo, row.date, row.partnerName, row.productName, row.qty, row.unitPrice, row.soldQty ?? row.qty - row.remainingQty, row.remainingQty, row.remainingValue, row.status])
-    const csv = [header, ...body].map((line) => line.map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
-    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `po_${tab}_outstanding_${new Date().toISOString().slice(0, 10)}.csv`
-    link.click()
-    URL.revokeObjectURL(url)
+    const { default: writeXlsxFile } = await import('write-excel-file/browser')
+    await writeXlsxFile([
+      header.map((value) => ({ fontWeight: 'bold' as const, value: value === 'Supplier' ? 'ผู้ขาย' : value === 'Customer' ? 'ลูกค้า' : value })),
+      ...body,
+    ], { sheet: 'PO คงเหลือ' }).toFile(`po_${tab}_outstanding_${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
   return (
@@ -225,9 +222,9 @@ export function PoOutstandingPageClient() {
           )}
 
           <button
-            className="hidden h-9 items-center gap-1.5 rounded-md border border-emerald-500/20 bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 outline-none focus:ring-0 lg:inline-flex"
+            className="hidden h-9 items-center gap-1.5 rounded-md border border-emerald-500/20 bg-emerald-600 px-4 py-2 text-sm font-normal text-white transition-colors hover:bg-emerald-700 outline-none focus:ring-0 lg:inline-flex"
             type="button"
-            onClick={exportCsv}
+            onClick={exportExcel}
           >
             <Download className="h-4 w-4" /> ส่งออก Excel
           </button>
@@ -250,7 +247,7 @@ export function PoOutstandingPageClient() {
         <div className="min-w-[180px]">
           <SearchCombobox
             inputId="outstanding-partner-filter"
-            label={tab === 'buy' ? 'Supplier' : 'Customer'}
+            label={tab === 'buy' ? 'ผู้ขาย' : 'ลูกค้า'}
             hideLabel
             placeholder={tab === 'buy' ? 'ทุก Supplier' : 'ทุก Customer'}
             options={partnerSearchOptions}
@@ -313,12 +310,11 @@ export function PoOutstandingPageClient() {
           </div>
           <table className="ns-table w-full text-xs" style={{ minWidth: buyResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
-              {buyColumns.map((column) => {
-                const style = buyResize.getColumnStyle(column.key)
-                return <col key={column.key} style={style} />
-              })}
+              {buyColumns.map((column) => (
+                <col key={column.key} style={buyResize.getColumnStyle(column.key)} />
+              ))}
             </colgroup>
-            <thead className="bg-slate-50 border-b border-slate-100 text-slate-600">
+            <thead className="bg-slate-50 border-b border-slate-100 text-slate-600 [&>tr>th:nth-child(n+3)]:!text-right [&>tr>th:nth-child(n+3)>button]:!justify-end">
               <tr>
                 <ResizableTableHead
                   activeSortKey={sortKey}
@@ -351,8 +347,8 @@ export function PoOutstandingPageClient() {
                   activeSortKey={sortKey}
                   align="left"
                   direction={sortDirection}
-                  label="Supplier"
-                  resizeProps={buyResize.getResizeHandleProps('partnerName', 'Supplier')}
+                  label="ผู้ขาย"
+                  resizeProps={buyResize.getResizeHandleProps('partnerName', 'ผู้ขาย')}
                   sortKey="partnerName"
                   onSort={handleSort}
                 />
@@ -430,7 +426,7 @@ export function PoOutstandingPageClient() {
                 />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 [&>tr>td:nth-child(n+3)]:text-right">
               {isLoading ? (
                 <tr>
                   <td className="p-6 text-center text-slate-500" colSpan={12}>
@@ -441,20 +437,20 @@ export function PoOutstandingPageClient() {
               {!isLoading &&
                 pagedRows.map((row) => (
                   <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="p-2 text-center">
+                    <td className="p-3 text-center">
                       <input className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 outline-none" disabled type="checkbox" title="รอออกแบบ cost-pool write/audit" />
                     </td>
-                    <td className="p-2 font-mono text-xs text-slate-600 truncate">{row.docNo}</td>
-                    <td className="p-2 text-slate-800">{formatDateDisplay(row.date)}</td>
-                    <td className="p-2 text-slate-800 truncate">{row.partnerName}</td>
-                    <td className="p-2 text-slate-800 truncate">{row.productName || '-'}</td>
-                    <td className="p-2 text-right text-slate-800 tabular-nums">{formatMoney(row.qty)}</td>
-                    <td className="p-2 text-right text-slate-800 tabular-nums">{formatMoney(row.unitPrice)}</td>
-                    <td className="p-2 text-right text-emerald-700 tabular-nums">{formatMoney(row.receivedQty ?? row.qty - row.remainingQty)}</td>
-                    <td className="p-2 text-right font-bold text-amber-700 tabular-nums">{formatMoney(row.remainingQty)}</td>
-                    <td className="p-2 text-right font-bold text-blue-700 tabular-nums">{formatMoney(row.remainingValue)}</td>
-                    <td className="p-2 text-slate-800">{formatDateDisplay(row.expectedDelivery)}</td>
-                    <td className="p-2 text-center text-xs font-semibold text-slate-600">{row.status}</td>
+                    <td className="p-3 font-mono text-xs text-slate-600 truncate">{row.docNo}</td>
+                    <td className="p-3 text-slate-800">{formatDateDisplay(row.date)}</td>
+                    <td className="p-3 text-slate-800 truncate">{row.partnerName}</td>
+                    <td className="p-3 text-slate-800 truncate">{row.productName || '-'}</td>
+                    <td className="p-3 text-right text-slate-800 tabular-nums">{formatMoney(row.qty)}</td>
+                    <td className="p-3 text-right text-slate-800 tabular-nums">{formatMoney(row.unitPrice)}</td>
+                    <td className="p-3 text-right text-emerald-700 tabular-nums">{formatMoney(row.receivedQty ?? row.qty - row.remainingQty)}</td>
+                    <td className="p-3 text-right font-bold text-amber-700 tabular-nums">{formatMoney(row.remainingQty)}</td>
+                    <td className="p-3 text-right font-bold text-blue-700 tabular-nums">{formatMoney(row.remainingValue)}</td>
+                    <td className="p-3 text-slate-800">{formatDateDisplay(row.expectedDelivery)}</td>
+                    <td className="p-3 text-center text-xs font-semibold text-slate-600">{row.status}</td>
                   </tr>
                 ))}
               {!isLoading && sortedRows.length === 0 ? (
@@ -469,11 +465,11 @@ export function PoOutstandingPageClient() {
               <tfoot className="bg-slate-50 border-t border-slate-100 font-bold text-slate-800">
                 <tr>
                   <td />
-                  <td className="p-2 text-right" colSpan={7}>
+                  <td className="p-3 text-right" colSpan={7}>
                     รวม {sortedRows.length} รายการ
                   </td>
-                  <td className="p-2 text-right text-amber-700 tabular-nums">{formatMoney(totals.remainingQty)}</td>
-                  <td className="p-2 text-right text-blue-700 tabular-nums">{formatMoney(totals.remainingValue)}</td>
+                  <td className="p-3 text-right text-amber-700 tabular-nums">{formatMoney(totals.remainingQty)}</td>
+                  <td className="p-3 text-right text-blue-700 tabular-nums">{formatMoney(totals.remainingValue)}</td>
                   <td colSpan={2} />
                 </tr>
               </tfoot>
@@ -484,12 +480,11 @@ export function PoOutstandingPageClient() {
         <div className="hidden overflow-x-auto lg:block">
           <table className="ns-table w-full text-xs" style={{ minWidth: sellResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
-              {sellColumns.map((column) => {
-                const style = sellResize.getColumnStyle(column.key)
-                return <col key={column.key} style={style} />
-              })}
+              {sellColumns.map((column) => (
+                <col key={column.key} style={sellResize.getColumnStyle(column.key)} />
+              ))}
             </colgroup>
-            <thead className="bg-slate-50 border-b border-slate-100 text-slate-600">
+            <thead className="bg-slate-50 border-b border-slate-100 text-slate-600 [&>tr>th:nth-child(n+2)]:!text-right [&>tr>th:nth-child(n+2)>button]:!justify-end">
               <tr>
                 <ResizableTableHead
                   activeSortKey={sortKey}
@@ -513,8 +508,8 @@ export function PoOutstandingPageClient() {
                   activeSortKey={sortKey}
                   align="left"
                   direction={sortDirection}
-                  label="Customer"
-                  resizeProps={sellResize.getResizeHandleProps('partnerName', 'Customer')}
+                  label="ลูกค้า"
+                  resizeProps={sellResize.getResizeHandleProps('partnerName', 'ลูกค้า')}
                   sortKey="partnerName"
                   onSort={handleSort}
                 />
@@ -592,7 +587,7 @@ export function PoOutstandingPageClient() {
                 />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 [&>tr>td:nth-child(n+2)]:text-right">
               {isLoading ? (
                 <tr>
                   <td className="p-6 text-center text-slate-500" colSpan={11}>
@@ -603,17 +598,17 @@ export function PoOutstandingPageClient() {
               {!isLoading &&
                 pagedRows.map((row) => (
                   <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="p-2 font-mono text-xs text-slate-600 truncate">{row.docNo}</td>
-                    <td className="p-2 text-slate-800">{formatDateDisplay(row.date)}</td>
-                    <td className="p-2 text-slate-800 truncate">{row.partnerName}</td>
-                    <td className="p-2 text-slate-800 truncate">{row.productName || '-'}</td>
-                    <td className="p-2 text-right text-slate-800 tabular-nums">{formatMoney(row.qty)}</td>
-                    <td className="p-2 text-right text-slate-800 tabular-nums">{formatMoney(row.unitPrice)}</td>
-                    <td className="p-2 text-right text-blue-700 tabular-nums">{formatMoney(row.soldQty ?? row.qty - row.remainingQty)}</td>
-                    <td className="p-2 text-right font-bold text-amber-700 tabular-nums">{formatMoney(row.remainingQty)}</td>
-                    <td className="p-2 text-right font-bold text-emerald-700 tabular-nums">{formatMoney(row.remainingValue)}</td>
-                    <td className="p-2 text-slate-800">{formatDateDisplay(row.expectedDelivery)}</td>
-                    <td className="p-2 text-center text-xs font-semibold text-slate-600">{row.status}</td>
+                    <td className="p-3 font-mono text-xs text-slate-600 truncate">{row.docNo}</td>
+                    <td className="p-3 text-slate-800">{formatDateDisplay(row.date)}</td>
+                    <td className="p-3 text-slate-800 truncate">{row.partnerName}</td>
+                    <td className="p-3 text-slate-800 truncate">{row.productName || '-'}</td>
+                    <td className="p-3 text-right text-slate-800 tabular-nums">{formatMoney(row.qty)}</td>
+                    <td className="p-3 text-right text-slate-800 tabular-nums">{formatMoney(row.unitPrice)}</td>
+                    <td className="p-3 text-right text-blue-700 tabular-nums">{formatMoney(row.soldQty ?? row.qty - row.remainingQty)}</td>
+                    <td className="p-3 text-right font-bold text-amber-700 tabular-nums">{formatMoney(row.remainingQty)}</td>
+                    <td className="p-3 text-right font-bold text-emerald-700 tabular-nums">{formatMoney(row.remainingValue)}</td>
+                    <td className="p-3 text-slate-800">{formatDateDisplay(row.expectedDelivery)}</td>
+                    <td className="p-3 text-center text-xs font-semibold text-slate-600">{row.status}</td>
                   </tr>
                 ))}
               {!isLoading && sortedRows.length === 0 ? (
@@ -627,11 +622,11 @@ export function PoOutstandingPageClient() {
             {sortedRows.length ? (
               <tfoot className="bg-slate-50 border-t border-slate-100 font-bold text-slate-800">
                 <tr>
-                  <td className="p-2 text-right" colSpan={7}>
+                  <td className="p-3 text-right" colSpan={7}>
                     รวม {sortedRows.length} รายการ
                   </td>
-                  <td className="p-2 text-right text-amber-700 tabular-nums">{formatMoney(totals.remainingQty)}</td>
-                  <td className="p-2 text-right text-emerald-700 tabular-nums">{formatMoney(totals.remainingValue)}</td>
+                  <td className="p-3 text-right text-amber-700 tabular-nums">{formatMoney(totals.remainingQty)}</td>
+                  <td className="p-3 text-right text-emerald-700 tabular-nums">{formatMoney(totals.remainingValue)}</td>
                   <td colSpan={2} />
                 </tr>
               </tfoot>
@@ -655,7 +650,7 @@ export function PoOutstandingPageClient() {
 
             <div className="text-xs text-slate-600 space-y-1">
               <div>
-                <span className="font-semibold text-slate-500">{tab === 'buy' ? 'Supplier' : 'Customer'}: </span>
+                <span className="font-semibold text-slate-500">{tab === 'buy' ? 'ผู้ขาย' : 'ลูกค้า'}: </span>
                 <span className="text-slate-800 font-medium">{row.partnerName}</span>
               </div>
               <div>

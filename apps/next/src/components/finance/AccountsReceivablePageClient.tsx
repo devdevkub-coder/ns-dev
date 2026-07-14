@@ -373,7 +373,7 @@ export function AccountsReceivablePageClient() {
         {/* Desktop View */}
         <div className="hidden lg:block space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <input autoComplete="off" className="min-w-[200px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" placeholder="ค้นหาเลขบิล / ลูกค้า / ช่องทาง / สาขา" type="search" value={q} onChange={(event) => { setPage(1); setQ(event.target.value) }} />
+            <input autoComplete="off" className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" placeholder="ค้นหาเลขบิล / ลูกค้า / ช่องทาง / สาขา" type="search" value={q} onChange={(event) => { setPage(1); setQ(event.target.value) }} />
             
             <div className="min-w-[260px]">
               <SearchCombobox
@@ -413,10 +413,22 @@ export function AccountsReceivablePageClient() {
               {(data?.filters.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
             </select>
             
-            <select className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={status} onChange={(event) => { setPage(1); setStatus(event.target.value) }}>
-              <option value="">ทุกสถานะ</option>
-              {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500">สถานะ:</span>
+              {['', ...(data?.filters.statuses ?? [])].map((item) => {
+                const active = status === item
+                return (
+                  <button
+                    className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+                    key={item || 'all-statuses'}
+                    onClick={() => { setPage(1); setStatus(item) }}
+                    type="button"
+                  >
+                    {item || 'ทุกสถานะ'}
+                  </button>
+                )
+              })}
+            </div>
             
             <span className="text-xs text-slate-500">วันที่บิล:</span>
             <DatePickerInput className="w-[130px]" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
@@ -424,11 +436,11 @@ export function AccountsReceivablePageClient() {
             <DatePickerInput className="w-[130px]" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
             
             {hasFilters && (
-              <button className="rounded-md bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors" type="button" onClick={() => { setBranchId(''); setBucket(''); setChannelId(''); setCustomerId(''); setFrom(''); setPage(1); setQ(''); setStatus(''); setTo('') }}>✕ ล้าง</button>
+              <button className="rounded-md bg-slate-100 px-3 py-2 text-xs font-normal text-slate-700 hover:bg-slate-200 transition-colors" type="button" onClick={() => { setBranchId(''); setBucket(''); setChannelId(''); setCustomerId(''); setFrom(''); setPage(1); setQ(''); setStatus(''); setTo('') }}>✕ ล้าง</button>
             )}
             
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <button className="flex h-9 items-center rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting} type="button" onClick={() => void exportXlsx()}>{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</button>
+              <button className="flex h-9 items-center rounded-md bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting} type="button" onClick={() => void exportXlsx()}>{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</button>
               <span className="text-xs text-slate-500">พบ {data?.pagination.totalRows ?? 0} รายการ</span>
             </div>
           </div>

@@ -270,7 +270,7 @@ export function WorkingCapitalPageClient() {
         <div className="bg-white p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-4">
           <div className="min-w-0 flex-1">
             <div className={`text-xs font-semibold ${(s?.ccc ?? 0) < 60 ? 'text-emerald-600' : (s?.ccc ?? 0) < 90 ? 'text-amber-600' : 'text-red-600'} truncate`}>
-              {(s?.ccc ?? 0) < 60 ? 'Cash Conversion Cycle (ดี)' : (s?.ccc ?? 0) < 90 ? 'Cash Conversion Cycle (พอใช้)' : 'Cash Conversion Cycle (เสี่ยง)'}
+              {(s?.ccc ?? 0) < 60 ? 'วงจรเงินสด (ดี)' : (s?.ccc ?? 0) < 90 ? 'วงจรเงินสด (พอใช้)' : 'วงจรเงินสด (เสี่ยง)'}
             </div>
             <div className="mt-0.5 text-2xl font-extrabold text-slate-900 tracking-tight">{(s?.ccc ?? 0).toFixed(1)} <span className="text-xs font-medium text-slate-500">วัน</span></div>
             <div className="mt-3 text-xs text-slate-400 pt-2 border-t border-slate-100">
@@ -301,10 +301,10 @@ export function WorkingCapitalPageClient() {
         <Kpi label="อัตราส่วนสภาพคล่องเร็ว" value={(s?.quickRatio ?? 0).toFixed(2)} tone={(s?.quickRatio ?? 0) >= 0.5 ? 'emerald' : 'red'} />
       </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <Insight tone="amber" title=" เงินจมใน Stock กี่วัน" value={`${(s?.invDays ?? 0).toFixed(0)} วัน`} body={`Stock มูลค่า ${money(s?.inv)} ÷ COGS เฉลี่ย/วัน ${money((s?.cogs ?? 0) / periodDays)}`} />
-        <Insight tone="blue" title=" ลูกหนี้เก็บเงินกี่วัน" value={`${(s?.arDays ?? 0).toFixed(0)} วัน`} body={`AR ${money(s?.ar)} ÷ Sales เฉลี่ย/วัน ${money((s?.revenue ?? 0) / periodDays)}`} />
-        <Insight tone="emerald" title=" เจ้าหนี้จ่ายเงินกี่วัน" value={`${(s?.apDays ?? 0).toFixed(0)} วัน`} body={`AP ${money(s?.ap)} ÷ Purchases เฉลี่ย/วัน ${money((s?.purchases ?? 0) / periodDays)}`} />
-        <Insight tone="purple" title=" ซื้อของแล้วขายออกเร็วไหม?" value={`${(s?.annualizedTurnover ?? 0).toFixed(1)}x/ปี`} body="Stock Turnover (Annualized): COGS/Avg Inventory" />
+        <Insight tone="amber" title="เงินจมในสต็อกกี่วัน" value={`${(s?.invDays ?? 0).toFixed(0)} วัน`} body={`มูลค่าสต็อก ${money(s?.inv)} ÷ COGS เฉลี่ย/วัน ${money((s?.cogs ?? 0) / periodDays)}`} />
+        <Insight tone="blue" title="ลูกหนี้เก็บเงินกี่วัน" value={`${(s?.arDays ?? 0).toFixed(0)} วัน`} body={`AR ${money(s?.ar)} ÷ ยอดขายเฉลี่ย/วัน ${money((s?.revenue ?? 0) / periodDays)}`} />
+        <Insight tone="emerald" title="เจ้าหนี้จ่ายเงินกี่วัน" value={`${(s?.apDays ?? 0).toFixed(0)} วัน`} body={`AP ${money(s?.ap)} ÷ ยอดซื้อเฉลี่ย/วัน ${money((s?.purchases ?? 0) / periodDays)}`} />
+        <Insight tone="purple" title="ซื้อของแล้วขายออกเร็วไหม?" value={`${(s?.annualizedTurnover ?? 0).toFixed(1)}x/ปี`} body="อัตราหมุนเวียนสต็อก (ต่อปี): COGS / มูลค่าสต็อกเฉลี่ย" />
       </div>
       <DetailTable isLoading={isLoading} rows={data?.calculationRows ?? []} />
     </section>
@@ -409,7 +409,7 @@ export function StockFinancePageClient() {
       <Tabs className="gap-3" value={stockTableTab} onValueChange={(value) => setStockTableTab(value as StockTableTab)}>
         <TabsList className="w-full overflow-x-auto" variant="line">
           <TabsTrigger value="products" variant="line">
-            Stock ทั้งหมด <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{data?.products.length ?? 0}</span>
+            สต็อกทั้งหมด <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{data?.products.length ?? 0}</span>
           </TabsTrigger>
           <TabsTrigger value="slowMoving" variant="line">
             สินค้าหมุนช้า / ควรเร่งระบาย <span className="ml-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">{data?.slowMoving.length ?? 0}</span>
@@ -553,9 +553,9 @@ export function ProfitLeakPageClient() {
         <Kpi label="ขาดทุนสต็อก" value={money(data?.summary.stockLoss)} tone="red" />
         <Kpi label="ขาดทุนผลิต" value={money(data?.summary.productionLoss)} tone="rose" />
         <Kpi label="ขาดทุน FX" value={money(data?.summary.fxLoss)} tone="cyan" />
-        <Kpi label=" Bank Fee" value={money(data?.summary.bankFee)} tone="slate" />
+        <Kpi label="ค่าธรรมเนียมธนาคาร" value={money(data?.summary.bankFee)} tone="slate" />
         <Kpi label=" ลูกค้ากำไรต่ำ" value={String(data?.lowCustomers.length ?? 0)} tone="yellow" />
-        <Kpi label=" Supplier ราคาแพง" value={String(data?.highSuppliers.length ?? 0)} tone="emerald" />
+        <Kpi label="ผู้ขายราคาสูง" value={String(data?.highSuppliers.length ?? 0)} tone="emerald" />
       </div>
       <NegativeMarginTable rows={data?.negMarginItems ?? []} total={data?.summary.negTotal ?? 0} />
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3"><LowMarginTable rows={data?.lowMarginBills ?? []} targetMargin={targetMargin} /><LowCustomerTable rows={data?.lowCustomers ?? []} /><HighSupplierTable rows={data?.highSuppliers ?? []} /></div>
@@ -1097,8 +1097,8 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
             <tr>
               <ResizableTableHead label="รหัส" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="code" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} />
-              <ResizableTableHead label="ชื่อ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="name" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อ')} />
-              <ResizableTableHead label="หมวด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="metalGroup" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('metalGroup', 'หมวด')} />
+              <ResizableTableHead align="right" label="ชื่อ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="name" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อ')} />
+              <ResizableTableHead align="right" label="หมวด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="metalGroup" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('metalGroup', 'หมวด')} />
               <ResizableTableHead align="right" label="จำนวน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="qty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'จำนวน')} />
               <ResizableTableHead align="right" label="WAC" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="wac" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('wac', 'WAC')} />
               <ResizableTableHead align="right" label="มูลค่า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="value" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('value', 'มูลค่า')} />
@@ -1112,8 +1112,8 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
             {pagedRows.map((row) => (
               <tr className="border-t border-slate-100 transition hover:bg-slate-50/50" key={row.id}>
                 <Td mono className="font-bold text-slate-700">{row.code}</Td>
-                <Td className="whitespace-normal font-semibold text-slate-900">{row.name}</Td>
-                <Td>{row.metalGroup}</Td>
+                <Td align="right" className="whitespace-normal font-semibold text-slate-900">{row.name}</Td>
+                <Td align="right">{row.metalGroup}</Td>
                 <Td align="right">{money(row.qty)}</Td>
                 <Td align="right">{money(row.wac)}</Td>
                 <Td align="right" className="font-bold text-slate-900">{money(row.value)}</Td>
@@ -1233,21 +1233,22 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="text-sm font-bold text-slate-800">Stock ทั้งหมด</div>
+          <div className="text-sm font-bold text-slate-800">สต็อกทั้งหมด</div>
           <div className="mt-0.5 text-xs font-medium text-slate-500">เริ่มต้นเรียงตามมูลค่าสูงสุด</div>
         </div>
       </div>
-      <div className="hidden flex-wrap items-center gap-2 border-b border-slate-100 bg-white p-3 lg:flex">
-        <DateInput label="ณ วันที่" value={asOf} onChange={onAsOfChange} />
-        <BranchSelect branches={branches} value={branchId} onChange={onBranchIdChange} />
+      <div className="hidden border-b border-slate-100 bg-white p-4 lg:block">
+        <div className="flex flex-wrap items-center gap-2">
         <input
-          aria-label="ค้นหา Stock"
+          aria-label="ค้นหาสต็อก"
           className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-500"
           placeholder="ค้นหารหัส / ชื่อ / หมวด"
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
+          <DateInput label="ณ วันที่" value={asOf} onChange={onAsOfChange} />
+          <BranchSelect branches={branches} value={branchId} onChange={onBranchIdChange} />
         <select
           aria-label="หมวดสินค้า"
           className="h-9 w-[150px] rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-500"
@@ -1257,20 +1258,8 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
           <option value="all">ทุกหมวด</option>
           {groups.map((group) => <option key={group} value={group}>{group}</option>)}
         </select>
-        <select
-          aria-label="อายุ Stock"
-          className="h-9 w-[140px] rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-500"
-          value={ageFilter}
-          onChange={(event) => setAgeFilter(event.target.value)}
-        >
-          <option value="all">ทุกอายุ</option>
-          <option value="0-30">0-30 วัน</option>
-          <option value="31-60">31-60 วัน</option>
-          <option value="61-90">61-90 วัน</option>
-          <option value="90+">90+ วัน</option>
-        </select>
         <button
-          className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 outline-none transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-600 outline-none transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
           disabled={!hasFilters}
           type="button"
           onClick={() => {
@@ -1283,6 +1272,26 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
         >
           ล้างตัวกรอง
         </button>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-500">อายุสต็อก:</span>
+          {[
+            { label: 'ทุกอายุ', value: 'all' },
+            { label: '0-30 วัน', value: '0-30' },
+            { label: '31-60 วัน', value: '31-60' },
+            { label: '61-90 วัน', value: '61-90' },
+            { label: '90+ วัน', value: '90+' },
+          ].map((option) => (
+            <button
+              className={`rounded-md border px-3 py-1 text-xs font-medium ${ageFilter === option.value ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+              key={option.value}
+              type="button"
+              onClick={() => setAgeFilter(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="border-b border-slate-100 bg-white p-3 lg:hidden">
         <div className="flex gap-2">
@@ -1295,7 +1304,7 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
             onChange={(event) => setSearch(event.target.value)}
           />
           <button
-            className="h-9 shrink-0 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition hover:bg-slate-50"
+            className="h-9 shrink-0 rounded-md border border-slate-300 bg-white px-3 text-xs font-normal text-slate-700 outline-none transition hover:bg-slate-50"
             type="button"
             onClick={() => setShowProductFilters(true)}
           >
@@ -1332,14 +1341,14 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
                   setGroupFilter('all')
                   setAgeFilter('all')
                 }}
-                className="h-10 rounded-md border border-slate-200 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                className="h-10 rounded-md border border-slate-200 text-sm font-normal text-slate-600 transition hover:bg-slate-50"
               >
                 ล้างตัวกรอง
               </button>
               <button
                 type="button"
                 onClick={() => setShowProductFilters(false)}
-                className="h-10 rounded-md bg-blue-600 text-sm font-semibold text-white transition hover:bg-blue-700"
+                className="h-10 rounded-md bg-blue-600 text-sm font-normal text-white transition hover:bg-blue-700"
               >
                 ใช้ตัวกรอง
               </button>
@@ -1403,12 +1412,12 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
             <tr>
               <ResizableTableHead label="รหัส" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="code" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} />
-              <ResizableTableHead label="ชื่อ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="name" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อ')} />
-              <ResizableTableHead label="หมวด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="metalGroup" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('metalGroup', 'หมวด')} />
+              <ResizableTableHead align="right" label="ชื่อ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="name" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อ')} />
+              <ResizableTableHead align="right" label="หมวด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="metalGroup" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('metalGroup', 'หมวด')} />
               <ResizableTableHead align="right" label="จำนวน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="qty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'จำนวน')} />
               <ResizableTableHead align="right" label="WAC" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="wac" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('wac', 'WAC')} />
               <ResizableTableHead align="right" label="มูลค่า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="value" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('value', 'มูลค่า')} />
-              <ResizableTableHead align="right" label="อายุ Stock" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="ageDays" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('ageDays', 'อายุ Stock')} />
+              <ResizableTableHead align="right" label="อายุสต็อก" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="ageDays" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('ageDays', 'อายุสต็อก')} />
               <ResizableTableHead align="right" label="ราคามาตรฐาน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="stdPrice" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('stdPrice', 'ราคามาตรฐาน')} />
               <ResizableTableHead align="right" label="โอกาสกำไร" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="marginPotential" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('marginPotential', 'โอกาสกำไร')} />
             </tr>
@@ -1418,8 +1427,8 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
             {pagedRows.map((row) => (
               <tr className="border-t border-slate-100 hover:bg-slate-50/50 transition" key={row.id}>
                 <Td mono className="font-bold text-amber-700">{row.code}</Td>
-                <Td className="whitespace-normal font-semibold text-slate-900">{row.name}</Td>
-                <Td>{row.metalGroup}</Td>
+                <Td align="right" className="whitespace-normal font-semibold text-slate-900">{row.name}</Td>
+                <Td align="right">{row.metalGroup}</Td>
                 <Td align="right">{money(row.qty)}</Td>
                 <Td align="right">{money(row.wac)}</Td>
                 <Td align="right" className="font-bold text-slate-900">{money(row.value)}</Td>
@@ -1529,10 +1538,10 @@ function NegativeMarginTable({ rows, total }: { rows: ProfitPayload['negMarginIt
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
             <tr>
               <ResizableTableHead label="วันที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
-              <ResizableTableHead label="บิล" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'บิล')} />
-              <ResizableTableHead label="ลูกค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="customer" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} />
-              <ResizableTableHead label="สินค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="productName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} />
-              <ResizableTableHead align="right" label="Qty" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="qty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'Qty')} />
+              <ResizableTableHead align="right" label="บิล" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'บิล')} />
+              <ResizableTableHead align="right" label="ลูกค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="customer" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} />
+              <ResizableTableHead align="right" label="สินค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="productName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} />
+              <ResizableTableHead align="right" label="จำนวน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="qty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'จำนวน')} />
               <ResizableTableHead align="right" label="ราคา" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="price" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('price', 'ราคา')} />
               <ResizableTableHead align="right" label="WAC" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="unitCost" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('unitCost', 'WAC')} />
               <ResizableTableHead align="right" label="ขาดทุน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="loss" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('loss', 'ขาดทุน')} />
@@ -1542,9 +1551,9 @@ function NegativeMarginTable({ rows, total }: { rows: ProfitPayload['negMarginIt
             {sortedRows.map((row) => (
               <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors transition">
                 <Td>{row.date}</Td>
-                <Td mono className="font-semibold text-slate-800">{row.docNo}</Td>
-                <Td>{row.customer}</Td>
-                <Td className="font-medium text-slate-900">{row.productName}</Td>
+                <Td align="right" mono className="font-semibold text-slate-800">{row.docNo}</Td>
+                <Td align="right">{row.customer}</Td>
+                <Td align="right" className="font-medium text-slate-900">{row.productName}</Td>
                 <Td align="right">{money(row.qty)}</Td>
                 <Td align="right">{money(row.price)}</Td>
                 <Td align="right">{money(row.unitCost)}</Td>
@@ -1645,7 +1654,7 @@ function LowMarginTable({ rows, targetMargin }: { rows: ProfitPayload['lowMargin
           <thead className="sticky top-0 bg-slate-50 border-b border-slate-100 text-slate-500 font-medium z-10">
             <tr>
               <ResizableTableHead label="บิล" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'บิล')} />
-              <ResizableTableHead label="ลูกค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="customer" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} />
+              <ResizableTableHead align="right" label="ลูกค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="customer" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} />
               <ResizableTableHead align="right" label="GP%" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="gpPct" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('gpPct', 'GP%')} />
               <ResizableTableHead align="right" label="ขาด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="shortfall" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('shortfall', 'ขาด')} />
             </tr>
@@ -1654,7 +1663,7 @@ function LowMarginTable({ rows, targetMargin }: { rows: ProfitPayload['lowMargin
             {sortedRows.map((row) => (
               <tr className="border-t border-slate-100 hover:bg-slate-50/50 transition" key={row.id}>
                 <Td mono className="font-semibold text-slate-800">{row.docNo}</Td>
-                <Td>{row.customer}</Td>
+                <Td align="right">{row.customer}</Td>
                 <Td align="right" className="font-semibold text-slate-700">{row.gpPct.toFixed(1)}%</Td>
                 <Td align="right" className="font-bold text-red-600">{money(row.shortfall)}</Td>
               </tr>
@@ -1853,8 +1862,8 @@ function HighSupplierTable({ rows }: { rows: ProfitPayload['highSuppliers'] }) {
           </colgroup>
           <thead className="sticky top-0 bg-slate-50 border-b border-slate-100 text-slate-500 font-medium z-10">
             <tr>
-              <ResizableTableHead label="Supplier" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="supplierName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('supplierName', 'Supplier')} />
-              <ResizableTableHead label="สินค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="productName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} />
+              <ResizableTableHead label="ผู้ขาย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="supplierName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('supplierName', 'ผู้ขาย')} />
+              <ResizableTableHead align="right" label="สินค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="productName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} />
               <ResizableTableHead align="right" label="+%" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="premiumPct" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('premiumPct', '+%')} />
               <ResizableTableHead align="right" label="ส่วนเกิน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="premiumValue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('premiumValue', 'ส่วนเกิน')} />
             </tr>
@@ -1863,7 +1872,7 @@ function HighSupplierTable({ rows }: { rows: ProfitPayload['highSuppliers'] }) {
             {sortedRows.map((row) => (
               <tr className="border-t border-slate-100 hover:bg-slate-50/50 transition" key={row.id}>
                 <Td className="font-semibold text-slate-800">{row.supplierName}</Td>
-                <Td>{row.productName}</Td>
+                <Td align="right">{row.productName}</Td>
                 <Td align="right" className="font-semibold text-red-600">{row.premiumPct.toFixed(1)}%</Td>
                 <Td align="right" className="font-bold text-red-600">{money(row.premium * row.qty)}</Td>
               </tr>
@@ -1956,9 +1965,9 @@ function OutlierTable({ rows }: { rows: ProfitPayload['outliers'] }) {
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
             <tr>
               <ResizableTableHead label="วันที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
-              <ResizableTableHead label="หมวด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="category" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('category', 'หมวด')} />
-              <ResizableTableHead label="เลขที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
-              <ResizableTableHead label="ผู้รับ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="payee" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('payee', 'ผู้รับ')} />
+              <ResizableTableHead align="right" label="หมวด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="category" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('category', 'หมวด')} />
+              <ResizableTableHead align="right" label="เลขที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
+              <ResizableTableHead align="right" label="ผู้รับ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="payee" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('payee', 'ผู้รับ')} />
               <ResizableTableHead align="right" label="จำนวน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวน')} />
               <ResizableTableHead align="right" label="ค่าเฉลี่ย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="mean" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('mean', 'ค่าเฉลี่ย')} />
               <ResizableTableHead align="right" label="เกินกว่าปกติ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="over" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('over', 'เกินกว่าปกติ')} />
@@ -1967,7 +1976,7 @@ function OutlierTable({ rows }: { rows: ProfitPayload['outliers'] }) {
           <tbody>
             {sortedRows.map((row) => (
               <tr className="border-t border-slate-100 hover:bg-slate-50/50 transition" key={row.id}>
-                <Td>{row.date}</Td><Td>{row.category}</Td><Td mono className="font-semibold text-slate-800">{row.docNo}</Td><Td>{row.payee}</Td>
+                <Td>{row.date}</Td><Td align="right">{row.category}</Td><Td align="right" mono className="font-semibold text-slate-800">{row.docNo}</Td><Td align="right">{row.payee}</Td>
                 <Td align="right" className="font-bold text-slate-900">{money(row.amount)}</Td>
                 <Td align="right" className="text-slate-500">{money(row.mean)}</Td>
                 <Td align="right" className="font-bold text-red-700">{money(row.over)}</Td>

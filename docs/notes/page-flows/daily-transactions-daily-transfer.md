@@ -98,3 +98,7 @@ reversal/audit และ fee accounting policy ยังต้อง finalize
 - [ ] Verify legacy behavior for any gap before implementing runtime change
 - [ ] Add/adjust tests or browser QA checklist before changing runtime
 - [ ] Update this file and canonical reference if contract changes
+
+## 2026-07-12 Table consistency checkpoint
+
+`/daily/transfer` now reserves sufficient default/minimum width for amount, fee, operator, and note columns while retaining the auto-stretch action column and canonical header/body density. What is what: the table remains the same transfer history and the existing modal remains the transfer editor. Why it stays this way: long headers and values must not collide, while search, sorting, pagination, transfer writes, API behavior, permissions, database schema, and DB state remain unchanged.

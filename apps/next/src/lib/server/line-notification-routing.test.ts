@@ -15,6 +15,7 @@ vi.mock('./prisma', () => ({
 }))
 
 import {
+  lineRuleConditionsValidationError,
   matchesLineNotificationRule,
   resolveLineTargetsForDocument,
   ruleExplicitlyIncludesDocumentType,
@@ -26,16 +27,38 @@ describe('financial LINE document routing', () => {
     db.findSetting.mockResolvedValue(null)
   })
 
-  it('requires an explicit PB or SB document type on a financial rule', () => {
+  it('requires an explicit PB, SB, PMT, or RCP document type on a financial rule', () => {
     const purchaseBill = { type: 'PB' }
+    const purchasePayment = { type: 'PMT' }
+    const customerReceipt = { type: 'RCP' }
     const genericRule = { conditions: {} }
     const purchaseRule = { conditions: { documentTypes: ['PB'] } }
+    const paymentRule = { conditions: { documentTypes: ['PMT'] } }
+    const receiptRule = { conditions: { documentTypes: ['RCP'] } }
     const salesRule = { conditions: { documentTypes: ['SB'] } }
 
     expect(matchesLineNotificationRule(purchaseBill, genericRule)).toBe(true)
     expect(ruleExplicitlyIncludesDocumentType(genericRule, purchaseBill.type)).toBe(false)
     expect(ruleExplicitlyIncludesDocumentType(purchaseRule, purchaseBill.type)).toBe(true)
     expect(ruleExplicitlyIncludesDocumentType(salesRule, purchaseBill.type)).toBe(false)
+    expect(ruleExplicitlyIncludesDocumentType(paymentRule, purchasePayment.type)).toBe(true)
+    expect(ruleExplicitlyIncludesDocumentType(purchaseRule, purchasePayment.type)).toBe(false)
+    expect(ruleExplicitlyIncludesDocumentType(receiptRule, customerReceipt.type)).toBe(true)
+    expect(ruleExplicitlyIncludesDocumentType(paymentRule, customerReceipt.type)).toBe(false)
+  })
+
+  it('rejects mixed document categories and weight-only conditions on financial rules', () => {
+    expect(lineRuleConditionsValidationError({ documentTypes: ['WTI', 'PMT'] }))
+      .toContain('แยกใบรับ-ส่งของกับเอกสารการเงิน')
+    expect(lineRuleConditionsValidationError({ documentTypes: ['PMT'], minNetWeight: 1 }))
+      .toContain('ใช้ได้เฉพาะใบรับ-ส่งของ')
+    expect(lineRuleConditionsValidationError({ documentTypes: ['WTI', 'RCP'] }))
+      .toContain('แยกใบรับ-ส่งของกับเอกสารการเงิน')
+    expect(lineRuleConditionsValidationError({ documentTypes: ['RCP'], requiresImages: true }))
+      .toContain('ใช้ได้เฉพาะใบรับ-ส่งของ')
+    expect(lineRuleConditionsValidationError({ documentTypes: ['PMT'] })).toBeNull()
+    expect(lineRuleConditionsValidationError({ documentTypes: ['RCP'] })).toBeNull()
+    expect(lineRuleConditionsValidationError({ documentTypes: ['WTI'], minNetWeight: 1 })).toBeNull()
   })
 
   it('does not use a generic rule or default target for PB', async () => {
@@ -80,5 +103,70 @@ describe('financial LINE document routing', () => {
 
     expect(decisions).toHaveLength(1)
     expect(decisions[0]?.targetId).toBe('C-PB')
+  })
+
+  it('does not use a generic rule or default target for PMT', async () => {
+    db.findRules.mockResolvedValue([{
+      conditions: {},
+      id: 3n,
+      name: 'generic rule',
+      priority: 1,
+      stop_after_match: false,
+      target_id: 'C-GENERIC',
+    }])
+    db.findTargets.mockResolvedValue([{
+      display_name: 'generic group',
+      is_active: true,
+      is_default: true,
+      target_id: 'C-GENERIC',
+      target_type: 'group',
+    }])
+
+    await expect(resolveLineTargetsForDocument({ type: 'PMT' }, { allowFallback: false })).resolves.toEqual([])
+    expect(db.findSetting).not.toHaveBeenCalled()
+  })
+
+  it('does not use a generic rule or default target for RCP', async () => {
+    db.findRules.mockResolvedValue([{
+      conditions: {},
+      id: 4n,
+      name: 'generic rule',
+      priority: 1,
+      stop_after_match: false,
+      target_id: 'C-GENERIC',
+    }])
+    db.findTargets.mockResolvedValue([{
+      display_name: 'generic group',
+      is_active: true,
+      is_default: true,
+      target_id: 'C-GENERIC',
+      target_type: 'group',
+    }])
+
+    await expect(resolveLineTargetsForDocument({ type: 'RCP' }, { allowFallback: false })).resolves.toEqual([])
+    expect(db.findSetting).not.toHaveBeenCalled()
+  })
+
+  it('routes RCP only to its explicit target', async () => {
+    db.findRules.mockResolvedValue([{
+      conditions: { documentTypes: ['RCP'] },
+      id: 5n,
+      name: 'customer receipts',
+      priority: 1,
+      stop_after_match: true,
+      target_id: 'C-RCP',
+    }])
+    db.findTargets.mockResolvedValue([{
+      display_name: 'customer receipt group',
+      is_active: true,
+      is_default: false,
+      target_id: 'C-RCP',
+      target_type: 'group',
+    }])
+
+    const decisions = await resolveLineTargetsForDocument({ type: 'RCP' }, { allowFallback: false })
+
+    expect(decisions).toHaveLength(1)
+    expect(decisions[0]?.targetId).toBe('C-RCP')
   })
 })

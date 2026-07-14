@@ -206,13 +206,13 @@ export function ProfitCostAnalysisPageClient() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <Panel title="Top 10 สินค้ายอดขาย">
+        <Panel title="สินค้าขายสูงสุด 10 อันดับ">
           <BarRows rows={(data?.top.byRevenue ?? []).map((row) => ({ label: row.name, value: row.revenue }))} />
         </Panel>
-        <Panel title="Top 10 สินค้า GP">
+        <Panel title="สินค้า GP สูงสุด 10 อันดับ">
           <BarRows rows={(data?.top.byGp ?? []).map((row) => ({ label: row.name, value: row.gp }))} />
         </Panel>
-        <Panel title="Top 10 มูลค่าสต๊อก">
+        <Panel title="มูลค่าสต๊อกสูงสุด 10 อันดับ">
           <BarRows rows={(data?.top.byStockValue ?? []).map((row) => ({ label: row.name, value: row.stockValue }))} />
         </Panel>
       </div>
@@ -301,7 +301,7 @@ export function ProfitCostAnalysisPageClient() {
 
       {showMobileFilters ? (
         <MobileFilterSheet
-          title="ตัวกรอง Profit Cost"
+          title="ตัวกรองกำไรและต้นทุน"
           onClose={() => setShowMobileFilters(false)}
           footer={(
             <>
@@ -559,7 +559,7 @@ function ProductModal({ onClose, product }: { onClose: () => void; product: Prod
   const lines = [
     ['ซื้อ', money(product.buyQty), money(product.buyAmount), '-', '-'],
     ['ขาย', money(product.sellQty), money(product.revenue), money(product.cogs), money(product.gp)],
-    ['Stock', money(product.stockQty), money(product.stockValue), '-', '-'],
+    ['สต๊อก', money(product.stockQty), money(product.stockValue), '-', '-'],
   ]
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
@@ -575,8 +575,8 @@ function ProductModal({ onClose, product }: { onClose: () => void; product: Prod
           {/* Desktop modal table */}
           <div className="hidden sm:block overflow-x-auto">
             <table className="ns-table w-full text-sm">
-              <thead className="bg-slate-50 text-slate-500 text-xs"><tr>{['เอกสาร', 'จำนวน', 'มูลค่า', 'COGS', 'GP'].map((header) => <th key={header} className="p-2 text-left font-semibold">{header}</th>)}</tr></thead>
-              <tbody>{lines.map((line) => <tr key={line[0]} className="border-t border-slate-100">{line.map((cell, index) => <td key={`${line[0]}-${index}`} className={`p-2 ${index > 0 ? 'text-right font-mono' : 'font-bold text-slate-700'}`}>{cell}</td>)}</tr>)}</tbody>
+              <thead className="bg-slate-50 text-slate-500 text-xs"><tr>{['เอกสาร', 'จำนวน', 'มูลค่า', 'COGS', 'GP'].map((header, index) => <th key={header} className={`p-2 font-semibold ${index === 0 ? 'text-left' : 'text-right'}`}>{header}</th>)}</tr></thead>
+              <tbody>{lines.map((line) => <tr key={line[0]} className="border-t border-slate-100">{line.map((cell, index) => <td key={`${line[0]}-${index}`} className={`p-3 ${index > 0 ? 'text-right font-mono' : 'font-bold text-slate-700'}`}>{cell}</td>)}</tr>)}</tbody>
             </table>
           </div>
           
@@ -609,7 +609,7 @@ function SimpleTable({ headers, rows, tableKey }: { headers: string[]; rows: str
       label: header,
       defaultWidth: index === 0 ? 180 : 120,
       minWidth: index === 0 ? 130 : 95,
-      align: index > 1 ? 'right' : 'left',
+      align: index === 0 ? 'left' : 'right',
     }))
   }, [headers])
   const columnResize = useResizableColumns(`main.profit-cost-analysis.${tableKey}.v1`, columns)
@@ -638,7 +638,7 @@ function SimpleTable({ headers, rows, tableKey }: { headers: string[]; rows: str
       {/* Desktop view */}
       {columnResize.hasCustomWidths ? (
         <div className="mb-2 hidden justify-end lg:flex">
-          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-normal text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
         </div>
       ) : null}
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
@@ -665,7 +665,7 @@ function SimpleTable({ headers, rows, tableKey }: { headers: string[]; rows: str
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {sortedRows.map((row, index) => <tr key={`${row[0]}-${index}`} className="transition-colors hover:bg-slate-50">{row.map((cell, cellIndex) => <td key={`${cell}-${cellIndex}`} className={`px-3 py-3 ${cellIndex > 1 ? 'text-right font-mono whitespace-nowrap tabular-nums' : 'text-slate-700 font-medium min-w-0 overflow-hidden'}`}><div className={cellIndex <= 1 ? "truncate" : ""} title={cellIndex <= 1 ? cell : undefined}>{cell}</div></td>)}</tr>)}
+            {sortedRows.map((row, index) => <tr key={`${row[0]}-${index}`} className="transition-colors hover:bg-slate-50">{row.map((cell, cellIndex) => <td key={`${cell}-${cellIndex}`} className={`px-3 py-3 ${cellIndex === 0 ? 'text-slate-700 font-medium min-w-0 overflow-hidden' : cellIndex > 1 ? 'text-right font-mono whitespace-nowrap tabular-nums' : 'text-right text-slate-700 font-medium min-w-0 overflow-hidden'}`}><div className={cellIndex <= 1 ? "truncate" : ""} title={cellIndex <= 1 ? cell : undefined}>{cell}</div></td>)}</tr>)}
             {sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={headers.length}>ไม่มีข้อมูล</td></tr> : null}
           </tbody>
         </table>
@@ -674,13 +674,24 @@ function SimpleTable({ headers, rows, tableKey }: { headers: string[]; rows: str
       {/* Mobile view */}
       <div className="block lg:hidden divide-y divide-slate-100 bg-slate-50/30 p-2 max-h-[500px] overflow-y-auto">
         {sortedRows.map((row, index) => (
-          <div key={index} className="p-3 bg-white rounded-xl border border-slate-100 mb-2 shadow-sm flex flex-col gap-1 text-xs">
-            {row.map((cell, cellIndex) => (
-              <div key={cellIndex} className="flex justify-between py-0.5">
-                <span className="text-slate-500 font-medium">{headers[cellIndex]}</span>
-                <span className={`font-bold ${cellIndex > 1 ? 'font-mono text-slate-950' : 'text-slate-800'}`}>{cell}</span>
+          <div key={index} className="mb-2 flex flex-col gap-2 rounded-xl border border-slate-100 bg-white p-3 text-xs shadow-sm">
+            <div className="font-bold text-slate-800">{row[0]}</div>
+            {row.length > 2 ? (
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg bg-slate-50 px-2 py-1.5 text-slate-600">
+                {row.slice(1, -1).map((cell, cellIndex) => (
+                  <div key={cellIndex} className="flex min-w-0 justify-between gap-2">
+                    <span className="truncate">{headers[cellIndex + 1]}</span>
+                    <span className="shrink-0 text-right font-medium text-slate-800">{cell}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : null}
+            {row.length > 1 ? (
+              <div className="flex items-center justify-between border-t border-slate-100 pt-2">
+                <span className="text-slate-500">{headers[row.length - 1]}</span>
+                <span className="font-mono font-bold text-slate-950">{row[row.length - 1]}</span>
+              </div>
+            ) : null}
           </div>
         ))}
         {sortedRows.length === 0 && (

@@ -1,10 +1,10 @@
 'use client'
 
-import { FormEvent, KeyboardEvent, useState } from 'react'
+import { FormEvent, KeyboardEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { loginSchema } from '@/lib/auth'
-import { getSupabaseClient } from '@/lib/supabase'
+import { getSessionSafely, getSupabaseClient } from '@/lib/supabase'
 
 function safeRedirectPath(value: string | null) {
   if (!value || !value.startsWith('/') || value.startsWith('//')) return '/'
@@ -40,6 +40,32 @@ export function LoginPageClient() {
   const [isLoading, setIsLoading] = useState(false)
   const supabase = getSupabaseClient()
   const isSupabaseReady = Boolean(supabase)
+
+  useEffect(() => {
+    if (!supabase) return
+
+    let mounted = true
+
+    void (async () => {
+      const session = await getSessionSafely(supabase).catch(() => null)
+      if (!mounted || !session) return
+
+      const redirectParam = searchParams.get('redirect')
+      const redirectPath = redirectParam ? safeRedirectPath(redirectParam) : await resolveDefaultLandingPath()
+      const autoRedirectKey = 'ns-scrap-erp-login-auto-redirect'
+      const autoRedirectValue = `${window.location.origin}${redirectPath}`
+
+      if (window.sessionStorage.getItem(autoRedirectKey) === autoRedirectValue) return
+      window.sessionStorage.setItem(autoRedirectKey, autoRedirectValue)
+
+      await supabase.auth.refreshSession().catch(() => undefined)
+      window.location.replace(redirectPath)
+    })()
+
+    return () => {
+      mounted = false
+    }
+  }, [searchParams, supabase])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -83,6 +109,8 @@ export function LoginPageClient() {
         return
       }
 
+      await supabase.auth.getSession().catch(() => undefined)
+      window.sessionStorage.removeItem('ns-scrap-erp-login-auto-redirect')
       setPassword('')
       const redirectParam = searchParams.get('redirect')
       const redirectPath = redirectParam ? safeRedirectPath(redirectParam) : await resolveDefaultLandingPath()

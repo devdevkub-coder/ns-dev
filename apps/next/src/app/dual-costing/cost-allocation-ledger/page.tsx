@@ -4,7 +4,7 @@ import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
 export default function CostAllocationLedgerPage() {
   return (
     <>
-      <PageTitleOverride title="Cost Allocation Ledger" />
+      <PageTitleOverride title="สมุดรายวันจัดสรรต้นทุน" />
       <DualCostingManagementPageClient mode="ledger" />
     </>
   )

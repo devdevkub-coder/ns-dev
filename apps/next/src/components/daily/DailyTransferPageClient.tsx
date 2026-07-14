@@ -37,10 +37,10 @@ const transferColumns: Array<ResizableColumnDefinition<TransferColumnKey>> = [
   { key: 'date', defaultWidth: 120, minWidth: 100 },
   { key: 'from', defaultWidth: 240, minWidth: 150 },
   { key: 'to', defaultWidth: 240, minWidth: 150 },
-  { key: 'amount', defaultWidth: 110, minWidth: 90 },
-  { key: 'fee', defaultWidth: 100, minWidth: 80 },
-  { key: 'byPerson', defaultWidth: 160, minWidth: 120 },
-  { key: 'notes', defaultWidth: 200, minWidth: 120 },
+  { key: 'amount', defaultWidth: 130, minWidth: 110 },
+  { key: 'fee', defaultWidth: 130, minWidth: 110 },
+  { key: 'byPerson', defaultWidth: 180, minWidth: 140 },
+  { key: 'notes', defaultWidth: 240, minWidth: 160 },
   { key: 'action', defaultWidth: 180, minWidth: 150 },
 ]
 
@@ -76,7 +76,7 @@ export function DailyTransferPageClient() {
   const [fromAccountId, setFromAccountId] = useState('')
   const [toAccountId, setToAccountId] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const columnResize = useResizableColumns('daily.transfer.v5', transferColumns)
+  const columnResize = useResizableColumns('daily.transfer.v6', transferColumns)
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
 
@@ -644,13 +644,9 @@ export function DailyTransferPageClient() {
       <div className="hidden lg:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
         <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
-            {transferColumns.map((column, index) => {
-              const style = columnResize.getColumnStyle(column.key);
-              if (index === transferColumns.length - 1) {
-                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
-              }
-              return <col key={column.key} style={style} />;
-            })}
+            {transferColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
           </colgroup>
           <TableHeader>
             <tr>

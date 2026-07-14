@@ -99,3 +99,7 @@ Current code is accepted baseline. Remaining work is to keep documentation in sy
 - [ ] Verify active/inactive behavior in downstream transaction pages
 - [ ] Verify import/export if present
 - [ ] Update this page-flow when master schema changes
+
+## 2026-07-12 Table consistency checkpoint
+
+`/master-data/accounts` now defines explicit width/minimum-width values for every account column, uses canonical `p-3` body cells through the shared master-data table, and lets the final edit column auto-stretch. What is what: the table remains the existing account master list and the modal remains the account editor. Why it stays this way: account labels and balances must scan cleanly without changing form validation, real-balance calculation, APIs, permissions, database schema, or DB state.

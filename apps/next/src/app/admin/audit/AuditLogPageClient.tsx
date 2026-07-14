@@ -458,13 +458,9 @@ export function AuditLogPageClient() {
           <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
             <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
-                {auditColumns.map((column, index) => {
-                  const style = columnResize.getColumnStyle(column.key)
-                  if (index === auditColumns.length - 1) {
-                    return <col key={column.key} style={{ minWidth: column.minWidth }} />
-                  }
-                  return <col key={column.key} style={style} />
-                })}
+                {auditColumns.map((column) => (
+                  <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+                ))}
               </colgroup>
               <thead className="bg-slate-100">
                 <tr>

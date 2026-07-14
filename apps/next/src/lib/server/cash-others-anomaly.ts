@@ -138,15 +138,15 @@ export async function buildCashOthersSummary(asOfValue?: string | null, branchId
     charts: {
       arAging,
       assetComp: [
-        { color: '#10b981', name: '💵 เงินสด/ธนาคาร', val: totalCash },
-        { color: '#06b6d4', name: '📥 ลูกหนี้ (AR)', val: totalAR },
-        { color: '#f59e0b', name: '📦 Stock', val: stock.value },
-        { color: '#a855f7', name: '🔄 Trading Pending รับเงิน', val: tradingPending.pendingAmount },
-        { color: '#8b5cf6', name: '💸 Supplier Advance', val: supplierAdvanceTotal },
+        { color: '#10b981', name: 'เงินสดและธนาคาร', val: totalCash },
+        { color: '#06b6d4', name: 'ลูกหนี้การค้า (AR)', val: totalAR },
+        { color: '#f59e0b', name: 'สินค้าคงคลัง', val: stock.value },
+        { color: '#a855f7', name: 'รอรับเงินจากการซื้อขาย', val: tradingPending.pendingAmount },
+        { color: '#8b5cf6', name: 'เงินจ่ายล่วงหน้าผู้ขาย', val: supplierAdvanceTotal },
       ].filter((row) => row.val > 0),
       debtComp: [
-        { color: '#ef4444', name: '📤 เจ้าหนี้ (AP)', val: totalAP },
-        { color: '#f97316', name: '💰 Customer Advance', val: customerAdvanceTotal },
+        { color: '#ef4444', name: 'เจ้าหนี้การค้า (AP)', val: totalAP },
+        { color: '#f97316', name: 'เงินรับล่วงหน้าลูกค้า', val: customerAdvanceTotal },
       ].filter((row) => row.val > 0),
     },
     rows: {

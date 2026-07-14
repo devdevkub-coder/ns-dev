@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-18
+updated: 2026-07-14
 route: /sales/receipts
 ---
 
@@ -17,6 +17,7 @@ route: /sales/receipts
 | Menu section | Daily Transactions |
 | Route | `/sales/receipts` |
 | Page | รับเงิน Customer |
+| Naming | เมนู ชื่อหน้า และ breadcrumb ใช้ `รับเงิน Customer`; ชื่อแท็บ ปุ่ม และ modal ที่เป็นคำกริยาการทำงานยังใช้ `รับเงินลูกค้า` |
 | Current Next | accepted code baseline |
 
 ## Canonical References
@@ -69,14 +70,14 @@ RCP รับเงินจาก SB/customer advance และเขียน 
 |---|---|---|
 | 1 | เปิดคิว | GET outstanding SB/customer receivable |
 | 2 | เลือกบิล | validate customer และยอดค้าง |
-| 3 | บันทึกรับเงิน | POST RCP + bank statement |
+| 3 | บันทึกรับเงิน | POST RCP + bank statement แล้วส่ง RCP Flex หลัง commit |
 | 4 | ประวัติ | แสดง RCP เสร็จสิ้น/ยกเลิก |
 | 5 | edit | ยกเลิก RCP เดิมและออก RCP ใหม่ใน transaction เดียว |
 | 6 | cancel | reverse receipt/bank facts และ recalc SB |
 
 ## Detailed User Flow / Manual Test Script
 
-> Flow นี้เป็นรายละเอียดการใช้งานหน้า `รับเงิน Customer` ตามรูปแบบ UAT ปัจจุบัน: ระบบสร้างใบรับเงิน `RCP` จากบิลขายที่ยังค้างรับให้อัตโนมัติ ผู้ใช้ทำหน้าที่ตรวจสอบ/รับเงิน/เลือกบัญชีรับเงิน/ยืนยันยอด ไม่ต้องเริ่มจากการสร้างเอกสารเปล่าเองเป็นหลัก
+> Flow นี้เป็นรายละเอียดการใช้งานหน้า `รับเงินลูกค้า` ตามรูปแบบ UAT ปัจจุบัน: ระบบสร้างใบรับเงิน `RCP` จากบิลขายที่ยังค้างรับให้อัตโนมัติ ผู้ใช้ทำหน้าที่ตรวจสอบ/รับเงิน/เลือกบัญชีรับเงิน/ยืนยันยอด ไม่ต้องเริ่มจากการสร้างเอกสารเปล่าเองเป็นหลัก
 
 ### 1. เงื่อนไขก่อนเข้า Flow
 
@@ -105,9 +106,11 @@ RCP รับเงินจาก SB/customer advance และเขียน 
 
 ถ้าบิลขาย 1 ใบมี `RCP pending` อยู่แล้ว ระบบต้องไม่สร้างซ้ำ
 
-### 3. Tab `รับเงิน Customer`
+### 3. Tab `รับเงินลูกค้า`
 
 ใช้สำหรับดูใบรับเงินที่ยังรอดำเนินการ ไม่ใช่ตารางบิลขายโดยตรง ถึงข้อมูลต้นทางจะมาจากบิลขายก็ตาม
+
+Desktop queue table ใช้ความกว้างทุกคอลัมน์ร่วมกันเต็มพื้นที่ตาราง ไม่ปล่อยให้คอลัมน์ `จัดการ` รับพื้นที่ว่างทั้งหมดเพียงคอลัมน์เดียว เพื่อให้ชื่อ `ลูกค้า` ใช้พื้นที่ที่มีอยู่ก่อนแสดง `...`; คอลัมน์ `จัดการ` ต้องกว้างพอดีกับปุ่ม `รับเงิน` และ `ยกเลิก` เท่านั้น
 
 ข้อมูลที่ต้องเห็นในตาราง:
 
@@ -136,9 +139,9 @@ RCP รับเงินจาก SB/customer advance และเขียน 
 - การแก้ไขต้องกดปุ่ม `แก้ไข`
 - การยกเลิกใน tab นี้ต้องคืนสถานะให้บิลขายกลับไปค้างรับได้ตามยอดเดิม แต่ไม่ยกเลิก `SB`
 
-### 4. เปิดหน้าต่าง `รับเงิน Customer`
+### 4. เปิดหน้าต่าง `รับเงินลูกค้า`
 
-เมื่อกด `รับเงิน` ระบบเปิด modal `รับเงิน Customer / Receipt Voucher`
+เมื่อกด `รับเงิน` ระบบเปิด modal `รับเงินลูกค้า / Receipt Voucher`
 
 #### Section: ข้อมูลใบรับเงิน
 
@@ -249,8 +252,9 @@ RCP รับเงินจาก SB/customer advance และเขียน 
 
 หลังบันทึกสำเร็จ:
 
-- รายการ RCP ต้องหายจาก tab `รับเงิน Customer` ถ้ารับครบ/ไม่มีค้างรับใน RCP นั้น
+- รายการ RCP ต้องหายจาก tab `รับเงินลูกค้า` ถ้ารับครบ/ไม่มีค้างรับใน RCP นั้น
 - รายการ RCP ต้องไปอยู่ tab `ประวัติการรับเงิน`
+- ระบบ enqueue/execute LINE source `customer_receipt` หลัง commit โดยใช้เลข RCP ที่ service คืนจริง; LINE failure ต้องไม่เปลี่ยนผลบันทึกรับเงินที่สำเร็จแล้ว
 - Summary KPI ด้านบนต้องปรับยอดตามข้อมูลล่าสุด
 
 ### 6. Tab `ประวัติการรับเงิน`
@@ -281,6 +285,15 @@ Filter ที่ต้องมี:
 | บัญชี | กรองบัญชีรับเงิน |
 | สถานะ | `ทั้งหมด`, `รับเงินแล้ว`, `ยกเลิก` |
 | พิมพ์รายงานประจำวัน | พิมพ์รายงานตาม filter วันที่/บัญชี/สถานะ/search ที่เลือก |
+
+UI / UX baseline:
+
+- KPI ในแท็บ `ประวัติการรับเงิน` ใช้เฉพาะ RCP ที่ไม่ถูกยกเลิกและอยู่ใน search/date/account/status filter ปัจจุบัน; RCP `cancelled` ยังอยู่ในตารางเพื่อ audit แต่ต้องไม่เพิ่ม `ยอดรับแล้ว`, WHT, fee หรือ `เงินเข้าสุทธิ`
+- ตัวกรองบัญชีต้องหา RCP ได้จากทุก account split ไม่ใช่เฉพาะบัญชีหลัก เพื่อให้ตารางและ KPI ตามตัวกรองไม่ตกหล่น
+- KPI ในแท็บ `รับเงินลูกค้า` แสดงงานคิวเท่านั้น: `ยอดค้างรับ` และจำนวน `บิลค้างรับ`; ไม่ปนยอดประวัติ RCP
+- ช่องวันที่ว่างแสดง `วว/ดด/ปปปป` ไม่ใช้วันที่จริงเป็น placeholder เพราะจะทำให้ดูเหมือนมีตัวกรองอยู่
+- ตาราง desktop ใช้ shared table shell เพียงชั้นเดียว, แสดงข้อความหลักขนาด `text-sm`, วาง `หมายเหตุ` ก่อน `จัดการ` และให้ `จัดการ` เป็นคอลัมน์ขวาสุด
+- ปุ่ม `ดูรายละเอียด` และ `แก้ไข` ใช้ neutral outline; `ยกเลิก` ใช้ destructive outline แบบเบา ไม่ใช้ปุ่มแดงทึบในแถวตาราง
 
 การคลิกแถว:
 
@@ -481,6 +494,7 @@ The optimization remains no-fallback/no-hardcode: master data still comes from a
 - UI ใช้ outward business document/code เป็นหลัก และให้ server resolve internal id
 - list/detail/print/export ต้องอ่าน source contract เดียวกันเพื่อลด drift
 - transaction write ต้องทำใน server transaction และ append timeline/status/audit ตาม document policy
+- RCP ที่ active ใหม่จาก create หรือ cancel-and-reissue ต้องส่ง LINE หลัง transaction commit; GET ที่สร้าง pending และ PATCH cancel ต้องไม่ส่ง
 - ถ้า field เป็น money/qty/date/business code ให้ validate ตาม `docs/design.md` และ server-side ซ้ำ
 
 ## Validation / Status Rules
@@ -507,7 +521,19 @@ The optimization remains no-fallback/no-hardcode: master data still comes from a
 
 - สร้าง receipt/RCP facts และ `bank_statement` เงินเข้า
 - recalc SB paid/receivable status
+- สร้าง `line_notification_jobs` แบบ fail-closed ตามกฎ `RCP` หลัง commit และเก็บ attempt/retry แยกจาก receipt transaction
 - cancel reverse receipt/bank facts
+
+## LINE Notification Contract
+
+- trigger เมื่อ RCP เปลี่ยนเป็น active สำเร็จจากการกด `บันทึก`; RCP pending ที่ GET สร้างอัตโนมัติไม่ส่ง
+- cancel-and-reissue ส่งเฉพาะเลข RCP ใหม่หลัง transaction สำเร็จ; การยกเลิกอย่างเดียวไม่ส่ง
+- routing ต้องมีกฎ `RCP` แบบ explicit ใน `/admin/line-settings`; ถ้าไม่มีกฎต้อง skip แบบ fail-closed และห้าม fallback ไป default/all active groups
+- Flex อ่าน `customer_receipts` + ordered `customer_receipt_allocations` + `bank_statement.ref_type = RCP`, แสดง RCP/สถานะ/วันที่/สาขา/ลูกค้า/วิธีรับหลัก, SB allocation, บัญชีบริษัทที่รับเงิน, ยอดรับ/ส่วนลด/WHT/ยอดตัดลูกหนี้/ค่าธรรมเนียม/เงินเข้าสุทธิ/หมายเหตุ และลิงก์กลับหน้า history
+- Flex ใช้ฟอนต์ native ของ LINE ซึ่งเปลี่ยนตระกูลไม่ได้; เพื่อให้อ่านภาษาไทยง่ายตาม feedback ลูกค้า การ์ด RCP ใช้หัวเข้ม + body อ่อน + footer ขาว, ตัวอักษรเข้ม, และเน้นตัวใหญ่/หนาเฉพาะลูกค้า ยอดหลัก รายการสำคัญ และสถานะ โดยไม่เพิ่มข้อมูลอ่อนไหว
+- ทดลอง highlight แบบแถบเหลี่ยมหลายสีเต็มความกว้างตามภาพอ้างอิงแล้ว แต่ผู้ใช้เลือกแบบสุดท้ายเป็นแท็บเขียวอ่อนทรงมน 3 หมวด: `SB / ตัดลูกหนี้`, `บัญชีบริษัทที่รับเงิน`, และ `สรุปยอดรับเงิน`; แท็บใช้แบ่งกลุ่มข้อมูลเท่านั้น โดยแถวยอดเงินแต่ละรายการไม่มีสีพื้นเพิ่ม
+- การ์ดใช้ `mega`, label/value 3:4 และ wrap หัวข้อยาว; จำกัด SB และบัญชีอย่างละ 4 แถวแล้วแสดง `+ อีก N`
+- ห้ามเลือกหรือแสดงเลขบัญชีเต็ม, internal receipt/allocation/bank-statement IDs, tax ID, เบอร์โทร, email หรือที่อยู่ลูกค้า
 
 ## Current Code Baseline
 
@@ -535,4 +561,5 @@ Multi-bill receipt allocation DB/API create path, UI picker, cancel/reversal pat
 - [x] Disable "วิธีจ่าย/รับเงิน", "วันที่" and bill allocations in Edit Mode to lock created receipt state
 - [x] Convert Sales Bills lines grid to mobile-responsive vertical card view to prevent horizontal scrolling
 - [x] Implement Batch Print feature in history tab (Active status only) with table and card selection checkboxes and orange action button
+- [x] Add post-commit RCP LINE notification with explicit group routing, aggregate privacy-safe Flex, and retry audit
 - [ ] Add browser QA checklist for create partial/full/multi-bill and over-receipt blocking

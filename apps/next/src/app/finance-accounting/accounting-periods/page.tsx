@@ -2,36 +2,41 @@ import type { Metadata } from 'next'
 import { AccountingPeriodsLockImpactTable } from './AccountingPeriodsLockImpactTable'
 
 export const metadata: Metadata = {
-  title: 'Accounting Periods | NS Scrap ERP',
+  title: 'งวดบัญชี | NS Scrap ERP',
 }
 
 const periodStates = [
   {
     code: 'open',
+    badge: 'เปิด',
     label: 'เปิดงวด',
     meaning: 'เอกสารลงวันที่ในงวดนี้ยังบันทึก แก้ไข ยกเลิก หรือ reverse ได้ตามสิทธิ์ของแต่ละ flow',
     tone: 'green',
   },
   {
     code: 'soft_closed',
+    badge: 'ปิดเบื้องต้น',
     label: 'ปิดงวดเบื้องต้น',
     meaning: 'เตือนและจำกัดงานย้อนหลังบางส่วน แต่ยังให้ admin แก้ได้พร้อม audit เมื่อมีเหตุผล',
     tone: 'amber',
   },
   {
     code: 'locked',
+    badge: 'ล็อก',
     label: 'ล็อกงวด',
     meaning: 'ต้อง block write ที่ลงวันที่ในงวดปิดตาม enforcement matrix ของ Sales, Purchase, Stock, Bank, Asset และ Tax',
     tone: 'red',
   },
   {
     code: 'reopened',
+    badge: 'เปิดใหม่',
     label: 'เปิดงวดใหม่',
     meaning: 'เปิดงวดที่เคย lock แล้วแบบมีเหตุผล ผู้อนุมัติ และ rebuild snapshot หลังแก้ข้อมูล',
     tone: 'blue',
   },
   {
     code: 'year_closed',
+    badge: 'ปิดปี',
     label: 'ปิดปี',
     meaning: 'freeze งบรายปีและ carry กำไรขาดทุนไป retained earnings ตาม policy ที่อนุมัติแล้ว',
     tone: 'slate',
@@ -102,7 +107,7 @@ export default function AccountingPeriodsPage() {
             <div key={state.code} className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h4 className="text-sm font-bold text-slate-900">{state.label}</h4>
-                <StatusBadge tone={state.tone}>{state.code}</StatusBadge>
+                <StatusBadge tone={state.tone}>{state.badge}</StatusBadge>
               </div>
               <p className="mt-3 text-xs leading-5 text-slate-600">{state.meaning}</p>
             </div>

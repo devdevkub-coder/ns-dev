@@ -91,6 +91,12 @@ finance/accounting read model: งบกำไรขาดทุน
 
 P2 proof completed against current Next page/API code. Remaining work is formula/source/cutoff refinement only when the target report definition changes or a page-specific discrepancy is found.
 
+## UI Checkpoint 2026-07-12
+
+- เอา segmented controls ที่ไม่มี behavior ออกจาก filter card แล้วจัด filter จริงเป็นสองแถว: วันที่/สาขา/ประเภทข้อมูล/ล้างตัวกรองด้านบน และ quick range ที่กดใช้งานได้ด้านล่าง
+- แปล KPI และคำอธิบายกำไรขาดทุนให้เป็น Thai-first พร้อมระบุ table surface เป็น `งบกำไรขาดทุน`
+- เหตุผล: report filter ต้องแสดงเฉพาะ control ที่มีผลกับ query จริง และต้องคงจังหวะการอ่านเดียวกับ list baseline โดยไม่เปลี่ยนสูตรงบหรือ API
+
 ## Implementation Checklist
 
 - [x] Verify current API response shape and source tables

@@ -676,7 +676,7 @@ const purchaseStatusOptions: MultiSegmentOption[] = [
   { label: 'ชำระบางส่วน', values: ['partial_paid'] },
   { label: 'เสร็จสิ้น', values: ['paid'] },
   { label: 'ยกเลิก', values: ['cancelled'] },
-  { label: 'ยกเลิก/เปลี่ยน Supplier', values: ['cancelled_supplier_swap'] },
+  { label: 'ยกเลิก/เปลี่ยนผู้ขาย', values: ['cancelled_supplier_swap'] },
 ]
 
 const salesStatusOptions: MultiSegmentOption[] = [
@@ -955,7 +955,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       return {
         docNo,
         id: `PB:${docNo}`,
-        label: `${docNo} · ${supplierName ?? 'ไม่ระบุ Supplier'} · ${lineCount.toLocaleString('th-TH')} รายการ · คงเหลือ ${formatMoney(remainingQty)}${unit ? ` ${unit}` : ''} · ${formatMoney(remainingAmount)} บาท`,
+        label: `${docNo} · ${supplierName ?? 'ไม่ระบุผู้ขาย'} · ${lineCount.toLocaleString('th-TH')} รายการ · คงเหลือ ${formatMoney(remainingQty)}${unit ? ` ${unit}` : ''} · ${formatMoney(remainingAmount)} บาท`,
         lineCount,
         lines: sortedLines,
         remainingAmount,
@@ -2854,8 +2854,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         <div className="flex flex-wrap items-center gap-2">
           <span className="w-14 shrink-0 text-xs text-slate-500">ประเภท:</span>
           <Segment value="" current={filterMode} label="ทุกประเภท" onClick={setFilterMode} />
-          <Segment value="STOCK" current={filterMode} label="📦 STOCK" onClick={setFilterMode} />
-          <Segment value="TRADING" current={filterMode} label="🔄 TRADING" onClick={setFilterMode} />
+          <Segment value="STOCK" current={filterMode} label="📦 สต็อก" onClick={setFilterMode} />
+          <Segment value="TRADING" current={filterMode} label="🔄 ซื้อมาขายไป" onClick={setFilterMode} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="w-14 shrink-0 text-xs text-slate-500">สถานะ:</span>
@@ -2948,8 +2948,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภท</span>
                   <div className="flex flex-wrap gap-2">
                     <Segment value="" current={filterMode} label="ทุกประเภท" onClick={setFilterMode} />
-                    <Segment value="STOCK" current={filterMode} label="📦 STOCK" onClick={setFilterMode} />
-                    <Segment value="TRADING" current={filterMode} label="🔄 TRADING" onClick={setFilterMode} />
+                    <Segment value="STOCK" current={filterMode} label="📦 สต็อก" onClick={setFilterMode} />
+                    <Segment value="TRADING" current={filterMode} label="🔄 ซื้อมาขายไป" onClick={setFilterMode} />
                   </div>
                 </div>
                 <div>
@@ -3004,7 +3004,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <div>
                   <span className="font-semibold text-slate-500">ประเภท: </span>
                   <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>
-                    {row.transactionMode ?? '-'}
+                    {transactionModeLabel(row.transactionMode)}
                   </span>
                 </div>
                 {row.note?.trim() ? (
@@ -3113,13 +3113,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
         <Table className="text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
-            {tableColumns.map((column, index) => {
-              const style = columnResize.getColumnStyle(column.key);
-              if (index === tableColumns.length - 1) {
-                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
-              }
-              return <col key={column.key} style={style} />;
-            })}
+            {tableColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
           </colgroup>
           <TableHeader>
             <tr>
@@ -3132,14 +3128,14 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('transactionMode', 'ประเภท')} sortKey="transactionMode" onSort={changeSort} />
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'สถานะเอกสาร' : 'สถานะรับเงิน'} resizeProps={columnResize.getResizeHandleProps('status', mode === 'purchase' ? 'สถานะเอกสาร' : 'สถานะรับเงิน')} sortKey="status" onSort={changeSort} />
               {mode === 'purchase' ? <ResizableTableHead align="center" label="PMA / PMT" resizeProps={columnResize.getResizeHandleProps('paymentDocs', 'PMA / PMT')} /> : null}
-              {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="รายการ" resizeProps={columnResize.getResizeHandleProps('itemCount', 'รายการ')} sortKey="itemCount" onSort={changeSort} /> : null}
-              <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ยอดรวม" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'ยอดรวม')} sortKey="totalAmount" onSort={changeSort} />
-              {mode === 'sales' ? <ResizableTableHead align="center" label="GP / Margin" resizeProps={columnResize.getResizeHandleProps('gp', 'GP / Margin')} /> : null}
-              {mode === 'sales' ? <ResizableTableHead align="center" label="รับแล้ว" resizeProps={columnResize.getResizeHandleProps('paidAmount', 'รับแล้ว')} /> : null}
-              <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ค้างชำระ" resizeProps={columnResize.getResizeHandleProps('outstanding', 'ค้างชำระ')} sortKey="outstanding" onSort={changeSort} />
+              {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="รายการ" resizeProps={columnResize.getResizeHandleProps('itemCount', 'รายการ')} sortKey="itemCount" onSort={changeSort} /> : null}
+              <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ยอดรวม" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'ยอดรวม')} sortKey="totalAmount" onSort={changeSort} />
+              {mode === 'sales' ? <ResizableTableHead align="right" label="GP / Margin" resizeProps={columnResize.getResizeHandleProps('gp', 'GP / Margin')} /> : null}
+              {mode === 'sales' ? <ResizableTableHead align="right" label="รับแล้ว" resizeProps={columnResize.getResizeHandleProps('paidAmount', 'รับแล้ว')} /> : null}
+              <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ค้างชำระ" resizeProps={columnResize.getResizeHandleProps('outstanding', 'ค้างชำระ')} sortKey="outstanding" onSort={changeSort} />
               {mode === 'sales' ? <ResizableTableHead align="center" label="VAT" resizeProps={columnResize.getResizeHandleProps('vat', 'VAT')} /> : null}
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="อัพเดตล่าสุด" resizeProps={columnResize.getResizeHandleProps('updatedBy', 'อัพเดตล่าสุด')} sortKey="updatedBy" onSort={changeSort} />
-              <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+              <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
             </tr>
           </TableHeader>
           <TableBody className="divide-y divide-slate-100">
@@ -3156,7 +3152,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <td className="p-2 text-center text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</td>
                 <td className="p-2 text-xs font-semibold text-slate-700">{'supplierName' in row ? row.supplierName : row.customerName}</td>
                 {mode !== 'purchase' ? <td className="p-2 text-xs font-semibold text-slate-700">{formatBranchWarehouse(row)}</td> : null}
-                <td className="p-2 text-center"><span className={`rounded-md-full px-2 py-0.5 text-xs font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>{row.transactionMode ?? '-'}</span></td>
+                <td className="p-2 text-center"><span className={`rounded-md-full px-2 py-0.5 text-xs font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>{transactionModeLabel(row.transactionMode)}</span></td>
                 <td className="p-2 text-center">
                   <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${mode === 'purchase' ? workflowStatusBadgeClass(row.paymentWorkflowStatus ?? 'pending_approval') : statusBadgeClass(row.status)}`}>
                     <span className="size-1.5 rounded-full bg-current" />
@@ -3279,8 +3275,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <div className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="amber">1</StepBadge>ประเภทบิล</h4>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <RadioCard active={form.transactionMode === 'STOCK'} disabled={stockReceiptLocked} label="📦 STOCK" note="ซื้อเข้าสต๊อก · เข้า Stock + คำนวณ WAC ภายหลัง" onClick={() => updateForm('transactionMode', 'STOCK')} />
-                  <RadioCard active={form.transactionMode === 'TRADING'} disabled={stockReceiptLocked} label="🔄 TRADING" note="ซื้อขายผ่านมือ · ไม่เข้า Stock ไม่กระทบ WAC" onClick={() => updateForm('transactionMode', 'TRADING')} />
+                  <RadioCard active={form.transactionMode === 'STOCK'} disabled={stockReceiptLocked} label="📦 สต็อก" note="ซื้อเข้าสต็อก · เข้าสต็อกและคำนวณ WAC ภายหลัง" onClick={() => updateForm('transactionMode', 'STOCK')} />
+                  <RadioCard active={form.transactionMode === 'TRADING'} disabled={stockReceiptLocked} label="🔄 ซื้อมาขายไป" note="ซื้อขายผ่านมือ · ไม่เข้าสต็อกและไม่กระทบ WAC" onClick={() => updateForm('transactionMode', 'TRADING')} />
                 </div>
                 {form.transactionMode === 'TRADING' ? (
                   <div className="mt-3 rounded-md border border-slate-200 bg-white p-2 text-xs text-slate-600">รายการ Trading ไม่เข้า Stock และจะใช้สำหรับจับคู่ขายใน Trading Matching ภายหลัง</div>
@@ -3804,8 +3800,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="emerald">1</StepBadge>ประเภทบิล</h4>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <RadioCard active={salesForm.transactionMode === 'STOCK'} disabled={salesIdentityLocked || stockDeliveryLocked} label="📦 STOCK" note="ขายจากสต๊อกจริง" onClick={() => updateSalesForm('transactionMode', 'STOCK')} />
-                  <RadioCard active={salesForm.transactionMode === 'TRADING'} disabled={salesIdentityLocked || stockDeliveryLocked} label="🔄 TRADING" note="ขายจากบิลซื้อ Trading และพ่วง WTO ได้" onClick={() => updateSalesForm('transactionMode', 'TRADING')} />
+                  <RadioCard active={salesForm.transactionMode === 'STOCK'} disabled={salesIdentityLocked || stockDeliveryLocked} label="📦 สต็อก" note="ขายจากสต็อกจริง" onClick={() => updateSalesForm('transactionMode', 'STOCK')} />
+                  <RadioCard active={salesForm.transactionMode === 'TRADING'} disabled={salesIdentityLocked || stockDeliveryLocked} label="🔄 ซื้อมาขายไป" note="ขายจากบิลซื้อแบบซื้อมาขายไป และพ่วง WTO ได้" onClick={() => updateSalesForm('transactionMode', 'TRADING')} />
                 </div>
                 {salesIdentityLocked ? (
                   <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600">โหมดแก้ไขจะคงประเภทบิล สาขา ลูกค้า และแหล่งที่มาเดิม เพื่อให้ข้อมูล Stock/Trading และ audit ต่อเนื่อง</div>
@@ -5170,7 +5166,7 @@ function statusBadgeClass(status: string) {
 function statusText(status: string) {
   const labels: Record<string, string> = {
     cancelled: 'ยกเลิก',
-    cancelled_supplier_swap: 'ยกเลิก/เปลี่ยน Supplier',
+    cancelled_supplier_swap: 'ยกเลิก/เปลี่ยนผู้ขาย',
     complete: 'เสร็จสิ้น',
     completed: 'เสร็จสิ้น',
     converted: 'เปิดบิลแล้ว',
@@ -5198,13 +5194,19 @@ function workflowStatusBadgeClass(status: string) {
 function workflowStatusText(status: string) {
   const labels: Record<string, string> = {
     cancelled: 'ยกเลิก',
-    cancelled_supplier_swap: 'ยกเลิก/เปลี่ยน Supplier',
+    cancelled_supplier_swap: 'ยกเลิก/เปลี่ยนผู้ขาย',
     paid: 'เสร็จสิ้น',
     partial_paid: 'ชำระบางส่วน',
     pending_approval: 'ยังไม่อนุมัติ',
     pending_payment: 'รอจ่าย',
   }
   return labels[status.toLowerCase()] ?? status
+}
+
+function transactionModeLabel(mode: string | null | undefined) {
+  if (mode === 'STOCK') return 'สต็อก'
+  if (mode === 'TRADING') return 'ซื้อมาขายไป'
+  return mode || '-'
 }
 
 function formatDateTime(value?: string) {

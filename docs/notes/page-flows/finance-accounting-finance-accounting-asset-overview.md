@@ -91,6 +91,13 @@ finance/accounting read model: Net Worth / Track Asset
 
 P2 proof completed against current Next page/API code. Remaining work is formula/source/cutoff refinement only when the target report definition changes or a page-specific discrepancy is found.
 
+## UI Checkpoint 2026-07-12
+
+- เพิ่มปุ่ม `ล้างตัวกรอง` ใน filter card และทำปุ่มนำทางไปหน้าจับคู่การซื้อขายเป็น action สี/น้ำหนักตาม baseline
+- เปลี่ยนหัวข้อและ legend ที่เป็น copy ประกอบหน้าจอเป็น Thai-first เช่น `เงินสดและรายการอื่น`, `สินค้าคงคลัง`, และ `เงินสดและธนาคาร`
+- แก้ loading state ของยอด `ภาระหนี้`: ก่อน API ตอบ component จะคำนวณยอดจาก `undefined + undefined` จนเห็น `NaN`; ตอนนี้ใช้ค่า 0 ระหว่างโหลด โดยไม่แตะสูตรจริงหลังข้อมูลตอบกลับ
+- เหตุผล: ผู้ใช้ต้องไม่เห็นค่าการเงินที่ไม่ใช่จำนวนเงินแม้เพียงช่วงโหลด และ filter/table ต้องอ่านเป็น design เดียวกันโดยไม่เปลี่ยน source หรือการคำนวณ business data
+
 ## Implementation Checklist
 
 - [x] Verify current API response shape and source tables

@@ -645,7 +645,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
                     {config.columns.map((column) => (
                       <TableCell
                         key={column.key}
-                        className={`p-2 text-xs font-semibold text-slate-700 ${alignClass(column.align)} ${
+                        className={`p-3 text-xs font-semibold text-slate-700 ${alignClass(column.align)} ${
                           column.align === 'right'
                             ? 'pr-4 tabular-nums whitespace-nowrap'
                             : column.key === 'code'
@@ -665,7 +665,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
                         {!column.format ? displayRecordValue(record, column.key) : null}
                       </TableCell>
                     ))}
-                    <TableCell className="p-2 text-center">
+                    <TableCell className="p-3 text-center">
                       <button
                         className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                         type="button"

@@ -7,6 +7,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, hasP
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { averageCostForStock, normalizeStockReferenceInput, quantityForStock, stockReferenceData } from '@/lib/server/stock'
+import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
 
@@ -265,21 +266,6 @@ async function loadStockBalanceOptions() {
   }))
 }
 
-function csvEscape(value: string | number | null | undefined) {
-  const text = String(value ?? '')
-  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
-}
-
-function csvResponse(filename: string, rows: Array<Array<string | number | null | undefined>>) {
-  const body = rows.map((row) => row.map(csvEscape).join(',')).join('\n')
-  return new NextResponse(body, {
-    headers: {
-      'content-disposition': `attachment; filename="${filename}"`,
-      'content-type': 'text/csv; charset=utf-8',
-    },
-  })
-}
-
 async function loadAllocationDetail(refNo: string) {
   const rows = await prisma.$queryRaw<AllocationDetailRow[]>`
     select
@@ -370,6 +356,67 @@ async function loadAllocationDetail(refNo: string) {
   }
 }
 
+async function buildAllocationDetailWorkbook(detail: NonNullable<Awaited<ReturnType<typeof loadAllocationDetail>>>) {
+  const workbook = XLSX.utils.book_new()
+  const summaryRows = [
+    ['หัวข้อ', 'ค่า'],
+    ['เลขที่เอกสาร', detail.refNo],
+    ['วันที่เอกสาร', detail.date],
+    ['สถานะเอกสาร', detail.status],
+    ['สาขา / คลัง', detail.branchWarehouse],
+    ['จำนวนออก (กก.)', detail.sourceQty],
+    ['จำนวนเข้า (กก.)', detail.targetQty],
+    ['สูญเสีย (กก.)', detail.lossQty],
+    ['นโยบายต้นทุนปลายทาง', detail.targetCostPolicy],
+    ['ต้นทุนปลายทาง (บาท/กก.)', detail.targetUnitCost],
+    ['ส่วนต่างต้นทุน (บาท)', detail.targetCostVariance],
+    ['เหตุผลการปรับเกรด', detail.reason ?? '-'],
+    ['หมายเหตุ', detail.notes ?? '-'],
+    ['เหตุผลกำหนดต้นทุนเอง', detail.targetCostReason ?? '-'],
+  ]
+  const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows)
+  summarySheet['!cols'] = [{ wch: 30 }, { wch: 42 }]
+  applyWorksheetTableLayout(summarySheet, 2, summaryRows.length)
+  XLSX.utils.book_append_sheet(workbook, summarySheet, 'สรุปการปรับเกรด')
+
+  const allocationRows = [
+    ['ลำดับ', 'สถานะจัดสรร', 'Cost Pool ต้นทาง', 'เอกสารอ้างอิงต้นทาง', 'สินค้าต้นทาง', 'ล็อตต้นทาง', 'Cost Pool ปลายทาง', 'สถานะ Cost Pool ปลายทาง', 'สินค้าปลายทาง', 'ล็อตปลายทาง', 'จำนวน (กก.)', 'ต้นทุน/กก. (บาท)', 'ต้นทุนรวม (บาท)', 'ย้อนกลับเมื่อ'],
+    ...detail.lines.map((line) => [
+      line.lineNo,
+      line.allocationStatus,
+      line.sourcePoolId ? `Pool ${line.sourcePoolId}` : '-',
+      line.sourceRefNo ?? '-',
+      line.sourceProduct,
+      line.sourceLotNo ?? '-',
+      line.targetPoolId ? `Pool ${line.targetPoolId}` : '-',
+      line.targetPoolStatus ?? '-',
+      line.targetProduct,
+      line.targetLotNo ?? '-',
+      line.qty,
+      line.unitCost,
+      line.totalCost,
+      line.reversedAt ?? '-',
+    ]),
+  ]
+  const allocationSheet = XLSX.utils.aoa_to_sheet(allocationRows)
+  allocationSheet['!cols'] = [
+    { wch: 8 }, { wch: 16 }, { wch: 18 }, { wch: 22 }, { wch: 28 }, { wch: 16 }, { wch: 18 }, { wch: 22 }, { wch: 28 }, { wch: 16 }, { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 22 },
+  ]
+  applyWorksheetTableLayout(allocationSheet, allocationRows[0].length, allocationRows.length)
+  XLSX.utils.book_append_sheet(workbook, allocationSheet, 'รายการจัดสรร')
+
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
+}
+
+function xlsxResponse(body: Buffer, filename: string) {
+  return new Response(new Uint8Array(body), {
+    headers: {
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    },
+  })
+}
+
 async function lockPoolEntries(input: {
   branchId: bigint
   lotNo: string | null
@@ -455,35 +502,7 @@ export async function GET(request: Request) {
     if (detailRefNo) {
       const detail = await loadAllocationDetail(detailRefNo)
       if (!detail) return NextResponse.json({ error: 'ไม่พบเอกสารปรับเกรด' }, { status: 404 })
-      if (url.searchParams.get('format') === 'csv') {
-        return csvResponse(`stock-convert-${detail.refNo}-allocation.csv`, [
-          ['doc_no', 'date', 'status', 'branch_warehouse', 'source_qty', 'target_qty', 'loss_qty', 'line_no', 'allocation_status', 'source_pool_id', 'source_ref_no', 'source_type', 'source_product', 'source_lot_no', 'target_pool_id', 'target_product', 'target_lot_no', 'target_pool_status', 'qty', 'unit_cost', 'total_cost', 'reversed_at'],
-          ...detail.lines.map((line) => [
-            detail.refNo,
-            detail.date,
-            detail.status,
-            detail.branchWarehouse,
-            detail.sourceQty,
-            detail.targetQty,
-            detail.lossQty,
-            line.lineNo,
-            line.allocationStatus,
-            line.sourcePoolId,
-            line.sourceRefNo,
-            line.sourceType,
-            line.sourceProduct,
-            line.sourceLotNo,
-            line.targetPoolId,
-            line.targetProduct,
-            line.targetLotNo,
-            line.targetPoolStatus,
-            line.qty,
-            line.unitCost,
-            line.totalCost,
-            line.reversedAt,
-          ]),
-        ])
-      }
+      if (url.searchParams.get('format') === 'xlsx') return xlsxResponse(await buildAllocationDetailWorkbook(detail), `stock-convert-${detail.refNo}-allocation.xlsx`)
       return NextResponse.json({ detail })
     }
     const [reference, adjustments, ledgerRows, costPoolEntries, stockBalanceEntries] = await Promise.all([

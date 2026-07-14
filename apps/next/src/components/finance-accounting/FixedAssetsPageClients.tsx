@@ -258,8 +258,8 @@ export function AssetRegisterPageClient() {
   const categoryOptions = useMemo(() => {
     return (data?.options.categories ?? []).map((cat) => ({
       id: cat,
-      label: cat,
-      searchText: cat,
+      label: assetOptionLabel(cat),
+      searchText: `${cat} ${assetOptionLabel(cat)}`,
     }))
   }, [data?.options.categories])
 
@@ -280,7 +280,7 @@ export function AssetRegisterPageClient() {
     return params.toString()
   }, [category, search, status])
   const apiHref = `/api/finance-accounting/asset-register${queryString ? `?${queryString}` : ''}`
-  const exportHref = `/api/finance-accounting/asset-register?${new URLSearchParams({ ...(queryString ? Object.fromEntries(new URLSearchParams(queryString)) : {}), format: 'csv' }).toString()}`
+  const exportHref = `/api/finance-accounting/asset-register?${new URLSearchParams({ ...(queryString ? Object.fromEntries(new URLSearchParams(queryString)) : {}), format: 'xlsx' }).toString()}`
 
   const loadData = useCallback(() => {
     setIsLoading(true)
@@ -455,7 +455,7 @@ export function AssetRegisterPageClient() {
             </div>
           </div>
         </div>
-        <Panel title="NBV ตามหมวด">
+        <Panel title="มูลค่าคงเหลือตามหมวด">
           {hasCategoryBreakdown ? (
             <div className="space-y-3">
               {(data?.byCategory ?? []).slice(0, 6).map((item) => (
@@ -474,21 +474,16 @@ export function AssetRegisterPageClient() {
         </Panel>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard label="ต้นทุนสุทธิรวม" value={formatMoney(data?.summary.netAssetCost)} tone="blue" />
-        <StatCard label="ค่าเสื่อมสะสมรวม" value={formatMoney(data?.summary.accumDep)} tone="amber" />
-      </div>
-
       {/* Desktop Toolbar */}
-      <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex">
-        <input
-          className="h-9 min-w-[320px] flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none transition focus:border-slate-400"
-          placeholder="ค้นหา รหัส / ชื่อ / สถานที่ / สาขา"
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-        <div className="flex items-center gap-2">
+      <div className="hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            className="h-9 min-w-[320px] flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none transition focus:border-slate-400"
+            placeholder="ค้นหา รหัส / ชื่อ / สถานที่ / สาขา"
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
           <select
             className="h-9 w-auto min-w-[120px] rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition cursor-pointer focus:border-slate-400"
             value={category}
@@ -497,21 +492,37 @@ export function AssetRegisterPageClient() {
             <option value="all">ทุกหมวด</option>
             {(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
-          <select
-            className="h-9 w-auto min-w-[120px] rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition cursor-pointer focus:border-slate-400"
-            value={status}
-            onChange={(event) => setStatus(event.target.value)}
+          <button
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50"
+            onClick={() => { setSearch(''); setCategory('all'); setStatus('all') }}
+            type="button"
           >
-            <option value="all">ทุกสถานะ</option>
-            {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
+            ล้างตัวกรอง
+          </button>
         </div>
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-500">สถานะ:</span>
+            {['all', ...(data?.filters.statuses ?? [])].map((item) => {
+              const active = status === item
+              return (
+                <button
+                  className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+                  key={item}
+                  onClick={() => setStatus(item)}
+                  type="button"
+                >
+                  {assetStatusLabel(item)}
+                </button>
+              )
+            })}
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
           <LinkButton href="/api/finance-accounting/asset-register?template=csv">ดาวน์โหลดแบบฟอร์มนำเข้า</LinkButton>
           <button
             type="button"
             onClick={openImport}
-            className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 outline-none focus:ring-0"
+            className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-normal text-slate-600 transition hover:bg-slate-50 outline-none focus:ring-0"
           >
             นำเข้า
           </button>
@@ -519,11 +530,12 @@ export function AssetRegisterPageClient() {
           <button
             type="button"
             onClick={openCreate}
-            className="inline-flex h-9 items-center rounded-md bg-blue-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 outline-none focus:ring-0"
+            className="inline-flex h-9 items-center rounded-md bg-blue-600 px-4 text-xs font-normal text-white shadow-sm transition hover:bg-blue-700 outline-none focus:ring-0"
           >
             + เพิ่มทรัพย์สิน
           </button>
         </div>
+      </div>
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
@@ -538,10 +550,19 @@ export function AssetRegisterPageClient() {
           />
           <button
             type="button"
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 transition"
             onClick={() => setShowMobileFilters(true)}
           >
             ตัวกรอง {(category !== 'all' || status !== 'all') ? '(มี)' : ''}
+          </button>
+        </div>
+        <div className="flex justify-end">
+          <button
+            className="h-9 rounded-md bg-blue-600 px-3 text-sm font-normal text-white transition hover:bg-blue-700"
+            onClick={openCreate}
+            type="button"
+          >
+            + เพิ่มทรัพย์สิน
           </button>
         </div>
       </div>
@@ -558,14 +579,14 @@ export function AssetRegisterPageClient() {
                   setCategory('all')
                   setStatus('all')
                 }}
-                className="flex-1 h-10 rounded-md border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                className="flex-1 h-10 rounded-md border border-slate-200 text-slate-600 font-normal text-sm hover:bg-slate-50 transition"
               >
                 ล้างตัวกรอง
               </button>
               <button
                 type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="flex-1 h-10 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+                className="flex-1 h-10 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-normal text-sm transition"
               >
                 ตกลง
               </button>
@@ -594,7 +615,7 @@ export function AssetRegisterPageClient() {
               onChange={(event) => setStatus(event.target.value)}
             >
               <option value="all">ทุกสถานะ</option>
-              {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
+              {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{assetStatusLabel(item)}</option>)}
             </select>
           </div>
 
@@ -607,21 +628,21 @@ export function AssetRegisterPageClient() {
                   setShowMobileFilters(false)
                   window.location.href = '/api/finance-accounting/asset-register?template=csv'
                 }}
-                className="flex h-10 items-center justify-center rounded-md border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                className="flex h-10 items-center justify-center rounded-md border border-slate-200 text-xs font-normal text-slate-600 hover:bg-slate-50 transition"
               >
                 แบบฟอร์มนำเข้า
               </button>
               <button
                 type="button"
                 onClick={() => { setShowMobileFilters(false); openImport() }}
-                className="flex h-10 items-center justify-center rounded-md border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                className="flex h-10 items-center justify-center rounded-md border border-slate-200 text-xs font-normal text-slate-600 hover:bg-slate-50 transition"
               >
                 นำเข้า
               </button>
               <a
                 href={exportHref}
                 onClick={() => setShowMobileFilters(false)}
-                className="col-span-2 flex h-10 items-center justify-center rounded-md bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700 transition"
+                className="col-span-2 flex h-10 items-center justify-center rounded-md bg-emerald-600 text-xs font-normal text-white hover:bg-emerald-700 transition"
               >
                 ส่งออก Excel
               </a>
@@ -677,26 +698,23 @@ export function AssetRegisterPageClient() {
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
           <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
-              {assetRegisterColumns.map((column, index) => {
-                if (index === assetRegisterColumns.length - 1) {
-                  return <col key={column.key} style={{ minWidth: column.minWidth }} />
-                }
-                return <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
-              })}
+              {assetRegisterColumns.map((column) => (
+                <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+              ))}
             </colgroup>
             <thead className="bg-slate-100">
               <tr>
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="รหัสทรัพย์สิน" resizeProps={columnResize.getResizeHandleProps('code', 'รหัสทรัพย์สิน')} sortKey="code" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="ชื่อทรัพย์สิน / สถานที่" resizeProps={columnResize.getResizeHandleProps('assetName', 'ชื่อทรัพย์สิน / สถานที่')} sortKey="assetName" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="หมวด" resizeProps={columnResize.getResizeHandleProps('category', 'หมวด')} sortKey="category" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="สาขา" resizeProps={columnResize.getResizeHandleProps('branchName', 'สาขา')} sortKey="branchName" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="วันที่ซื้อ" resizeProps={columnResize.getResizeHandleProps('purchaseDate', 'วันที่ซื้อ')} sortKey="purchaseDate" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ชื่อทรัพย์สิน / สถานที่" resizeProps={columnResize.getResizeHandleProps('assetName', 'ชื่อทรัพย์สิน / สถานที่')} sortKey="assetName" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="หมวด" resizeProps={columnResize.getResizeHandleProps('category', 'หมวด')} sortKey="category" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="สาขา" resizeProps={columnResize.getResizeHandleProps('branchName', 'สาขา')} sortKey="branchName" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="วันที่ซื้อ" resizeProps={columnResize.getResizeHandleProps('purchaseDate', 'วันที่ซื้อ')} sortKey="purchaseDate" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ต้นทุนสุทธิ" resizeProps={columnResize.getResizeHandleProps('netAssetCost', 'ต้นทุนสุทธิ')} sortKey="netAssetCost" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ค่าเสื่อมสะสม" resizeProps={columnResize.getResizeHandleProps('accumDep', 'ค่าเสื่อมสะสม')} sortKey="accumDep" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="มูลค่าคงเหลือ (NBV)" resizeProps={columnResize.getResizeHandleProps('nbv', 'มูลค่าคงเหลือ')} sortKey="nbv" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ค่าเสื่อม/เดือน" resizeProps={columnResize.getResizeHandleProps('monthlyDep', 'ค่าเสื่อมต่อเดือน')} sortKey="monthlyDep" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
-                <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('actions', 'จัดการ')} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
+                <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('actions', 'จัดการ')} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -707,23 +725,23 @@ export function AssetRegisterPageClient() {
               {!isLoading && pagedRows.map((row) => (
                 <tr key={row.id} className="transition-colors hover:bg-slate-50">
                   <td className="whitespace-nowrap px-3 py-3 font-mono font-bold text-amber-700">{row.code}</td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-3 text-right">
                     <div className="font-semibold text-slate-900">{row.name}</div>
                     <div className="text-xs text-slate-400">{row.location || '-'}</div>
                   </td>
-                  <td className="px-3 py-3 text-slate-700">{row.category}</td>
-                  <td className="px-3 py-3 text-slate-700">{row.branchName}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-slate-600">{row.purchaseDate || '-'}</td>
+                  <td className="px-3 py-3 text-right text-slate-700">{row.category}</td>
+                  <td className="px-3 py-3 text-right text-slate-700">{row.branchName}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right text-slate-600">{row.purchaseDate || '-'}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-medium tabular-nums text-slate-700">{formatMoney(row.netAssetCost)}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-500">{formatMoney(row.accumDep)}</td>
                   <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${row.nbv > 0 ? 'text-emerald-700' : 'text-slate-700'}`}>{formatMoney(row.nbv)}</td>
                   <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-medium tabular-nums ${row.monthlyDep > 0 ? 'text-amber-700' : 'text-slate-700'}`}>{formatMoney(row.monthlyDep)}</td>
-                  <td className="px-3 py-3 text-center"><StatusPill status={row.assetStatus} /></td>
-                  <td className="px-3 py-3 text-center">
-                    <div className="flex justify-center gap-1">
-                      <button className="rounded border border-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition outline-none" disabled={isSaving} onClick={() => openEdit(row)} type="button">แก้ไข</button>
+                  <td className="px-3 py-3 text-right"><StatusPill status={row.assetStatus} /></td>
+                  <td className="px-3 py-3 text-right">
+                    <div className="flex justify-end gap-1">
+                      <button className="rounded border border-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600 hover:bg-slate-50 transition outline-none" disabled={isSaving} onClick={() => openEdit(row)} type="button">แก้ไข</button>
                       {!['Inactive', 'Sold', 'Disposed', 'Lost'].includes(row.assetStatus) ? (
-                        <button className="rounded border border-red-200 px-2 py-0.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition outline-none" disabled={isSaving} onClick={() => deactivateAsset(row)} type="button">ปิดใช้งาน</button>
+                        <button className="rounded border border-red-200 px-2 py-0.5 text-xs font-normal text-red-600 hover:bg-red-50 transition outline-none" disabled={isSaving} onClick={() => deactivateAsset(row)} type="button">ปิดใช้งาน</button>
                       ) : null}
                     </div>
                   </td>
@@ -881,17 +899,6 @@ export function AssetRegisterPageClient() {
         </Modal>
       ) : null}
 
-      {/* Floating Action Button (FAB) for Mobile */}
-      <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 lg:hidden">
-        <button
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform focus:outline-none text-2xl font-bold hover:bg-blue-700"
-          onClick={openCreate}
-          type="button"
-          aria-label="เพิ่มทรัพย์สิน"
-        >
-          +
-        </button>
-      </div>
     </section>
   )
 }
@@ -1098,7 +1105,7 @@ export function DepreciationPageClient() {
           />
           <button
             type="button"
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 transition"
             onClick={() => setShowMobileFilters(true)}
           >
             ตัวกรอง
@@ -1115,7 +1122,7 @@ export function DepreciationPageClient() {
           type="button"
           disabled={isSaving || month === 'all' || filteredPendingAssets.length === 0}
           onClick={runPreview}
-          className={`w-full h-10 rounded-xl text-sm font-bold transition shadow-sm outline-none focus:ring-0 flex items-center justify-center ${
+          className={`flex h-10 w-full items-center justify-center rounded-md text-sm font-normal shadow-sm transition outline-none focus:ring-0 ${
             isSaving || month === 'all' || filteredPendingAssets.length === 0
               ? 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-60'
               : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95 transition-transform'
@@ -1137,14 +1144,14 @@ export function DepreciationPageClient() {
                   setFilterCategory('all')
                   setFilterDepartment('all')
                 }}
-                className="flex-1 h-10 rounded-md border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+                className="flex-1 h-10 rounded-md border border-slate-200 text-slate-600 font-normal text-sm hover:bg-slate-50 transition"
               >
                 ล้างตัวกรอง
               </button>
               <button
                 type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="flex-1 h-10 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+                className="flex-1 h-10 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-normal text-sm transition"
               >
                 ตกลง
               </button>
@@ -1248,25 +1255,22 @@ export function DepreciationPageClient() {
         <div className="hidden overflow-x-auto lg:block">
           <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
-              {depreciationColumns.map((column, index) => {
-                if (index === depreciationColumns.length - 1) {
-                  return <col key={column.key} style={{ minWidth: column.minWidth }} />
-                }
-                return <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
-              })}
+              {depreciationColumns.map((column) => (
+                <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+              ))}
             </colgroup>
             <thead className="sticky top-0 bg-slate-100">
               <tr>
                 <ResizableTableHead activeSortKey={historySortKey ?? undefined} direction={historySortDirection} label="เลขที่รันค่าเสื่อม" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่รันค่าเสื่อม')} sortKey="refNo" onSort={changeHistorySort} />
-                <ResizableTableHead activeSortKey={historySortKey ?? undefined} direction={historySortDirection} label="งวด" resizeProps={columnResize.getResizeHandleProps('period', 'งวด')} sortKey="period" onSort={changeHistorySort} />
-                <ResizableTableHead activeSortKey={historySortKey ?? undefined} direction={historySortDirection} label="สินทรัพย์" resizeProps={columnResize.getResizeHandleProps('asset', 'สินทรัพย์')} sortKey="asset" onSort={changeHistorySort} />
+                <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="right" direction={historySortDirection} label="งวด" resizeProps={columnResize.getResizeHandleProps('period', 'งวด')} sortKey="period" onSort={changeHistorySort} />
+                <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="right" direction={historySortDirection} label="สินทรัพย์" resizeProps={columnResize.getResizeHandleProps('asset', 'สินทรัพย์')} sortKey="asset" onSort={changeHistorySort} />
                 <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="right" direction={historySortDirection} label="ค่าเสื่อมสะสมก่อน" resizeProps={columnResize.getResizeHandleProps('accumBefore', 'ค่าเสื่อมสะสมก่อน')} sortKey="accumBefore" onSort={changeHistorySort} />
                 <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="right" direction={historySortDirection} label="ค่าเสื่อมงวดนี้" resizeProps={columnResize.getResizeHandleProps('depreciationAmount', 'ค่าเสื่อมงวดนี้')} sortKey="depreciationAmount" onSort={changeHistorySort} />
                 <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="right" direction={historySortDirection} label="ค่าเสื่อมสะสมหลัง" resizeProps={columnResize.getResizeHandleProps('accumAfter', 'ค่าเสื่อมสะสมหลัง')} sortKey="accumAfter" onSort={changeHistorySort} />
                 <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="right" direction={historySortDirection} label="NBV ก่อน" resizeProps={columnResize.getResizeHandleProps('nbvBefore', 'NBV ก่อน')} sortKey="nbvBefore" onSort={changeHistorySort} />
                 <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="right" direction={historySortDirection} label="NBV หลัง" resizeProps={columnResize.getResizeHandleProps('nbvAfter', 'NBV หลัง')} sortKey="nbvAfter" onSort={changeHistorySort} />
-                <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="center" direction={historySortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeHistorySort} />
-                <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('actions', 'จัดการ')} />
+                <ResizableTableHead activeSortKey={historySortKey ?? undefined} align="right" direction={historySortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeHistorySort} />
+                <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('actions', 'จัดการ')} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1274,8 +1278,8 @@ export function DepreciationPageClient() {
               {pagedRows.map((row) => (
                 <tr key={row.id} className={`transition-colors hover:bg-slate-50 ${row.status === 'reversed' ? 'bg-slate-50 opacity-70' : ''}`}>
                   <td className="whitespace-nowrap px-3 py-3 font-mono font-bold text-red-700">{row.refNo}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-slate-700">{row.period}</td>
-                  <td className="px-3 py-3">
+                  <td className="whitespace-nowrap px-3 py-3 text-right text-slate-700">{row.period}</td>
+                  <td className="px-3 py-3 text-right">
                     <div className="font-semibold text-slate-800">{row.assetName}</div>
                     <div className="text-xs text-slate-400 font-medium font-mono">{row.assetCode}</div>
                   </td>
@@ -1284,15 +1288,15 @@ export function DepreciationPageClient() {
                   <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.accumAfter)}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-500">{formatMoney(row.nbvBefore)}</td>
                   <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${row.nbvAfter > 0 ? 'text-emerald-700' : 'text-slate-700'}`}>{formatMoney(row.nbvAfter)}</td>
-                  <td className="px-3 py-3 text-center">
+                  <td className="px-3 py-3 text-right">
                     <StatusPill status={row.status} />
                   </td>
-                  <td className="px-3 py-3 text-center">
+                  <td className="px-3 py-3 text-right">
                     {row.status === 'reversed' ? (
                       <span className="text-xs text-slate-400 font-medium">{row.reversalReason || '-'}</span>
                     ) : (
                       <button 
-                        className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition" 
+                        className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-normal text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition"
                         disabled={isSaving} 
                         onClick={() => setReverseRow(row)} 
                         type="button"
@@ -1382,18 +1386,18 @@ export function DepreciationPageClient() {
             <StatCard label="จำนวนรายการ" value={preview.summary.count} />
             <StatCard label="ค่าเสื่อมรวม" value={formatMoney(preview.summary.totalDepreciation)} tone="red" />
             <div className="col-span-2 md:col-span-1">
-              <StatCard label="จะ Fully Depreciated" value={preview.summary.willFullyDepreciate} tone="amber" />
+              <StatCard label="จะคิดค่าเสื่อมครบ" value={preview.summary.willFullyDepreciate} tone="amber" />
             </div>
           </div>
           <TableShell>
             <table className="ns-table w-full text-xs">
-              <thead className="bg-slate-50 border-b border-slate-100 text-slate-500"><tr><Th>ทรัพย์สิน</Th><Th align="right">ค่าเสื่อมสะสมก่อน</Th><Th align="right">ค่าเสื่อม</Th><Th align="right">ค่าเสื่อมสะสมหลัง</Th><Th align="right">NBV หลัง</Th><Th align="center">สถานะหลัง Run</Th></tr></thead>
+              <thead className="bg-slate-50 border-b border-slate-100 text-slate-500"><tr><Th>ทรัพย์สิน</Th><Th align="right">ค่าเสื่อมสะสมก่อน</Th><Th align="right">ค่าเสื่อม</Th><Th align="right">ค่าเสื่อมสะสมหลัง</Th><Th align="right">NBV หลัง</Th><Th align="right">สถานะหลังประมวลผล</Th></tr></thead>
               <tbody>
                 {preview.rows.map((row) => (
                   <tr key={row.assetId} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors">
                     <Td><div className="font-medium">{row.assetCode}</div><div className="text-slate-400">{row.assetName}</div></Td>
                     <Td align="right">{formatMoney(row.accumBefore)}</Td><Td align="right">{formatMoney(row.depreciationAmount)}</Td><Td align="right">{formatMoney(row.accumAfter)}</Td><Td align="right">{formatMoney(row.nbvAfter)}</Td>
-                    <Td align="center">{row.willFullyDepreciate ? <Chip tone="blue">Fully Depreciated</Chip> : <Chip tone="emerald">Active</Chip>}</Td>
+                    <Td align="right">{row.willFullyDepreciate ? <Chip tone="blue">คิดค่าเสื่อมครบแล้ว</Chip> : <Chip tone="emerald">พร้อมใช้งาน</Chip>}</Td>
                   </tr>
                 ))}
               </tbody>
@@ -1556,7 +1560,7 @@ export function AssetDisposalPageClient() {
           <button 
             type="button" 
             onClick={openCreate} 
-            className="h-9 px-4 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition outline-none"
+            className="h-9 rounded-md bg-blue-600 px-4 text-sm font-normal text-white transition hover:bg-blue-700 outline-none"
           >
             + จำหน่ายทรัพย์สิน
           </button>
@@ -1578,6 +1582,15 @@ export function AssetDisposalPageClient() {
             <div className="text-xs text-slate-500 font-semibold">ย้อนกลับ</div>
             <div className="text-xs font-bold text-amber-700">{data?.summary.reversedRows ?? 0}</div>
           </div>
+        </div>
+        <div className="mt-3 flex justify-end">
+          <button
+            className="h-9 rounded-md bg-blue-600 px-3 text-sm font-normal text-white transition hover:bg-blue-700"
+            onClick={openCreate}
+            type="button"
+          >
+            + จำหน่ายทรัพย์สิน
+          </button>
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1636,25 +1649,22 @@ export function AssetDisposalPageClient() {
         <div className="hidden overflow-x-auto lg:block">
           <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
-              {disposalColumns.map((column, index) => {
-                if (index === disposalColumns.length - 1) {
-                  return <col key={column.key} style={{ minWidth: column.minWidth }} />
-                }
-                return <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
-              })}
+              {disposalColumns.map((column) => (
+                <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+              ))}
             </colgroup>
             <thead className="bg-slate-100">
               <tr>
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="เลขที่จำหน่าย" resizeProps={columnResize.getResizeHandleProps('disposalNo', 'เลขที่จำหน่าย')} sortKey="disposalNo" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="สินทรัพย์" resizeProps={columnResize.getResizeHandleProps('asset', 'สินทรัพย์')} sortKey="asset" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('disposalType', 'ประเภท')} sortKey="disposalType" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="สินทรัพย์" resizeProps={columnResize.getResizeHandleProps('asset', 'สินทรัพย์')} sortKey="asset" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('disposalType', 'ประเภท')} sortKey="disposalType" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ราคาขาย" resizeProps={columnResize.getResizeHandleProps('sellingPrice', 'ราคาขาย')} sortKey="sellingPrice" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="NBV ณ วันจำหน่าย" resizeProps={columnResize.getResizeHandleProps('nbv', 'NBV ณ วันจำหน่าย')} sortKey="nbv" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="กำไร/(ขาดทุน)" resizeProps={columnResize.getResizeHandleProps('gainLoss', 'กำไรหรือขาดทุน')} sortKey="gainLoss" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="เหตุผล" resizeProps={columnResize.getResizeHandleProps('reason', 'เหตุผล')} sortKey="reason" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
-                <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('actions', 'จัดการ')} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="เหตุผล" resizeProps={columnResize.getResizeHandleProps('reason', 'เหตุผล')} sortKey="reason" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
+                <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('actions', 'จัดการ')} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1662,27 +1672,27 @@ export function AssetDisposalPageClient() {
               {pagedRows.map((row) => (
                 <tr key={row.id} className={`transition-colors hover:bg-slate-50 ${row.status === 'reversed' ? 'bg-slate-50 opacity-70' : ''}`}>
                   <td className="whitespace-nowrap px-3 py-3 font-mono font-bold text-slate-700">{row.disposalNo}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-slate-600">{row.date}</td>
-                  <td className="px-3 py-3">
+                  <td className="whitespace-nowrap px-3 py-3 text-right text-slate-600">{row.date}</td>
+                  <td className="px-3 py-3 text-right">
                     <div className="font-semibold text-slate-800">{row.assetCode}</div>
                     <div className="text-xs text-slate-400 font-medium">{row.assetName}</div>
                   </td>
-                  <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-700">{row.disposalType}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right font-medium text-slate-700">{row.disposalType}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.sellingPrice)}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-500">{formatMoney(row.nbv)}</td>
                   <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${(row.gainLoss ?? 0) > 0 ? 'text-emerald-700' : (row.gainLoss ?? 0) < 0 ? 'text-red-700' : 'text-slate-700'}`}>{formatMoney(row.gainLoss)}</td>
-                  <td className="min-w-0 px-3 py-3 text-slate-500" title={row.reason}>
+                  <td className="min-w-0 px-3 py-3 text-right text-slate-500" title={row.reason}>
                     <div className="truncate">{row.reason || '-'}</div>
                   </td>
-                  <td className="px-3 py-3 text-center">
+                  <td className="px-3 py-3 text-right">
                     <StatusPill status={row.status} />
                   </td>
-                  <td className="px-3 py-3 text-center">
+                  <td className="px-3 py-3 text-right">
                     {row.status === 'reversed' ? (
                       <span className="text-xs text-slate-400 font-medium">{row.reversalReason || '-'}</span>
                     ) : (
                       <button 
-                        className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition" 
+                        className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-normal text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition"
                         disabled={isSaving} 
                         onClick={() => openReverse(row)} 
                         type="button"
@@ -1815,17 +1825,6 @@ export function AssetDisposalPageClient() {
         </Modal>
       ) : null}
 
-      {/* Floating Action Button (FAB) for Mobile */}
-      <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 lg:hidden">
-        <button
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform focus:outline-none text-2xl font-bold hover:bg-blue-700"
-          onClick={openCreate}
-          type="button"
-          aria-label="จำหน่ายสินทรัพย์"
-        >
-          +
-        </button>
-      </div>
     </section>
   )
 }
@@ -1976,13 +1975,13 @@ function Modal({ children, title }: { children: ReactNode; title: string }) {
   const actions = isValidElement<{ children?: ReactNode }>(actionElement) ? actionElement.props.children : null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-6xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl">
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 bg-slate-900 px-6 py-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-0 sm:p-4">
+      <div className="flex h-[100dvh] max-h-[100dvh] w-full max-w-none flex-col overflow-hidden rounded-none border-0 bg-slate-900 shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:max-w-6xl sm:rounded-md">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 bg-slate-900 px-4 py-3 text-white dark:bg-[#0f172a] sm:px-6 sm:py-4">
           <h2 className="min-w-0 truncate text-sm font-semibold text-white">{title}</h2>
           {actions ? <div className="flex shrink-0 flex-wrap justify-end gap-2">{actions}</div> : null}
         </div>
-        <div className="flex-1 overflow-y-auto bg-slate-50 p-6">
+        <div className="flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-6">
           {content}
         </div>
       </div>
@@ -1999,7 +1998,7 @@ function Field({ children, label }: { children: ReactNode; label: string }) {
 }
 
 function SelectControl({ onChange, options, value }: { onChange: (value: string) => void; options: string[]; value: string }) {
-  return <select className={fieldClass} value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select>
+  return <select className={fieldClass} value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option} value={option}>{assetOptionLabel(option)}</option>)}</select>
 }
 
 function OptionSelect({ blankLabel, onChange, options, value }: { blankLabel: string; onChange: (value: string) => void; options: { code: string; name: string }[]; value: string }) {
@@ -2023,8 +2022,8 @@ function ActionButton({ children, disabled = false, onClick, strong = false }: {
 
 function LinkButton({ children, href, variant = 'default' }: { children: ReactNode; href: string; variant?: 'default' | 'export' }) {
   const className = variant === 'export'
-    ? 'inline-flex h-9 items-center rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700 outline-none focus:ring-0'
-    : 'inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 outline-none focus:ring-0'
+    ? 'inline-flex h-9 items-center rounded-md bg-emerald-600 px-3 text-xs font-normal text-white transition hover:bg-emerald-700 outline-none focus:ring-0'
+    : 'inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-normal text-slate-600 transition hover:bg-slate-50 outline-none focus:ring-0'
   return <a className={className} href={href}>{children}</a>
 }
 
@@ -2122,22 +2121,19 @@ function MiniAssetTable({ isLoading, rows }: { isLoading: boolean; rows: Depreci
         ) : null}
         <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
-            {pendingAssetColumns.map((column, index) => {
-              if (index === pendingAssetColumns.length - 1) {
-                return <col key={column.key} style={{ minWidth: column.minWidth }} />
-              }
-              return <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
-            })}
+            {pendingAssetColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
           </colgroup>
           <thead className="bg-slate-100">
             <tr>
               <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="รหัสทรัพย์สิน" resizeProps={columnResize.getResizeHandleProps('code', 'รหัสทรัพย์สิน')} sortKey="code" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="ชื่อทรัพย์สิน" resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อทรัพย์สิน')} sortKey="name" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ชื่อทรัพย์สิน" resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อทรัพย์สิน')} sortKey="name" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ต้นทุนสุทธิ" resizeProps={columnResize.getResizeHandleProps('netAssetCost', 'ต้นทุนสุทธิ')} sortKey="netAssetCost" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ค่าเสื่อมสะสมเดิม" resizeProps={columnResize.getResizeHandleProps('accumDep', 'ค่าเสื่อมสะสมเดิม')} sortKey="accumDep" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="NBV ปัจจุบัน" resizeProps={columnResize.getResizeHandleProps('nbv', 'NBV ปัจจุบัน')} sortKey="nbv" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ค่าเสื่อม/เดือน" resizeProps={columnResize.getResizeHandleProps('monthlyDep', 'ค่าเสื่อมต่อเดือน')} sortKey="monthlyDep" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -2145,12 +2141,12 @@ function MiniAssetTable({ isLoading, rows }: { isLoading: boolean; rows: Depreci
             {sortedRows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50">
                 <td className="whitespace-nowrap px-3 py-3 font-mono font-bold text-amber-700">{row.code}</td>
-                <td className="px-3 py-3 font-semibold text-slate-800">{row.name}</td>
+                <td className="px-3 py-3 text-right font-semibold text-slate-800">{row.name}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.netAssetCost)}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-500">{formatMoney(row.accumDep)}</td>
                 <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${row.nbv > 0 ? 'text-emerald-700' : 'text-slate-700'}`}>{formatMoney(row.nbv)}</td>
                 <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-medium tabular-nums ${row.monthlyDep > 0 ? 'text-amber-700' : 'text-slate-700'}`}>{formatMoney(row.monthlyDep)}</td>
-                <td className="px-3 py-3 text-center"><StatusPill status={row.assetStatus} /></td>
+                <td className="px-3 py-3 text-right"><StatusPill status={row.assetStatus} /></td>
               </tr>
             ))}
           </tbody>
@@ -2240,22 +2236,44 @@ function Chip({ children, tone }: { children: ReactNode; tone: 'amber' | 'blue' 
   return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${color}`}>{children}</span>
 }
 
-function StatusPill({ status }: { status: string }) {
-  let color = 'bg-slate-100 text-slate-700'
-  let text = status
-
-  if (status === 'Active' || status === 'active' || status === 'posted') {
-    color = 'bg-emerald-50 text-emerald-700'
-    text = status === 'posted' ? 'ประมวลผลแล้ว (posted)' : 'พร้อมใช้งาน (Active)'
-  } else if (status === 'Fully Depreciated') {
-    color = 'bg-blue-50 text-blue-700'
-    text = 'หักค่าเสื่อมครบแล้ว'
-  } else if (status === 'Maintenance') {
-    color = 'bg-amber-50 text-amber-700'
-    text = 'ซ่อมบำรุง'
+function assetStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    all: 'ทุกสถานะ',
+    active: 'พร้อมใช้งาน',
+    'fully depreciated': 'คิดค่าเสื่อมครบแล้ว',
+    inactive: 'ไม่ใช้งาน',
+    lost: 'สูญหาย',
+    maintenance: 'ซ่อมบำรุง',
+    posted: 'บันทึกแล้ว',
+    reversed: 'ย้อนกลับแล้ว',
+    sold: 'จำหน่ายแล้ว',
+    disposed: 'จำหน่ายแล้ว',
   }
-  
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>{text}</span>
+  return labels[status.trim().toLowerCase()] ?? status
+}
+
+function assetOptionLabel(value: string) {
+  const labels: Record<string, string> = {
+    Other: 'อื่นๆ',
+    Purchased: 'ซื้อ',
+    'Straight Line': 'เส้นตรง',
+  }
+  return labels[value] ?? assetStatusLabel(value)
+}
+
+function StatusPill({ status }: { status: string }) {
+  const normalizedStatus = status.trim().toLowerCase()
+  const color = normalizedStatus === 'active' || normalizedStatus === 'posted'
+    ? 'bg-emerald-50 text-emerald-700'
+    : normalizedStatus === 'fully depreciated'
+      ? 'bg-blue-50 text-blue-700'
+      : normalizedStatus === 'maintenance'
+        ? 'bg-amber-50 text-amber-700'
+        : normalizedStatus === 'lost'
+          ? 'bg-red-50 text-red-700'
+          : 'bg-slate-100 text-slate-700'
+
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>{assetStatusLabel(status)}</span>
 }
 
 function ErrorBox({ message }: { message: string }) {

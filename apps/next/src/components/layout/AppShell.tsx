@@ -256,7 +256,7 @@ export function AppShell({ children }: AppShellProps) {
         onMouseEnter={() => setDesktopSidebarExpanded(true)}
         onMouseLeave={handleSidebarMouseLeave}
       >
-        <div className={`flex min-h-[72px] items-center border-b border-slate-700 px-4 py-4 ${desktopSidebarExpanded ? 'gap-5' : 'gap-3 lg:justify-center lg:gap-0'}`}>
+        <div className={`flex min-h-[72px] items-center border-b border-slate-700 px-4 py-3.5 dark:border-[var(--ns-dark-border-strong)] ${desktopSidebarExpanded ? 'gap-5' : 'gap-3 lg:justify-center lg:gap-0'}`}>
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 font-bold text-white">NS</div>
           <div className={`min-w-0 flex-1 pl-1 ${desktopSidebarExpanded ? '' : 'lg:hidden'}`.trim()}>
             <div className="truncate font-bold text-white">NS Scrap ERP</div>

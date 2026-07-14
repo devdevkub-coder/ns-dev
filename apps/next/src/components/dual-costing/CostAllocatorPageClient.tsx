@@ -192,7 +192,7 @@ export function CostAllocatorPageClient() {
         const payload = await dailyFetchJson<Payload>(`/api/dual-costing/cost-allocator?${queryString}`)
         if (mounted) setData(payload)
       } catch (caught) {
-        if (mounted) setError(caught instanceof Error ? caught.message : 'โหลด Cost Allocator ไม่ได้')
+        if (mounted) setError(caught instanceof Error ? caught.message : 'โหลดหน้าจัดสรรต้นทุนไม่ได้')
       } finally {
         if (mounted) setIsLoading(false)
       }
@@ -236,7 +236,7 @@ export function CostAllocatorPageClient() {
   const isManualMode = allocationMode === 'Manual'
   const shouldShowPreview = isManualMode ? showPreview : hasPoSell
   const sourceTypeButtons = data?.filters.sourceTypes ?? ['po-sell', 'spot-sell']
-  const sourceTypeLabel = sourceType === 'po-sell' ? 'PO Sell' : sourceType === 'production' ? 'Production' : 'Spot Sell / บิลขายไม่มี PO'
+  const sourceTypeLabel = sourceType === 'po-sell' ? 'PO Sell' : sourceType === 'production' ? 'การผลิต' : 'Spot Sell / บิลขายไม่มี PO'
   const allocationModes = data?.filters.modes?.length ? data.filters.modes : ['FIFO', 'LIFO', 'Cheap', 'Expensive']
 
   useEffect(() => {
@@ -351,7 +351,7 @@ export function CostAllocatorPageClient() {
     <DualCostingPageSection>
       <DualCostingErrorBox error={error} />
 
-      <DualCostingPanel title="⓪ เลือกประเภทปลายทางที่จะ Match ต้นทุน" titleAction={<PanelToggleButton collapsed={collapsedSections.step0} onClick={() => toggleSection('step0')} />}>
+      <DualCostingPanel title="⓪ เลือกประเภทปลายทางที่จะจับคู่ต้นทุน" titleAction={<PanelToggleButton collapsed={collapsedSections.step0} onClick={() => toggleSection('step0')} />}>
         {!collapsedSections.step0 ? (
         <div className="flex flex-wrap gap-2">
           {sourceTypeButtons.map((item) => {
@@ -371,7 +371,7 @@ export function CostAllocatorPageClient() {
                   resetSale()
                 }}
               >
-                {item === 'po-sell' ? 'PO Sell' : item === 'production' ? 'Production' : 'Spot Sell / ไม่มี PO'}
+                {item === 'po-sell' ? 'PO Sell' : item === 'production' ? 'การผลิต' : 'Spot Sell / ไม่มี PO'}
               </button>
             )
           })}
@@ -379,7 +379,7 @@ export function CostAllocatorPageClient() {
         ) : null}
       </DualCostingPanel>
 
-      <DualCostingPanel title="① เลือกสินค้าที่ต้องการ Match ต้นทุน" titleAction={<PanelToggleButton collapsed={collapsedSections.step1} onClick={() => toggleSection('step1')} />}>
+      <DualCostingPanel title="① เลือกสินค้าที่ต้องการจับคู่ต้นทุน" titleAction={<PanelToggleButton collapsed={collapsedSections.step1} onClick={() => toggleSection('step1')} />}>
         {!collapsedSections.step1 ? (
         <>
         <div className="w-full">
@@ -400,19 +400,19 @@ export function CostAllocatorPageClient() {
         </div>
         {hasSelection ? (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mt-3">
-            <DualCostingStatCard icon="📦" label="Cost Pool ของสินค้านี้" tone="slate" value={`${data?.summary.poolCount ?? 0} รายการ`} />
+            <DualCostingStatCard icon="📦" label="กลุ่มต้นทุนของสินค้านี้" tone="slate" value={`${data?.summary.poolCount ?? 0} รายการ`} />
             <DualCostingStatCard icon="⚖️" label="น้ำหนักพร้อมจัดสรร" tone="blue" value={`${formatMoney(data?.summary.poolQty ?? 0)} กก.`} />
             <DualCostingStatCard icon="💰" label="มูลค่าต้นทุนรวม" tone="slate" value={formatMoney(data?.summary.poolValue ?? 0)} />
             <DualCostingStatCard icon="📈" label="ต้นทุนเฉลี่ย/กก." tone="emerald" value={formatMoney(data?.summary.poolAvgCost ?? 0)} />
           </div>
         ) : null}
-        {hasSelection && !isLoading && (data?.summary.poolCount ?? 0) === 0 ? <div className="mt-3 rounded-xl border border-amber-200/70 bg-amber-50/50 p-3.5 text-xs text-amber-700 leading-relaxed">ยังไม่มีต้นทุนใน Cost Pool สำหรับสินค้านี้</div> : null}
+        {hasSelection && !isLoading && (data?.summary.poolCount ?? 0) === 0 ? <div className="mt-3 rounded-xl border border-amber-200/70 bg-amber-50/50 p-3.5 text-xs text-amber-700 leading-relaxed">ยังไม่มีต้นทุนในกลุ่มต้นทุนสำหรับสินค้านี้</div> : null}
         </>
         ) : null}
       </DualCostingPanel>
 
       {hasSelection ? (
-        <DualCostingPanel title={`② เลือก ${sourceTypeLabel} ที่ต้องการ Match ต้นทุน`} titleAction={<PanelToggleButton collapsed={collapsedSections.step2} onClick={() => toggleSection('step2')} />}>
+        <DualCostingPanel title={`② เลือก ${sourceTypeLabel} ที่ต้องการจับคู่ต้นทุน`} titleAction={<PanelToggleButton collapsed={collapsedSections.step2} onClick={() => toggleSection('step2')} />}>
           {!collapsedSections.step2 ? (
           <>
           <div className="grid gap-3 md:grid-cols-3">
@@ -427,12 +427,12 @@ export function CostAllocatorPageClient() {
                 }}
               >
                 <option value="">{sourceType === 'po-sell' ? '-- เลือก PO ขาย --' : sourceType === 'production' ? '-- เลือกใบสั่งผลิต --' : '-- เลือกบิลขายไม่มี PO --'}</option>
-                {(data?.poSells ?? []).map((po) => <option key={po.id} value={po.id}>{po.docNo} | {po.customerName === '-' ? 'ภายในโรงงาน' : po.customerName} | {sourceType === 'production' ? 'ผลิต' : 'ขาย'} {formatMoney(po.qty)} กก. · เหลือต้อง match {formatMoney(po.remainingQty)} กก. · ฿{formatMoney(po.unitPrice)}/กก.</option>)}
+                {(data?.poSells ?? []).map((po) => <option key={po.id} value={po.id}>{po.docNo} | {po.customerName === '-' ? 'ภายในโรงงาน' : po.customerName} | {sourceType === 'production' ? 'ผลิต' : 'ขาย'} {formatMoney(po.qty)} กก. · เหลือต้องจับคู่ {formatMoney(po.remainingQty)} กก. · ฿{formatMoney(po.unitPrice)}/กก.</option>)}
               </Select>
-              {!isLoading && (data?.poSells.length ?? 0) === 0 ? <div className="mt-1.5 text-xs text-amber-700 font-medium">ไม่มี {sourceTypeLabel} ของสินค้านี้ที่ยังไม่ match</div> : null}
+              {!isLoading && (data?.poSells.length ?? 0) === 0 ? <div className="mt-1.5 text-xs text-amber-700 font-medium">ไม่มี {sourceTypeLabel} ของสินค้านี้ที่ยังไม่จับคู่</div> : null}
             </div>
             <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-500">Allocation Mode</label>
+              <label className="mb-1 block text-xs font-semibold text-slate-500">วิธีจัดสรรต้นทุน</label>
               <Select
                 className="focus-visible:ring-emerald-100 border-slate-300"
                 value={allocationMode}
@@ -451,7 +451,7 @@ export function CostAllocatorPageClient() {
             <div className="mt-3 rounded-xl border border-amber-200/60 bg-amber-50/20 p-4 space-y-3">
               <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800">
                 <span>⚙️</span>
-                <span>Manual Mode – ตั้งราคาต้นทุนเป้าหมาย</span>
+                <span>กำหนดเอง – ตั้งราคาต้นทุนเป้าหมาย</span>
               </div>
               <p className="text-xs leading-relaxed text-slate-500">
                 ระบบจะเลือก lot ผลผลิต (หรือผัน inventory เก่า) และ/หรือ lot ซื้อล่าสุด ให้ weighted average ได้ ราคาเป้าหมายที่ตั้ง (หลีกเลี่ยงลอทเกินจำเป็น)
@@ -481,7 +481,7 @@ export function CostAllocatorPageClient() {
                   type="button"
                   onClick={handleCalculateManualMatch}
                 >
-                  ⚡ คำนวณ Match อัตโนมัติ
+                  ⚡ คำนวณการจับคู่อัตโนมัติ
                 </Button>
               </div>
               <div className="text-xs font-medium text-amber-800/80">
@@ -547,7 +547,7 @@ export function CostAllocatorPageClient() {
                   <ResizableTableHead align="right" label="จับคู่แล้ว" activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="matchedQty" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('matchedQty', 'จับคู่แล้ว')} />
                   <ResizableTableHead align="right" label="ค้างจับคู่" activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="remainingQty" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('remainingQty', 'ค้างจับคู่')} />
                   <ResizableTableHead align="right" label={sourceType === 'production' ? 'ต้นทุน/กก.' : 'ราคาขาย/หน่วย'} activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="unitPrice" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('unitPrice', sourceType === 'production' ? 'ต้นทุนต่อกิโลกรัม' : 'ราคาขายต่อหน่วย')} />
-                  <ResizableTableHead align="center" label="เลือก" resizeProps={targetColumnResize.getResizeHandleProps('action', 'เลือก')} />
+                  <ResizableTableHead align="right" label="เลือก" resizeProps={targetColumnResize.getResizeHandleProps('action', 'เลือก')} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -565,7 +565,7 @@ export function CostAllocatorPageClient() {
                       <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums text-slate-700">{formatMoney(target.matchedQty)}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-amber-700">{formatMoney(target.remainingQty)}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(target.unitPrice)}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-center">
+                      <td className="whitespace-nowrap px-3 py-3 text-right">
                         <Button
                           size="xs"
                           type="button"
@@ -629,7 +629,7 @@ export function CostAllocatorPageClient() {
       ) : null}
 
       {hasSelection ? (
-        <DualCostingPanel title="③ Lot ต้นทุนใน Cost Pool ของสินค้าที่เลือก" titleAction={<PanelToggleButton collapsed={collapsedSections.step3} onClick={() => toggleSection('step3')} />}>
+        <DualCostingPanel title="③ ล็อตต้นทุนในกลุ่มต้นทุนของสินค้าที่เลือก" titleAction={<PanelToggleButton collapsed={collapsedSections.step3} onClick={() => toggleSection('step3')} />}>
           {!collapsedSections.step3 ? (
           <>
           <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
@@ -659,11 +659,11 @@ export function CostAllocatorPageClient() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={poolColumns.length}>กำลังโหลด Cost Pool</td></tr> : null}
-                {!isLoading && (data?.pool.length ?? 0) === 0 ? <tr><td className="px-3 py-10 text-center text-amber-700" colSpan={poolColumns.length}>ยังไม่มี Cost Pool lot สำหรับสินค้านี้</td></tr> : null}
+                {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={poolColumns.length}>กำลังโหลดกลุ่มต้นทุน</td></tr> : null}
+                {!isLoading && (data?.pool.length ?? 0) === 0 ? <tr><td className="px-3 py-10 text-center text-amber-700" colSpan={poolColumns.length}>ยังไม่มีล็อตต้นทุนสำหรับสินค้านี้</td></tr> : null}
                 {sortedPoolRows.slice(0, 12).map((row) => (
                   <tr key={row.costPoolId} className="hover:bg-slate-50">
-                    <td className="whitespace-nowrap px-3 py-3"><span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span></td>
+                    <td className="whitespace-nowrap px-3 py-3"><span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{poolSourceLabel(row.sourceType)}</span></td>
                     <td className="whitespace-nowrap px-3 py-3 font-mono text-slate-900">{row.sourceNo}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-slate-600">{row.date}</td>
                     <td className="px-3 py-3 font-medium text-slate-900">{row.counterparty}</td>
@@ -678,13 +678,13 @@ export function CostAllocatorPageClient() {
           </div>
 
           <div className="space-y-3 md:hidden">
-            {isLoading ? <div className="rounded-xl border border-slate-200 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">กำลังโหลด Cost Pool</div> : null}
-            {!isLoading && (data?.pool.length ?? 0) === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-4 text-center text-sm text-amber-700 shadow-sm">ยังไม่มี Cost Pool lot สำหรับสินค้านี้</div> : null}
+            {isLoading ? <div className="rounded-xl border border-slate-200 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">กำลังโหลดกลุ่มต้นทุน</div> : null}
+            {!isLoading && (data?.pool.length ?? 0) === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-4 text-center text-sm text-amber-700 shadow-sm">ยังไม่มีล็อตต้นทุนสำหรับสินค้านี้</div> : null}
             {sortedPoolRows.slice(0, 12).map((row) => (
               <div key={row.costPoolId} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span>
+                    <span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{poolSourceLabel(row.sourceType)}</span>
                     <div className="mt-2 font-mono text-base font-bold text-slate-900">{row.sourceNo}</div>
                   </div>
                   <div className="shrink-0 text-sm font-medium text-slate-500">{row.date}</div>
@@ -708,7 +708,7 @@ export function CostAllocatorPageClient() {
       ) : null}
 
       {shouldShowPreview && hasCandidates ? (
-        <DualCostingPanel title="④ Preview การจับคู่ต้นทุน" titleAction={<PanelToggleButton collapsed={collapsedSections.step4} onClick={() => toggleSection('step4')} />}>
+        <DualCostingPanel title="④ ตัวอย่างการจับคู่ต้นทุน" titleAction={<PanelToggleButton collapsed={collapsedSections.step4} onClick={() => toggleSection('step4')} />}>
           {!collapsedSections.step4 ? (
           <>
           <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
@@ -740,7 +740,7 @@ export function CostAllocatorPageClient() {
               <tbody className="divide-y divide-slate-100">
                 {sortedPreviewRows.map((row) => (
                   <tr key={row.costPoolId} className="hover:bg-slate-50">
-                    <td className="whitespace-nowrap px-3 py-3"><span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span></td>
+                    <td className="whitespace-nowrap px-3 py-3"><span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{poolSourceLabel(row.sourceType)}</span></td>
                     <td className="whitespace-nowrap px-3 py-3 font-mono text-slate-900">{row.sourceNo}</td>
                     <td className="px-3 py-3 font-medium text-slate-900">{row.counterparty}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.availableQty)}</td>
@@ -759,7 +759,7 @@ export function CostAllocatorPageClient() {
               <div key={row.costPoolId} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span>
+                    <span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{poolSourceLabel(row.sourceType)}</span>
                     <div className="mt-2 font-mono text-base font-bold text-slate-900">{row.sourceNo}</div>
                   </div>
                 </div>
@@ -778,14 +778,14 @@ export function CostAllocatorPageClient() {
           </div>
           
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mt-4">
-            <DualCostingStatCard icon="🔗" label="รวมที่จะ Match" tone="blue" value={`${formatMoney(data?.summary.totalToMatch ?? 0)} กก.`} />
+            <DualCostingStatCard icon="🔗" label="รวมที่จะจับคู่" tone="blue" value={`${formatMoney(data?.summary.totalToMatch ?? 0)} กก.`} />
             <DualCostingStatCard icon="💰" label="รายได้คาดการณ์" tone="emerald" value={formatMoney(data?.summary.expectedRevenue ?? 0)} />
             <DualCostingStatCard icon="💳" label="ต้นทุนที่จะตัด" tone="red" value={formatMoney(data?.summary.totalCostMatch ?? 0)} />
             <DualCostingStatCard icon="📈" label="กำไรคาดการณ์" tone={(data?.summary.expectedMargin ?? 0) >= 0 ? 'purple' : 'red'} value={formatMoney(data?.summary.expectedMargin ?? 0)} />
           </div>
           <div className="mt-4 flex justify-end gap-2">
             {isManualMode ? (
-              <Button className="rounded-md h-10 px-4 text-sm font-semibold focus-visible:ring-slate-100" type="button" variant="secondary" onClick={() => setShowPreview(false)} disabled={isSubmitting}>ปิด Preview</Button>
+              <Button className="rounded-md h-10 px-4 text-sm font-semibold focus-visible:ring-slate-100" type="button" variant="secondary" onClick={() => setShowPreview(false)} disabled={isSubmitting}>ปิดตัวอย่าง</Button>
             ) : null}
             <Button
               className="rounded-md h-10 px-4 text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white transition-colors focus-visible:outline-none"
@@ -870,9 +870,9 @@ function getPreviewSortValue(row: CandidateRow, key: PreviewColumnKey): string |
 
 function allocationModeLabel(mode: string) {
   if (mode === 'LIFO') return 'LIFO - ต้นทุนใหม่ก่อน'
-  if (mode === 'Cheap') return 'Cheap First - ต้นทุนถูกก่อน'
-  if (mode === 'Expensive') return 'Expensive First - ต้นทุนแพงก่อน'
-  if (mode === 'Manual') return 'Manual - เลือกเอง'
+  if (mode === 'Cheap') return 'ต้นทุนต่ำก่อน'
+  if (mode === 'Expensive') return 'ต้นทุนสูงก่อน'
+  if (mode === 'Manual') return 'กำหนดเอง'
   return 'FIFO - ต้นทุนเก่าก่อน'
 }
 
@@ -881,4 +881,11 @@ function sourceBadgeClass(type: string) {
   if (type === 'Regrade' || type === 'Grade Adjustment') return 'bg-purple-50 text-purple-700 border border-purple-200/50'
   if (type === 'PO_Buy') return 'bg-cyan-50 text-cyan-700 border border-cyan-200/50'
   return 'bg-blue-50 text-blue-700 border border-blue-200/50'
+}
+
+function poolSourceLabel(type: string) {
+  if (type === 'Production') return 'การผลิต'
+  if (type === 'Regrade' || type === 'Grade Adjustment') return 'ปรับเกรด'
+  if (type === 'PO_Buy') return 'PO ซื้อ'
+  return type
 }

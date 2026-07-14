@@ -130,3 +130,9 @@ Dashboard Overview เป็น management KPI view จาก operational facts.
 - [ ] Add report formula tests for cutoff/cancelled rows
 - [ ] Define drilldown route per KPI card
 - [ ] Reconcile with finance-accounting dashboard before changing formulas
+
+## 2026-07-12 Thai-first UI checkpoint
+
+- Verified the rendered `/dashboard` surface in Codex Browser before changing its visible copy.
+- Dashboard KPI, chart, aging, tab, ranking, and metric-surface labels now use Thai-first wording; the readable accounting abbreviations `AR`, `AP`, `OD`, and `WAC` remain only as contextual abbreviations beside Thai business names.
+- This is presentation-only: dashboard formulas, filters, source tables, API contracts, permissions, database schema, and business data did not change.

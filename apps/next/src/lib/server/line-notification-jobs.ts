@@ -2,12 +2,14 @@ import { prisma } from './prisma'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { loadBillLineNotificationSource, notifyBillLine } from './bill-line-notification'
+import { loadCustomerReceiptLineNotificationSource, notifyCustomerReceiptLine } from './customer-receipt-line-notification'
+import { loadPurchasePaymentLineNotificationSource, notifyPurchasePaymentLine } from './purchase-payment-line-notification'
 import { notifyWeightTicketLine } from './weight-ticket-line-notification'
 import { findScopedWeightTicket, getWeightTicketUsageCounts, mapWeightTicketRow, type WeightTicketRow } from './weight-tickets'
 import { resolveLineTargetsForDocument, resolveLineTargetsForWeightTicket } from './line-notification-routing'
 
 export type JobStatus = 'pending' | 'sent' | 'failed' | 'skipped' | 'processing'
-export type LineNotificationSourceType = 'weight_ticket' | 'purchase_bill' | 'sales_bill'
+export type LineNotificationSourceType = 'weight_ticket' | 'purchase_bill' | 'sales_bill' | 'purchase_payment' | 'customer_receipt'
 
 export type LineNotificationSource = {
   documentNo: string
@@ -51,6 +53,26 @@ async function loadNotificationSource(source: LineNotificationSource) {
       documentType: loaded.record.type,
       id: loaded.id,
       routingDocument: loaded.record,
+    }
+  }
+
+  if (source.sourceType === 'purchase_payment') {
+    const loaded = await loadPurchasePaymentLineNotificationSource(source.documentNo)
+    if (!loaded) return null
+    return {
+      documentType: loaded.documentType,
+      id: loaded.id,
+      routingDocument: loaded.routingDocument,
+    }
+  }
+
+  if (source.sourceType === 'customer_receipt') {
+    const loaded = await loadCustomerReceiptLineNotificationSource(source.documentNo)
+    if (!loaded) return null
+    return {
+      documentType: loaded.documentType,
+      id: loaded.id,
+      routingDocument: loaded.routingDocument,
     }
   }
 
@@ -277,6 +299,20 @@ export async function executeNotificationJob(jobId: string, options?: { force?: 
       })
     } else if (job.source_type === 'purchase_bill' || job.source_type === 'sales_bill') {
       result = await notifyBillLine(job.source_type, job.document_no, {
+        targetId: job.target_id,
+        customMessage: job.custom_message || undefined,
+        origin: appUrl,
+        retryKey: String(job.retry_key),
+      })
+    } else if (job.source_type === 'purchase_payment') {
+      result = await notifyPurchasePaymentLine(job.document_no, {
+        targetId: job.target_id,
+        customMessage: job.custom_message || undefined,
+        origin: appUrl,
+        retryKey: String(job.retry_key),
+      })
+    } else if (job.source_type === 'customer_receipt') {
+      result = await notifyCustomerReceiptLine(job.document_no, {
         targetId: job.target_id,
         customMessage: job.custom_message || undefined,
         origin: appUrl,

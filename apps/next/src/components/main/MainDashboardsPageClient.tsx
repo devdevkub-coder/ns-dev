@@ -129,9 +129,9 @@ const dashboardStockGroupColumns: ResizableColumnDefinition<string>[] = [
 ]
 
 const dashboardDetailTabs: Array<{ key: DashboardDetailTab; label: string; summary: string }> = [
-  { key: 'ranking', label: 'อันดับคู่ค้า', summary: 'Top Supplier / Customer' },
-  { key: 'stock', label: 'Stock', summary: 'แนวโน้มและมูลค่าตามหมวด' },
-  { key: 'metrics', label: 'ตัวชี้วัดย่อย', summary: 'ซื้อ ขาย เงินสด และ Stock' },
+  { key: 'ranking', label: 'อันดับคู่ค้า', summary: 'ผู้ขายและลูกค้ายอดสูงสุด' },
+  { key: 'stock', label: 'สต็อก', summary: 'แนวโน้มและมูลค่าตามหมวด' },
+  { key: 'metrics', label: 'ตัวชี้วัดย่อย', summary: 'ซื้อ ขาย เงินสด และสต็อก' },
 ]
 
 const ownerDailyTabs: Array<{ key: OwnerDailyTab; label: string }> = [
@@ -600,11 +600,11 @@ function DashboardView(props: {
       <div>
         {(data?.dashboard.historical.rows ?? 0) > 0 ? (
           <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 text-xs text-slate-600">
-            <span className="font-bold text-slate-700">รวมยอด Historical:</span>
-            <span className="rounded-xl bg-white px-2 py-0.5 border border-slate-100 font-semibold text-slate-700">Revenue <b className="text-emerald-700">{money(data?.dashboard.historical.revenue)}</b></span>
-            <span className="rounded-xl bg-white px-2 py-0.5 border border-slate-100 font-semibold text-slate-700">COGS <b className="text-red-700">{money(data?.dashboard.historical.cogs)}</b></span>
-            <span className="rounded-xl bg-white px-2 py-0.5 border border-slate-100 font-semibold text-slate-700">Expenses <b className="text-amber-700">{money(data?.dashboard.historical.expenses)}</b></span>
-            <span className="text-slate-500">({data?.dashboard.historical.rows ?? 0} rows)</span>
+            <span className="font-bold text-slate-700">ยอดสะสมย้อนหลัง:</span>
+            <span className="rounded-xl bg-white px-2 py-0.5 border border-slate-100 font-semibold text-slate-700">รายได้จากการขาย <b className="text-emerald-700">{money(data?.dashboard.historical.revenue)}</b></span>
+            <span className="rounded-xl bg-white px-2 py-0.5 border border-slate-100 font-semibold text-slate-700">ต้นทุนขาย <b className="text-red-700">{money(data?.dashboard.historical.cogs)}</b></span>
+            <span className="rounded-xl bg-white px-2 py-0.5 border border-slate-100 font-semibold text-slate-700">ค่าใช้จ่าย <b className="text-amber-700">{money(data?.dashboard.historical.expenses)}</b></span>
+            <span className="text-slate-500">({data?.dashboard.historical.rows ?? 0} รายการ)</span>
           </div>
         ) : null}
         {!hasDashboardData ? (
@@ -613,26 +613,26 @@ function DashboardView(props: {
           </div>
         ) : null}
         <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-          <DashboardKpi delta={dashboardDelta(kpiDelta.revenue)} label="Revenue" sub="ยอดขาย" tone="blue" value={money(k.revenue)} />
-          <DashboardKpi delta={dashboardDelta(kpiDelta.expenses, false)} label="Expenses" sub="ค่าใช้จ่าย + COGS" tone="red" value={money(k.expenses)} />
-          <DashboardKpi delta={dashboardDelta(kpiDelta.netProfit)} label="Net Profit" sub="กำไรสุทธิ" tone={(k.netProfit ?? 0) >= 0 ? 'emerald' : 'red'} value={money(k.netProfit)} />
-          <DashboardKpi delta={dashboardDelta(kpiDelta.cashBalance)} label="Cash Balance" sub="เงินสด/ธนาคาร" tone="cyan" value={money(k.cashBalance)} />
-          <DashboardKpi delta={dashboardDelta(kpiDelta.ar, false)} label="AR ลูกหนี้" sub="Receivable" tone="purple" value={money(k.ar)} />
-          <DashboardKpi delta={dashboardDelta(kpiDelta.ap, false)} label="AP เจ้าหนี้" sub="Payable" tone="orange" value={money(k.ap)} />
+          <DashboardKpi delta={dashboardDelta(kpiDelta.revenue)} label="รายได้จากการขาย" sub="ยอดขาย" tone="blue" value={money(k.revenue)} />
+          <DashboardKpi delta={dashboardDelta(kpiDelta.expenses, false)} label="ต้นทุนและค่าใช้จ่าย" sub="ต้นทุนขายและค่าใช้จ่าย" tone="red" value={money(k.expenses)} />
+          <DashboardKpi delta={dashboardDelta(kpiDelta.netProfit)} label="กำไรสุทธิ" sub="หลังหักต้นทุนและค่าใช้จ่าย" tone={(k.netProfit ?? 0) >= 0 ? 'emerald' : 'red'} value={money(k.netProfit)} />
+          <DashboardKpi delta={dashboardDelta(kpiDelta.cashBalance)} label="ยอดเงินสดและธนาคาร" sub="เงินสด/ธนาคาร" tone="cyan" value={money(k.cashBalance)} />
+          <DashboardKpi delta={dashboardDelta(kpiDelta.ar, false)} label="ลูกหนี้การค้า" sub="ยอดลูกหนี้ (AR)" tone="purple" value={money(k.ar)} />
+          <DashboardKpi delta={dashboardDelta(kpiDelta.ap, false)} label="เจ้าหนี้การค้า" sub="ยอดเจ้าหนี้ (AP)" tone="orange" value={money(k.ap)} />
         </div>
         <div className="mb-4 grid gap-3 lg:grid-cols-2">
-          <DashboardChartCard title="Revenue vs Expense (Monthly)">
-            <BarRows rows={(data?.dashboard.monthlyTrend ?? []).flatMap((row) => [{ label: `${monthLabel(row.label)} Rev`, value: row.sales }, { label: `${monthLabel(row.label)} Exp`, value: row.expense + Math.max(0, row.sales - row.gp) }])} />
+          <DashboardChartCard title="รายได้เทียบค่าใช้จ่ายรายเดือน">
+            <BarRows rows={(data?.dashboard.monthlyTrend ?? []).flatMap((row) => [{ label: `${monthLabel(row.label)} รายได้`, value: row.sales }, { label: `${monthLabel(row.label)} ค่าใช้จ่าย`, value: row.expense + Math.max(0, row.sales - row.gp) }])} />
           </DashboardChartCard>
-          <DashboardChartCard title="Cash Flow Overview">
+          <DashboardChartCard title="ภาพรวมกระแสเงินสด">
             <BarRows rows={(data?.dashboard.cashComposition ?? []).map((row) => ({ label: row.label, value: row.value }))} />
           </DashboardChartCard>
         </div>
         <div className="mb-4">
-          <DashboardChartCard title="Receivables & Payables Aging">
+          <DashboardChartCard title="อายุลูกหนี้และเจ้าหนี้">
             <div className="mb-2 flex justify-end">
               {agingResize.hasCustomWidths ? (
-                <button className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-50" type="button" onClick={agingResize.resetColumnWidths}>
+                <button className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-normal text-slate-500 hover:bg-slate-50" type="button" onClick={agingResize.resetColumnWidths}>
                   คืนค่าเดิมตาราง
                 </button>
               ) : null}
@@ -646,13 +646,13 @@ function DashboardView(props: {
                 </colgroup>
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
-                    <ResizableTableHead activeSortKey={agingSortKey} direction={agingSortDirection} label="Type" resizeProps={agingResize.getResizeHandleProps('label', 'Type')} sortKey="label" onSort={toggleAgingSort} />
-                    <ResizableTableHead activeSortKey={agingSortKey} align="right" direction={agingSortDirection} label="Current" resizeProps={agingResize.getResizeHandleProps('current', 'Current')} sortKey="current" onSort={toggleAgingSort} />
+                    <ResizableTableHead activeSortKey={agingSortKey} direction={agingSortDirection} label="ประเภท" resizeProps={agingResize.getResizeHandleProps('label', 'ประเภท')} sortKey="label" onSort={toggleAgingSort} />
+                    <ResizableTableHead activeSortKey={agingSortKey} align="right" direction={agingSortDirection} label="ปัจจุบัน" resizeProps={agingResize.getResizeHandleProps('current', 'ปัจจุบัน')} sortKey="current" onSort={toggleAgingSort} />
                     <ResizableTableHead activeSortKey={agingSortKey} align="right" direction={agingSortDirection} label="1-30" resizeProps={agingResize.getResizeHandleProps('d1_30', '1-30')} sortKey="d1_30" onSort={toggleAgingSort} />
                     <ResizableTableHead activeSortKey={agingSortKey} align="right" direction={agingSortDirection} label="31-60" resizeProps={agingResize.getResizeHandleProps('d31_60', '31-60')} sortKey="d31_60" onSort={toggleAgingSort} />
                     <ResizableTableHead activeSortKey={agingSortKey} align="right" direction={agingSortDirection} label="61-90" resizeProps={agingResize.getResizeHandleProps('d61_90', '61-90')} sortKey="d61_90" onSort={toggleAgingSort} />
                     <ResizableTableHead activeSortKey={agingSortKey} align="right" direction={agingSortDirection} label=">90" resizeProps={agingResize.getResizeHandleProps('over90', '>90')} sortKey="over90" onSort={toggleAgingSort} />
-                    <ResizableTableHead activeSortKey={agingSortKey} align="right" direction={agingSortDirection} label="Total" resizeProps={agingResize.getResizeHandleProps('total', 'Total')} sortKey="total" onSort={toggleAgingSort} />
+                    <ResizableTableHead activeSortKey={agingSortKey} align="right" direction={agingSortDirection} label="รวม" resizeProps={agingResize.getResizeHandleProps('total', 'รวม')} sortKey="total" onSort={toggleAgingSort} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -683,7 +683,7 @@ function DashboardView(props: {
                       <span className={`font-bold ${textTone}`}>{money(row.total)}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-1 text-slate-600">
-                      <span>Current: <b>{money(row.current)}</b></span>
+                      <span>ปัจจุบัน: <b>{money(row.current)}</b></span>
                       <span>1-30: <b>{money(row.d1_30)}</b></span>
                       <span>31-60: <b>{money(row.d31_60)}</b></span>
                       <span>61-90: <b>{money(row.d61_90)}</b></span>
@@ -718,10 +718,10 @@ function DashboardView(props: {
       {detailTab === 'ranking' ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-end justify-between gap-2">
-            <h2 className="text-sm font-bold text-slate-800">Top Ranking</h2>
+            <h2 className="text-sm font-bold text-slate-800">อันดับคู่ค้าสูงสุด</h2>
             <span className="text-xs font-medium text-slate-500">อันดับคู่ค้าที่ช่วยอ่านภาพรวมเร็ว ไม่แทนรายการเอกสารต้นทาง</span>
           </div>
-          <div className="grid gap-4 lg:grid-cols-2"><RankTable color="blue" rows={analytics?.topSuppliers ?? []} title="Top Suppliers" /><RankTable color="emerald" rows={analytics?.topCustomers ?? []} title="Top Customers" /></div>
+          <div className="grid gap-4 lg:grid-cols-2"><RankTable color="blue" rows={analytics?.topSuppliers ?? []} title="ผู้ขายสูงสุด" /><RankTable color="emerald" rows={analytics?.topCustomers ?? []} title="ลูกค้าสูงสุด" /></div>
         </div>
       ) : null}
 
@@ -739,8 +739,8 @@ function DashboardView(props: {
           <div className="hidden overflow-x-auto sm:block">
             <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: stockGroupResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
-                {dashboardStockGroupColumns.map((column, index) => (
-                  <col key={column.key} style={index === dashboardStockGroupColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : stockGroupResize.getColumnStyle(column.key)} />
+                {dashboardStockGroupColumns.map((column) => (
+                  <col key={column.key} style={stockGroupResize.getColumnStyle(column.key)} />
                 ))}
               </colgroup>
               <thead className="bg-slate-50 text-slate-500">
@@ -780,25 +780,25 @@ function DashboardView(props: {
 
       {detailTab === 'metrics' ? (
         <>
-          <Section title={`ฝั่งซื้อ (${periodInfo.buySection}) — Purchase / Supplier`}>
+          <Section title={`ฝั่งซื้อ (${periodInfo.buySection}) — ผู้ขาย`}>
             <Metric label="จำนวนบิลซื้อ" tone="blue" value={`${purchaseCount.toLocaleString('th-TH')} บิล`} />
             <Metric label="น้ำหนักซื้อ" value={`${money(section?.purchase.qty)} กก.`} />
             <Metric label="ราคาซื้อเฉลี่ย" value={`${money(purchaseWeight > 0 ? purchaseAmount / purchaseWeight : 0)} ฿/กก.`} />
           </Section>
-          <Section title={`ฝั่งขาย (${periodInfo.sellSection}) — Sales / Customer`}>
+          <Section title={`ฝั่งขาย (${periodInfo.sellSection}) — ลูกค้า`}>
             <Metric label="จำนวนบิลขาย" tone="emerald" value={`${salesCount.toLocaleString('th-TH')} บิล`} />
             <Metric label="น้ำหนักขาย" value={`${money(section?.sales.qty)} กก.`} />
-            <Metric label="Gross Profit" tone="emerald" value={money(section?.sales.gp)} />
-            <Metric label="Margin %" tone={(gpPct ?? 0) >= 0 ? 'emerald' : 'red'} value={`${money(gpPct)}%`} />
+            <Metric label="กำไรขั้นต้น" tone="emerald" value={money(section?.sales.gp)} />
+            <Metric label="อัตรากำไร" tone={(gpPct ?? 0) >= 0 ? 'emerald' : 'red'} value={`${money(gpPct)}%`} />
           </Section>
-          <Section title="ฝั่งการเงิน — Cash / Bank / OD">
+          <Section title="ฝั่งการเงิน — เงินสด / ธนาคาร / OD">
             <Metric label="เงินสดรวม" tone="emerald" value={money(section?.cash.cash)} />
             <Metric label="ธนาคารรวม" tone="blue" value={money(section?.cash.bank)} />
             <Metric label="FCD" tone="purple" value={money(section?.cash.fcd)} />
             <Metric label="OD ใช้ / เหลือ" tone="orange" value={`${money(section?.cash.odUsed)} / ${money(section?.cash.odLimit)}`} />
-            <Metric label="Net Cash Position" tone="purple" value={money(section?.cash.netCash)} />
+            <Metric label="เงินสดสุทธิ" tone="purple" value={money(section?.cash.netCash)} />
           </Section>
-          <Section title="ฝั่ง Stock — Inventory / WAC">
+          <Section title="ฝั่งสต็อก — สินค้าคงคลัง / WAC">
             <Metric label="น้ำหนักรวม" value={`${money(section?.stock.qty)} กก.`} />
             <Metric label="มูลค่าสต๊อกรวม" tone="orange" value={money(section?.stock.value)} />
             <Metric label="ราคาต่อหน่วยเฉลี่ย" value={`${money(stockQty > 0 ? stockValue / stockQty : 0)} ฿/กก.`} />
@@ -910,10 +910,10 @@ function OwnerDailyView({ data, date, setDate }: { data: MainPayload | null; dat
   const dateButtonClass = 'h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition hover:bg-slate-50 focus:ring-2 focus:ring-slate-200'
   const isToday = date === today()
   const pendingItems = [
-    { label: 'บิลซื้อ Draft', value: String(safeNumber(pending.pendingPurchaseCount).toLocaleString('th-TH')) },
-    { label: 'บิลขาย Draft', value: String(safeNumber(pending.pendingSalesCount).toLocaleString('th-TH')) },
-    { label: 'FG พร้อมขาย', note: money(pending.fgValue), value: `${money(pending.fgQty)} กก.` },
-    { label: 'Trading Pending', note: money(pending.tradingPendingValue), value: String(safeNumber(pending.tradingPending).toLocaleString('th-TH')) },
+    { label: 'บิลซื้อแบบร่าง', value: String(safeNumber(pending.pendingPurchaseCount).toLocaleString('th-TH')) },
+    { label: 'บิลขายแบบร่าง', value: String(safeNumber(pending.pendingSalesCount).toLocaleString('th-TH')) },
+    { label: 'สินค้าสำเร็จรูปพร้อมขาย', note: money(pending.fgValue), value: `${money(pending.fgQty)} กก.` },
+    { label: 'รายการซื้อขายรอรับเงิน', note: money(pending.tradingPendingValue), value: String(safeNumber(pending.tradingPending).toLocaleString('th-TH')) },
   ]
   function shiftDate(days: number) {
     const next = new Date(`${date}T00:00:00`)
@@ -961,7 +961,7 @@ function OwnerDailyView({ data, date, setDate }: { data: MainPayload | null; dat
         <h3 className="text-sm font-bold text-slate-800">เกิดขึ้นจริงวันนี้แล้ว</h3>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
           <Tile tone="emerald" label="รับเงินจริง" value={`+${money(actual?.cashIn)}`} />
-          <Tile tone="red" label="จ่าย Supplier" value={`-${money(actual?.paymentOut)}`} />
+          <Tile tone="red" label="จ่ายผู้ขาย" value={`-${money(actual?.paymentOut)}`} />
           <Tile tone="orange" label="ค่าใช้จ่าย" value={`-${money(actual?.expenseOut)}`} className="col-span-2 md:col-span-1" />
         </div>
       </div>
@@ -1023,7 +1023,7 @@ function DailyReportView({ data, date, setDate }: { data: MainPayload | null; da
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <DailyBigCard icon="📥" label="ยอดรับซื้อ" sub={`เฉลี่ย ${money(purchaseAmount / Math.max(1, purchaseQty))} ฿/กก.`} tone="from-blue-600 to-indigo-700" value={money(purchaseAmount)} weight={money(purchaseQty)} />
-        <DailyBigCard icon="📤" label="ยอดขาย" sub={`GP ${money(gpAmount)} (${money(gpPct)}%)`} tone="from-emerald-600 to-teal-700" value={money(salesAmount)} weight={money(salesQty)} />
+        <DailyBigCard icon="📤" label="ยอดขาย" sub={`กำไรขั้นต้น ${money(gpAmount)} (${money(gpPct)}%)`} tone="from-emerald-600 to-teal-700" value={money(salesAmount)} weight={money(salesQty)} />
       </div>
       <GroupBreakdown groups={data?.dailyReport.groupBreakdown ?? []} expandedGroup={expandedGroup} setExpandedGroup={setExpandedGroup} />
       <div className="grid gap-4 lg:grid-cols-2"><DailyBillTable rows={data?.dailyReport.purchaseBills ?? []} title={`📋 บิลรับซื้อประจำวัน (${purchaseCount})`} tone="blue" /><DailyBillTable rows={data?.dailyReport.salesBills ?? []} title={`📋 บิลขายประจำวัน (${salesCount})`} tone="emerald" /></div>
@@ -1064,7 +1064,7 @@ function AnalyticsDashboardView({ data, rangeFrom, rangeMode, rangeTo, setRangeF
     <div className="pt-2 animate-fade-in pb-16">
       <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div><h2 className="text-sm font-bold text-slate-900">Analytics Dashboard</h2></div>
+          <div><h2 className="text-sm font-bold text-slate-900">วิเคราะห์ข้อมูล</h2></div>
           <div className="flex flex-wrap items-center gap-2">
             {['today', 'yesterday', 'last7', 'last30', 'last90', 'month'].map((mode) => (
               <button key={mode} className={`inline-flex h-9 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors outline-none focus:ring-0 ${rangeMode === mode ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'}`} type="button" onClick={() => applyRange(mode)}>{rangeLabel(mode)}</button>
@@ -1086,7 +1086,7 @@ function AnalyticsDashboardView({ data, rangeFrom, rangeMode, rangeTo, setRangeF
       </div>
       <div className="mb-4 grid min-w-0 gap-4 lg:grid-cols-2">
         <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-           <h3 className="mb-3 font-bold text-slate-700 text-sm">📈 ยอดซื้อ vs ขาย (รายวัน)</h3>
+           <h3 className="mb-3 font-bold text-slate-700 text-sm">📈 ยอดซื้อเทียบยอดขายรายวัน</h3>
            {(analytics?.dailyTrend ?? []).map((row) => <div key={row.label} className="mb-2.5 grid grid-cols-12 items-center gap-2 text-xs"><div className="col-span-3 font-mono text-slate-600">{row.label}</div><AnalyticsTrendBar className="col-span-4" max={trendMax} tone="blue" value={row.purchase} /><AnalyticsTrendBar className="col-span-5" max={trendMax} tone="emerald" value={row.sales} /></div>)}
         </div>
         <TopSimpleTable rows={analytics?.groupSummary ?? []} title="🥧 มูลค่าตามหมวดสินค้า" />
@@ -1095,21 +1095,21 @@ function AnalyticsDashboardView({ data, rangeFrom, rangeMode, rangeTo, setRangeF
         <TabsList className="w-full min-w-0 overflow-x-auto" variant="line">
           <TabsTrigger value="partners" variant="line">คู่ค้า</TabsTrigger>
           <TabsTrigger value="products" variant="line">สินค้า</TabsTrigger>
-          <TabsTrigger value="sales" variant="line">Sale</TabsTrigger>
+          <TabsTrigger value="sales" variant="line">การขาย</TabsTrigger>
         </TabsList>
       </Tabs>
 
       {detailTab === 'partners' ? (
         <div className="mb-4 grid min-w-0 gap-4 lg:grid-cols-2">
-          <RankTable color="blue" rows={analytics?.topSuppliers ?? []} title="🥇 Top 10 ผู้ขาย (ยอดซื้อสูงสุด)" />
-          <RankTable color="emerald" rows={analytics?.topCustomers ?? []} title="🥇 Top 10 ผู้ซื้อ (ยอดขายสูงสุด)" />
+          <RankTable color="blue" rows={analytics?.topSuppliers ?? []} title="🥇 ผู้ขายสูงสุด 10 ราย" />
+          <RankTable color="emerald" rows={analytics?.topCustomers ?? []} title="🥇 ผู้ซื้อสูงสุด 10 ราย" />
         </div>
       ) : null}
 
       {detailTab === 'products' ? (
         <div className="mb-4 grid min-w-0 gap-4 lg:grid-cols-2">
-          <ProductRank rows={analytics?.topProductsIn ?? []} title="📦 Top 5 สินค้ารับเข้า (ตามมูลค่า)" tone="indigo" />
-          <ProductRank rows={analytics?.topProductsOut ?? []} title="📦 Top 5 สินค้าขายออก (ตามมูลค่า)" tone="teal" />
+          <ProductRank rows={analytics?.topProductsIn ?? []} title="📦 สินค้ารับเข้ามูลค่าสูงสุด 5 รายการ" tone="indigo" />
+          <ProductRank rows={analytics?.topProductsOut ?? []} title="📦 สินค้าขายออกมูลค่าสูงสุด 5 รายการ" tone="teal" />
         </div>
       ) : null}
 
@@ -1122,20 +1122,20 @@ function AnalyticsDashboardView({ data, rangeFrom, rangeMode, rangeTo, setRangeF
       {/* Floating Action Buttons */}
       <div className="mt-4 grid grid-cols-2 gap-2 pb-4 lg:fixed lg:bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:right-6 lg:z-50 lg:mt-0 lg:flex lg:flex-row lg:pb-0">
         <button
-          className="shadow-sm rounded-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 text-sm font-semibold transition-all hover:scale-105 active:scale-95 outline-none"
+          className="h-9 rounded-md bg-emerald-600 px-3 text-sm font-normal text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none"
           type="button"
           onClick={() => {
             alert('แชร์ข้อมูลสรุปไปที่ LINE OA เรียบร้อยแล้ว')
           }}
         >
-          <span>🟢</span> Share รูปภาพ - LINE
+          แชร์รูปภาพผ่าน LINE
         </button>
         <button
-          className="shadow-sm rounded-full px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center gap-2 text-sm font-semibold transition-all hover:scale-105 active:scale-95 outline-none"
+          className="h-9 rounded-md bg-rose-600 px-3 text-sm font-normal text-white shadow-sm transition-colors hover:bg-rose-700 focus:outline-none"
           type="button"
           onClick={printReport}
         >
-          <span>🖨️</span> Export PDF / Print
+          ส่งออก PDF / พิมพ์
         </button>
       </div>
     </div>
@@ -1186,15 +1186,15 @@ function OwnerDueTable({ rows, title, type }: { rows: OwnerDueRow[]; title: stri
       <div className="hidden lg:block max-h-64 overflow-auto">
         <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
-            {columns.map((column, index) => (
-              <col key={column.key} style={index === columns.length - 1 ? { minWidth: column.minWidth ?? 80 } : columnResize.getColumnStyle(column.key)} />
+            {columns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
             ))}
           </colgroup>
           <thead className="sticky top-0 bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
             <tr>
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ชื่อ" resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อ')} sortKey="name" onSort={handleSort} />
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="บิล" resizeProps={columnResize.getResizeHandleProps('docNo', 'บิล')} sortKey="docNo" onSort={handleSort} />
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ครบกำหนด" resizeProps={columnResize.getResizeHandleProps('due', 'ครบกำหนด')} sortKey="due" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="บิล" resizeProps={columnResize.getResizeHandleProps('docNo', 'บิล')} sortKey="docNo" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ครบกำหนด" resizeProps={columnResize.getResizeHandleProps('due', 'ครบกำหนด')} sortKey="due" onSort={handleSort} />
               <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ค้าง" resizeProps={columnResize.getResizeHandleProps('amount', 'ค้าง')} sortKey="amount" onSort={handleSort} />
               {type === 'ar' ? <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="เกินวัน" resizeProps={columnResize.getResizeHandleProps('daysOverdue', 'เกินวัน')} sortKey="daysOverdue" onSort={handleSort} /> : null}
             </tr>
@@ -1203,8 +1203,8 @@ function OwnerDueTable({ rows, title, type }: { rows: OwnerDueRow[]; title: stri
             {sortedRows.map((row) => (
               <tr key={row.docNo} className="border-t border-slate-100 hover:bg-slate-50/50">
                 <td className="p-2 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.name}>{row.name}</div></td>
-                <td className="p-2 font-mono text-xs text-slate-600 whitespace-nowrap">{row.docNo}</td>
-                <td className="p-2 text-xs text-slate-600 whitespace-nowrap">{row.due}</td>
+                <td className="p-2 text-right font-mono text-xs text-slate-600 whitespace-nowrap">{row.docNo}</td>
+                <td className="p-2 text-right text-xs text-slate-600 whitespace-nowrap">{row.due}</td>
                 <td className="p-2 text-right font-bold text-slate-800 whitespace-nowrap tabular-nums pl-4">{money(row.amount)}</td>
                 {type === 'ar' ? (
                   <td className={row.daysOverdue ? 'p-2 text-right font-bold text-red-600 whitespace-nowrap tabular-nums pl-4' : 'p-2 text-right text-slate-400 whitespace-nowrap tabular-nums pl-4'}>
@@ -1286,8 +1286,8 @@ function OwnerSmallTable({ rows, tableKey, title }: { rows: OwnerSmallRow[]; tab
       <div className="hidden lg:block overflow-x-auto">
         <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
-            {ownerSmallColumns.map((column, index) => (
-              <col key={column.key} style={index === ownerSmallColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : columnResize.getColumnStyle(column.key)} />
+            {ownerSmallColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
             ))}
           </colgroup>
           <thead className="bg-slate-50 text-slate-500 border-b border-slate-100">
@@ -1371,7 +1371,7 @@ function GroupBreakdown({ expandedGroup, groups, setExpandedGroup }: { expandedG
   const max = Math.max(1, ...groups.map((row) => Math.max(row.buyAmt, row.sellAmt)))
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h3 className="mb-3 font-bold text-slate-800 text-sm">📊 หมวดสินค้า — ซื้อ vs ขาย <span className="text-xs font-normal text-slate-500">(กดที่หมวด → ดูรายละเอียดสินค้า)</span></h3>
+      <h3 className="mb-3 font-bold text-slate-800 text-sm">📊 หมวดสินค้า — ซื้อเทียบขาย <span className="text-xs font-normal text-slate-500">(กดที่หมวด → ดูรายละเอียดสินค้า)</span></h3>
       {groups.length === 0 ? (
         <div className="py-6 text-center text-slate-400 text-xs">ไม่มีรายการในวันนี้</div>
       ) : (
@@ -1456,26 +1456,26 @@ function GroupProductTable({ rows, tableKey }: { rows: DailyGroupProductRow[]; t
         <div className="overflow-x-auto">
           <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
-              {dailyGroupProductColumns.map((column, index) => (
-                <col key={column.key} style={index === dailyGroupProductColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : columnResize.getColumnStyle(column.key)} />
+              {dailyGroupProductColumns.map((column) => (
+                <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
               ))}
             </colgroup>
             <thead className="bg-slate-100 text-slate-600">
               <tr>
-                <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="Code" resizeProps={columnResize.getResizeHandleProps('productCode', 'Code')} sortKey="productCode" onSort={handleSort} />
-                <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('productCode', 'รหัส')} sortKey="productCode" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ซื้อ กก." resizeProps={columnResize.getResizeHandleProps('buyQty', 'ซื้อ กก.')} sortKey="buyQty" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ซื้อ" resizeProps={columnResize.getResizeHandleProps('buyAmt', 'ซื้อ')} sortKey="buyAmt" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ขาย กก." resizeProps={columnResize.getResizeHandleProps('sellQty', 'ขาย กก.')} sortKey="sellQty" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ขาย" resizeProps={columnResize.getResizeHandleProps('sellAmt', 'ขาย')} sortKey="sellAmt" onSort={handleSort} />
-                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="Spread/กก." resizeProps={columnResize.getResizeHandleProps('spread', 'Spread/กก.')} sortKey="spread" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ส่วนต่าง/กก." resizeProps={columnResize.getResizeHandleProps('spread', 'ส่วนต่าง/กก.')} sortKey="spread" onSort={handleSort} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {sortedRows.map((row, idx) => (
                 <tr key={`${row.productId}_${idx}`} className="border-t border-slate-100">
                   <td className="p-2 font-mono text-slate-600 whitespace-nowrap">{row.productCode}</td>
-                  <td className="p-2 text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.productName}>{row.productName}</div></td>
+                  <td className="p-2 text-right text-slate-700 min-w-0 overflow-hidden"><div className="truncate text-right" title={row.productName}>{row.productName}</div></td>
                   <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{money(row.buyQty)}</td>
                   <td className="p-2 text-right text-blue-700 font-bold whitespace-nowrap tabular-nums pl-4">{money(row.buyAmt)}</td>
                   <td className="p-2 text-right whitespace-nowrap tabular-nums pl-4">{money(row.sellQty)}</td>
@@ -1509,7 +1509,7 @@ function GroupProductTable({ rows, tableKey }: { rows: DailyGroupProductRow[]; t
             </div>
             {dailyGroupProductValue(row, 'spread') ? (
               <div className="text-right text-xs font-semibold text-purple-700 mt-1">
-                Spread: {money(dailyGroupProductValue(row, 'spread') as number)} ฿/กก.
+                ส่วนต่าง: {money(dailyGroupProductValue(row, 'spread') as number)} ฿/กก.
               </div>
             ) : null}
           </div>
@@ -1553,14 +1553,14 @@ function DailyBillTable({ rows, title, tone }: { rows: DailyBillRow[]; title: st
       <div className="hidden lg:block max-h-[300px] overflow-auto">
         <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
-            {dailyBillColumns.map((column, index) => (
-              <col key={column.key} style={index === dailyBillColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : columnResize.getColumnStyle(column.key)} />
+            {dailyBillColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
             ))}
           </colgroup>
           <thead className="sticky top-0 bg-slate-100 border-b border-slate-100 text-xs text-slate-600">
             <tr>
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={handleSort} />
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label={tone === 'blue' ? 'Supplier' : 'Customer'} resizeProps={columnResize.getResizeHandleProps('name', tone === 'blue' ? 'Supplier' : 'Customer')} sortKey="name" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label={tone === 'blue' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('name', tone === 'blue' ? 'ผู้ขาย' : 'ลูกค้า')} sortKey="name" onSort={handleSort} />
               <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="กก." resizeProps={columnResize.getResizeHandleProps('qty', 'กก.')} sortKey="qty" onSort={handleSort} />
               <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ยอด" resizeProps={columnResize.getResizeHandleProps('amount', 'ยอด')} sortKey="amount" onSort={handleSort} />
             </tr>
@@ -1569,7 +1569,7 @@ function DailyBillTable({ rows, title, tone }: { rows: DailyBillRow[]; title: st
             {sortedRows.map((row) => (
               <tr key={row.docNo} className={`border-t border-slate-100 ${hover}`}>
                 <td className="p-2 font-mono text-xs text-slate-600 whitespace-nowrap">{row.docNo}</td>
-                <td className="p-2 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.name}>{row.name}</div></td>
+                <td className="p-2 text-right text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate text-right" title={row.name}>{row.name}</div></td>
                 <td className="p-2 text-right text-slate-600 whitespace-nowrap tabular-nums pl-4">{money(row.qty)}</td>
                 <td className={`p-2 text-right font-bold whitespace-nowrap tabular-nums pl-4 ${amountColor}`}>{money(row.amount)}</td>
               </tr>
@@ -1667,7 +1667,7 @@ function CashMovement({ movement }: { movement?: MainPayload['dailyReport']['cas
       <div className="mb-4 grid gap-3 md:grid-cols-3">
         <Tile tone="emerald" label="📥 เงินเข้ารวม" value={money(movement?.cashIn)} />
         <Tile tone="red" label="📤 เงินออกรวม" value={money(movement?.cashOut)} />
-        <Tile tone={(movement?.net ?? 0) >= 0 ? 'blue' : 'red'} label="📊 Net Cash" value={money(movement?.net)} />
+        <Tile tone={(movement?.net ?? 0) >= 0 ? 'blue' : 'red'} label="📊 เงินสดสุทธิ" value={money(movement?.net)} />
       </div>
       <div className="mb-4 grid gap-2 md:grid-cols-2 lg:grid-cols-4">
         {(movement?.byType ?? []).map((row) => (
@@ -1683,8 +1683,8 @@ function CashMovement({ movement }: { movement?: MainPayload['dailyReport']['cas
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white sm:block">
         <table className="ns-table min-w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
-            {cashAccountColumns.map((column, index) => (
-              <col key={column.key} style={index === cashAccountColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : columnResize.getColumnStyle(column.key)} />
+            {cashAccountColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
             ))}
           </colgroup>
           <thead className="bg-slate-100 text-slate-600">
@@ -1692,7 +1692,7 @@ function CashMovement({ movement }: { movement?: MainPayload['dailyReport']['cas
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="บัญชี" resizeProps={columnResize.getResizeHandleProps('name', 'บัญชี')} sortKey="name" onSort={handleSort} />
               <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="เข้า" resizeProps={columnResize.getResizeHandleProps('cashIn', 'เข้า')} sortKey="cashIn" onSort={handleSort} />
               <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ออก" resizeProps={columnResize.getResizeHandleProps('cashOut', 'ออก')} sortKey="cashOut" onSort={handleSort} />
-              <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="Net" resizeProps={columnResize.getResizeHandleProps('net', 'Net')} sortKey="net" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="สุทธิ" resizeProps={columnResize.getResizeHandleProps('net', 'สุทธิ')} sortKey="net" onSort={handleSort} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -2095,9 +2095,9 @@ function ProductRank({ rows, title, tone }: { rows: { amount: number; code: stri
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
             <tr>
               <ResizableTableHead label="#" resizeProps={columnResize.getResizeHandleProps('rank', '#')} />
-              <ResizableTableHead label="Code" sortKey="code" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('code', 'Code')} />
-              <ResizableTableHead label="สินค้า" sortKey="name" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'สินค้า')} />
-              <ResizableTableHead label="หมวด" sortKey="group" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('group', 'หมวด')} />
+              <ResizableTableHead label="รหัส" sortKey="code" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} />
+              <ResizableTableHead align="right" label="สินค้า" sortKey="name" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'สินค้า')} />
+              <ResizableTableHead align="right" label="หมวด" sortKey="group" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('group', 'หมวด')} />
               <ResizableTableHead align="right" label="น้ำหนัก (กก.)" sortKey="qty" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'น้ำหนัก')} />
               <ResizableTableHead align="right" label="มูลค่า" sortKey="amount" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'มูลค่า')} />
             </tr>
@@ -2107,8 +2107,8 @@ function ProductRank({ rows, title, tone }: { rows: { amount: number; code: stri
               <tr key={`${row.id || 'prod'}-${index}`} className={`border-t border-slate-100 ${hover}`}>
                 <td className={`p-2 font-bold ${text} text-xs whitespace-nowrap`}>{index + 1}</td>
                 <td className="p-2 font-mono text-xs text-slate-600 whitespace-nowrap">{row.code}</td>
-                <td className="p-2 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={row.name}>{row.name}</div></td>
-                <td className="p-2 text-xs text-slate-500 min-w-0 overflow-hidden"><div className="truncate" title={row.group}>{row.group}</div></td>
+                <td className="p-2 text-right text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate text-right" title={row.name}>{row.name}</div></td>
+                <td className="p-2 text-right text-xs text-slate-500 min-w-0 overflow-hidden"><div className="truncate text-right" title={row.group}>{row.group}</div></td>
                 <td className="p-2 text-right text-xs text-slate-600 whitespace-nowrap tabular-nums pl-4">{money(row.qty)}</td>
                 <td className={`p-2 text-right font-bold ${text} text-xs whitespace-nowrap tabular-nums pl-4`}>{money(row.amount)}</td>
               </tr>
@@ -2134,7 +2134,7 @@ function ProductRank({ rows, title, tone }: { rows: { amount: number; code: stri
               <span className={`font-bold ${text}`}>{money(row.amount)}</span>
             </div>
             <div className="flex justify-between items-center text-slate-500 text-xs">
-              <span>Code: <span className="font-mono">{row.code}</span> ({row.group})</span>
+              <span>รหัส: <span className="font-mono">{row.code}</span> ({row.group})</span>
               <span>น้ำหนัก: {money(row.qty)} กก.</span>
             </div>
           </div>
@@ -2192,7 +2192,7 @@ function SalespersonTable({ rows }: { rows: { amount: number; bills: number; id:
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="font-bold text-slate-700 text-sm">🆕 ยอดซื้อแต่ละ Sale — จำนวน supplier/กก./ยอดซื้อ</h3>
+        <h3 className="font-bold text-slate-700 text-sm">🆕 ยอดซื้อแต่ละพนักงานขาย — จำนวนผู้ขาย/กก./ยอดซื้อ</h3>
         {columnResize.hasCustomWidths ? (
           <button
             className="text-xs font-normal text-slate-500 hover:text-slate-800 bg-white/60 hover:bg-white rounded px-2 py-0.5 shadow-sm border border-slate-200 transition-all outline-none"
@@ -2214,8 +2214,8 @@ function SalespersonTable({ rows }: { rows: { amount: number; bills: number; id:
           </colgroup>
           <thead className="bg-slate-50 text-slate-500 sticky top-0 border-b border-slate-100">
             <tr>
-              <ResizableTableHead label="Sale" sortKey="name" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'Sale')} />
-              <ResizableTableHead align="right" label="Suppliers" sortKey="suppliers" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('suppliers', 'Suppliers')} />
+              <ResizableTableHead label="พนักงานขาย" sortKey="name" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'พนักงานขาย')} />
+              <ResizableTableHead align="right" label="ผู้ขาย" sortKey="suppliers" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('suppliers', 'ผู้ขาย')} />
               <ResizableTableHead align="right" label="น้ำหนัก (กก.)" sortKey="qty" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'น้ำหนัก')} />
               <ResizableTableHead align="right" label="ยอดซื้อ" sortKey="amount" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดซื้อ')} />
               <ResizableTableHead align="right" label="บิล" sortKey="bills" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('bills', 'บิล')} />
@@ -2225,7 +2225,7 @@ function SalespersonTable({ rows }: { rows: { amount: number; bills: number; id:
             {sortedRows.map((row, index) => (
               <tr key={`${row.id || 'sales'}-${index}`} className="border-t border-slate-100 hover:bg-slate-50/30">
                 <td className="p-2 text-slate-700 font-medium min-w-0 overflow-hidden"><div className="truncate" title={row.name}>{row.name}</div></td>
-                <td className="p-2 text-right text-slate-600 whitespace-nowrap tabular-nums pl-4">{row.suppliers} supplier</td>
+                <td className="p-2 text-right text-slate-600 whitespace-nowrap tabular-nums pl-4">{row.suppliers} ราย</td>
                 <td className="p-2 text-right text-slate-600 whitespace-nowrap tabular-nums pl-4">{money(row.qty)} กก.</td>
                 <td className="p-2 text-right font-bold text-blue-600 whitespace-nowrap tabular-nums pl-4">{money(row.amount)}</td>
                 <td className="p-2 text-right text-slate-600 whitespace-nowrap tabular-nums pl-4">{row.bills} บิล</td>

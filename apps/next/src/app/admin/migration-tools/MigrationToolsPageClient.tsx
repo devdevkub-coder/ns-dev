@@ -168,13 +168,9 @@ export function MigrationToolsPageClient() {
         <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
           <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: snapshotColumnResize.tableMinWidth }}>
             <colgroup>
-              {snapshotColumns.map((column, index) => {
-                const style = snapshotColumnResize.getColumnStyle(column.key)
-                if (index === snapshotColumns.length - 1) {
-                  return <col key={column.key} style={{ minWidth: column.minWidth }} />
-                }
-                return <col key={column.key} style={style} />
-              })}
+              {snapshotColumns.map((column) => (
+                <col key={column.key} style={snapshotColumnResize.getColumnStyle(column.key)} />
+              ))}
             </colgroup>
             <thead className="bg-slate-100">
               <tr>

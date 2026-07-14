@@ -117,7 +117,7 @@ export function StockLedgerPageClient() {
       setData(payload)
     } catch (caught) {
       if (latestLoadRequestRef.current !== requestId) return
-      setError(caught instanceof Error ? caught.message : 'โหลด Stock Ledger ไม่ได้')
+      setError(caught instanceof Error ? caught.message : 'โหลดรายการเคลื่อนไหวสต๊อกไม่ได้')
     } finally {
       if (latestLoadRequestRef.current !== requestId) return
       setIsLoading(false)
@@ -178,7 +178,7 @@ export function StockLedgerPageClient() {
       {/* Desktop Toolbar (Hidden on Mobile) */}
       <div className="hidden lg:block mb-4 space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[200px] flex-1">
+          <div className="relative min-w-[260px] flex-1">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input 
               className="h-9 w-full rounded-md border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-slate-400 focus:ring-0"
@@ -215,13 +215,6 @@ export function StockLedgerPageClient() {
             </button>
           ) : null}
 
-          <button 
-            className="flex h-9 items-center gap-1.5 rounded-md border border-emerald-500/20 bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 outline-none focus:ring-0"
-            type="button" 
-            onClick={exportXlsx}
-          >
-            <Download className="h-3.5 w-3.5" /> ส่งออก Excel
-          </button>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
@@ -247,6 +240,15 @@ export function StockLedgerPageClient() {
           <DatePickerInput className="w-[130px] !h-9 rounded-md border-slate-300 text-xs outline-none" title="จากวันที่" value={fromDate} onChange={(value) => { setPage(1); setFromDate(value) }} />
           <span className="text-slate-400 font-medium">→</span>
           <DatePickerInput className="w-[130px] !h-9 rounded-md border-slate-300 text-xs outline-none" title="ถึงวันที่" value={toDate} onChange={(value) => { setPage(1); setToDate(value) }} />
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              className="flex h-9 items-center gap-1.5 rounded-md border border-emerald-500/20 bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:bg-emerald-700 outline-none focus:ring-0"
+              type="button"
+              onClick={exportXlsx}
+            >
+              <Download className="h-3.5 w-3.5" /> ส่งออก Excel
+            </button>
+          </div>
         </div>
       </div>
 
@@ -276,7 +278,7 @@ export function StockLedgerPageClient() {
       {/* Bottom Sheet Filter for Mobile */}
       {showMobileFilters ? (
         <MobileFilterSheet
-          title="ตัวกรอง Stock Ledger"
+          title="ตัวกรองรายการเคลื่อนไหวสต๊อก"
           onClose={() => setShowMobileFilters(false)}
           footer={(
             <>
@@ -428,7 +430,7 @@ export function StockLedgerPageClient() {
                 </div>
               </div>
               <div className="flex justify-between items-center text-xs text-slate-400 pt-1 border-t border-slate-100/60 mt-1">
-                <span>ต้นทุน/น.: {formatMoney(row.runningBalanceByProduct < 0 ? 0 : row.unitCost)} บาท</span>
+                <span>ต้นทุนต่อหน่วย: {formatMoney(row.runningBalanceByProduct < 0 ? 0 : row.unitCost)} บาท</span>
                 <span className="truncate max-w-[150px]">{row.counterpartyName && row.counterpartyName !== '-' ? row.counterpartyName : ''}</span>
               </div>
             </div>
@@ -437,7 +439,7 @@ export function StockLedgerPageClient() {
 
         {!isLoading && rows.length === 0 ? (
           <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
-            ยังไม่มี Stock Movement
+            ยังไม่มีรายการเคลื่อนไหวสต๊อก
           </div>
         ) : null}
       </div>
@@ -479,7 +481,7 @@ export function StockLedgerPageClient() {
               <StockLedgerSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="เข้า" resizeProps={columnResize.getResizeHandleProps('qtyIn', 'เข้า')} sortKey="qtyIn" onSort={changeSort} />
               <StockLedgerSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ออก" resizeProps={columnResize.getResizeHandleProps('qtyOut', 'ออก')} sortKey="qtyOut" onSort={changeSort} />
               <StockLedgerSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="คงเหลือ" resizeProps={columnResize.getResizeHandleProps('runningBalanceByProduct', 'คงเหลือ')} sortKey="runningBalanceByProduct" onSort={changeSort} />
-              <StockLedgerSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ต้นทุน/น." resizeProps={columnResize.getResizeHandleProps('unitCost', 'ต้นทุน/น.')} sortKey="unitCost" onSort={changeSort} />
+              <StockLedgerSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ต้นทุนต่อหน่วย" resizeProps={columnResize.getResizeHandleProps('unitCost', 'ต้นทุนต่อหน่วย')} sortKey="unitCost" onSort={changeSort} />
               <StockLedgerSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="มูลค่าเข้า" resizeProps={columnResize.getResizeHandleProps('valueIn', 'มูลค่าเข้า')} sortKey="valueIn" onSort={changeSort} />
               <StockLedgerSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="มูลค่าออก" resizeProps={columnResize.getResizeHandleProps('valueOut', 'มูลค่าออก')} sortKey="valueOut" onSort={changeSort} />
             </tr>
@@ -516,7 +518,7 @@ export function StockLedgerPageClient() {
                 <td className="p-2 pr-4 text-right text-xs font-semibold text-red-700 tabular-nums">{row.valueOut ? formatMoney(row.valueOut) : '-'}</td>
               </tr>
             ))}
-            {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ยังไม่มี Stock Movement</td></tr> : null}
+            {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ยังไม่มีรายการเคลื่อนไหวสต๊อก</td></tr> : null}
           </tbody>
         </table>
         </div>
@@ -537,7 +539,7 @@ function Counterparty({ name, refType }: { name: string; refType: string }) {
       </div>
     )
   }
-  const labelMap: Record<string, string> = { ADJ: 'นับสต๊อก', CR: 'รับคืนสินค้า', GA: 'ปรับเกรด', OB: 'ยอดยกมา', SC: 'แปลง Status', ST: 'โอนระหว่างสาขา' }
+  const labelMap: Record<string, string> = { ADJ: 'นับสต๊อก', CR: 'รับคืนสินค้า', GA: 'ปรับเกรด', OB: 'ยอดยกมา', SC: 'แปลงสถานะ', ST: 'โอนระหว่างสาขา' }
   return <span className="text-xs italic text-slate-500">{labelMap[refType] ?? refType ?? '-'}</span>
 }
 
@@ -617,7 +619,7 @@ function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: St
       <DialogContent className="flex max-h-[90vh] max-w-5xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 dark:bg-[#0f172a] !p-0 animate-fade-in" hideClose>
         <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-t-md border-b border-slate-800 bg-slate-900 px-5 py-4 text-white dark:border-slate-200 dark:bg-[#0f172a]">
           <div>
-            <DialogTitle className="text-lg font-bold text-white">รายละเอียด {row.refNo || 'Stock Ledger'}</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-white">รายละเอียด {row.refNo || 'รายการเคลื่อนไหวสต๊อก'}</DialogTitle>
             <DialogDescription className="mt-0.5 text-xs text-slate-400">
               {productLabel} · {stockMovementTypeLabel(row.movementType)}
             </DialogDescription>

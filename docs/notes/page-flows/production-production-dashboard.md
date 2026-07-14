@@ -3,8 +3,8 @@ title: Production Dashboard Page Flow
 tags:
   - page-flow
   - menu
-status: hidden-baseline
-updated: 2026-06-16
+status: accepted-baseline
+updated: 2026-07-12
 route: /production/dashboard
 ---
 
@@ -17,7 +17,7 @@ route: /production/dashboard
 | Menu section | Production |
 | Route | `/production/dashboard` |
 | Page | Production Dashboard |
-| Current Next | hidden baseline / no active menu |
+| Current Next | active sidebar page |
 
 ## Canonical References
 
@@ -27,7 +27,7 @@ route: /production/dashboard
 
 dashboard KPI จาก production orders/input/output/WIP/yield/cost
 
-Current runtime note: this route/API remains in code as a hidden baseline, but it is intentionally removed from the active Production navigation and Reports catalog per user direction. Do not re-add it to active menus unless explicitly requested.
+Current runtime note: this route/API is an active Production sidebar page and remains a read-only operational monitor. Do not add write actions or alter production transactions from this dashboard.
 
 ## Requirement Snapshot 2026-06-13
 
@@ -149,3 +149,10 @@ Legacy distinction:
 - [ ] Verify legacy behavior for any gap before implementing runtime change
 - [ ] Add/adjust tests or browser QA checklist before changing runtime
 - [ ] Update this file and canonical reference if contract changes
+
+## 2026-07-12 UI consistency checkpoint
+
+- Verified `/production/dashboard` in Codex Browser at desktop and mobile sizes, in both Light and Dark mode.
+- Replaced generic English working labels in the visible KPI/chart/machine surfaces with Thai-first labels, including `วัตถุดิบเข้า`, `ผลผลิต`, `สูญเสีย`, `งานระหว่างทำคงเหลือ`, `อัตราผลได้`, and `การใช้เครื่องจักร`.
+- KPI cards now pass meaningful Lucide icons into the shared `KpiCard`; the mobile overview/product switch uses the shared line-tab component rather than a page-local segmented tab variant.
+- The dashboard remains read-only. Date range behavior, dashboard formulas, API contracts, permissions, database schema, and business data did not change.

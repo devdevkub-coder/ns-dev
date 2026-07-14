@@ -57,7 +57,7 @@ export function TaxVatWhtPageClient() {
   const detailTabs = [
     { count: data?.vatOutput.items.length ?? 0, label: 'VAT ขาย', value: 'vat-output' },
     { count: data?.vatInput.items.length ?? 0, label: 'VAT ซื้อ', value: 'vat-input' },
-    { count: data?.taxCalendar.length ?? 0, label: 'Calendar', value: 'wht-calendar' },
+    { count: data?.taxCalendar.length ?? 0, label: 'ปฏิทินภาษี', value: 'wht-calendar' },
   ] satisfies Array<{ count: number; label: string; value: DetailTab }>
 
   return (
@@ -113,7 +113,7 @@ export function TaxVatWhtPageClient() {
           </div>
           <button
             type="button"
-            className="h-9 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
+            className="h-9 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-xs font-normal text-slate-700 hover:bg-slate-50 transition outline-none"
             onClick={() => setShowMobileFilters(true)}
           >
             ตัวกรอง {branchId ? '(มี)' : ''}
@@ -125,15 +125,8 @@ export function TaxVatWhtPageClient() {
       {showMobileFilters ? (
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/55 lg:hidden">
           <div className="flex max-h-[calc(100dvh_-_env(safe-area-inset-top)_-_0.75rem)] w-full flex-col overflow-hidden rounded-t-md bg-slate-900 shadow-2xl">
-            <div className="flex items-center justify-between rounded-t-md bg-slate-900 px-4 py-4 text-white">
+            <div className="flex items-center rounded-t-md bg-slate-900 px-4 py-4 text-white">
               <h4 className="text-sm font-bold text-white">ตัวกรองเพิ่มเติม</h4>
-              <button
-                className="rounded-md p-1 text-xl font-bold text-slate-300 hover:bg-slate-800 hover:text-white"
-                onClick={() => setShowMobileFilters(false)}
-                type="button"
-              >
-                &times;
-              </button>
             </div>
 
             <div className="flex-1 space-y-4 overflow-y-auto bg-white p-4">
@@ -162,14 +155,14 @@ export function TaxVatWhtPageClient() {
                 onClick={() => {
                   setBranchId('')
                 }}
-                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-normal text-slate-700 hover:bg-slate-50"
               >
                 ล้างตัวกรอง
               </button>
               <button
                 type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="h-11 rounded-md bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700"
+                className="h-11 rounded-md bg-blue-600 text-sm font-normal text-white hover:bg-blue-700"
               >
                 ตกลง
               </button>
@@ -181,41 +174,40 @@ export function TaxVatWhtPageClient() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-3">
           <SharedKpiCard
-            icon="🧾"
-            label={`VAT Payable งวด ${year}-${month}`}
+            label={`VAT สุทธิ งวด ${year}-${month}`}
             note={`บาท · ${(data?.summary.vatPayable ?? 0) >= 0 ? 'ต้องนำส่ง' : 'ภาษีซื้อรอใช้เครดิต'}`}
             tone={(data?.summary.vatPayable ?? 0) >= 0 ? 'rose' : 'emerald'}
             value={money(data?.summary.vatPayable)}
           />
           <div className="grid grid-cols-2 gap-3">
-            <MiniHero label="📤 VAT ขาย (Output)" tone="emerald" value={money(data?.summary.vatOut)} />
-            <MiniHero label="📥 VAT ซื้อ (Input)" tone="blue" value={money(data?.summary.vatIn)} />
+            <MiniHero label="VAT ขาย" tone="emerald" value={money(data?.summary.vatOut)} />
+            <MiniHero label="VAT ซื้อ" tone="blue" value={money(data?.summary.vatIn)} />
           </div>
         </div>
 
-        <Panel title="🥧 VAT Output vs Input">
+        <Panel title="สรุป VAT ขายและซื้อ">
           <Donut output={data?.summary.vatOut ?? 0} input={data?.summary.vatIn ?? 0} net={data?.summary.vatPayable ?? 0} />
         </Panel>
 
-        <Panel title="🪙 WHT Position">
+        <Panel title="สถานะภาษีหัก ณ ที่จ่าย">
           <div className="space-y-3">
             <WhtBox label="เราหักไว้ (ต้องนำส่ง ภงด.)" tone="amber" value={money(data?.summary.whtChargedNet)} />
             <WhtBox label="ลูกค้าหักจากเรา (เครดิตได้)" tone="purple" value={money(data?.summary.whtWithheldNet)} />
-            <WhtBox label="⚠ ใบกำกับขาด" tone="red" value={`${data?.summary.missingCount ?? 0} รายการ`} />
+            <WhtBox label="เอกสารภาษีไม่ครบ" tone="red" value={`${data?.summary.missingCount ?? 0} รายการ`} />
           </div>
         </Panel>
       </div>
 
-      <Panel title="📈 VAT แนวโน้ม 6 เดือน (ขาย/ซื้อ/Payable)">
+      <Panel title="แนวโน้ม VAT 6 เดือน (ขาย/ซื้อ/สุทธิ)">
         <div className="grid grid-cols-6 gap-3 overflow-x-auto pb-1">
           {(data?.taxCalendar ?? []).map((row) => <CalendarBars key={row.periodLabel} max={maxCalendar} row={row} />)}
         </div>
       </Panel>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <StatCard label="VAT ขาย (Output)" value={money(data?.summary.vatOut)} tone="emerald" />
-        <StatCard label="VAT ซื้อ (Input)" value={money(data?.summary.vatIn)} tone="blue" />
-        <StatCard label="VAT Payable" value={money(data?.summary.vatPayable)} tone="red" sub="ต้องนำส่ง / เสนอเครดิต" />
+        <StatCard label="VAT ขาย" value={money(data?.summary.vatOut)} tone="emerald" />
+        <StatCard label="VAT ซื้อ" value={money(data?.summary.vatIn)} tone="blue" />
+        <StatCard label="VAT สุทธิ" value={money(data?.summary.vatPayable)} tone="red" sub="ต้องนำส่ง / เสนอเครดิต" />
         <StatCard label="WHT เราหักไว้" value={money(data?.summary.whtChargedNet)} tone="amber" sub="ต้องนำส่งภาษี" />
         <StatCard label="WHT ถูกหักจากเรา" value={money(data?.summary.whtWithheldNet)} tone="purple" sub="ใช้เป็นเครดิตภาษี" />
         <StatCard label="เอกสารภาษีไม่ครบ" value={String(data?.summary.missingCount ?? 0)} tone="red" />
@@ -239,17 +231,17 @@ export function TaxVatWhtPageClient() {
         </TabsList>
 
         <TabsContent value="vat-output">
-          <TaxTable isLoading={isLoading} rows={data?.vatOutput.items ?? []} title={`📤 VAT ขาย (Output) — ${year}-${month}`} tone="emerald" valueKey="vat" tableKey="finance.tax.vat-output.v5" />
+          <TaxTable isLoading={isLoading} rows={data?.vatOutput.items ?? []} title={`VAT ขาย — ${year}-${month}`} tone="emerald" valueKey="vat" tableKey="finance.tax.vat-output.v5" />
         </TabsContent>
 
         <TabsContent value="vat-input">
-          <TaxTable hasDoc isLoading={isLoading} rows={data?.vatInput.items ?? []} title={`📥 VAT ซื้อ (Input) — ${year}-${month}`} tone="blue" valueKey="vat" tableKey="finance.tax.vat-input.v5" />
+          <TaxTable hasDoc isLoading={isLoading} rows={data?.vatInput.items ?? []} title={`VAT ซื้อ — ${year}-${month}`} tone="blue" valueKey="vat" tableKey="finance.tax.vat-input.v5" />
         </TabsContent>
 
         <TabsContent value="wht-calendar" className="space-y-4">
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <TaxTable isLoading={isLoading} rows={data?.whtCharged.items ?? []} title="🪙 WHT เราหักไว้ (ต้องนำส่ง ภงด.3/53)" tone="amber" valueKey="wht" tableKey="tax-wht-charged" />
-            <TaxTable isLoading={isLoading} rows={data?.whtWithheld.items ?? []} title="💰 WHT ลูกค้าหักจากเรา (ใช้เครดิต)" tone="purple" valueKey="wht" tableKey="tax-wht-withheld" />
+            <TaxTable isLoading={isLoading} rows={data?.whtCharged.items ?? []} title="WHT เราหักไว้ (ต้องนำส่ง ภ.ง.ด. 3/53)" tone="amber" valueKey="wht" tableKey="tax-wht-charged" />
+            <TaxTable isLoading={isLoading} rows={data?.whtWithheld.items ?? []} title="WHT ลูกค้าหักจากเรา (ใช้เครดิต)" tone="purple" valueKey="wht" tableKey="tax-wht-withheld" />
           </div>
           <CalendarTable rows={data?.taxCalendar ?? []} />
         </TabsContent>
@@ -280,7 +272,7 @@ function money(value?: number) {
 function BaselineNotice({ sourceState }: { sourceState?: SourceState }) {
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3.5 text-sm text-amber-900">
-      <b>Tax read/design baseline</b>
+      <b>ข้อมูลภาษีปัจจุบัน</b>
       <span className="ml-2">สรุปจาก transaction fields ยังไม่ใช่แบบยื่นภาษีหรือบัญชีภาษีปิดงวด</span>
       {sourceState ? <div className="mt-1 text-xs text-amber-800">{sourceState.limitations[0]}</div> : null}
     </div>
@@ -487,11 +479,11 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tabl
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-600 font-medium">
             <tr>
               <ResizableTableHead label="วันที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
-              <ResizableTableHead label="เลขที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="no" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('no', 'เลขที่')} />
-              <ResizableTableHead label="คู่ค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="party" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('party', 'คู่ค้า')} />
+              <ResizableTableHead align="right" label="เลขที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="no" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('no', 'เลขที่')} />
+              <ResizableTableHead align="right" label="คู่ค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="party" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('party', 'คู่ค้า')} />
               <ResizableTableHead align="right" label="ฐาน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="base" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('base', 'ฐาน')} />
               <ResizableTableHead align="right" label={valueKey === 'vat' ? 'VAT' : 'WHT'} activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="value" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('value', valueKey === 'vat' ? 'VAT' : 'WHT')} />
-              {hasDoc ? <ResizableTableHead align="center" label="เอกสาร" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="hasDoc" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('hasDoc', 'เอกสาร')} /> : null}
+              {hasDoc ? <ResizableTableHead align="right" label="เอกสาร" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="hasDoc" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('hasDoc', 'เอกสาร')} /> : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -499,11 +491,11 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tabl
             {!isLoading && sortedRows.map((item) => (
               <tr key={`${item.source}-${item.no}`} className="hover:bg-slate-50/50 transition-colors">
                 <Td>{item.date}</Td>
-                <Td><span className="font-mono text-xs text-slate-600">{item.no}</span></Td>
-                <Td className="truncate max-w-[200px]">{item.party}</Td>
+                <Td align="right"><span className="font-mono text-xs text-slate-600">{item.no}</span></Td>
+                <Td align="right" className="truncate max-w-[200px]">{item.party}</Td>
                 <Td align="right">{money(item.base)}</Td>
                 <Td align="right"><span className={`font-bold ${valueColor}`}>{money(item[valueKey])}</span></Td>
-                {hasDoc ? <Td align="center">{item.hasDoc ? '✓' : '✗ ขาด'}</Td> : null}
+                {hasDoc ? <Td align="right">{item.hasDoc ? '✓' : '✗ ขาด'}</Td> : null}
               </tr>
             ))}
           </tbody>
@@ -551,7 +543,7 @@ function CalendarTable({ rows }: { rows: TaxPayload['taxCalendar'] }) {
   return (
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="flex justify-between items-center border-b bg-slate-50/80 px-4 py-3.5 font-semibold text-slate-700 border-slate-100 text-sm">
-        <span>📅 Tax Calendar — 6 เดือนล่าสุด</span>
+        <span>ปฏิทินภาษี 6 เดือนล่าสุด</span>
         {columnResize.hasCustomWidths && (
           <button
             className="hidden h-9 items-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50 lg:inline-flex outline-none"
@@ -572,7 +564,7 @@ function CalendarTable({ rows }: { rows: TaxPayload['taxCalendar'] }) {
             <div key={row.periodLabel} className="p-3.5 space-y-2 text-xs">
               <div className="flex justify-between items-center">
                 <span className="font-bold text-slate-900">{row.periodLabel}</span>
-                <span className="text-slate-400">VAT Due: {row.vatDue} / WHT Due: {row.whtDue}</span>
+                <span className="text-slate-400">กำหนดนำส่ง VAT: {row.vatDue} / WHT: {row.whtDue}</span>
               </div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1 text-slate-600">
                 <div className="flex justify-between">
@@ -593,7 +585,7 @@ function CalendarTable({ rows }: { rows: TaxPayload['taxCalendar'] }) {
                 </div>
               </div>
               <div className="flex justify-between items-center pt-1.5 border-t border-slate-100/50">
-                <span className="text-slate-500 font-medium">VAT Payable:</span>
+                <span className="text-slate-500 font-medium">VAT สุทธิ:</span>
                 <span className={`font-bold ${row.vatPayable >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{money(row.vatPayable)}</span>
               </div>
             </div>
@@ -614,11 +606,11 @@ function CalendarTable({ rows }: { rows: TaxPayload['taxCalendar'] }) {
               <ResizableTableHead label="งวด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="periodLabel" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('periodLabel', 'งวด')} />
               <ResizableTableHead align="right" label="VAT ขาย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="vOut" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('vOut', 'VAT ขาย')} />
               <ResizableTableHead align="right" label="VAT ซื้อ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="vIn" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('vIn', 'VAT ซื้อ')} />
-              <ResizableTableHead align="right" label="VAT Payable" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="vatPayable" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('vatPayable', 'VAT Payable')} />
-              <ResizableTableHead label="VAT Due (PP30)" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="vatDue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('vatDue', 'VAT Due (PP30)')} />
+              <ResizableTableHead align="right" label="VAT สุทธิ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="vatPayable" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('vatPayable', 'VAT สุทธิ')} />
+              <ResizableTableHead align="right" label="กำหนดนำส่ง VAT (ภ.พ.30)" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="vatDue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('vatDue', 'กำหนดนำส่ง VAT (ภ.พ.30)')} />
               <ResizableTableHead align="right" label="WHT หักไว้" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="wC" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('wC', 'WHT หักไว้')} />
               <ResizableTableHead align="right" label="WHT ถูกหัก" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="wW" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('wW', 'WHT ถูกหัก')} />
-              <ResizableTableHead label="WHT Due (ภงด.)" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="whtDue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('whtDue', 'WHT Due (ภงด.)')} />
+              <ResizableTableHead align="right" label="กำหนดนำส่ง WHT (ภ.ง.ด.)" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="whtDue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('whtDue', 'กำหนดนำส่ง WHT (ภ.ง.ด.)')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -628,10 +620,10 @@ function CalendarTable({ rows }: { rows: TaxPayload['taxCalendar'] }) {
                 <Td align="right"><span className="text-emerald-600">{money(row.vOut)}</span></Td>
                 <Td align="right"><span className="text-blue-600">{money(row.vIn)}</span></Td>
                 <Td align="right"><span className={`font-bold ${row.vatPayable >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{money(row.vatPayable)}</span></Td>
-                <Td>{row.vatDue}</Td>
+                <Td align="right">{row.vatDue}</Td>
                 <Td align="right"><span className="text-amber-600">{money(row.wC)}</span></Td>
                 <Td align="right"><span className="text-purple-600">{money(row.wW)}</span></Td>
-                <Td>{row.whtDue}</Td>
+                <Td align="right">{row.whtDue}</Td>
               </tr>
             ))}
           </tbody>

@@ -145,3 +145,7 @@ Response:
 - [ ] Add source usage drilldown to PO/WTI/WTO/PB/SB
 - [ ] Reconcile remaining qty source with PO allocation facts
 - [ ] Define close-short and cost-deducted ownership outside this report
+
+## 2026-07-12 Table consistency checkpoint
+
+`/po-reports/outstanding` now widens long PO/partner/product/remaining/delivery columns, leaves the final status column available for auto-stretch, and uses canonical `p-3` body density for both buy and sell tables. What is what: the two line tabs remain read-only outstanding PO directions. Why it stays this way: full headers and values must remain readable without changing remaining-quantity formulas, filters, export behavior, APIs, permissions, database schema, or DB state.

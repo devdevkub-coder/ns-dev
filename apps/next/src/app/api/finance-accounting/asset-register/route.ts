@@ -5,6 +5,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
 
@@ -207,6 +208,15 @@ function csv(rows: Record<string, unknown>[]) {
   return [headers.join(','), ...rows.map((row) => headers.map((header) => JSON.stringify(row[header] ?? '')).join(','))].join('\n')
 }
 
+async function xlsx(rows: Record<string, unknown>[]) {
+  const headers = rows[0] ? Object.keys(rows[0]) : ['code', 'name', 'category', 'purchaseDate', 'originalCost', 'vatAmount', 'netAssetCost', 'usefulLifeMonths']
+  const workbook = XLSX.utils.book_new()
+  const sheet = XLSX.utils.json_to_sheet(rows, { header: headers })
+  applyWorksheetTableLayout(sheet, headers.length, rows.length + 1)
+  XLSX.utils.book_append_sheet(workbook, sheet, 'ทะเบียนทรัพย์สิน')
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
+}
+
 export async function GET(request: NextRequest) {
   try {
     const context = await getCurrentAuthContext()
@@ -218,9 +228,15 @@ export async function GET(request: NextRequest) {
       })
     }
     const body = await payload(search)
-    if (search.get('format') === 'csv') {
-      return new NextResponse(csv(body.rows), {
-        headers: { 'content-disposition': 'attachment; filename="asset-register.csv"', 'content-type': 'text/csv; charset=utf-8' },
+    if (search.get('format') === 'xlsx') {
+      const workbook = await xlsx(body.rows)
+      const responseBody = new ArrayBuffer(workbook.byteLength)
+      new Uint8Array(responseBody).set(workbook)
+      return new NextResponse(responseBody, {
+        headers: {
+          'content-disposition': 'attachment; filename="asset-register.xlsx"',
+          'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
       })
     }
     return NextResponse.json(body)

@@ -46,7 +46,7 @@ export function DualCostingStatCard({
   children?: ReactNode
   icon?: string
   label: string
-  tone?: 'amber' | 'blue' | 'emerald' | 'purple' | 'red' | 'slate'
+  tone?: 'amber' | 'blue' | 'emerald' | 'orange' | 'purple' | 'red' | 'slate'
   value: string
 }) {
   return <SharedKpiCard icon={icon} label={label} note={children} tone={tone} value={value} />

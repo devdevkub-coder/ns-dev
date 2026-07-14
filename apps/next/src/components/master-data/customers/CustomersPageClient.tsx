@@ -33,16 +33,16 @@ type CustomerColumnKey = SortKey | 'action' | 'address' | 'branches'
 const customerColumns: Array<ResizableColumnDefinition<CustomerColumnKey>> = [
   { key: 'code', defaultWidth: 100, minWidth: 80 },
   { key: 'name', defaultWidth: 260, minWidth: 180 },
-  { key: 'taxId', defaultWidth: 130, minWidth: 110 },
-  { key: 'type', defaultWidth: 95, minWidth: 80 },
-  { key: 'legalEntityType', defaultWidth: 140, minWidth: 110 },
+  { key: 'taxId', defaultWidth: 150, minWidth: 125 },
+  { key: 'type', defaultWidth: 110, minWidth: 90 },
+  { key: 'legalEntityType', defaultWidth: 160, minWidth: 135 },
   { key: 'branches', defaultWidth: 180, minWidth: 130 },
-  { key: 'marketScope', defaultWidth: 110, minWidth: 90 },
-  { key: 'phone', defaultWidth: 110, minWidth: 90 },
-  { key: 'email', defaultWidth: 140, minWidth: 100 },
+  { key: 'marketScope', defaultWidth: 135, minWidth: 115 },
+  { key: 'phone', defaultWidth: 135, minWidth: 110 },
+  { key: 'email', defaultWidth: 180, minWidth: 130 },
   { key: 'address', defaultWidth: 260, minWidth: 180 },
-  { key: 'creditTerm', defaultWidth: 95, minWidth: 70 },
-  { key: 'creditLimit', defaultWidth: 120, minWidth: 95 },
+  { key: 'creditTerm', defaultWidth: 115, minWidth: 100 },
+  { key: 'creditLimit', defaultWidth: 145, minWidth: 125 },
   { key: 'active', defaultWidth: 110, minWidth: 90 },
   { key: 'action', defaultWidth: 110, minWidth: 90 },
 ]
@@ -185,7 +185,7 @@ export function CustomersPageClient() {
   const [sortKey, setSortKey] = useState<SortKey>('code')
   const [subdistricts, setSubdistricts] = useState<ThaiSubdistrict[]>([])
   const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const columnResize = useResizableColumns('master-data.customers.v5', customerColumns)
+  const columnResize = useResizableColumns('master-data.customers.v6', customerColumns)
 
 
   const loadData = useCallback(async () => {

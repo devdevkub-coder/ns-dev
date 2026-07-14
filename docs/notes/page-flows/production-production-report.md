@@ -247,3 +247,11 @@ Target differences from legacy:
 - `loadProductionMetrics()` uses field-level Prisma `select` for production report/dashboard fields to avoid pulling unused relation columns.
 - Stock ledger lookup for report/dashboard uses production line ids through `stock_ledger.ref_id`; migration `20260613124402_optimize_production_report_ledger_lookup.sql` adds `idx_stock_ledger_production_source_movement` on `(ref_type, ref_id, movement_type)` for active `PI/PO2` report reads.
 - Existing `ref_no` production indexes remain for reconciliation/reversal paths and are not a replacement for this report lookup pattern.
+
+## 2026-07-12 Table consistency checkpoint
+
+`/production/report` now reserves wider default/minimum widths for long production document/type/product/cost headers, resets the persisted report-column layout to the new width version, and uses canonical `p-3` body density in its report/dashboard tables. What is what: the tables still display the existing production, WIP, cost, machine, and product read models. Why it stays this way: full business labels must remain on one line without overlap; filters, exports, formulas, API behavior, permissions, database schema, and DB state are unchanged.
+
+## 2026-07-12 Browser visual consistency checkpoint
+
+Verified in Codex Browser with live report rows. The report and its in-page WIP tab now use Thai-first working labels, Thai production-type display values, and Lucide KPI icons instead of unresolved `??` glyphs. The document number remains the sole left-aligned business column; every later report/WIP column, including date, text, status, and numeric values, is right-aligned in both header and body. What is what: this remains a read-only view of the same production/WIP facts. Why it stays this way: it applies the approved `/stock/convert` alignment and `/production/orders` density baseline without changing filters, formulas, exports, API contracts, permissions, or database state.

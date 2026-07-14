@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-21
+updated: 2026-07-12
 route: /stock/convert
 ---
 
@@ -104,14 +104,14 @@ Reference update 2026-06-13: target-complete flow ต้องผูกกับ
 - Create modal มี allocation method และ Cost Pool lot preview; Manual สามารถเลือก qty ราย pool lot ได้
 - POST ทำ transaction เดียว: lock source pool, create `grade_adjustments`, write paired `GA` stock ledger, consume source pool, create target `Regrade` pool, and write allocation rows
 - PATCH reverse เป็น append-only และ block เมื่อ target pool ถูกใช้ต่อหรือ stock ปลายทางไม่พอ
-- GET detail/export เพิ่มแล้ว: `GET /api/stock/convert?detail=<docNo>` ส่ง allocation drilldown และ `format=csv` ดาวน์โหลด allocation CSV ต่อเอกสาร
+- GET detail/export เพิ่มแล้ว: `GET /api/stock/convert?detail=<docNo>` ส่ง allocation drilldown และ `format=xlsx` ดาวน์โหลด allocation Excel ต่อเอกสาร
 - List UI มีปุ่ม Detail เปิด modal ดู source/target cost pool lines, status, qty, unit cost, total cost และ export CSV ได้
 - List toolbar ไม่แสดงปุ่ม `โหลดใหม่`; ใช้ filter/search และ action `+ ปรับเกรดใหม่` เป็นหลัก โดย runtime ยัง reload หลัง save/reverse/detail ตาม flow เดิม
 - UI checkpoint 2026-06-21: list/table/form/detail modal ปรับตาม `docs/design.md` โดยใช้ modal `rounded-md`, desktop breakpoint `lg`, table header `bg-slate-100`, sortable table headers, table body `text-xs font-semibold`, action เป็น outline button, และ detail modal ไม่มีปุ่ม X บน header
 - Pending/partial policy เพิ่มแล้ว: runtime POST reject เมื่อ Cost Pool ไม่พอ, `pending_cost` สงวนไว้ให้ legacy/import, และ `partial` หมายถึง fully costed GA ที่ทำให้ source pool lot เหลือ `Partially Used`
 - Target custom cost override เพิ่มแล้วสำหรับ admin/owner เท่านั้น พร้อมบันทึก source unit cost, target unit cost, variance, และ reason
 - Authenticated local QA ผ่าน: page/API/modal smoke และ API create+reverse `GA-000002` ยืนยัน allocation/ledger/pool state หลัง reverse
-- Detail/export QA ผ่าน: modal เปิด `GA-000002`, detail API คืน 200/1 line, CSV คืน `text/csv` และมี doc no
+- Detail/export checkpoint: modal เปิด `GA-000002` และ detail API คืน 200/1 line; CSV เดิมถูกแทนที่ด้วย `format=xlsx` ใน 2026-07-12 โดย workbook write/read round-trip ผ่าน และ authenticated download smoke ยังคงเป็น browser/UAT follow-up
 - Custom cost QA ผ่าน: POST `CUSTOM_UNIT_COST` ด้วย admin/owner, detail เห็น variance/reason, และ reverse คืนสำเร็จ
 - Remaining: no runtime gap for current approved stock convert slice; future accounting policy may still add GL/P&L posting for variance
 
@@ -125,3 +125,23 @@ Reference update 2026-06-13: target-complete flow ต้องผูกกับ
 - [x] Add allocation detail drilldown and CSV export for posted/reversed GA documents
 - [x] Add pending/partial cost policy and admin/owner custom target cost override
 - [x] Update this file and canonical reference if contract changes
+
+## 2026-07-12 Table consistency checkpoint
+
+`/stock/convert` keeps the weight-ticket-list-aligned filter/pagination/table shell from the current Dev baseline, adds typed shared resize ownership for the active table, keeps the final column auto-stretchable, and applies canonical `p-3` body spacing to nested Cost Pool/stock preview tables. What is what: the list, allocation detail, and preview tables still operate on the same Grade Adjust and Cost Pool facts. Why it stays this way: table geometry must be consistent without changing conversion allocation, cost policy, API behavior, permissions, database schema, or DB state.
+
+## 2026-07-12 Screenshot follow-up
+
+The customer-provided Dark Mode screenshot exposed four remaining presentation gaps: the table could stay horizontally shifted and clip its first columns, the source-allocation filter used a page-local amber fill, the action column had no visible heading, and operational copy mixed generic English labels with Thai. The list now resets its horizontal scroll when the visible result changes, uses neutral filter controls, labels and widens `จัดการ`, resets stored convert-table widths through the `v6` key, and presents the list/KPI/filter/status vocabulary Thai-first. API enum values such as `Manual`, `Auto (FIFO)`, `allocated`, `partial`, `posted`, and `reversed` remain unchanged internally; only their user-facing labels changed.
+
+The urgent overlap follow-up widens the Thai source, cost, status, and action columns, resets persisted widths through the `v7` key, prevents status badges from wrapping or spilling into neighboring cells, and remounts/resets the desktop scroll surface after loading so the initial view reliably starts at the source columns. The shell label is now Thai-first (`ปรับเกรดสินค้า / Grade Adjustment`). These changes only correct table geometry and wording; allocation, costing, reversal, permissions, API values, database schema, and DB state remain unchanged.
+
+The customer-approved alignment for this view keeps only the first `วิธีจัดสรร` column flush left. Every other list-table header and value—reference, document date, branch, products, quantities, costs, statuses, and `จัดการ`—is flush right. This is the canonical active runtime-table alignment template: headers and their data must match, and right-aligned status/action content must end-align. It changes no Grade Adjust flow.
+
+## 2026-07-12 Detail modal alignment follow-up
+
+The allocation-detail modal now follows the approved shared dialog anatomy: centered desktop `DialogContent`, full-screen mobile shell, one dark header with export and close actions, one scrollable body, balanced 4+4 desktop / 2-column mobile metrics, a Thai-first resizable allocation table on desktop, and dense allocation cards on mobile. Empty reason/note fields no longer create a blank strip, display-only status and target-cost policy values are translated without changing their stored enums, and `ส่งออก Excel` now returns a real `.xlsx` workbook with a summary sheet and an allocation sheet. The allocation facts, cost calculation, reverse contract, permissions, API payload facts, schema, and DB state are unchanged.
+
+## 2026-07-12 Filter/status alignment follow-up
+
+The Grade Adjustment filter card keeps search and `วิธีจัดสรร` in the top row, then places `สถานะต้นทุน` and `สถานะเอกสาร` as segmented filters on the lower-left with `+ ปรับเกรดใหม่` on the lower-right in normal button weight. The document filter exposes only real Grade Adjustment states: `ทุกสถานะ`, `ลงรายการแล้ว` (`posted`), and `ย้อนกลับแล้ว` (`reversed`). What is what: create writes a posted Grade Adjustment immediately, while reverse is the append-only document transition. Why it stays this way: generic draft/receipt/completed/cancelled labels would be non-existent document states and make the list filter misleading. This changes only client-side filter layout/state and wording; allocation, cost policy, API values, permissions, schema, and DB state are unchanged.
