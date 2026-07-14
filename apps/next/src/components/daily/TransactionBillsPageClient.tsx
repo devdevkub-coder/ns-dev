@@ -32,6 +32,7 @@ import type { SalesBillDetail } from '@/lib/server/sales-bill-detail'
 type BillRow = {
   advanceAllocatedAmount?: number
   advanceAllocatedSubtotalAmount?: number
+  advanceConsumedAmount?: number
   advancePaymentDocNo?: string
   advancePaymentId?: string
   branchId?: string
@@ -106,6 +107,7 @@ type PurchaseBillDetailTimelineEvent = {
 
 type PurchaseBillDetail = {
   advanceAllocatedAmount: number
+  advanceConsumedAmount: number
   advanceAllocatedSubtotalAmount: number
   advanceAllocatedVatAmount: number
   advancePaymentDocNo: string
@@ -221,6 +223,8 @@ type Option = {
   type?: string | null
   unitPrice?: number | null
   unit?: string | null
+  vatAmount?: number | null
+  vatType?: string | null
 }
 
 type TradingPurchaseBillOption = {
@@ -999,26 +1003,36 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const formSubtotal = form.items.reduce((sum, item) => sum + Math.max(0, item.qty * item.price), 0)
   const formTotalWeight = form.items.reduce((sum, item) => sum + item.qty, 0)
   const formAfterDiscount = Math.max(0, formSubtotal - form.discountTotal)
+  const formVat = !form.hasVat || form.vatType === 'NONE' ? 0 : form.vatType === 'INCLUDE' ? formAfterDiscount * formVatRatePercent / (100 + formVatRatePercent) : formAfterDiscount * (formVatRatePercent / 100)
+  const formTotal = form.hasVat && form.vatType === 'EXCLUDE' ? formAfterDiscount + formVat : formAfterDiscount
+  const formTaxableBase = form.hasVat && form.vatType === 'INCLUDE' ? Math.max(0, formAfterDiscount - formVat) : formAfterDiscount
   const selectedAdvancePayment = form.advancePaymentId
     ? activeAdvancePayments.find((option) => option.id === form.advancePaymentId)
       ?? null
     : null
   const editingAdvanceCarry = editingBill && editingBill.advancePaymentId === form.advancePaymentId
-    ? editingBill.advanceAllocatedSubtotalAmount ?? editingBill.advanceAllocatedAmount ?? 0
+    ? editingBill.advanceConsumedAmount ?? editingBill.advanceAllocatedSubtotalAmount ?? editingBill.advanceAllocatedAmount ?? 0
     : 0
   const availableAdvanceAmount = selectedAdvancePayment
     ? Math.max(0, (selectedAdvancePayment.remainingAmount ?? 0) + editingAdvanceCarry)
     : 0
-  const formHasVat = form.hasVat && form.vatType !== 'NONE'
-  const formTaxableBaseBeforeAdvance = formHasVat && form.vatType === 'INCLUDE'
-    ? formAfterDiscount * 100 / (100 + formVatRatePercent)
-    : formAfterDiscount
-  const formAdvanceApplied = Math.min(formTaxableBaseBeforeAdvance, availableAdvanceAmount)
-  const formAdvanceRemainingAfterApply = Math.max(0, availableAdvanceAmount - formAdvanceApplied)
-  const formTaxableBaseAfterAdvance = Math.max(0, formTaxableBaseBeforeAdvance - formAdvanceApplied)
-  const formVat = formHasVat ? formTaxableBaseAfterAdvance * (formVatRatePercent / 100) : 0
-  const formTotal = formHasVat ? formTaxableBaseAfterAdvance + formVat : formTaxableBaseAfterAdvance
-  const formNetPayable = formTotal
+  const selectedAdvanceSubtotal = selectedAdvancePayment?.subtotalAmount ?? selectedAdvancePayment?.amount ?? 0
+  const selectedAdvanceVat = selectedAdvancePayment?.vatAmount ?? 0
+  const selectedAdvanceBaseCapacity = selectedAdvancePayment?.vatType && selectedAdvancePayment.vatType !== 'NONE'
+    ? availableAdvanceAmount * (selectedAdvanceSubtotal / Math.max(selectedAdvanceSubtotal + selectedAdvanceVat, 0.000001))
+    : availableAdvanceAmount
+  const formAdvanceConsumed = Math.min(formTaxableBase, selectedAdvanceBaseCapacity)
+  const formTaxableBaseAfterAdvance = Math.max(0, formTaxableBase - formAdvanceConsumed)
+  const formAdvanceVatRelief = formTaxableBase > 0 ? formAdvanceConsumed * (formVat / formTaxableBase) : 0
+  const formAdvanceApplied = Math.min(formTotal, formAdvanceConsumed + formAdvanceVatRelief)
+  const formAdvanceGrossConsumed = selectedAdvancePayment?.vatType && selectedAdvancePayment.vatType !== 'NONE'
+    ? Math.min(
+      availableAdvanceAmount,
+      formAdvanceConsumed * ((selectedAdvanceSubtotal + selectedAdvanceVat) / Math.max(selectedAdvanceSubtotal, 0.000001)),
+    )
+    : formAdvanceConsumed
+  const formAdvanceRemainingAfterApply = Math.max(0, availableAdvanceAmount - formAdvanceGrossConsumed)
+  const formNetPayable = Math.max(0, formTotal - formAdvanceApplied)
   const salesSubtotal = salesForm.items.reduce((sum, item) => sum + Math.max(0, item.qty * item.price - (salesForm.transactionMode === 'TRADING' ? 0 : item.discount)), 0)
   const salesAfterDiscount = Math.max(0, salesSubtotal - salesForm.discountTotal)
   const salesVat = !salesForm.hasVat || salesForm.vatType === 'NONE' ? 0 : salesForm.vatType === 'INCLUDE' ? salesAfterDiscount * formVatRatePercent / (100 + formVatRatePercent) : salesAfterDiscount * (formVatRatePercent / 100)
@@ -4516,10 +4530,8 @@ function PurchaseBillDetailModal({
                 <DetailItem label="ยอดคงเหลือค้างจ่าย" value={`${formatMoney(detail.payableBalance)} บาท`} />
                 {detail.advancePaymentDocNo ? (
                   <>
-                    <DetailItem className="col-span-2 sm:col-span-4" label="หักเงินล่วงหน้า / มัดจำ" value={`${detail.advancePaymentDocNo}${detail.advancePaymentInvoiceNo ? ` · INV ${detail.advancePaymentInvoiceNo}` : ''} (หักไป ${formatMoney(detail.advanceAllocatedAmount)} บาท)`} />
-                    {detail.advancePaymentVatType !== 'NONE' ? (
-                      <DetailItem className="col-span-2 sm:col-span-4" label="ยอดหัก ADV แยก VAT" value={`ฐาน ${formatMoney(detail.advanceAllocatedSubtotalAmount)} บาท / VAT ${formatMoney(detail.advanceAllocatedVatAmount)} บาท`} />
-                    ) : null}
+                    <DetailItem className="col-span-2 sm:col-span-4" label="หักเงินล่วงหน้า / มัดจำ" value={`${detail.advancePaymentDocNo}${detail.advancePaymentInvoiceNo ? ` · INV ${detail.advancePaymentInvoiceNo}` : ''} (ผลหักรวม ${formatMoney(detail.advanceAllocatedAmount)} บาท)`} />
+                    <DetailItem className="col-span-2 sm:col-span-4" label="ยอดหัก ADV ก่อน VAT" value={`ฐาน ${formatMoney(detail.advanceAllocatedSubtotalAmount)} บาท / ลด VAT ${formatMoney(detail.advanceAllocatedVatAmount)} บาท / ใช้ ADV จริง ${formatMoney(detail.advanceConsumedAmount)} บาท`} />
                   </>
                 ) : null}
               </div>

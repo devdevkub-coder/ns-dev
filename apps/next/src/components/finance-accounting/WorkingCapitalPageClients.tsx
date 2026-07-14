@@ -279,9 +279,9 @@ export function WorkingCapitalPageClient() {
           </div>
         </div>
         <Panel className="md:col-span-2" title="รอบเงินสด (CCC) — แสดงเงินจมแต่ละขั้น">
-          <BreakdownBar label="วันเก็บลูกหนี้ (AR)" tone="blue" value={s?.arDays ?? 0} max={maxDays} amount={s?.ar ?? 0} />
-          <BreakdownBar label="วันสต็อกค้างในมือ" tone="amber" value={s?.invDays ?? 0} max={maxDays} amount={s?.inv ?? 0} />
-          <BreakdownBar label="วันจ่ายเจ้าหนี้ (AP)" tone="emerald" value={s?.apDays ?? 0} max={maxDays} amount={s?.ap ?? 0} />
+          <BreakdownBar label="วันเก็บเงินลูกค้า" tone="blue" value={s?.arDays ?? 0} max={maxDays} amount={s?.ar ?? 0} />
+          <BreakdownBar label="วันคงเหลือสต็อก" tone="amber" value={s?.invDays ?? 0} max={maxDays} amount={s?.inv ?? 0} />
+          <BreakdownBar label="วันจ่ายเจ้าหนี้" tone="emerald" value={s?.apDays ?? 0} max={maxDays} amount={s?.ap ?? 0} />
         </Panel>
       </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -293,9 +293,9 @@ export function WorkingCapitalPageClient() {
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
         <Kpi label="รอบเงินสด (CCC)" value={`${(s?.ccc ?? 0).toFixed(1)} วัน`} tone={(s?.ccc ?? 0) < 60 ? 'emerald' : (s?.ccc ?? 0) < 90 ? 'amber' : 'red'} />
-        <Kpi label="วันเก็บ AR" value={(s?.arDays ?? 0).toFixed(1)} tone="blue" />
-        <Kpi label="วันจ่าย AP" value={(s?.apDays ?? 0).toFixed(1)} tone="emerald" />
-        <Kpi label="วันสต็อกค้าง" value={(s?.invDays ?? 0).toFixed(1)} tone="amber" />
+        <Kpi label="วันเก็บเงินลูกค้า" value={(s?.arDays ?? 0).toFixed(1)} tone="blue" />
+        <Kpi label="วันจ่ายเจ้าหนี้" value={(s?.apDays ?? 0).toFixed(1)} tone="emerald" />
+        <Kpi label="วันคงเหลือสต็อก" value={(s?.invDays ?? 0).toFixed(1)} tone="amber" />
         <Kpi label="รอบหมุนสต็อก" value={`${(s?.stockTurnover ?? 0).toFixed(2)}x`} tone="slate" />
         <Kpi label="อัตราส่วนทุนหมุนเวียน" value={(s?.currentRatio ?? 0).toFixed(2)} tone={(s?.currentRatio ?? 0) >= 1 ? 'emerald' : 'red'} />
         <Kpi label="อัตราส่วนสภาพคล่องเร็ว" value={(s?.quickRatio ?? 0).toFixed(2)} tone={(s?.quickRatio ?? 0) >= 0.5 ? 'emerald' : 'red'} />

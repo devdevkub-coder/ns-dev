@@ -3,6 +3,8 @@ import { currentActor } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 
 const SALES_PLAN_LME_CONFIG_KEY = 'SALES_PLAN_LME_CONFIG'
+const FX678_LME_URL = 'https://3g.fx678.com/Market/index/LME'
+const GOOGLE_FINANCE_USD_THB_URL = 'https://www.google.com/finance/beta/quote/USD-THB'
 
 const salesPlanLmeConfigSchema = z.object({
   fxRate: z.coerce.number().finite().min(0),
@@ -27,7 +29,7 @@ const defaultSalesPlanLmeConfig: SalesPlanLmeConfigInput = {
   lmeAluminumUSD: 2400,
   lmeBrassUSD: 7000,
   lmeCopperUSD: 9000,
-  liveFetchNote: 'USD/THB และ LME แก้ไขได้จากหน้านี้ ส่วน กก./ตู้ ต้องกรอกเอง',
+  liveFetchNote: 'Live fetch: USD/THB จาก Google Finance และ LME จาก fx678 — ส่วนทองเหลือง/กก./ตู้ ต้องกรอกเอง',
   source: 'default',
 }
 
@@ -56,23 +58,37 @@ export async function getSalesPlanLmeConfig() {
   return toConfig(row)
 }
 
+function shouldAutoRefreshConfig(config: SalesPlanLmeConfig) {
+  const lastUpdated = Date.parse(config.updatedAt)
+  if (!Number.isFinite(lastUpdated)) return true
+  return Date.now() - lastUpdated >= 6 * 60 * 60 * 1000
+}
+
 export async function saveSalesPlanLmeConfig(
   values: SalesPlanLmeConfigInput,
   context: Parameters<typeof currentActor>[0],
+) {
+  return saveSalesPlanLmeConfigByActor(values, currentActor(context))
+}
+
+export async function saveSalesPlanLmeConfigByActor(
+  values: SalesPlanLmeConfigInput,
+  updatedBy: string,
 ) {
   const parsed = salesPlanLmeConfigSchema.parse(values)
   const row = await prisma.system_settings.upsert({
     where: { key: SALES_PLAN_LME_CONFIG_KEY },
     create: {
-      description: 'Sales Plan LME reference pricing config',
+      description: 'Sales Plan LME reference pricing config (manual + live fetched values)',
       key: SALES_PLAN_LME_CONFIG_KEY,
-      updated_by: currentActor(context),
+      updated_at: new Date(),
+      updated_by: updatedBy,
       value: JSON.stringify(parsed),
     },
     update: {
-      description: 'Sales Plan LME reference pricing config',
+      description: 'Sales Plan LME reference pricing config (manual + live fetched values)',
       updated_at: new Date(),
-      updated_by: currentActor(context),
+      updated_by: updatedBy,
       value: JSON.stringify(parsed),
     },
   })
@@ -86,21 +102,69 @@ function parseFxRatePayload(payload: unknown) {
   return Number.isFinite(thbRate) && thbRate > 0 ? thbRate : null
 }
 
-function parseMetalsPayload(payload: unknown) {
-  if (!payload || typeof payload !== 'object') return {}
-  const metals = (payload as { metals?: Record<string, unknown> }).metals ?? {}
-  const read = (keys: string[]) => {
-    const key = keys.find((candidate) => metals[candidate] !== undefined)
-    const value = key ? Number(metals[key]) : Number.NaN
-    return Number.isFinite(value) && value > 0 ? value : null
-  }
+function toIsoFromUnixSeconds(value: string | null) {
+  const seconds = Number(value)
+  if (!Number.isFinite(seconds) || seconds <= 0) return null
+  return new Date(seconds * 1000).toISOString()
+}
+
+function toIsoFromDateString(value: string | null) {
+  if (!value) return null
+  const parsedAt = Date.parse(value)
+  if (Number.isNaN(parsedAt)) return null
+  return new Date(parsedAt).toISOString()
+}
+
+function parseGoogleFinanceUsdThbPage(html: string) {
+  const lines = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, '\n')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/\u202f/g, ' ')
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((value) => value.trim())
+    .filter(Boolean)
+
+  const pairIndex = lines.findIndex((value) => value === 'United States Dollar / Thai Baht')
+  if (pairIndex < 0) return null
+
+  const rate = Number(lines[pairIndex + 1] ?? Number.NaN)
+  if (!Number.isFinite(rate) || rate <= 0) return null
+
+  const quotedAtCandidate = lines[pairIndex + 6] ?? ''
+  const quotedAt = quotedAtCandidate.endsWith('UTC')
+    ? toIsoFromDateString(quotedAtCandidate)
+    : null
+
   return {
-    aluminum: read(['aluminum', 'lme_aluminum']),
-    copper: read(['copper', 'lme_copper']),
+    rate,
+    quotedAt,
   }
 }
 
-async function fetchUsdThbRate() {
+async function fetchUsdThbRateFromGoogleFinance() {
+  const response = await fetch(GOOGLE_FINANCE_USD_THB_URL, {
+    cache: 'no-store',
+    headers: {
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9,th;q=0.8',
+      'User-Agent': 'Mozilla/5.0 (compatible; NS-Scrap-ERP/1.0; +https://example.local)',
+    },
+  })
+  if (!response.ok) {
+    return { error: `Google Finance ตอบกลับ ${response.status}` as const }
+  }
+
+  const parsed = parseGoogleFinanceUsdThbPage(await response.text())
+  if (!parsed) return { error: 'อ่านค่า USD/THB จาก Google Finance ไม่ได้' as const }
+  return parsed
+}
+
+async function fetchUsdThbRateFromExchangeRateApi() {
   const apiKey = process.env.EXCHANGERATE_API_KEY
   if (!apiKey) return { error: 'ไม่ได้ตั้งค่า EXCHANGERATE_API_KEY' as const }
 
@@ -108,45 +172,121 @@ async function fetchUsdThbRate() {
     cache: 'no-store',
     headers: { Accept: 'application/json' },
   })
-  if (!response.ok) return { error: `ExchangeRate API ตอบกลับ ${response.status}` as const }
+  if (!response.ok) {
+    return { error: `ExchangeRate API ตอบกลับ ${response.status}` as const }
+  }
   const rate = parseFxRatePayload(await response.json())
   if (!rate) return { error: 'อ่านค่า USD/THB จาก ExchangeRate API ไม่ได้' as const }
   return { rate }
 }
 
-async function fetchMetalsValues() {
-  const apiKey = process.env.METALS_DEV_API_KEY
-  if (!apiKey) return { error: 'ไม่ได้ตั้งค่า METALS_DEV_API_KEY' as const }
+async function fetchUsdThbRate() {
+  const googleFinanceResult = await fetchUsdThbRateFromGoogleFinance()
+  if (!('error' in googleFinanceResult)) {
+    return {
+      ...googleFinanceResult,
+      provider: 'Google Finance' as const,
+      fallbackUsed: false,
+      fallbackReason: null,
+    }
+  }
 
-  const response = await fetch(`https://api.metals.dev/v1/latest?api_key=${encodeURIComponent(apiKey)}&currency=USD&unit=mt`, {
+  const exchangeRateResult = await fetchUsdThbRateFromExchangeRateApi()
+  if (!('error' in exchangeRateResult)) {
+    return {
+      ...exchangeRateResult,
+      quotedAt: null,
+      provider: 'ExchangeRate API' as const,
+      fallbackUsed: true,
+      fallbackReason: googleFinanceResult.error,
+    }
+  }
+
+  return {
+    error: `${googleFinanceResult.error}; fallback ExchangeRate API: ${exchangeRateResult.error}` as const,
+  }
+}
+
+function parseFx678Row(html: string, instrumentCode: string) {
+  const escapedCode = instrumentCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const rowMatch = html.match(new RegExp(`<tr id="${escapedCode}"[\\s\\S]*?</tr>`, 'i'))
+  if (!rowMatch) return null
+  const lastMatch = rowMatch[0].match(/addNewsMenu\('select_market_last','([0-9.]+)'/i)
+  const quoteTimeMatch = rowMatch[0].match(/addNewsMenu\('select_market_quotetime','([0-9]+)'/i)
+  const price = Number(lastMatch?.[1] ?? Number.NaN)
+  if (!Number.isFinite(price) || price <= 0) return null
+  return {
+    price,
+    quotedAt: toIsoFromUnixSeconds(quoteTimeMatch?.[1] ?? null),
+  }
+}
+
+async function fetchFx678MetalsValues() {
+  const response = await fetch(FX678_LME_URL, {
     cache: 'no-store',
-    headers: { Accept: 'application/json' },
+    headers: {
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8',
+      'User-Agent': 'Mozilla/5.0 (compatible; NS-Scrap-ERP/1.0; +https://example.local)',
+    },
   })
-  if (!response.ok) return { error: `Metals.dev ตอบกลับ ${response.status}` as const }
-  const metals = parseMetalsPayload(await response.json())
-  if (!metals.copper && !metals.aluminum) return { error: 'อ่านค่าทองแดง/อลูมิเนียมจาก Metals.dev ไม่ได้' as const }
-  return metals
+  if (!response.ok) {
+    return { error: `fx678 ตอบกลับ ${response.status}` as const }
+  }
+  const html = await response.text()
+  const copper = parseFx678Row(html, 'LMCI')
+  const aluminum = parseFx678Row(html, 'LMAI')
+  if (!copper && !aluminum) {
+    return { error: 'อ่านค่าทองแดง/อลูมิเนียมจาก fx678 ไม่ได้' as const }
+  }
+  return { aluminum, copper }
 }
 
 export async function fetchLiveSalesPlanLmeConfig(currentConfig: SalesPlanLmeConfig) {
   const [fxResult, metalsResult] = await Promise.all([
     fetchUsdThbRate(),
-    fetchMetalsValues(),
+    fetchFx678MetalsValues(),
   ])
 
-  const notes: string[] = ['Live fetch: USD/THB จาก exchangerate-api และ Metals จาก metals.dev']
-  if ('error' in fxResult) notes.push(`USD/THB ใช้ค่าเดิม (${fxResult.error})`)
-  if ('error' in metalsResult) notes.push(`Metals ใช้ค่าเดิม (${metalsResult.error})`)
-  if (!('error' in metalsResult)) notes.push('ทองเหลืองยังให้ผู้ใช้กรอกเอง/คงค่า manual')
+  const fetchedAt = new Date().toISOString()
+  const notes: string[] = ['Live fetch: USD/THB จาก Google Finance และ LME จาก fx678']
+  if ('error' in fxResult) {
+    notes.push(`USD/THB ใช้ค่าเดิม (${fxResult.error})`)
+  } else {
+    notes.push(`USD/THB source ${fxResult.provider}`)
+    if (fxResult.quotedAt) notes.push(`USD/THB quote ${fxResult.quotedAt}`)
+    if (fxResult.fallbackUsed && fxResult.fallbackReason) {
+      notes.push(`USD/THB fallback จาก Google Finance (${fxResult.fallbackReason})`)
+    }
+  }
+  if ('error' in metalsResult) {
+    notes.push(`LME ใช้ค่าเดิม (${metalsResult.error})`)
+  } else {
+    if (metalsResult.copper?.quotedAt) notes.push(`ทองแดง quote ${metalsResult.copper.quotedAt}`)
+    if (metalsResult.aluminum?.quotedAt) notes.push(`อลูมิเนียม quote ${metalsResult.aluminum.quotedAt}`)
+    notes.push('ทองเหลืองยังให้ผู้ใช้กรอกเอง/คงค่า manual')
+  }
   notes.push('กก./ตู้ ไม่ดึงจาก API และต้องกรอกเอง')
 
   return salesPlanLmeConfigSchema.parse({
     fxRate: 'error' in fxResult ? currentConfig.fxRate : fxResult.rate,
     kgPerContainer: currentConfig.kgPerContainer,
-    lmeAluminumUSD: 'error' in metalsResult ? currentConfig.lmeAluminumUSD : (metalsResult.aluminum ?? currentConfig.lmeAluminumUSD),
+    lmeAluminumUSD: 'error' in metalsResult ? currentConfig.lmeAluminumUSD : (metalsResult.aluminum?.price ?? currentConfig.lmeAluminumUSD),
     lmeBrassUSD: currentConfig.lmeBrassUSD,
-    lmeCopperUSD: 'error' in metalsResult ? currentConfig.lmeCopperUSD : (metalsResult.copper ?? currentConfig.lmeCopperUSD),
-    liveFetchNote: `${notes.join(' · ')} · fetched ${new Date().toISOString()}`,
+    lmeCopperUSD: 'error' in metalsResult ? currentConfig.lmeCopperUSD : (metalsResult.copper?.price ?? currentConfig.lmeCopperUSD),
+    liveFetchNote: `${notes.join(' · ')} · fetched ${fetchedAt}`,
     source: 'mixed',
   })
+}
+
+export async function getSalesPlanLmeConfigAutoRefresh() {
+  const currentConfig = await getSalesPlanLmeConfig()
+  if (!process.env.EXCHANGERATE_API_KEY) return currentConfig
+  if (!shouldAutoRefreshConfig(currentConfig)) return currentConfig
+  try {
+    const nextConfig = await fetchLiveSalesPlanLmeConfig(currentConfig)
+    return await saveSalesPlanLmeConfigByActor(nextConfig, 'system:auto-live-refresh')
+  } catch {
+    return currentConfig
+  }
 }

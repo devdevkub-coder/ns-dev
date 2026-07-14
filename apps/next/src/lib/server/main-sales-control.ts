@@ -3,9 +3,10 @@ import { outwardCustomerReference } from '@/lib/server/customer-reference'
 import { requireBusinessCode } from '@/lib/business-code'
 import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
-import { getSalesPlanLmeConfig, type SalesPlanLmeConfig } from './sales-plan-lme'
+import { getSalesPlanLmeConfigAutoRefresh, type SalesPlanLmeConfig } from './sales-plan-lme'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
+import { listSalesPlans } from './sales-plans'
 
 type JsonItem = Prisma.JsonObject
 
@@ -43,6 +44,8 @@ function isCostPoolEligibleMetalGroup(metalGroup: string) {
   const normalized = metalGroup.toLowerCase()
   return ['ทองแดง', 'ทองเหลือง', 'copper', 'brass'].some((key) => normalized.includes(key))
 }
+
+const SALES_PLAN_SAMUT_SAKHON_BRANCH_CODE = '01'
 
 function jsonNumber(value: unknown) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
@@ -111,6 +114,11 @@ function lmeBaseFor(metalGroup: string, config: SalesPlanLmeConfig) {
   if (group.includes('ทองเหลือง') || group.includes('brass')) return config.lmeBrassUSD
   if (group.includes('อลูมิ') || group.includes('aluminum')) return config.lmeAluminumUSD
   return 0
+}
+
+function isCopperOrBrassGroup(metalGroup: string) {
+  const group = metalGroup.toLowerCase()
+  return group.includes('ทองแดง') || group.includes('copper') || group.includes('ทองเหลือง') || group.includes('brass')
 }
 
 function lmeBuyPercentFor(metalGroup: string) {
@@ -185,16 +193,29 @@ function poSellItems(row: { items: unknown; product_id: bigint | null; qty: unkn
 }
 
 async function buildSalesPlanningSnapshot() {
-  const config = await getSalesPlanLmeConfig()
+  const config = await getSalesPlanLmeConfigAutoRefresh()
   const { byKey, refs } = await productsContext()
-  const [poSells, poBuys, stockRows, customers, tradingDeals, purchaseBills] = await Promise.all([
+  const productById = new Map(refs.map((product) => [product.id, product] as const))
+  const salesPlanRefs = refs.filter((product) => isCopperOrBrassGroup(product.metalGroup))
+  const [poSells, poBuys, stockRows, customers, salesChannels, tradingDeals, purchaseBills, samutSakhonWarehouses] = await Promise.all([
     prisma.po_sells.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
     prisma.po_buys.findMany({ orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
     prisma.stock_ledger.findMany({ orderBy: [{ date: 'desc' }], take: 50000 }),
-    prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
+    prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, market_scope: true, name: true } }),
+    prisma.sales_channels.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true }, where: { active: true } }),
     prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 10000, where: { NOT: { status: { in: ['Cancelled', 'cancelled'] } } } }),
     prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } } }, orderBy: [{ date: 'desc' }], take: 10000, where: { status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] } } }),
+    prisma.warehouses.findMany({
+      select: { id: true },
+      where: {
+        active: true,
+        branches: {
+          is: { code: SALES_PLAN_SAMUT_SAKHON_BRANCH_CODE },
+        },
+      },
+    }),
   ])
+  const samutSakhonWarehouseIds = new Set(samutSakhonWarehouses.map((warehouse) => warehouse.id))
 
   const productAgg = new Map<string, PendingProductRow>()
   const details: Array<{ customerId: string; customerName: string; date: string; deliveryDate: string; docNo: string; id: string; itemPrice: number; itemQty: number; matched: number; productId: string; remaining: number; remainValue: number }> = []
@@ -276,6 +297,8 @@ async function buildSalesPlanningSnapshot() {
   const stockByProduct = new Map<bigint, { qty: number; value: number }>()
   stockRows.forEach((stock) => {
     if (stock.product_id == null) return
+    const product = productById.get(stock.product_id)
+    if (product && isCopperOrBrassGroup(product.metalGroup) && (stock.warehouse_id == null || !samutSakhonWarehouseIds.has(stock.warehouse_id))) return
     const current = stockByProduct.get(stock.product_id) ?? { qty: 0, value: 0 }
     current.qty += toNumber(stock.qty_in) - toNumber(stock.qty_out)
     current.value += toNumber(stock.value_in) - toNumber(stock.value_out)
@@ -321,7 +344,7 @@ async function buildSalesPlanningSnapshot() {
     })
   })
 
-  const reconciliation = refs.map((product) => {
+  const reconciliation = salesPlanRefs.map((product) => {
     const stock = stockByProduct.get(product.id) ?? { qty: 0, value: 0 }
     const spotRaw = spotByProduct.get(product.id) ?? { amount: 0, qty: 0 }
     const matched = matchedByProduct.get(product.id) ?? 0
@@ -346,9 +369,7 @@ async function buildSalesPlanningSnapshot() {
     }
   }).filter((row) => row.poOnOrderQty > 0 || row.spotInPoolQty > 0 || row.stockQty !== 0)
 
-  const dualGroups = ['ทองแดง', 'ทองเหลือง']
-  const pendingSaleTable = refs
-    .filter((product) => dualGroups.some((group) => product.metalGroup.includes(group)) || ['copper', 'brass'].some((group) => product.metalGroup.toLowerCase().includes(group)))
+  const pendingSaleTable = salesPlanRefs
     .map((product) => {
       const stock = stockByProduct.get(product.id) ?? { qty: 0, value: 0 }
       const spotRaw = spotByProduct.get(product.id) ?? { amount: 0, qty: 0 }
@@ -420,22 +441,27 @@ async function buildSalesPlanningSnapshot() {
   }
 
   return {
+    channels: salesChannels.map((channel) => {
+      const code = requireBusinessCode(channel.code, `ช่องทางขาย ${channel.id}`)
+      return { id: code, name: channel.name }
+    }),
     customers: customers.map((customer) => {
       const code = requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`)
-      return { active: customer.active ?? true, code, id: code, name: customer.name }
+      return { active: customer.active ?? true, code, id: code, marketScope: customer.market_scope === 'ต่างประเทศ' ? 'ต่างประเทศ' : 'ในประเทศ', name: customer.name }
     }),
     lmeConfig: config,
-    metalGroups: Array.from(new Set(refs.map((product) => product.metalGroup).filter(Boolean))).sort(),
+    metalGroups: Array.from(new Set(salesPlanRefs.map((product) => product.metalGroup).filter(Boolean))).sort(),
+    pendingSaleTable,
+    pendingSaleTotals,
     planProductOptions: refs
       .filter((product) => isCostPoolEligibleMetalGroup(product.metalGroup))
       .map((product) => ({
-        code: product.code,
-        metalGroup: product.metalGroup,
-        name: product.name,
-        wac: product.wac,
+      code: product.code,
+      id: product.code,
+      metalGroup: product.metalGroup,
+      name: product.name,
+      wac: product.wac,
       })),
-    pendingSaleTable,
-    pendingSaleTotals,
     productDetails: details,
     productRows,
     reconciliation,
@@ -452,8 +478,16 @@ async function buildSalesPlanningSnapshot() {
 export async function buildSalesPlan() {
   const pending = await buildSalesPlanningSnapshot()
   const config = pending.lmeConfig
+  const month = new Date().toISOString().slice(0, 7)
+  const planRows = await listSalesPlans(month)
+  const lockedKgByProduct = new Map<string, number>()
+  planRows.forEach((plan) => {
+    if (!['locked', 'po_created'].includes(String(plan.status))) return
+    const key = String(plan.productId).trim().toLowerCase()
+    lockedKgByProduct.set(key, (lockedKgByProduct.get(key) ?? 0) + Number(plan.totalKg ?? 0))
+  })
   const remainRows = pending.reconciliation.map((row) => {
-    const lockedKg = 0
+    const lockedKg = lockedKgByProduct.get(row.productCode.trim().toLowerCase()) ?? 0
     const remainingKg = Math.max(0, row.stockQty - lockedKg)
     const base = lmeBaseFor(row.metalGroup, config)
     const pct = lmeBuyPercentFor(row.metalGroup)
@@ -482,11 +516,10 @@ export async function buildSalesPlan() {
 
   return {
     filters: {
-      channels: [{ id: 'export', name: 'ส่งออก' }, { id: 'domestic', name: 'ในประเทศ' }],
+      channels: pending.channels,
       metalGroups: pending.metalGroups,
-      month: new Date().toISOString().slice(0, 7),
+      month,
     },
-    customers: pending.customers,
     lmeConfig: config,
     planProductOptions: pending.planProductOptions,
     pendingSaleTable: pending.pendingSaleTable.map((row) => ({
@@ -508,23 +541,23 @@ export async function buildSalesPlan() {
       stockWAC: row.stockWAC,
     })),
     pendingSaleTotals: pending.pendingSaleTotals,
-    planRows: [],
+    planRows,
     productAnalysis: remainRows,
     sourceState: {
       basis: 'Sales Plan design source from current stock, WTO pending_out, and LME reference values.',
-      limitations: ['LME reference pricing บันทึกได้แล้ว แต่ Add plan, remove plan, lock/unlock price และ stock reservation ยังปิดอยู่จนกว่าจะออกแบบ persistence/audit ครบ'],
-      writeActionsEnabled: false,
+      limitations: ['บันทึกแผนขายและล็อก % ได้แล้ว การหักสต๊อกจริงจะเกิดเมื่อเปิด PO ขายจากแผน'],
+      writeActionsEnabled: true,
     },
     summary: {
       avgPctLme: remainRows.length ? remainRows.reduce((sum, row) => sum + row.bestPlanPct, 0) / remainRows.length : 0,
-      lockedContainers: 0,
-      lockedCount: 0,
-      pendingCount: 0,
-      plansCount: 0,
+      lockedContainers: planRows.filter((row) => ['locked', 'po_created'].includes(String(row.status))).reduce((sum, row) => sum + Number(row.containers ?? 0), 0),
+      lockedCount: planRows.filter((row) => ['locked', 'po_created'].includes(String(row.status))).length,
+      pendingCount: planRows.filter((row) => String(row.status) === 'draft').length,
+      plansCount: planRows.length,
       stockRemainingKg: remainRows.reduce((sum, row) => sum + row.remainingKg, 0),
       stockRemainingValue: remainRows.reduce((sum, row) => sum + row.value, 0),
-      totalContainers: 0,
-      totalKg: 0,
+      totalContainers: planRows.reduce((sum, row) => sum + Number(row.containers ?? 0), 0),
+      totalKg: planRows.reduce((sum, row) => sum + Number(row.totalKg ?? 0), 0),
       totalLockedProfit: 0,
       totalProjectedProfit: remainRows.reduce((sum, row) => sum + row.projectedProfit, 0),
     },

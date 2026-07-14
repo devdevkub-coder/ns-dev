@@ -119,6 +119,7 @@ export const poSellFormSchema = z.object({
   hasVat: z.boolean().optional().default(false),
   items: z.array(salesLineItemSchema.omit({ deductWeight: true, discount: true, grossWeight: true, netWeight: true, poSellId: true }).extend({ discount: money('ส่วนลด').default(0) })).min(1, 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ').max(50, 'รายการสินค้ามากเกินไป'),
   note: optionalGeneralText('หมายเหตุ', 500),
+  salesPlanId: optionalSafeId('แผนขาย'),
 })
 
 export type SalesBillFormValues = z.infer<typeof salesBillFormSchema>

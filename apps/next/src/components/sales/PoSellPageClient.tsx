@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Plus, Printer } from 'lucide-react'
 import { openPoSellPrint, openPoSellPrintWindow, type PoSellPrintDocument } from '@/lib/po-sell-print'
 import { Button as UiButton } from '@/components/ui/Button'
@@ -143,6 +144,7 @@ const initialPoSellForm = (): PoSellFormValues => ({
   hasVat: false,
   items: [blankPoSellItem()],
   note: null,
+  salesPlanId: null,
 })
 
 const poSellColumns: ResizableColumnDefinition<string>[] = [
@@ -165,6 +167,8 @@ const poSellColumns: ResizableColumnDefinition<string>[] = [
 
 export function PoSellPageClient() {
   const latestLoadRequestRef = useRef(0)
+  const searchParams = useSearchParams()
+  const salesPlanIdFromQuery = searchParams.get('salesPlanId')
   const [cancelNote, setCancelNote] = useState('')
   const [cancelNoteError, setCancelNoteError] = useState('')
   const [cancelingRow, setCancelingRow] = useState<PoSellRow | null>(null)
@@ -315,20 +319,28 @@ export function PoSellPageClient() {
   const pageRows = sortedRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const activeBranches = (data?.options.branches ?? []).filter((option) => option.active !== false)
   const activeChannels = useMemo(() => (data?.options.salesChannels ?? []).filter((option) => option.active !== false), [data?.options.salesChannels])
-  const activeCustomers = useMemo(() => (data?.options.customers ?? []).filter((option) => (
-    option.active !== false
-    && Boolean(form.branchId)
-    && option.branchIds?.includes(form.branchId ?? '')
-  )), [data?.options.customers, form.branchId])
+  const allActiveCustomers = useMemo(
+    () => (data?.options.customers ?? []).filter((option) => option.active !== false),
+    [data?.options.customers],
+  )
+  const activeCustomers = useMemo(() => {
+    if (form.branchId) {
+      return allActiveCustomers.filter((option) => option.branchIds?.includes(form.branchId ?? ''))
+    }
+    if (form.customerId) {
+      return allActiveCustomers.filter((option) => option.id === form.customerId)
+    }
+    return []
+  }, [allActiveCustomers, form.branchId, form.customerId])
   const activeProducts = (data?.options.products ?? []).filter((option) => option.active !== false)
   const defaultSalesChannelForCustomer = useCallback((customerId: string) => {
-    const customer = activeCustomers.find((option) => option.id === customerId)
+    const customer = allActiveCustomers.find((option) => option.id === customerId)
     const targetScope = customer?.marketScope === 'ต่างประเทศ' ? 'ต่างประเทศ' : customer?.marketScope === 'ในประเทศ' ? 'ในประเทศ' : null
     if (!targetScope) return null
     return activeChannels.find((channel) => [channel.name, channel.code, channel.id].some((value) => String(value ?? '').trim() === targetScope))?.id ?? null
-  }, [activeChannels, activeCustomers])
+  }, [activeChannels, allActiveCustomers])
   const selectedCustomer = form.customerId
-    ? activeCustomers.find((customer) => customer.id === form.customerId) ?? null
+    ? allActiveCustomers.find((customer) => customer.id === form.customerId) ?? null
     : null
   const selectedChannel = form.channelId
     ? (data?.options.salesChannels ?? []).find((channel) => channel.id === form.channelId) ?? null
@@ -392,6 +404,7 @@ export function PoSellPageClient() {
         qty: item.qty,
       })) : [blankPoSellItem()],
       note: row.note ?? null,
+      salesPlanId: null,
     })
     setFieldErrors({})
     setError(null)
@@ -400,11 +413,48 @@ export function PoSellPageClient() {
 
   useEffect(() => {
     setForm((current) => {
+      if (current.salesPlanId) return current
       const nextChannelId = current.customerId ? defaultSalesChannelForCustomer(current.customerId) : null
       if ((current.channelId ?? null) === nextChannelId) return current
       return { ...current, channelId: nextChannelId }
     })
   }, [defaultSalesChannelForCustomer])
+
+  useEffect(() => {
+    if (!salesPlanIdFromQuery || !data) return
+    let cancelled = false
+    const today = new Date().toISOString().slice(0, 10)
+    setError(null)
+    dailyFetchJson<{ planRow: Record<string, string | number | null> }>(`/api/sales-plan?planId=${encodeURIComponent(salesPlanIdFromQuery)}`)
+      .then(({ planRow }) => {
+        if (cancelled) return
+        setEditingDocNo(null)
+        setForm({
+          branchId: null,
+          channelId: String(planRow.channelId ?? planRow.channel ?? '') || null,
+          customerId: String(planRow.customerId ?? ''),
+          expectedDelivery: today,
+          hasVat: false,
+          items: [{
+            ...blankPoSellItem(),
+            price: Number(planRow.sellPrice ?? 0),
+            productId: String(planRow.productId ?? planRow.productCode ?? ''),
+            qty: Number(planRow.totalKg ?? 0),
+          }],
+          note: `สร้างจาก Sales Plan ${String(planRow.planNo ?? salesPlanIdFromQuery)}`,
+          salesPlanId: salesPlanIdFromQuery,
+        })
+        setFieldErrors({})
+        setShowForm(true)
+      })
+      .catch((caught) => {
+        if (cancelled) return
+        setError(caught instanceof Error ? caught.message : 'โหลดแผนขายเพื่อเปิด PO Sell ไม่ได้')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [data, salesPlanIdFromQuery])
 
   function openCancelDialog(row: PoSellRow) {
     if (!row.canCancel) {

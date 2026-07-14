@@ -55,24 +55,39 @@ type PurchaseBillRow = Prisma.purchase_billsGetPayload<{
   }
 }>
 
+const weightTicketOptionSelect = {
+  branch_id: true,
+  branches: true,
+  cancelled_at: true,
+  deduct_weight: true,
+  doc_no: true,
+  doc_type: true,
+  document_date: true,
+  gross_weight: true,
+  id: true,
+  net_weight: true,
+  party_name: true,
+  status: true,
+  supplier_id: true,
+  suppliers: true,
+  vehicle_no: true,
+  weight_ticket_product_summaries: {
+    include: {
+      weight_ticket_product_summary_lines: true,
+    },
+    orderBy: {
+      product_name: 'asc',
+    },
+  },
+  weight_ticket_lines: {
+    orderBy: {
+      line_no: 'asc',
+    },
+  },
+} as const
+
 type WeightTicketOptionRow = Prisma.weight_ticketsGetPayload<{
-  include: {
-    branches: true
-    suppliers: true
-    weight_ticket_product_summaries: {
-      include: {
-        weight_ticket_product_summary_lines: true
-      }
-      orderBy: {
-        product_name: 'asc'
-      }
-    }
-    weight_ticket_lines: {
-      orderBy: {
-        line_no: 'asc'
-      }
-    }
-  }
+  select: typeof weightTicketOptionSelect
 }>
 
 type BillQuery = {
@@ -336,7 +351,8 @@ function billJson(row: PurchaseBillRow, paymentDocNos: string[] = []) {
     .filter((value): value is string => Boolean(value)))]
   const activeAdvanceAllocation = row.supplier_advance_allocations.find((allocation) => allocation.status === 'active') ?? null
   return {
-    advanceAllocatedAmount: activeAdvanceAllocation ? toNumber(activeAdvanceAllocation.allocated_amount) : 0,
+    advanceAllocatedAmount: activeAdvanceAllocation ? toNumber(activeAdvanceAllocation.allocated_total_amount ?? activeAdvanceAllocation.allocated_amount) : 0,
+    advanceConsumedAmount: activeAdvanceAllocation ? toNumber(activeAdvanceAllocation.allocated_amount) : 0,
     advancePaymentDocNo: activeAdvanceAllocation?.supplier_advance_payments?.doc_no ?? '',
     advancePaymentId: activeAdvanceAllocation?.supplier_advance_payments?.doc_no ?? '',
     branchId: row.branches?.code ?? '',
@@ -1020,15 +1036,31 @@ function buildAdvanceAllocationAmounts(
   advancePayment: NonNullable<Awaited<ReturnType<typeof validateAdvancePaymentSelection>>>,
   billTotals: { subtotalAmount: number; totalAmount: number; vatAmount: number },
 ) {
-  const allocatedSubtotalAmount = roundMoney(Math.min(billTotals.subtotalAmount, advancePayment.availableAmount))
+  const advanceBaseCapacity = advancePayment.hasVat
+    ? roundMoney(advancePayment.availableAmount * (advancePayment.subtotalAmount / Math.max(advancePayment.subtotalAmount + advancePayment.vatAmount, 0.000001)))
+    : roundMoney(advancePayment.availableAmount)
+  const allocatedSubtotalAmount = roundMoney(Math.min(advanceBaseCapacity, billTotals.subtotalAmount))
   if (allocatedSubtotalAmount <= 0.01) {
-    throw new Error('ยอดก่อน VAT ของ ADV ไม่พอสำหรับหักบิลซื้อนี้')
+    throw new Error('ยอด VAT ของ ADV ไม่สามารถหักกับบิลซื้อนี้ได้')
   }
 
+  const billVatRatio = billTotals.subtotalAmount > 0
+    ? billTotals.vatAmount / Math.max(billTotals.subtotalAmount, 0.000001)
+    : 0
+  const allocatedVatAmount = roundMoney(allocatedSubtotalAmount * billVatRatio)
+  const allocatedAdvanceAmount = advancePayment.hasVat
+    ? roundMoney(allocatedSubtotalAmount * ((advancePayment.subtotalAmount + advancePayment.vatAmount) / Math.max(advancePayment.subtotalAmount, 0.000001)))
+    : allocatedSubtotalAmount
+  const allocatedTotalAmount = roundMoney(Math.min(
+    billTotals.totalAmount,
+    allocatedSubtotalAmount + allocatedVatAmount,
+  ))
+
   return {
+    allocatedAdvanceAmount,
     allocatedSubtotalAmount,
-    allocatedTotalAmount: allocatedSubtotalAmount,
-    allocatedVatAmount: 0,
+    allocatedTotalAmount,
+    allocatedVatAmount,
   }
 }
 
@@ -1125,7 +1157,7 @@ async function applyPurchaseBillAdvanceAllocation(
   const allocation = await tx.supplier_advance_allocations.create({
     data: {
       advance_payment_id: advancePayment.id,
-      allocated_amount: allocationAmounts.allocatedTotalAmount,
+      allocated_amount: allocationAmounts.allocatedAdvanceAmount,
       allocated_subtotal_amount: allocationAmounts.allocatedSubtotalAmount,
       allocated_total_amount: allocationAmounts.allocatedTotalAmount,
       allocated_vat_amount: allocationAmounts.allocatedVatAmount,
@@ -1143,7 +1175,7 @@ async function applyPurchaseBillAdvanceAllocation(
   await appendSupplierAdvanceAllocationLogs(tx, [{
     action: SUPPLIER_ADVANCE_ALLOCATION_ACTION.ALLOCATED_TO_PURCHASE_BILL,
     actor: params.actor,
-    allocatedAmount: allocationAmounts.allocatedTotalAmount,
+    allocatedAmount: allocationAmounts.allocatedAdvanceAmount,
     allocationId: allocation.id,
     allocationKey: allocation.allocation_key,
     advancePaymentId: advancePayment.id,
@@ -1207,17 +1239,7 @@ function derivePurchaseSource(items: Array<{ poBuyId?: string | null }>, fallbac
 
 async function loadReceiptAvailability(ticketDocNo: string, excludeBillId?: bigint) {
   const ticket = await prisma.weight_tickets.findUnique({
-    include: {
-      branches: true,
-      suppliers: true,
-      weight_ticket_product_summaries: {
-        include: {
-          weight_ticket_product_summary_lines: true,
-        },
-        orderBy: { product_name: 'asc' },
-      },
-      weight_ticket_lines: { orderBy: { line_no: 'asc' } },
-    },
+    select: weightTicketOptionSelect,
     where: { doc_no: ticketDocNo },
   })
   if (!ticket) return { ticket: null, usedQtyBySummaryId: new Map<string, number>() }
@@ -1498,17 +1520,7 @@ async function refreshWeightTicketStatuses(
   const changedAt = options.createdAt ?? new Date()
 
   const ticketRows = await tx.weight_tickets.findMany({
-    include: {
-      weight_ticket_product_summaries: {
-        include: {
-          weight_ticket_product_summary_lines: true,
-        },
-        orderBy: { product_name: 'asc' },
-      },
-      weight_ticket_lines: {
-        orderBy: { line_no: 'asc' },
-      },
-    },
+    select: weightTicketOptionSelect,
     where: {
       doc_type: 'WTI',
       id: { in: uniqueTicketIds },
@@ -1738,17 +1750,7 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
     }),
     activeVatRatePercent(new Date()),
     prisma.weight_tickets.findMany({
-      include: {
-        branches: true,
-        suppliers: true,
-        weight_ticket_product_summaries: {
-          include: {
-            weight_ticket_product_summary_lines: true,
-          },
-          orderBy: { product_name: 'asc' },
-        },
-        weight_ticket_lines: { orderBy: { line_no: 'asc' } },
-      },
+      select: weightTicketOptionSelect,
       orderBy: [{ document_date: 'desc' }, { doc_no: 'desc' }],
       take: 300,
       where: {

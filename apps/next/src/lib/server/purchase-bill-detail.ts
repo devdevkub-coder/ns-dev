@@ -19,6 +19,7 @@ export type PurchaseBillDetailTimelineEvent = {
 
 export type PurchaseBillDetail = {
   advanceAllocatedAmount: number
+  advanceConsumedAmount: number
   advanceAllocatedSubtotalAmount: number
   advanceAllocatedVatAmount: number
   advancePaymentDocNo: string
@@ -589,7 +590,8 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
   const receiptVehicleNo = allocationRows.map((row) => row.receiptVehicleNo).find(Boolean) ?? ''
 
   return {
-    advanceAllocatedAmount: toNumber(activeAdvanceAllocation?.allocated_amount),
+    advanceAllocatedAmount: toNumber(activeAdvanceAllocation?.allocated_total_amount ?? activeAdvanceAllocation?.allocated_amount),
+    advanceConsumedAmount: toNumber(activeAdvanceAllocation?.allocated_amount),
     advanceAllocatedSubtotalAmount: toNumber(activeAdvanceAllocation?.allocated_subtotal_amount),
     advanceAllocatedVatAmount: toNumber(activeAdvanceAllocation?.allocated_vat_amount),
     advancePaymentDocNo: activeAdvanceAllocation?.supplier_advance_payments.doc_no ?? '',

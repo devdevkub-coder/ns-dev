@@ -236,11 +236,13 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
               <div className="space-y-2 text-sm">
                 <Line label="ยอดก่อนส่วนลด" value={money(bill.subtotal)} />
                 <Line label="ส่วนลดท้ายบิล" value={money(bill.discount)} />
+                {bill.advancePaymentDocNo ? <Line label={`หัก ADV ก่อน VAT ${bill.advancePaymentDocNo}`} value={money(bill.advanceAllocatedSubtotalAmount)} /> : null}
                 <Line label="VAT" value={money(bill.vatAmount)} />
                 {bill.advancePaymentDocNo ? (
                   <>
-                    <Line label={`หัก ADV ${bill.advancePaymentDocNo}`} value={money(bill.advanceAllocatedAmount)} />
-                    {bill.advancePaymentVatType !== 'NONE' ? <Line label="ADV หักฐาน/VAT" value={`${money(bill.advanceAllocatedSubtotalAmount)} / ${money(bill.advanceAllocatedVatAmount)}`} /> : null}
+                    <Line label={`ผลหัก ADV รวม ${bill.advancePaymentDocNo}`} value={money(bill.advanceAllocatedAmount)} />
+                    <Line label="ยอด ADV ใช้จริง" value={money(bill.advanceConsumedAmount)} />
+                    <Line label="ADV ลด VAT" value={money(bill.advanceAllocatedVatAmount)} />
                   </>
                 ) : null}
                 <Line strong label="ยอดสุทธิ" value={money(bill.totalAmount)} />

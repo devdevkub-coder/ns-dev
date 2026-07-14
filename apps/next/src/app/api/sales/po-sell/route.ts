@@ -31,6 +31,17 @@ type PoSellItem = {
   unit?: string | null
 }
 
+type LinkedSalesPlanRow = {
+  channel_id: bigint | null
+  customer_id: bigint
+  id: bigint
+  po_sell_id: bigint | null
+  product_id: bigint
+  sell_price: { toNumber: () => number } | number
+  status: string
+  total_kg: { toNumber: () => number } | number
+}
+
 const DOCUMENT_STATUS_OPTIONS = [
   { label: 'เปิดอยู่', value: 'open' },
   { label: 'ออกบิลบางส่วน', value: 'partial' },
@@ -850,38 +861,75 @@ export async function POST(request: Request) {
     const vatAmount = values.hasVat ? Math.round((subtotal * vatRatePercent / 100 + Number.EPSILON) * 100) / 100 : 0
     const totalAmount = subtotal + vatAmount
     const docNo = await nextPoSellDocNo(createdAt)
-    const created = await prisma.po_sells.create({
-      data: {
-        branch_id: branch?.id ?? null,
-        channel_id: channel?.id ?? null,
-        created_at: createdAt,
-        created_by: actor,
-        customer_id: customer.id,
-        date: createdAt,
-        delivery_date: expectedDelivery,
-        doc_no: docNo,
-        expected_delivery: expectedDelivery,
-        items: items as Prisma.InputJsonValue,
-        note: values.note,
-        notes: values.note,
-        product_id: parsedProductIds[0] ?? null,
-        qty,
-        subtotal,
-        has_vat: values.hasVat,
-        vat_rate_percent: vatRatePercent,
-        vat_amount: vatAmount,
-        vat_type: values.hasVat ? 'EXCLUDE' : 'NONE',
-        remaining_amount: totalAmount,
-        remaining_qty: qty,
-        require_delivery: true,
-        status: 'Open',
-        total_amount: totalAmount,
-        unit_price: qty > 0 ? totalAmount / qty : 0,
-        updated_at: createdAt,
-        updated_by: actor,
-        version: 1,
-      },
-      select: { doc_no: true, id: true },
+    const salesPlanId = values.salesPlanId?.trim() || null
+    let linkedPlan: LinkedSalesPlanRow | null = null
+    if (salesPlanId) {
+      if (!/^\d+$/.test(salesPlanId)) return NextResponse.json({ code: 'BAD_REQUEST', error: 'แผนขายไม่ถูกต้อง' }, { status: 400 })
+      const plans = await prisma.$queryRaw<LinkedSalesPlanRow[]>`
+        select id, customer_id, product_id, channel_id, total_kg, sell_price, status, po_sell_id
+        from public.sales_plans
+        where id = ${BigInt(salesPlanId)}
+        limit 1
+      `
+      linkedPlan = plans[0] ?? null
+      if (!linkedPlan) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบแผนขายที่ต้องการเปิด PO' }, { status: 404 })
+      if (linkedPlan.status !== 'locked' || linkedPlan.po_sell_id) {
+        return NextResponse.json({ code: 'CONFLICT', error: 'แผนขายนี้ยังไม่ Locked หรือถูกเปิด PO แล้ว' }, { status: 409 })
+      }
+      if (linkedPlan.customer_id !== customer.id) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าใน PO ไม่ตรงกับแผนขาย' }, { status: 400 })
+      if (linkedPlan.product_id !== parsedProductIds[0]) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าใน PO ไม่ตรงกับแผนขาย' }, { status: 400 })
+      if (linkedPlan.channel_id && channel?.id !== linkedPlan.channel_id) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางขายใน PO ไม่ตรงกับแผนขาย' }, { status: 400 })
+      if (Math.abs(qty - toNumber(linkedPlan.total_kg)) > 0.001) return NextResponse.json({ code: 'BAD_REQUEST', error: 'จำนวน กก. ใน PO ไม่ตรงกับแผนขาย' }, { status: 400 })
+      if (Math.abs((items[0]?.unitPrice ?? 0) - toNumber(linkedPlan.sell_price)) > 0.01) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ราคาขายใน PO ไม่ตรงกับแผนขาย' }, { status: 400 })
+    }
+    const created = await prisma.$transaction(async (tx) => {
+      const poSell = await tx.po_sells.create({
+        data: {
+          branch_id: branch?.id ?? null,
+          channel_id: channel?.id ?? null,
+          created_at: createdAt,
+          created_by: actor,
+          customer_id: customer.id,
+          date: createdAt,
+          delivery_date: expectedDelivery,
+          doc_no: docNo,
+          expected_delivery: expectedDelivery,
+          items: items as Prisma.InputJsonValue,
+          note: values.note,
+          notes: values.note,
+          product_id: parsedProductIds[0] ?? null,
+          qty,
+          subtotal,
+          has_vat: values.hasVat,
+          vat_rate_percent: vatRatePercent,
+          vat_amount: vatAmount,
+          vat_type: values.hasVat ? 'EXCLUDE' : 'NONE',
+          remaining_amount: totalAmount,
+          remaining_qty: qty,
+          require_delivery: true,
+          status: 'Open',
+          total_amount: totalAmount,
+          unit_price: qty > 0 ? totalAmount / qty : 0,
+          updated_at: createdAt,
+          updated_by: actor,
+          version: 1,
+        },
+        select: { doc_no: true, id: true },
+      })
+      if (salesPlanId) {
+        const updated = await tx.$executeRaw`
+          update public.sales_plans
+          set status = 'po_created',
+              po_sell_id = ${poSell.id},
+              updated_at = now(),
+              updated_by = ${actor}
+          where id = ${BigInt(salesPlanId)}
+            and status = 'locked'
+            and po_sell_id is null
+        `
+        if (updated !== 1) throw new Error('แผนขายนี้ถูกเปิด PO แล้ว กรุณาโหลดข้อมูลใหม่')
+      }
+      return poSell
     })
 
     return NextResponse.json({ docNo: created.doc_no, id: created.doc_no }, { status: 201 })

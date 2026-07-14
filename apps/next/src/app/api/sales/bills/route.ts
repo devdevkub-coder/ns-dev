@@ -97,6 +97,38 @@ type DeliveryTicketOptionRow = {
   }>
 }
 
+const deliveryTicketOptionSelect = {
+  branch_id: true,
+  branches: true,
+  cancelled_at: true,
+  customer_id: true,
+  customers: true,
+  doc_no: true,
+  doc_type: true,
+  document_date: true,
+  id: true,
+  party_name: true,
+  status: true,
+  stock_holds: {
+    select: {
+      product_id: true,
+      qty: true,
+      status: true,
+      unit_cost_snapshot: true,
+      value_snapshot: true,
+    },
+    where: { status: 'active' },
+  },
+  vehicle_no: true,
+  weight_ticket_lines: { orderBy: { line_no: 'asc' } },
+  weight_ticket_product_summaries: {
+    include: {
+      weight_ticket_product_summary_lines: true,
+    },
+    orderBy: { product_name: 'asc' },
+  },
+} as const
+
 type DeliverySummarySource = DeliveryTicketOptionRow['weight_ticket_product_summaries'][number]
 
 function parseBillQuery(url: URL, includePaging = true): BillQuery {
@@ -933,27 +965,7 @@ async function salesOptionsPayload(scope: Awaited<ReturnType<typeof salesBranchS
     }),
     activeVatRatePercent(new Date()),
     prisma.weight_tickets.findMany({
-      include: {
-        branches: true,
-        customers: true,
-        weight_ticket_product_summaries: {
-          include: {
-            weight_ticket_product_summary_lines: true,
-          },
-          orderBy: { product_name: 'asc' },
-        },
-        weight_ticket_lines: { orderBy: { line_no: 'asc' } },
-        stock_holds: {
-          select: {
-            product_id: true,
-            qty: true,
-            status: true,
-            unit_cost_snapshot: true,
-            value_snapshot: true,
-          },
-          where: { status: 'active' },
-        },
-      },
+      select: deliveryTicketOptionSelect,
       orderBy: [{ document_date: 'desc' }, { doc_no: 'desc' }],
       take: 300,
       where: {
