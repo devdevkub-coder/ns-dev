@@ -62,6 +62,102 @@ type WeightTicketDownstreamAllocationRow = {
   weight_ticket_doc_no: string
 }
 
+export const weightTicketRowSelect = {
+  branch_id: true,
+  branches: true,
+  cancel_note: true,
+  cancelled_at: true,
+  container_deduction_weight: true,
+  created_at: true,
+  created_by: true,
+  customers: true,
+  deduct_weight: true,
+  doc_no: true,
+  doc_type: true,
+  document_date: true,
+  entered_by: true,
+  gross_weight: true,
+  id: true,
+  image_count: true,
+  net_weight: true,
+  party_name: true,
+  remark: true,
+  status: true,
+  stock_holds: {
+    select: {
+      cost_snapshot_at: true,
+      cost_snapshot_note: true,
+      cost_snapshot_source: true,
+      consumed_at: true,
+      consumed_by_ref_no: true,
+      hold_key: true,
+      held_at: true,
+      product_id: true,
+      qty: true,
+      released_at: true,
+      source_doc_no: true,
+      source_line_no: true,
+      status: true,
+      unit_cost_snapshot: true,
+      value_snapshot: true,
+      warehouse_id: true,
+      warehouses: {
+        select: {
+          code: true,
+          id: true,
+          name: true,
+          type: true,
+        },
+      },
+    },
+    orderBy: {
+      source_line_no: 'asc',
+    },
+  },
+  suppliers: true,
+  updated_at: true,
+  updated_by: true,
+  vehicle_image_count: true,
+  vehicle_image_names: true,
+  vehicle_no: true,
+  weight_ticket_lines: {
+    include: {
+      products: {
+        select: {
+          code: true,
+          id: true,
+          metal_group: true,
+        },
+      },
+      warehouses: {
+        select: {
+          code: true,
+          id: true,
+          name: true,
+          type: true,
+        },
+      },
+    },
+    orderBy: {
+      line_no: 'asc',
+    },
+  },
+  weight_ticket_product_summaries: {
+    include: {
+      products: {
+        select: {
+          code: true,
+          id: true,
+          metal_group: true,
+        },
+      },
+    },
+    orderBy: {
+      product_name: 'asc',
+    },
+  },
+} as const
+
 export type WeightTicketRow = Prisma.weight_ticketsGetPayload<{
   include: {
     branches: true
