@@ -41,6 +41,13 @@ export type SalesPlanInput = {
   sellPctLme: number
 }
 
+export type ClearPendingSalesPlanFilters = {
+  channel?: string
+  metalGroup?: string
+  month: string
+  productCode?: string
+}
+
 function normalizeMonth(value: string) {
   const normalized = value.trim()
   if (!/^\d{4}-\d{2}$/.test(normalized)) throw new Error('เดือนของแผนต้องเป็นรูปแบบ YYYY-MM')
@@ -250,7 +257,7 @@ export async function lockSalesPlan(planId: string, context: AppAuthContext) {
   return getSalesPlanRow(rows[0].id)
 }
 
-export async function clearPendingSalesPlans(context: AppAuthContext, planIds?: string[]) {
+export async function clearPendingSalesPlans(context: AppAuthContext, planIds?: string[], filters?: ClearPendingSalesPlanFilters) {
   const normalizedIds = Array.from(new Set((planIds ?? []).map((value) => value.trim()).filter((value) => /^\d+$/.test(value))))
   if (planIds && normalizedIds.length === 0) return { deletedCount: 0 }
 
@@ -267,11 +274,30 @@ export async function clearPendingSalesPlans(context: AppAuthContext, planIds?: 
     return { deletedCount: Number(result ?? 0) }
   }
 
-  const result = await prisma.$executeRaw`
-    delete from public.sales_plans
-    where status = 'draft'
-      and po_sell_id is null
-  `
+  if (!filters) throw new Error('ต้องระบุขอบเขตการลบ Pending')
+
+  const month = normalizeMonth(filters.month)
+  const normalizedMetalGroup = filters.metalGroup?.trim() || ''
+  const normalizedChannel = normalizeCode(filters.channel ?? '')
+  const normalizedProductCode = normalizeCode(filters.productCode ?? '')
+
+  const result = await prisma.$executeRaw(
+    Prisma.sql`
+      delete from public.sales_plans
+      where id in (
+        select sp.id
+        from public.sales_plans sp
+        join public.products p on p.id = sp.product_id
+        left join public.sales_channels sc on sc.id = sp.channel_id
+        where sp.status = 'draft'
+          and sp.po_sell_id is null
+          and sp.plan_month = ${month}::date
+          and (${normalizedMetalGroup} = '' or coalesce(p.metal_group, '') ilike ${`%${normalizedMetalGroup}%`})
+          and (${normalizedChannel} = '' or upper(coalesce(sc.code, '')) = ${normalizedChannel})
+          and (${normalizedProductCode} = '' or upper(coalesce(p.code, '')) = ${normalizedProductCode})
+      )
+    `,
+  )
   return { deletedCount: Number(result ?? 0) }
 }
 

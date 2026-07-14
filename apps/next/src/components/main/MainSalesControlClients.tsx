@@ -15,7 +15,7 @@ type SortDirection = 'asc' | 'desc'
 type TableColumn<TKey extends string> = ResizableColumnDefinition<TKey> & { align?: 'center' | 'left' | 'right'; label: string }
 type SalesPlanColumnKey = 'channel' | 'containers' | 'customerName' | 'fx' | 'kgPerContainer' | 'lme' | 'poSell' | 'productName' | 'select' | 'sellPctLme' | 'sellPrice' | 'status' | 'totalKg'
 type SalesPlanAnalysisColumnKey = 'bestPlanPct' | 'bestPlanPrice' | 'lockedKg' | 'metalGroup' | 'name' | 'projectedMarginPct' | 'projectedProfit' | 'recommendation' | 'remainingKg' | 'stock' | 'wac'
-type SalesPlanRemainingColumnKey = 'code' | 'lockedContainers' | 'lockedKg' | 'metalGroup' | 'name' | 'remainingContainers' | 'remainingKg' | 'stock' | 'value' | 'wac'
+type SalesPlanRemainingColumnKey = 'lockedContainers' | 'lockedKg' | 'metalGroup' | 'name' | 'remainingContainers' | 'remainingKg' | 'stock' | 'value' | 'wac'
 type CommissionCategoryColumnKey = 'amount' | 'category' | 'qty'
 type CommissionSupplierColumnKey = 'amount' | 'bills' | 'pct' | 'qty' | 'supplier'
 type CommissionBillColumnKey = 'amount' | 'commissionStatus' | 'date' | 'docNo' | 'price' | 'productName' | 'profitDiff' | 'qty' | 'salesPrice' | 'supplierName'
@@ -52,6 +52,16 @@ type SalesPlanDraftForm = {
   lmeCf: string
   productCode: string
   sellPctLme: string
+}
+type ClearPendingPlansDialogState = {
+  filters?: {
+    channel?: string
+    metalGroup?: string
+    month: string
+    productCode?: string
+  }
+  message: string
+  planIds?: string[]
 }
 
 type CommissionSalespersonRow = {
@@ -130,8 +140,7 @@ const salesPlanAnalysisColumns: Array<TableColumn<SalesPlanAnalysisColumnKey>> =
   { key: 'recommendation', label: 'คำแนะนำ', defaultWidth: 180, minWidth: 140, align: 'center' },
 ]
 const salesPlanRemainingColumns: Array<TableColumn<SalesPlanRemainingColumnKey>> = [
-  { key: 'code', label: 'รหัส', defaultWidth: 110, minWidth: 90 },
-  { key: 'name', label: 'สินค้า', defaultWidth: 220, minWidth: 160 },
+  { key: 'name', label: 'สินค้า', defaultWidth: 250, minWidth: 190 },
   { key: 'metalGroup', label: 'หมวด', defaultWidth: 130, minWidth: 105 },
   { key: 'stock', label: 'Stock ทั้งหมด (กก.)', defaultWidth: 150, minWidth: 125, align: 'right' },
   { key: 'lockedKg', label: 'ล็อกแล้ว (กก.)', defaultWidth: 140, minWidth: 120, align: 'right' },
@@ -390,6 +399,7 @@ export function SalesPlanPageClient() {
   const [isSavingPlan, setIsSavingPlan] = useState(false)
   const [isClearingPendingPlans, setIsClearingPendingPlans] = useState(false)
   const [isPlanFormOpen, setIsPlanFormOpen] = useState(false)
+  const [clearPendingPlansDialog, setClearPendingPlansDialog] = useState<ClearPendingPlansDialogState | null>(null)
   const [selectedPendingPlanIds, setSelectedPendingPlanIds] = useState<string[]>([])
   const [month, setMonth] = useState('')
   const [planFilterGroup, setPlanFilterGroup] = useState('')
@@ -426,7 +436,7 @@ export function SalesPlanPageClient() {
   const [remainingPageSize, setRemainingPageSize] = useState(SALES_PLAN_DEFAULT_PAGE_SIZE)
   const planResize = useResizableColumns('main.sales-plan.plan.v1', salesPlanColumns)
   const analysisResize = useResizableColumns('main.sales-plan.analysis.v1', salesPlanAnalysisColumns)
-  const remainingResize = useResizableColumns('main.sales-plan.remaining.v1', salesPlanRemainingColumns)
+  const remainingResize = useResizableColumns('main.sales-plan.remaining.v2', salesPlanRemainingColumns)
 
   const loadSalesPlan = async () => {
     setError(null)
@@ -830,23 +840,43 @@ export function SalesPlanPageClient() {
     const cleaningSelected = targetPlanIds.length > 0
     const targetCount = cleaningSelected ? targetPlanIds.length : pendingPlanCount
     if (!targetCount) return
-    if (typeof window !== 'undefined') {
-      const confirmed = window.confirm(cleaningSelected
+    const activeMonth = month || data?.filters.month || new Date().toISOString().slice(0, 7)
+    setClearPendingPlansDialog({
+      ...(cleaningSelected
+        ? { planIds: targetPlanIds }
+        : {
+          filters: {
+            channel: planFilterChannel || undefined,
+            metalGroup: planFilterGroup || undefined,
+            month: activeMonth,
+            productCode: planFilterProductCode || undefined,
+          },
+        }),
+      message: cleaningSelected
         ? `ต้องการเคลียร์สถานะ Pending ของรายการที่เลือก ${targetCount} รายการใช่หรือไม่?`
-        : `ต้องการเคลียร์สถานะ Pending ทั้งหมด ${targetCount} รายการใช่หรือไม่?`)
-      if (!confirmed) return
-    }
+        : `ต้องการเคลียร์สถานะ Pending ทั้งหมด ${targetCount} รายการตามตัวกรองปัจจุบันของเดือน ${activeMonth} ใช่หรือไม่?`,
+    })
+  }
 
+  async function confirmClearPendingPlans() {
+    if (!clearPendingPlansDialog) return
+    const targetPlanIds = clearPendingPlansDialog.planIds ?? []
     setFormError(null)
     setIsClearingPendingPlans(true)
     try {
       await dailyFetchJson<{ deletedCount: number }>('/api/sales-plan', {
-        body: JSON.stringify({ action: 'clear-pending-plans', ...(cleaningSelected ? { planIds: targetPlanIds } : {}) }),
+        body: JSON.stringify({
+          action: 'clear-pending-plans',
+          ...(clearPendingPlansDialog.planIds
+            ? { planIds: clearPendingPlansDialog.planIds }
+            : { filters: clearPendingPlansDialog.filters }),
+        }),
         method: 'POST',
       })
-      if (cleaningSelected) {
+      if (targetPlanIds.length > 0) {
         setSelectedPendingPlanIds((current) => current.filter((id) => !targetPlanIds.includes(id)))
       }
+      setClearPendingPlansDialog(null)
       await loadSalesPlan()
     } catch (caught) {
       setFormError(caught instanceof Error ? caught.message : 'เคลียร์สถานะ Pending ไม่ได้')
@@ -1011,6 +1041,18 @@ export function SalesPlanPageClient() {
         <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3 text-xs font-semibold text-slate-600">
           📝 ตารางวางแผน — เพิ่มแผนแล้วเริ่มที่ `Pending` ก่อน จากนั้นค่อยกด `Lock %` เองเมื่อพร้อม และคอลัมน์ `PO ขาย` จะแยกต่างหาก
         </div>
+        <Dialog open={Boolean(clearPendingPlansDialog)} onOpenChange={(open) => { if (!open && !isClearingPendingPlans) setClearPendingPlansDialog(null) }}>
+          <DialogContent className="max-w-lg rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 animate-fade-in" fallbackTitle="ยืนยันการเคลียร์สถานะ" hideClose>
+            <DialogHeader className="border-b border-slate-800 px-5 py-4">
+              <DialogTitle className="text-lg font-bold text-slate-100">Confirm เคลียร์สถานะ</DialogTitle>
+              <p className="text-sm text-slate-300">{clearPendingPlansDialog?.message}</p>
+            </DialogHeader>
+            <DialogFooter className="shrink-0">
+              <button className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" disabled={isClearingPendingPlans} onClick={() => setClearPendingPlansDialog(null)} type="button">ยกเลิก</button>
+              <button className="h-10 rounded-md bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60" disabled={isClearingPendingPlans} onClick={confirmClearPendingPlans} type="button">{isClearingPendingPlans ? 'กำลังเคลียร์สถานะ...' : 'Confirm'}</button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <Dialog open={isPlanFormOpen} onOpenChange={setIsPlanFormOpen}>
           <DialogContent className="max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" fallbackTitle="เพิ่มแผนขาย" hideClose>
             <DialogHeader className="border-b border-slate-800 px-5 py-4">
@@ -1132,6 +1174,17 @@ export function SalesPlanPageClient() {
             <tbody className="divide-y divide-slate-100">
               {pagedPlanRows.map((row) => (
                 <tr className="hover:bg-slate-50/50 transition-colors" key={text(row.id)}>
+                  <td className="p-1.5 text-center">
+                    {getPlanStatus(row.status) === 'pending' ? (
+                      <input
+                        aria-label={`เลือกแผนขาย ${text(row.productName)}`}
+                        checked={selectedPendingPlanIds.includes(text(row.id))}
+                        className="size-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                        type="checkbox"
+                        onChange={(event) => togglePendingPlanSelection(text(row.id), event.target.checked)}
+                      />
+                    ) : <span className="text-xs font-semibold text-slate-300">-</span>}
+                  </td>
                   <td className="p-1.5"><select className="w-full rounded-xl border border-slate-200 px-2 py-1 text-xs bg-slate-50 outline-none" disabled value={text(row.productId)}><option>{text(row.productName) || '-เลือก-'}</option></select></td>
                   <td className="p-1.5"><select className="w-full rounded-xl border border-slate-200 px-2 py-1 text-xs bg-slate-50 outline-none" disabled value={text(row.channel)}><option>{text(row.channel) || 'ส่งออก'}</option></select></td>
                   <td className="p-1.5"><select className="w-full rounded-xl border border-slate-200 px-2 py-1 text-xs bg-slate-50 outline-none" disabled value={text(row.customerId)}><option>{text(row.customerName) || '-เลือก-'}</option></select></td>
@@ -1162,17 +1215,6 @@ export function SalesPlanPageClient() {
                         </>
                       )}
                     </div>
-                  </td>
-                  <td className="p-1.5 text-center">
-                    {getPlanStatus(row.status) === 'pending' ? (
-                      <input
-                        aria-label={`เลือกแผนขาย ${text(row.productName)}`}
-                        checked={selectedPendingPlanIds.includes(text(row.id))}
-                        className="size-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
-                        type="checkbox"
-                        onChange={(event) => togglePendingPlanSelection(text(row.id), event.target.checked)}
-                      />
-                    ) : <span className="text-xs font-semibold text-slate-300">-</span>}
                   </td>
                 </tr>
               ))}
@@ -1259,7 +1301,7 @@ export function SalesPlanPageClient() {
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-100">
               <tr>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">รหัส / สินค้า</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">สินค้า</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">หมวด</th>
                 <th className="px-4 py-3 text-right font-semibold text-slate-700">รอขาย (กก.)</th>
                 <th className="px-4 py-3 text-right font-semibold text-slate-700">ต้นทุน Pool<br /><span className="text-xs font-medium text-slate-400">(บาท/กก.)</span></th>
@@ -1342,42 +1384,64 @@ export function SalesPlanPageClient() {
         </div>
       </div>
 
-      <div className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-          <Tabs value={salesPlanInsightTab} onValueChange={(value) => setSalesPlanInsightTab(value as 'analysis' | 'remaining')}>
-            <TabsList aria-label="ตารางวิเคราะห์แผนขาย" className="flex-wrap overflow-x-auto" variant="line">
-              <TabsTrigger value="analysis" variant="line">วิเคราะห์แผนขาย vs สต๊อกว่างขาย</TabsTrigger>
-              <TabsTrigger value="remaining" variant="line">สต๊อกว่างขายคงเหลือ</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap xl:justify-end">
-            <select className="h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={insightFilterGroup} onChange={(event) => setInsightFilterGroup(event.target.value)}>
-              <option value="">ทุกหมวด (ตารางล่าง)</option>
+      <Tabs className="gap-3" value={salesPlanInsightTab} onValueChange={(value) => setSalesPlanInsightTab(value as 'analysis' | 'remaining')}>
+        <div className="overflow-x-auto">
+          <TabsList
+            aria-label="ตารางวิเคราะห์แผนขาย"
+            className="inline-flex w-full max-w-max flex-nowrap gap-2 bg-transparent p-0 shadow-none"
+          >
+            <TabsTrigger
+              className="min-w-fit rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-500 data-[state=active]:border-slate-900 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none"
+              value="analysis"
+            >
+              วิเคราะห์แผนขาย vs สต๊อกว่างขาย
+            </TabsTrigger>
+            <TabsTrigger
+              className="min-w-fit rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-500 data-[state=active]:border-slate-900 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none"
+              value="remaining"
+            >
+              สต๊อกว่างขายคงเหลือ
+            </TabsTrigger>
+          </TabsList>
+        </div>
+      </Tabs>
+
+      <div className="rounded-md bg-white p-3 shadow">
+        <div className="mb-2 text-xs font-medium text-slate-500">ตัวกรองข้อมูลของตารางที่เลือก</div>
+        <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-end">
+          <label className="flex min-w-[200px] flex-col gap-1 text-xs font-medium text-slate-500">
+            <span>หมวด</span>
+            <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={insightFilterGroup} onChange={(event) => setInsightFilterGroup(event.target.value)}>
+              <option value="">ทุกหมวด</option>
               {insightFilterGroupOptions.map((group) => <option key={group} value={group}>{group}</option>)}
             </select>
-            <div className="min-w-[240px] flex-1 sm:max-w-sm">
-              <SearchCombobox
-                hideLabel
-                inputClassName="h-10 text-sm font-medium text-slate-700"
-                inputId="sales-plan-insight-filter-product"
-                label="สินค้า"
-                openOnFocus={false}
-                options={filterProductOptions}
-                placeholder="ค้นหาสินค้าในตารางล่าง"
-                value={insightFilterProductCode}
-                onChange={setInsightFilterProductCode}
-              />
-            </div>
-            {insightFilterProductCode ? (
-              <button
-                className="h-10 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-                onClick={() => setInsightFilterProductCode('')}
-                type="button"
-              >
-                ล้างสินค้า
-              </button>
-            ) : null}
+          </label>
+          <div className="min-w-[260px] flex-1 lg:max-w-md">
+            <div className="mb-1 text-xs font-medium text-slate-500">สินค้า</div>
+            <SearchCombobox
+              hideLabel
+              inputClassName="h-9 text-sm font-medium text-slate-700"
+              inputId="sales-plan-insight-filter-product"
+              label="สินค้า"
+              openOnFocus={false}
+              options={filterProductOptions}
+              placeholder="ค้นหาสินค้าในตารางล่าง"
+              value={insightFilterProductCode}
+              onChange={setInsightFilterProductCode}
+            />
           </div>
+          {insightFilterGroup || insightFilterProductCode ? (
+            <button
+              className="h-9 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 lg:ml-auto"
+              onClick={() => {
+                setInsightFilterGroup('')
+                setInsightFilterProductCode('')
+              }}
+              type="button"
+            >
+              ล้างตัวกรอง
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -1535,8 +1599,10 @@ export function SalesPlanPageClient() {
             <tbody className="divide-y divide-slate-100">
               {pagedRemainingRows.map((row) => (
                 <tr className={`hover:bg-slate-50/50 transition-colors ${num(row.remainingKg) > 0 ? '' : 'opacity-60'}`} key={`${text(row.code)}-remain`}>
-                  <td className="p-2.5 font-mono text-xs text-slate-400 font-semibold min-w-0 overflow-hidden"><div className="truncate" title={text(row.code)}>{text(row.code)}</div></td>
-                  <td className="p-2.5 text-slate-800 font-medium min-w-0 overflow-hidden"><div className="truncate" title={text(row.name)}>{text(row.name)}</div></td>
+                  <td className="p-2.5 min-w-0 overflow-hidden">
+                    <div className="truncate text-slate-800 font-semibold" title={text(row.name)}>{text(row.name)}</div>
+                    <div className="truncate font-mono text-xs text-slate-400 font-semibold" title={text(row.code)}>{text(row.code)}</div>
+                  </td>
                   <td className="p-2.5 text-xs text-slate-500 font-medium min-w-0 overflow-hidden"><div className="truncate" title={text(row.metalGroup)}>{text(row.metalGroup)}</div></td>
                   <td className="p-2.5 text-right text-slate-700 font-medium whitespace-nowrap tabular-nums pl-4">{money(row.stock)}</td>
                   <td className="p-2.5 text-right font-semibold text-emerald-600 whitespace-nowrap tabular-nums pl-4">{money(row.lockedKg)}</td>
@@ -1549,7 +1615,7 @@ export function SalesPlanPageClient() {
               ))}
               {!sortedRemainingRows.length ? <tr><td className="py-8 text-center text-slate-400 font-semibold" colSpan={salesPlanRemainingColumns.length}>ไม่มีสต๊อกทองแดง/ทองเหลือง</td></tr> : null}
             </tbody>
-            {analysisRows.length ? <tfoot className="border-t border-slate-100 bg-slate-50/50 font-bold text-slate-700"><tr><td className="p-3 text-xs" colSpan={3}>รวม</td><td className="p-3 text-right text-slate-700 text-xs">{money(stockTotal)}</td><td className="p-3 text-right text-emerald-600 text-xs">{money(lockedTotal)}</td><td className="p-3 text-right text-emerald-600 text-xs">{money(0)}</td><td className="bg-yellow-50/20 p-3 text-right text-yellow-600 text-xs">{money(remainingKgTotal)}</td><td className="bg-yellow-50/20 p-3 text-right text-yellow-600 text-xs">{money(remainingContainers)}</td><td /><td className="p-3 text-right text-slate-700 text-xs">{money(remainingValueTotal)}</td></tr></tfoot> : null}
+            {analysisRows.length ? <tfoot className="border-t border-slate-100 bg-slate-50/50 font-bold text-slate-700"><tr><td className="p-3 text-xs" colSpan={2}>รวม</td><td className="p-3 text-right text-slate-700 text-xs">{money(stockTotal)}</td><td className="p-3 text-right text-emerald-600 text-xs">{money(lockedTotal)}</td><td className="p-3 text-right text-emerald-600 text-xs">{money(0)}</td><td className="bg-yellow-50/20 p-3 text-right text-yellow-600 text-xs">{money(remainingKgTotal)}</td><td className="bg-yellow-50/20 p-3 text-right text-yellow-600 text-xs">{money(remainingContainers)}</td><td /><td className="p-3 text-right text-slate-700 text-xs">{money(remainingValueTotal)}</td></tr></tfoot> : null}
           </table>
         </div>
 

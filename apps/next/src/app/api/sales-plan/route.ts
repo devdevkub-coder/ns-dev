@@ -29,6 +29,12 @@ const salesPlanLmeRequestSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('clear-pending-plans'),
     planIds: z.array(z.string().trim().regex(/^\d+$/, 'แผนขายไม่ถูกต้อง')).optional(),
+    filters: z.object({
+      month: z.string().trim().regex(/^\d{4}-\d{2}$/, 'เดือนต้องเป็นรูปแบบ YYYY-MM'),
+      metalGroup: z.string().trim().max(80).optional(),
+      channel: z.string().trim().max(80).optional(),
+      productCode: z.string().trim().max(80).optional(),
+    }).optional(),
   }),
   z.object({
     action: z.literal('save-config'),
@@ -90,7 +96,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ planRow })
     }
     if (payload.action === 'clear-pending-plans') {
-      const result = await clearPendingSalesPlans(context, payload.planIds)
+      const result = await clearPendingSalesPlans(context, payload.planIds, payload.filters)
       return NextResponse.json(result)
     }
 
