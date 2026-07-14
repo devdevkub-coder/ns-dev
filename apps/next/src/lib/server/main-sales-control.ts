@@ -188,7 +188,7 @@ function poSellItems(row: { items: unknown; product_id: bigint | null; qty: unkn
 async function buildSalesPlanningSnapshot() {
   const config = await getSalesPlanLmeConfig()
   const { byKey, refs } = await productsContext()
-  const salesPlanRefs = refs.filter((product) => isCopperOrBrassGroup(product.metalGroup))
+  const salesPlanRefs = refs.filter((product) => isCostPoolEligibleMetalGroup(product.metalGroup))
   const [poSells, poBuys, stockRows, customers, salesChannels, tradingDeals, purchaseBills] = await Promise.all([
     prisma.po_sells.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
     prisma.po_buys.findMany({ orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
@@ -499,7 +499,6 @@ export async function buildSalesPlan() {
       metalGroups: pending.metalGroups,
       month,
     },
-    customers: pending.customers,
     lmeConfig: config,
     planProductOptions: pending.planProductOptions,
     pendingSaleTable: pending.pendingSaleTable.map((row) => ({
@@ -521,7 +520,6 @@ export async function buildSalesPlan() {
       stockWAC: row.stockWAC,
     })),
     pendingSaleTotals: pending.pendingSaleTotals,
-    planProductOptions: pending.planProductOptions,
     planRows,
     productAnalysis: remainRows,
     sourceState: {

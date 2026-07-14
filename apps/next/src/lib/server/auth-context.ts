@@ -57,10 +57,6 @@ const appUserAuthSelect = {
       },
     },
   },
-  display_name: true,
-  email: true,
-  id: true,
-  must_change_password: true,
   app_user_roles: {
     select: {
       app_roles: {
