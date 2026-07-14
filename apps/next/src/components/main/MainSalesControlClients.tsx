@@ -1131,6 +1131,17 @@ export function SalesPlanPageClient() {
             <tbody className="divide-y divide-slate-100">
               {pagedPlanRows.map((row) => (
                 <tr className="hover:bg-slate-50/50 transition-colors" key={text(row.id)}>
+                  <td className="p-1.5 text-center">
+                    {getPlanStatus(row.status) === 'pending' ? (
+                      <input
+                        aria-label={`เลือกแผนขาย ${text(row.productName)}`}
+                        checked={selectedPendingPlanIds.includes(text(row.id))}
+                        className="size-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                        type="checkbox"
+                        onChange={(event) => togglePendingPlanSelection(text(row.id), event.target.checked)}
+                      />
+                    ) : <span className="text-xs font-semibold text-slate-300">-</span>}
+                  </td>
                   <td className="p-1.5"><select className="w-full rounded-xl border border-slate-200 px-2 py-1 text-xs bg-slate-50 outline-none" disabled value={text(row.productId)}><option>{text(row.productName) || '-เลือก-'}</option></select></td>
                   <td className="p-1.5"><select className="w-full rounded-xl border border-slate-200 px-2 py-1 text-xs bg-slate-50 outline-none" disabled value={text(row.channel)}><option>{text(row.channel) || 'ส่งออก'}</option></select></td>
                   <td className="p-1.5"><select className="w-full rounded-xl border border-slate-200 px-2 py-1 text-xs bg-slate-50 outline-none" disabled value={text(row.customerId)}><option>{text(row.customerName) || '-เลือก-'}</option></select></td>
@@ -1160,21 +1171,7 @@ export function SalesPlanPageClient() {
                           <button className="inline-flex h-8 items-center justify-center rounded-md bg-amber-500 px-3 text-xs font-semibold text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={isSavingPlan} onClick={() => handlePlanStatusChange(text(row.id), 'locked')} type="button">Lock %</button>
                         </>
                       )}
-                          <button className="inline-flex h-8 items-center justify-center rounded-md bg-amber-500 px-3 text-xs font-semibold text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={isSavingPlan} onClick={() => handlePlanStatusChange(text(row.id), 'locked')} type="button">Lock %</button>
-                        </>
-                      )}
                     </div>
-                  </td>
-                  <td className="p-1.5 text-center">
-                    {getPlanStatus(row.status) === 'pending' ? (
-                      <input
-                        aria-label={`เลือกแผนขาย ${text(row.productName)}`}
-                        checked={selectedPendingPlanIds.includes(text(row.id))}
-                        className="size-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
-                        type="checkbox"
-                        onChange={(event) => togglePendingPlanSelection(text(row.id), event.target.checked)}
-                      />
-                    ) : <span className="text-xs font-semibold text-slate-300">-</span>}
                   </td>
                 </tr>
               ))}
