@@ -520,7 +520,6 @@ export async function buildSalesPlan() {
       metalGroups: pending.metalGroups,
       month,
     },
-    customers: pending.customers,
     lmeConfig: config,
     planProductOptions: pending.planProductOptions,
     pendingSaleTable: pending.pendingSaleTable.map((row) => ({
