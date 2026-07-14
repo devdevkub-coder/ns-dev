@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Plus, Printer } from 'lucide-react'
 import { openPoSellPrint, openPoSellPrintWindow, type PoSellPrintDocument } from '@/lib/po-sell-print'
 import { Button as UiButton } from '@/components/ui/Button'
@@ -164,6 +164,8 @@ const poSellColumns: ResizableColumnDefinition<string>[] = [
 
 export function PoSellPageClient() {
   const latestLoadRequestRef = useRef(0)
+  const pathname = usePathname()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const salesPlanIdFromQuery = searchParams.get('salesPlanId')
   const [cancelNote, setCancelNote] = useState('')
@@ -523,6 +525,10 @@ export function PoSellPageClient() {
       })
       setEditingDocNo(null)
       setShowForm(false)
+      setForm(initialPoSellForm())
+      if (!editingDocNo && parsed.data.salesPlanId && salesPlanIdFromQuery) {
+        router.replace(pathname, { scroll: false })
+      }
       setSearch(saved.docNo)
       await loadData()
     } catch (caught) {
