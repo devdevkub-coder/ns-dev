@@ -718,11 +718,11 @@ function CashProjectionChart({ rows }: { rows: AnalysisPayload['charts']['projec
       <div className="mt-1 divide-y divide-slate-100 border-t border-slate-100 sm:grid sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         {rows.map((row) => (
           <div className="py-3 sm:px-4 sm:first:pl-0 sm:last:pr-0" key={row.label}>
-            <div className="text-xs font-semibold text-slate-500">{row.label}</div>
-            <div className={`mt-1 font-mono text-base font-bold tabular-nums ${row.projected >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{money(row.projected)}</div>
-            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
-              {row.expectedIn > 0 ? <span className="font-medium text-emerald-700">คาดว่าจะรับ +{money(row.expectedIn)}</span> : <span className="text-slate-400">ไม่มีเงินรับเพิ่ม</span>}
-              {row.expectedOut > 0 ? <span className="font-medium text-rose-700">คาดว่าจะจ่าย -{money(row.expectedOut)}</span> : <span className="text-slate-400">ไม่มีเงินจ่ายเพิ่ม</span>}
+            <div className="text-xs font-semibold text-slate-500 sm:text-sm">{row.label}</div>
+            <div className={`mt-1 font-mono text-xl font-bold tabular-nums sm:text-2xl ${row.projected >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{money(row.projected)}</div>
+            <div className="mt-2 flex flex-col gap-1 text-[11px] sm:text-xs">
+              {row.expectedIn > 0 ? <span className="font-semibold text-emerald-700">คาดว่าจะรับ +{money(row.expectedIn)}</span> : <span className="text-slate-400">ไม่มีเงินรับเพิ่ม</span>}
+              {row.expectedOut > 0 ? <span className="font-semibold text-rose-700">คาดว่าจะจ่าย -{money(row.expectedOut)}</span> : <span className="text-slate-400">ไม่มีเงินจ่ายเพิ่ม</span>}
             </div>
           </div>
         ))}
