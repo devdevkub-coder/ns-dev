@@ -453,9 +453,7 @@ async function buildSalesPlanningSnapshot() {
     metalGroups: Array.from(new Set(salesPlanRefs.map((product) => product.metalGroup).filter(Boolean))).sort(),
     pendingSaleTable,
     pendingSaleTotals,
-    planProductOptions: refs
-      .filter((product) => isCostPoolEligibleMetalGroup(product.metalGroup))
-      .map((product) => ({
+    planProductOptions: salesPlanRefs.map((product) => ({
       code: product.code,
       id: product.code,
       metalGroup: product.metalGroup,
