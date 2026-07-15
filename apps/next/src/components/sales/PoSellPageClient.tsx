@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Plus, Printer } from 'lucide-react'
 import { openPoSellPrint, openPoSellPrintWindow, type PoSellPrintDocument } from '@/lib/po-sell-print'
 import { Button as UiButton } from '@/components/ui/Button'
@@ -168,7 +168,10 @@ const poSellColumns: ResizableColumnDefinition<string>[] = [
 ]
 
 export function PoSellPageClient() {
+  const handledSalesPlanQueryRef = useRef<string | null>(null)
   const latestLoadRequestRef = useRef(0)
+  const pathname = usePathname()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const salesPlanIdFromQuery = searchParams.get('salesPlanId')
   const [cancelNote, setCancelNote] = useState('')
@@ -427,6 +430,11 @@ export function PoSellPageClient() {
   }, [defaultSalesChannelForCustomer])
 
   useEffect(() => {
+    if (!salesPlanIdFromQuery) {
+      handledSalesPlanQueryRef.current = null
+      return
+    }
+    if (handledSalesPlanQueryRef.current === salesPlanIdFromQuery) return
     if (!salesPlanIdFromQuery || !data) return
     let cancelled = false
     const today = new Date().toISOString().slice(0, 10)
@@ -434,6 +442,7 @@ export function PoSellPageClient() {
     dailyFetchJson<{ planRow: Record<string, string | number | null> }>(`/api/sales-plan?planId=${encodeURIComponent(salesPlanIdFromQuery)}`)
       .then(({ planRow }) => {
         if (cancelled) return
+        handledSalesPlanQueryRef.current = salesPlanIdFromQuery
         setEditingDocNo(null)
         setForm({
           branchId: salesPlanDefaultBranchId,
@@ -542,6 +551,11 @@ export function PoSellPageClient() {
       })
       setEditingDocNo(null)
       setShowForm(false)
+      setForm(initialPoSellForm())
+      if (!editingDocNo && parsed.data.salesPlanId && salesPlanIdFromQuery) {
+        handledSalesPlanQueryRef.current = salesPlanIdFromQuery
+        router.replace(pathname, { scroll: false })
+      }
       setSearch(saved.docNo)
       await loadData()
     } catch (caught) {
@@ -983,6 +997,10 @@ export function PoSellPageClient() {
           totalCost={formTotalCost}
           onAddItem={() => setForm((current) => ({ ...current, items: [...current.items, blankPoSellItem()] }))}
           onClose={() => {
+            if (!editingDocNo && salesPlanIdFromQuery) {
+              handledSalesPlanQueryRef.current = salesPlanIdFromQuery
+              router.replace(pathname, { scroll: false })
+            }
             setEditingDocNo(null)
             setShowForm(false)
           }}
