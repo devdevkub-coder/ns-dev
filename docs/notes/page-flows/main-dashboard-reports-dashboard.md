@@ -5,7 +5,7 @@ tags:
   - menu
 status: accepted-baseline
 updated: 2026-07-07
-route: /dashboard
+route: /dashboard-overview
 ---
 
 # Dashboard Overview Page Flow
@@ -15,7 +15,7 @@ route: /dashboard
 | Field | Value |
 |---|---|
 | Menu section | Main Dashboard / Reports |
-| Route | `/dashboard` |
+| Route | `/dashboard-overview` |
 | Page | Dashboard Overview |
 | Current Next | accepted code baseline |
 

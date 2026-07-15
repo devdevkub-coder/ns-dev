@@ -9,6 +9,7 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { paymentMethodGroupFromValue, type PaymentMethodGroup } from '@/lib/account-payment-method'
 import { dailyFetchJson, expenseFormSchema, formatMoney, todayDateInput, type DailyAccountOption, type ExpenseFormValues, type ExpenseLineFormValues } from '@/lib/daily'
@@ -1569,9 +1570,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
             <div>พบทั้งหมด {filteredSummary.count} รายการ</div>
             <div className="flex flex-wrap items-center gap-2">
               {columnResize.hasCustomWidths ? <Button className="h-9" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
-              <select className="h-9 w-auto rounded-md border border-slate-300 px-2 py-1" value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}>
-                {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-              </select>
+              <PageSizeDropdown value={pageSize} onChange={setPageSize} />
               <Button className="h-9" disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
               <span className="px-1">หน้า {currentPage} / {totalPages}</span>
               <Button className="h-9" disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
@@ -2536,4 +2535,3 @@ function ExpenseMetric({
 
   return <SharedKpiCard icon={icon} label={label} note={subLabel} tone={tone} value={unit ? `${value} ${unit}` : value} />
 }
-

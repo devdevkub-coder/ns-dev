@@ -6,6 +6,7 @@ import { formatDateDisplay, sanitizeDecimalInput } from '@/lib/format'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { KpiCard } from '@/components/ui/KpiCard'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -380,15 +381,7 @@ function TablePaginationToolbar({
           {onResetWidths ? (
             <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={onResetWidths}>คืนค่าเดิมตาราง</button>
           ) : null}
-          <select
-            className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
-            value={pageSize}
-            onChange={(event) => onPageSizeChange(Number(event.target.value))}
-          >
-            {SALES_PLAN_PAGE_SIZE_OPTIONS.map((option) => (
-              <option key={option} value={option}>{option} / หน้า</option>
-            ))}
-          </select>
+          <PageSizeDropdown options={SALES_PLAN_PAGE_SIZE_OPTIONS} value={pageSize} onChange={onPageSizeChange} />
           <button
             className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-600 outline-none hover:bg-slate-50 disabled:opacity-40"
             disabled={page <= 1}

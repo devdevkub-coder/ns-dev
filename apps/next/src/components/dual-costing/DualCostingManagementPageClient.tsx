@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input } from '@/components/ui/Input'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Select } from '@/components/ui/Select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
@@ -825,20 +826,10 @@ function AllocationLedgerView() {
         <div>พบทั้งหมด {sortedRows.length.toLocaleString('th-TH')} รายการ</div>
         <div className="flex flex-wrap items-center gap-2">
           {ledgerResize.hasCustomWidths ? <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={ledgerResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
-          <Select
-            aria-label="จำนวนรายการต่อหน้า"
-            className="h-9 w-auto px-2 py-1"
-            disabled={isLoading}
-            value={pageSize}
-            onChange={(event) => {
-              setPageSize(Number(event.target.value) as (typeof pageSizeOptions)[number])
-              setPage(1)
-            }}
-          >
-            {pageSizeOptions.map((option) => (
-              <option key={option} value={option}>{option} / หน้า</option>
-            ))}
-          </Select>
+          <PageSizeDropdown disabled={isLoading} options={pageSizeOptions} value={pageSize} onChange={(size) => {
+            setPageSize(size as (typeof pageSizeOptions)[number])
+            setPage(1)
+          }} />
           <Button disabled={safePage <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
           <span className="px-1">หน้า {safePage} / {totalPages}</span>
           <Button disabled={safePage >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>

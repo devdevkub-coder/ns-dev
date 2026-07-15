@@ -57,6 +57,22 @@
 - form controls (`button`, `input`, `select`, `textarea`) ต้องใช้ baseline เดียวกับ body
 - print/preview templates ของ active app ต้องใช้ `Noto Sans Thai` เช่นกัน เว้นแต่มีเอกสาร legacy override ที่อนุมัติไว้ชัดเจน
 
+## Dark Mode
+
+- ใช้ `next-themes` ผ่าน `ThemeProvider` ที่ root layout เป็น source เดียวของธีม; ห้ามให้แต่ละ page หรือ component เขียน/อ่าน `localStorage` เพื่อสลับ class เอง
+- ปุ่มสลับธีมของ AppShell ใช้ `ThemeModeToggle` แบบ switch (`h-6 w-11`): thumb มี Sun เมื่อสว่างและเลื่อนไปเป็น Moon เมื่อมืด; กดครั้งเดียวเพื่อสลับระหว่าง `สว่าง` กับ `มืด` และค่าเริ่มต้นก่อนผู้ใช้เลือกยังตามระบบ
+- provider ต้องใช้ `attribute="class"`, `enableSystem`, `defaultTheme="system"`, และ `disableTransitionOnChange`; `<html>` ต้องมี `suppressHydrationWarning` เพื่อให้ SSR กับ client state ตรงกัน
+- dark surface ใช้ความต่างของพื้นหลังเป็นลำดับแรก: page, surface, และ surface-soft ต้องต่างกันพอให้แยกพื้นที่ได้ โดยไม่เพิ่มกรอบทึบทุกจุด
+- dark border ใช้ slate โปร่งสองระดับ: ปกติสำหรับ row/table separator และ strong สำหรับ input, panel boundary, หรือจุดที่ต้องแบ่งกลุ่มจริง ๆ; ห้ามใช้ border สีทึบล้อมทุก card และทุก cell
+- สี semantic ใช้เฉพาะสถานะหรือความหมายทางธุรกิจ เช่น กำไรบวก/ลบ, error, warning; metric ปกติใช้ neutral text ไม่กำหนดสีคนละสีทุกใบ
+
+## Searchable Dropdown
+
+- Dropdown ที่เลือกข้อมูลจาก master/list และมีโอกาสค้นหาชื่อหรือรหัส ต้องใช้ `SearchCombobox` กลาง ไม่สร้าง panel หรือ listbox รายหน้า
+- Field และ panel ต้องเป็นชุดเดียวกัน: field สูงตาม form control (`h-9` ใน filter), panel เปิดชิดใต้ field, มุม `rounded-md`, และแถวรายการ compact (`px-3 py-2`).
+- รายการที่เลือกหรืออยู่ใน keyboard focus ใช้ background เดียวกัน; dark mode ใช้ `--ns-dropdown-selected` บน `--ns-dropdown-surface` เพื่อให้ selected state ชัดโดยไม่ใช้สีสด.
+- Native HTML `select` ควบคุม panel ของ browser ไม่ได้ จึงใช้ได้เฉพาะตัวเลือกสั้นและไม่ต้องค้นหา; filter/master-data dropdown ใหม่ต้องใช้ shared searchable dropdown.
+
 ## Print Document Baseline
 
 - เอกสารพิมพ์ที่เป็นเอกสารบริษัท เช่น ใบรับของ, ใบส่งของ, บิลรับซื้อ, ใบเสร็จ, ใบสำคัญรับ/จ่าย ต้องใช้ `ข้อมูลบริษัท (สำหรับใบพิมพ์)` จากเมนูระบบเป็น source ของหัวกระดาษ
@@ -95,6 +111,7 @@ Visual-first reporting rule: when evaluating or reporting on a specific UI page,
   - min width: `min-w-[260px]`
   - height target: `h-9`
   - desktop/tablet placement: top row left, flexible width (`min-w-[260px] flex-1`), sharing the row with date/select/clear controls
+  - active-field baseline applies to every editable field: input, select, textarea, date field, search field, and combobox. Keep each theme's existing field background and idle border. Use the TweakCN neutral treatment only while active: focus border/ring `#737373` with a `3px` translucent ring in both themes. Do not use blue or green for focus.
 - date range controls:
   - height target: `h-9`
   - ใช้คู่ `from -> to` ในแถวเดียวกัน
@@ -110,9 +127,9 @@ Visual-first reporting rule: when evaluating or reporting on a specific UI page,
 - segmented button baseline:
   - `rounded-md border px-3 py-1 text-xs font-medium`
 - active:
-  - `border-slate-700 bg-slate-700 text-white`
+  - `border-slate-500 bg-slate-600 text-white`
 - inactive:
-  - `border-slate-300 bg-white hover:bg-slate-50`
+  - `border-slate-300 bg-transparent text-slate-600 hover:bg-slate-200`
 - segmented filter row gap: `gap-2`
 - list/report page ที่มีทั้งเวลาและสถานะ ให้แสดง quick range + segmented status ใน filter card เดียวกัน เช่น `ช่วงเวลา: ทั้งหมด / วันนี้ / 7 วัน / เดือนนี้` และ `สถานะผลิต: ทุกสถานะ / ยังไม่เริ่ม / กำลังผลิต / เสร็จบางส่วน / เสร็จสิ้น / ยกเลิก`
 - ถ้าผู้ใช้เลือกวันที่เอง ให้ถือเป็น custom range และไม่ highlight quick range ที่ไม่ตรงกับวันที่จริง
@@ -144,6 +161,9 @@ Visual-first reporting rule: when evaluating or reporting on a specific UI page,
 - table width/text baseline: `min-w-full text-sm`
 - table text size baseline: `text-sm`
 - table header background: `bg-slate-100`
+- dark-mode table surface: body/table shell uses the same `#111a28` base as the workspace; header uses the lighter table-surface token `#1b2635` so column labels remain scannable without a strong border treatment.
+- dark-mode dropdown menu: use `--ns-dropdown-surface` with readable light text for every option; checked/highlighted rows use `--ns-dropdown-selected`. Do not rely on inherited text color inside portal menus.
+- page-size dropdown must use the shared `PageSizeDropdown` component everywhere. It is a single-value menu: do not show a checkbox/checkmark or selected-row state inside the menu; the trigger shows the current size. In dark mode all option labels use the same readable light foreground as branch/search dropdowns, with a selected surface only on hover/focus.
 - header cell padding baseline: `p-2` (8px on every side); shared `ResizableTableHead` keeps the same density with inner `p-2 pr-4` so the resize handle has room without making the header taller
 - table headers must stay on one line. Use enough column width and horizontal table overflow instead of wrapping header labels to a second line.
 - body cell padding baseline: `p-3` / `px-3 py-3` (12px on every side). This is the approved balanced density from `/production/orders` and is required for every active runtime table; do not compress ordinary rows to `p-2` / `py-2` or expand them to `py-3.5` / `py-4` without an approved override.
@@ -333,6 +353,7 @@ Reference pages:
 - Sidebar rows stay plain on the dark shell. Active state may use white text, but should not become a large rounded card-style highlight.
 - Section and child-menu expand controls use the compact text triangle glyphs (`▾` / `▸`) used by the legacy sidebar.
 - The desktop compact rail hides labels only at `lg`, while the mobile full-screen menu keeps labels visible.
+- AppShell topbar uses the same fixed dark shell as the sidebar: `#0f172a` background, `#334155` divider, and high-contrast text/control colors in both light and dark application themes. The breadcrumb and main working surface remain theme-aware.
 
 ## Filter Pattern
 
@@ -365,8 +386,8 @@ rules:
 - วาง label `สถานะ:` นำหน้าชุด segmented filter
 - ถ้าเป็นสถานะของเอกสาร ให้ใช้ label `สถานะเอกสาร:` เพื่อแยกจากสถานะย่อยประเภทอื่น เช่น สถานะจับคู่หรือสถานะชำระเงิน
 - ใช้ปุ่ม segmented style เดียวกันทุกหน้า:
-  - active: `border-slate-700 bg-slate-700 text-white`
-  - inactive: `border-slate-300 bg-white hover:bg-slate-50`
+  - active: `border-slate-500 bg-slate-600 text-white`
+  - inactive: `border-slate-300 bg-transparent text-slate-600 hover:bg-slate-200`
   - shape/spacing baseline: `rounded-md border px-3 py-1 text-xs font-medium`
 - ถ้ามีตัวเลือก `ทั้งหมด` หรือ `ทุกสถานะ` ให้เป็น segment แรกเสมอ
 - ชุดสถานะต้องมาจาก flow จริงของหน้านั้น ไม่คัดลอกชุดเดียวกันทุกหน้า เช่น Receipt Voucher ที่มีเฉพาะ `ใช้งาน` และ `ยกเลิก` ให้ใช้ `ทุกสถานะ / ใช้งาน / ยกเลิก` ไม่ต้องเพิ่ม `แบบร่าง`, `รับของแล้ว`, หรือ `เสร็จสิ้น` หาก runtime ไม่มีสถานะเหล่านั้น
@@ -431,7 +452,8 @@ The `/production/orders` screenshot remains supporting evidence for the same `p-
 - Tab-specific filters should only include fields users can see or understand from that tab. If a status is already summarized in a chart and the table does not display a status column, do not add a status filter to that table.
 - Every table tab should have at least the useful minimal filter set for that table, normally search plus the strongest grouping dimension such as category/product group. Do not leave one tab filterless while another tab has filters unless the tab is purely a fixed small summary.
 - sorting: กดที่ header โดยตรง
-- sort header baseline: ใช้ปุ่มเต็มพื้นที่หัวคอลัมน์แบบ `/purchase/advance-payments` (`p-2 text-xs font-semibold text-slate-700`, hover `bg-slate-200`, ลูกศรสี `text-slate-400`) ไม่ใช้กรอบมนหรือ active สีเข้มที่ดึงสายตาเกินไป
+- sort header baseline: ใช้ปุ่มเต็มพื้นที่หัวคอลัมน์แบบ `/purchase/advance-payments` (`p-2 text-xs font-semibold text-slate-700`, hover `bg-slate-200`) ไม่ใช้กรอบมนหรือ active สีเข้มที่ดึงสายตาเกินไป
+- sortable header ใช้ caret สามเหลี่ยมทึบขึ้น/ลงซ้อนกันแบบ Ant Design เสมอ: highlight สีน้ำเงินเฉพาะ caret ของทิศทางที่กำลัง sort, อีกทิศเป็นสีเทา และชื่อหัวคอลัมน์คงสีปกติ. ห้ามแทนด้วยไอคอนทิศเดียวหรือทำทุกหัวคอลัมน์มีสี เพราะผู้ใช้ต้องเห็นได้ทันทีว่าตารางกำลังเรียงด้วยคอลัมน์ใด
 - empty state: ใช้ข้อความสั้นตรงไปตรงมา เช่น `ยังไม่มีรายการ`
 - loading state: ใช้ข้อความ `กำลังโหลดข้อมูล`
 - action column อยู่ขวาสุดเสมอ

@@ -6,6 +6,7 @@ import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/Searc
 import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Download } from 'lucide-react'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -275,14 +276,7 @@ export function PoOutstandingPageClient() {
             พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <select
-              aria-label="จำนวนรายการต่อหน้า"
-              className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
-              value={pageSize}
-              onChange={(event) => setPageSize(Number(event.target.value))}
-            >
-              {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-            </select>
+            <PageSizeDropdown value={pageSize} onChange={setPageSize} />
             <button
               className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
               disabled={currentPage <= 1}

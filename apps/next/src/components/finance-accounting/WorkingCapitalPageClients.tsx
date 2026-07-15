@@ -5,6 +5,7 @@ import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
 import { RotateCcw } from 'lucide-react'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -860,14 +861,7 @@ function StockTablePagination({
             <RotateCcw className="h-3 w-3" /> คืนค่าเดิมตาราง
           </button>
         ) : null}
-        <select
-          aria-label="จำนวนรายการต่อหน้า"
-          className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 outline-none transition focus:border-slate-500"
-          value={pageSize}
-          onChange={(event) => onPageSizeChange(Number(event.target.value) as StockTablePageSize)}
-        >
-          {stockTablePageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-        </select>
+        <PageSizeDropdown options={stockTablePageSizeOptions} value={pageSize} onChange={(size) => onPageSizeChange(size as StockTablePageSize)} />
         <button
           className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 outline-none transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
           disabled={currentPage <= 1}

@@ -8,6 +8,7 @@ import { useResizableColumns, type ResizableColumnDefinition } from '@/component
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { formatDateDisplay } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Coins, FileText, Package2, Scale, TrendingUp, TriangleAlert } from 'lucide-react'
 
@@ -1337,14 +1338,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                 คืนค่าเดิมตาราง
               </Button>
             ) : null}
-            <select
-              aria-label="จำนวนรายการต่อหน้า"
-              className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800"
-              value={pageSize}
-              onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}
-            >
-              {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-            </select>
+            <PageSizeDropdown value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
             <Button
               disabled={currentPage <= 1}
               size="sm"

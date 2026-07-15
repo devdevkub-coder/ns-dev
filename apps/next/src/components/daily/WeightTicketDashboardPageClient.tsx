@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -635,16 +636,10 @@ function FlowTablePanel({
           {columnResize.hasCustomWidths ? (
             <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button>
           ) : null}
-          <select
-            className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800"
-            value={pageSize}
-            onChange={(event) => {
-              setPageSize(Number(event.target.value))
-              setPage(1)
-            }}
-          >
-            {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-          </select>
+          <PageSizeDropdown options={pageSizeOptions} value={pageSize} onChange={(size) => {
+            setPageSize(size)
+            setPage(1)
+          }} />
           <Button disabled={page <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
           <span className="px-1 text-sm font-medium text-slate-600">หน้า {page} / {totalPages}</span>
           <Button disabled={page >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>

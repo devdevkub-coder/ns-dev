@@ -7,6 +7,7 @@ import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -581,20 +582,10 @@ export function ProductsPageClient() {
                 คืนค่าเดิมตาราง
               </Button>
             ) : null}
-            <select
-              aria-label="จำนวนรายการต่อหน้า"
-              className="h-9 rounded-md border border-slate-300 px-2 py-1 text-sm bg-white"
-              value={pageSize}
-              onChange={(event) => {
-                setPage(1)
-                setPageSize(Number(event.target.value))
-              }}
-            >
-              <option value={10}>10 / หน้า</option>
-              <option value={25}>25 / หน้า</option>
-              <option value={50}>50 / หน้า</option>
-              <option value={100}>100 / หน้า</option>
-            </select>
+            <PageSizeDropdown value={pageSize} onChange={(size) => {
+              setPage(1)
+              setPageSize(size)
+            }} />
             <Button
               disabled={page <= 1 || isLoading}
               size="sm"

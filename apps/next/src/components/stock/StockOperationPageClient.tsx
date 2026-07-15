@@ -7,6 +7,7 @@ import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import type { SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
@@ -963,20 +964,10 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                 คืนค่าเดิมตาราง
               </button>
             ) : null}
-            <select
-              className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700"
-              value={String(statusConvertPageSize)}
-              onChange={(event) => {
-                setStatusConvertPageSize(Number(event.target.value))
-                setStatusConvertPage(1)
-              }}
-            >
-              {OPERATION_PAGE_SIZES.map((pageSize) => (
-                <option key={pageSize} value={pageSize}>
-                  {pageSize} / หน้า
-                </option>
-              ))}
-            </select>
+            <PageSizeDropdown options={OPERATION_PAGE_SIZES} value={statusConvertPageSize} onChange={(size) => {
+              setStatusConvertPageSize(size)
+              setStatusConvertPage(1)
+            }} />
             <button
               className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={statusConvertPage <= 1}
@@ -1013,20 +1004,10 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                 คืนค่าเดิมตาราง
               </button>
             ) : null}
-            <select
-              className="h-9 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-normal text-slate-700"
-              value={String(adjustPageSize)}
-              onChange={(event) => {
-                setAdjustPageSize(Number(event.target.value))
-                setAdjustPage(1)
-              }}
-            >
-              {OPERATION_PAGE_SIZES.map((pageSize) => (
-                <option key={pageSize} value={pageSize}>
-                  {pageSize} / หน้า
-                </option>
-              ))}
-            </select>
+            <PageSizeDropdown options={OPERATION_PAGE_SIZES} value={adjustPageSize} onChange={(size) => {
+              setAdjustPageSize(size)
+              setAdjustPage(1)
+            }} />
             <button
               className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={adjustPage <= 1}
@@ -1063,20 +1044,10 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                 คืนค่าเดิมตาราง
               </button>
             ) : null}
-            <select
-              className="h-9 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-normal text-slate-700"
-              value={String(convertPageSize)}
-              onChange={(event) => {
-                setConvertPageSize(Number(event.target.value))
-                setConvertPage(1)
-              }}
-            >
-              {OPERATION_PAGE_SIZES.map((pageSize) => (
-                <option key={pageSize} value={pageSize}>
-                  {pageSize} / หน้า
-                </option>
-              ))}
-            </select>
+            <PageSizeDropdown options={OPERATION_PAGE_SIZES} value={convertPageSize} onChange={(size) => {
+              setConvertPageSize(size)
+              setConvertPage(1)
+            }} />
             <button
               className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={convertPage <= 1}

@@ -22,7 +22,7 @@ const dailyCandidates = [
 ]
 
 const dashboardCandidates = [
-  '/dashboard',
+  '/dashboard-overview',
   '/production/dashboard',
   '/finance-accounting/financial-dashboard',
   '/daily/expense-dashboard',

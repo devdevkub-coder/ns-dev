@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Select } from '@/components/ui/Select'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
@@ -502,14 +503,7 @@ export function CostAllocatorPageClient() {
                     คืนค่าเดิมตาราง
                   </Button>
                 ) : null}
-                <select
-                  aria-label="จำนวนรายการต่อหน้า"
-                  className="h-9 w-auto rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                  value={pageSize}
-                  onChange={(event) => setPageSize(Number(event.target.value))}
-                >
-                  {[5, 10, 25, 50].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-                </select>
+                <PageSizeDropdown options={[5, 10, 25, 50]} value={pageSize} onChange={setPageSize} />
                 <button
                   className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
                   disabled={currentPage <= 1}

@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input as UiInput } from '@/components/ui/Input'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Select as UiSelect } from '@/components/ui/Select'
 import { TableNumberCell } from '@/components/ui/TableNumberCell'
@@ -863,17 +864,7 @@ export function PoBuyPageClient() {
               คืนค่าเดิมตาราง
             </UiButton>
           ) : null}
-          <UiSelect
-            aria-label="จำนวนรายการต่อหน้า"
-            className="h-9 w-auto min-w-[96px] px-2"
-            value={pageSize}
-            onChange={(event) => setPageSize(Number(event.target.value))}
-          >
-            <option value={10}>10 / หน้า</option>
-            <option value={25}>25 / หน้า</option>
-            <option value={50}>50 / หน้า</option>
-            <option value={100}>100 / หน้า</option>
-          </UiSelect>
+          <PageSizeDropdown value={pageSize} onChange={setPageSize} />
           <UiButton className="font-normal" disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
           <span className="px-1">หน้า {currentPage} / {totalPages}</span>
           <UiButton className="font-normal" disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</UiButton>

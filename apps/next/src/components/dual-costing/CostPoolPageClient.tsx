@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/Input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Select } from '@/components/ui/Select'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import type { SearchComboboxOption } from '@/components/ui/SearchCombobox'
@@ -483,18 +484,15 @@ export function CostPoolPageClient() {
           {groupColumnResize.hasCustomWidths ? (
             <Button className="hidden h-9 lg:inline-flex" size="sm" type="button" variant="outline" onClick={groupColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button>
           ) : null}
-          <Select
-            aria-label="จำนวนสินค้าต่อหน้า"
-            className="h-9 w-auto px-2 py-1"
+          <PageSizeDropdown
             disabled={isLoading}
+            options={pageSizeOptions}
             value={pageSize}
-            onChange={(event) => {
-              setPageSize(Number(event.target.value) as (typeof pageSizeOptions)[number])
+            onChange={(size) => {
+              setPageSize(size as (typeof pageSizeOptions)[number])
               setPage(1)
             }}
-          >
-            {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-          </Select>
+          />
           <Button className="h-9" disabled={currentPage <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
           <span className="px-1">หน้า {currentPage} / {totalPages}</span>
           <Button className="h-9" disabled={currentPage >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>

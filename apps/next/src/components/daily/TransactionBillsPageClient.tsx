@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/Input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
+import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { TableNumberCell } from '@/components/ui/TableNumberCell'
 import { CollapsedList } from '@/components/ui/CollapsedList'
@@ -5132,7 +5133,7 @@ function Detail({ label, value }: { label: string; value: string }) {
 
 function Segment({ current, label, onClick, value }: { current: string; label: string; onClick: (value: string) => void; value: string }) {
   const active = current === value
-  return <button className={`inline-flex h-7 items-center justify-center rounded-md border px-3 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`} type="button" onClick={() => onClick(value)}>{label}</button>
+  return <SegmentedFilterButton active={active} type="button" onClick={() => onClick(value)}>{label}</SegmentedFilterButton>
 }
 
 function SegmentMulti({
@@ -5150,8 +5151,8 @@ function SegmentMulti({
     ? current.length === 0
     : values.every((value) => current.includes(value))
   return (
-    <button
-      className={`inline-flex h-7 items-center justify-center rounded-md border px-3 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`}
+    <SegmentedFilterButton
+      active={active}
       type="button"
       onClick={() => {
         if (values.length === 0) {
@@ -5162,7 +5163,7 @@ function SegmentMulti({
       }}
     >
       {label}
-    </button>
+    </SegmentedFilterButton>
   )
 }
 

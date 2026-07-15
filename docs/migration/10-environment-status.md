@@ -41,6 +41,27 @@ Git branch boundary:
 - LINE config update on 2026-07-13: dev-target has independent active `PMT` and `RCP` rules routed to the single active group `ทดสอบ`, both with stop-after-match enabled. The RCP rule is named `รับเงิน Customer → กลุ่มทดสอบ`; real loader/resolver verification returned only that group, official LINE validation returned HTTP 200, and live RCP job `168` reached `sent` on attempt 1 without a duplicate job.
 - LINE link caveat on 2026-07-13: dev-target still has no `NEXT_PUBLIC_APP_URL`, so financial Flex messages fall back to `http://localhost:3000` for the open-system button. Do not copy the UAT URL into dev by assumption; configure the actual public dev URL when one exists.
 
+### System Integration Test / SIT
+
+- Project ref: `vbjlkxbytccklhqvxjuu`
+- Current meaning in this project: `devkub1/ns-dev` Vercel SIT database/environment
+- Local ignored env reference: `apps/next/.env.sit.local`
+- Purpose: integration deployment smoke/UAT-before-customer checks for the separate `devdevkub-coder/ns-dev` repository and Vercel project
+- Should remain separate from `dev-target`, customer UAT, legacy production, and future new production.
+
+Status update on 2026-07-15:
+- The Vercel project `devkub1/ns-dev` was configured with SIT Supabase/Postgres/KV env values from `apps/next/.env.sit.local`, plus derived `NEXT_PUBLIC_SUPABASE_*` values.
+- The Vercel project output directory was corrected to `apps/next/.next`, then production redeploy `dpl_J583TfDv8PQjZi3UUrGbY29ML1qS` completed with `READY`.
+- SIT database project `vbjlkxbytccklhqvxjuu` was refreshed from dev-target `fhglqymcdmrgbsbadnwr`.
+- Before the refresh, a local SIT backup was written under `/tmp/ns-erp-dev-to-sit-20260715-034341`.
+- Restored scope: application schemas `public`, `maintenance`, `supabase_migrations`, plus required Supabase Auth identity tables `auth.users` and `auth.identities`.
+- Post-refresh reconciliation matched dev exactly for the checked scope: 202 tables, 67,008 rows, and 0 row-count differences.
+- SIT has 117 public RLS policies, 91 RLS-enabled public tables, 17 public routines, 44 auth users, 43 auth identities, 21 app users, and 115 migration-history rows.
+- The 6 not-yet-validated check constraints in SIT match dev exactly (`director_employees_type_chk` and supplier-advance VAT/type checks), so they are inherited dev state rather than restore drift.
+- Post-refresh login repair restored required `public` grants for Supabase roles, added the app runtime database keys `DATABASE_URL`, `DATABASE_PRISMA_URL`, and `DATABASE_RUNTIME_URL` to Vercel production, and kept SIT-only test login values in the ignored local/Vercel SIT env rather than committed files.
+- The deployed Prisma/pg runtime uses the Supabase pooler with `sslmode=require&uselibpqcompat=true`; this avoids the `SELF_SIGNED_CERT_IN_CHAIN` failure seen in `POST /api/auth/login-complete`.
+- Latest SIT production redeploy `dpl_CAnQTGKviTNEdM4gHp9e9WdSHGi5` completed with `READY` and `ns-erp-sit.vercel.app` points to it. Browser smoke verification returned Supabase token `200`, `/api/auth/login-complete` `200`, and redirected to `/`.
+
 ### Staging / UAT
 
 - Active project ref: `ekeomeumqjvbhgwyaqwe`
@@ -53,6 +74,21 @@ Git branch boundary:
   - let customer/user validate business flow
   - run reconciliation checks before any production cutover
 - Should be a separate Supabase project, not another database inside the same project
+
+Status update on 2026-07-14:
+- `apps/next/.env.uat.local` exists only as a local ignored reference file for customer UAT credentials and connection strings. It is not committed and is not loaded automatically by Vercel deployments.
+- Customer UAT deployment/runtime must therefore still be verified from the live Vercel env plus the actual UAT database schema, not from the presence of `.env.uat.local` in one developer machine.
+- UAT login failures reported as `ตรวจสอบบัญชีผู้ใช้งานไม่สำเร็จ` were traced to the active UAT database missing helper function `public.current_app_user_access_context()` while `public.has_app_permission()` already existed.
+- Migration `20260712120000_add_current_app_user_access_context.sql` was applied directly to project `ekeomeumqjvbhgwyaqwe` and marked in `supabase_migrations.schema_migrations`.
+- Post-fix verification confirmed both auth helper functions now exist in UAT, the migration history row exists, and an authenticated RPC call to `current_app_user_access_context()` for `watcharathat@gmail.com` returns the expected active app user context.
+- A later UAT auth failure on `POST /api/auth/login-complete` was traced to schema drift versus dev: UAT was missing `public.app_users.account_status` and the rest of the current app-user lifecycle contract, plus `public.sales_plans` and the entire `maintenance` schema.
+- Runtime schema sync was applied directly to UAT from the current dev database contract: `public.app_users` now includes `username`, lifecycle columns, defaults, and indexes; `public.sales_plans` now exists; and the `maintenance` schema/tables were recreated in UAT for parity with dev backups/admin support.
+- Post-sync verification passed: a real Supabase password sign-in for `watcharathat@gmail.com` followed by `POST https://ns-erp-uat.vercel.app/api/auth/login-complete` returned HTTP `200`.
+- Current customer UAT Git target remains the separate `uat-origin` repository, and on 2026-07-14 both `uat-origin/main` and `uat-origin/uat` were force-promoted from `new-origin/dev` so the customer UAT repo matches the active dev integration branch.
+- After that promote, UAT application data was also overwritten directly from the current dev target for the active application schemas/tables (`public`, `maintenance`, application-owned `auth` data, and `supabase_migrations` application history).
+- UAT Supabase Storage was synced from dev target for the business buckets `product-images` and `weight-ticket-pdfs`; post-sync object counts match dev exactly at `124` and `402`.
+- Post-refresh verification on 2026-07-14 confirmed core business table counts match dev for users, customers, suppliers, products, WTI/WTO, PO Sell, PB/SB, petty advance, and stock ledger. Remaining row-count drift was limited to runtime log/audit tables (`app_activity_logs`, `app_audit_logs`, `app_auth_events`) created by the verification traffic itself.
+- Direct Supabase password sign-in on the active UAT project `ekeomeumqjvbhgwyaqwe` still succeeds for `watcharathat@gmail.com` after the full code/schema/data/storage refresh.
 
 Status update on 2026-07-11:
 - The active customer UAT deployment is `https://ns-erp-uat.vercel.app` and its Vercel Production environment now points Supabase URL, anon/publishable key, service-role/secret key, and PostgreSQL pooler connection to project ref `ekeomeumqjvbhgwyaqwe`.

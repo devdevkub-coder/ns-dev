@@ -2,6 +2,27 @@
 
 @variant dark (&:where(.dark, .dark *));
 
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 0;
+}
+
+::view-transition-new(root) {
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
 @theme {
   --color-scrap-ink: #172033;
   --color-scrap-muted: #64748b;
@@ -21,12 +42,18 @@
 :root {
   color: #172033;
   background: #f3f6f9;
+  --ns-sort-active: #1677ff;
+  --ns-field-focus: #737373;
+  --ns-field-focus-ring: rgb(115 115 115 / 0.25);
 }
 
 .dark {
   color-scheme: dark;
   color: #f8fafc;
   background: #0f172a;
+  --ns-sort-active: #69b1ff;
+  --ns-field-focus: #737373;
+  --ns-field-focus-ring: rgb(115 115 115 / 0.35);
   
   /* Redefine Tailwind's base theme variables */
   --color-white: #1e293b;
@@ -321,6 +348,22 @@ textarea {
 pre,
 code {
   font-family: "Noto Sans Thai", "Noto Sans", sans-serif !important;
+}
+
+/* Profit analysis is a dense numeric report, so its desktop tables use Sarabun only. */
+.profit-analysis-table,
+.profit-analysis-table th,
+.profit-analysis-table td,
+.profit-analysis-table .font-mono {
+  font-family: var(--font-profit-table), "Sarabun", sans-serif !important;
+}
+
+.profit-top-list-header {
+  background-color: var(--color-slate-100);
+}
+
+.dark .profit-top-list-header {
+  background-color: var(--ns-dark-table-header) !important;
 }
 
 /* Legacy form baseline: plain Tailwind `border` controls should render light slate, and text color should match theme. */
@@ -683,11 +726,13 @@ aside a:visited {
 /* Dark theme normalization: keep ERP screens readable even when legacy pages use light-mode utility classes. */
 .dark {
   --ns-dark-bg: #020617;
-  --ns-dark-surface: #1e293b;
-  --ns-dark-surface-soft: #0f172a;
-  --ns-dark-surface-hover: #263449;
-  --ns-dark-border: #334155;
-  --ns-dark-border-strong: #475569;
+  --ns-dark-surface: #1b2635;
+  --ns-dark-surface-soft: #111a28;
+  --ns-dark-surface-hover: #243044;
+  --ns-dark-table: #111a28;
+  --ns-dark-table-header: #1b2635;
+  --ns-dark-border: rgb(148 163 184 / 0.12);
+  --ns-dark-border-strong: rgb(148 163 184 / 0.2);
   --ns-dark-text: #f8fafc;
   --ns-dark-muted: #cbd5e1;
   --ns-dark-subtle: #94a3b8;
@@ -695,6 +740,38 @@ aside a:visited {
   --ns-dark-danger: #7f1d1d;
   --ns-dark-warning: #92400e;
   --ns-dark-success: #065f46;
+  --ns-dropdown-surface: #202c3d;
+  --ns-dropdown-selected: #2c3d57;
+}
+
+.dark .profit-kpi-card {
+  background-color: #1c2531 !important;
+  border-color: rgb(148 163 184 / 0.2) !important;
+}
+
+.dark [data-slot='dropdown-menu-content'] {
+  background-color: var(--ns-dropdown-surface) !important;
+  border-color: var(--ns-dark-border-strong) !important;
+  color: var(--ns-dark-text) !important;
+}
+
+.dark [data-slot='dropdown-menu-checkbox-item'] {
+  color: var(--ns-dark-text) !important;
+}
+
+.dark [data-slot='dropdown-menu-checkbox-item'][data-state='checked'],
+.dark [data-slot='dropdown-menu-checkbox-item'][data-highlighted] {
+  background-color: var(--ns-dropdown-selected) !important;
+  color: var(--ns-dark-text) !important;
+}
+
+.dark [data-page-size-option] {
+  color: var(--ns-dark-text) !important;
+}
+
+.dark [data-page-size-option][data-highlighted] {
+  background-color: var(--ns-dropdown-selected) !important;
+  color: var(--ns-dark-text) !important;
 }
 
 .dark body {
@@ -787,9 +864,17 @@ aside a:visited {
   box-shadow: none;
 }
 
-.dark :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea, [role="combobox"]):focus {
-  border-color: var(--ns-dark-border-strong) !important;
-  box-shadow: none !important;
+/* TweakCN is used only for active-field emphasis, not for field surfaces. */
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea):focus,
+:where([role="combobox"]):focus-within {
+  border-color: var(--ns-field-focus) !important;
+  box-shadow: 0 0 0 3px var(--ns-field-focus-ring) !important;
+}
+
+.dark :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea):focus,
+.dark :where([role="combobox"]):focus-within {
+  border-color: var(--ns-field-focus) !important;
+  box-shadow: 0 0 0 3px var(--ns-field-focus-ring) !important;
 }
 
 .dark input::placeholder,
@@ -817,26 +902,27 @@ aside a:visited {
 }
 
 .dark :where(thead, thead tr, thead th) {
-  background-color: var(--ns-dark-surface-soft) !important;
+  background-color: var(--ns-dark-table-header) !important;
   color: var(--ns-dark-muted) !important;
 }
 
 .dark :where(.ns-table-shell, .overflow-x-auto:where(.rounded-md, .rounded-lg, .rounded-xl, .border, .shadow, .shadow-sm):has(> table.ns-table), .overflow-auto:where(.rounded-md, .rounded-lg, .rounded-xl, .border, .shadow, .shadow-sm):has(> table.ns-table)) {
-  background-color: var(--ns-dark-surface) !important;
+  background-color: var(--ns-dark-table) !important;
   border-color: var(--ns-dark-border-strong) !important;
 }
 
 .dark table.ns-table {
-  background-color: var(--ns-dark-surface) !important;
+  background-color: var(--ns-dark-table) !important;
   color: var(--ns-dark-text);
 }
 
 .dark table.ns-table :where(thead) {
-  background-color: var(--ns-dark-surface-soft) !important;
+  background-color: var(--ns-dark-table-header) !important;
   color: var(--ns-dark-muted) !important;
 }
 
 .dark table.ns-table :where(th) {
+  border-color: var(--ns-dark-border) !important;
   color: var(--ns-dark-muted) !important;
 }
 
@@ -849,7 +935,7 @@ aside a:visited {
 }
 
 .dark :where(tbody tr) {
-  background-color: var(--ns-dark-surface) !important;
+  background-color: var(--ns-dark-table) !important;
   color: var(--ns-dark-text);
 }
 

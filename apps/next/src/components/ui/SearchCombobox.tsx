@@ -324,7 +324,7 @@ export function SearchCombobox({
         ? createPortal(
             <div
               id={`${inputId}-options`}
-              className={`${portalHost === document.body ? 'fixed' : 'absolute'} z-[80] max-h-64 overflow-y-auto rounded-md border border-slate-200 bg-white py-1 text-base shadow-xl sm:text-sm dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dark-surface)] ${optionsPanelClassName ?? ''}`.trim()}
+              className={`${portalHost === document.body ? 'fixed' : 'absolute'} z-[80] max-h-64 overflow-y-auto rounded-md border border-slate-200 bg-white p-1 text-base shadow-xl sm:text-sm dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)] ${optionsPanelClassName ?? ''}`.trim()}
               role="listbox"
               style={{ left: panelRect.left, top: panelRect.top, width: panelRect.width }}
             >
@@ -336,7 +336,7 @@ export function SearchCombobox({
                   }}
                   id={`${inputId}-option-${index}`}
                   aria-selected={option.id === value}
-                  className={`block w-full overflow-hidden px-3 py-2 text-left text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:[background-color:var(--ns-dark-surface-hover)] ${option.id === value ? 'bg-slate-100 text-slate-900 dark:![background-color:var(--ns-dark-surface-hover)] dark:![color:var(--ns-dark-text)]' : highlightedIndex === index ? 'bg-slate-100 text-slate-900 dark:![background-color:var(--ns-dark-surface-hover)] dark:![color:var(--ns-dark-text)]' : ''}`}
+                  className={`block w-full overflow-hidden rounded-sm px-3 py-2 text-left text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:[background-color:var(--ns-dropdown-selected)] ${option.id === value ? 'bg-slate-100 text-slate-900 dark:![background-color:var(--ns-dropdown-selected)] dark:![color:var(--ns-dark-text)]' : highlightedIndex === index ? 'bg-slate-100 text-slate-900 dark:![background-color:var(--ns-dropdown-selected)] dark:![color:var(--ns-dark-text)]' : ''}`}
                   role="option"
                   type="button"
                   onMouseDownCapture={(event) => {
@@ -370,7 +370,7 @@ export function SearchCombobox({
                     event.preventDefault()
                   }}
                 >
-                  <span className="block break-words font-medium">{option.label}</span>
+                  <span className="block break-words font-semibold">{option.label}</span>
                   {option.description ? <span className="block break-words text-sm text-slate-500 sm:text-xs dark:text-slate-400">{option.description}</span> : null}
                 </button>
               )) : <div className="px-3 py-2 text-base text-slate-500 sm:text-sm dark:text-slate-400">ไม่พบข้อมูลที่ตรงกับคำค้นหา</div>}

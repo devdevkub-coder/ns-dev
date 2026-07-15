@@ -4,10 +4,11 @@ import type { FocusEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Menu, Search, Sun, Moon, X } from 'lucide-react'
+import { Menu, Search, X } from 'lucide-react'
 import { AppNavigation } from '@/components/layout/AppNavigation'
 import { AuthStatus } from '@/components/layout/AuthStatus'
 import { MobileBottomNavigation } from '@/components/layout/MobileBottomNavigation'
+import { ThemeModeToggle } from '@/components/layout/ThemeModeToggle'
 import { breadcrumbsForPath, canAccessPath, navigationItems, navigationSections, pageTitleForPath, type NavigationItem } from '@/lib/navigation'
 
 type AppShellProps = {
@@ -88,27 +89,6 @@ export function AppShell({ children }: AppShellProps) {
   const [menuSearch, setMenuSearch] = useState('')
   const [menuSearchFocused, setMenuSearchFocused] = useState(false)
   const [titleOverride, setTitleOverride] = useState<string | null>(null)
-  const [mounted, setMounted] = useState(false)
-  const [theme, setTheme] = useState<'light' | 'dark'>('light')
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null
-    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-    const activeTheme = savedTheme || systemTheme
-    setTheme(activeTheme)
-    setMounted(true)
-  }, [])
-
-  const toggleTheme = () => {
-    const nextTheme = theme === 'dark' ? 'light' : 'dark'
-    setTheme(nextTheme)
-    localStorage.setItem('theme', nextTheme)
-    if (nextTheme === 'dark') {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-  }
   const lastActivityPathRef = useRef<string | null>(null)
   const title = titleOverride ?? pageTitleForPath(pathname)
   const breadcrumbs = breadcrumbsForPath(pathname)
@@ -277,7 +257,7 @@ export function AppShell({ children }: AppShellProps) {
             <span className="sr-only">ค้นหาเมนู</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
             <input
-              className="h-10 w-full rounded-md border border-slate-700 bg-slate-950/60 pl-9 pr-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-blue-400 focus:bg-slate-950 focus:ring-2 focus:ring-blue-400/20 disabled:cursor-wait disabled:text-slate-500"
+              className="h-9 w-full rounded-md border border-[#282828] bg-[#343434] pl-9 pr-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 disabled:cursor-wait disabled:text-slate-500"
               disabled={!authContext}
               placeholder={authContext ? 'ค้นหาเมนู...' : 'กำลังโหลดเมนู...'}
               type="search"
@@ -331,12 +311,12 @@ export function AppShell({ children }: AppShellProps) {
       </aside>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex min-h-[72px] items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:px-6">
+        <header className="flex min-h-[72px] items-center justify-between border-b border-[#e2e8f0] bg-[#ffffff] px-4 py-3 text-slate-800 dark:border-[rgb(148_163_184_/_0.12)] dark:bg-[var(--ns-dark-surface-soft)] dark:text-[#e2e8f0] lg:px-6">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             {!showMobileBottomNav && (
               <button
                 aria-label="เปิดเมนู"
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100 lg:hidden"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 dark:text-[#cbd5e1] dark:hover:bg-[#1e293b] dark:hover:text-white dark:focus-visible:ring-blue-400/50 lg:hidden"
                 type="button"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
               >
@@ -344,7 +324,7 @@ export function AppShell({ children }: AppShellProps) {
               </button>
             )}
             <div className="min-w-0">
-              <h1 className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-800 sm:text-base lg:text-lg">{title}</h1>
+              <h1 className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-800 dark:text-[#f8fafc] sm:text-base lg:text-lg">{title}</h1>
             </div>
           </div>
 
@@ -352,9 +332,9 @@ export function AppShell({ children }: AppShellProps) {
             <div className="relative hidden w-[min(360px,38vw)] min-w-64 shrink-0 lg:block" onBlur={handleMenuSearchBlur}>
               <label className="relative block">
                 <span className="sr-only">ค้นหาเมนู</span>
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#64748b] dark:text-[#94a3b8]" />
                 <input
-                  className="h-10 w-full rounded-md border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/15 disabled:cursor-wait disabled:text-slate-400"
+                  className="h-9 w-full rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm text-[#172033] outline-none transition placeholder:text-[#64748b] disabled:cursor-wait disabled:text-[#64748b] dark:text-[#f1f5f9] dark:placeholder:text-[#94a3b8] dark:disabled:text-[#94a3b8]"
                   disabled={!authContext}
                   placeholder={authContext ? 'ค้นหาเมนู...' : 'กำลังโหลดเมนู...'}
                   type="search"
@@ -367,12 +347,12 @@ export function AppShell({ children }: AppShellProps) {
                 />
               </label>
               {menuSearchFocused && menuSearch.trim() ? (
-                <div className="absolute right-0 top-full z-50 mt-2 max-h-[min(70vh,28rem)] w-full overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                <div className="absolute right-0 top-full z-50 mt-2 max-h-[min(70vh,28rem)] w-full overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg shadow-slate-950/15 dark:border-[#334155] dark:bg-[#1e293b] dark:shadow-slate-950/35">
                   {!authContext ? (
-                    <div className="px-3 py-4 text-center text-sm text-slate-500">กำลังโหลดเมนู</div>
+                    <div className="px-3 py-4 text-center text-sm text-slate-500 dark:text-[#94a3b8]">กำลังโหลดเมนู</div>
                   ) : menuSearchResults.length ? menuSearchResults.map((item) => (
                     <Link
-                      className="flex min-w-0 items-center gap-3 px-3 py-2 text-sm text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:outline-none"
+                      className="flex min-w-0 items-center gap-3 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100 hover:text-slate-900 focus:bg-slate-100 focus:outline-none dark:text-[#e2e8f0] dark:hover:bg-[#334155] dark:hover:text-white dark:focus:bg-[#334155]"
                       href={item.href}
                       key={`${item.href}-${item.label}`}
                       onClick={clearMenuSearch}
@@ -380,30 +360,17 @@ export function AppShell({ children }: AppShellProps) {
                       <span className="w-5 shrink-0 text-center">{item.icon}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">{item.label}</span>
-                        <span className="block truncate text-xs text-slate-500">{item.parentLabel ? `${item.parentLabel} / ` : ''}{item.sectionLabel}</span>
+                        <span className="block truncate text-xs text-slate-500 dark:text-[#94a3b8]">{item.parentLabel ? `${item.parentLabel} / ` : ''}{item.sectionLabel}</span>
                       </span>
                     </Link>
                   )) : (
-                    <div className="px-3 py-4 text-center text-sm text-slate-500">ไม่พบเมนูที่ค้นหา</div>
+                    <div className="px-3 py-4 text-center text-sm text-slate-500 dark:text-[#94a3b8]">ไม่พบเมนูที่ค้นหา</div>
                   )}
                 </div>
               ) : null}
             </div>
 
-            <button
-              aria-label="เปลี่ยนธีม"
-              className="flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition focus:outline-none focus:ring-2 focus:ring-blue-500/15"
-              type="button"
-              onClick={toggleTheme}
-            >
-              {!mounted ? (
-                <span className="h-5 w-5 shrink-0" />
-              ) : theme === 'dark' ? (
-                <Sun className="h-5 w-5 text-amber-500" />
-              ) : (
-                <Moon className="h-5 w-5" />
-              )}
-            </button>
+            <ThemeModeToggle />
           </div>
         </header>
 

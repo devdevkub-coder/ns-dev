@@ -16,6 +16,7 @@ import {
   type MasterDataRecord,
 } from '@/lib/master-data'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Button } from '@/components/ui/Button'
 import { FormSelectField } from '@/components/ui/FormSelectField'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
@@ -584,19 +585,10 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
                   คืนค่าเดิมตาราง
                 </Button>
               ) : null}
-              <select
-                aria-label="จำนวนรายการต่อหน้า"
-                className="h-9 w-auto min-w-24 rounded-md border border-slate-300 px-2 py-1 text-sm bg-white"
-                value={pageSize}
-                onChange={(event) => {
-                  setPageSize(Number(event.target.value))
-                  setPage(1)
-                }}
-              >
-                {pageSizeOptions.map((size) => (
-                  <option key={size} value={size}>{size} / หน้า</option>
-                ))}
-              </select>
+              <PageSizeDropdown options={pageSizeOptions} value={pageSize} onChange={(size) => {
+                setPageSize(size)
+                setPage(1)
+              }} />
               <Button disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
               <span className="px-1 text-xs">หน้า {currentPage} / {totalPages}</span>
               <Button disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
@@ -1081,4 +1073,3 @@ function MatchButton({ active, label, onClick }: { active: boolean; label: strin
   const className = active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
   return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${className}`} type="button" onClick={onClick}>{label}</button>
 }
-

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getErrorMessage, readJsonResponse } from '@/lib/api-client'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { SlidersHorizontal } from 'lucide-react'
@@ -350,12 +351,10 @@ export function AuditLogPageClient() {
 
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ต่อหน้า</span>
-                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={pageSize} onChange={(event) => {
-                  setPageSize(Number(event.target.value))
+                <PageSizeDropdown className="w-full" options={pageSizeOptions} value={pageSize} onChange={(size) => {
+                  setPageSize(size)
                   setPage(1)
-                }}>
-                  {pageSizeOptions.map((size) => <option key={size} value={size}>{size} รายการ</option>)}
-                </select>
+                }} />
               </label>
         </MobileFilterSheet>
       ) : null}
@@ -409,12 +408,10 @@ export function AuditLogPageClient() {
           </label>
           <label className="block text-sm font-medium">
             ต่อหน้า
-            <select className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-3 outline-none focus:border-slate-700 text-sm" value={pageSize} onChange={(event) => {
-              setPageSize(Number(event.target.value))
+            <PageSizeDropdown className="mt-1.5 w-full" options={pageSizeOptions} value={pageSize} onChange={(size) => {
+              setPageSize(size)
               setPage(1)
-            }}>
-              {pageSizeOptions.map((size) => <option key={size} value={size}>{size} รายการ</option>)}
-            </select>
+            }} />
           </label>
           <label className="block text-sm font-medium">
             ผู้ทำรายการ

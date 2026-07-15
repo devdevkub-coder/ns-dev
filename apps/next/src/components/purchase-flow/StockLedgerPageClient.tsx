@@ -6,6 +6,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { AlertTriangle, Download, RotateCcw, Search } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -409,9 +410,7 @@ export function StockLedgerPageClient() {
       <div className="mb-3 flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:hidden">
         <div>พบทั้งหมด <span className="font-semibold text-slate-900">{data?.total ?? 0}</span> รายการ</div>
         <div className="flex items-center gap-2">
-          <select aria-label="จำนวนรายการต่อหน้า" className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
-            {stockLedgerPageSizes.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-          </select>
+          <PageSizeDropdown options={stockLedgerPageSizes} value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
           <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
           <span className="px-1">หน้า {page} / {totalPages}</span>
           <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => value + 1)}>ถัดไป</button>
@@ -485,9 +484,7 @@ export function StockLedgerPageClient() {
         <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
           <div>พบทั้งหมด <span className="font-semibold text-slate-900">{data?.total ?? 0}</span> รายการ</div>
           <div className="flex flex-wrap items-center gap-2">
-            <select aria-label="จำนวนรายการต่อหน้า" className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
-              {stockLedgerPageSizes.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-            </select>
+            <PageSizeDropdown options={stockLedgerPageSizes} value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
             <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
             <span className="px-1">หน้า {page} / {totalPages}</span>
             <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => value + 1)}>ถัดไป</button>

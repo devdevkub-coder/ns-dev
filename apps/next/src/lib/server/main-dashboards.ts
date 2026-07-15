@@ -90,7 +90,10 @@ function deltaValue(current: number, previous: number) {
 }
 
 async function runReadBatch<T extends readonly unknown[]>(tasks: { [K in keyof T]: () => Promise<T[K]> }) {
-  const results = await Promise.all(tasks.map((task) => task()))
+  const results: unknown[] = []
+  for (const task of tasks) {
+    results.push(await task())
+  }
   return results as unknown as T
 }
 

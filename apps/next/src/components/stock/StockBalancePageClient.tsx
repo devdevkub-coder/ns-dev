@@ -6,6 +6,7 @@ import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/Searc
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -1766,14 +1767,7 @@ function PaginationControls({
         พบทั้งหมด {totalItems.toLocaleString('th-TH')} {label}
       </span>
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          aria-label="จำนวนรายการต่อหน้า"
-          className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800"
-          value={pageSize}
-          onChange={(event) => onPageSizeChange(Number(event.target.value))}
-        >
-          {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-        </select>
+        <PageSizeDropdown options={PAGE_SIZE_OPTIONS} value={pageSize} onChange={onPageSizeChange} />
         <button
           className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
           disabled={currentPage <= 1}

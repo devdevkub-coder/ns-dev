@@ -58,7 +58,7 @@ Status terms:
 |---|---|---|---|---|---|
 | `/owner-daily` | Owner Daily Control | read baseline | `GET /api/owner-daily` | `accounts`, `bank_statement`, `sales_bills`, `purchase_bills`, `expenses`, `receipts`, `payments`, `stock_ledger`, `trading_deals`, `production_orders` | `reports.reports.view` |
 | `/daily-report` | Daily Report | read baseline | `GET /api/daily-report` | `purchase_bills`, `sales_bills`, `expenses`, `receipts`, `payments`, `bank_statement`, `products` | `reports.reports.view` |
-| `/dashboard` | Dashboard | read baseline | `GET /api/dashboard` | `purchase_bills`, `sales_bills`, `expenses`, `accounts`, `bank_statement`, `stock_ledger`, `production_orders`, `trading_deals` | `reports.reports.view` |
+| `/dashboard-overview` | Dashboard Overview | read baseline | `GET /api/dashboard` | `purchase_bills`, `sales_bills`, `expenses`, `accounts`, `bank_statement`, `stock_ledger`, `production_orders`, `trading_deals` | `reports.reports.view` |
 | `/profit-cost-analysis` | Profit & Cost Analysis | read baseline | `GET /api/profit-cost-analysis` | `purchase_bills`, `sales_bills`, `stock_ledger`, `products`, `suppliers`, `customers`, `branches`, `purchase_channels`, `sales_channels` | `reports.reports.view` |
 | `/sales-plan` | วางแผนการขาย (LME) | read/design baseline | `GET /api/sales-plan` | `stock_ledger`, `products`, WTO pending_out, LME reference | `reports.reports.view` |
 | `/sales-commission` | Sales Tracking Dashboard | read/design baseline | `GET /api/sales-commission` | `purchase_bills`, `suppliers`, `salespersons` | `reports.reports.view` |

@@ -14,6 +14,7 @@ import { Input as UiInput } from '@/components/ui/Input'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { CollapsedList } from '@/components/ui/CollapsedList'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Select as UiSelect } from '@/components/ui/Select'
@@ -2258,14 +2259,7 @@ export function MoneyMovementPageClient({
             <div>พบ <span className="font-semibold text-slate-900">{receiptBillTotalRows}</span> รายการ</div>
             <div className="flex flex-wrap items-center gap-2">
               {receiptQueueColumnResize.hasCustomWidths ? <UiButton className="h-9 font-normal" size="sm" type="button" variant="outline" onClick={receiptQueueColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</UiButton> : null}
-              <UiSelect
-                aria-label="จำนวนรายการต่อหน้า"
-                className="h-9 w-auto min-w-[96px] px-2"
-                value={billPageSize}
-                onChange={(event) => setBillPageSize(Number(event.target.value))}
-              >
-                {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-              </UiSelect>
+              <PageSizeDropdown options={pageSizeOptions} value={billPageSize} onChange={setBillPageSize} />
               <UiButton className="h-9 font-normal" disabled={receiptBillCurrentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
               <span className="px-1">หน้า {receiptBillCurrentPage} / {receiptBillTotalPages}</span>
               <UiButton className="h-9 font-normal" disabled={receiptBillCurrentPage >= receiptBillTotalPages} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.min(receiptBillTotalPages, value + 1))}>ถัดไป</UiButton>
@@ -2488,14 +2482,7 @@ export function MoneyMovementPageClient({
             <div>พบทั้งหมด <span className="font-semibold text-slate-900">{supplierBillTotalRows}</span> รายการ</div>
             <div className="flex flex-wrap items-center gap-2">
               {paymentQueueColumnResize.hasCustomWidths ? <UiButton className="h-9 font-normal" size="sm" type="button" variant="outline" onClick={paymentQueueColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</UiButton> : null}
-              <UiSelect
-                aria-label="จำนวนรายการต่อหน้า"
-                className="h-9 w-auto min-w-[96px] px-2"
-                value={billPageSize}
-                onChange={(event) => setBillPageSize(Number(event.target.value))}
-              >
-                {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-              </UiSelect>
+              <PageSizeDropdown options={pageSizeOptions} value={billPageSize} onChange={setBillPageSize} />
               <UiButton className="h-9 font-normal" disabled={supplierBillCurrentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
               <span className="px-1">หน้า {supplierBillCurrentPage} / {supplierBillTotalPages}</span>
               <UiButton className="h-9 font-normal" disabled={supplierBillCurrentPage >= supplierBillTotalPages} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.min(supplierBillTotalPages, value + 1))}>ถัดไป</UiButton>
@@ -3237,14 +3224,7 @@ export function MoneyMovementPageClient({
                   </UiButton>
                 )}
                 {historyColumnResize.hasCustomWidths ? <UiButton className="font-normal" size="sm" type="button" variant="outline" onClick={historyColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</UiButton> : null}
-                <UiSelect
-                  aria-label="จำนวนรายการต่อหน้าประวัติ"
-                  className="h-9 w-auto min-w-[96px] px-2"
-                  value={historyPageSize}
-                  onChange={(event) => setHistoryPageSize(Number(event.target.value))}
-                >
-                  {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-                </UiSelect>
+                <PageSizeDropdown options={pageSizeOptions} value={historyPageSize} onChange={setHistoryPageSize} />
                 <UiButton className="font-normal" disabled={historyCurrentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setHistoryPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
                 <span className="px-1">หน้า {historyCurrentPage} / {historyTotalPages}</span>
                 <UiButton className="font-normal" disabled={historyCurrentPage >= historyTotalPages} size="sm" type="button" variant="outline" onClick={() => setHistoryPage((value) => Math.min(historyTotalPages, value + 1))}>ถัดไป</UiButton>

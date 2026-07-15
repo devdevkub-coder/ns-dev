@@ -198,7 +198,6 @@ async function buildSalesPlanningSnapshot() {
   const salesPlanRefs = refs.filter((product) => isCostPoolEligibleMetalGroup(product.metalGroup))
   const productById = new Map(refs.map((product) => [product.id, product] as const))
   const [poSells, poBuys, stockRows, customers, salesChannels, tradingDeals, purchaseBills, samutSakhonWarehouses] = await Promise.all([
-  const [poSells, poBuys, stockRows, customers, salesChannels, tradingDeals, purchaseBills, samutSakhonWarehouses] = await Promise.all([
     prisma.po_sells.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
     prisma.po_buys.findMany({ orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
     prisma.stock_ledger.findMany({ orderBy: [{ date: 'desc' }], take: 50000 }),

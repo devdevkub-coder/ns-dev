@@ -117,7 +117,7 @@ const columnsByTab: Record<LegacyTab, Column[]> = {
 }
 
 const reports: ReportLink[] = [
-  { category: 'main', href: '/dashboard', label: 'ภาพรวมแดชบอร์ด', owner: 'ภาพรวม' },
+  { category: 'main', href: '/dashboard-overview', label: 'ภาพรวมแดชบอร์ด', owner: 'ภาพรวม' },
   { category: 'main', href: '/owner-daily', label: 'ควบคุมรายวันผู้บริหาร', owner: 'ภาพรวม' },
   { category: 'main', href: '/daily-report', label: 'รายงานประจำวัน', owner: 'ภาพรวม' },
   { category: 'main', href: '/profit-cost-analysis', label: 'วิเคราะห์กำไรและต้นทุน', owner: 'ภาพรวม' },

@@ -4,6 +4,7 @@ import { Children, isValidElement, useCallback, useEffect, useMemo, useState, ty
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -657,14 +658,7 @@ export function AssetRegisterPageClient() {
           พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            aria-label="จำนวนรายการต่อหน้า"
-            className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
-            value={pageSize}
-            onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}
-          >
-            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-          </select>
+          <PageSizeDropdown value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
           <button
             className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
             disabled={currentPage <= 1}
@@ -1222,14 +1216,7 @@ export function DepreciationPageClient() {
                   คืนค่าเดิมตาราง
                 </button>
               ) : null}
-              <select
-                aria-label="จำนวนรายการต่อหน้า"
-                className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                value={pageSize}
-                onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}
-              >
-                {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-              </select>
+              <PageSizeDropdown value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
               <button
                 className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
                 disabled={currentPage <= 1}
@@ -1616,14 +1603,7 @@ export function AssetDisposalPageClient() {
               คืนค่าเดิมตาราง
             </button>
           ) : null}
-          <select
-            aria-label="จำนวนรายการต่อหน้า"
-            className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
-            value={pageSize}
-            onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}
-          >
-            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-          </select>
+          <PageSizeDropdown value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
           <button
             className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
             disabled={currentPage <= 1}
