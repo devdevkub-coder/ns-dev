@@ -359,15 +359,85 @@ export function StockFinancePageClient() {
   ]
   const [showAllTopProducts, setShowAllTopProducts] = useState(false)
   const [stockTableTab, setStockTableTab] = useState<StockTableTab>('products')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const topProducts = data?.topProducts ?? []
   const visibleTopProducts = showAllTopProducts ? topProducts : topProducts.slice(0, 5)
   const canToggleTopProducts = topProducts.length > 5
+  const fgValue = data?.byStatus.FG ?? 0
+  const slowMovingValue = (data?.slowMoving ?? []).reduce((sum, row) => sum + row.value, 0)
+  const slowMovingCount = data?.slowMoving.length ?? 0
+  const opportunityValue = data?.summary.marginPotential ?? 0
+  const paidPct = percent(data?.summary.paidValue ?? 0, total)
+  const fgPct = percent(fgValue, total)
+  const oldStockPct = percent(oldStock?.value ?? 0, total)
 
   return (
     <section className="space-y-4">
       {error ? <ErrorBox message={error} /> : null}
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
-        <div className="rounded-xl border border-amber-100 bg-white p-5 shadow-sm">
+
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
+        <DateInput label="ณ วันที่" value={asOf} onChange={setAsOf} />
+        <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
+      </div>
+
+      <div className="mb-4 rounded-md bg-white p-3 shadow lg:hidden space-y-3">
+        <div className="flex gap-2 items-center">
+          <div className="flex-1 flex items-center gap-1.5">
+            <span className="text-xs text-slate-500 font-semibold shrink-0">ณ วันที่</span>
+            <DatePickerInput className="w-full text-xs" value={asOf} onChange={setAsOf} />
+          </div>
+          <button
+            type="button"
+            className="h-9 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง {branchId ? '(มี)' : ''}
+          </button>
+        </div>
+      </div>
+
+      {showMobileFilters ? (
+        <MobileFilterSheet
+          title="ตัวกรองเพิ่มเติม"
+          onClose={() => setShowMobileFilters(false)}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setBranchId('')
+                }}
+                className="h-10 rounded-md border border-slate-200 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMobileFilters(false)}
+                className="h-10 rounded-md bg-blue-600 text-sm font-semibold text-white transition hover:bg-blue-700"
+              >
+                ตกลง
+              </button>
+            </>
+          }
+        >
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
+            <select
+              aria-label="Branch select"
+              className="h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
+              value={branchId}
+              onChange={(event) => setBranchId(event.target.value)}
+            >
+              <option value="">ทุกสาขา</option>
+              {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+            </select>
+          </div>
+        </MobileFilterSheet>
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="rounded-md border border-amber-100 bg-white p-5 shadow-sm lg:col-span-2">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <div className="text-xs font-bold uppercase text-amber-600">ภาพรวมมูลค่าสต็อก</div>
@@ -379,17 +449,17 @@ export function StockFinancePageClient() {
                 <span className="text-slate-300">/</span>
                 <span>WAC ตามตัวกรองปัจจุบัน</span>
               </div>
+              <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <Mini label="จ่ายแล้ว" value={money(data?.summary.paidValue)} />
+                <Mini label="ยังไม่จ่าย" value={money(data?.summary.unpaidValue)} />
+                <Mini label="โอกาสกำไร" value={money(opportunityValue)} />
+              </div>
             </div>
-            <div className="rounded-md border border-amber-100 bg-amber-50/40 px-3 py-2 text-xs text-amber-800">
+            <div className="rounded-md border border-amber-100 bg-amber-50/40 px-4 py-3 text-xs text-amber-800 lg:w-[220px]">
               <div className="font-bold">เงินจม 90+ วัน</div>
-              <div className="mt-0.5 text-lg font-extrabold tracking-tight">{money(oldStock?.value)}</div>
-              <div className="text-amber-700/80">{oldStock?.count ?? 0} รายการ</div>
+              <div className="mt-1 text-2xl font-extrabold tracking-tight">{money(oldStock?.value)}</div>
+              <div className="mt-1 text-amber-700/80">{oldStock?.count ?? 0} รายการ · {oldStockPct}% ของมูลค่ารวม</div>
             </div>
-          </div>
-          <div className="mt-5 grid grid-cols-1 gap-2 border-t border-slate-100 pt-4 sm:grid-cols-3">
-            <Mini label="จ่ายแล้ว" value={money(data?.summary.paidValue)} />
-            <Mini label="ยังไม่จ่าย" value={money(data?.summary.unpaidValue)} />
-            <Mini label="โอกาสกำไร" value={money(data?.summary.marginPotential)} />
           </div>
         </div>
         <Panel title="สถานะสต็อกตามการผลิต">
@@ -418,7 +488,23 @@ export function StockFinancePageClient() {
           </div>
         </Panel>
       </div>
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-5">
+        <Kpi label="Stock ทั้งหมด" value={String(data?.summary.itemCount ?? 0)} tone="slate" />
+        <Kpi label="น้ำหนักรวม" value={`${money(data?.summary.totalQty)} กก.`} tone="blue" />
+        <Kpi label="พร้อมขาย (FG)" value={`${money(fgValue)}`} tone="emerald" />
+        <Kpi label="จ่ายแล้ว" value={`${paidPct}%`} tone="amber" />
+        <Kpi label="Slow Moving" value={String(slowMovingCount)} tone="red" />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <Insight tone="amber" title="เงินจม 90+ วัน" value={money(oldStock?.value)} body={`${oldStock?.count ?? 0} รายการ · ${oldStockPct}% ของมูลค่ารวม`} />
+        <Insight tone="emerald" title="พร้อมขายทันที" value={money(fgValue)} body={`${fgPct}% ของมูลค่าสต็อกอยู่ในสถานะ FG พร้อมขาย`} />
+        <Insight tone="blue" title="Slow Moving / สินค้าที่ควรรีบขาย" value={money(slowMovingValue)} body={`Top ${slowMovingCount} รายการที่ไม่ขายเกิน 60 วันตามเงื่อนไขปัจจุบัน`} />
+        <Insight tone={opportunityValue >= 0 ? 'purple' : 'red'} title="ช่องว่างราคากับมาตรฐาน" value={money(opportunityValue)} body="คำนวณจาก (ราคามาตรฐาน - WAC) x ปริมาณคงเหลือ เพื่อใช้ดู margin potential" />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Panel title="อายุสต็อกตามมูลค่า">{(data?.aging ?? []).map((row) => <AgingBar key={row.key} row={row} total={total} />)}</Panel>
         <Panel title="สินค้า 10 อันดับมูลค่าสูงสุด">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -440,12 +526,12 @@ export function StockFinancePageClient() {
         </Panel>
       </div>
       <Tabs className="gap-3" value={stockTableTab} onValueChange={(value) => setStockTableTab(value as StockTableTab)}>
-        <TabsList className="w-full overflow-x-auto" variant="line">
+        <TabsList className="w-full overflow-x-auto rounded-md bg-white px-2 shadow-sm" variant="line">
           <TabsTrigger value="products" variant="line">
-            สต็อกทั้งหมด <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{data?.products.length ?? 0}</span>
+            Stock ทั้งหมด <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{data?.products.length ?? 0}</span>
           </TabsTrigger>
           <TabsTrigger value="slowMoving" variant="line">
-            สินค้าหมุนช้า / ควรเร่งระบาย <span className="ml-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">{data?.slowMoving.length ?? 0}</span>
+            Slow Moving / สินค้าที่ควรรีบขาย (Top 15 — ไม่ขาย &gt; 60 วัน) <span className="ml-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">{data?.slowMoving.length ?? 0}</span>
           </TabsTrigger>
         </TabsList>
         {stockTableTab === 'products' ? (
@@ -984,15 +1070,15 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-col gap-2 border-b border-slate-100 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="text-sm font-bold text-slate-800">สินค้าหมุนช้า / ควรเร่งระบาย</div>
-          <div className="mt-0.5 text-xs font-medium text-slate-500">Top 15 ที่ไม่ขายเกิน 60 วัน · {rows.length} รายการ</div>
+          <div className="text-sm font-bold text-slate-800">Slow Moving / สินค้าที่ควรรีบขาย</div>
+          <div className="mt-0.5 text-xs font-medium text-slate-500">Top 15 — ไม่ขาย &gt; 60 วัน · {rows.length} รายการ</div>
         </div>
       </div>
       <div className="hidden flex-wrap items-center gap-2 border-b border-slate-100 bg-white p-3 lg:flex">
         <DateInput label="ณ วันที่" value={asOf} onChange={onAsOfChange} />
         <BranchSelect branches={branches} value={branchId} onChange={onBranchIdChange} />
         <input
-          aria-label="ค้นหาสินค้าหมุนช้า"
+          aria-label="ค้นหา Slow Moving"
           className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-500"
           placeholder="ค้นหารหัส / ชื่อ / หมวด"
           type="search"
@@ -1000,7 +1086,7 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
           onChange={(event) => setSearch(event.target.value)}
         />
         <select
-          aria-label="หมวดสินค้าหมุนช้า"
+          aria-label="หมวดสินค้า Slow Moving"
           className="h-9 w-[180px] rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-500"
           value={groupFilter}
           onChange={(event) => setGroupFilter(event.target.value)}
@@ -1025,9 +1111,9 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
       <div className="border-b border-slate-100 bg-white p-3 lg:hidden">
         <div className="flex gap-2">
           <input
-            aria-label="ค้นหาสินค้าหมุนช้า"
+            aria-label="ค้นหา Slow Moving"
             className="h-9 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-500"
-            placeholder="ค้นหาสินค้าหมุนช้า"
+            placeholder="ค้นหา Slow Moving"
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -1056,7 +1142,7 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
 
       {showFilters ? (
         <MobileFilterSheet
-          title="ตัวกรองสินค้าหมุนช้า"
+          title="ตัวกรอง Slow Moving"
           onClose={() => setShowFilters(false)}
           footer={
             <>
@@ -1101,7 +1187,7 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">หมวดสินค้า</label>
             <select
-              aria-label="หมวดสินค้าหมุนช้า"
+              aria-label="หมวดสินค้า Slow Moving"
               className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-500"
               value={groupFilter}
               onChange={(event) => setGroupFilter(event.target.value)}
@@ -1148,7 +1234,7 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
                 <Td align="right" className={row.marginPotential < 0 ? 'font-semibold text-red-700' : 'font-semibold text-emerald-700'}>{money(row.marginPotential)}</Td>
               </tr>
             ))}
-            {!isLoading && !totalRows ? <tr><td className="py-8 text-center text-slate-400" colSpan={9}>ไม่มีสินค้าหมุนช้าตามเงื่อนไขนี้</td></tr> : null}
+            {!isLoading && !totalRows ? <tr><td className="py-8 text-center text-slate-400" colSpan={9}>ไม่มี Slow Moving ตามเงื่อนไขนี้</td></tr> : null}
           </tbody>
         </table>
       </div>
@@ -1157,7 +1243,7 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
         {isLoading && !totalRows ? (
           <div className="py-8 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล</div>
         ) : !totalRows ? (
-          <div className="py-8 text-center text-slate-400 text-xs">ไม่มีสินค้าหมุนช้าตามเงื่อนไขนี้</div>
+          <div className="py-8 text-center text-slate-400 text-xs">ไม่มี Slow Moving ตามเงื่อนไขนี้</div>
         ) : (
           pagedRows.map((row) => (
             <div key={row.id} className="space-y-2 p-4 text-xs transition hover:bg-slate-50/50">
