@@ -318,28 +318,54 @@ export function CashFlowForecastCalendarPageClient() {
   const [horizon, setHorizon] = useState(30)
   const [startDate, setStartDate] = useState(today())
   const [branchId, setBranchId] = useState('')
+  const [mobileStartDate, setMobileStartDate] = useState(startDate)
+  const [mobileBranchId, setMobileBranchId] = useState(branchId)
   const [modal, setModal] = useState<ProjectionDay | null>(null)
   const url = useMemo(() => `/api/finance-accounting/cf-forecast-calendar?startDate=${startDate}&horizon=${horizon}${branchId ? `&branchId=${branchId}` : ''}`, [branchId, horizon, startDate])
-  const { data, error, isLoading } = useApi<ForecastPayload>(url)
+  const { data, error, isLoading, resolvedUrl } = useApi<ForecastPayload>(url)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const displayData = data && resolvedUrl === url && !isLoading && !error ? data : null
+  const displayBranchId = displayData?.filters.branchId ?? branchId
+  const displayStartDate = displayData?.filters.startDate ?? startDate
+  const selectedBranch = (displayData?.branches ?? data?.branches ?? []).find((branch) => branch.id === displayBranchId)?.name ?? 'ทุกสาขา'
+
+  function openMobileFilters() {
+    setMobileStartDate(startDate)
+    setMobileBranchId(branchId)
+    setShowMobileFilters(true)
+  }
 
   return (
-    <section className="space-y-4">
+    <section aria-busy={isLoading} className="space-y-4">
       {error ? <ErrorBox message={error} /> : null}
       
       {/* Desktop Filter Panel */}
       <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex">
-        <span className="text-sm font-bold">Forecast:</span>
+        <span className="text-sm font-bold text-slate-700">Forecast:</span>
         {[7, 30, 90].map((item) => <button key={item} className={`rounded-md border px-3 py-1 text-xs font-medium ${horizon === item ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`} type="button" onClick={() => setHorizon(item)}>{item} วัน</button>)}
         <DateInput label="เริ่ม" value={startDate} onChange={setStartDate} />
         <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
-        <span className="text-xs text-slate-500">เริ่มจาก {money(data?.summary.startCash)} → จบที่ {money(data?.summary.endCash)}</span>
+        <span className="text-xs text-slate-500">เริ่มจาก {money(displayData?.summary.startCash)} → จบที่ {money(displayData?.summary.endCash)}</span>
       </div>
 
-      {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
-        <div className="flex gap-2 items-center justify-between">
-          <div className="flex gap-1.5 overflow-x-auto">
+      {/* Mobile compact filter strip */}
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs font-semibold text-slate-500">ช่วงคาดการณ์</div>
+            <div className="truncate text-sm font-bold text-slate-800">{shortThaiDate(displayStartDate)} · {horizon} วัน</div>
+            <div className="truncate text-xs text-slate-500">{selectedBranch}</div>
+          </div>
+          <button
+            type="button"
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500/40"
+            onClick={openMobileFilters}
+          >
+            <SlidersHorizontal aria-hidden="true" className="size-3.5" />
+            ตัวกรอง{branchId ? ' (มี)' : ''}
+          </button>
+        </div>
+        <div className="mt-3 flex gap-1.5 overflow-x-auto">
             {[7, 30, 90].map((item) => (
               <button
                 key={item}
@@ -350,14 +376,6 @@ export function CashFlowForecastCalendarPageClient() {
                 {item} วัน
               </button>
             ))}
-          </div>
-          <button
-            type="button"
-            className="h-9 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none shrink-0"
-            onClick={() => setShowMobileFilters(true)}
-          >
-            ตัวกรอง {branchId ? '(มี)' : ''}
-          </button>
         </div>
       </div>
 
@@ -370,7 +388,8 @@ export function CashFlowForecastCalendarPageClient() {
               <button
                 type="button"
                 onClick={() => {
-                  setBranchId('')
+                  setMobileStartDate(today())
+                  setMobileBranchId('')
                 }}
                 className="h-10 rounded-md border border-slate-200 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
               >
@@ -378,26 +397,30 @@ export function CashFlowForecastCalendarPageClient() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowMobileFilters(false)}
+                onClick={() => {
+                  setStartDate(mobileStartDate)
+                  setBranchId(mobileBranchId)
+                  setShowMobileFilters(false)
+                }}
                 className="h-10 rounded-md bg-blue-600 text-sm font-normal text-white transition hover:bg-blue-700"
               >
-                ตกลง
+                ใช้ตัวกรอง
               </button>
             </>
           }
         >
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-600">เริ่มวันที่</label>
-            <DatePickerInput className="w-full text-sm" value={startDate} onChange={setStartDate} />
+            <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="cash-flow-forecast-start-mobile">เริ่มวันที่</label>
+            <DatePickerInput ariaLabel="เริ่มวันที่" className="w-full text-sm" id="cash-flow-forecast-start-mobile" value={mobileStartDate} onChange={setMobileStartDate} />
           </div>
 
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
             <select
-              aria-label="Branch select"
+              aria-label="สาขา"
               className="h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
-              value={branchId}
-              onChange={(event) => setBranchId(event.target.value)}
+              value={mobileBranchId}
+              onChange={(event) => setMobileBranchId(event.target.value)}
             >
               <option value="">ทุกสาขา</option>
               {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
@@ -405,24 +428,58 @@ export function CashFlowForecastCalendarPageClient() {
           </div>
 
           <div className="border-t border-slate-100 pt-2 text-xs text-slate-500">
-            เริ่มจาก <span className="font-bold text-slate-700">{money(data?.summary.startCash)}</span> → จบที่ <span className="font-bold text-slate-700">{money(data?.summary.endCash)}</span>
+            เริ่มจาก <span className="font-bold text-slate-700">{money(displayData?.summary.startCash)}</span> → จบที่ <span className="font-bold text-slate-700">{money(displayData?.summary.endCash)}</span>
           </div>
         </MobileFilterSheet>
       ) : null}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <ForecastMega summary={data?.summary} horizon={horizon} />
-        <div className="col-span-1 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm md:col-span-2"><div className="mb-3 text-sm font-bold text-slate-700"> พยากรณ์เงินสดรายวัน ({horizon} วันข้างหน้า)</div><ProjectionSvg days={data?.dailyProjection ?? []} /></div>
-      </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <Stat label="เงินสดเริ่มต้น" tone="blue" value={money(data?.summary.startCash)} />
-        <Stat label="Expected In" tone="emerald" value={`+${money(data?.summary.totalIn)}`} />
-        <Stat label="Expected Out" tone="red" value={`-${money(data?.summary.totalOut)}`} />
-        <Stat label="เงินสดสิ้นสุด" tone={(data?.summary.endCash ?? 0) > 0 ? 'emerald' : (data?.summary.endCash ?? 0) < 0 ? 'red' : 'slate'} value={money(data?.summary.endCash)} />
-        <Stat label=" ยอดต่ำสุด" tone={(data?.summary.lowestBal ?? 0) > 0 ? 'emerald' : (data?.summary.lowestBal ?? 0) < 0 ? 'red' : 'slate'} value={money(data?.summary.lowestBal)} />
-      </div>
-      {data?.summary.negDay ? <div className="rounded-md border-2 border-red-300 bg-red-50 p-4 text-sm font-bold text-red-700"> เงินสดจะติดลบในวันที่ {data.summary.negDay.date} (ยอด {money(data.summary.negDay.closing)}) · {data.summary.negCount} วัน</div> : null}
-      <CalendarGrid days={data?.dailyProjection ?? []} isLoading={isLoading} onSelect={setModal} />
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2"><TopAr rows={data?.insights.topAR ?? []} /><TopAp rows={data?.insights.topAP ?? []} /></div>
+
+      {!displayData && !error ? <ForecastLoadingState /> : null}
+
+      {displayData ? (
+        <>
+          <KpiCardGrid className="lg:grid-cols-4 xl:grid-cols-4">
+            <SharedKpiCard className={analysisKpiClassName} icon={<Wallet aria-hidden="true" className="size-5" />} label="เงินสดเริ่มต้น" note={`ณ ${shortThaiDate(displayStartDate)}`} tone="blue" value={money(displayData.summary.startCash)} />
+            <SharedKpiCard className={analysisKpiClassName} icon={<ArrowDownLeft aria-hidden="true" className="size-5" />} label="Expected In" note="เงินรับที่ถึงกำหนดในช่วง forecast" tone="cyan" value={`+${money(displayData.summary.totalIn)}`} />
+            <SharedKpiCard className={analysisKpiClassName} icon={<ArrowUpRight aria-hidden="true" className="size-5" />} label="Expected Out" note="เงินจ่ายที่ถึงกำหนดในช่วง forecast" tone="orange" value={`-${money(displayData.summary.totalOut)}`} />
+            <SharedKpiCard className={analysisKpiClassName} icon={<Activity aria-hidden="true" className="size-5" />} label="เงินสดสิ้นสุด" note={`สิ้นสุด ${horizon} วัน`} tone={displayData.summary.endCash >= 0 ? 'emerald' : 'red'} value={money(displayData.summary.endCash)} />
+          </KpiCardGrid>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <AnalysisPanel
+              subtitle="สรุปเงินสดเริ่มต้น เงินรับ เงินจ่าย และยอดต่ำสุดในช่วงที่เลือก"
+              title={`ภาพรวม forecast ${horizon} วัน`}
+            >
+              <ForecastMega summary={displayData.summary} horizon={horizon} />
+            </AnalysisPanel>
+            <AnalysisPanel
+              className="lg:col-span-2"
+              subtitle="เส้นกราฟจะขยายตามช่วงข้อมูลจริง เพื่อให้เห็นจังหวะขึ้นลงของเงินสดแต่ละวันชัดขึ้น"
+              title={`พยากรณ์เงินสดรายวัน (${horizon} วันข้างหน้า)`}
+            >
+              <ProjectionSvg days={displayData.dailyProjection} />
+            </AnalysisPanel>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <AnalysisPanel
+              className="lg:col-span-2"
+              subtitle="กดเลือกวันที่บนปฏิทินเพื่อดูรายการรับและจ่ายที่ทำให้ยอดวันนั้นเปลี่ยน"
+              title="ปฏิทิน cash flow รายวัน"
+            >
+              <CalendarGrid days={displayData.dailyProjection} isLoading={false} onSelect={setModal} />
+            </AnalysisPanel>
+            <AnalysisPanel subtitle="ดูความเสี่ยงยอดติดลบและสัดส่วนเงินเข้าออกจากยอดตั้งต้น" title="สัญญาณสภาพคล่อง">
+              <ForecastRiskPanel horizon={horizon} startDate={displayStartDate} summary={displayData.summary} />
+            </AnalysisPanel>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <TopAr rows={displayData.insights.topAR} />
+            <TopAp rows={displayData.insights.topAP} />
+          </div>
+        </>
+      ) : null}
+
       {modal ? <DayModal day={modal} onClose={() => setModal(null)} /> : null}
     </section>
   )
@@ -529,6 +586,10 @@ function CapitalStructureChart({ ar, cash, stock }: { ar: number; cash: number; 
   ]
   const total = rows.reduce((sum, row) => sum + Math.abs(row.value), 0)
   const max = Math.max(...rows.map((row) => Math.abs(row.value)), 1)
+  const stockRatioVsCash = cash > 0 ? stock / cash * 100 : 0
+  const arRatioVsCash = cash > 0 ? ar / cash * 100 : 0
+  const dominantLabel = stock > ar * 1.5 ? 'สินค้าคงคลังจมมากกว่าลูกหนี้' : ar > stock * 1.5 ? 'ลูกหนี้จมมากกว่าสินค้าคงคลัง' : 'ลูกหนี้และสินค้าคงคลังยังใกล้กัน'
+  const dominantTone = stock > ar * 1.5 ? 'text-amber-700' : ar > stock * 1.5 ? 'text-cyan-700' : 'text-slate-700'
 
   return (
     <div className="space-y-4">
@@ -558,6 +619,29 @@ function CapitalStructureChart({ ar, cash, stock }: { ar: number; cash: number; 
       <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
         <span className="font-semibold text-slate-500">รวมฐานเปรียบเทียบ</span>
         <span className="font-mono font-bold tabular-nums text-slate-700">{money(total)}</span>
+      </div>
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold text-slate-500">เงินจมที่ไหน</div>
+            <div className={`mt-1 text-sm font-bold ${dominantTone}`}>{dominantLabel}</div>
+          </div>
+          <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500 shadow-sm">
+            เทียบกับเงินสด
+          </span>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="rounded-lg bg-white px-3 py-2">
+            <div className="text-[11px] font-semibold text-cyan-700">ลูกหนี้การค้า (AR)</div>
+            <div className="mt-1 font-mono text-sm font-bold tabular-nums text-slate-800">{money(ar)}</div>
+            <div className="mt-1 text-[11px] text-slate-500">{arRatioVsCash.toFixed(1)}% ของเงินสด</div>
+          </div>
+          <div className="rounded-lg bg-white px-3 py-2">
+            <div className="text-[11px] font-semibold text-amber-700">สินค้าคงคลัง</div>
+            <div className="mt-1 font-mono text-sm font-bold tabular-nums text-slate-800">{money(stock)}</div>
+            <div className="mt-1 text-[11px] text-slate-500">{stockRatioVsCash.toFixed(1)}% ของเงินสด</div>
+          </div>
+        </div>
       </div>
       <p className="text-[11px] leading-relaxed text-slate-400">สัดส่วนคำนวณจากมูลค่าสัมบูรณ์เพื่อเปรียบเทียบขนาดของแต่ละรายการ</p>
     </div>
@@ -764,6 +848,25 @@ function AnalysisLoadingState() {
   )
 }
 
+function ForecastLoadingState() {
+  return (
+    <div aria-label="กำลังโหลดข้อมูล CF Forecast Calendar" className="space-y-4" role="status">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => <div className="h-24 animate-pulse rounded-xl border border-slate-200 bg-white shadow-sm" key={index} />)}
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="h-72 animate-pulse rounded-xl border border-slate-200 bg-white shadow-sm" />
+        <div className="h-72 animate-pulse rounded-xl border border-slate-200 bg-white shadow-sm lg:col-span-2" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="h-[26rem] animate-pulse rounded-xl border border-slate-200 bg-white shadow-sm lg:col-span-2" />
+        <div className="h-[26rem] animate-pulse rounded-xl border border-slate-200 bg-white shadow-sm" />
+      </div>
+      <span className="sr-only">กำลังโหลดข้อมูล</span>
+    </div>
+  )
+}
+
 const detailLabelTranslations: Record<string, string> = {
   'Net Profit ในงบ (Accrual)': 'กำไรสุทธิในงบ (เกณฑ์คงค้าง)',
   'Operating Cash Flow จริง': 'กระแสเงินสดจากการดำเนินงาน',
@@ -852,18 +955,184 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPa
 
 function ForecastMega({ horizon, summary }: { horizon: number; summary?: ForecastPayload['summary'] }) {
   const ok = (summary?.lowestBal ?? 0) >= 0
-  const tone = ok ? 'border-l-emerald-500 text-emerald-700' : 'border-l-red-500 text-red-700'
-  return <div className={`rounded-xl border border-l-4 border-slate-200 bg-white p-4 shadow-sm ${tone}`}><div className="text-xs font-semibold">{ok ? 'คาดการณ์: เงินพอ' : 'คาดการณ์: เงินขาด'}</div><div className="mt-1 break-words font-mono text-2xl font-bold leading-tight tabular-nums sm:text-3xl">{money(summary?.endCash)}</div><div className="mt-2 text-sm font-medium text-slate-600">เงินสด ณ สิ้น {horizon} วัน</div><div className="mt-3 grid gap-1 text-xs text-slate-600 sm:grid-cols-2"><div>เริ่มต้น: <b>{money(summary?.startCash)}</b></div><div>+ รับคาดการณ์: <b className="text-emerald-700">+{money(summary?.totalIn)}</b></div><div>- จ่ายคาดการณ์: <b className="text-red-700">-{money(summary?.totalOut)}</b></div><div>ต่ำสุด: <b>{money(summary?.lowestBal)}</b> {summary?.negCount ? `(${summary.negCount} วัน ติดลบ)` : ''}</div></div></div>
+  const tone = ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+
+  return (
+    <div className="space-y-4">
+      <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${tone}`}>
+        {ok ? <CheckCircle2 aria-hidden="true" className="size-3.5" /> : <AlertTriangle aria-hidden="true" className="size-3.5" />}
+        {ok ? 'คาดการณ์: เงินพอ' : 'คาดการณ์: เงินขาด'}
+      </div>
+      <div>
+        <div className={`break-words font-mono text-3xl font-bold leading-tight tabular-nums ${ok ? 'text-emerald-700' : 'text-rose-700'}`}>{money(summary?.endCash)}</div>
+        <div className="mt-1 text-sm font-medium text-slate-600">เงินสด ณ สิ้น {horizon} วัน</div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <ForecastMiniStat label="เริ่มต้น" tone="blue" value={money(summary?.startCash)} />
+        <ForecastMiniStat label="รับคาดการณ์" tone="emerald" value={`+${money(summary?.totalIn)}`} />
+        <ForecastMiniStat label="จ่ายคาดการณ์" tone="red" value={`-${money(summary?.totalOut)}`} />
+        <ForecastMiniStat label="ยอดต่ำสุด" tone={(summary?.lowestBal ?? 0) >= 0 ? 'slate' : 'red'} value={money(summary?.lowestBal)} />
+      </div>
+      {summary?.negCount ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          เงินสดติดลบ {summary.negCount.toLocaleString('th-TH')} วัน
+          {summary.negDay ? ` โดยเริ่มวันที่ ${shortThaiDate(summary.negDay.date)}` : ''}
+        </div>
+      ) : (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+          ไม่มีวันที่เงินสดติดลบในช่วง forecast นี้
+        </div>
+      )}
+    </div>
+  )
 }
 
 function ProjectionSvg({ days }: { days: ProjectionDay[] }) {
-  const maxAbs = Math.max(...days.map((day) => Math.abs(day.closing)), 1)
-  const points = days.map((day, index) => `${40 + (index / Math.max(1, days.length - 1)) * 740},${100 - (day.closing / maxAbs) * 90}`).join(' ')
-  return <svg viewBox="0 0 800 200" className="h-[200px] w-full"><line stroke="#cbd5e1" strokeDasharray="3 3" x1="40" x2="780" y1="100" y2="100" /><text fill="#64748b" fontSize="12" textAnchor="end" x="35" y="103">0</text><polyline fill="none" points={points} stroke="#0284c7" strokeWidth="2" /><polygon fill="rgba(16,185,129,0.15)" points={`40,100 ${points} 780,100`} /><circle cx="40" cy="100" fill="#10b981" r="4" /><text fill="#0284c7" fontSize="12" fontWeight="bold" textAnchor="middle" x="40" y="195">วันนี้</text></svg>
+  if (!days.length) return <div className="py-12 text-center text-sm text-slate-400">ยังไม่มีข้อมูลพยากรณ์ในช่วงที่เลือก</div>
+
+  const values = days.map((day) => day.closing)
+  const visibleMinimum = Math.min(...values)
+  const visibleMaximum = Math.max(...values)
+  const padding = Math.max((visibleMaximum - visibleMinimum) * 0.16, Math.abs(visibleMaximum) * 0.01, 1)
+  const minimum = Math.min(visibleMinimum - padding, 0)
+  const maximum = Math.max(visibleMaximum + padding, 0)
+  const range = Math.max(1, maximum - minimum)
+  const width = 760
+  const height = 250
+  const top = 24
+  const bottom = 182
+  const xStart = 56
+  const xEnd = 728
+  const zeroY = top + ((maximum - 0) / range) * (bottom - top)
+  const points = days.map((day, index) => ({
+    ...day,
+    x: xStart + (index / Math.max(1, days.length - 1)) * (xEnd - xStart),
+    y: top + ((maximum - day.closing) / range) * (bottom - top),
+  }))
+  const pointString = points.map((point) => `${point.x},${point.y}`).join(' ')
+  const areaBase = values.every((value) => value >= 0) ? bottom : values.every((value) => value <= 0) ? top : zeroY
+  const areaPoints = `${points[0]?.x ?? xStart},${areaBase} ${pointString} ${points.at(-1)?.x ?? xEnd},${areaBase}`
+  const lowestDay = points.reduce((lowest, point) => point.closing < lowest.closing ? point : lowest, points[0])
+  const highestDay = points.reduce((highest, point) => point.closing > highest.closing ? point : highest, points[0])
+
+  return (
+    <div className="space-y-4">
+      <svg aria-label="กราฟพยากรณ์เงินสดรายวัน" className="h-auto w-full" role="img" viewBox={`0 0 ${width} ${height}`}>
+        <defs>
+          <linearGradient id="forecastProjectionArea" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#14b8a6" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#14b8a6" stopOpacity="0.03" />
+          </linearGradient>
+        </defs>
+        <line className="stroke-slate-100" strokeDasharray="3 5" x1={xStart} x2={xEnd} y1={top} y2={top} />
+        <line className="stroke-slate-100" strokeDasharray="3 5" x1={xStart} x2={xEnd} y1={bottom} y2={bottom} />
+        {minimum <= 0 && maximum >= 0 ? <line className="stroke-slate-300" strokeDasharray="5 5" x1={xStart - 8} x2={xEnd + 8} y1={zeroY} y2={zeroY} /> : null}
+        {minimum <= 0 && maximum >= 0 ? <text className="fill-slate-500" fontSize="10" textAnchor="end" x={xStart - 12} y={zeroY + 3}>0</text> : null}
+        <text className="fill-slate-400" fontSize="10" textAnchor="end" x={xStart - 12} y={top + 3}>{money(maximum)}</text>
+        <text className="fill-slate-400" fontSize="10" textAnchor="end" x={xStart - 12} y={bottom + 3}>{money(minimum)}</text>
+        <polygon fill="url(#forecastProjectionArea)" points={areaPoints} />
+        <polyline className="stroke-cyan-600" fill="none" points={pointString} strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" />
+        {points.map((point, index) => {
+          const highlight = point.isToday || point.date === lowestDay.date || point.date === highestDay.date
+          return (
+            <g key={point.date}>
+              <circle
+                className={point.closing >= 0 ? 'fill-cyan-600 stroke-white' : 'fill-rose-500 stroke-white'}
+                cx={point.x}
+                cy={point.y}
+                r={highlight ? 6 : 4}
+                strokeWidth="3"
+              >
+                <title>{point.date}: {money(point.closing)} บาท</title>
+              </circle>
+              {(highlight || index === points.length - 1) ? (
+                <text className={point.closing >= 0 ? 'fill-cyan-700' : 'fill-rose-700'} fontSize="10" fontWeight="700" textAnchor="middle" x={point.x} y={Math.max(14, point.y - 10)}>
+                  {money(point.closing)}
+                </text>
+              ) : null}
+            </g>
+          )
+        })}
+        <text className="fill-blue-700" fontSize="11" fontWeight="700" textAnchor="middle" x={points[0]?.x ?? xStart} y={height - 14}>วันนี้</text>
+        <text className="fill-slate-500" fontSize="11" fontWeight="600" textAnchor="middle" x={points.at(-1)?.x ?? xEnd} y={height - 14}>สิ้นช่วง</text>
+      </svg>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <ForecastChartNote label="จุดสูงสุด" tone="emerald" value={money(highestDay.closing)}>
+          {shortThaiDate(highestDay.date)}
+        </ForecastChartNote>
+        <ForecastChartNote label="จุดต่ำสุด" tone={lowestDay.closing < 0 ? 'red' : 'slate'} value={money(lowestDay.closing)}>
+          {shortThaiDate(lowestDay.date)}
+        </ForecastChartNote>
+        <ForecastChartNote label="ยอดสิ้นช่วง" tone={days.at(-1)?.closing ?? 0 >= 0 ? 'blue' : 'red'} value={money(days.at(-1)?.closing)}>
+          {shortThaiDate(days.at(-1)?.date ?? '')}
+        </ForecastChartNote>
+      </div>
+    </div>
+  )
 }
 
-function Stat({ label, tone, value }: { label: string; tone: 'blue' | 'emerald' | 'red' | 'slate'; value: string }) {
-  return <SharedKpiCard label={label} tone={tone} value={value} />
+function ForecastRiskPanel({ horizon, startDate, summary }: { horizon: number; startDate: string; summary: ForecastPayload['summary'] }) {
+  const netChange = summary.endCash - summary.startCash
+  const changePercent = summary.startCash !== 0 ? netChange / summary.startCash * 100 : 0
+  const risk = summary.negCount > 0 ? 'danger' : netChange < 0 ? 'warn' : 'ok'
+  const riskText = risk === 'danger' ? 'มีวันเงินสดติดลบในช่วง forecast' : risk === 'warn' ? 'เงินสดลดลง แต่ยังไม่ติดลบ' : 'เงินสดยังอยู่ในโซนปลอดภัย'
+  const riskClass = risk === 'danger' ? 'bg-rose-50 text-rose-700' : risk === 'warn' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
+  const gapToLowest = summary.startCash - summary.lowestBal
+
+  return (
+    <div className="space-y-4">
+      <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${riskClass}`}>
+        {risk === 'danger' ? <AlertTriangle aria-hidden="true" className="size-3.5" /> : risk === 'warn' ? <Gauge aria-hidden="true" className="size-3.5" /> : <CheckCircle2 aria-hidden="true" className="size-3.5" />}
+        {riskText}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+        <ForecastMiniStat label="การเปลี่ยนแปลงสุทธิ" tone={netChange >= 0 ? 'emerald' : 'red'} value={`${netChange >= 0 ? '+' : ''}${money(netChange)}`} />
+        <ForecastMiniStat label="คิดเป็น" tone={netChange >= 0 ? 'blue' : 'red'} value={`${changePercent >= 0 ? '+' : ''}${changePercent.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`} />
+        <ForecastMiniStat label="ลดลงจากจุดเริ่มต้นมากสุด" tone={gapToLowest > 0 ? 'amber' : 'slate'} value={money(gapToLowest)} />
+        <ForecastMiniStat label="จำนวนวันที่ติดลบ" tone={summary.negCount > 0 ? 'red' : 'emerald'} value={`${summary.negCount.toLocaleString('th-TH')} วัน`} />
+      </div>
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+        ช่วง forecast นี้ครอบคลุม {horizon.toLocaleString('th-TH')} วันนับจาก {shortThaiDate(startDate)} โดยตัวเลขรับและจ่ายจะอ้างอิงรายการที่ถึงกำหนดในแต่ละวัน
+      </div>
+    </div>
+  )
+}
+
+function ForecastMiniStat({ label, tone, value }: { label: string; tone: 'amber' | 'blue' | 'emerald' | 'red' | 'slate'; value: string }) {
+  const toneClass = tone === 'blue'
+    ? 'text-blue-700 bg-blue-50 border-blue-100'
+    : tone === 'emerald'
+      ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
+      : tone === 'red'
+        ? 'text-rose-700 bg-rose-50 border-rose-100'
+        : tone === 'amber'
+          ? 'text-amber-700 bg-amber-50 border-amber-100'
+          : 'text-slate-700 bg-slate-50 border-slate-200'
+
+  return (
+    <div className={`rounded-xl border p-3 ${toneClass}`}>
+      <div className="text-[11px] font-semibold">{label}</div>
+      <div className="mt-1 break-words font-mono text-base font-bold tabular-nums">{value}</div>
+    </div>
+  )
+}
+
+function ForecastChartNote({ children, label, tone, value }: { children: ReactNode; label: string; tone: 'blue' | 'emerald' | 'red' | 'slate'; value: string }) {
+  const textClass = tone === 'blue'
+    ? 'text-blue-700'
+    : tone === 'emerald'
+      ? 'text-emerald-700'
+      : tone === 'red'
+        ? 'text-rose-700'
+        : 'text-slate-700'
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+      <div className="text-[11px] font-semibold text-slate-500">{label}</div>
+      <div className={`mt-1 break-words font-mono text-sm font-bold tabular-nums ${textClass}`}>{value}</div>
+      <div className="mt-1 text-[11px] text-slate-400">{children}</div>
+    </div>
+  )
 }
 
 function CalendarGrid({ days, isLoading, onSelect }: { days: ProjectionDay[]; isLoading: boolean; onSelect: (day: ProjectionDay) => void }) {
