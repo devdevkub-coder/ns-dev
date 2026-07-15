@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -158,14 +159,7 @@ export function MatchLogPageClient() {
             คืนค่าเดิมตาราง
           </Button>
         ) : null}
-        <select
-          aria-label="จำนวนรายการต่อหน้า"
-          className="h-8 text-xs rounded-md border border-slate-300 px-2 bg-white text-slate-800"
-          value={pageSize}
-          onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}
-        >
-          {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-        </select>
+        <PageSizeDropdown options={[10, 25, 50, 100]} value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
         <Button
           disabled={currentPage <= 1}
           size="xs"
@@ -259,13 +253,9 @@ export function MatchLogPageClient() {
         <div className="overflow-x-auto">
       <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth, width: '100%' }}>
         <colgroup>
-          {matchLogColumns.map((column, index) => {
-            const style = columnResize.getColumnStyle(column.key)
-            if (index === matchLogColumns.length - 1) {
-              return <col key={column.key} style={{ minWidth: column.minWidth }} />
-            }
-            return <col key={column.key} style={style} />
-          })}
+          {matchLogColumns.map((column) => (
+            <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+          ))}
         </colgroup>
         <thead className="bg-slate-100">
           <tr>

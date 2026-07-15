@@ -343,12 +343,9 @@ export function ProductionReconciliationPageClient() {
         <div className="overflow-x-auto">
           <table className="ns-table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
-              {reconciliationColumns.map((col, index) => {
-                if (index === reconciliationColumns.length - 1) {
-                  return <col key={col.key} style={{ minWidth: col.minWidth }} />
-                }
-                return <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
-              })}
+              {reconciliationColumns.map((col) => (
+                <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+              ))}
             </colgroup>
             <thead className="bg-slate-100 border-b border-slate-100 text-left text-slate-500">
               <tr>

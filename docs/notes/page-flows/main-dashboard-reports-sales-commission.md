@@ -26,8 +26,10 @@ route: /sales-commission
 หน้า overview ของ `/sales-commission` ใช้รูปแบบ dashboard compact ตามภาพอ้างอิงที่ผู้ใช้ส่งให้:
 
 - แถวตัวกรองด้านบนแสดงช่วงวันที่และสาขาเป็น scope หลัก พร้อมปุ่ม `รีเซ็ตตัวกรอง`
+- ช่วงวันที่มีตัวเลือกด่วน `วันนี้`, `7 วัน`, และ `เดือนนี้`; ปุ่ม `ล้างตัวกรอง` คืนวันที่เป็นเดือนปัจจุบัน, สาขาเป็นทั้งหมด, และตัวกรองการ์ดเป็นทั้งหมด โดยไม่เปลี่ยนสูตรหรือ payload ของรายงาน
 - KPI หน้าแรกแสดงครบ 8 metric ตาม business requirement: จำนวนที่ซื้อ, ยอดซื้อ, จำนวนที่ได้คอม, ยอดซื้อที่ได้คอม, จำนวนที่ไม่ได้คอม, ยอดซื้อที่ไม่ได้คอม, จำนวนซื้อทั้งปี, และยอดซื้อทั้งปี โดย desktop วาง 4 ใบต่อแถว
 - การ์ดรายพนักงานขายต้องเป็น report card แบบ 2-column metric boxes ตามภาพอ้างอิงล่าสุด: header แสดงชื่อ/รหัส/โทรและ badge ค่าคอม, ภายในแสดง `บิล`, `Supplier`, `น้ำหนักรับซื้อ`, `น้ำหนักที่ได้คอม`, `ยอดรับซื้อรวม`, `ยอดซื้อที่ได้คอม`, และ `ค่าคอมเดือนนี้`; desktop วางได้ 4 การ์ดต่อแถว และทั้ง card กดเข้า drilldown ได้. บน mobile เมื่อกดเข้า drilldown ต้องเลื่อนกลับขึ้นหัวรายละเอียด เพื่อให้เห็นชื่อพนักงานขาย, scope วันที่, ปุ่ม export, และปุ่มกลับก่อน KPI/table
+- จำนวน `บิล` และ `Supplier` เป็น count จึงแสดงเลขเต็มไม่มี `.00`; ตัวกรองการ์ด `ทั้งหมด / มีรายการ / ได้คอม` ทำงานเฉพาะ presentation ของ card grid และค่าเริ่มต้นต้องเป็น `ทั้งหมด`
 - หน้า drilldown รายพนักงานขายต้องใช้ KPI 8 ใบแบบสมดุล 4+4 บน desktop โดยไม่ใส่ decorative dot/marker ที่ไม่ได้สื่อความหมายจริง, ปุ่มกลับใช้ baseline `rounded-md h-9` พร้อม icon และวางเป็น standalone navigation ด้านซ้ายบน ไม่อยู่ใน header card เดียวกับปุ่ม `ส่งออก Excel`; ตารางต้องเป็นหัว neutral/Thai-first ไม่ใช้แถบดำ + emoji + `Table` อังกฤษ; หัว panel ที่ผู้ใช้เห็นต้องเป็นชื่อข้อมูลจริง ไม่ใช้ `ตาราง 1`/`ตาราง 2`; ถ้ามีตารางหลายชุดต้องจัดกลุ่มด้วย shared line tabs แทนการเรียงเป็นกำแพงตารางยาว โดยใช้ 4 แท็บคือ `ยอดรวมตามหมวด`, `ยอดได้คอม`, `ผู้ขาย`, และ `รายการสินค้า`; ห้ามให้แท็บเดียวมี 2 ตาราง และห้ามรวม Table 2 จนหายจาก navigation
 - หน้า overview summary table และทุกตารางใน drilldown ต้องมี pagination row แบบเดียวกัน (`พบทั้งหมด`, page size, `ก่อนหน้า`, `หน้า X / Y`, `ถัดไป`). ภายในแต่ละ table surface ต้องเรียง toolbar/filter ก่อน pagination แล้วค่อยเป็น table. Filter ใน drilldown ต้องเป็น tab-specific: `ยอดรวมตามหมวด`/`ยอดได้คอม` ค้นหาหมวดสินค้า, `ผู้ขาย` ค้นหาผู้ขาย, และ `รายการสินค้า` ค้นหาเลขบิล/ผู้ขาย/สินค้า พร้อม segmented filter `สถานะค่าคอม`; ปุ่ม reset column width อยู่ใน toolbar ไม่แยกเป็นกรอบลอย
 - ตารางสรุปราย Sales อยู่ใน white report panel พร้อม toolbar เลือกพนักงานขายและปุ่ม `ส่งออก Excel`
@@ -595,3 +597,7 @@ If commission becomes transactional in the future, the system will implement the
 - [x] Define commission formula and payable handoff, if commission will become transactional
 - [x] Document commission tier rule from business note
 - [ ] Confirm commission threshold inclusivity with customer before transactional/payroll posting
+
+## 2026-07-12 Table consistency checkpoint
+
+`/sales-commission` now tags every overview/drilldown runtime table with `ns-table`, uses shared line tabs for `ยอดรวมตามหมวด`, `ยอดได้คอม`, `ผู้ขาย`, and `รายการสินค้า`, renders one verification table at a time, and substitutes task-grouped dense cards on mobile. Mobile cards separate descriptors in a light grouped box from right-aligned numeric summaries and keep `ราคาหน้าใบ` alongside the other desktop item facts. What is what: each tab selects one existing read-only verification dataset for the chosen salesperson. Why it stays this way: the page should not stack four wide tables, expose ordinal `Table 1-4` titles, or reduce mobile facts; commission formulas, filters, CSV export data, API behavior, permissions, database schema, and DB state are unchanged.

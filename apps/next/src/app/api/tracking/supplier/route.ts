@@ -201,10 +201,21 @@ export async function GET(request: Request) {
         where: { ...branchScopedPaymentWhere(allowedBranchIds), NOT: { status: 'cancelled' }, ...(supplier ? { supplier_id: supplier.id } : {}) },
       }),
       prisma.weight_tickets.findMany({
-        include: {
-          weight_ticket_lines: true,
+        select: {
+          deduct_weight: true,
+          doc_no: true,
+          document_date: true,
+          gross_weight: true,
+          net_weight: true,
+          status: true,
+          supplier_id: true,
           weight_ticket_product_summaries: {
-            include: {
+            select: {
+              billed_weight: true,
+              net_weight: true,
+              product_id: true,
+              product_name: true,
+              remaining_weight: true,
               products: {
                 select: {
                   metal_group: true,
@@ -224,6 +235,18 @@ export async function GET(request: Request) {
         },
       }),
       prisma.grade_adjustments.findMany({
+        select: {
+          date: true,
+          doc_no: true,
+          notes: true,
+          product_id: true,
+          qty_diff: true,
+          reason: true,
+          source_product_id: true,
+          status: true,
+          target_product_id: true,
+          value_diff: true,
+        },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 5000,
         where: { ...branchScopedGradeAdjustmentWhere(allowedBranchIds), date: yearMonthDateWhere(year, month, dateFrom, dateTo), reversed_at: null, status: { not: 'cancelled' } },

@@ -15,7 +15,7 @@ export function purchaseBillStatusText(status: string | null | undefined) {
   const normalized = String(status ?? '').toLowerCase()
   const labels: Record<string, string> = {
     cancelled: 'ยกเลิก',
-    [PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS]: 'ยกเลิก/เปลี่ยน Supplier',
+    [PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS]: 'ยกเลิก/เปลี่ยนผู้ขาย',
   }
   return labels[normalized] ?? (status || '-')
 }

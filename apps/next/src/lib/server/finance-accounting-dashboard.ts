@@ -86,11 +86,30 @@ async function cashSplit(asOf: Date, branchId?: string) {
   return { ...byKind, cashAndBank: byKind.cashBalance + byKind.bankBalance + byKind.fcdBalance, odAvailable: Math.max(0, byKind.odLimit - byKind.odUsed) }
 }
 
+async function unbilledDeliveryCost(asOf: Date, branchId?: string) {
+  const branch = branchId ? await findActiveBranchReferenceByCodeOrId(branchId) : null
+  const asOfEnd = endOfDay(asOf)
+  const result = await prisma.stock_holds.aggregate({
+    _sum: { value_snapshot: true },
+    where: {
+      source_type: 'WTO',
+      held_at: { lte: asOfEnd },
+      ...(branch?.id != null ? { branch_id: branch.id } : {}),
+      OR: [{ consumed_at: null }, { consumed_at: { gt: asOfEnd } }],
+      AND: [
+        { OR: [{ released_at: null }, { released_at: { gt: asOfEnd } }] },
+        { OR: [{ cancelled_at: null }, { cancelled_at: { gt: asOfEnd } }] },
+      ],
+    },
+  })
+  return toNumber(result._sum.value_snapshot)
+}
+
 export async function buildFinancialDashboard(filter: FinancialDashboardFilter) {
   const asOf = filter.asOf
   const currentMonthStart = monthStart(asOf)
   const last30Start = addDays(asOf, -29)
-  const [branches, balanceSheet, monthPl, cashAnalysis, workingCapital, stockFinance, split, monthlyPL] = await Promise.all([
+  const [branches, balanceSheet, monthPl, cashAnalysis, workingCapital, stockFinance, split, pendingDeliveryCost, monthlyPL] = await Promise.all([
     prisma.branches.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }], select: { code: true, id: true, name: true }, where: { active: true } }),
     buildBalanceSheet({ asOf, branchId: filter.branchId }),
     buildPlStatement({ branchId: filter.branchId, from: currentMonthStart, to: asOf, transactionMode: 'ALL' }),
@@ -98,6 +117,7 @@ export async function buildFinancialDashboard(filter: FinancialDashboardFilter) 
     buildWorkingCapital({ asOf, branchId: filter.branchId, periodDays: 90 }),
     buildStockFinance({ asOf, branchId: filter.branchId, periodDays: 90 }),
     cashSplit(asOf, filter.branchId),
+    unbilledDeliveryCost(asOf, filter.branchId),
     Promise.all(Array.from({ length: 6 }, (_, index) => {
       const start = addMonths(currentMonthStart, index - 5)
       const end = new Date(start.getFullYear(), start.getMonth() + 1, 0)
@@ -172,6 +192,7 @@ export async function buildFinancialDashboard(filter: FinancialDashboardFilter) 
       npPct: monthPl.summary.revenue > 0 ? monthPl.summary.netProfitBeforeTax / monthPl.summary.revenue * 100 : 0,
       odAvailable: split.odAvailable,
       opCF: cashAnalysis.summary.operatingCashFlow,
+      pendingDeliveryCost,
       rev: monthPl.summary.revenue,
       runway,
       stockCount: stockFinance.summary.itemCount,

@@ -14,7 +14,7 @@ tags:
   - business-flow
 status: draft
 created: 2026-05-28
-updated: 2026-06-06
+updated: 2026-07-13
 
 # Payment Flow / Flow จ่ายเงิน
 
@@ -25,6 +25,7 @@ updated: 2026-06-06
 - [[Purchase Flow]] สำหรับต้นน้ำฝั่งซื้อ เช่น `PO Buy`, `WTI`, `Purchase Bill`, และ allocation มัดจำเข้าบิล
 - [[Supplier Advance Payment Flow]] สำหรับ source document `ADV`, การจ่ายเงินล่วงหน้า Supplier, และการ allocate ADV เข้าบิลรับซื้อ
 - [[Sales Flow]] สำหรับฝั่งรับเงิน/ลูกค้า
+- [[Purchase and Sales Bill LINE Notification]] สำหรับการส่ง Flex หลัง PMT บันทึกสำเร็จ
 
 ## ขอบเขตของเอกสารนี้
 
@@ -121,11 +122,14 @@ flowchart TD
   - source ที่ถูก cancel ก่อนอนุมัติต้องหายจาก pending queue
 - `/purchase/payments`
   - อ่านเฉพาะ `PMA approved` ที่ยังไม่ถูกออก `PMT`
-  - เลือกหลาย `PMA` ของ supplier เดียวกันมาจ่ายใน `PMT` เดียวได้
+  - หลัง transaction สร้าง `PMT` สำเร็จ ให้สร้างและส่ง LINE job ประเภท `purchase_payment` / `PMT`; LINE ล้มเหลวต้องไม่ย้อน transaction การจ่ายเงิน
+  - เลือกหลาย `PMA` ของ supplier เดียวกันมาจ่ายใน `PMT` เดียวได้เฉพาะเมื่อ destination payment method, bank และ account snapshot ตรงกัน
+  - เลข `PMT` ออกโดย server เท่านั้น ห้ามรับเลขเอกสารจาก client
   - PMT ต้องจ่ายเต็มทุก PMA ที่เลือก
 - `/purchase/payment-history`
   - read-only
   - แสดง `PMT` ที่ `เสร็จสิ้น` และ `ยกเลิกแล้ว`
+  - ห้ามแก้ PMT เดิม; หากต้องเปลี่ยนข้อมูลการจ่ายให้ cancel/reverse แล้วเริ่ม approval/payment cycle ใหม่
   - downstream accounting/report/bank posting ใช้เฉพาะ `เสร็จสิ้น`
 
 ## Split Approval Model

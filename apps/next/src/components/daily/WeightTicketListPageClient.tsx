@@ -12,16 +12,21 @@ import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
-import { Select } from '@/components/ui/Select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { useResizableColumns } from '@/components/ui/useResizableColumns'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { openWeightTicketLineShare } from '@/lib/weight-ticket-share'
 import { cn } from '@/lib/utils'
 import { WeightTicketDetailModal } from './WeightTicketDetailModal'
 import { WeightTicketStockReturnDialog } from './WeightTicketStockReturnDialog'
 import { WeightTicketsPageClient } from './WeightTicketsPageClient'
+import {
+  WEIGHT_TICKET_COLUMN_STORAGE_KEY,
+  WEIGHT_TICKET_TABLE_COLUMN_COUNT,
+  weightTicketColumns,
+} from './weight-ticket-table-layout'
 import {
   cancelWeightTicket,
   confirmWeightTicket,
@@ -40,21 +45,8 @@ import {
 
 type TypeFilter = WeightTicketType
 type StatusFilter = WeightTicketStatus
-type WeightTicketColumnKey = 'action' | 'branch' | 'containerDeductionWeight' | 'createdAt' | 'documentNo' | 'netWeight' | 'partyName' | 'status' | 'updatedAt' | 'vehicleNo'
 
 const pageSizeOptions = [10, 25, 50, 100] as const
-const weightTicketColumns: Array<ResizableColumnDefinition<WeightTicketColumnKey>> = [
-  { key: 'documentNo', defaultWidth: 150, minWidth: 120 },
-  { key: 'createdAt', defaultWidth: 170, minWidth: 130 },
-  { key: 'partyName', defaultWidth: 210, minWidth: 150 },
-  { key: 'branch', defaultWidth: 140, minWidth: 110 },
-  { key: 'vehicleNo', defaultWidth: 130, minWidth: 110 },
-  { key: 'netWeight', defaultWidth: 150, minWidth: 120 },
-  { key: 'containerDeductionWeight', defaultWidth: 160, minWidth: 130 },
-  { key: 'status', defaultWidth: 160, minWidth: 130 },
-  { key: 'updatedAt', defaultWidth: 170, minWidth: 130 },
-  { key: 'action', defaultWidth: 380, minWidth: 300 },
-]
 
 const statusOptionsByType: Record<WeightTicketType, Array<{ label: string; values: StatusFilter[] }>> = {
   WTI: [
@@ -212,7 +204,7 @@ export function WeightTicketListPageClient() {
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [cancelTicket, setCancelTicket] = useState<WeightTicketRecord | null>(null)
-  const columnResize = useResizableColumns('daily.weight-ticket-list', weightTicketColumns)
+  const columnResize = useResizableColumns(WEIGHT_TICKET_COLUMN_STORAGE_KEY, weightTicketColumns)
   const [cancelNote, setCancelNote] = useState('')
   const [cancelError, setCancelError] = useState('')
   const [isCanceling, setIsCanceling] = useState(false)
@@ -635,20 +627,10 @@ export function WeightTicketListPageClient() {
         <div>{summaryText}</div>
         <div className="flex flex-wrap items-center gap-2">
           {columnResize.hasCustomWidths ? <Button className="hidden lg:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
-          <Select
-            aria-label="จำนวนรายการต่อหน้า"
-            className="h-9 w-auto px-2 py-1"
-            disabled={isLoading}
-            value={pageSize}
-            onChange={(event) => {
-              setPageSize(Number(event.target.value) as (typeof pageSizeOptions)[number])
-              setPage(1)
-            }}
-          >
-            {pageSizeOptions.map((option) => (
-              <option key={option} value={option}>{option} / หน้า</option>
-            ))}
-          </Select>
+          <PageSizeDropdown disabled={isLoading} options={pageSizeOptions} value={pageSize} onChange={(size) => {
+            setPageSize(size as (typeof pageSizeOptions)[number])
+            setPage(1)
+          }} />
           <Button disabled={safePage <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
           <span className="px-1">หน้า {safePage} / {totalPages}</span>
           <Button disabled={safePage >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
@@ -817,13 +799,9 @@ export function WeightTicketListPageClient() {
         <div className="overflow-x-auto">
           <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
-              {weightTicketColumns.map((column, index) => {
-              const style = columnResize.getColumnStyle(column.key);
-              if (index === weightTicketColumns.length - 1) {
-                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
-              }
-              return <col key={column.key} style={style} />;
-            })}
+              {weightTicketColumns.map((column) => (
+                <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+              ))}
             </colgroup>
             <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
               <tr>
@@ -842,15 +820,15 @@ export function WeightTicketListPageClient() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td className="px-3 py-10 text-center text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</td>
+                  <td className="px-3 py-10 text-center text-slate-500" colSpan={WEIGHT_TICKET_TABLE_COLUMN_COUNT}>กำลังโหลดข้อมูล</td>
                 </tr>
               ) : loadError ? (
                 <tr>
-                  <td className="px-3 py-10 text-center text-red-600" colSpan={9}>{loadError}</td>
+                  <td className="px-3 py-10 text-center text-red-600" colSpan={WEIGHT_TICKET_TABLE_COLUMN_COUNT}>{loadError}</td>
                 </tr>
               ) : tickets.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-10 text-center text-slate-500" colSpan={9}>ยังไม่มีรายการตามเงื่อนไข</td>
+                  <td className="px-3 py-10 text-center text-slate-500" colSpan={WEIGHT_TICKET_TABLE_COLUMN_COUNT}>ยังไม่มีรายการตามเงื่อนไข</td>
                 </tr>
               ) : tickets.map((ticket) => {
                 const { date: ticketDate, time: ticketTime } = formatDateTimeSplit(ticket.createdAt)

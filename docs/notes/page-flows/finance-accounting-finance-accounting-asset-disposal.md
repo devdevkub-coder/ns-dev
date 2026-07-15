@@ -97,3 +97,8 @@ Source tables:
 - [x] Enable create disposal UI/API
 - [x] Enable reverse UI/API
 - [ ] Add receipt/bank/GL posting only after approved finance posting contract
+
+## UI Checkpoint 2026-07-12
+
+- บนมือถือย้าย action `+ จำหน่ายทรัพย์สิน` เข้า summary/action card และนำ FAB วงกลมลอยออก; desktop primary action ใช้น้ำหนักตัวอักษรปกติ
+- เหตุผล: ลดการทับข้อมูลและทำให้ create action อยู่ในตำแหน่งเดียวกับ filter/action baseline โดยคง flow การจำหน่ายและย้อนกลับเดิม

@@ -233,7 +233,7 @@ export function ProductTrackingPageClient({
     try {
       setData(await dailyFetchJson<ProductTrackingPayload>(`/api/tracking/product?${queryString}`))
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'โหลด Product Tracking ไม่ได้')
+      setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลติดตามสินค้าไม่ได้')
     } finally {
       setIsLoading(false)
     }
@@ -275,7 +275,7 @@ export function ProductTrackingPageClient({
       const payload = await dailyFetchJson<ProductTrackingPayload>(`/api/tracking/product?${params.toString()}`)
       setDetail(payload.detail ?? null)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'โหลดรายละเอียด Product ไม่ได้')
+      setError(caught instanceof Error ? caught.message : 'โหลดรายละเอียดสินค้าไม่ได้')
       setDetail(null)
     } finally {
       setIsDetailLoading(false)
@@ -373,7 +373,7 @@ export function ProductTrackingPageClient({
       <Tabs className="min-w-0" value={view} onValueChange={(value) => setView(value as 'list' | 'top10' | 'yearCompare')}>
         <TabsList className="w-full min-w-0 overflow-x-auto" variant="line">
           <TabsTrigger value="list" variant="line">รายการ</TabsTrigger>
-          <TabsTrigger value="top10" variant="line">Top 10 ในหมวด</TabsTrigger>
+          <TabsTrigger value="top10" variant="line">10 อันดับในหมวด</TabsTrigger>
           <TabsTrigger value="yearCompare" variant="line">รายปี</TabsTrigger>
         </TabsList>
       </Tabs>
@@ -460,7 +460,7 @@ export function ProductTrackingPageClient({
           <div className="flex gap-2">
             <input
               className="min-w-0 flex-1 h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-100"
-              placeholder="ค้นหา Product..."
+              placeholder="ค้นหาสินค้า..."
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -485,7 +485,7 @@ export function ProductTrackingPageClient({
 
           {showMobileFilters && (
             <MobileFilterSheet
-              title="ตัวกรอง Product Tracking"
+              title="ตัวกรองติดตามสินค้า"
               onClose={() => setShowMobileFilters(false)}
               footer={(
                 <>
@@ -521,9 +521,9 @@ export function ProductTrackingPageClient({
                   {(data?.filters?.metalGroups ?? []).map((group) => <option key={group} value={group}>{group}</option>)}
                 </select>
               </label>
-              <SearchCombobox inputClassName="h-9 text-sm" inputId="tracking-product-mobile-product" label="Product" options={productSearchOptions} placeholder="เลือก Product" value={productId} onChange={setProductId} />
-              <SearchCombobox inputClassName="h-9 text-sm" inputId="tracking-product-mobile-supplier" label="Supplier ฝั่งซื้อ" options={supplierSearchOptions} placeholder="เลือก Supplier" value={supplierId} onChange={setSupplierId} />
-              <SearchCombobox inputClassName="h-9 text-sm" inputId="tracking-product-mobile-customer" label="Customer ฝั่งขาย" options={customerSearchOptions} placeholder="เลือก Customer" value={customerId} onChange={setCustomerId} />
+              <SearchCombobox inputClassName="h-9 text-sm" inputId="tracking-product-mobile-product" label="สินค้า" options={productSearchOptions} placeholder="เลือกสินค้า" value={productId} onChange={setProductId} />
+              <SearchCombobox inputClassName="h-9 text-sm" inputId="tracking-product-mobile-supplier" label="ผู้ขายฝั่งซื้อ" options={supplierSearchOptions} placeholder="เลือกผู้ขาย" value={supplierId} onChange={setSupplierId} />
+              <SearchCombobox inputClassName="h-9 text-sm" inputId="tracking-product-mobile-customer" label="ลูกค้าฝั่งขาย" options={customerSearchOptions} placeholder="เลือกลูกค้า" value={customerId} onChange={setCustomerId} />
             </MobileFilterSheet>
           )}
         </div>
@@ -546,7 +546,7 @@ export function ProductTrackingPageClient({
           </div>
         </div>
         <div className="rounded-xl border border-slate-100 bg-white p-4 shadow">
-          <div className="mb-3 text-sm font-bold text-slate-700">🏆 Top 5 Product</div>
+          <div className="mb-3 text-sm font-bold text-slate-700">สินค้าสูงสุด 5 อันดับ</div>
           <BarList rows={topRevenue.slice(0, 5).map((row) => ({ label: row.name ?? row.productName ?? '-', value: row.revenue ?? row.salesAmount ?? row.amount ?? 0 }))} />
         </div>
       </div>
@@ -565,10 +565,10 @@ export function ProductTrackingPageClient({
 
       {view === 'top10' ? (
         <div className="grid gap-4 lg:grid-cols-2">
-          <TopPanel rows={topRevenue.map((row) => ({ label: row.name ?? row.productName ?? '-', value: row.revenue ?? row.salesAmount ?? row.amount ?? 0 }))} title="Top 10 ยอดขาย" />
-          <TopPanel rows={topBuy.map((row) => ({ label: row.name ?? row.productName ?? '-', value: row.buyAmount ?? row.purchaseAmount ?? 0 }))} title="Top 10 ยอดซื้อ" />
-          <TopPanel rows={topGp.map((row) => ({ label: row.name ?? row.productName ?? '-', value: row.gp ?? 0 }))} title="Top 10 GP" />
-          <TopPanel rows={topGpPct.map((row) => ({ label: row.name ?? row.productName ?? '-', value: row.gpPct ?? 0 }))} suffix="%" title="Top 10 GP%" />
+          <TopPanel rows={topRevenue.map((row) => ({ label: row.name ?? row.productName ?? '-', value: row.revenue ?? row.salesAmount ?? row.amount ?? 0 }))} title="ยอดขายสูงสุด 10 อันดับ" />
+          <TopPanel rows={topBuy.map((row) => ({ label: row.name ?? row.productName ?? '-', value: row.buyAmount ?? row.purchaseAmount ?? 0 }))} title="ยอดซื้อสูงสุด 10 อันดับ" />
+          <TopPanel rows={topGp.map((row) => ({ label: row.name ?? row.productName ?? '-', value: row.gp ?? 0 }))} title="GP สูงสุด 10 อันดับ" />
+          <TopPanel rows={topGpPct.map((row) => ({ label: row.name ?? row.productName ?? '-', value: row.gpPct ?? 0 }))} suffix="%" title="GP% สูงสุด 10 อันดับ" />
         </div>
       ) : null}
 
@@ -587,7 +587,7 @@ export function ProductTrackingPageClient({
         />
         <div className="space-y-3 lg:hidden">
           {isLoading ? <div className="rounded-xl border border-slate-100 bg-white p-8 text-center text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
-          {!isLoading && sortedRows.length === 0 ? <div className="rounded-xl border border-slate-100 bg-white p-8 text-center text-slate-400 shadow">ไม่มีข้อมูล Product Tracking</div> : null}
+          {!isLoading && sortedRows.length === 0 ? <div className="rounded-xl border border-slate-100 bg-white p-8 text-center text-slate-400 shadow">ไม่มีข้อมูลติดตามสินค้า</div> : null}
           {!isLoading && pagedRows.map((row) => (
             <div key={row.id} className="space-y-3 rounded-xl border border-slate-100 bg-white p-4 shadow-sm active:bg-slate-50/55 cursor-pointer transition-colors focus-visible:outline-none" role="button" tabIndex={0} onClick={() => void openDetail(row)} onKeyDown={(event) => { if (event.key === 'Enter') void openDetail(row) }}>
               <div className="flex items-start justify-between gap-2">
@@ -601,8 +601,8 @@ export function ProductTrackingPageClient({
                 <MiniLine label="ยอดซื้อ" value={formatMoney(row.buyAmount ?? row.purchaseAmount ?? 0)} />
                 <MiniLine label="ขาย" value={`${formatMoney(row.sellQty ?? row.salesQty ?? 0)} กก.`} />
                 <MiniLine label="GP%" tone={(row.gp ?? 0) >= 0 ? 'orange' : 'red'} value={`${(row.gpPct ?? 0).toFixed(2)}%`} />
-                <MiniLine label="Yield" tone="orange" value={`${(row.productionYieldPct ?? 0).toFixed(1)}%`} />
-                <MiniLine label="Loss" tone={(row.productionLossQty ?? 0) > 0 ? 'red' : 'slate'} value={`${formatMoney(row.productionLossQty ?? 0)} กก.`} />
+                <MiniLine label="อัตราผลได้" tone="orange" value={`${(row.productionYieldPct ?? 0).toFixed(1)}%`} />
+                <MiniLine label="น้ำหนักสูญเสีย" tone={(row.productionLossQty ?? 0) > 0 ? 'red' : 'slate'} value={`${formatMoney(row.productionLossQty ?? 0)} กก.`} />
               </div>
             </div>
           ))}
@@ -616,7 +616,7 @@ export function ProductTrackingPageClient({
             </colgroup>
             <thead className="bg-slate-100/75 text-slate-700 border-b border-slate-200">
               <tr>
-                <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="Code" resizeProps={columnResize.getResizeHandleProps('code', 'Code')} sortKey="code" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} sortKey="code" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} sortKey="product" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="หมวด" resizeProps={columnResize.getResizeHandleProps('metalGroup', 'หมวด')} sortKey="metalGroup" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ซื้อ กก." resizeProps={columnResize.getResizeHandleProps('buyQty', 'ซื้อ กก.')} sortKey="buyQty" onSort={handleSort} />
@@ -632,7 +632,7 @@ export function ProductTrackingPageClient({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
-              {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ไม่มีข้อมูล Product Tracking</td></tr> : null}
+              {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ไม่มีข้อมูลติดตามสินค้า</td></tr> : null}
               {!isLoading && pagedRows.map((row) => (
                 <tr key={row.id} className="cursor-pointer hover:bg-slate-50 transition-colors focus-visible:outline-none" onClick={() => void openDetail(row)}>
                   <td className="p-3 pl-4 font-mono text-xs text-slate-400 overflow-hidden truncate">{row.code || '-'}</td>
@@ -662,13 +662,13 @@ export function ProductTrackingPageClient({
 function ProductDetailDialog({ detail, isLoading, onOpenChange }: { detail: ProductTrackingDetail | null; isLoading: boolean; onOpenChange: (open: boolean) => void }) {
   return (
     <Dialog open={detail !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden rounded-md border-0 bg-slate-900 !p-0 shadow-2xl outline-none focus:outline-none flex flex-col" fallbackTitle="Product Tracking Detail" hideClose>
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden rounded-md border-0 bg-slate-900 !p-0 shadow-2xl outline-none focus:outline-none flex flex-col" fallbackTitle="รายละเอียดการติดตามสินค้า" hideClose>
         <DialogHeader className="shrink-0 rounded-t-md bg-slate-900 px-5 py-4 text-white">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
             <div className="min-w-0 space-y-1">
-              <DialogTitle className="truncate text-xl font-bold text-white">{detail?.product.name ?? 'รายละเอียด Product'}</DialogTitle>
+              <DialogTitle className="truncate text-xl font-bold text-white">{detail?.product.name ?? 'รายละเอียดสินค้า'}</DialogTitle>
               <DialogDescription className="truncate text-xs text-slate-300">
-                {detail?.product.code ? `${detail.product.code} · ` : ''}{detail?.product.metalGroup ? `${detail.product.metalGroup} · ` : ''}Purchase / Sales / Production / Allocation
+                {detail?.product.code ? `${detail.product.code} · ` : ''}{detail?.product.metalGroup ? `${detail.product.metalGroup} · ` : ''}ซื้อ / ขาย / ผลิต / จัดสรร
               </DialogDescription>
             </div>
             <Button className="h-9 shrink-0 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={() => onOpenChange(false)}>ปิด</Button>
@@ -678,52 +678,52 @@ function ProductDetailDialog({ detail, isLoading, onOpenChange }: { detail: Prod
           {isLoading ? <div className="rounded-xl bg-white p-8 text-center text-sm text-slate-500 border border-slate-100">กำลังโหลดรายละเอียด...</div> : null}
           {!isLoading && detail ? (
             <>
-              <DetailSection title="Production / Allocation Signals">
+              <DetailSection title="สัญญาณการผลิตและการจัดสรร">
                 <div className="grid grid-cols-2 gap-2.5 p-3 md:grid-cols-3 lg:grid-cols-4">
-                  <SignalMetric label="Production Orders" value={`${detail.productionSignals.productionOrderCount}`} />
-                  <SignalMetric label="Input" value={`${formatMoney(detail.productionSignals.inputQty)} กก.`} />
-                  <SignalMetric label="Output" value={`${formatMoney(detail.productionSignals.outputQty)} กก.`} />
-                  <SignalMetric label="Yield" value={`${detail.productionSignals.yieldPct.toFixed(1)}%`} />
-                  <SignalMetric label="Loss" value={`${formatMoney(detail.productionSignals.lossQty)} กก.`} />
-                  <SignalMetric label="Loss%" value={`${detail.productionSignals.lossPct.toFixed(1)}%`} />
-                  <SignalMetric label="Allocated Qty" value={`${formatMoney(detail.productionSignals.allocationQty)} กก.`} />
-                  <SignalMetric label="Allocated COGS" value={formatMoney(detail.productionSignals.allocationCogs)} />
+                  <SignalMetric label="ใบสั่งผลิต" value={`${detail.productionSignals.productionOrderCount}`} />
+                  <SignalMetric label="วัตถุดิบเข้า" value={`${formatMoney(detail.productionSignals.inputQty)} กก.`} />
+                  <SignalMetric label="ผลผลิต" value={`${formatMoney(detail.productionSignals.outputQty)} กก.`} />
+                  <SignalMetric label="อัตราผลได้" value={`${detail.productionSignals.yieldPct.toFixed(1)}%`} />
+                  <SignalMetric label="น้ำหนักสูญเสีย" value={`${formatMoney(detail.productionSignals.lossQty)} กก.`} />
+                  <SignalMetric label="อัตราสูญเสีย" value={`${detail.productionSignals.lossPct.toFixed(1)}%`} />
+                  <SignalMetric label="จำนวนจัดสรร" value={`${formatMoney(detail.productionSignals.allocationQty)} กก.`} />
+                  <SignalMetric label="COGS ที่จัดสรร" value={formatMoney(detail.productionSignals.allocationCogs)} />
                 </div>
               </DetailSection>
-              <DetailSection title="Stock Support">
+              <DetailSection title="ข้อมูลสต๊อกประกอบ">
                 <div className="p-3">
                   <a className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 transition-colors focus-visible:outline-none" href={detail.product.stockBalanceHref}>
-                    เปิด Stock Balance
+                    เปิดยอดคงเหลือสต๊อก
                   </a>
                 </div>
               </DetailSection>
-              <DetailSection title="Purchase Lines">
+              <DetailSection title="รายการซื้อ">
                 <SimpleTable
-                  headers={['วันที่', 'เอกสาร', 'Supplier', 'น้ำหนัก', 'ยอดซื้อ', 'ซื้อเฉลี่ย', 'สถานะ']}
+                  headers={['วันที่', 'เอกสาร', 'ผู้ขาย', 'น้ำหนัก', 'ยอดซื้อ', 'ซื้อเฉลี่ย', 'สถานะ']}
                   rows={detail.purchaseLines.map((row) => [formatDateDisplay(row.date), { href: row.href, label: row.docNo }, row.party, formatMoney(row.qty), formatMoney(row.amount), formatMoney(row.avgBuy), row.status])}
                 />
               </DetailSection>
-              <DetailSection title="Sales Lines">
+              <DetailSection title="รายการขาย">
                 <SimpleTable
-                  headers={['วันที่', 'เอกสาร', 'Customer', 'น้ำหนัก', 'ยอดขาย', 'ขายเฉลี่ย', 'COGS', 'GP', 'สถานะ']}
+                  headers={['วันที่', 'เอกสาร', 'ลูกค้า', 'น้ำหนัก', 'ยอดขาย', 'ขายเฉลี่ย', 'COGS', 'GP', 'สถานะ']}
                   rows={detail.salesLines.map((row) => [formatDateDisplay(row.date), { href: row.href, label: row.docNo }, row.party, formatMoney(row.qty), formatMoney(row.revenue), formatMoney(row.avgSell), formatMoney(row.cogs), formatMoney(row.gp), row.status])}
                 />
               </DetailSection>
-              <DetailSection title="Monthly Detail">
+              <DetailSection title="รายละเอียดรายเดือน">
                 <SimpleTable
-                  headers={['เดือน', 'ซื้อ', 'มูลค่าซื้อ', 'ขาย', 'ยอดขาย', 'GP', 'Input', 'Output', 'Loss', 'Yield']}
+                  headers={['เดือน', 'ซื้อ', 'มูลค่าซื้อ', 'ขาย', 'ยอดขาย', 'GP', 'วัตถุดิบเข้า', 'ผลผลิต', 'สูญเสีย', 'อัตราผลได้']}
                   rows={detail.monthly.map((row, index) => [monthLabels[index] ?? row.month, formatMoney(row.buyQty), formatMoney(row.buyAmount), formatMoney(row.sellQty), formatMoney(row.revenue), formatMoney(row.gp), formatMoney(row.productionInputQty), formatMoney(row.productionOutputQty), formatMoney(row.productionLossQty), `${row.productionYieldPct.toFixed(1)}%`])}
                 />
               </DetailSection>
-              <DetailSection title="Production Lines">
+              <DetailSection title="สายการผลิต">
                 <SimpleTable
-                  headers={['วันที่', 'ใบสั่งผลิต', 'Input', 'Output', 'Loss', 'Yield', 'สถานะ']}
+                  headers={['วันที่', 'ใบสั่งผลิต', 'วัตถุดิบเข้า', 'ผลผลิต', 'สูญเสีย', 'อัตราผลได้', 'สถานะ']}
                   rows={detail.productionLines.map((row) => [formatDateDisplay(row.date), { href: row.href, label: row.docNo }, formatMoney(row.inputQty), formatMoney(row.outputQty), formatMoney(row.lossQty), `${row.yieldPct.toFixed(1)}%`, row.status])}
                 />
               </DetailSection>
-              <DetailSection title="Allocation / Cost Source">
+              <DetailSection title="การจัดสรรและแหล่งต้นทุน">
                 <SimpleTable
-                  headers={['วันที่', 'Allocation', 'Source', 'Sales', 'Qty', 'Matched COGS', 'Method', 'สถานะ']}
+                  headers={['วันที่', 'การจัดสรร', 'ต้นทาง', 'ขาย', 'จำนวน', 'COGS ที่จับคู่', 'วิธีการ', 'สถานะ']}
                   rows={detail.allocationLines.map((row) => [
                     formatDateDisplay(row.date),
                     row.allocationNo,
@@ -755,7 +755,7 @@ function DetailSection({ children, title }: { children: ReactNode; title: string
 
 function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][] }) {
   const cellText = (cell: DetailCell) => typeof cell === 'string' ? cell : cell.label
-  const isNumericCell = (cell: DetailCell) => /^-?[\d,]+(\.\d+)?%?$/.test(cellText(cell).trim())
+  const rightAlignedColumns = headers.map((_, columnIndex) => columnIndex > 0)
   return (
     <>
       {/* Desktop Table View */}
@@ -764,7 +764,7 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
           <thead className="bg-slate-50 border-b border-slate-100">
             <tr>
               {headers.map((header, idx) => (
-                <th key={header} className={`p-2.5 text-slate-600 font-semibold text-xs text-left ${idx === 0 ? 'pl-4' : idx === headers.length - 1 ? 'pr-4' : ''}`}>
+                <th key={header} className={`p-2 text-slate-600 font-semibold text-xs ${rightAlignedColumns[idx] ? 'text-right' : 'text-left'} ${idx === 0 ? 'pl-4' : idx === headers.length - 1 ? 'pr-4' : ''}`}>
                   {header}
                 </th>
               ))}
@@ -778,9 +778,9 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
                   <td
                     key={`${index}-${headers[cellIndex]}`}
                     className={`
-                      p-2.5 text-slate-700
+                      p-3 text-slate-700
                       ${cellIndex === 0 ? 'pl-4' : cellIndex === row.length - 1 ? 'pr-4' : ''}
-                      ${cellIndex <= 2 || cellIndex === headers.length - 1 || !isNumericCell(cell) ? 'text-left' : 'text-right'}
+                      ${rightAlignedColumns[cellIndex] ? 'text-right' : 'text-left'}
                     `}
                   >
                     {typeof cell === 'string' ? (
@@ -1007,10 +1007,10 @@ function YearCompare({ rows }: { rows: ProductTrackingRow[] }) {
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
         <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
-            {productYearCompareColumns.map((column, index) => (
+            {productYearCompareColumns.map((column) => (
               <col
                 key={column.key}
-                style={index === productYearCompareColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : columnResize.getColumnStyle(column.key)}
+                style={columnResize.getColumnStyle(column.key)}
               />
             ))}
           </colgroup>

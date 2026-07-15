@@ -9,9 +9,9 @@ import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
-import { Select } from '@/components/ui/Select'
 import { TableNumberCell } from '@/components/ui/TableNumberCell'
 import { Table, TableBody, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -710,17 +710,7 @@ export function ReceiptVouchersPageClient() {
           <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
           <div className="flex flex-wrap items-center gap-2">
             {columnResize.hasCustomWidths ? <Button size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
-            <Select
-              aria-label="จำนวนรายการต่อหน้า"
-              className="h-9 w-auto px-2 py-1"
-              value={pageSize}
-              onChange={(event) => setPageSize(Number(event.target.value))}
-            >
-              <option value={10}>10 / หน้า</option>
-              <option value={25}>25 / หน้า</option>
-              <option value={50}>50 / หน้า</option>
-              <option value={100}>100 / หน้า</option>
-            </Select>
+            <PageSizeDropdown value={pageSize} onChange={setPageSize} />
             <Button disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
             <span className="px-1">หน้า {currentPage} / {totalPages}</span>
             <Button disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
@@ -770,13 +760,9 @@ export function ReceiptVouchersPageClient() {
         <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
           <Table className="[&_tbody_tr]:border-slate-100" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
-              {receiptVoucherColumns.map((column, index) => {
-                const style = columnResize.getColumnStyle(column.key);
-                if (index === receiptVoucherColumns.length - 1) {
-                  return <col key={column.key} style={{ minWidth: column.minWidth }} />;
-                }
-                return <col key={column.key} style={style} />;
-              })}
+              {receiptVoucherColumns.map((column) => (
+                <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+              ))}
             </colgroup>
             <TableHeader>
               <tr>

@@ -293,7 +293,7 @@ export function CustomerTrackingPageClient() {
   return (
     <section className="space-y-4">
       <PageTitleOverride
-        title="Customer Tracking 360°"
+        title="ติดตามลูกค้า 360°"
       />
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
@@ -308,7 +308,7 @@ export function CustomerTrackingPageClient() {
       <Tabs className="min-w-0" value={view} onValueChange={(value) => setView(value as 'list' | 'top10' | 'yearCompare')}>
         <TabsList className="w-full min-w-0 overflow-x-auto" variant="line">
           <TabsTrigger value="list" variant="line">รายการ</TabsTrigger>
-          <TabsTrigger value="top10" variant="line">Top 10 + วิเคราะห์</TabsTrigger>
+          <TabsTrigger value="top10" variant="line">10 อันดับแรกและวิเคราะห์</TabsTrigger>
           <TabsTrigger value="yearCompare" variant="line">รายปี (12 เดือน)</TabsTrigger>
         </TabsList>
       </Tabs>
@@ -462,10 +462,10 @@ export function CustomerTrackingPageClient() {
       {view === 'yearCompare' ? <YearCompare rows={rows} /> : null}
       {view === 'top10' ? (
         <div className="grid gap-4 lg:grid-cols-2">
-          <TopPanel color="emerald" rows={topRevenue.map((row) => ({ label: row.customerName, value: row.revenue }))} title="Top 10 ยอดขาย" />
-          <TopPanel color="teal" rows={topGp.map((row) => ({ label: row.customerName, value: row.gp }))} title="Top 10 GP" />
-          <TopPanel color="blue" rows={topGpPct.map((row) => ({ label: row.customerName, value: row.gpPct }))} suffix="%" title="Top 10 GP%" />
-          <TopPanel color="amber" rows={topReceivable.map((row) => ({ label: row.customerName, value: row.receivable }))} title="Top 10 ลูกหนี้" />
+          <TopPanel color="emerald" rows={topRevenue.map((row) => ({ label: row.customerName, value: row.revenue }))} title="ยอดขายสูงสุด 10 อันดับ" />
+          <TopPanel color="teal" rows={topGp.map((row) => ({ label: row.customerName, value: row.gp }))} title="GP สูงสุด 10 อันดับ" />
+          <TopPanel color="blue" rows={topGpPct.map((row) => ({ label: row.customerName, value: row.gpPct }))} suffix="%" title="GP% สูงสุด 10 อันดับ" />
+          <TopPanel color="amber" rows={topReceivable.map((row) => ({ label: row.customerName, value: row.receivable }))} title="ลูกหนี้สูงสุด 10 อันดับ" />
         </div>
       ) : null}
 
@@ -604,31 +604,31 @@ export function CustomerTrackingPageClient() {
           {isLoading ? <div className="rounded-xl bg-white p-8 text-center text-sm text-slate-500 border border-slate-100">กำลังโหลดรายละเอียด...</div> : null}
           {!isLoading && detail ? (
             <>
-              <DetailSection title="Decision Signals">
+              <DetailSection title="สัญญาณประกอบการตัดสินใจ">
                 <div className="grid grid-cols-2 gap-2.5 p-3 md:grid-cols-3 lg:grid-cols-5">
-                  <SignalMetric label="Pending AR" value={formatMoney(detail.signals.pendingArAmount)} />
+                  <SignalMetric label="ลูกหนี้คงค้าง" value={formatMoney(detail.signals.pendingArAmount)} />
                   <SignalMetric label="บิลค้าง AR" value={`${detail.signals.pendingArBillCount} บิล`} />
                   <SignalMetric label="AR เกินกำหนด" value={formatMoney(detail.signals.overdueArAmount)} />
                   <SignalMetric label="บิลเกินกำหนด" value={`${detail.signals.overdueArBillCount} บิล`} />
                   <SignalMetric label="เก่าสุด" value={`${detail.signals.oldestArAgeDays} วัน`} />
                   <SignalMetric label="ใช้เครดิต" value={`${detail.signals.creditUtilizationPct.toFixed(1)}%`} />
                   <SignalMetric label="GP%" value={`${detail.signals.gpPct.toFixed(2)}%`} />
-                  <SignalMetric label="บิล Margin ต่ำ" value={`${detail.signals.lowMarginBillCount} บิล`} />
-                  <SignalMetric label="บิล GP ติดลบ" value={`${detail.signals.negativeMarginBillCount} บิล`} />
-                  <SignalMetric label="Credit Limit" value={formatMoney(detail.signals.creditLimit)} />
+                  <SignalMetric label="บิลกำไรต่ำ" value={`${detail.signals.lowMarginBillCount} บิล`} />
+                  <SignalMetric label="บิลกำไรขั้นต้นติดลบ" value={`${detail.signals.negativeMarginBillCount} บิล`} />
+                  <SignalMetric label="วงเงินเครดิต" value={formatMoney(detail.signals.creditLimit)} />
                 </div>
               </DetailSection>
-              <DetailSection title="AR Aging Buckets">
+              <DetailSection title="อายุลูกหนี้คงค้าง">
                 <SimpleTable
-                  headers={['Bucket', 'บิล', 'ยอดค้าง']}
+                  headers={['กลุ่มอายุ', 'บิล', 'ยอดค้าง']}
                   rows={detail.signals.agingBuckets.map((row) => [row.bucket, String(row.count), formatMoney(row.amount)])}
                 />
               </DetailSection>
               <DetailSection
-                title="Sales Bill"
+                title="บิลขาย"
                 headerActions={
                   <select
-                    aria-label="กรองสถานะ Sales Bill"
+                    aria-label="กรองสถานะบิลขาย"
                     className="h-8 rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-800 focus:outline-none"
                     value={billStatus}
                     onChange={(e) => setBillStatus(e.target.value)}
@@ -641,7 +641,7 @@ export function CustomerTrackingPageClient() {
                 }
               >
                 <SimpleTable
-                  headers={['วันที่', 'เอกสาร', 'Due', 'Bucket', 'อายุ', 'ช่องทาง', 'น้ำหนัก', 'ยอดขาย', 'COGS', 'GP', 'รับเงิน', 'ลูกหนี้', 'สถานะ']}
+                  headers={['วันที่', 'เอกสาร', 'ครบกำหนด', 'กลุ่มอายุ', 'อายุ', 'ช่องทาง', 'น้ำหนัก', 'ยอดขาย', 'COGS', 'GP', 'รับเงิน', 'ลูกหนี้', 'สถานะ']}
                   rows={filteredBills.map((row) => [
                     formatDateDisplay(row.date),
                     { href: row.href, label: row.docNo },
@@ -659,17 +659,17 @@ export function CustomerTrackingPageClient() {
                   ])}
                 />
               </DetailSection>
-              <DetailSection title="Channel Breakdown">
+              <DetailSection title="สรุปตามช่องทาง">
                 <SimpleTable
                   headers={['ช่องทาง', 'บิล', 'น้ำหนัก', 'ยอดขาย', 'COGS', 'GP', 'GP%']}
                   rows={detail.channels.map((row) => [row.channelName, String(row.billCount), formatMoney(row.qty), formatMoney(row.revenue), formatMoney(row.cogs), formatMoney(row.gp), `${row.gpPct.toFixed(2)}%`])}
                 />
               </DetailSection>
               <DetailSection
-                title="Receipt"
+                title="รับชำระเงิน"
                 headerActions={
                   <select
-                    aria-label="กรองสถานะ Receipt"
+                    aria-label="กรองสถานะรับชำระเงิน"
                     className="h-8 rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-800 focus:outline-none"
                     value={receiptStatus}
                     onChange={(e) => setReceiptStatus(e.target.value)}
@@ -686,7 +686,7 @@ export function CustomerTrackingPageClient() {
                   rows={filteredReceipts.map((row) => [formatDateDisplay(row.date), { href: row.href, label: row.docNo }, row.method, formatMoney(row.amount), formatMoney(row.netAmount), row.status])}
                 />
               </DetailSection>
-              <DetailSection title="Monthly Movement">
+              <DetailSection title="การเคลื่อนไหวรายเดือน">
                 <SimpleTable
                   headers={['เดือน', 'บิล', 'รับเงิน', 'น้ำหนัก', 'ยอดขาย', 'GP', 'รับแล้ว', 'ลูกหนี้']}
                   rows={detail.monthly.map((row, index) => [monthLabels[index] ?? row.month, String(row.billCount), String(row.receiptCount), formatMoney(row.qty), formatMoney(row.revenue), formatMoney(row.gp), formatMoney(row.receivedAmount), formatMoney(row.receivable)])}
@@ -719,7 +719,7 @@ function DetailSection({ children, title, headerActions }: { children: ReactNode
 
 function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][] }) {
   const cellText = (cell: DetailCell) => typeof cell === 'string' ? cell : cell.label
-  const isNumericCell = (cell: DetailCell) => /^-?[\d,]+(\.\d+)?%?$/.test(cellText(cell).trim())
+  const rightAlignedColumns = headers.map((_, columnIndex) => columnIndex > 0)
   return (
     <>
       {/* Desktop Table View */}
@@ -728,7 +728,7 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
           <thead className="bg-slate-50 border-b border-slate-100">
             <tr>
               {headers.map((header, idx) => (
-                <th key={header} className={`p-2.5 text-slate-600 font-semibold text-xs text-left ${idx === 0 ? 'pl-4' : idx === headers.length - 1 ? 'pr-4' : ''}`}>
+                <th key={header} className={`p-2 text-slate-600 font-semibold text-xs ${rightAlignedColumns[idx] ? 'text-right' : 'text-left'} ${idx === 0 ? 'pl-4' : idx === headers.length - 1 ? 'pr-4' : ''}`}>
                   {header}
                 </th>
               ))}
@@ -742,9 +742,9 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
                   <td
                     key={`${index}-${headers[cellIndex]}`}
                     className={`
-                      p-2.5 text-slate-700
+                      p-3 text-slate-700
                       ${cellIndex === 0 ? 'pl-4' : cellIndex === row.length - 1 ? 'pr-4' : ''}
-                      ${cellIndex === headers.length - 1 || !isNumericCell(cell) ? 'text-left' : 'text-right'}
+                      ${rightAlignedColumns[cellIndex] ? 'text-right' : 'text-left'}
                     `}
                   >
                     {typeof cell === 'string' ? (
@@ -957,10 +957,10 @@ function YearCompare({ rows }: { rows: CustomerTrackingRow[] }) {
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
         <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
-            {customerYearCompareColumns.map((column, index) => (
+            {customerYearCompareColumns.map((column) => (
               <col
                 key={column.key}
-                style={index === customerYearCompareColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : columnResize.getColumnStyle(column.key)}
+                style={columnResize.getColumnStyle(column.key)}
               />
             ))}
           </colgroup>

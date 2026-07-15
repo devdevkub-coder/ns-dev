@@ -111,6 +111,8 @@ export function TransactionLedgerPageClient() {
   const [filterRefType, setFilterRefType] = useState('')
   const [isExporting, setIsExporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
   const [rows, setRows] = useState<LedgerRow[]>([])
   const [search, setSearch] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
@@ -184,8 +186,18 @@ export function TransactionLedgerPageClient() {
     })
   }, [ledger, sortDirection, sortKey])
 
+  const totalPages = Math.max(1, Math.ceil(sortedLedger.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const pagedLedger = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return sortedLedger.slice(start, start + pageSize)
+  }, [currentPage, pageSize, sortedLedger])
+
+  useEffect(() => {
+    setPage(1)
+  }, [dateFrom, dateTo, filterAccount, filterRefType, search])
+
   const summary = useMemo(() => ({
-    count: ledger.length,
     net: ledger.reduce((sum, row) => sum + row.amountIn - row.amountOut, 0),
     totalIn: ledger.reduce((sum, row) => sum + row.amountIn, 0),
     totalOut: ledger.reduce((sum, row) => sum + row.amountOut, 0),
@@ -236,6 +248,7 @@ export function TransactionLedgerPageClient() {
     setDateTo('')
     setFilterAccount('')
     setFilterRefType('')
+    setPage(1)
   }
 
   return (
@@ -356,7 +369,6 @@ export function TransactionLedgerPageClient() {
           <span className="rounded-md bg-emerald-50 px-2 py-1">📥 เงินเข้ารวม <b className="text-emerald-700">{formatMoney(summary.totalIn)}</b></span>
           <span className="rounded-md bg-red-50 px-2 py-1">📤 เงินออกรวม <b className="text-red-700">{formatMoney(summary.totalOut)}</b></span>
           <span className={`rounded-md px-2 py-1 ${summary.net >= 0 ? 'bg-blue-50' : 'bg-rose-50'}`}>📊 Net <b className={summary.net >= 0 ? 'text-blue-700' : 'text-rose-700'}>{formatMoney(summary.net)}</b></span>
-          <span className="rounded-md bg-slate-50 px-2 py-1">📋 พบ <b>{summary.count.toLocaleString('th-TH')}</b> รายการ</span>
           {duplicateGroups.length > 0 ? <span className="rounded-md bg-amber-50 px-2 py-1 text-amber-800 font-semibold">⚠️ ยอดซ้ำ {duplicateGroups.length} กลุ่ม</span> : null}
         </div>
       </div>
@@ -378,7 +390,6 @@ export function TransactionLedgerPageClient() {
         <div className="flex flex-wrap gap-1.5 text-xs text-slate-500 pt-1">
           <span className="rounded bg-emerald-50 px-1 py-0.5 text-emerald-700 font-medium">เข้า: {formatMoney(summary.totalIn)}</span>
           <span className="rounded bg-red-50 px-1 py-0.5 text-red-700 font-medium">ออก: {formatMoney(summary.totalOut)}</span>
-          <span className="rounded bg-slate-50 px-1 py-0.5 text-slate-700">พบ: {summary.count} รายการ</span>
         </div>
       </div>
 
@@ -462,17 +473,40 @@ export function TransactionLedgerPageClient() {
         </div>
       ) : null}
 
+      <div className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          พบทั้งหมด <span className="font-semibold text-slate-900">{sortedLedger.length.toLocaleString('th-TH')}</span> รายการ
+          {sortedLedger.length > 0 ? (
+            <span className="ml-2 text-xs text-slate-500">
+              แสดง {((currentPage - 1) * pageSize + 1).toLocaleString('th-TH')}-{Math.min(currentPage * pageSize, sortedLedger.length).toLocaleString('th-TH')}
+            </span>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            aria-label="จำนวนรายการต่อหน้า"
+            className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800"
+            value={pageSize}
+            onChange={(event) => {
+              setPageSize(Number(event.target.value))
+              setPage(1)
+            }}
+          >
+            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+          </select>
+          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={currentPage <= 1} type="button" onClick={() => setPage(currentPage - 1)}>ก่อนหน้า</button>
+          <span className="px-1 text-sm font-medium text-slate-700">หน้า {currentPage.toLocaleString('th-TH')} / {totalPages.toLocaleString('th-TH')}</span>
+          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={currentPage >= totalPages} type="button" onClick={() => setPage(currentPage + 1)}>ถัดไป</button>
+        </div>
+      </div>
+
       {/* Desktop Table View (Hidden on Mobile) */}
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
         <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
-            {ledgerColumns.map((column, index) => {
-              const style = columnResize.getColumnStyle(column.key)
-              if (index === ledgerColumns.length - 1) {
-                return <col key={column.key} style={{ minWidth: column.minWidth }} />
-              }
-              return <col key={column.key} style={style} />
-            })}
+            {ledgerColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
           </colgroup>
           <thead className="bg-slate-100">
             <tr>
@@ -491,7 +525,7 @@ export function TransactionLedgerPageClient() {
           <tbody className="divide-y divide-slate-100">
             {isLoading ? (
               <tr><td className="px-3 py-10 text-center font-medium text-slate-400" colSpan={ledgerColumns.length}>กำลังโหลด Transaction Ledger...</td></tr>
-            ) : sortedLedger.length > 0 ? sortedLedger.map((row) => (
+            ) : pagedLedger.length > 0 ? pagedLedger.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50">
                 <td className="whitespace-nowrap px-3 py-3 text-xs text-slate-600">{row.date ? formatDateDisplay(row.date) : '-'}</td>
                 <td className="min-w-0 px-3 py-3 text-xs font-medium text-slate-900"><div className="truncate" title={row.accountName}>{row.accountName}</div></td>
@@ -518,9 +552,9 @@ export function TransactionLedgerPageClient() {
       </div>
 
       {/* Mobile View: Dense Card List (Hidden on Desktop) */}
-      {!isLoading && sortedLedger.length > 0 ? (
+      {!isLoading && pagedLedger.length > 0 ? (
         <div className="space-y-3 lg:hidden">
-          {sortedLedger.map((row) => (
+          {pagedLedger.map((row) => (
             <div key={row.id} className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm space-y-2.5 animate-fade-in">
               <div className="flex items-start justify-between gap-2">
                 <div>

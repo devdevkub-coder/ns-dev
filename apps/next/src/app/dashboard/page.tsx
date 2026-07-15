@@ -1,5 +1,5 @@
-import { MainDashboardsPageClient } from '@/components/main/MainDashboardsPageClient'
+import { redirect } from 'next/navigation'
 
 export default function Page() {
-  return <MainDashboardsPageClient mode="dashboard" />
+  redirect('/dashboard-overview')
 }

@@ -6,6 +6,13 @@ import { buildFinancialDashboard } from '@/lib/server/finance-accounting-dashboa
 
 export const runtime = 'nodejs'
 
+const assetLabels: Record<string, string> = {
+  '💵 Cash & Bank': 'เงินสดและธนาคาร',
+  '📥 ลูกหนี้ (AR)': 'ลูกหนี้การค้า (AR)',
+  '📦 Stock': 'สินค้าคงคลัง',
+  '🏗 Fixed Asset': 'สินทรัพย์ถาวร',
+}
+
 function parseDate(value: string | null) {
   if (!value) return new Date()
   const parsed = new Date(value)
@@ -24,8 +31,8 @@ export async function GET(request: Request) {
       buildFinancialDashboard({ asOf: parseDate(asOf), branchId }),
     ])
     const debtComp = [
-      { color: '#ef4444', name: '📤 เจ้าหนี้ (AP)', val: financialPayload.summary.ap },
-      { color: '#f97316', name: '🏦 Loan / Leasing', val: financialPayload.summary.totalLoan },
+      { color: '#ef4444', name: 'เจ้าหนี้การค้า (AP)', val: financialPayload.summary.ap },
+      { color: '#f97316', name: 'เงินกู้ / สัญญาเช่าการเงิน', val: financialPayload.summary.totalLoan },
     ].filter((row) => row.val > 0)
 
     return NextResponse.json({
@@ -33,7 +40,7 @@ export async function GET(request: Request) {
       branches: financialPayload.branches,
       charts: {
         ...cashPayload.charts,
-        assetComp: financialPayload.assetComp.map((row) => ({ color: row.color, name: row.name, val: row.value })),
+        assetComp: financialPayload.assetComp.map((row) => ({ color: row.color, name: assetLabels[row.name] ?? row.name, val: row.value })),
         debtComp: debtComp.length ? debtComp : cashPayload.charts.debtComp,
       },
       filters: financialPayload.filters,

@@ -3,7 +3,7 @@ import { outwardCustomerReference } from '@/lib/server/customer-reference'
 import { requireBusinessCode } from '@/lib/business-code'
 import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
-import { getSalesPlanLmeConfig, type SalesPlanLmeConfig } from './sales-plan-lme'
+import { getSalesPlanLmeConfigAutoRefresh, type SalesPlanLmeConfig } from './sales-plan-lme'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
 import { listSalesPlans } from './sales-plans'
@@ -44,6 +44,8 @@ function isCostPoolEligibleMetalGroup(metalGroup: string) {
   const normalized = metalGroup.toLowerCase()
   return ['ทองแดง', 'ทองเหลือง', 'copper', 'brass'].some((key) => normalized.includes(key))
 }
+
+const SALES_PLAN_SAMUT_SAKHON_BRANCH_CODE = '01'
 
 function jsonNumber(value: unknown) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
@@ -112,6 +114,11 @@ function lmeBaseFor(metalGroup: string, config: SalesPlanLmeConfig) {
   if (group.includes('ทองเหลือง') || group.includes('brass')) return config.lmeBrassUSD
   if (group.includes('อลูมิ') || group.includes('aluminum')) return config.lmeAluminumUSD
   return 0
+}
+
+function isCopperOrBrassGroup(metalGroup: string) {
+  const group = metalGroup.toLowerCase()
+  return group.includes('ทองแดง') || group.includes('copper') || group.includes('ทองเหลือง') || group.includes('brass')
 }
 
 function lmeBuyPercentFor(metalGroup: string) {
@@ -186,10 +193,11 @@ function poSellItems(row: { items: unknown; product_id: bigint | null; qty: unkn
 }
 
 async function buildSalesPlanningSnapshot() {
-  const config = await getSalesPlanLmeConfig()
+  const config = await getSalesPlanLmeConfigAutoRefresh()
   const { byKey, refs } = await productsContext()
   const salesPlanRefs = refs.filter((product) => isCostPoolEligibleMetalGroup(product.metalGroup))
-  const [poSells, poBuys, stockRows, customers, salesChannels, tradingDeals, purchaseBills] = await Promise.all([
+  const productById = new Map(refs.map((product) => [product.id, product] as const))
+  const [poSells, poBuys, stockRows, customers, salesChannels, tradingDeals, purchaseBills, samutSakhonWarehouses] = await Promise.all([
     prisma.po_sells.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
     prisma.po_buys.findMany({ orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
     prisma.stock_ledger.findMany({ orderBy: [{ date: 'desc' }], take: 50000 }),
@@ -197,7 +205,17 @@ async function buildSalesPlanningSnapshot() {
     prisma.sales_channels.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true }, where: { active: true } }),
     prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 10000, where: { NOT: { status: { in: ['Cancelled', 'cancelled'] } } } }),
     prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } } }, orderBy: [{ date: 'desc' }], take: 10000, where: { status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] } } }),
+    prisma.warehouses.findMany({
+      select: { id: true },
+      where: {
+        active: true,
+        branches: {
+          is: { code: SALES_PLAN_SAMUT_SAKHON_BRANCH_CODE },
+        },
+      },
+    }),
   ])
+  const samutSakhonWarehouseIds = new Set(samutSakhonWarehouses.map((warehouse) => warehouse.id))
 
   const productAgg = new Map<string, PendingProductRow>()
   const details: Array<{ customerId: string; customerName: string; date: string; deliveryDate: string; docNo: string; id: string; itemPrice: number; itemQty: number; matched: number; productId: string; remaining: number; remainValue: number }> = []
@@ -279,6 +297,8 @@ async function buildSalesPlanningSnapshot() {
   const stockByProduct = new Map<bigint, { qty: number; value: number }>()
   stockRows.forEach((stock) => {
     if (stock.product_id == null) return
+    const product = productById.get(stock.product_id)
+    if (product && isCopperOrBrassGroup(product.metalGroup) && (stock.warehouse_id == null || !samutSakhonWarehouseIds.has(stock.warehouse_id))) return
     const current = stockByProduct.get(stock.product_id) ?? { qty: 0, value: 0 }
     current.qty += toNumber(stock.qty_in) - toNumber(stock.qty_out)
     current.value += toNumber(stock.value_in) - toNumber(stock.value_out)
@@ -439,7 +459,7 @@ async function buildSalesPlanningSnapshot() {
       metalGroup: product.metalGroup,
       name: product.name,
       wac: product.wac,
-    })),
+      })),
     productDetails: details,
     productRows,
     reconciliation,

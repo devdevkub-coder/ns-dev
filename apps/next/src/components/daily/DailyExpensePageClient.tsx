@@ -9,6 +9,7 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { paymentMethodGroupFromValue, type PaymentMethodGroup } from '@/lib/account-payment-method'
 import { dailyFetchJson, expenseFormSchema, formatMoney, todayDateInput, type DailyAccountOption, type ExpenseFormValues, type ExpenseLineFormValues } from '@/lib/daily'
@@ -974,7 +975,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                     ))}
                     <ResizableTableHead activeSortKey={dashboardSortKey} align="right" direction={dashboardSortDirection} label="เฉลี่ยรายเดือน" resizeProps={dashboardColumnResize.getResizeHandleProps('avg', 'เฉลี่ยรายเดือน')} sortKey="avg" onSort={changeDashboardSort} />
                     <ResizableTableHead activeSortKey={dashboardSortKey} align="right" direction={dashboardSortDirection} label="ยอดรวม" resizeProps={dashboardColumnResize.getResizeHandleProps('total', 'ยอดรวม')} sortKey="total" onSort={changeDashboardSort} />
-                    <ResizableTableHead activeSortKey={dashboardSortKey} align="center" direction={dashboardSortDirection} label="สถานะ" resizeProps={dashboardColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeDashboardSort} />
+                    <ResizableTableHead activeSortKey={dashboardSortKey} align="right" direction={dashboardSortDirection} label="สถานะ" resizeProps={dashboardColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeDashboardSort} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
@@ -1022,7 +1023,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       <td className="expense-dashboard-total-cell bg-violet-50/20 px-3 py-3 text-right font-bold text-violet-700 tabular-nums">
                         {formatMoney(item.total)}
                       </td>
-                      <td className="px-3 py-3 text-center">
+                      <td className="px-3 py-3 text-right">
                         {item.anomaly === 'high' ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-600/10">
                             <span className="h-1.5 w-1.5 rounded-full bg-rose-600" /> สูง
@@ -1081,7 +1082,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                     <ResizableTableHead activeSortKey={dashboardSortKey} direction={dashboardSortDirection} label="หมวดค่าใช้จ่าย" resizeProps={dashboardTabletColumnResize.getResizeHandleProps('category', 'หมวดค่าใช้จ่าย')} sortKey="category" onSort={changeDashboardSort} />
                     <ResizableTableHead activeSortKey={dashboardSortKey} align="right" direction={dashboardSortDirection} label={`เดือนล่าสุด (${formatMonthLabel(dashboard.monthList[dashboard.monthList.length - 1])})`} resizeProps={dashboardTabletColumnResize.getResizeHandleProps('latest', 'เดือนล่าสุด')} sortKey="latest" onSort={changeDashboardSort} />
                     <ResizableTableHead activeSortKey={dashboardSortKey} align="right" direction={dashboardSortDirection} label="เฉลี่ยรายเดือน" resizeProps={dashboardTabletColumnResize.getResizeHandleProps('avg', 'เฉลี่ยรายเดือน')} sortKey="avg" onSort={changeDashboardSort} />
-                    <ResizableTableHead activeSortKey={dashboardSortKey} align="center" direction={dashboardSortDirection} label="สถานะ" resizeProps={dashboardTabletColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeDashboardSort} />
+                    <ResizableTableHead activeSortKey={dashboardSortKey} align="right" direction={dashboardSortDirection} label="สถานะ" resizeProps={dashboardTabletColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeDashboardSort} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1103,7 +1104,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       <td className="expense-dashboard-average-cell px-3 py-3 text-right font-semibold text-blue-700 tabular-nums">
                         {formatMoney(item.avg)}
                       </td>
-                      <td className="px-3 py-3 text-center">
+                      <td className="px-3 py-3 text-right">
                         {item.anomaly === 'high' ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-600/10">
                             <span className="h-1.5 w-1.5 rounded-full bg-rose-600" /> สูง
@@ -1204,10 +1205,10 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                 footer={
                   <button
                     type="button"
-                    className="col-span-2 h-10 rounded-md bg-slate-800 text-xs font-semibold text-white transition-colors hover:bg-slate-700"
+                    className="col-span-2 h-11 rounded-md border border-rose-600 bg-rose-600 text-sm font-semibold text-white transition-colors hover:border-rose-700 hover:bg-rose-700"
                     onClick={() => setSelectedCategoryRow(null)}
                   >
-                    ปิดหน้าต่าง
+                    ปิด
                   </button>
                 }
                 onClose={() => setSelectedCategoryRow(null)}
@@ -1569,9 +1570,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
             <div>พบทั้งหมด {filteredSummary.count} รายการ</div>
             <div className="flex flex-wrap items-center gap-2">
               {columnResize.hasCustomWidths ? <Button className="h-9" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
-              <select className="h-9 w-auto rounded-md border border-slate-300 px-2 py-1" value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}>
-                {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-              </select>
+              <PageSizeDropdown value={pageSize} onChange={setPageSize} />
               <Button className="h-9" disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
               <span className="px-1">หน้า {currentPage} / {totalPages}</span>
               <Button className="h-9" disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
@@ -1891,13 +1890,9 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
           <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
             <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
-                {expenseColumns.map((column, index) => {
-                  const style = columnResize.getColumnStyle(column.key);
-                  if (index === expenseColumns.length - 1) {
-                    return <col key={column.key} style={{ minWidth: column.minWidth }} />;
-                  }
-                  return <col key={column.key} style={style} />;
-                })}
+                {expenseColumns.map((column) => (
+                  <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+                ))}
               </colgroup>
               <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 font-medium">
                 <tr>
@@ -2540,4 +2535,3 @@ function ExpenseMetric({
 
   return <SharedKpiCard icon={icon} label={label} note={subLabel} tone={tone} value={unit ? `${value} ${unit}` : value} />
 }
-

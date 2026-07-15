@@ -203,7 +203,7 @@ export function SupplierTrackingPageClient() {
     try {
       setData(await dailyFetchJson<SupplierTrackingPayload>(`/api/tracking/supplier?${queryString}`))
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'โหลด Supplier Tracking ไม่ได้')
+      setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลติดตามผู้ขายไม่ได้')
     } finally {
       setIsLoading(false)
     }
@@ -250,7 +250,7 @@ export function SupplierTrackingPageClient() {
       const payload = await dailyFetchJson<SupplierTrackingPayload>(`/api/tracking/supplier?${params.toString()}`)
       setDetail(payload.detail ?? null)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'โหลดรายละเอียด Supplier ไม่ได้')
+      setError(caught instanceof Error ? caught.message : 'โหลดรายละเอียดผู้ขายไม่ได้')
       setDetail(null)
     } finally {
       setIsDetailLoading(false)
@@ -355,7 +355,7 @@ export function SupplierTrackingPageClient() {
   return (
     <section className="space-y-4">
       <PageTitleOverride
-        title="Supplier Tracking 360°"
+        title="ติดตามผู้ขาย 360°"
       />
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
@@ -371,7 +371,7 @@ export function SupplierTrackingPageClient() {
         <TabsList className="w-full min-w-0 overflow-x-auto" variant="line">
           <TabsTrigger value="list" variant="line">รายการ</TabsTrigger>
           <TabsTrigger value="productBreakdown" variant="line">สรุปตามสินค้า</TabsTrigger>
-          <TabsTrigger value="top10" variant="line">Top 10</TabsTrigger>
+          <TabsTrigger value="top10" variant="line">10 อันดับแรก</TabsTrigger>
           <TabsTrigger value="yearCompare" variant="line">รายปี</TabsTrigger>
         </TabsList>
       </Tabs>
@@ -384,7 +384,7 @@ export function SupplierTrackingPageClient() {
               <input
                 autoComplete="off"
                 className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 pl-9 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-100"
-                placeholder="ค้นหา Supplier"
+                placeholder="ค้นหาผู้ขาย"
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -409,9 +409,9 @@ export function SupplierTrackingPageClient() {
                 hideLabel
                 inputClassName="h-9 text-sm"
                 inputId="tracking-supplier-filter-product"
-                label="Product"
+                label="สินค้า"
                 options={productSearchOptions}
-                placeholder="เลือก Product"
+                placeholder="เลือกสินค้า"
                 value={productId}
                 onChange={setProductId}
               />
@@ -421,9 +421,9 @@ export function SupplierTrackingPageClient() {
                 hideLabel
                 inputClassName="h-9 text-sm"
                 inputId="tracking-supplier-filter-supplier"
-                label="Supplier"
+                label="ผู้ขาย"
                 options={supplierSearchOptions}
-                placeholder="เลือก Supplier"
+                placeholder="เลือกผู้ขาย"
                 value={supplierId}
                 onChange={setSupplierId}
               />
@@ -437,7 +437,7 @@ export function SupplierTrackingPageClient() {
             <input
               autoComplete="off"
               className="h-9 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-100"
-              placeholder="ค้นหา Supplier..."
+              placeholder="ค้นหาผู้ขาย..."
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -462,7 +462,7 @@ export function SupplierTrackingPageClient() {
 
           {showMobileFilters && (
             <MobileFilterSheet
-              title="ตัวกรอง Supplier Tracking"
+              title="ตัวกรองติดตามผู้ขาย"
               onClose={() => setShowMobileFilters(false)}
               footer={(
                 <>
@@ -500,8 +500,8 @@ export function SupplierTrackingPageClient() {
                   ))}
                 </select>
               </label>
-              <SearchCombobox inputClassName="h-9 text-sm" inputId="tracking-supplier-mobile-product" label="Product" options={productSearchOptions} placeholder="เลือก Product" value={productId} onChange={setProductId} />
-              <SearchCombobox inputClassName="h-9 text-sm" inputId="tracking-supplier-mobile-supplier" label="Supplier" options={supplierSearchOptions} placeholder="เลือก Supplier" value={supplierId} onChange={setSupplierId} />
+              <SearchCombobox inputClassName="h-9 text-sm" inputId="tracking-supplier-mobile-product" label="สินค้า" options={productSearchOptions} placeholder="เลือกสินค้า" value={productId} onChange={setProductId} />
+              <SearchCombobox inputClassName="h-9 text-sm" inputId="tracking-supplier-mobile-supplier" label="ผู้ขาย" options={supplierSearchOptions} placeholder="เลือกผู้ขาย" value={supplierId} onChange={setSupplierId} />
             </MobileFilterSheet>
           )}
         </div>
@@ -531,11 +531,11 @@ export function SupplierTrackingPageClient() {
 
       {view === 'top10' ? (
         <div className="grid gap-4 lg:grid-cols-2">
-          <TopPanel rows={topPurchase.map((row) => ({ label: row.supplierName, value: row.purchaseAmount }))} title="Top 10 ยอดซื้อ" />
-          <TopPanel rows={topQty.map((row) => ({ label: row.supplierName, value: row.qty }))} title="Top 10 น้ำหนัก" />
-          <TopPanel rows={cheapest.map((row) => ({ label: row.supplierName, value: row.avgBuy }))} title="Top 10 ราคาถูกสุด" />
-          <TopPanel rows={expensive.map((row) => ({ label: row.supplierName, value: row.avgBuy }))} title="Top 10 ราคาแพงสุด" />
-          <TopPanel rows={topPayable.map((row) => ({ label: row.supplierName, value: row.payable }))} title="Top 10 เจ้าหนี้ค้าง" />
+          <TopPanel rows={topPurchase.map((row) => ({ label: row.supplierName, value: row.purchaseAmount }))} title="ยอดซื้อสูงสุด 10 อันดับ" />
+          <TopPanel rows={topQty.map((row) => ({ label: row.supplierName, value: row.qty }))} title="น้ำหนักสูงสุด 10 อันดับ" />
+          <TopPanel rows={cheapest.map((row) => ({ label: row.supplierName, value: row.avgBuy }))} title="ราคาต่ำสุด 10 อันดับ" />
+          <TopPanel rows={expensive.map((row) => ({ label: row.supplierName, value: row.avgBuy }))} title="ราคาสูงสุด 10 อันดับ" />
+          <TopPanel rows={topPayable.map((row) => ({ label: row.supplierName, value: row.payable }))} title="เจ้าหนี้คงค้างสูงสุด 10 อันดับ" />
         </div>
       ) : null}
 
@@ -603,7 +603,7 @@ export function SupplierTrackingPageClient() {
 
             {!isLoading && sortedRows.length === 0 ? (
               <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-100">
-                ไม่มีข้อมูล Supplier Tracking
+                ไม่มีข้อมูลติดตามผู้ขาย
               </div>
             ) : null}
           </div>
@@ -621,8 +621,8 @@ export function SupplierTrackingPageClient() {
                     activeSortKey={sortKey}
                     align="left"
                     direction={sortDirection}
-                    label="Code"
-                    resizeProps={columnResize.getResizeHandleProps('code', 'Code')}
+                    label="รหัส"
+                    resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')}
                     sortKey="code"
                     onSort={handleSort}
                   />
@@ -630,8 +630,8 @@ export function SupplierTrackingPageClient() {
                     activeSortKey={sortKey}
                     align="left"
                     direction={sortDirection}
-                    label="Supplier"
-                    resizeProps={columnResize.getResizeHandleProps('supplierName', 'Supplier')}
+                    label="ผู้ขาย"
+                    resizeProps={columnResize.getResizeHandleProps('supplierName', 'ผู้ขาย')}
                     sortKey="supplierName"
                     onSort={handleSort}
                   />
@@ -711,7 +711,7 @@ export function SupplierTrackingPageClient() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</td></tr> : null}
-                {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={10}>ไม่มีข้อมูล Supplier Tracking</td></tr> : null}
+                {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={10}>ไม่มีข้อมูลติดตามผู้ขาย</td></tr> : null}
                 {!isLoading && pagedRows.map((row) => (
                   <tr key={row.id} className="cursor-pointer border-t hover:bg-slate-50/80 transition-colors" onClick={() => void openDetail(row)}>
                     <td className="p-2 font-mono text-xs text-slate-500 min-w-0 overflow-hidden"><div className="truncate" title={row.code || ''}>{row.code || '-'}</div></td>
@@ -746,7 +746,7 @@ export function SupplierTrackingPageClient() {
 
           {/* Mobile Card list for Product breakdown */}
           <div className="block lg:hidden space-y-3">
-            <div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-700 rounded-t-md">Product breakdown จากบิลรับซื้อ (มือถือ)</div>
+            <div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-700 rounded-t-md">สรุปตามสินค้าจากบิลรับซื้อ (มือถือ)</div>
             {displayedProductRows.map((row) => (
               <div key={row.productName} className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm space-y-2">
                 <span className="font-bold text-slate-800 text-sm block">{row.productName}</span>
@@ -775,14 +775,14 @@ export function SupplierTrackingPageClient() {
             ))}
             {!isLoading && productRows.length === 0 ? (
               <div className="rounded-xl bg-white p-6 text-center text-xs text-slate-400 shadow-sm border border-slate-100">
-                ไม่มี item detail สำหรับ product breakdown
+                ไม่มีรายละเอียดสินค้าในสรุปตามสินค้า
               </div>
             ) : null}
           </div>
 
           <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-              <span>Product breakdown จากบิลรับซื้อ</span>
+              <span>สรุปตามสินค้าจากบิลรับซื้อ</span>
               {productBreakdownResize.hasCustomWidths ? (
                 <button
                   className="hidden h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 lg:inline-flex"
@@ -796,17 +796,17 @@ export function SupplierTrackingPageClient() {
             <div className="overflow-x-auto">
               <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: productBreakdownResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
                 <colgroup>
-                  {productBreakdownColumns.map((column, index) => (
+                  {productBreakdownColumns.map((column) => (
                     <col
                       key={column.key}
-                      style={index === productBreakdownColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : productBreakdownResize.getColumnStyle(column.key)}
+                      style={productBreakdownResize.getColumnStyle(column.key)}
                     />
                   ))}
                 </colgroup>
                 <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
                   <tr>
                     <ResizableTableHead activeSortKey={productSortKey} direction={productSortDirection} label="สินค้า" resizeProps={productBreakdownResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={handleProductSort} />
-                    <ResizableTableHead activeSortKey={productSortKey} align="right" direction={productSortDirection} label="Supplier" resizeProps={productBreakdownResize.getResizeHandleProps('suppliers', 'Supplier')} sortKey="suppliers" onSort={handleProductSort} />
+                    <ResizableTableHead activeSortKey={productSortKey} align="right" direction={productSortDirection} label="ผู้ขาย" resizeProps={productBreakdownResize.getResizeHandleProps('suppliers', 'ผู้ขาย')} sortKey="suppliers" onSort={handleProductSort} />
                     <ResizableTableHead activeSortKey={productSortKey} align="right" direction={productSortDirection} label="บิล" resizeProps={productBreakdownResize.getResizeHandleProps('billCount', 'บิล')} sortKey="billCount" onSort={handleProductSort} />
                     <ResizableTableHead activeSortKey={productSortKey} align="right" direction={productSortDirection} label="น้ำหนัก" resizeProps={productBreakdownResize.getResizeHandleProps('qty', 'น้ำหนัก')} sortKey="qty" onSort={handleProductSort} />
                     <ResizableTableHead activeSortKey={productSortKey} align="right" direction={productSortDirection} label="ยอดซื้อ" resizeProps={productBreakdownResize.getResizeHandleProps('amount', 'ยอดซื้อ')} sortKey="amount" onSort={handleProductSort} />
@@ -824,7 +824,7 @@ export function SupplierTrackingPageClient() {
                       <td className="p-2 pr-4 text-right whitespace-nowrap tabular-nums pl-4">{formatMoney(row.avgBuy)}</td>
                     </tr>
                   ))}
-                  {!isLoading && productRows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={productBreakdownColumns.length}>ไม่มี item detail สำหรับ product breakdown</td></tr> : null}
+                  {!isLoading && productRows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={productBreakdownColumns.length}>ไม่มีรายละเอียดสินค้าในสรุปตามสินค้า</td></tr> : null}
                 </tbody>
               </table>
             </div>
@@ -839,12 +839,12 @@ export function SupplierTrackingPageClient() {
 function SupplierDetailDialog({ detail, isLoading, onOpenChange }: { detail: SupplierTrackingDetail | null; isLoading: boolean; onOpenChange: (open: boolean) => void }) {
   return (
     <Dialog open={detail !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden rounded-md border-0 bg-slate-900 !p-0 shadow-2xl outline-none focus:outline-none flex flex-col" fallbackTitle="Supplier Tracking Detail" hideClose>
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden rounded-md border-0 bg-slate-900 !p-0 shadow-2xl outline-none focus:outline-none flex flex-col" fallbackTitle="รายละเอียดการติดตามผู้ขาย" hideClose>
         <DialogHeader className="shrink-0 rounded-t-md bg-slate-900 px-5 py-4 text-white">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
             <div className="min-w-0 space-y-1">
-              <DialogTitle className="truncate text-xl font-bold text-white">{detail?.supplier.name ?? 'รายละเอียด Supplier'}</DialogTitle>
-              <DialogDescription className="truncate text-xs text-slate-300">{detail?.supplier.code ?? ''} · Purchase Bills / Payments / WTI / Grade Adjust / Product mix</DialogDescription>
+              <DialogTitle className="truncate text-xl font-bold text-white">{detail?.supplier.name ?? 'รายละเอียดผู้ขาย'}</DialogTitle>
+              <DialogDescription className="truncate text-xs text-slate-300">{detail?.supplier.code ?? ''} · บิลซื้อ / จ่ายเงิน / WTI / ปรับเกรด / สัดส่วนสินค้า</DialogDescription>
             </div>
             <Button className="h-9 shrink-0 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={() => onOpenChange(false)}>ปิด</Button>
           </div>
@@ -853,7 +853,7 @@ function SupplierDetailDialog({ detail, isLoading, onOpenChange }: { detail: Sup
           {isLoading ? <div className="rounded-xl border border-slate-100 bg-white p-6 text-center text-sm text-slate-500">กำลังโหลดรายละเอียด</div> : null}
           {!isLoading && detail ? (
             <>
-              <DetailSection title="Reliability / Quality Signals">
+              <DetailSection title="สัญญาณความน่าเชื่อถือและคุณภาพ">
                 <div className="grid grid-cols-2 gap-2 p-3 lg:grid-cols-3">
                   <SignalMetric label="ส่งครบจาก WTI" value={`${detail.qualitySignals.deliveryCompletionPct.toFixed(1)}%`} />
                   <SignalMetric label="หักน้ำหนัก" value={`${detail.qualitySignals.deductionPct.toFixed(1)}%`} />
@@ -862,47 +862,47 @@ function SupplierDetailDialog({ detail, isLoading, onOpenChange }: { detail: Sup
                   <SignalMetric label="บิลเกินกำหนด" value={`${detail.qualitySignals.overdueApBillCount} บิล`} />
                   <SignalMetric label="เก่าสุด" value={`${detail.qualitySignals.oldestApAgeDays} วัน`} />
                   <SignalMetric label="WTI" value={`${detail.qualitySignals.wtiCount} ใบ`} />
-                  <SignalMetric label="Grade Adjust" value={`${detail.qualitySignals.gradeAdjustmentCount} รายการ`} />
-                  <SignalMetric label="Return" value={detail.qualitySignals.returnSignalStatus} />
+                  <SignalMetric label="ปรับเกรด" value={`${detail.qualitySignals.gradeAdjustmentCount} รายการ`} />
+                  <SignalMetric label="ส่งคืน" value={detail.qualitySignals.returnSignalStatus} />
                 </div>
               </DetailSection>
-              <DetailSection title="AP Aging Buckets">
+              <DetailSection title="อายุเจ้าหนี้คงค้าง">
                 <SimpleTable
-                  headers={['Bucket', 'บิล', 'ยอดค้าง']}
+                  headers={['กลุ่มอายุ', 'บิล', 'ยอดค้าง']}
                   rows={detail.qualitySignals.agingBuckets.map((row) => [row.bucket, String(row.count), formatMoney(row.amount)])}
                 />
               </DetailSection>
-              <DetailSection title="Purchase Bill">
+              <DetailSection title="บิลซื้อ">
                 <SimpleTable
-                  headers={['วันที่', 'เอกสาร', 'Due', 'Bucket', 'อายุ', 'น้ำหนัก', 'ยอดซื้อ', 'ราคาเฉลี่ย', 'จ่ายแล้ว', 'ค้างจ่าย', 'สถานะ']}
+                  headers={['วันที่', 'เอกสาร', 'ครบกำหนด', 'กลุ่มอายุ', 'อายุ', 'น้ำหนัก', 'ยอดซื้อ', 'ราคาเฉลี่ย', 'จ่ายแล้ว', 'ค้างจ่าย', 'สถานะ']}
                   rows={detail.bills.map((row) => [formatDateDisplay(row.date), { href: row.href, label: row.docNo }, formatDateDisplay(row.dueDate), row.ageBucket, `${row.ageDays} วัน`, formatMoney(row.qty), formatMoney(row.amount), formatMoney(row.avgBuy), formatMoney(row.paidAmount), formatMoney(row.payable), row.status])}
                 />
               </DetailSection>
-              <DetailSection title="Payment">
+              <DetailSection title="การจ่ายเงิน">
                 <SimpleTable
                   headers={['วันที่', 'เอกสาร', 'วิธีจ่าย', 'ยอดจ่าย', 'สุทธิ', 'สถานะ']}
                   rows={detail.payments.map((row) => [formatDateDisplay(row.date), { href: row.href, label: row.docNo }, row.method, formatMoney(row.amount), formatMoney(row.netAmount), row.status])}
                 />
               </DetailSection>
-              <DetailSection title="Monthly Purchase / Payment Trend">
+              <DetailSection title="แนวโน้มการซื้อและจ่ายเงินรายเดือน">
                 <SimpleTable
                   headers={['เดือน', 'บิล', 'จ่าย', 'น้ำหนัก', 'ยอดซื้อ', 'จ่ายแล้ว', 'ค้างจ่าย']}
                   rows={detail.monthly.map((row, index) => [monthLabels[index] ?? row.month, String(row.billCount), String(row.paymentCount), formatMoney(row.qty), formatMoney(row.purchaseAmount), formatMoney(row.paidAmount), formatMoney(row.payable)])}
                 />
               </DetailSection>
-              <DetailSection title="WTI / Delivery">
+              <DetailSection title="WTI / การรับสินค้า">
                 <SimpleTable
                   headers={['วันที่', 'WTI', 'น้ำหนักสุทธิ', 'ชั่งบิลแล้ว', 'คงเหลือ', 'หักน้ำหนัก', 'สถานะ']}
                   rows={detail.weightTickets.map((row) => [formatDateDisplay(row.date), { href: row.href, label: row.docNo }, formatMoney(row.netWeight), formatMoney(row.billedWeight), formatMoney(row.remainingWeight), formatMoney(row.deductWeight), row.status])}
                 />
               </DetailSection>
-              <DetailSection title="Grade Adjust">
+              <DetailSection title="ปรับเกรด">
                 <SimpleTable
-                  headers={['วันที่', 'เอกสาร', 'Qty Diff', 'Value Diff', 'เหตุผล', 'สถานะ']}
+                  headers={['วันที่', 'เอกสาร', 'จำนวนต่าง', 'มูลค่าต่าง', 'เหตุผล', 'สถานะ']}
                   rows={detail.gradeAdjustments.map((row) => [formatDateDisplay(row.date), { href: row.href, label: row.docNo }, formatMoney(row.qtyDiff), formatMoney(row.valueDiff), row.reason, row.status])}
                 />
               </DetailSection>
-              <DetailSection title="Product Mix">
+              <DetailSection title="สัดส่วนสินค้า">
                 <SimpleTable
                   headers={['สินค้า', 'บิล', 'น้ำหนัก', 'ยอดซื้อ', 'ราคาเฉลี่ย']}
                   rows={detail.products.map((row) => [row.productName, String(row.billCount), formatMoney(row.qty), formatMoney(row.amount), formatMoney(row.avgBuy)])}
@@ -927,7 +927,7 @@ function DetailSection({ children, title }: { children: ReactNode; title: string
 
 function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][] }) {
   const cellText = (cell: DetailCell) => typeof cell === 'string' ? cell : cell.label
-  const isNumericCell = (cell: DetailCell) => /^-?[\d,]+(\.\d+)?%?$/.test(cellText(cell).trim())
+  const rightAlignedColumns = headers.map((_, columnIndex) => columnIndex > 0)
   return (
     <>
       {/* Desktop Table View */}
@@ -936,7 +936,7 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
           <thead className="bg-slate-50 border-b border-slate-100">
             <tr>
               {headers.map((header, idx) => (
-                <th key={header} className={`p-2.5 text-slate-600 font-semibold text-xs text-left ${idx === 0 ? 'pl-4' : idx === headers.length - 1 ? 'pr-4' : ''}`}>
+                <th key={header} className={`p-2 text-slate-600 font-semibold text-xs ${rightAlignedColumns[idx] ? 'text-right' : 'text-left'} ${idx === 0 ? 'pl-4' : idx === headers.length - 1 ? 'pr-4' : ''}`}>
                   {header}
                 </th>
               ))}
@@ -950,9 +950,9 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
                   <td
                     key={`${index}-${headers[cellIndex]}`}
                     className={`
-                      p-2.5 text-slate-700
+                      p-3 text-slate-700
                       ${cellIndex === 0 ? 'pl-4' : cellIndex === row.length - 1 ? 'pr-4' : ''}
-                      ${cellIndex === 0 || cellIndex === 1 || cellIndex === headers.length - 1 || !isNumericCell(cell) ? 'text-left' : 'text-right'}
+                      ${rightAlignedColumns[cellIndex] ? 'text-right' : 'text-left'}
                     `}
                   >
                     {typeof cell === 'string' ? (
@@ -1129,16 +1129,16 @@ function YearCompare({ rows }: { rows: SupplierTrackingRow[] }) {
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
         <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
-            {supplierYearCompareColumns.map((column, index) => (
+            {supplierYearCompareColumns.map((column) => (
               <col
                 key={column.key}
-                style={index === supplierYearCompareColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : columnResize.getColumnStyle(column.key)}
+                style={columnResize.getColumnStyle(column.key)}
               />
             ))}
           </colgroup>
           <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
             <tr>
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="Supplier" resizeProps={columnResize.getResizeHandleProps('supplierName', 'Supplier')} sortKey="supplierName" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ผู้ขาย" resizeProps={columnResize.getResizeHandleProps('supplierName', 'ผู้ขาย')} sortKey="supplierName" onSort={handleSort} />
               {monthLabels.map((label, index) => {
                 const key = `m${months[index]}` as SupplierYearCompareColumnKey
                 return (

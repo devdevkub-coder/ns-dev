@@ -135,15 +135,20 @@ export function PlStatementPageClient() {
     <section className="space-y-4">
       {error ? <ErrorBox message={error} /> : null}
       {/* Desktop Filter Panel */}
-      <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex">
-        <Segment active> ช่วงวันที่</Segment><Segment> รายเดือน</Segment><Segment> ตารางรายปี (12 เดือน)</Segment>
-        <QuickButton onClick={() => { const now = new Date(); setFrom(new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)); setTo(today()) }}> ปีนี้</QuickButton>
-        <QuickButton onClick={() => setFrom(monthStart())}>เดือนนี้</QuickButton>
-        <DateInput label="จาก" value={from} onChange={setFrom} /><DateInput label="ถึง" value={to} onChange={setTo} />
-        <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
-        <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:outline-none focus:border-slate-400 transition cursor-pointer" value={mode} onChange={(event) => setMode(event.target.value)}>
-          <option value="ALL">All (Stock+Trading)</option><option value="STOCK">Stock Only</option><option value="TRADING">Trading Only</option>
-        </select>
+      <div className="hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
+        <div className="flex flex-wrap items-center gap-2">
+          <DateInput label="จาก" value={from} onChange={setFrom} /><DateInput label="ถึง" value={to} onChange={setTo} />
+          <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
+          <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition focus:border-slate-400" value={mode} onChange={(event) => setMode(event.target.value)}>
+            <option value="ALL">ทั้งหมด (สต็อก + ซื้อขาย)</option><option value="STOCK">เฉพาะสต็อก</option><option value="TRADING">เฉพาะซื้อขาย</option>
+          </select>
+          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => { setFrom(monthStart()); setTo(today()); setBranchId(''); setMode('ALL') }}>ล้างตัวกรอง</button>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-500">ช่วงเวลา:</span>
+          <QuickButton onClick={() => { const now = new Date(); setFrom(new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)); setTo(today()) }}>ปีนี้</QuickButton>
+          <QuickButton onClick={() => { setFrom(monthStart()); setTo(today()) }}>เดือนนี้</QuickButton>
+        </div>
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
@@ -213,7 +218,7 @@ export function PlStatementPageClient() {
               <button
                 type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="h-10 rounded-md bg-blue-600 text-sm font-semibold text-white transition hover:bg-blue-700"
+                className="h-10 rounded-md bg-blue-600 text-sm font-normal text-white transition hover:bg-blue-700"
               >
                 ตกลง
               </button>
@@ -249,20 +254,20 @@ export function PlStatementPageClient() {
         </MobileFilterSheet>
       ) : null}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <MegaCard footer={`กำไรขั้นต้น ${money(data?.summary.grossProfit)} · OPEX ${money((data?.summary.expenses ?? 0) + (data?.summary.depreciation ?? 0))}`} label="กำไรก่อนภาษี" tone="pl" value={money(data?.summary.netProfitBeforeTax)} />
-        <Panel title="สะพานกำไรขาดทุน"><Waterfall rows={[['รายได้', data?.summary.revenue ?? 0], ['COGS', -(data?.summary.cogs ?? 0)], ['OPEX', -(data?.summary.expenses ?? 0)], ['ค่าเสื่อม', -(data?.summary.depreciation ?? 0)], ['ดอกเบี้ย', -(data?.summary.interest ?? 0)], ['FX', data?.summary.fxNet ?? 0]]} /></Panel>
+        <MegaCard footer={`กำไรขั้นต้น ${money(data?.summary.grossProfit)} · ค่าใช้จ่ายดำเนินงาน ${money((data?.summary.expenses ?? 0) + (data?.summary.depreciation ?? 0))}`} label="กำไรก่อนภาษี" tone="pl" value={money(data?.summary.netProfitBeforeTax)} />
+        <Panel title="สะพานกำไรขาดทุน"><Waterfall rows={[['รายได้', data?.summary.revenue ?? 0], ['ต้นทุนขาย', -(data?.summary.cogs ?? 0)], ['ค่าใช้จ่ายดำเนินงาน', -(data?.summary.expenses ?? 0)], ['ค่าเสื่อม', -(data?.summary.depreciation ?? 0)], ['ดอกเบี้ย', -(data?.summary.interest ?? 0)], ['กำไร/ขาดทุนอัตราแลกเปลี่ยน', data?.summary.fxNet ?? 0]]} /></Panel>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="รายได้" value={money(data?.summary.revenue)} tone="emerald" />
-        <StatCard label="COGS" value={money(data?.summary.cogs)} tone="red" />
+        <StatCard label="ต้นทุนขาย" value={money(data?.summary.cogs)} tone="red" />
         <StatCard label="กำไรจากการดำเนินงาน" value={money(data?.summary.operatingProfit)} tone="cyan" />
-        <StatCard label="กำไร/(ขาดทุน) FX" value={money(data?.summary.fxNet)} tone={(data?.summary.fxNet ?? 0) > 0 ? 'emerald' : (data?.summary.fxNet ?? 0) < 0 ? 'red' : 'slate'} />
+        <StatCard label="กำไร/(ขาดทุน) อัตราแลกเปลี่ยน" value={money(data?.summary.fxNet)} tone={(data?.summary.fxNet ?? 0) > 0 ? 'emerald' : (data?.summary.fxNet ?? 0) < 0 ? 'red' : 'slate'} />
       </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <SplitCard label="สต็อก" revenue={data?.split.stock.revenue ?? 0} cogs={data?.split.stock.cogs ?? 0} tone="emerald" />
-        <SplitCard label="Trading" revenue={data?.split.trading.revenue ?? 0} cogs={data?.split.trading.cogs ?? 0} tone="purple" />
+        <SplitCard label="ซื้อขาย" revenue={data?.split.trading.revenue ?? 0} cogs={data?.split.trading.cogs ?? 0} tone="purple" />
       </div>
-      <StatementTable isLoading={isLoading} rows={data?.sections ?? []} tableKey="pl-statement" onDrill={(line) => line.details?.length ? setDrill({ rows: line.details, title: line.label }) : undefined} />
+      <StatementTable isLoading={isLoading} rows={data?.sections ?? []} tableKey="pl-statement" title="งบกำไรขาดทุน" onDrill={(line) => line.details?.length ? setDrill({ rows: line.details, title: line.label }) : undefined} />
       {drill ? <DrillModal rows={drill.rows} title={drill.title} onClose={() => setDrill(null)} /> : null}
     </section>
   )
@@ -323,7 +328,7 @@ export function BalanceSheetPageClient() {
               <button
                 type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="h-10 rounded-md bg-blue-600 text-sm font-semibold text-white transition hover:bg-blue-700"
+                className="h-10 rounded-md bg-blue-600 text-sm font-normal text-white transition hover:bg-blue-700"
               >
                 ตกลง
               </button>
@@ -456,7 +461,7 @@ export function CashFlowStatementPageClient() {
               <button
                 type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="h-10 rounded-md bg-blue-600 text-sm font-semibold text-white transition hover:bg-blue-700"
+                className="h-10 rounded-md bg-blue-600 text-sm font-normal text-white transition hover:bg-blue-700"
               >
                 ตกลง
               </button>
@@ -478,17 +483,17 @@ export function CashFlowStatementPageClient() {
         </MobileFilterSheet>
       ) : null}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <MegaCard footer={`Beginning ${money(data?.summary.openingCash)} · Ending ${money(data?.summary.endingCash)}`} label="Net Change in Cash" tone="cf" value={money(data?.summary.netChange)} />
-        <Panel title=" Activity Inflow"><Waterfall rows={[['Operating', data?.activities.operating.inflow ?? 0], ['Investing', data?.activities.investing.inflow ?? 0], ['Financing', data?.activities.financing.inflow ?? 0]]} /></Panel>
-        <Panel title=" Activity Net"><Waterfall rows={[['Operating', data?.summary.operating ?? 0], ['Investing', data?.summary.investing ?? 0], ['Financing', data?.summary.financing ?? 0]]} /></Panel>
+        <MegaCard footer={`เงินสดต้นงวด ${money(data?.summary.openingCash)} · เงินสดปลายงวด ${money(data?.summary.endingCash)}`} label="เงินสดสุทธิเพิ่ม/ลด" tone="cf" value={money(data?.summary.netChange)} />
+        <Panel title="เงินสดรับตามกิจกรรม"><Waterfall rows={[['ดำเนินงาน', data?.activities.operating.inflow ?? 0], ['ลงทุน', data?.activities.investing.inflow ?? 0], ['จัดหาเงิน', data?.activities.financing.inflow ?? 0]]} /></Panel>
+        <Panel title="เงินสดสุทธิจากกิจกรรม"><Waterfall rows={[['ดำเนินงาน', data?.summary.operating ?? 0], ['ลงทุน', data?.summary.investing ?? 0], ['จัดหาเงิน', data?.summary.financing ?? 0]]} /></Panel>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Cash In" value={money(data?.summary.totalInflow)} tone="emerald" />
-        <StatCard label="Cash Out" value={money(data?.summary.totalOutflow)} tone="red" />
-        <StatCard label="Internal Transfer excluded" value={money(data?.summary.internalTransfers)} tone="blue" />
-        <StatCard label="Ending Cash" value={money(data?.summary.endingCash)} tone="cyan" />
+        <StatCard label="เงินสดรับ" value={money(data?.summary.totalInflow)} tone="emerald" />
+        <StatCard label="เงินสดจ่าย" value={money(data?.summary.totalOutflow)} tone="red" />
+        <StatCard label="โอนเงินภายใน (ไม่รวม)" value={money(data?.summary.internalTransfers)} tone="blue" />
+        <StatCard label="เงินสดปลายงวด" value={money(data?.summary.endingCash)} tone="cyan" />
       </div>
-      <StatementTable isLoading={isLoading} rows={data?.rows ?? []} tableKey="cash-flow-statement" onDrill={(line) => line.details?.length ? setDrill({ rows: line.details, title: line.label }) : undefined} />
+      <StatementTable isLoading={isLoading} rows={data?.rows ?? []} tableKey="cash-flow-statement" title="งบกระแสเงินสด" onDrill={(line) => line.details?.length ? setDrill({ rows: line.details, title: line.label }) : undefined} />
       {drill ? <DrillModal rows={drill.rows} title={drill.title} onClose={() => setDrill(null)} /> : null}
     </section>
   )
@@ -523,14 +528,6 @@ function DateInput({ label, onChange, value }: { label: string; onChange: (value
 
 function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; onChange: (value: string) => void; value: string }) {
   return <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none focus:outline-none focus:border-slate-400 transition cursor-pointer" value={value} onChange={(event) => onChange(event.target.value)}><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>
-}
-
-function Segment({ active = false, children }: { active?: boolean; children: ReactNode }) {
-  return (
-    <span className={`rounded-md border px-3 py-1 text-xs font-medium outline-none focus:ring-0 ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition'}`}>
-      {children}
-    </span>
-  )
 }
 
 function QuickButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
@@ -591,7 +588,7 @@ function Waterfall({ rows }: { rows: Array<[string, number]> }) {
   )
 }
 
-function StatementTable({ isLoading, onDrill, rows, tableKey, title = 'Statement' }: { isLoading: boolean; onDrill: (line: StatementLine) => void | undefined; rows: StatementLine[]; tableKey: string; title?: string }) {
+function StatementTable({ isLoading, onDrill, rows, tableKey, title }: { isLoading: boolean; onDrill: (line: StatementLine) => void | undefined; rows: StatementLine[]; tableKey: string; title: string }) {
   const columnResize = useResizableColumns(`finance-accounting.financial-statements.${tableKey}.v1`, statementColumns)
   const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<StatementLine, StatementColumnKey>(rows, getStatementSortValue)
 
@@ -601,11 +598,11 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title = 'Statement
         <div className="text-sm font-bold text-slate-700">{title}</div>
         {columnResize.hasCustomWidths ? (
           <button
-            className="h-8 rounded-md bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+            className="h-8 rounded-md bg-slate-100 px-3 text-xs font-normal text-slate-700 hover:bg-slate-200"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
-            รีเซ็ตความกว้างตาราง
+            คืนค่าเดิมตาราง
           </button>
         ) : null}
       </div>
@@ -613,19 +610,16 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title = 'Statement
         {/* Desktop Table View */}
         <table className="ns-table hidden min-w-full divide-y divide-slate-200 text-sm lg:table" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
-            {statementColumns.map((column, index) => {
-              if (index === statementColumns.length - 1) {
-                return <col key={column.key} style={{ minWidth: column.minWidth }} />
-              }
-              return <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
-            })}
+            {statementColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
           </colgroup>
           <thead className="sticky top-0 z-10 bg-slate-100">
             <tr>
               <ResizableTableHead label="รายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="label" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('label', 'รายการ')} />
-              <ResizableTableHead label="หมวดรายงาน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="section" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('section', 'หมวดรายงาน')} />
+              <ResizableTableHead align="right" label="หมวดรายงาน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="section" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('section', 'หมวดรายงาน')} />
               <ResizableTableHead align="right" label="จำนวนเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวนเงิน')} />
-              <ResizableTableHead align="center" label="รายละเอียด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="drill" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('drill', 'รายละเอียด')} />
+              <ResizableTableHead align="right" label="รายละเอียด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="drill" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('drill', 'รายละเอียด')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -633,13 +627,13 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title = 'Statement
             {sortedRows.map((line) => (
               <tr key={`${line.section}-${line.label}`} className={`transition-colors hover:bg-slate-50 ${line.tone === 'total' ? 'bg-slate-50/50 font-bold' : ''}`}>
                 <td className="px-3 py-3 text-slate-900"><span className={line.level ? 'pl-5' : ''}>{line.label}</span></td>
-                <td className="px-3 py-3"><span className="rounded-md bg-slate-100/80 px-2 py-0.5 text-xs font-medium text-slate-500">{line.section}</span></td>
+                <td className="px-3 py-3 text-right"><span className="rounded-md bg-slate-100/80 px-2 py-0.5 text-xs font-medium text-slate-500">{line.section}</span></td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums">
                   <span className={line.amount < 0 ? 'font-bold text-red-700' : line.tone === 'good' ? 'font-bold text-emerald-700' : 'font-bold text-slate-900'}>
                     {money(line.amount)}
                   </span>
                 </td>
-                <td className="px-3 py-3 text-center">
+                <td className="px-3 py-3 text-right">
                   {line.details?.length ? (
                     <button className="font-semibold text-blue-600 hover:underline outline-none focus:ring-0" type="button" onClick={() => onDrill(line)}> {line.details.length}</button>
                   ) : (
@@ -693,18 +687,18 @@ function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: Detai
       <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-xl">
         <div className="flex items-center justify-between bg-slate-900 px-4 py-3 text-white">
           <h2 className="text-sm font-bold"> {title}</h2>
-          <button className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white outline-none hover:bg-red-700 focus:ring-0" type="button" onClick={onClose}>
+          <button className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-normal text-white outline-none hover:bg-red-700 focus:ring-0" type="button" onClick={onClose}>
             ปิด
           </button>
         </div>
         {columnResize.hasCustomWidths ? (
           <div className="hidden justify-end border-b border-slate-100 bg-white px-3 py-2 lg:flex">
             <button
-              className="h-8 rounded-md bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+              className="h-8 rounded-md bg-slate-100 px-3 text-xs font-normal text-slate-700 hover:bg-slate-200"
               type="button"
               onClick={columnResize.resetColumnWidths}
             >
-              รีเซ็ตความกว้างตาราง
+              คืนค่าเดิมตาราง
             </button>
           </div>
         ) : null}
@@ -712,18 +706,15 @@ function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: Detai
           {/* Desktop Table View */}
           <table className="ns-table hidden min-w-full divide-y divide-slate-200 text-sm lg:table" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
-              {drillColumns.map((column, index) => {
-                if (index === drillColumns.length - 1) {
-                  return <col key={column.key} style={{ minWidth: column.minWidth }} />
-                }
-                return <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
-              })}
+              {drillColumns.map((column) => (
+                <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+              ))}
             </colgroup>
             <thead className="sticky top-0 z-10 bg-slate-100">
               <tr>
                 <ResizableTableHead label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
-                <ResizableTableHead label="เลขที่เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="refNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่เอกสาร')} />
-                <ResizableTableHead label="รายละเอียด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="description" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('description', 'รายละเอียด')} />
+                <ResizableTableHead align="right" label="เลขที่เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="refNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่เอกสาร')} />
+                <ResizableTableHead align="right" label="รายละเอียด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="description" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('description', 'รายละเอียด')} />
                 <ResizableTableHead align="right" label="จำนวนเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวนเงิน')} />
               </tr>
             </thead>
@@ -731,8 +722,8 @@ function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: Detai
               {sortedRows.map((row, index) => (
                 <tr key={`${row.refNo}-${index}`} className="transition-colors hover:bg-slate-50">
                   <td className="whitespace-nowrap px-3 py-3 text-slate-600">{row.date}</td>
-                  <td className="whitespace-nowrap px-3 py-3 font-mono font-semibold text-blue-700">{row.refNo}</td>
-                  <td className="min-w-0 px-3 py-3 text-slate-700"><div className="truncate">{row.description}</div></td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold text-blue-700">{row.refNo}</td>
+                  <td className="min-w-0 px-3 py-3 text-right text-slate-700"><div className="truncate">{row.description}</div></td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums"><span className={row.amount < 0 ? 'text-red-700' : 'text-slate-800'}>{money(row.amount)}</span></td>
                 </tr>
               ))}

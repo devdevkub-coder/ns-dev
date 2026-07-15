@@ -3,6 +3,15 @@ import { randomUUID } from 'node:crypto'
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { parseInternalBigIntId, requireBusinessCode, requireDocumentNo, stringifyBusinessValue } from '@/lib/business-code'
 import { supplierPaymentFormSchema } from '@/lib/daily'
+import {
+  assertCompatiblePaymentDestinations,
+  assertCompatiblePaymentRecipients,
+  assertPaymentRecipientMatchesSource,
+  assertPaymentVoucherCreateOnly,
+  assertPaymentVoucherServerGeneratedDocNo,
+  canonicalizePaymentRecipientForSource,
+  normalizePaymentMethod,
+} from '@/lib/payment-destination'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { refreshAdvancePaymentWorkflowStatus } from '@/lib/server/advance-payments'
@@ -19,6 +28,7 @@ import {
   PAYMENT_STATUS_ACTION,
 } from '@/lib/server/payment-history'
 import { appendPurchaseBillStatusLog, PURCHASE_BILL_STATUS_ACTION } from '@/lib/server/purchase-bill-history'
+import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jobs'
 import { prisma } from '@/lib/server/prisma'
 import { refreshPurchaseBillSettlement } from '@/lib/server/purchase-bill-settlement'
 import { activeWhtRatePercent } from '@/lib/server/tax-settings'
@@ -47,10 +57,6 @@ function expensePartyCode(payee: string | null | undefined, fallbackDocNo: strin
 function pettyReturnPartyCode(payee: string | null | undefined, fallbackDocNo: string | null | undefined) {
   const normalized = String(payee ?? fallbackDocNo ?? '').trim()
   return normalized ? `PETTY:${normalized}` : ''
-}
-
-function normalizedPaymentMethod(value: string | null | undefined) {
-  return String(value ?? '').trim()
 }
 
 async function nextSupplierPaymentDocNo(tx: Prisma.TransactionClient, date: string, branchCode: string) {
@@ -236,7 +242,7 @@ export async function GET() {
       }),
       prisma.expenses.findMany({
         orderBy: [{ date: 'desc' }],
-        select: { date: true, doc_no: true, id: true, net_amount: true, amount: true, vat: true, wht: true, payee: true, payee_account_no: true, payee_bank: true, status: true },
+        select: { date: true, doc_no: true, id: true, net_amount: true, amount: true, vat: true, wht: true, payee: true, payee_account_no: true, payee_bank: true, status: true, supplier_id: true },
         where: {
           id: { in: expenseIds },
           ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
@@ -365,7 +371,7 @@ export async function GET() {
               sourceDocNo,
               sourceType: 'expense',
               status: approval.status ?? '',
-              supplierId: expensePartyCode(expense.payee, expense.doc_no),
+              supplierId: resolveSupplierCode(approval.party_id, expense.supplier_id) || expensePartyCode(expense.payee, expense.doc_no),
               totalAmount: approvedAmount || totalAmount,
             }
           }
@@ -487,9 +493,11 @@ export async function POST(request: Request) {
     requirePermission(context, 'finance.cash.view')
 
     const values = supplierPaymentFormSchema.parse(await request.json())
+    assertPaymentVoucherCreateOnly(values.id)
+    assertPaymentVoucherServerGeneratedDocNo(values.docNo)
     const actor = currentActor(context)
 
-    const voucherId = values.id ?? `PMT-${randomUUID()}`
+    const voucherId = `PMT-${randomUUID()}`
     const paymentDate = normalizeDate(values.date)
     const paymentLines = (values.lines?.length ? values.lines : [{
       approvalId: null,
@@ -539,108 +547,24 @@ export async function POST(request: Request) {
     const primaryAccount = paymentSplits[0]?.accountId ? splitAccountByCode.get(paymentSplits[0].accountId) ?? null : null
     if (!primaryAccount) throw new Error('เลือกบัญชีจ่าย')
     const activePaymentMethods = await getActivePaymentMethods()
-    const activePaymentMethod = activePaymentMethods.find((method) => normalizedPaymentMethod(method.name) === normalizedPaymentMethod(values.method))
+    const activePaymentMethod = activePaymentMethods.find((method) => (
+      normalizePaymentMethod(method.name) === normalizePaymentMethod(values.method)
+    ))
     if (!activePaymentMethod) throw new Error('วิธีจ่ายไม่ถูกต้องหรือไม่ active')
-
-    if (values.id) {
-      const existingPayments = await prisma.payments.findMany({
-        where: { voucher_id: values.id },
-      })
-      if (existingPayments.length === 0) throw new Error('ไม่พบข้อมูลการจ่ายเงินที่ต้องการแก้ไข')
-      const docNo = existingPayments[0].doc_no
-      const paidAt = new Date()
-
-      await prisma.$transaction(async (tx) => {
-        await tx.payments.updateMany({
-          data: {
-            account_id: primaryAccount.id,
-            notes: values.notes,
-            method: values.method,
-            date: normalizeDate(values.date),
-            updated_at: new Date(),
-            updated_by: actor,
-          },
-          where: { voucher_id: values.id },
-        })
-
-        await tx.payment_account_splits.deleteMany({ where: { payment_voucher_id: values.id } })
-
-        await tx.bank_statement.deleteMany({ where: { ref_id: values.id, ref_type: 'PMT' } })
-        await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('bank_statement.doc_no'))`
-        const statementDocNos = await nextBankStatementDocNos(values.date, paymentSplits.length, tx)
-
-        await tx.bank_statement.createMany({
-          data: paymentSplits.map((split, index) => ({
-            account_id: (splitAccountByCode.get(split.accountId)?.id as bigint),
-            amount_in: 0,
-            amount_out: split.amount,
-            created_by: actor,
-            date: normalizeDate(values.date),
-            description: `${values.id} - จ่ายผู้รับเงิน${paymentSplits.length > 1 ? ` (split ${index + 1}/${paymentSplits.length})` : ''}`,
-            doc_no: statementDocNos[index]!,
-            ref_id: values.id,
-            ref_no: docNo,
-            ref_type: 'PMT',
-            type: 'จ่ายเงินผู้รับเงิน',
-          })),
-        })
-
-        const createdStatements = await tx.bank_statement.findMany({
-          include: { accounts: true },
-          where: { doc_no: { in: statementDocNos } },
-        })
-        const statementByDocNo = new Map(createdStatements.map((statement) => [statement.doc_no, statement] as const))
-        const primaryPayment = existingPayments[0]!
-
-        await createPaymentAccountSplitFacts(tx, paymentSplits.map((split, index) => {
-          const accountReference = splitAccountByCode.get(split.accountId)
-          if (!accountReference) throw new Error('บัญชีจ่ายบางรายการไม่ถูกต้องหรือไม่ active')
-          const statementDocNo = statementDocNos[index]!
-          const statement = statementByDocNo.get(statementDocNo)
-          return {
-            accountCodeSnapshot: accountReference.code,
-            accountId: accountReference.id,
-            accountNameSnapshot: accountReference.name,
-            actor,
-            amount: toNumber(split.amount),
-            bankStatementDocNo: statementDocNo,
-            bankStatementId: statement?.id ?? null,
-            createdAt: paidAt,
-            paymentDocNo: docNo,
-            paymentId: primaryPayment.id,
-            paymentVoucherId: values.id,
-            splitKey: `PMTSPLIT-${docNo}-${statementDocNo}`,
-          }
-        }))
-
-        await appendPaymentStatusLog(tx, {
-          action: PAYMENT_STATUS_ACTION.POSTED,
-          actor,
-          amountSnapshot: totalAmount,
-          createdAt: paidAt,
-          fromStatus: 'active',
-          meta: {
-            note: 'แก้ไขข้อมูลบัญชี/ยอดจ่ายเงิน',
-            voucherId: values.id,
-          },
-          netAmountSnapshot: netAmount,
-          paymentDocNo: docNo,
-          paymentId: primaryPayment.id,
-          paymentVoucherId: values.id,
-          toStatus: 'active',
-        })
-      })
-
-      return NextResponse.json({ success: true })
-    }
+    const paymentMethod = activePaymentMethod.name
 
     const result = await prisma.$transaction(async (tx) => {
       const txExt = tx as typeof tx & {
         payment_approvals: {
           findMany: (args: unknown) => Promise<Array<{
           approved_amount: DecimalLike
+          destination_account_no_snapshot: string | null
+          destination_bank_name_snapshot: string | null
+          destination_payment_method_snapshot: string | null
           doc_no: string | null
           id: bigint
+          party_id: string | null
+          party_name_snapshot: string | null
           source_doc_no_snapshot: string | null
           source_id: string
           source_type: string
@@ -666,13 +590,11 @@ export async function POST(request: Request) {
         : []
       const approvalByDocNo = new Map(approvals.map((approval: typeof approvals[number]) => [requireDocumentNo(approval.doc_no, `อนุมัติจ่าย ${approval.id}`), approval]))
       if (approvalByDocNo.size !== lineApprovalDocNos.length) throw new Error('รายการอนุมัติโอนเงินบางรายการไม่ถูกต้องหรือถูกใช้งานแล้ว')
-      const approvalPaymentMethods = [...new Set(approvals.map((approval) => normalizedPaymentMethod(approval.destination_payment_method_snapshot)).filter(Boolean))]
-      if (approvalPaymentMethods.length !== 1) {
-        throw new Error('Payment Voucher เดียวกันต้องเลือก PMA ที่มีช่องทางรับเงินเดียวกัน')
-      }
-      if (normalizedPaymentMethod(values.method) !== approvalPaymentMethods[0]) {
-        throw new Error('วิธีจ่ายของ Payment Voucher ต้องตรงกับช่องทางรับเงินที่อนุมัติไว้')
-      }
+      assertCompatiblePaymentDestinations(approvals.map((approval) => ({
+        accountNo: approval.destination_account_no_snapshot,
+        bankName: approval.destination_bank_name_snapshot,
+        paymentMethod: approval.destination_payment_method_snapshot,
+      })), paymentMethod, activePaymentMethod.type)
       const purchaseBillSourceIds = [...new Set(approvals
         .filter((approval) => approval.source_type === 'purchase_bill')
         .map((approval) => parseInternalBigIntId(approval.source_id))
@@ -700,7 +622,7 @@ export async function POST(request: Request) {
             status: true,
             supplier_id: true,
             suppliers: {
-              select: { address: true, name: true, phone: true, tax_id: true },
+              select: { address: true, code: true, name: true, phone: true, tax_id: true },
             },
           },
           where: { id: { in: purchaseBillSourceIds } },
@@ -713,13 +635,21 @@ export async function POST(request: Request) {
             status: true,
             supplier_id: true,
             suppliers: {
-              select: { address: true, name: true, phone: true, tax_id: true },
+              select: { address: true, code: true, name: true, phone: true, tax_id: true },
             },
           },
           where: { id: { in: advanceSourceIds } },
         }),
         tx.expenses.findMany({
-          select: { branch_id: true, doc_no: true, id: true, payee: true, status: true },
+          select: {
+            branch_id: true,
+            doc_no: true,
+            id: true,
+            payee: true,
+            status: true,
+            supplier_id: true,
+            suppliers: { select: { code: true, name: true } },
+          },
           where: { id: { in: expenseSourceIds } },
         }),
         tx.petty_advance_returns.findMany({
@@ -727,40 +657,71 @@ export async function POST(request: Request) {
             accounts: { select: { branch_id: true } },
             doc_no: true,
             id: true,
-            petty_advances: { select: { doc_no: true, recipient_name: true } },
+            petty_advances: { select: { doc_no: true, recipient_name: true, recipient_person_code: true } },
             status: true,
           },
           where: { id: { in: pettyReturnSourceIds } },
         }),
       ])
       const billByDocNo = new Map(lineBills.map((bill: typeof lineBills[number]) => [bill.doc_no, bill]))
+      const billById = new Map(lineBills.map((bill: typeof lineBills[number]) => [bill.id.toString(), bill]))
       const advanceByDocNo = new Map(lineAdvances.map((advance: typeof lineAdvances[number]) => [advance.doc_no, advance]))
+      const advanceById = new Map(lineAdvances.map((advance: typeof lineAdvances[number]) => [advance.id.toString(), advance]))
       const expenseByDocNo = new Map(lineExpenses.map((expense: typeof lineExpenses[number]) => [expense.doc_no, expense]))
+      const expenseById = new Map(lineExpenses.map((expense: typeof lineExpenses[number]) => [expense.id.toString(), expense]))
       const pettyReturnById = new Map(linePettyReturns.map((entry: typeof linePettyReturns[number]) => [entry.id.toString(), entry]))
       const pettyReturnByAdvanceDocNo = new Map(linePettyReturns.map((entry: typeof linePettyReturns[number]) => [entry.petty_advances.doc_no, entry]))
+      const sourceRecipientForApproval = (approval: typeof approvals[number]) => {
+        if (approval.source_type === 'purchase_bill') {
+          const bill = billById.get(approval.source_id)
+          return bill ? {
+            legacyPartyId: bill.supplier_id,
+            partyId: bill.suppliers?.code,
+            partyName: bill.suppliers?.name,
+          } : null
+        }
+        if (approval.source_type === 'advance_payment') {
+          const advance = advanceById.get(approval.source_id)
+          return advance ? {
+            legacyPartyId: advance.supplier_id,
+            partyId: advance.suppliers?.code,
+            partyName: advance.suppliers?.name,
+          } : null
+        }
+        if (approval.source_type === 'expense') {
+          const expense = expenseById.get(approval.source_id)
+          return expense ? {
+            legacyPartyId: expense.supplier_id,
+            partyId: expense.suppliers?.code,
+            partyName: expense.suppliers?.name ?? expense.payee,
+          } : null
+        }
+        const pettyReturn = pettyReturnById.get(approval.source_id)
+        return pettyReturn ? {
+          partyId: pettyReturn.petty_advances.recipient_person_code,
+          partyName: pettyReturn.petty_advances.recipient_name,
+        } : null
+      }
+      const sourceRecipients = approvals.map((approval) => {
+        const sourceRecipient = sourceRecipientForApproval(approval)
+        if (!sourceRecipient) throw new Error('ไม่พบผู้รับเงินของเอกสารต้นทาง')
+        return sourceRecipient
+      })
+      const canonicalApprovalRecipients = approvals.map((approval, index) => {
+        const sourceRecipient = sourceRecipients[index]!
+        const canonicalRecipient = canonicalizePaymentRecipientForSource({
+          partyId: approval.party_id,
+          partyName: approval.party_name_snapshot,
+        }, sourceRecipient)
+        assertPaymentRecipientMatchesSource(canonicalRecipient, sourceRecipient)
+        return canonicalRecipient
+      })
+      assertCompatiblePaymentRecipients(canonicalApprovalRecipients)
+      assertCompatiblePaymentRecipients(sourceRecipients)
       const firstBill = billByDocNo.get(requireDocumentNo(paymentLineTotals[0].billId, 'เอกสารอ้างอิง')) ?? null
       const firstAdvance = advanceByDocNo.get(requireDocumentNo(paymentLineTotals[0].billId, 'เอกสารอ้างอิง')) ?? null
       const firstExpense = expenseByDocNo.get(requireDocumentNo(paymentLineTotals[0].billId, 'เอกสารอ้างอิง')) ?? null
       const firstPettyReturn = pettyReturnByAdvanceDocNo.get(requireDocumentNo(paymentLineTotals[0].billId, 'เอกสารอ้างอิง')) ?? null
-      const sourcePartyKey = (line: typeof paymentLineTotals[number]) => {
-        const sourceDocNo = requireDocumentNo(line.billId, 'เอกสารอ้างอิง')
-        const bill = billByDocNo.get(sourceDocNo)
-        if (bill) return bill.supplier_id != null ? `supplier:${bill.supplier_id.toString()}` : ''
-        const advance = advanceByDocNo.get(sourceDocNo)
-        if (advance) return advance.supplier_id != null ? `supplier:${advance.supplier_id.toString()}` : ''
-        const expense = expenseByDocNo.get(sourceDocNo)
-        if (expense) return `expense:${String(expense.payee ?? expense.doc_no ?? expense.id.toString()).trim().toLowerCase()}`
-        const pettyReturn = pettyReturnByAdvanceDocNo.get(sourceDocNo)
-        if (pettyReturn) return `petty:${String(pettyReturn.petty_advances.recipient_name ?? pettyReturn.petty_advances.doc_no).trim().toLowerCase()}`
-        return ''
-      }
-      const firstPartyKey = sourcePartyKey(paymentLineTotals[0])
-      if (!firstPartyKey) throw new Error('ไม่พบผู้รับเงินของเอกสารต้นทาง')
-      if (paymentLineTotals.some((line) => {
-        return sourcePartyKey(line) !== firstPartyKey
-      })) {
-        throw new Error('Payment Voucher เดียวกันต้องเป็นรายการของผู้รับเงินเดียวกัน')
-      }
       if (paymentLineTotals.some((line) => !line.approvalId)) {
         throw new Error('ต้องเลือกจากรายการที่อนุมัติโอนเงินแล้วเท่านั้น')
       }
@@ -794,7 +755,7 @@ export async function POST(request: Request) {
         throw new Error('ไม่มีสิทธิ์ทำรายการจ่ายเงินในสาขานี้')
       }
       await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('payments.doc_no'))`
-      const docNo = values.docNo ?? await nextSupplierPaymentDocNo(tx, values.date, branchCode)
+      const docNo = await nextSupplierPaymentDocNo(tx, values.date, branchCode)
 
       const existingPayments = await tx.payments.findMany({
         select: { bill_id: true, payment_approval_id: true },
@@ -847,7 +808,7 @@ export async function POST(request: Request) {
             discount: line.discount,
             doc_no: docNo,
             fee: line.fee,
-            method: values.method,
+            method: paymentMethod,
             net_amount: line.amount + line.fee,
             notes: values.notes,
             payment_approval_id: approval.id,
@@ -1033,7 +994,7 @@ export async function POST(request: Request) {
             amount: line.amount,
             discount: line.discount,
             fee: line.fee,
-            method: values.method,
+            method: paymentMethod,
             paymentDocNo: docNo,
             voucherId,
             withholdingTax: line.withholdingTax,
@@ -1047,6 +1008,15 @@ export async function POST(request: Request) {
 
       return payments[0]
     })
+
+    try {
+      await enqueueAndExecuteNotification(
+        { sourceType: 'purchase_payment', documentNo: result.doc_no },
+        { requestedBy: actor, force: false },
+      )
+    } catch (caught) {
+      console.error('[purchase_payment] LINE notification failed', caught)
+    }
 
     return NextResponse.json({ id: voucherId, paymentId: stringifyBusinessValue(result.id) })
   } catch (caught) {

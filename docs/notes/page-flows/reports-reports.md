@@ -92,8 +92,17 @@ route: /reports
 ## Current Gap
 
 - static report catalog can drift from navigation unless kept in sync
-- CSV export is client-side and may not suit large datasets
+- Excel export is client-side and may not suit large datasets
 - source drilldown from aggregate rows is not complete
+
+## UI Checkpoint - 2026-07-12
+
+What is what:
+- แท็บ, catalog, placeholder การค้นหา และชื่อหมวดใน `/reports` ใช้ Thai-first เพื่อให้ route directory อ่านสอดคล้องกับ sidebar
+- ปุ่ม export ส่งออกไฟล์ Excel ตามข้อมูลที่เรียง/กรองใน tab ปัจจุบัน
+
+Why it has to be like this:
+- หน้ารายงานเป็นจุดรวมทางเลือกของผู้ใช้ จึงต้องไม่สลับภาษาและต้องให้ action/export อ่านตาม design baseline เดียวกับหน้าตารางอื่น
 
 ## Table Mechanics Checkpoint - 2026-07-02
 

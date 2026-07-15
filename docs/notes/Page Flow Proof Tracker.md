@@ -112,7 +112,7 @@ P2 ทำเสร็จตาม current-code baseline แล้ว ดู [[P2
 
 | Group | Routes |
 |---|---|
-| Main Dashboard / Reports | `/owner-daily`, `/anomaly-detector`, `/daily-report`, `/dashboard`, `/profit-cost-analysis`, `/sales-plan`, `/sales-commission`, `/cash-flow-calendar`, `/business-calendar`, `/cash-others-summary` |
+| Main Dashboard / Reports | `/owner-daily`, `/anomaly-detector`, `/daily-report`, `/dashboard-overview`, `/profit-cost-analysis`, `/sales-plan`, `/sales-commission`, `/cash-flow-calendar`, `/business-calendar`, `/cash-others-summary` |
 | Tracking 360 | `/tracking/customer`, `/tracking/supplier`, `/tracking/product` |
 | Trading / PO Reports | `/trading/dashboard`, `/trading/matching`, `/po-reports/outstanding` |
 | Dual Costing | `/dual-costing/cost-pool`, `/dual-costing/cost-allocator`, `/dual-costing/waiting-allocations`, `/dual-costing/cost-allocation-ledger`, `/dual-costing/report`, `/dual-costing/match-log`, `/dual-costing/deal-margin`, `/dual-costing/compare-margin` |

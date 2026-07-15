@@ -133,3 +133,7 @@ WTO created state is represented here as `pending_out / รอออก`. It is 
 - [ ] Verify legacy behavior for any gap before implementing runtime change
 - [ ] Add/adjust tests or browser QA checklist before changing runtime
 - [ ] Update this file and canonical reference if contract changes
+
+## 2026-07-12 Table consistency checkpoint
+
+`/stock/balance` now gives RM/WIP/FG/total cost columns enough default/minimum width, keeps the final column available for auto-stretch, and uses the approved table density. What is what: matrix and detail tables remain the same stock quantity/value read models. Why it stays this way: long cost headers and numeric values must not collide while stock formulas, filters, drilldowns, API behavior, permissions, database schema, and DB state remain unchanged.

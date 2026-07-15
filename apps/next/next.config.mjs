@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { execSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
+import { networkInterfaces } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -71,13 +72,28 @@ const supabaseOrigin = (() => {
 })()
 const supabaseWsOrigin = supabaseOrigin ? supabaseOrigin.replace('https://', 'wss://') : ''
 const cspConnectSources = ['self', supabaseOrigin, supabaseWsOrigin].filter(Boolean).map((source) => source === 'self' ? "'self'" : source).join(' ')
-const cspImageSources = ['self', 'data:', 'blob:', supabaseOrigin].filter(Boolean).map((source) => source === 'self' ? "'self'" : source).join(' ')
+const cspImageSources = ['self', 'data:', 'blob:', supabaseOrigin, 'https://sprofile.line-scdn.net'].filter(Boolean).map((source) => source === 'self' ? "'self'" : source).join(' ')
 const isDevelopment = process.env.NODE_ENV !== 'production'
 const cspScriptSources = [
   "'self'",
   "'unsafe-inline'",
   ...(isDevelopment ? ["'unsafe-eval'"] : []),
 ].join(' ')
+const allowedDevOrigins = Array.from(new Set([
+  'localhost',
+  '127.0.0.1',
+  '10.90.44.141',
+  '100.104.70.64',
+  '192.168.1.73',
+  ...Object.values(networkInterfaces())
+    .flatMap((entries) => entries ?? [])
+    .filter((entry) => entry.family === 'IPv4' && !entry.internal)
+    .map((entry) => entry.address),
+  ...(process.env.NEXT_ALLOWED_DEV_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+]))
 
 const cspHeader = [
   "default-src 'self'",
@@ -90,7 +106,7 @@ const cspHeader = [
   "font-src 'self' data:",
   'connect-src ' + cspConnectSources,
   "form-action 'self'",
-  'upgrade-insecure-requests',
+  ...(isDevelopment ? [] : ['upgrade-insecure-requests']),
 ].join('; ')
 
 const securityHeaders = [
@@ -111,6 +127,7 @@ const BUILD_TIME = process.env.NEXT_PUBLIC_BUILD_TIME || readBuildTime()
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: workspaceRoot,
+  allowedDevOrigins,
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {

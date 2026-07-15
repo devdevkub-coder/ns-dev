@@ -97,3 +97,8 @@ Source tables:
 - [x] Enable preview/commit/reverse API
 - [x] Enable page UI for run and reverse
 - [ ] Add GL depreciation posting only after FA5 posting/period contract is approved
+
+## UI Checkpoint 2026-07-12
+
+- ปุ่มตรวจค่าเสื่อมบนมือถือใช้ `rounded-md` และ font ปกติ เช่นเดียวกับ action baseline และ footer ของ filter sheet
+- ไม่เปลี่ยนเงื่อนไขการคำนวณ, preview, หรือการบันทึกค่าเสื่อม; เป็นการปรับ presentation ของ action surface เท่านั้น

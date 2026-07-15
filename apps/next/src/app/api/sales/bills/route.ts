@@ -9,6 +9,7 @@ import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-ref
 import { currentActor, nextDailyDocNo, normalizeDate, roundMoney, toDateOnly, toNumber } from '@/lib/server/daily'
 import { requireBusinessCode } from '@/lib/business-code'
 import { isCustomerEligibleForBranch } from '@/lib/server/party-branch-eligibility'
+import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jobs'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSalesChannelReferenceByCode } from '@/lib/server/sales-channel-reference'
 import { activeSalesReceiptCount, activeSalesReceiptCountByBillId, isSalesBillActiveForCancel, salesBillCancelState } from '@/lib/server/sales-bill-cancel-policy'
@@ -95,6 +96,38 @@ type DeliveryTicketOptionRow = {
     }>
   }>
 }
+
+const deliveryTicketOptionSelect = {
+  branch_id: true,
+  branches: true,
+  cancelled_at: true,
+  customer_id: true,
+  customers: true,
+  doc_no: true,
+  doc_type: true,
+  document_date: true,
+  id: true,
+  party_name: true,
+  status: true,
+  stock_holds: {
+    select: {
+      product_id: true,
+      qty: true,
+      status: true,
+      unit_cost_snapshot: true,
+      value_snapshot: true,
+    },
+    where: { status: 'active' },
+  },
+  vehicle_no: true,
+  weight_ticket_lines: { orderBy: { line_no: 'asc' } },
+  weight_ticket_product_summaries: {
+    include: {
+      weight_ticket_product_summary_lines: true,
+    },
+    orderBy: { product_name: 'asc' },
+  },
+} as const
 
 type DeliverySummarySource = DeliveryTicketOptionRow['weight_ticket_product_summaries'][number]
 
@@ -932,27 +965,7 @@ async function salesOptionsPayload(scope: Awaited<ReturnType<typeof salesBranchS
     }),
     activeVatRatePercent(new Date()),
     prisma.weight_tickets.findMany({
-      include: {
-        branches: true,
-        customers: true,
-        weight_ticket_product_summaries: {
-          include: {
-            weight_ticket_product_summary_lines: true,
-          },
-          orderBy: { product_name: 'asc' },
-        },
-        weight_ticket_lines: { orderBy: { line_no: 'asc' } },
-        stock_holds: {
-          select: {
-            product_id: true,
-            qty: true,
-            status: true,
-            unit_cost_snapshot: true,
-            value_snapshot: true,
-          },
-          where: { status: 'active' },
-        },
-      },
+      select: deliveryTicketOptionSelect,
       orderBy: [{ document_date: 'desc' }, { doc_no: 'desc' }],
       take: 300,
       where: {
@@ -2044,6 +2057,15 @@ export async function POST(request: Request) {
 
       return createdBill
     })
+
+    try {
+      await enqueueAndExecuteNotification(
+        { sourceType: 'sales_bill', documentNo: created.doc_no },
+        { requestedBy: actor, force: false },
+      )
+    } catch (caught) {
+      console.error('[sales_bill] LINE notification failed', caught)
+    }
 
     return NextResponse.json({ docNo: created.doc_no, id: created.doc_no }, { status: 201 })
   } catch (caught) {

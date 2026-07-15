@@ -229,3 +229,7 @@ Target detail payload fields:
 - [x] Add customer behavior signals for margin, pending AR, and credit utilization
 - [x] Remove customer return frequency; correction flow is void/cancel document
 - [x] Add AR aging from reconciled due-date rules in [[Document Aging Policy]]
+
+## 2026-07-12 Table consistency checkpoint
+
+`/tracking/customer` detail tables now derive numeric-column alignment from the rendered row values so numeric headers and bodies stay right-aligned, with canonical `p-2` headers and `p-3` body cells. What is what: these are read-only customer drilldown facts under the existing Tracking views. Why it stays this way: mixed text/numeric tables must keep a stable scan line without changing tracking filters, formulas, exports, API behavior, permissions, database schema, or DB state.

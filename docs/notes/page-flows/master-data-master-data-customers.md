@@ -109,3 +109,7 @@ Current code is accepted baseline. Remaining work is to keep documentation in sy
 - [ ] Verify import/export if present
 - [ ] Add `customer_branches` mapping UI/API/import/export and strict downstream transaction validation
 - [ ] Update this page-flow when master schema changes
+
+## 2026-07-12 Table consistency checkpoint
+
+`/master-data/customers` now reserves wider default/minimum widths for tax ID, entity type, market, contact, term, and credit-limit columns and resets the persisted customer-table width version. What is what: the table remains the existing searchable/editable customer master list with dense mobile cards. Why it stays this way: business headers should remain on one line without changing customer fields, validation, import/export, APIs, permissions, database schema, or DB state.

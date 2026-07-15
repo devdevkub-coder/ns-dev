@@ -1,7 +1,7 @@
 'use client'
 
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react'
+import { Triangle } from 'lucide-react'
 
 type Align = 'center' | 'left' | 'right'
 type SortDirection = 'asc' | 'desc'
@@ -9,6 +9,7 @@ type SortDirection = 'asc' | 'desc'
 export function ResizableTableHead<TSortKey extends string>({
   activeSortKey,
   align = 'left',
+  className = '',
   direction,
   label,
   resizeProps,
@@ -17,6 +18,7 @@ export function ResizableTableHead<TSortKey extends string>({
 }: {
   activeSortKey?: TSortKey
   align?: Align
+  className?: string
   direction?: SortDirection
   label: ReactNode
   onSort?: (key: TSortKey) => void
@@ -25,36 +27,32 @@ export function ResizableTableHead<TSortKey extends string>({
 }) {
   const alignClass = align === 'right' ? 'justify-end text-right' : align === 'center' ? 'justify-center text-center' : 'justify-start text-left'
   const active = Boolean(sortKey && activeSortKey === sortKey)
+  const activeSortIconStyle = { color: 'var(--ns-sort-active)' }
   const content = (
     <>
       <span className="min-w-0 whitespace-nowrap leading-snug">{label}</span>
       {sortKey ? (
-        <span className="shrink-0">
-          {active ? (
-            direction === 'asc' ? (
-              <ChevronUp className="size-3.5 text-slate-800" />
-            ) : (
-              <ChevronDown className="size-3.5 text-slate-800" />
-            )
-          ) : (
-            <ChevronsUpDown className="size-3.5 text-slate-400" />
-          )}
+        <span aria-hidden="true" className="flex h-5 w-3 shrink-0 flex-col items-center justify-center gap-0.5 leading-none">
+          <Triangle className={`size-2.5 fill-current stroke-none ${active && direction === 'asc' ? '' : 'text-slate-400'}`} style={active && direction === 'asc' ? activeSortIconStyle : undefined} />
+          <Triangle className={`size-2.5 rotate-180 fill-current stroke-none ${active && direction === 'desc' ? '' : 'text-slate-400'}`} style={active && direction === 'desc' ? activeSortIconStyle : undefined} />
         </span>
       ) : null}
     </>
   )
+  const contentPaddingClass = align === 'right' ? 'p-2 pr-3' : 'p-2 pr-4'
 
   return (
     <th
+      aria-sort={sortKey ? (active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none') : undefined}
       data-resizable-table-head=""
-      className={`relative bg-inherit p-0 text-xs font-semibold text-slate-700 ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'}`}
+      className={`relative bg-inherit p-0 text-xs font-semibold text-slate-700 ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'} ${className}`}
     >
       {sortKey && onSort ? (
-        <button className={`flex w-full min-w-0 items-center gap-1 p-2 pr-4 hover:bg-slate-200 ${alignClass}`} type="button" onClick={() => onSort(sortKey)}>
+        <button className={`flex w-full min-w-0 items-center gap-1.5 hover:bg-slate-200 ${contentPaddingClass} ${alignClass}`} type="button" onClick={() => onSort(sortKey)}>
           {content}
         </button>
       ) : (
-        <div className={`flex min-w-0 items-center gap-1 p-2 pr-4 ${alignClass}`}>
+        <div className={`flex min-w-0 items-center gap-1.5 ${contentPaddingClass} ${alignClass}`}>
           {content}
         </div>
       )}

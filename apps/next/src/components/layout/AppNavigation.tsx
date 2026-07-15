@@ -60,9 +60,7 @@ export function AppNavigation({ authContext, compact = false, onNavigate }: AppN
     if (!activeItem) return
 
     setExpandedSection(activeItem.section)
-    if (activeItem.children?.some((child) => isNavigationPathActive(activePathname, child.href))) {
-      setExpandedMenu(activeItem.href)
-    }
+    setExpandedMenu(activeItem.children?.some((child) => isNavigationPathActive(activePathname, child.href)) ? activeItem.href : null)
   }, [activePathname, visibleItems])
 
   useEffect(() => {
@@ -143,10 +141,12 @@ export function AppNavigation({ authContext, compact = false, onNavigate }: AppN
         const items = visibleItems.filter((item) => item.section === section.key)
         if (!items.length) return null
         const sectionExpanded = expandedSection === section.key
+        const sectionPanelId = `sidebar-section-${section.key}`
 
         return (
           <div key={section.key}>
             <button
+              aria-controls={sectionPanelId}
               aria-expanded={sectionExpanded}
               className={`flex w-full items-center justify-between px-4 pb-1 pt-4 text-left text-xs uppercase tracking-wider text-slate-500 transition hover:text-slate-300 ${compact ? 'lg:justify-center lg:px-2' : ''}`}
               title={compact ? section.label : undefined}
@@ -157,10 +157,11 @@ export function AppNavigation({ authContext, compact = false, onNavigate }: AppN
               <span className={compact ? 'text-xs lg:hidden' : 'text-xs'}>{sectionExpanded ? '▾' : '▸'}</span>
               {compact ? <span className="hidden size-1.5 rounded-full bg-slate-500 lg:block" /> : null}
             </button>
-            {sectionExpanded ? items.map((item) => {
+            {sectionExpanded ? <div id={sectionPanelId}>{items.map((item) => {
               const childActive = item.children?.some((child) => isNavigationPathActive(activePathname, child.href)) ?? false
               const active = isNavigationPathActive(activePathname, item.href) || childActive
               const expanded = expandedMenu === item.href
+              const childPanelId = `sidebar-menu-${item.href.replace(/[^a-z0-9]+/gi, '-')}`
               const itemControlClass = `flex min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left transition hover:bg-slate-800/60 ${active ? 'text-white' : 'text-slate-300'} ${compact ? 'lg:justify-center lg:px-2' : ''}`
 
               return (
@@ -168,6 +169,7 @@ export function AppNavigation({ authContext, compact = false, onNavigate }: AppN
                   <div className="flex">
                     {item.children?.length ? (
                       <button
+                        aria-controls={childPanelId}
                         aria-current={active ? 'page' : undefined}
                         aria-expanded={expanded}
                         className={itemControlClass}
@@ -200,6 +202,7 @@ export function AppNavigation({ authContext, compact = false, onNavigate }: AppN
                     )}
                     {item.children?.length ? (
                       <button
+                        aria-controls={childPanelId}
                         aria-expanded={expanded}
                         aria-label={`${expanded ? 'ยุบ' : 'ขยาย'}เมนู ${item.label}`}
                         className={`px-3 text-xs text-slate-400 hover:text-white ${compact ? 'lg:hidden' : ''}`}
@@ -211,7 +214,7 @@ export function AppNavigation({ authContext, compact = false, onNavigate }: AppN
                     ) : null}
                   </div>
                   {item.children?.length && expanded ? (
-                    <div className="bg-slate-950/30 py-1">
+                    <div id={childPanelId} className="bg-slate-950/30 py-1">
                       {item.children.map((child) => {
                         const childIsActive = isNavigationPathActive(activePathname, child.href)
 
@@ -239,7 +242,7 @@ export function AppNavigation({ authContext, compact = false, onNavigate }: AppN
                   ) : null}
                 </div>
               )
-            }) : null}
+            })}</div> : null}
           </div>
         )
       })}

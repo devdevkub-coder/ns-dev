@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-12
+updated: 2026-07-11
 route: /production/orders
 ---
 
@@ -97,6 +97,33 @@ production order เป็น owner ของ input/WIP/output lifecycle target.
 - current read baseline ไม่มี write side effect
 - reverse writes append-only `PI-REV`/`PO2-REV`; no hard delete/rewrite ledger
 
+## List View / Filter Semantics
+
+- `/daily/weight-ticket-list` เป็น visual reference ของ list-page shell: filter card, search, pagination, desktop table, mobile cards, export และ mobile FAB.
+- หน้าใบสั่งผลิตคง production-specific facts ได้แก่ input, WIP, output, yield, status และ action เปิดรายละเอียด; ไม่ลอก field/action ของ Weight Ticket ที่ไม่เกี่ยวกับ production lifecycle.
+- `production_orders.date` คือ **วันที่ใบสั่งผลิต** และใช้กับช่วงวันที่/การเรียงหลัก ส่วน `production_orders.created_at` คือ **วันที่สร้างรายการ** ต้องแสดงแยกกันใน list, card, detail และ export เพื่อไม่ให้ความหมายปะปนกัน.
+- Desktop เรียงข้อมูลจากหัวตารางโดยตรง; Mobile เก็บตัวเลือกเรียงใน filter sheet เฉพาะ field ที่ผู้ใช้เห็น (`date`, `docNo`, `status`) เพื่อลด control ซ้ำ.
+- ค่าเริ่มต้นเป็น `ทุกสถานะ` เพื่อไม่ให้หน้าแรกดูเหมือนไม่มีข้อมูล; quick filter เป็น multi-select โดยแต่ละสถานะ toggle แยกกัน และ `ทุกสถานะ` ใช้ reset selections ทั้งหมด ทั้ง list และ Excel ต้องส่ง/ใช้ status set เดียวกัน.
+- ตัวกรองสาขาใช้ outward `branchCode` และต้องถูกส่งต่อทั้ง list query และ Excel export เพื่อให้ผลบนจอกับไฟล์ตรงกัน โดยไม่เปิด internal id ที่ UI/API boundary; API ต้อง intersect ทุก query กับสาขาที่ผู้ใช้ได้รับสิทธิ์และคืน branch options เฉพาะขอบเขตเดียวกัน.
+- จำนวนรายการแสดงครั้งเดียวใน pagination toolbar ที่เป็นแถวอิสระเหนือ list/table; ปุ่ม `คืนค่าเดิมตาราง` อยู่ในกลุ่มควบคุมด้านขวาก่อน page-size ตาม canonical list pattern และ page-size ที่รองรับใน UI คือ 10 และ 25 รายการต่อหน้า.
+- Desktop ใช้สถานะแบบ compact dot + text และมี action `เปิด` ที่คอลัมน์ขวาสุด โดยล็อกช่วงความกว้างของ `สถานะผลิต` และ `จัดการ` ไม่ให้คอลัมน์ท้ายดูดพื้นที่ว่างทั้งหมดบนจอกว้าง; Mobile ใช้ outer card ชั้นเดียวที่กดหรือใช้ Enter/Space ได้ทั้งใบเพื่อเปิดรายละเอียด พร้อม status pill และจัดสินค้า, เบิก, WIP, ผลิต และ Yield ด้วย divider/typography เพื่อคง production metrics โดยลดความหนาแน่นของกรอบซ้อนและไม่เพิ่มปุ่ม action ซ้ำในการ์ด.
+- Dark Mode บน Mobile ใช้ neutral slate surface เดียวกันทุกสถานะ ไม่ย้อมสีพื้นทั้งการ์ด; สี semantic จำกัดอยู่ที่ status, metric value และ Yield ส่วน product/metadata ใช้ลำดับ primary/secondary text. Selected segmented filters ใช้ blue accent ที่เห็นชัด และรายการต้องเว้นพื้นที่ด้านล่างให้พ้น FAB กับ bottom navigation.
+- Mobile toolbar เหลือ search + filter trigger และ empty state ที่เกิดจากตัวกรองมีข้อความตามสาเหตุพร้อมปุ่มล้างตัวกรอง; ค่าใน filter sheet เป็น draft จนกด `ใช้ตัวกรอง` จึงเปลี่ยน list query ส่วน backdrop/Escape ต้องปิดโดยทิ้ง draft. Shared sheet สูงไม่เกิน `80dvh` และใช้ dark scrim ที่ไม่ถูก theme remap เพื่อคง backdrop แบบเดียวกันทั้ง Light/Dark.
+- Excel export ใช้ authorization/filter contract เดียวกับ list และจำกัดผลสูงสุด 10,000 รายการ โดย UI ต้องแจ้งขีดจำกัดนี้ที่ action.
+- การปรับ list view เป็น read-only presentation/query change และไม่เปลี่ยนกฎ create/input/output/reverse/complete หรือ stock side effect.
+
+## Modal UX / Theme Baseline
+
+- Detail และ create modal ใช้ `DialogHeader` เป็น semantic header ของ shared dialog shell เพื่อให้ mobile app-shell CSS แยก header ออกจาก scrollable body ได้ถูกต้อง; header ต้องไม่ถูกยืดเป็น content panel และต้องเว้น safe-area ด้านบนตาม shared dialog behavior.
+- Desktop ใช้ modal กว้างสูงสุด `max-w-5xl` และสูงไม่เกิน `90vh`; Mobile ใช้ full viewport shell โดย header เป็นส่วนคงที่และ body เป็น internal vertical scroller เพียงชั้นเดียว.
+- Light และ Dark ใช้ header surface เดียวกันคือ slate-900 (`#0f172a` ใน Dark Mode) พร้อมข้อความขาว; body/cards/controls ใช้ global theme mappings ห้ามเกิด light surface รั่วหรือ white-on-white contrast.
+- ปุ่มออกจาก create/detail modal ใช้ shared action เดียวกันคือ `ปิด` สีแดง เพื่อไม่ให้มี wording และ implementation ซ้ำกันระหว่าง `ยกเลิก` กับ `ปิดหน้าต่าง`; action ที่เปลี่ยนสถานะธุรกิจยังต้องใช้ wording เต็มและชัดเจน เช่น `จบงาน` และ `ยกเลิกใบสั่งผลิต`.
+- Detail tabs ใช้ภาษาไทย `ข้อมูลทั่วไป`, `วัตถุดิบเบิก`, `ผลผลิต`, มี touch target อย่างน้อย 44px และ selected state ที่เห็นชัดทั้ง Light/Dark.
+- Detail metadata เป็น read-only label/value rows ไม่ทำให้ดูเหมือน editable input; create form แสดงคำอธิบาย `*` สำหรับช่องจำเป็น, ระบุสถานะ auto-filled ของประเภทเครื่องจักร และใช้ textarea สำหรับหมายเหตุ.
+- Create modal ใช้ badge `ร่างใหม่` แทนสถานะธุรกิจเพื่อไม่ให้สับสนกับ record ที่บันทึกแล้ว และอธิบายว่าสถานะ `ยังไม่เริ่ม` จะเกิดหลังบันทึก; derived field เช่นประเภทเครื่องจักรต้องแสดง disabled/computed state ชัดเจน.
+- KPI และ field labels ใน modal ใช้คำไทยพร้อมหน่วย (`กก.`, `บาท`, `%`) เพื่อแยก quantity, money และอัตราผลได้โดยไม่ต้องเดาจากตัวเลข; `WIP` อธิบายเป็น `งานระหว่างผลิต` ในจุดที่มีพื้นที่เพียงพอ.
+- Browser regression ต้องตรวจ detail/create แบบ read-only ครบ Desktop `1440×1000` และ Mobile `430×932` ใน Light/Dark โดยห้ามกดบันทึก, จบงาน, ยกเลิกใบสั่งผลิต, reverse movement หรือเปลี่ยน business data.
+
 ## Current Code Baseline
 
 - Current `apps/next` page/API code is accepted as the P1 proof baseline as of 2026-06-11.
@@ -126,3 +153,9 @@ production order เป็น owner ของ input/WIP/output lifecycle target.
 - [x] Follow [[Production Order DB API Design]] before enabling write APIs
 - [x] Add/adjust tests or browser QA checklist before claiming end-to-end production write completion
 - [x] Update this file and canonical reference if contract changes
+
+## 2026-07-12 Table consistency checkpoint
+
+- Verified `/production/orders` in Codex Browser on desktop and mobile. The desktop table keeps a single-line header with horizontal table-only overflow.
+- Kept the leading index column left-aligned and aligned every later table column right in both header and body. Renamed visible working labels to Thai-first `งานระหว่างทำคงเหลือ` and `อัตราผลได้`, then widened/reset those persisted columns so the new labels cannot wrap.
+- Mobile cards use the same Thai labels and no longer expose the English `Locked` state text. Filters, exports, modal behavior, production lifecycle, API contracts, permissions, database schema, and business data did not change.

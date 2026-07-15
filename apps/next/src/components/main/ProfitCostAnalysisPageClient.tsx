@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Sarabun } from 'next/font/google'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { formatDateDisplay } from '@/lib/format'
@@ -61,6 +63,14 @@ type Tab = 'alerts' | 'channels' | 'customers' | 'products' | 'suppliers' | 'tre
 type SortDirection = 'asc' | 'desc'
 type ProductColumnKey = 'avgBuy' | 'avgSell' | 'buyAmount' | 'buyQty' | 'code' | 'cogs' | 'gp' | 'gpPct' | 'metalGroup' | 'name' | 'profitPerKg' | 'revenue' | 'sellQty' | 'stockQty' | 'stockValue'
 
+const productPageSizeOptions = [10, 25, 50, 100] as const
+const profitKpiCardClass = 'profit-kpi-card shadow-none'
+const profitTableFont = Sarabun({
+  subsets: ['latin', 'thai'],
+  variable: '--font-profit-table',
+  weight: ['400', '500'],
+})
+
 const reportTabs: { key: Tab; label: string }[] = [
   { key: 'products', label: 'สินค้า' },
   { key: 'suppliers', label: 'ผู้ขาย' },
@@ -107,7 +117,7 @@ export function ProfitCostAnalysisPageClient() {
   const [salesChannelId, setSalesChannelId] = useState('')
   const [supplierId, setSupplierId] = useState('')
   const [customerId, setCustomerId] = useState('')
-  const [selectedMetalGroups, setSelectedMetalGroups] = useState<string[]>([])
+  const [selectedMetalGroup, setSelectedMetalGroup] = useState('')
   const [activeTab, setActiveTab] = useState<Tab>('products')
   const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(null)
   const [data, setData] = useState<ProfitCostPayload | null>(null)
@@ -122,9 +132,9 @@ export function ProfitCostAnalysisPageClient() {
     if (salesChannelId) params.set('salesChannelId', salesChannelId)
     if (supplierId) params.set('supplierId', supplierId)
     if (customerId) params.set('customerId', customerId)
-    selectedMetalGroups.forEach((group) => params.append('metalGroup', group))
+    if (selectedMetalGroup) params.set('metalGroup', selectedMetalGroup)
     return params.toString()
-  }, [branchId, customerId, from, purchaseChannelId, salesChannelId, selectedMetalGroups, supplierId, to])
+  }, [branchId, customerId, from, purchaseChannelId, salesChannelId, selectedMetalGroup, supplierId, to])
 
   useEffect(() => {
     const requestId = latestLoadRequestRef.current + 1
@@ -135,9 +145,6 @@ export function ProfitCostAnalysisPageClient() {
       .then((payload) => {
         if (latestLoadRequestRef.current !== requestId) return
         setData(payload)
-        if (selectedMetalGroups.length === 0 && payload.filters.selectedMetalGroups.length > 0) {
-          setSelectedMetalGroups(payload.filters.selectedMetalGroups)
-        }
       })
       .catch((caught) => {
         if (latestLoadRequestRef.current !== requestId) return
@@ -147,7 +154,7 @@ export function ProfitCostAnalysisPageClient() {
         if (latestLoadRequestRef.current !== requestId) return
         setIsLoading(false)
       })
-  }, [query, selectedMetalGroups.length])
+  }, [query])
 
   const supplierSearchOptions = useMemo<SearchComboboxOption[]>(() => {
     return (data?.filters.suppliers ?? []).map((supplier) => ({
@@ -165,14 +172,11 @@ export function ProfitCostAnalysisPageClient() {
 
   const summary = data?.summary ?? {}
   const metalGroups = data?.filters.metalGroups ?? []
+  const metalGroupSearchOptions = useMemo<SearchComboboxOption[]>(() => (data?.filters.metalGroups ?? []).map((group) => ({ id: group, label: group })), [data?.filters.metalGroups])
   const hasActiveFilters = from !== monthStart()
     || to !== today()
     || Boolean(branchId || purchaseChannelId || salesChannelId || supplierId || customerId)
-    || selectedMetalGroups.length > 0
-
-  function toggleMetalGroup(group: string) {
-    setSelectedMetalGroups((current) => current.includes(group) ? current.filter((value) => value !== group) : [...current, group])
-  }
+    || Boolean(selectedMetalGroup)
 
   function clearFilters() {
     setFrom(monthStart())
@@ -182,37 +186,47 @@ export function ProfitCostAnalysisPageClient() {
     setSalesChannelId('')
     setSupplierId('')
     setCustomerId('')
-    setSelectedMetalGroups([])
+    setSelectedMetalGroup('')
   }
 
   return (
     <section className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-8">
-        <Metric label="ซื้อรวม" tone="blue" value={money(summary.purchaseAmount)} sub={`${money(summary.purchaseQty)} กก.`} />
-        <Metric label="ขายรวม" tone="emerald" value={money(summary.revenue)} sub={`${money(summary.salesQty)} กก.`} />
-        <Metric label="COGS" tone="orange" value={money(summary.cogs)} sub="ต้นทุนขาย" />
-        <Metric label="GP" tone={(summary.gp ?? 0) >= 0 ? 'purple' : 'red'} value={money(summary.gp)} sub={`${pct(summary.gpPct)}%`} />
-        <Metric label="สต๊อกคงเหลือ" tone="amber" value={money(summary.stockQty)} sub="กก." />
-        <Metric label="มูลค่าสต๊อก" tone="slate" value={money(summary.stockValue)} sub="รวมตามตัวกรอง" />
-        <Metric label="ซื้อเฉลี่ย/กก." tone="cyan" value={money(summary.avgBuy)} sub="ราคาซื้อเฉลี่ย" />
-        <Metric label="ขายเฉลี่ย/กก." tone="emerald" value={money(summary.avgSell)} sub="ราคาขายเฉลี่ย" />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="เจ้าหนี้คงเหลือ" tone="red" value={money(summary.ap)} sub="AP" />
-        <Metric label="ลูกหนี้คงเหลือ" tone="cyan" value={money(summary.ar)} sub="AR" />
-        <Metric label="ผู้ขายที่ซื้อ" tone="blue" value={String(summary.supplierCount ?? 0)} sub="ราย" />
-        <Metric label="ลูกค้าที่ขาย" tone="purple" value={String(summary.customerCount ?? 0)} sub="ราย" />
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-12">
+        <PairMetric
+          className={`${profitKpiCardClass} col-span-2 xl:col-span-4`}
+          label="ซื้อ / ขายรวม"
+          left={{ label: 'ซื้อ', note: `${money(summary.purchaseQty)} กก.`, value: money(summary.purchaseAmount) }}
+          right={{ label: 'ขาย', note: `${money(summary.salesQty)} กก.`, value: money(summary.revenue) }}
+          tone="slate"
+        />
+        <Metric className={`${profitKpiCardClass} xl:col-span-2`} label="COGS" tone="slate" value={money(summary.cogs)} sub="ต้นทุนขาย" />
+        <Metric className={`${profitKpiCardClass} xl:col-span-2`} label="GP" tone={(summary.gp ?? 0) >= 0 ? 'emerald' : 'red'} value={money(summary.gp)} sub={`${pct(summary.gpPct)}%`} />
+        <Metric className={`${profitKpiCardClass} xl:col-span-2`} label="สต๊อกคงเหลือ" tone="slate" value={money(summary.stockQty)} sub="กก." />
+        <Metric className={`${profitKpiCardClass} xl:col-span-2`} label="มูลค่าสต๊อก" tone="slate" value={money(summary.stockValue)} sub="รวมตามตัวกรอง" />
+        <PairMetric
+          className={`${profitKpiCardClass} col-span-2 xl:col-span-4`}
+          label="ราคาเฉลี่ย/กก."
+          left={{ label: 'ซื้อ', value: money(summary.avgBuy) }}
+          right={{ label: 'ขาย', value: money(summary.avgSell) }}
+          tone="slate"
+        />
+        <PairMetric
+          className={`${profitKpiCardClass} col-span-2 xl:col-span-8`}
+          label="ยอดคงเหลือเจ้าหนี้ / ลูกหนี้"
+          left={{ label: 'เจ้าหนี้คงเหลือ', note: `AP · ผู้ขายที่ซื้อ ${summary.supplierCount ?? 0} ราย`, value: money(summary.ap) }}
+          right={{ label: 'ลูกหนี้คงเหลือ', note: `AR · ลูกค้าที่ขาย ${summary.customerCount ?? 0} ราย`, value: money(summary.ar) }}
+          tone="slate"
+        />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <Panel title="Top 10 สินค้ายอดขาย">
+        <Panel title="สินค้าขายสูงสุด 10 อันดับ">
           <BarRows rows={(data?.top.byRevenue ?? []).map((row) => ({ label: row.name, value: row.revenue }))} />
         </Panel>
-        <Panel title="Top 10 สินค้า GP">
+        <Panel title="สินค้า GP สูงสุด 10 อันดับ">
           <BarRows rows={(data?.top.byGp ?? []).map((row) => ({ label: row.name, value: row.gp }))} />
         </Panel>
-        <Panel title="Top 10 มูลค่าสต๊อก">
+        <Panel title="มูลค่าสต๊อกสูงสุด 10 อันดับ">
           <BarRows rows={(data?.top.byStockValue ?? []).map((row) => ({ label: row.name, value: row.stockValue }))} />
         </Panel>
       </div>
@@ -253,9 +267,9 @@ export function ProfitCostAnalysisPageClient() {
                 <DatePickerInput className="h-9 w-full" value={to} onChange={setTo} />
               </div>
             </Field>
-            <Field label="สาขา"><Select options={data?.filters.branches ?? []} value={branchId} onChange={setBranchId} /></Field>
-            <Field label="ช่องทางซื้อ"><Select options={data?.filters.purchaseChannels ?? []} value={purchaseChannelId} onChange={setPurchaseChannelId} /></Field>
-            <Field label="ช่องทางขาย"><Select options={data?.filters.salesChannels ?? []} value={salesChannelId} onChange={setSalesChannelId} /></Field>
+            <Field label="สาขา"><Select inputId="profit-branch-select" label="สาขา" options={data?.filters.branches ?? []} value={branchId} onChange={setBranchId} /></Field>
+            <Field label="ช่องทางซื้อ"><Select inputId="profit-purchase-channel-select" label="ช่องทางซื้อ" options={data?.filters.purchaseChannels ?? []} value={purchaseChannelId} onChange={setPurchaseChannelId} /></Field>
+            <Field label="ช่องทางขาย"><Select inputId="profit-sales-channel-select" label="ช่องทางขาย" options={data?.filters.salesChannels ?? []} value={salesChannelId} onChange={setSalesChannelId} /></Field>
             <Field label="ผู้ขาย">
               <div>
                 <SearchCombobox
@@ -285,12 +299,18 @@ export function ProfitCostAnalysisPageClient() {
               </div>
             </Field>
           </div>
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-slate-600">หมวดสินค้า:</span>
-              <button className={`${segmentClass} ${selectedMetalGroups.length === 0 ? selectedSegmentClass : idleSegmentClass}`} type="button" onClick={() => setSelectedMetalGroups([])}>ทุกหมวด</button>
-              {metalGroups.map((group) => <button key={group} className={`${segmentClass} ${selectedMetalGroups.includes(group) ? selectedSegmentClass : idleSegmentClass}`} type="button" onClick={() => toggleMetalGroup(group)}>{group}</button>)}
-              {metalGroups.length === 0 ? <span className="text-sm text-slate-400">ไม่มีหมวดสินค้า</span> : null}
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div className="w-full sm:w-72">
+              <SearchCombobox
+                hideLabel
+                inputClassName="h-9 border-slate-300 bg-white font-medium text-slate-900 placeholder:text-slate-500"
+                inputId="profit-metal-group-select"
+                label="หมวดสินค้า"
+                options={metalGroupSearchOptions}
+                placeholder="ทุกหมวดสินค้า"
+                value={selectedMetalGroup}
+                onChange={setSelectedMetalGroup}
+              />
             </div>
             {hasActiveFilters ? (
               <button className="ml-auto h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-600 outline-none transition hover:bg-slate-50 focus:ring-2 focus:ring-slate-200" type="button" onClick={clearFilters}>ล้างตัวกรอง</button>
@@ -301,7 +321,7 @@ export function ProfitCostAnalysisPageClient() {
 
       {showMobileFilters ? (
         <MobileFilterSheet
-          title="ตัวกรอง Profit Cost"
+          title="ตัวกรองกำไรและต้นทุน"
           onClose={() => setShowMobileFilters(false)}
           footer={(
             <>
@@ -318,9 +338,9 @@ export function ProfitCostAnalysisPageClient() {
                 <DatePickerInput className="h-9 w-full" value={to} onChange={setTo} />
               </div>
             </Field>
-            <Field label="สาขา"><Select options={data?.filters.branches ?? []} value={branchId} onChange={setBranchId} /></Field>
-            <Field label="ช่องทางซื้อ"><Select options={data?.filters.purchaseChannels ?? []} value={purchaseChannelId} onChange={setPurchaseChannelId} /></Field>
-            <Field label="ช่องทางขาย"><Select options={data?.filters.salesChannels ?? []} value={salesChannelId} onChange={setSalesChannelId} /></Field>
+            <Field label="สาขา"><Select inputId="profit-branch-select-mobile" label="สาขา" options={data?.filters.branches ?? []} value={branchId} onChange={setBranchId} /></Field>
+            <Field label="ช่องทางซื้อ"><Select inputId="profit-purchase-channel-select-mobile" label="ช่องทางซื้อ" options={data?.filters.purchaseChannels ?? []} value={purchaseChannelId} onChange={setPurchaseChannelId} /></Field>
+            <Field label="ช่องทางขาย"><Select inputId="profit-sales-channel-select-mobile" label="ช่องทางขาย" options={data?.filters.salesChannels ?? []} value={salesChannelId} onChange={setSalesChannelId} /></Field>
             <Field label="ผู้ขาย">
               <SearchCombobox
                 inputId="profit-supplier-select-mobile"
@@ -346,10 +366,16 @@ export function ProfitCostAnalysisPageClient() {
               />
             </Field>
             <Field label="หมวดสินค้า">
-              <div className="flex flex-wrap items-center gap-2">
-                <button className={`${segmentClass} ${selectedMetalGroups.length === 0 ? selectedSegmentClass : idleSegmentClass}`} type="button" onClick={() => setSelectedMetalGroups([])}>ทุกหมวด</button>
-                {metalGroups.map((group) => <button key={group} className={`${segmentClass} ${selectedMetalGroups.includes(group) ? selectedSegmentClass : idleSegmentClass}`} type="button" onClick={() => toggleMetalGroup(group)}>{group}</button>)}
-              </div>
+              <SearchCombobox
+                hideLabel
+                inputClassName="h-9 border-slate-300 bg-white font-medium text-slate-900 placeholder:text-slate-500"
+                inputId="profit-metal-group-select-mobile"
+                label="หมวดสินค้า"
+                options={metalGroupSearchOptions}
+                placeholder="ทุกหมวดสินค้า"
+                value={selectedMetalGroup}
+                onChange={setSelectedMetalGroup}
+              />
             </Field>
           </div>
         </MobileFilterSheet>
@@ -371,13 +397,13 @@ export function ProfitCostAnalysisPageClient() {
   )
 }
 
-const controlClass = 'h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-100'
-const segmentClass = 'h-9 rounded-md border px-3 text-xs font-medium outline-none transition focus:ring-2 focus:ring-slate-200'
-const selectedSegmentClass = 'border-slate-700 bg-slate-700 text-white shadow-sm'
-const idleSegmentClass = 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+function Select({ inputId, label, onChange, options, value }: { inputId: string; label: string; onChange: (value: string) => void; options: Option[]; value: string }) {
+  const searchOptions = useMemo<SearchComboboxOption[]>(() => options.map((option) => ({
+    id: option.id,
+    label: option.code ? `${option.code} - ${option.name}` : option.name,
+  })), [options])
 
-function Select({ onChange, options, value }: { onChange: (value: string) => void; options: Option[]; value: string }) {
-  return <select className={controlClass} value={value} onChange={(event) => onChange(event.target.value)}><option value="">ทั้งหมด</option>{options.map((option) => <option key={option.id} value={option.id}>{option.code ? `${option.code} - ${option.name}` : option.name}</option>)}</select>
+  return <SearchCombobox hideLabel inputClassName="h-9 border-slate-300 bg-white font-semibold text-slate-800 placeholder:text-slate-500" inputId={inputId} label={label} options={searchOptions} placeholder="ทั้งหมด" value={value} onChange={onChange} />
 }
 
 function Field({ children, label }: { children: ReactNode; label: string }) {
@@ -419,24 +445,59 @@ function formatProductCell(row: ProductRow, key: ProductColumnKey) {
   return money(row[key] as number)
 }
 
-function Metric({ label, sub, tone, value }: { label: string; sub: string; tone: KpiCardTone; value: string }) {
-  return <SharedKpiCard label={label} note={sub} tone={tone} value={value} />
+function Metric({ className, label, sub, tone, value }: { className?: string; label: string; sub: string; tone: KpiCardTone; value: string }) {
+  return <SharedKpiCard className={className} label={label} note={sub} tone={tone} value={value} />
+}
+
+function PairMetric({ className, label, left, right, tone }: {
+  className?: string
+  label: string
+  left: { label: string; note?: string; value: string }
+  right: { label: string; note?: string; value: string }
+  tone: KpiCardTone
+}) {
+  return (
+    <SharedKpiCard
+      className={className}
+      label={label}
+      tone={tone}
+      value={(
+        <div className="grid grid-cols-2 gap-3">
+          <PairMetricValue {...left} />
+          <PairMetricValue {...right} />
+        </div>
+      )}
+    />
+  )
+}
+
+function PairMetricValue({ label, note, value }: { label: string; note?: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <span className="block font-sans text-xs font-medium text-slate-500">{label}</span>
+      <span className="block truncate">{value}</span>
+      {note ? <span className="block font-sans text-xs font-medium text-slate-500">{note}</span> : null}
+    </div>
+  )
 }
 
 function Panel({ children, title }: { children: ReactNode; title: string }) {
   return (
     <div className="overflow-hidden rounded-xl bg-white shadow-sm border border-slate-100">
-      <div className="border-b border-slate-100 bg-slate-50/50 p-3 font-bold text-slate-700 text-sm">{title}</div>
+      <div className="profit-top-list-header border-b border-slate-100 p-3 font-bold text-slate-700 text-sm">{title}</div>
       <div className="p-4">{children}</div>
     </div>
   )
 }
 
 function BarRows({ rows }: { rows: { label: string; value: number }[] }) {
+  const [expanded, setExpanded] = useState(false)
   const max = Math.max(1, ...rows.map((row) => Math.abs(row.value)))
+  const visibleRows = rows.slice(0, expanded ? 10 : 5)
   return (
-    <div className="space-y-2">
-      {rows.map((row) => (
+    <div>
+      <div className="space-y-2">
+      {visibleRows.map((row) => (
         <div key={row.label}>
           <div className="mb-1 flex justify-between gap-3 text-xs text-slate-600">
             <span className="truncate">{row.label}</span>
@@ -447,11 +508,24 @@ function BarRows({ rows }: { rows: { label: string; value: number }[] }) {
           </div>
         </div>
       ))}
+      </div>
+      {rows.length > 5 ? (
+        <button
+          aria-expanded={expanded}
+          className="mt-3 h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? 'ย่อเหลือ 5 อันดับ' : 'ดู 10 อันดับ'}
+        </button>
+      ) : null}
     </div>
   )
 }
 
 function ProductTable({ onSelect, rows }: { onSelect: (row: ProductRow) => void; rows: ProductRow[] }) {
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<(typeof productPageSizeOptions)[number]>(25)
   const [sortKey, setSortKey] = useState<ProductColumnKey | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const columnResize = useResizableColumns('main.profit-cost-analysis.products.v1', productColumns)
@@ -463,19 +537,51 @@ function ProductTable({ onSelect, rows }: { onSelect: (row: ProductRow) => void;
       return sortDirection === 'asc' ? result : -result
     })
   }, [rows, sortDirection, sortKey])
+  const totalRows = sortedRows.length
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const pagedRows = useMemo(() => sortedRows.slice((safePage - 1) * pageSize, safePage * pageSize), [pageSize, safePage, sortedRows])
+
+  useEffect(() => {
+    setPage(1)
+  }, [rows])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   function changeSort(key: ProductColumnKey) {
     if (sortKey === key) {
       setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      setPage(1)
       return
     }
 
     setSortKey(key)
     setSortDirection('asc')
+    setPage(1)
   }
 
   return (
     <>
+      {totalRows > 0 ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
+          <span>แสดง {(safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, totalRows)} จาก {totalRows} รายการ</span>
+          <div className="flex items-center gap-2">
+            <PageSizeDropdown
+              options={[...productPageSizeOptions]}
+              value={pageSize}
+              onChange={(value) => {
+                setPageSize(value as (typeof productPageSizeOptions)[number])
+                setPage(1)
+              }}
+            />
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={safePage <= 1} type="button" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</button>
+            <span className="px-1 text-sm">หน้า {safePage} / {totalPages}</span>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={safePage >= totalPages} type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</button>
+          </div>
+        </div>
+      ) : null}
       {/* Desktop view */}
       {columnResize.hasCustomWidths ? (
         <div className="mb-2 hidden justify-end lg:flex">
@@ -483,7 +589,7 @@ function ProductTable({ onSelect, rows }: { onSelect: (row: ProductRow) => void;
         </div>
       ) : null}
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className={`${profitTableFont.variable} profit-analysis-table ns-table min-w-full divide-y divide-slate-200 text-sm`} style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {productColumns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -496,6 +602,7 @@ function ProductTable({ onSelect, rows }: { onSelect: (row: ProductRow) => void;
                   key={column.key}
                   activeSortKey={sortKey ?? undefined}
                   align={column.align}
+                  className="!font-medium"
                   direction={sortDirection}
                   label={column.label}
                   sortKey={column.key}
@@ -506,21 +613,21 @@ function ProductTable({ onSelect, rows }: { onSelect: (row: ProductRow) => void;
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {sortedRows.map((row) => <tr key={row.id} className="cursor-pointer transition-colors hover:bg-slate-50" onClick={() => onSelect(row)}>
+            {pagedRows.map((row) => <tr key={row.id} className="cursor-pointer transition-colors hover:bg-slate-50" onClick={() => onSelect(row)}>
               {productColumns.map((column) => (
-                <td key={column.key} className={`px-3 py-3 ${column.align === 'right' ? 'text-right font-mono tabular-nums' : 'text-left'} ${column.key === 'gp' ? row.gp >= 0 ? 'font-bold text-emerald-700' : 'font-bold text-red-700' : column.key === 'stockValue' ? 'font-bold text-slate-800' : column.key === 'name' ? 'font-semibold text-slate-800' : 'text-slate-700'}`}>
+                <td key={column.key} className={`px-3 py-3 ${column.align === 'right' ? 'text-right font-mono tabular-nums' : 'text-left'} ${column.key === 'gp' ? row.gp >= 0 ? 'font-medium text-emerald-700' : 'font-medium text-red-700' : column.key === 'stockValue' ? 'font-medium text-slate-800' : column.key === 'name' ? 'font-medium text-slate-800' : 'text-slate-700'}`}>
                   <div className={column.align === 'right' ? 'whitespace-nowrap' : 'truncate'} title={String(formatProductCell(row, column.key))}>{formatProductCell(row, column.key)}</div>
                 </td>
               ))}
             </tr>)}
-            {sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={productColumns.length}>ไม่มีข้อมูล</td></tr> : null}
+            {totalRows === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={productColumns.length}>ไม่มีข้อมูล</td></tr> : null}
           </tbody>
         </table>
       </div>
 
       {/* Mobile view */}
       <div className="block lg:hidden divide-y divide-slate-100 bg-slate-50/30 p-2 max-h-[600px] overflow-y-auto">
-        {sortedRows.map((row) => (
+        {pagedRows.map((row) => (
           <div key={row.id} className="p-3 bg-white rounded-xl border border-slate-100 mb-2 shadow-sm flex flex-col gap-1.5 text-xs cursor-pointer" onClick={() => onSelect(row)}>
             <div className="flex justify-between items-start">
               <span className="font-bold text-slate-800">{row.name}</span>
@@ -547,7 +654,7 @@ function ProductTable({ onSelect, rows }: { onSelect: (row: ProductRow) => void;
             </div>
           </div>
         ))}
-        {sortedRows.length === 0 && (
+        {totalRows === 0 && (
           <div className="py-8 text-center text-slate-400 text-xs">ไม่มีข้อมูล</div>
         )}
       </div>
@@ -559,7 +666,7 @@ function ProductModal({ onClose, product }: { onClose: () => void; product: Prod
   const lines = [
     ['ซื้อ', money(product.buyQty), money(product.buyAmount), '-', '-'],
     ['ขาย', money(product.sellQty), money(product.revenue), money(product.cogs), money(product.gp)],
-    ['Stock', money(product.stockQty), money(product.stockValue), '-', '-'],
+    ['สต๊อก', money(product.stockQty), money(product.stockValue), '-', '-'],
   ]
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
@@ -575,8 +682,8 @@ function ProductModal({ onClose, product }: { onClose: () => void; product: Prod
           {/* Desktop modal table */}
           <div className="hidden sm:block overflow-x-auto">
             <table className="ns-table w-full text-sm">
-              <thead className="bg-slate-50 text-slate-500 text-xs"><tr>{['เอกสาร', 'จำนวน', 'มูลค่า', 'COGS', 'GP'].map((header) => <th key={header} className="p-2 text-left font-semibold">{header}</th>)}</tr></thead>
-              <tbody>{lines.map((line) => <tr key={line[0]} className="border-t border-slate-100">{line.map((cell, index) => <td key={`${line[0]}-${index}`} className={`p-2 ${index > 0 ? 'text-right font-mono' : 'font-bold text-slate-700'}`}>{cell}</td>)}</tr>)}</tbody>
+              <thead className="bg-slate-50 text-slate-500 text-xs"><tr>{['เอกสาร', 'จำนวน', 'มูลค่า', 'COGS', 'GP'].map((header, index) => <th key={header} className={`p-2 font-semibold ${index === 0 ? 'text-left' : 'text-right'}`}>{header}</th>)}</tr></thead>
+              <tbody>{lines.map((line) => <tr key={line[0]} className="border-t border-slate-100">{line.map((cell, index) => <td key={`${line[0]}-${index}`} className={`p-3 ${index > 0 ? 'text-right font-mono' : 'font-bold text-slate-700'}`}>{cell}</td>)}</tr>)}</tbody>
             </table>
           </div>
           
@@ -609,7 +716,7 @@ function SimpleTable({ headers, rows, tableKey }: { headers: string[]; rows: str
       label: header,
       defaultWidth: index === 0 ? 180 : 120,
       minWidth: index === 0 ? 130 : 95,
-      align: index > 1 ? 'right' : 'left',
+      align: index === 0 ? 'left' : 'right',
     }))
   }, [headers])
   const columnResize = useResizableColumns(`main.profit-cost-analysis.${tableKey}.v1`, columns)
@@ -638,11 +745,11 @@ function SimpleTable({ headers, rows, tableKey }: { headers: string[]; rows: str
       {/* Desktop view */}
       {columnResize.hasCustomWidths ? (
         <div className="mb-2 hidden justify-end lg:flex">
-          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-normal text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
         </div>
       ) : null}
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-        <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className={`${profitTableFont.variable} profit-analysis-table ns-table min-w-full divide-y divide-slate-200 text-sm`} style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {columns.map((column) => (
               <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
@@ -655,6 +762,7 @@ function SimpleTable({ headers, rows, tableKey }: { headers: string[]; rows: str
                   key={column.key}
                   activeSortKey={sortKey ?? undefined}
                   align={column.align}
+                  className="!font-medium"
                   direction={sortDirection}
                   label={column.label}
                   sortKey={column.key}
@@ -665,7 +773,7 @@ function SimpleTable({ headers, rows, tableKey }: { headers: string[]; rows: str
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {sortedRows.map((row, index) => <tr key={`${row[0]}-${index}`} className="transition-colors hover:bg-slate-50">{row.map((cell, cellIndex) => <td key={`${cell}-${cellIndex}`} className={`px-3 py-3 ${cellIndex > 1 ? 'text-right font-mono whitespace-nowrap tabular-nums' : 'text-slate-700 font-medium min-w-0 overflow-hidden'}`}><div className={cellIndex <= 1 ? "truncate" : ""} title={cellIndex <= 1 ? cell : undefined}>{cell}</div></td>)}</tr>)}
+            {sortedRows.map((row, index) => <tr key={`${row[0]}-${index}`} className="transition-colors hover:bg-slate-50">{row.map((cell, cellIndex) => <td key={`${cell}-${cellIndex}`} className={`px-3 py-3 ${cellIndex > 1 ? 'text-right font-mono whitespace-nowrap tabular-nums' : 'min-w-0 overflow-hidden font-normal text-slate-700'}`}><div className={cellIndex <= 1 ? "truncate" : ""} title={cellIndex <= 1 ? cell : undefined}>{cell}</div></td>)}</tr>)}
             {sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={headers.length}>ไม่มีข้อมูล</td></tr> : null}
           </tbody>
         </table>
@@ -674,13 +782,24 @@ function SimpleTable({ headers, rows, tableKey }: { headers: string[]; rows: str
       {/* Mobile view */}
       <div className="block lg:hidden divide-y divide-slate-100 bg-slate-50/30 p-2 max-h-[500px] overflow-y-auto">
         {sortedRows.map((row, index) => (
-          <div key={index} className="p-3 bg-white rounded-xl border border-slate-100 mb-2 shadow-sm flex flex-col gap-1 text-xs">
-            {row.map((cell, cellIndex) => (
-              <div key={cellIndex} className="flex justify-between py-0.5">
-                <span className="text-slate-500 font-medium">{headers[cellIndex]}</span>
-                <span className={`font-bold ${cellIndex > 1 ? 'font-mono text-slate-950' : 'text-slate-800'}`}>{cell}</span>
+          <div key={index} className="mb-2 flex flex-col gap-2 rounded-xl border border-slate-100 bg-white p-3 text-xs shadow-sm">
+            <div className="font-bold text-slate-800">{row[0]}</div>
+            {row.length > 2 ? (
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg bg-slate-50 px-2 py-1.5 text-slate-600">
+                {row.slice(1, -1).map((cell, cellIndex) => (
+                  <div key={cellIndex} className="flex min-w-0 justify-between gap-2">
+                    <span className="truncate">{headers[cellIndex + 1]}</span>
+                    <span className="shrink-0 text-right font-medium text-slate-800">{cell}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : null}
+            {row.length > 1 ? (
+              <div className="flex items-center justify-between border-t border-slate-100 pt-2">
+                <span className="text-slate-500">{headers[row.length - 1]}</span>
+                <span className="font-mono font-bold text-slate-950">{row[row.length - 1]}</span>
+              </div>
+            ) : null}
           </div>
         ))}
         {sortedRows.length === 0 && (

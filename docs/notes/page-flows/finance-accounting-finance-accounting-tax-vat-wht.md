@@ -91,6 +91,12 @@ finance/accounting read model: Tax / VAT / WHT
 
 P2 proof completed against current Next page/API code. Remaining work is formula/source/cutoff refinement only when the target report definition changes or a page-specific discrepancy is found.
 
+## UI Checkpoint 2026-07-12
+
+- ปรับ copy บนหน้ารายงานให้เป็น Thai-first: ใช้ `ปฏิทินภาษี`, `VAT สุทธิ`, และคำกำหนดนำส่งภาษาไทย โดยตัด emoji และคำอังกฤษที่เป็นเพียงชื่อหน้าจอออก
+- ตาราง VAT/WHT ยังคงอ่านข้อมูลเดิม แต่จัดคอลัมน์แรกชิดซ้ายและทุกคอลัมน์ถัดไปชิดขวา พร้อมใช้ชื่อปุ่มคืนค่าคอลัมน์และน้ำหนักตัวอักษรเดียวกับ list baseline
+- เหตุผล: หน้าเป็น read-only report จึงต้องให้ผู้ใช้เห็นตัวกรอง, สรุป, และตารางในลำดับเดียวกับ `/stock/convert` โดยไม่เปลี่ยนสูตรภาษีหรือเงื่อนไข API
+
 ## Implementation Checklist
 
 - [x] Verify current API response shape and source tables

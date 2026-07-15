@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/Input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
+import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { TableNumberCell } from '@/components/ui/TableNumberCell'
 import { CollapsedList } from '@/components/ui/CollapsedList'
@@ -32,6 +33,7 @@ import type { SalesBillDetail } from '@/lib/server/sales-bill-detail'
 type BillRow = {
   advanceAllocatedAmount?: number
   advanceAllocatedSubtotalAmount?: number
+  advanceConsumedAmount?: number
   advancePaymentDocNo?: string
   advancePaymentId?: string
   branchId?: string
@@ -106,6 +108,7 @@ type PurchaseBillDetailTimelineEvent = {
 
 type PurchaseBillDetail = {
   advanceAllocatedAmount: number
+  advanceConsumedAmount: number
   advanceAllocatedSubtotalAmount: number
   advanceAllocatedVatAmount: number
   advancePaymentDocNo: string
@@ -221,6 +224,8 @@ type Option = {
   type?: string | null
   unitPrice?: number | null
   unit?: string | null
+  vatAmount?: number | null
+  vatType?: string | null
 }
 
 type TradingPurchaseBillOption = {
@@ -676,7 +681,7 @@ const purchaseStatusOptions: MultiSegmentOption[] = [
   { label: 'ชำระบางส่วน', values: ['partial_paid'] },
   { label: 'เสร็จสิ้น', values: ['paid'] },
   { label: 'ยกเลิก', values: ['cancelled'] },
-  { label: 'ยกเลิก/เปลี่ยน Supplier', values: ['cancelled_supplier_swap'] },
+  { label: 'ยกเลิก/เปลี่ยนผู้ขาย', values: ['cancelled_supplier_swap'] },
 ]
 
 const salesStatusOptions: MultiSegmentOption[] = [
@@ -955,7 +960,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       return {
         docNo,
         id: `PB:${docNo}`,
-        label: `${docNo} · ${supplierName ?? 'ไม่ระบุ Supplier'} · ${lineCount.toLocaleString('th-TH')} รายการ · คงเหลือ ${formatMoney(remainingQty)}${unit ? ` ${unit}` : ''} · ${formatMoney(remainingAmount)} บาท`,
+        label: `${docNo} · ${supplierName ?? 'ไม่ระบุผู้ขาย'} · ${lineCount.toLocaleString('th-TH')} รายการ · คงเหลือ ${formatMoney(remainingQty)}${unit ? ` ${unit}` : ''} · ${formatMoney(remainingAmount)} บาท`,
         lineCount,
         lines: sortedLines,
         remainingAmount,
@@ -999,26 +1004,36 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const formSubtotal = form.items.reduce((sum, item) => sum + Math.max(0, item.qty * item.price), 0)
   const formTotalWeight = form.items.reduce((sum, item) => sum + item.qty, 0)
   const formAfterDiscount = Math.max(0, formSubtotal - form.discountTotal)
+  const formVat = !form.hasVat || form.vatType === 'NONE' ? 0 : form.vatType === 'INCLUDE' ? formAfterDiscount * formVatRatePercent / (100 + formVatRatePercent) : formAfterDiscount * (formVatRatePercent / 100)
+  const formTotal = form.hasVat && form.vatType === 'EXCLUDE' ? formAfterDiscount + formVat : formAfterDiscount
+  const formTaxableBase = form.hasVat && form.vatType === 'INCLUDE' ? Math.max(0, formAfterDiscount - formVat) : formAfterDiscount
   const selectedAdvancePayment = form.advancePaymentId
     ? activeAdvancePayments.find((option) => option.id === form.advancePaymentId)
       ?? null
     : null
   const editingAdvanceCarry = editingBill && editingBill.advancePaymentId === form.advancePaymentId
-    ? editingBill.advanceAllocatedSubtotalAmount ?? editingBill.advanceAllocatedAmount ?? 0
+    ? editingBill.advanceConsumedAmount ?? editingBill.advanceAllocatedSubtotalAmount ?? editingBill.advanceAllocatedAmount ?? 0
     : 0
   const availableAdvanceAmount = selectedAdvancePayment
     ? Math.max(0, (selectedAdvancePayment.remainingAmount ?? 0) + editingAdvanceCarry)
     : 0
-  const formHasVat = form.hasVat && form.vatType !== 'NONE'
-  const formTaxableBaseBeforeAdvance = formHasVat && form.vatType === 'INCLUDE'
-    ? formAfterDiscount * 100 / (100 + formVatRatePercent)
-    : formAfterDiscount
-  const formAdvanceApplied = Math.min(formTaxableBaseBeforeAdvance, availableAdvanceAmount)
-  const formAdvanceRemainingAfterApply = Math.max(0, availableAdvanceAmount - formAdvanceApplied)
-  const formTaxableBaseAfterAdvance = Math.max(0, formTaxableBaseBeforeAdvance - formAdvanceApplied)
-  const formVat = formHasVat ? formTaxableBaseAfterAdvance * (formVatRatePercent / 100) : 0
-  const formTotal = formHasVat ? formTaxableBaseAfterAdvance + formVat : formTaxableBaseAfterAdvance
-  const formNetPayable = formTotal
+  const selectedAdvanceSubtotal = selectedAdvancePayment?.subtotalAmount ?? selectedAdvancePayment?.amount ?? 0
+  const selectedAdvanceVat = selectedAdvancePayment?.vatAmount ?? 0
+  const selectedAdvanceBaseCapacity = selectedAdvancePayment?.vatType && selectedAdvancePayment.vatType !== 'NONE'
+    ? availableAdvanceAmount * (selectedAdvanceSubtotal / Math.max(selectedAdvanceSubtotal + selectedAdvanceVat, 0.000001))
+    : availableAdvanceAmount
+  const formAdvanceConsumed = Math.min(formTaxableBase, selectedAdvanceBaseCapacity)
+  const formTaxableBaseAfterAdvance = Math.max(0, formTaxableBase - formAdvanceConsumed)
+  const formAdvanceVatRelief = formTaxableBase > 0 ? formAdvanceConsumed * (formVat / formTaxableBase) : 0
+  const formAdvanceApplied = Math.min(formTotal, formAdvanceConsumed + formAdvanceVatRelief)
+  const formAdvanceGrossConsumed = selectedAdvancePayment?.vatType && selectedAdvancePayment.vatType !== 'NONE'
+    ? Math.min(
+      availableAdvanceAmount,
+      formAdvanceConsumed * ((selectedAdvanceSubtotal + selectedAdvanceVat) / Math.max(selectedAdvanceSubtotal, 0.000001)),
+    )
+    : formAdvanceConsumed
+  const formAdvanceRemainingAfterApply = Math.max(0, availableAdvanceAmount - formAdvanceGrossConsumed)
+  const formNetPayable = Math.max(0, formTotal - formAdvanceApplied)
   const salesSubtotal = salesForm.items.reduce((sum, item) => sum + Math.max(0, item.qty * item.price - (salesForm.transactionMode === 'TRADING' ? 0 : item.discount)), 0)
   const salesAfterDiscount = Math.max(0, salesSubtotal - salesForm.discountTotal)
   const salesVat = !salesForm.hasVat || salesForm.vatType === 'NONE' ? 0 : salesForm.vatType === 'INCLUDE' ? salesAfterDiscount * formVatRatePercent / (100 + formVatRatePercent) : salesAfterDiscount * (formVatRatePercent / 100)
@@ -2854,8 +2869,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         <div className="flex flex-wrap items-center gap-2">
           <span className="w-14 shrink-0 text-xs text-slate-500">ประเภท:</span>
           <Segment value="" current={filterMode} label="ทุกประเภท" onClick={setFilterMode} />
-          <Segment value="STOCK" current={filterMode} label="📦 STOCK" onClick={setFilterMode} />
-          <Segment value="TRADING" current={filterMode} label="🔄 TRADING" onClick={setFilterMode} />
+          <Segment value="STOCK" current={filterMode} label="📦 สต็อก" onClick={setFilterMode} />
+          <Segment value="TRADING" current={filterMode} label="🔄 ซื้อมาขายไป" onClick={setFilterMode} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="w-14 shrink-0 text-xs text-slate-500">สถานะ:</span>
@@ -2948,8 +2963,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภท</span>
                   <div className="flex flex-wrap gap-2">
                     <Segment value="" current={filterMode} label="ทุกประเภท" onClick={setFilterMode} />
-                    <Segment value="STOCK" current={filterMode} label="📦 STOCK" onClick={setFilterMode} />
-                    <Segment value="TRADING" current={filterMode} label="🔄 TRADING" onClick={setFilterMode} />
+                    <Segment value="STOCK" current={filterMode} label="📦 สต็อก" onClick={setFilterMode} />
+                    <Segment value="TRADING" current={filterMode} label="🔄 ซื้อมาขายไป" onClick={setFilterMode} />
                   </div>
                 </div>
                 <div>
@@ -3004,7 +3019,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <div>
                   <span className="font-semibold text-slate-500">ประเภท: </span>
                   <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>
-                    {row.transactionMode ?? '-'}
+                    {transactionModeLabel(row.transactionMode)}
                   </span>
                 </div>
                 {row.note?.trim() ? (
@@ -3113,13 +3128,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
         <Table className="text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
-            {tableColumns.map((column, index) => {
-              const style = columnResize.getColumnStyle(column.key);
-              if (index === tableColumns.length - 1) {
-                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
-              }
-              return <col key={column.key} style={style} />;
-            })}
+            {tableColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
           </colgroup>
           <TableHeader>
             <tr>
@@ -3132,14 +3143,14 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('transactionMode', 'ประเภท')} sortKey="transactionMode" onSort={changeSort} />
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'สถานะเอกสาร' : 'สถานะรับเงิน'} resizeProps={columnResize.getResizeHandleProps('status', mode === 'purchase' ? 'สถานะเอกสาร' : 'สถานะรับเงิน')} sortKey="status" onSort={changeSort} />
               {mode === 'purchase' ? <ResizableTableHead align="center" label="PMA / PMT" resizeProps={columnResize.getResizeHandleProps('paymentDocs', 'PMA / PMT')} /> : null}
-              {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="รายการ" resizeProps={columnResize.getResizeHandleProps('itemCount', 'รายการ')} sortKey="itemCount" onSort={changeSort} /> : null}
-              <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ยอดรวม" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'ยอดรวม')} sortKey="totalAmount" onSort={changeSort} />
-              {mode === 'sales' ? <ResizableTableHead align="center" label="GP / Margin" resizeProps={columnResize.getResizeHandleProps('gp', 'GP / Margin')} /> : null}
-              {mode === 'sales' ? <ResizableTableHead align="center" label="รับแล้ว" resizeProps={columnResize.getResizeHandleProps('paidAmount', 'รับแล้ว')} /> : null}
-              <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ค้างชำระ" resizeProps={columnResize.getResizeHandleProps('outstanding', 'ค้างชำระ')} sortKey="outstanding" onSort={changeSort} />
+              {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="รายการ" resizeProps={columnResize.getResizeHandleProps('itemCount', 'รายการ')} sortKey="itemCount" onSort={changeSort} /> : null}
+              <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ยอดรวม" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'ยอดรวม')} sortKey="totalAmount" onSort={changeSort} />
+              {mode === 'sales' ? <ResizableTableHead align="right" label="GP / Margin" resizeProps={columnResize.getResizeHandleProps('gp', 'GP / Margin')} /> : null}
+              {mode === 'sales' ? <ResizableTableHead align="right" label="รับแล้ว" resizeProps={columnResize.getResizeHandleProps('paidAmount', 'รับแล้ว')} /> : null}
+              <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ค้างชำระ" resizeProps={columnResize.getResizeHandleProps('outstanding', 'ค้างชำระ')} sortKey="outstanding" onSort={changeSort} />
               {mode === 'sales' ? <ResizableTableHead align="center" label="VAT" resizeProps={columnResize.getResizeHandleProps('vat', 'VAT')} /> : null}
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="อัพเดตล่าสุด" resizeProps={columnResize.getResizeHandleProps('updatedBy', 'อัพเดตล่าสุด')} sortKey="updatedBy" onSort={changeSort} />
-              <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+              <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
             </tr>
           </TableHeader>
           <TableBody className="divide-y divide-slate-100">
@@ -3156,7 +3167,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <td className="p-2 text-center text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</td>
                 <td className="p-2 text-xs font-semibold text-slate-700">{'supplierName' in row ? row.supplierName : row.customerName}</td>
                 {mode !== 'purchase' ? <td className="p-2 text-xs font-semibold text-slate-700">{formatBranchWarehouse(row)}</td> : null}
-                <td className="p-2 text-center"><span className={`rounded-md-full px-2 py-0.5 text-xs font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>{row.transactionMode ?? '-'}</span></td>
+                <td className="p-2 text-center"><span className={`rounded-md-full px-2 py-0.5 text-xs font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>{transactionModeLabel(row.transactionMode)}</span></td>
                 <td className="p-2 text-center">
                   <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${mode === 'purchase' ? workflowStatusBadgeClass(row.paymentWorkflowStatus ?? 'pending_approval') : statusBadgeClass(row.status)}`}>
                     <span className="size-1.5 rounded-full bg-current" />
@@ -3279,8 +3290,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <div className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="amber">1</StepBadge>ประเภทบิล</h4>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <RadioCard active={form.transactionMode === 'STOCK'} disabled={stockReceiptLocked} label="📦 STOCK" note="ซื้อเข้าสต๊อก · เข้า Stock + คำนวณ WAC ภายหลัง" onClick={() => updateForm('transactionMode', 'STOCK')} />
-                  <RadioCard active={form.transactionMode === 'TRADING'} disabled={stockReceiptLocked} label="🔄 TRADING" note="ซื้อขายผ่านมือ · ไม่เข้า Stock ไม่กระทบ WAC" onClick={() => updateForm('transactionMode', 'TRADING')} />
+                  <RadioCard active={form.transactionMode === 'STOCK'} disabled={stockReceiptLocked} label="📦 สต็อก" note="ซื้อเข้าสต็อก · เข้าสต็อกและคำนวณ WAC ภายหลัง" onClick={() => updateForm('transactionMode', 'STOCK')} />
+                  <RadioCard active={form.transactionMode === 'TRADING'} disabled={stockReceiptLocked} label="🔄 ซื้อมาขายไป" note="ซื้อขายผ่านมือ · ไม่เข้าสต็อกและไม่กระทบ WAC" onClick={() => updateForm('transactionMode', 'TRADING')} />
                 </div>
                 {form.transactionMode === 'TRADING' ? (
                   <div className="mt-3 rounded-md border border-slate-200 bg-white p-2 text-xs text-slate-600">รายการ Trading ไม่เข้า Stock และจะใช้สำหรับจับคู่ขายใน Trading Matching ภายหลัง</div>
@@ -3804,8 +3815,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="emerald">1</StepBadge>ประเภทบิล</h4>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <RadioCard active={salesForm.transactionMode === 'STOCK'} disabled={salesIdentityLocked || stockDeliveryLocked} label="📦 STOCK" note="ขายจากสต๊อกจริง" onClick={() => updateSalesForm('transactionMode', 'STOCK')} />
-                  <RadioCard active={salesForm.transactionMode === 'TRADING'} disabled={salesIdentityLocked || stockDeliveryLocked} label="🔄 TRADING" note="ขายจากบิลซื้อ Trading และพ่วง WTO ได้" onClick={() => updateSalesForm('transactionMode', 'TRADING')} />
+                  <RadioCard active={salesForm.transactionMode === 'STOCK'} disabled={salesIdentityLocked || stockDeliveryLocked} label="📦 สต็อก" note="ขายจากสต็อกจริง" onClick={() => updateSalesForm('transactionMode', 'STOCK')} />
+                  <RadioCard active={salesForm.transactionMode === 'TRADING'} disabled={salesIdentityLocked || stockDeliveryLocked} label="🔄 ซื้อมาขายไป" note="ขายจากบิลซื้อแบบซื้อมาขายไป และพ่วง WTO ได้" onClick={() => updateSalesForm('transactionMode', 'TRADING')} />
                 </div>
                 {salesIdentityLocked ? (
                   <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600">โหมดแก้ไขจะคงประเภทบิล สาขา ลูกค้า และแหล่งที่มาเดิม เพื่อให้ข้อมูล Stock/Trading และ audit ต่อเนื่อง</div>
@@ -4520,10 +4531,8 @@ function PurchaseBillDetailModal({
                 <DetailItem label="ยอดคงเหลือค้างจ่าย" value={`${formatMoney(detail.payableBalance)} บาท`} />
                 {detail.advancePaymentDocNo ? (
                   <>
-                    <DetailItem className="col-span-2 sm:col-span-4" label="หักเงินล่วงหน้า / มัดจำ" value={`${detail.advancePaymentDocNo}${detail.advancePaymentInvoiceNo ? ` · INV ${detail.advancePaymentInvoiceNo}` : ''} (หักไป ${formatMoney(detail.advanceAllocatedAmount)} บาท)`} />
-                    {detail.advancePaymentVatType !== 'NONE' ? (
-                      <DetailItem className="col-span-2 sm:col-span-4" label="ยอดหัก ADV แยก VAT" value={`ฐาน ${formatMoney(detail.advanceAllocatedSubtotalAmount)} บาท / VAT ${formatMoney(detail.advanceAllocatedVatAmount)} บาท`} />
-                    ) : null}
+                    <DetailItem className="col-span-2 sm:col-span-4" label="หักเงินล่วงหน้า / มัดจำ" value={`${detail.advancePaymentDocNo}${detail.advancePaymentInvoiceNo ? ` · INV ${detail.advancePaymentInvoiceNo}` : ''} (ผลหักรวม ${formatMoney(detail.advanceAllocatedAmount)} บาท)`} />
+                    <DetailItem className="col-span-2 sm:col-span-4" label="ยอดหัก ADV ก่อน VAT" value={`ฐาน ${formatMoney(detail.advanceAllocatedSubtotalAmount)} บาท / ลด VAT ${formatMoney(detail.advanceAllocatedVatAmount)} บาท / ใช้ ADV จริง ${formatMoney(detail.advanceConsumedAmount)} บาท`} />
                   </>
                 ) : null}
               </div>
@@ -5124,7 +5133,7 @@ function Detail({ label, value }: { label: string; value: string }) {
 
 function Segment({ current, label, onClick, value }: { current: string; label: string; onClick: (value: string) => void; value: string }) {
   const active = current === value
-  return <button className={`inline-flex h-7 items-center justify-center rounded-md border px-3 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`} type="button" onClick={() => onClick(value)}>{label}</button>
+  return <SegmentedFilterButton active={active} type="button" onClick={() => onClick(value)}>{label}</SegmentedFilterButton>
 }
 
 function SegmentMulti({
@@ -5142,8 +5151,8 @@ function SegmentMulti({
     ? current.length === 0
     : values.every((value) => current.includes(value))
   return (
-    <button
-      className={`inline-flex h-7 items-center justify-center rounded-md border px-3 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`}
+    <SegmentedFilterButton
+      active={active}
       type="button"
       onClick={() => {
         if (values.length === 0) {
@@ -5154,7 +5163,7 @@ function SegmentMulti({
       }}
     >
       {label}
-    </button>
+    </SegmentedFilterButton>
   )
 }
 
@@ -5170,7 +5179,7 @@ function statusBadgeClass(status: string) {
 function statusText(status: string) {
   const labels: Record<string, string> = {
     cancelled: 'ยกเลิก',
-    cancelled_supplier_swap: 'ยกเลิก/เปลี่ยน Supplier',
+    cancelled_supplier_swap: 'ยกเลิก/เปลี่ยนผู้ขาย',
     complete: 'เสร็จสิ้น',
     completed: 'เสร็จสิ้น',
     converted: 'เปิดบิลแล้ว',
@@ -5198,13 +5207,19 @@ function workflowStatusBadgeClass(status: string) {
 function workflowStatusText(status: string) {
   const labels: Record<string, string> = {
     cancelled: 'ยกเลิก',
-    cancelled_supplier_swap: 'ยกเลิก/เปลี่ยน Supplier',
+    cancelled_supplier_swap: 'ยกเลิก/เปลี่ยนผู้ขาย',
     paid: 'เสร็จสิ้น',
     partial_paid: 'ชำระบางส่วน',
     pending_approval: 'ยังไม่อนุมัติ',
     pending_payment: 'รอจ่าย',
   }
   return labels[status.toLowerCase()] ?? status
+}
+
+function transactionModeLabel(mode: string | null | undefined) {
+  if (mode === 'STOCK') return 'สต็อก'
+  if (mode === 'TRADING') return 'ซื้อมาขายไป'
+  return mode || '-'
 }
 
 function formatDateTime(value?: string) {

@@ -69,6 +69,7 @@ export const DropdownMenuContent = React.forwardRef<
 >(({ className, sideOffset = 6, ...props }, ref) => (
   <DropdownMenuPrimitive.Portal>
     <DropdownMenuPrimitive.Content
+      data-slot="dropdown-menu-content"
       className={cn(
         'z-50 min-w-48 overflow-hidden rounded-md border border-slate-200 bg-white p-1 text-slate-900 shadow-md dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dark-surface)] dark:text-slate-100',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',
@@ -104,7 +105,8 @@ export const DropdownMenuCheckboxItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.CheckboxItem>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>
 >(({ className, children, checked, ...props }, ref) => (
-  <DropdownMenuPrimitive.CheckboxItem
+    <DropdownMenuPrimitive.CheckboxItem
+      data-slot="dropdown-menu-checkbox-item"
     checked={checked}
     className={cn(
       'relative flex cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-slate-100 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 dark:text-slate-100 dark:focus:bg-slate-700/70 dark:focus:text-white',
@@ -170,4 +172,3 @@ DropdownMenuSeparator.displayName = DropdownMenuPrimitive.Separator.displayName
 export const DropdownMenuShortcut = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => {
   return <span className={cn('ml-auto text-xs tracking-widest text-slate-400', className)} {...props} />
 }
-

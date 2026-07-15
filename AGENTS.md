@@ -60,6 +60,9 @@ codex/* or feature/*
 - `main` is production-ready only. Do not work directly on `main`, and do not push directly to `main` unless the user explicitly asks for a coordinated release or hotfix.
 - `uat` is for UAT/pre-production verification. Merge or promote from `dev` only after the integrated batch is ready for broader QA.
 - Important: the word `UAT` in task discussion means the active UAT environment determined by the deployment/database env in use, not merely whatever branch happens to be named `uat`. Always verify the actual target from env/deployment settings first.
+- **Customer UAT Git/deployment:** the customer-facing UAT repository is remote `uat-origin` (`nserprich99-creator/ns-erp`). Vercel currently deploys that UAT environment from `uat-origin/uat`, not from `main` or `new-origin/uat`. When the user says `push UAT` or `promote dev to UAT` without naming another remote, promote the validated `new-origin/dev` commit to `uat-origin/uat` only.
+- Do not use a local `uat` branch as the promotion source. Fetch `uat-origin` first, verify its current `uat` head and ancestry, then push the intended validated commit/ref to `uat-origin/uat`.
+- Promote `uat-origin/uat` to `uat-origin/main` only when the user explicitly asks to release/promote UAT main. Verify `main` is an ancestor first. `main` is currently a release snapshot and is not the Vercel UAT deployment branch.
 - The old remote branch `staging` has been deleted to avoid confusion. Do not recreate, push to, or promote through `staging`.
 - `dev` is the shared integration branch. Start normal feature, bugfix, migration, and refactor work from `dev`.
 - `codex/*` or `feature/*` branches are for scoped work. Keep each branch focused on one feature, bugfix, migration batch, or behavior change.
@@ -139,8 +142,9 @@ Do not treat this as a greenfield rewrite unless explicitly instructed.
 - Dev/target Supabase: `fhglqymcdmrgbsbadnwr`
 - Legacy production/source Supabase: `mqsgptraslgpyzbpndlg` read-only
 - Customer UAT Supabase: `oolzfvqhovmjhiocfqdw`
-- Git UAT branch on `new-origin`: `uat` (`staging` remote branch has been deleted)
-- Current customer-facing UAT deployment/environment must be identified from env/deployment settings; do not assume it is tied to `new-origin/uat`
+- Customer Git UAT remote: `uat-origin` = `nserprich99-creator/ns-erp`
+- Customer Vercel UAT deployment branch: `uat-origin/uat`; `uat-origin/main` is promoted only by explicit release instruction
+- Current customer-facing UAT deployment/environment must still be verified from deployment/env settings before a promotion
 - New production: not created yet
 - Project MCP config: `.mcp.json`
 - Project skills: `.agents/skills/`

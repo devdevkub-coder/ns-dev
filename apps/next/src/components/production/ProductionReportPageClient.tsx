@@ -8,7 +8,9 @@ import { useResizableColumns, type ResizableColumnDefinition } from '@/component
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { formatDateDisplay } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Coins, FileText, Package2, Scale, TrendingUp, TriangleAlert } from 'lucide-react'
 
 type OutputProductValue = {
   cost?: number
@@ -54,21 +56,21 @@ const configs: Record<string, { apiPath: string; columns: Column[]; metrics: Arr
   dashboard: {
     apiPath: '/api/production/dashboard',
     title: 'แดชบอร์ดการผลิต',
-    metrics: [{ key: 'count', label: 'ใบสั่งผลิต' }, { key: 'outputQty', label: 'ผลิตได้', type: 'number' }, { key: 'wipQty', label: 'WIP', type: 'number' }, { key: 'yieldPct', label: 'Yield', type: 'percent' }, { key: 'lossPct', label: 'Loss', type: 'percent' }],
-    columns: [{ key: 'docNo', label: 'เลขที่' }, { key: 'date', label: 'วันที่', type: 'date' }, { key: 'productName', label: 'สินค้า' }, { key: 'outputQty', label: 'Output', type: 'number' }, { key: 'yieldPct', label: 'Yield', type: 'percent' }, { key: 'status', label: 'สถานะ' }],
+    metrics: [{ key: 'count', label: 'ใบสั่งผลิต' }, { key: 'outputQty', label: 'ผลิตได้', type: 'number' }, { key: 'wipQty', label: 'งานระหว่างทำ', type: 'number' }, { key: 'yieldPct', label: 'อัตราผลได้', type: 'percent' }, { key: 'lossPct', label: 'สูญเสีย', type: 'percent' }],
+    columns: [{ key: 'docNo', label: 'เลขที่' }, { key: 'date', label: 'วันที่', type: 'date' }, { key: 'productName', label: 'สินค้า' }, { key: 'outputQty', label: 'ผลผลิต', type: 'number' }, { key: 'yieldPct', label: 'อัตราผลได้', type: 'percent' }, { key: 'status', label: 'สถานะ' }],
   },
   wip: {
     apiPath: '/api/production/wip-report',
-    title: 'WIP คงเหลือ',
-    metrics: [{ key: 'count', label: 'ใบที่มี WIP' }, { key: 'wipQty', label: 'WIP Qty', type: 'number' }, { key: 'wipValue', label: 'WIP Value', type: 'money' }],
-    columns: [{ key: 'docNo', label: 'ใบสั่งผลิต' }, { key: 'date', label: 'วันที่เริ่ม', type: 'date' }, { key: 'ageDays', label: 'อายุ (วัน)', type: 'number' }, { key: 'branchName', label: 'สาขา' }, { key: 'machineName', label: 'เครื่องจักร' }, { key: 'inputQty', label: 'Input', type: 'number' }, { key: 'outputQty', label: 'Output', type: 'number' }, { key: 'wipQty', label: 'WIP Qty', type: 'number' }, { key: 'wipValue', label: 'WIP Value', type: 'money' }, { key: 'status', label: 'สถานะ' }],
+    title: 'งานระหว่างทำคงเหลือ',
+    metrics: [{ key: 'count', label: 'ใบสั่งผลิตที่มีงานระหว่างทำ' }, { key: 'wipQty', label: 'ปริมาณงานระหว่างทำ', type: 'number' }, { key: 'wipValue', label: 'มูลค่างานระหว่างทำ', type: 'money' }],
+    columns: [{ key: 'docNo', label: 'เลขที่ใบสั่งผลิต' }, { key: 'date', label: 'วันที่เริ่ม', type: 'date' }, { key: 'ageDays', label: 'อายุ (วัน)', type: 'number' }, { key: 'branchName', label: 'สาขา' }, { key: 'machineName', label: 'เครื่องจักร' }, { key: 'inputQty', label: 'วัตถุดิบเข้า', type: 'number' }, { key: 'outputQty', label: 'ผลผลิต', type: 'number' }, { key: 'wipQty', label: 'ปริมาณงานระหว่างทำ', type: 'number' }, { key: 'wipValue', label: 'มูลค่างานระหว่างทำ', type: 'money' }, { key: 'status', label: 'สถานะ' }],
   },
   report: {
     apiPath: '/api/production/report',
-    title: 'รายงานการผลิต / Yield',
+    title: 'รายงานผลผลิต',
     exportable: true,
-    metrics: [{ key: 'inputQty', label: 'วัตถุดิบรวม', type: 'number' }, { key: 'outputQty', label: 'ผลผลิตรวม', type: 'number' }, { key: 'lossQty', label: 'Loss รวม', type: 'number' }, { key: 'yieldPct', label: 'Yield', type: 'percent' }, { key: 'totalCost', label: 'ต้นทุนผลิตรวม', type: 'money' }, { key: 'lossValue', label: 'Loss Value', type: 'money' }],
-    columns: [{ key: 'docNo', label: 'เลขที่ใบสั่งผลิต' }, { key: 'date', label: 'วันที่สร้าง', type: 'date' }, { key: 'productionType', label: 'ประเภทเครื่องจักร' }, { key: 'inputProducts', label: 'สินค้าที่เบิกผลิต' }, { key: 'machineName', label: 'เครื่องจักร' }, { key: 'status', label: 'สถานะ' }, { key: 'inputQty', label: 'Input', type: 'number' }, { key: 'outputQty', label: 'Output', type: 'number' }, { key: 'wipQty', label: 'WIP', type: 'number' }, { key: 'lossQty', label: 'Loss', type: 'number' }, { key: 'yieldPct', label: 'Yield', type: 'percent' }, { key: 'inputCost', label: 'RM', type: 'money' }, { key: 'processCost', label: 'Process', type: 'money' }, { key: 'totalCost', label: 'ต้นทุนรวม', type: 'money' }, { key: 'lossValue', label: 'Loss Value (บาท)', type: 'money' }, { key: 'rmCostPerKg', label: 'RM บาท/กก.', type: 'money' }, { key: 'productionCostPerKg', label: 'ต้นทุนผลิต บาท/กก.', type: 'money' }],
+    metrics: [{ key: 'inputQty', label: 'วัตถุดิบรวม', type: 'number' }, { key: 'outputQty', label: 'ผลผลิตรวม', type: 'number' }, { key: 'lossQty', label: 'น้ำหนักสูญเสียรวม', type: 'number' }, { key: 'yieldPct', label: 'อัตราผลได้', type: 'percent' }, { key: 'totalCost', label: 'ต้นทุนผลิตรวม', type: 'money' }, { key: 'lossValue', label: 'มูลค่าสูญเสีย', type: 'money' }],
+    columns: [{ key: 'docNo', label: 'เลขที่ใบสั่งผลิต' }, { key: 'date', label: 'วันที่สร้าง', type: 'date' }, { key: 'productionType', label: 'ประเภทเครื่องจักร' }, { key: 'inputProducts', label: 'สินค้าที่เบิกผลิต' }, { key: 'machineName', label: 'เครื่องจักร' }, { key: 'status', label: 'สถานะ' }, { key: 'inputQty', label: 'วัตถุดิบเข้า', type: 'number' }, { key: 'outputQty', label: 'ผลผลิต', type: 'number' }, { key: 'wipQty', label: 'งานระหว่างทำ', type: 'number' }, { key: 'lossQty', label: 'สูญเสีย', type: 'number' }, { key: 'yieldPct', label: 'อัตราผลได้', type: 'percent' }, { key: 'inputCost', label: 'ต้นทุนวัตถุดิบ', type: 'money' }, { key: 'processCost', label: 'ต้นทุนกระบวนการ', type: 'money' }, { key: 'totalCost', label: 'ต้นทุนรวม', type: 'money' }, { key: 'lossValue', label: 'มูลค่าสูญเสีย (บาท)', type: 'money' }, { key: 'rmCostPerKg', label: 'ต้นทุนวัตถุดิบ บาท/กก.', type: 'money' }, { key: 'productionCostPerKg', label: 'ต้นทุนผลิต บาท/กก.', type: 'money' }],
   },
   cost: {
     apiPath: '/api/production/production-cost-report',
@@ -100,29 +102,29 @@ const wipColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'machineName', defaultWidth: 120, minWidth: 100 },
   { key: 'inputQty', defaultWidth: 100, minWidth: 90 },
   { key: 'outputQty', defaultWidth: 100, minWidth: 90 },
-  { key: 'wipQty', defaultWidth: 100, minWidth: 90 },
-  { key: 'wipValue', defaultWidth: 120, minWidth: 105 },
+  { key: 'wipQty', defaultWidth: 180, minWidth: 170 },
+  { key: 'wipValue', defaultWidth: 170, minWidth: 160 },
   { key: 'status', defaultWidth: 100, minWidth: 90 },
 ]
 
 const reportColumns: Array<ResizableColumnDefinition<string>> = [
-  { key: 'docNo', defaultWidth: 155, minWidth: 135 },
+  { key: 'docNo', defaultWidth: 170, minWidth: 145 },
   { key: 'date', defaultWidth: 115, minWidth: 105 },
-  { key: 'productionType', defaultWidth: 125, minWidth: 115 },
-  { key: 'inputProducts', defaultWidth: 180, minWidth: 145 },
-  { key: 'machineName', defaultWidth: 120, minWidth: 100 },
-  { key: 'status', defaultWidth: 120, minWidth: 105 },
+  { key: 'productionType', defaultWidth: 160, minWidth: 135 },
+  { key: 'inputProducts', defaultWidth: 220, minWidth: 180 },
+  { key: 'machineName', defaultWidth: 140, minWidth: 120 },
+  { key: 'status', defaultWidth: 130, minWidth: 115 },
   { key: 'inputQty', defaultWidth: 100, minWidth: 90 },
   { key: 'outputQty', defaultWidth: 100, minWidth: 90 },
-  { key: 'wipQty', defaultWidth: 100, minWidth: 85 },
+  { key: 'wipQty', defaultWidth: 125, minWidth: 115 },
   { key: 'lossQty', defaultWidth: 100, minWidth: 85 },
-  { key: 'yieldPct', defaultWidth: 90, minWidth: 80 },
+  { key: 'yieldPct', defaultWidth: 110, minWidth: 100 },
   { key: 'inputCost', defaultWidth: 110, minWidth: 95 },
-  { key: 'processCost', defaultWidth: 110, minWidth: 95 },
+  { key: 'processCost', defaultWidth: 155, minWidth: 145 },
   { key: 'totalCost', defaultWidth: 115, minWidth: 105 },
-  { key: 'lossValue', defaultWidth: 130, minWidth: 115 },
-  { key: 'rmCostPerKg', defaultWidth: 130, minWidth: 115 },
-  { key: 'productionCostPerKg', defaultWidth: 160, minWidth: 140 },
+  { key: 'lossValue', defaultWidth: 150, minWidth: 130 },
+  { key: 'rmCostPerKg', defaultWidth: 185, minWidth: 175 },
+  { key: 'productionCostPerKg', defaultWidth: 185, minWidth: 160 },
 ]
 
 const costColumns: Array<ResizableColumnDefinition<string>> = [
@@ -271,10 +273,19 @@ function productionStatusLabel(status: string) {
   return productionStatusOptions.find((option) => option.value === status)?.label ?? status
 }
 
+function productionTypeLabel(type: string) {
+  return ({
+    Baling: 'อัดก้อน',
+    Melting: 'หลอม',
+    Processing: 'แปรรูป',
+    Sorting: 'คัดแยก',
+  } as Record<string, string>)[type] ?? type
+}
+
 export function ProductionReportPageClient({ mode }: { mode: keyof typeof configs }) {
   const config = configs[mode]
-  const wipResize = useResizableColumns('production.report.wip.v5', wipColumns)
-  const reportResize = useResizableColumns('production.report.report.v5', reportColumns)
+  const wipResize = useResizableColumns('production.report.wip.v6', wipColumns)
+  const reportResize = useResizableColumns('production.report.report.v7', reportColumns)
   const costResize = useResizableColumns('production.report.cost.v5', costColumns)
   const costBreakdownResize = useResizableColumns('production.report.cost.breakdown.v1', productionCostBreakdownColumns)
   const yieldLossResize = useResizableColumns('production.report.yieldLoss.v5', yieldLossColumns)
@@ -648,10 +659,10 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           <div className="overflow-x-auto">
             <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: costBreakdownResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
-                {productionCostBreakdownColumns.map((column, index) => (
+                {productionCostBreakdownColumns.map((column) => (
                   <col
                     key={column.key}
-                    style={index === productionCostBreakdownColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : costBreakdownResize.getColumnStyle(column.key)}
+                    style={costBreakdownResize.getColumnStyle(column.key)}
                   />
                 ))}
               </colgroup>
@@ -679,7 +690,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                       {productionCostBreakdownTableColumns.map((column) => (
                         <td
                           key={column.key}
-                          className={`p-2 text-xs min-w-0 overflow-hidden ${productionCostBreakdownCellClass(column)}`}
+                          className={`p-3 text-xs min-w-0 overflow-hidden ${productionCostBreakdownCellClass(column)}`}
                         >
                           <div className={column.type === 'money' || column.type === 'number' ? 'truncate text-right tabular-nums' : 'truncate'} title={formatProductionCostBreakdownCell(row, column)}>
                             {formatProductionCostBreakdownCell(row, column)}
@@ -792,7 +803,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
     const machineUtilCard = (
       <div className="flex min-h-[260px] flex-col overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm lg:min-h-[340px]">
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-indigo-50/50 p-3">
-          <h3 className="text-sm font-bold text-indigo-700">Machine Utilization (ปริมาณผลิตต่อเครื่อง)</h3>
+          <h3 className="text-sm font-bold text-indigo-700">การใช้เครื่องจักร (ปริมาณผลิตต่อเครื่อง)</h3>
           {dashboardMachineResize.hasCustomWidths ? (
             <button
               className="hidden rounded-xl border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 lg:inline-flex"
@@ -807,10 +818,10 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         <div className="hidden overflow-x-auto lg:block">
           <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: dashboardMachineResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
-              {dashboardMachineColumns.map((column, index) => (
+              {dashboardMachineColumns.map((column) => (
                 <col
                   key={column.key}
-                  style={index === dashboardMachineColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : dashboardMachineResize.getColumnStyle(column.key)}
+                  style={dashboardMachineResize.getColumnStyle(column.key)}
                 />
               ))}
             </colgroup>
@@ -824,9 +835,9 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             <tbody className="divide-y divide-slate-100">
               {machineUtil.map((item) => (
                 <tr key={item.name} className="hover:bg-slate-50">
-                  <td className="min-w-0 overflow-hidden p-2 text-xs text-slate-700"><div className="truncate" title={item.name}>{item.name}</div></td>
-                  <td className="whitespace-nowrap p-2 text-right text-xs tabular-nums">{item.batches}</td>
-                  <td className="whitespace-nowrap p-2 text-right text-xs font-bold tabular-nums text-indigo-700">{formatMoney(item.qty)}</td>
+                  <td className="min-w-0 overflow-hidden p-3 text-xs text-slate-700"><div className="truncate" title={item.name}>{item.name}</div></td>
+                  <td className="whitespace-nowrap p-3 text-right text-xs tabular-nums">{item.batches}</td>
+                  <td className="whitespace-nowrap p-3 text-right text-xs font-bold tabular-nums text-indigo-700">{formatMoney(item.qty)}</td>
                 </tr>
               ))}
               {!machineUtil.length ? <tr><td className="py-6 text-center text-slate-400" colSpan={3}>ยังไม่มีข้อมูล</td></tr> : null}
@@ -869,43 +880,31 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           <h1 className="text-xl font-bold text-slate-900">แดชบอร์ดการผลิต</h1>
         </div>
 
-        {/* Mobile iOS-Style Segmented Tab Navigation */}
-        <div className="lg:hidden flex rounded-xl bg-slate-100 p-1 border border-slate-200/40">
-          {(['overview', 'products'] as const).map((tab) => {
-            const isActive = activeTab === tab
-            const label = tab === 'overview' ? '📊 ภาพรวม' : '📦 สินค้า'
-            return (
-              <button
-                key={tab}
-                className={`flex-1 rounded-md py-2 text-xs font-bold text-center transition-all ${
-                  isActive
-                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200/20'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-                type="button"
-                onClick={() => setActiveTab(tab)}
-              >
-                {label}
-              </button>
-            )
-          })}
-        </div>
+        <Tabs className="min-w-0 lg:hidden" value={activeTab} onValueChange={(value) => setActiveTab(value as 'overview' | 'products')}>
+          <TabsList className="w-full min-w-0 overflow-x-auto" variant="line">
+            {(['overview', 'products'] as const).map((tab) => (
+              <TabsTrigger className="min-w-0 shrink-0 px-3 text-xs" key={tab} value={tab} variant="line">
+                {tab === 'overview' ? 'ภาพรวม' : 'สินค้า'}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
 
         {/* KPI Cards Container */}
         <div className={`grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm ${
           activeTab === 'overview' ? 'grid lg:grid' : 'hidden lg:grid'
         }`}>
-          <DashboardKpi label="ใบสั่งผลิต" note={`Input ${formatMoney(summary.inputQty ?? 0)} | Output ${formatMoney(summary.outputQty ?? 0)}`} tone="blue" value={formatMoney(summary.count ?? 0)} emoji="🏭" />
+          <DashboardKpi icon={<FileText aria-hidden="true" className="size-5" />} label="ใบสั่งผลิต" note={`วัตถุดิบเข้า ${formatMoney(summary.inputQty ?? 0)} | ผลผลิต ${formatMoney(summary.outputQty ?? 0)}`} tone="blue" value={formatMoney(summary.count ?? 0)} />
           <DashboardStatusKpi items={byStatus} />
-          <DashboardKpi label="WIP คงเหลือทั้งระบบ" note="กก. ที่ยังผลิตค้างอยู่" tone="amber" value={formatMoney(summary.totalWipQty ?? summary.wipQty ?? 0)} emoji="⚙️" />
-          <DashboardKpi label="Yield %" note={`Loss ${Number(summary.lossPct ?? 0).toFixed(1)}%`} tone="purple" value={`${Number(summary.yieldPct ?? 0).toFixed(1)}%`} emoji="📈" />
+          <DashboardKpi icon={<Package2 aria-hidden="true" className="size-5" />} label="งานระหว่างทำคงเหลือ" note="กก. ที่ยังผลิตค้างอยู่" tone="amber" value={formatMoney(summary.totalWipQty ?? summary.wipQty ?? 0)} />
+          <DashboardKpi icon={<TrendingUp aria-hidden="true" className="size-5" />} label="อัตราผลได้" note={`สูญเสีย ${Number(summary.lossPct ?? 0).toFixed(1)}%`} tone="purple" value={`${Number(summary.yieldPct ?? 0).toFixed(1)}%`} />
         </div>
 
         {/* Charts Container */}
         <div className={`grid-cols-1 gap-4 lg:grid-cols-2 ${
           activeTab === 'overview' ? 'grid lg:grid' : 'hidden lg:grid'
         }`}>
-          <ChartPanel controls={dashboardRangeControls} title="ผลิตรายวัน (Input/Output/Loss)" type="line" rows={daily.map((item) => ({ label: item.date.slice(5), input: item.inputQty, output: item.outputQty, loss: item.lossQty }))} />
+          <ChartPanel controls={dashboardRangeControls} title="ผลิตรายวัน (วัตถุดิบเข้า / ผลผลิต / สูญเสีย)" type="line" rows={daily.map((item) => ({ label: item.date.slice(5), input: item.inputQty, output: item.outputQty, loss: item.lossQty }))} />
           {machineUtilCard}
         </div>
 
@@ -932,10 +931,10 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             <div className="hidden lg:block overflow-x-auto">
               <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: dashboardTopProductResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
                 <colgroup>
-                  {dashboardTopProductColumns.map((column, index) => (
+                  {dashboardTopProductColumns.map((column) => (
                     <col
                       key={column.key}
-                      style={index === dashboardTopProductColumns.length - 1 ? { minWidth: column.minWidth ?? 80 } : dashboardTopProductResize.getColumnStyle(column.key)}
+                      style={dashboardTopProductResize.getColumnStyle(column.key)}
                     />
                   ))}
                 </colgroup>
@@ -953,13 +952,13 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                 <tbody className="divide-y divide-slate-100">
                   {topProducts.map((item, index) => (
                     <tr key={`${item.code || item.name}-${index}`} className="hover:bg-slate-50">
-                      <td className="p-2 text-center text-xs font-bold text-emerald-700 tabular-nums">{index + 1}</td>
-                      <td className="p-2 font-mono text-xs text-slate-600 min-w-0 overflow-hidden"><div className="truncate" title={item.code || '-'}>{item.code || '-'}</div></td>
-                      <td className="p-2 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={item.name}>{item.name}</div></td>
-                      <td className="p-2 text-right text-xs tabular-nums whitespace-nowrap">{item.batches}</td>
-                      <td className="p-2 text-right font-bold text-xs tabular-nums whitespace-nowrap">{formatMoney(item.qty)}</td>
-                      <td className="p-2 text-right text-xs tabular-nums whitespace-nowrap">{formatMoney(item.cost)}</td>
-                      <td className="p-2 text-right text-xs text-slate-600 tabular-nums whitespace-nowrap">{formatMoney(item.avgCost ?? (item.qty > 0 ? item.cost / item.qty : 0))}</td>
+                      <td className="p-3 text-center text-xs font-bold text-emerald-700 tabular-nums">{index + 1}</td>
+                      <td className="p-3 font-mono text-xs text-slate-600 min-w-0 overflow-hidden"><div className="truncate" title={item.code || '-'}>{item.code || '-'}</div></td>
+                      <td className="p-3 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={item.name}>{item.name}</div></td>
+                      <td className="p-3 text-right text-xs tabular-nums whitespace-nowrap">{item.batches}</td>
+                      <td className="p-3 text-right font-bold text-xs tabular-nums whitespace-nowrap">{formatMoney(item.qty)}</td>
+                      <td className="p-3 text-right text-xs tabular-nums whitespace-nowrap">{formatMoney(item.cost)}</td>
+                      <td className="p-3 text-right text-xs text-slate-600 tabular-nums whitespace-nowrap">{formatMoney(item.avgCost ?? (item.qty > 0 ? item.cost / item.qty : 0))}</td>
                     </tr>
                   ))}
                   {!topProducts.length ? <tr><td className="py-6 text-center text-slate-400" colSpan={7}>ยังไม่มีข้อมูลในช่วงนี้</td></tr> : null}
@@ -1045,15 +1044,11 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               </button>
             ) : null}
           </div>
-          {config.exportable ? (
-            <a className="rounded-md bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-sm font-semibold text-white focus:outline-none w-full sm:w-auto text-center shrink-0" href={exportHref}>
-              ส่งออก Excel
-            </a>
-          ) : null}
         </div>
-        {mode === 'report' ? (
-          <div className="mt-3 flex flex-col gap-2 text-xs sm:flex-row sm:flex-wrap sm:items-center">
-            <div className="flex flex-wrap items-center gap-2">
+        {mode === 'report' || config.exportable ? (
+          <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3 text-xs sm:flex-row sm:flex-wrap sm:items-center">
+            {mode === 'report' ? (
+              <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium text-slate-500">ช่วงเวลา:</span>
               {reportRangeOptions.map((option) => {
                 const isActive = reportRangeFilter === option.value
@@ -1068,8 +1063,10 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                   </button>
                 )
               })}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
+              </div>
+            ) : null}
+            {mode === 'report' ? (
+              <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium text-slate-500">สถานะผลิต:</span>
               {productionStatusOptions.map((option) => {
                 const isActive = statusFilter === option.value
@@ -1084,7 +1081,13 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                   </button>
                 )
               })}
-            </div>
+              </div>
+            ) : null}
+            {config.exportable ? (
+              <a className="ml-auto inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 focus:outline-none" href={exportHref}>
+                ส่งออก Excel
+              </a>
+            ) : null}
           </div>
         ) : null}
     </div>
@@ -1101,7 +1104,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
     >
       <TabsList className="w-full overflow-x-auto" variant="line">
         <TabsTrigger value="orders" variant="line">รายการใบสั่งผลิต</TabsTrigger>
-        <TabsTrigger value="wip" variant="line">WIP คงเหลือ</TabsTrigger>
+        <TabsTrigger value="wip" variant="line">งานระหว่างทำคงเหลือ</TabsTrigger>
         <TabsTrigger value="products" variant="line">สรุปตามสินค้า</TabsTrigger>
       </TabsList>
     </Tabs>
@@ -1129,7 +1132,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               <div className="flex flex-col gap-2 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
                 <div>พบทั้งหมด <span className="font-semibold text-slate-900">{wipRows.length}</span> รายการ</div>
                 <div className="text-xs text-slate-500">
-                  WIP รวม <span className="font-semibold text-amber-700">{formatMoney(totalWipQty)} กก.</span>
+                  งานระหว่างทำรวม <span className="font-semibold text-amber-700">{formatMoney(totalWipQty)} กก.</span>
                   <span className="mx-1 text-slate-300">|</span>
                   มูลค่า <span className="font-semibold text-slate-900">{formatMoney(totalWipValue)} บาท</span>
                   {wipResize.hasCustomWidths ? (
@@ -1145,21 +1148,17 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                 <div className="overflow-x-auto">
                   <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: wipResize.tableMinWidth, tableLayout: 'fixed' }}>
                     <colgroup>
-                      {configs.wip.columns.map((col, index) => {
-                        const columnDefinition = wipColumns.find((column) => column.key === col.key)
-                        if (index === configs.wip.columns.length - 1) {
-                          return <col key={col.key} style={{ minWidth: columnDefinition?.minWidth ?? 80 }} />
-                        }
-                        return <col key={col.key} style={wipResize.getColumnStyle(col.key)} />
-                      })}
+                      {configs.wip.columns.map((col) => (
+                        <col key={col.key} style={wipResize.getColumnStyle(col.key)} />
+                      ))}
                     </colgroup>
                     <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
                       <tr>
-                        {configs.wip.columns.map((column) => (
+                        {configs.wip.columns.map((column, index) => (
                           <ResizableTableHead
                             key={column.key}
                             activeSortKey={sortKey}
-                            align={column.type === 'number' || column.type === 'money' || column.type === 'percent' ? 'right' : 'left'}
+                            align={index === 0 ? 'left' : 'right'}
                             direction={sortDir}
                             label={column.label}
                             resizeProps={wipResize.getResizeHandleProps(column.key, column.label)}
@@ -1175,15 +1174,15 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                         return (
                           <tr key={String(row.id ?? index)} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${wipAgeClass(ageDays)}`}>
                             <td className="whitespace-nowrap px-3 py-3 font-mono text-slate-900">{String(row.docNo ?? '')}</td>
-                            <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatDateDisplay(String(row.date ?? ''))}</td>
+                            <td className="whitespace-nowrap px-3 py-3 text-right text-slate-600">{formatDateDisplay(String(row.date ?? ''))}</td>
                             <td className={`whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums ${cellTone(ageDays, { key: 'ageDays', label: 'อายุ (วัน)' }, 'wip')}`}>{ageDays}</td>
-                            <td className="whitespace-nowrap px-3 py-3 text-slate-700">{String(row.branchName ?? '-')}</td>
-                            <td className="whitespace-nowrap px-3 py-3 text-slate-700">{String(row.machineName ?? '-')}</td>
+                            <td className="whitespace-nowrap px-3 py-3 text-right text-slate-700">{String(row.branchName ?? '-')}</td>
+                            <td className="whitespace-nowrap px-3 py-3 text-right text-slate-700">{String(row.machineName ?? '-')}</td>
                             <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatMoney(Number(row.inputQty ?? 0))}</td>
                             <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatMoney(Number(row.outputQty ?? 0))}</td>
                             <td className="whitespace-nowrap px-3 py-3 text-right font-bold tabular-nums text-amber-700">{formatMoney(Number(row.wipQty ?? 0))}</td>
                             <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatMoney(Number(row.wipValue ?? 0))}</td>
-                            <td className="whitespace-nowrap px-3 py-3">
+                            <td className="whitespace-nowrap px-3 py-3 text-right">
                               <span className={`rounded-md px-1.5 py-0.5 text-xs font-bold ${row.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
                                 {productionStatusLabel(String(row.status ?? ''))}
                               </span>
@@ -1191,7 +1190,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                           </tr>
                         )
                       })}
-                      {!wipRows.length ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={10}>ไม่มี WIP คงเหลือ</td></tr> : null}
+                      {!wipRows.length ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={10}>ไม่มีงานระหว่างทำคงเหลือ</td></tr> : null}
                     </tbody>
                   </table>
                 </div>
@@ -1217,7 +1216,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                             <span className="text-sm font-bold text-slate-900 truncate block mt-0.5">{String(row.branchName ?? '')} / {String(row.machineName ?? '-')}</span>
                           </div>
                           <div>
-                            <span className="text-slate-500 block text-sm font-semibold">Input / Output</span>
+                            <span className="text-slate-500 block text-sm font-semibold">วัตถุดิบเข้า / ผลผลิต</span>
                             <span className="text-sm font-bold text-slate-900 mt-0.5 block">{formatMoney(Number(row.inputQty ?? 0))} / {formatMoney(Number(row.outputQty ?? 0))} กก.</span>
                           </div>
                           <div>
@@ -1230,7 +1229,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                           </div>
                         </div>
                         <div className="flex items-center justify-between border-t border-slate-100 pt-2 mt-1">
-                          <span className="text-sm font-semibold text-slate-500">WIP Qty / Value</span>
+                          <span className="text-sm font-semibold text-slate-500">งานระหว่างทำ / มูลค่า</span>
                           <div className="text-right">
                             <div className="text-base font-bold text-amber-700">{formatMoney(Number(row.wipQty ?? 0))} กก.</div>
                             <div className="text-sm font-medium text-slate-600">{formatMoney(Number(row.wipValue ?? 0))} ฿</div>
@@ -1239,7 +1238,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                       </div>
                     )
                   })}
-                  {!wipRows.length ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">ไม่มี WIP คงเหลือ</div> : null}
+                  {!wipRows.length ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">ไม่มีงานระหว่างทำคงเหลือ</div> : null}
               </div>
             </div>
           ) : null}
@@ -1261,13 +1260,9 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                 <div className="overflow-x-auto">
               <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: productSummaryResize.tableMinWidth, tableLayout: 'fixed' }}>
                 <colgroup>
-                  {productSummaryTableColumns.map((col, index) => {
-                    const columnDefinition = productSummaryColumns.find((column) => column.key === col.key)
-                    if (index === productSummaryTableColumns.length - 1) {
-                      return <col key={col.key} style={{ minWidth: columnDefinition?.minWidth ?? 80 }} />
-                    }
-                    return <col key={col.key} style={productSummaryResize.getColumnStyle(col.key)} />
-                  })}
+                  {productSummaryTableColumns.map((col) => (
+                    <col key={col.key} style={productSummaryResize.getColumnStyle(col.key)} />
+                  ))}
                 </colgroup>
                 <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
                   <tr>
@@ -1343,14 +1338,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                 คืนค่าเดิมตาราง
               </Button>
             ) : null}
-            <select
-              aria-label="จำนวนรายการต่อหน้า"
-              className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800"
-              value={pageSize}
-              onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}
-            >
-              {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-            </select>
+            <PageSizeDropdown value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
             <Button
               disabled={currentPage <= 1}
               size="sm"
@@ -1379,22 +1367,18 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         <div className="overflow-x-auto">
           <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
-              {config.columns.map((col, index) => {
-                const columnDefinition = activeResizableColumns.find((column) => column.key === col.key)
-                if (index === config.columns.length - 1) {
-                  return <col key={col.key} style={{ minWidth: columnDefinition?.minWidth ?? 80 }} />
-                }
-                return <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
-              })}
+              {config.columns.map((col) => (
+                <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+              ))}
             </colgroup>
             <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
               <tr>
-                {config.columns.map((column) => (
+                {config.columns.map((column, index) => (
                   <ResizableTableHead
                     key={column.key}
                     activeSortKey={sortKey}
                     label={column.label}
-                    align={column.type === 'number' || column.type === 'money' || column.type === 'percent' ? 'right' : 'left'}
+                    align={index === 0 ? 'left' : 'right'}
                     direction={sortDir}
                     sortKey={column.key}
                     resizeProps={columnResize.getResizeHandleProps(column.key, column.label)}
@@ -1407,12 +1391,12 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={config.columns.length}>กำลังโหลดข้อมูล</td></tr> : null}
               {!isLoading && pagedFilteredRows.map((row, index) => (
                 <tr key={String(row.id ?? index)} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${mode === 'wip' ? wipAgeClass(Number(row.ageDays ?? 0)) : ''}`}>
-                  {config.columns.map((column) => {
-                    const isNumeric = column.type === 'number' || column.type === 'money' || column.type === 'percent'
+                  {config.columns.map((column, index) => {
+                    const isRightAligned = index > 0
                     return (
                       <td
                         key={column.key}
-                        className={`whitespace-nowrap px-3 py-3 overflow-hidden truncate ${isNumeric ? 'text-right font-medium tabular-nums text-slate-900' : 'text-left text-slate-700'} ${cellTone(row[column.key], column, mode)}`}
+                        className={`whitespace-nowrap px-3 py-3 overflow-hidden truncate ${isRightAligned ? 'text-right font-medium tabular-nums text-slate-900' : 'text-left text-slate-700'} ${cellTone(row[column.key], column, mode)}`}
                       >
                         {formatDisplayCell(row, column, mode)}
                       </td>
@@ -1453,7 +1437,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                 <div className="space-y-1.5 rounded-xl border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">
                   <div>
                     <span className="font-semibold text-slate-500">ประเภทเครื่องจักร: </span>
-                    <span className="text-slate-900">{String(row.productionType ?? '-')}</span>
+                    <span className="text-slate-900">{productionTypeLabel(String(row.productionType ?? '-'))}</span>
                   </div>
                   <div>
                     <span className="font-semibold text-slate-500">สินค้าที่เบิกผลิต: </span>
@@ -1471,27 +1455,27 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
 
                 <div className="grid grid-cols-2 gap-3 border-t border-slate-100 pt-3 text-sm">
                   <div>
-                    <span className="block text-xs text-slate-500">Input / Output</span>
+                    <span className="block text-xs text-slate-500">วัตถุดิบเข้า / ผลผลิต</span>
                     <span className="mt-0.5 block font-bold tabular-nums text-slate-900">
                       {formatMoney(Number(row.inputQty ?? 0))} / {formatMoney(Number(row.outputQty ?? 0))} กก.
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="block text-xs text-slate-500">WIP / Loss</span>
+                    <span className="block text-xs text-slate-500">งานระหว่างทำ / สูญเสีย</span>
                     <span className="mt-0.5 block font-bold tabular-nums text-slate-900">
                       {formatMoney(Number(row.wipQty ?? 0))} / {formatMoney(Number(row.lossQty ?? 0))} กก.
                     </span>
                   </div>
                   <div>
-                    <span className="block text-xs text-slate-500">Yield</span>
+                    <span className="block text-xs text-slate-500">อัตราผลได้</span>
                     <span className="mt-0.5 block font-bold tabular-nums text-emerald-700">{formatCell(row.yieldPct, 'percent')}</span>
                   </div>
                   <div className="text-right">
-                    <span className="block text-xs text-slate-500">Loss Value</span>
+                    <span className="block text-xs text-slate-500">มูลค่าสูญเสีย</span>
                     <span className="mt-0.5 block font-bold tabular-nums text-slate-900">{formatCell(row.lossValue, 'money')}</span>
                   </div>
                   <div>
-                    <span className="block text-xs text-slate-500">RM บาท/กก.</span>
+                    <span className="block text-xs text-slate-500">ต้นทุนวัตถุดิบ บาท/กก.</span>
                     <span className="mt-0.5 block font-bold tabular-nums text-slate-900">{formatCell(row.rmCostPerKg, 'money')}</span>
                   </div>
                   <div className="text-right">
@@ -1554,20 +1538,20 @@ function Metric({
   metricKey?: string
   className?: string
 }) {
-  let icon = '??'
+  let Icon = FileText
   let tone: 'amber' | 'blue' | 'emerald' | 'red' | 'slate' | 'purple' = 'slate'
   const key = metricKey?.toLowerCase() || ''
-  if (key.includes('count') || key.includes('batches')) icon = '??'
-  else if (key.includes('input')) { icon = '??'; tone = 'blue' }
-  else if (key.includes('output')) { icon = '?'; tone = 'emerald' }
-  else if (key.includes('wip')) { icon = '??'; tone = 'amber' }
-  else if (key.includes('loss')) { icon = '??'; tone = 'red' }
-  else if (key.includes('yieldpct')) { icon = '??'; tone = 'emerald' }
-  else if (key.includes('cost') || key.includes('value') || key.includes('pnl')) icon = '??'
+  if (key.includes('count') || key.includes('batches')) tone = 'blue'
+  else if (key.includes('input')) { Icon = Package2; tone = 'blue' }
+  else if (key.includes('output')) { Icon = Scale; tone = 'emerald' }
+  else if (key.includes('wip')) { Icon = Package2; tone = 'amber' }
+  else if (key.includes('loss')) { Icon = TriangleAlert; tone = 'red' }
+  else if (key.includes('yieldpct')) { Icon = TrendingUp; tone = 'emerald' }
+  else if (key.includes('cost') || key.includes('value') || key.includes('pnl')) Icon = Coins
   else if (key.includes('purple')) tone = 'purple'
   const unit = metricUnit(metricKey, type, label)
   const renderedValue = `${formatCell(value, type)}${unit ? ` ${unit}` : ''}`
-  return <SharedKpiCard className={className} icon={icon} label={label} tone={tone} value={renderedValue} />
+  return <SharedKpiCard className={className} icon={<Icon aria-hidden="true" className="size-5" />} label={label} tone={tone} value={renderedValue} />
 }
 
 function metricUnit(metricKey?: string, type?: Column['type'], label = '') {
@@ -1602,19 +1586,19 @@ function ImpactCard({ label, tone, value }: { label: string; tone: 'gain' | 'los
 }
 
 function DashboardKpi({
+  icon,
   label,
   note,
   tone,
   value,
-  emoji,
 }: {
+  icon: ReactNode
   label: string
   note: string
   tone: 'amber' | 'blue' | 'emerald' | 'purple'
   value: string
-  emoji: string
 }) {
-  return <SharedKpiCard icon={emoji} label={label} note={note} tone={tone} value={value} />
+  return <SharedKpiCard icon={icon} label={label} note={note} tone={tone} value={value} />
 }
 
 function DashboardStatusKpi({ items }: { items: Array<{ count: number; status: string }> }) {
@@ -1628,7 +1612,7 @@ function DashboardStatusKpi({ items }: { items: Array<{ count: number; status: s
   return (
     <>
       {visibleItems.map((item) => (
-        <SharedKpiCard key={item.label} icon="📋" label={item.label} tone="emerald" value={item.value.toLocaleString('th-TH')} />
+        <SharedKpiCard key={item.label} icon={<FileText aria-hidden="true" className="size-5" />} label={item.label} tone="emerald" value={item.value.toLocaleString('th-TH')} />
       ))}
     </>
   )
@@ -1679,9 +1663,9 @@ function ChartPanel({ controls, rows, title, type }: { controls?: ReactNode; row
   const yFor = (value: number) => paddingTop + (1 - value / yMax) * plotHeight
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => yMax * ratio)
   const series = [
-    { color: '#2563eb', key: 'input' as const, label: 'Input', soft: 'rgba(37, 99, 235, 0.10)' },
-    { color: '#10b981', key: 'output' as const, label: 'Output', soft: 'rgba(16, 185, 129, 0.10)' },
-    { color: '#e11d48', key: 'loss' as const, label: 'Loss', soft: 'transparent' },
+    { color: '#2563eb', key: 'input' as const, label: 'วัตถุดิบเข้า', soft: 'rgba(37, 99, 235, 0.10)' },
+    { color: '#10b981', key: 'output' as const, label: 'ผลผลิต', soft: 'rgba(16, 185, 129, 0.10)' },
+    { color: '#e11d48', key: 'loss' as const, label: 'สูญเสีย', soft: 'transparent' },
   ]
 
   return (
@@ -1860,6 +1844,7 @@ function formatDisplayCell(row: Row, column: Column, mode: string) {
   if (column.key === 'status' && ['dashboard', 'report', 'wip'].includes(mode)) {
     return productionStatusLabel(String(row[column.key] ?? ''))
   }
+  if (column.key === 'productionType') return productionTypeLabel(String(row[column.key] ?? ''))
   return formatCell(row[column.key], column.type)
 }
 

@@ -6,6 +6,7 @@ import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/Searc
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -630,7 +631,7 @@ export function StockBalancePageClient() {
         <Metric emoji="💰" iconBg="bg-emerald-100 text-emerald-700" label="มูลค่าสต๊อกรวม" value={formatMoney(summary.value)} tone="emerald" />
         <Metric emoji="📥" iconBg="bg-sky-100 text-sky-700" label="รอเข้า" sub={`${summary.pendingInRows.toLocaleString('th-TH')} รายการ จาก WTI`} value={`${formatMoney(summary.awaitingBillQty)} กก.`} tone="blue" />
         <Metric emoji="⏳" iconBg="bg-amber-100 text-amber-700" label="รอออก" sub={`${summary.pendingOutRows.toLocaleString('th-TH')} รายการ จาก WTO`} value={`${formatMoney(summary.onHoldQty)} กก.`} tone="amber" />
-        <Metric emoji="✅" iconBg="bg-emerald-100 text-emerald-700" label="พร้อมส่ง" sub={`${summary.qty > 0 ? (summary.readyQty / summary.qty * 100).toFixed(1) : '0'}% ของ Stock`} value={`${formatMoney(summary.readyQty)} กก.`} tone="emerald" />
+        <Metric emoji="✅" iconBg="bg-emerald-100 text-emerald-700" label="พร้อมส่ง" sub={`${summary.qty > 0 ? (summary.readyQty / summary.qty * 100).toFixed(1) : '0'}% ของสต็อก`} value={`${formatMoney(summary.readyQty)} กก.`} tone="emerald" />
       </div>
 
       {/* Status Cards */}
@@ -1071,7 +1072,7 @@ function StatusCard({ item }: { item: StatusSummary }) {
       ? { border: 'border-amber-200', bg: 'bg-amber-50/30', text: 'text-amber-700', iconBg: 'bg-amber-100/60 text-amber-600', emoji: '⚙️', label: 'WIP (กำลังผลิต)' }
       : { border: 'border-blue-200', bg: 'bg-blue-50/30', text: 'text-blue-700', iconBg: 'bg-blue-100/60 text-blue-600', emoji: '📦', label: 'RM (วัตถุดิบ)' }
   return (
-    <div className={`rounded-xl border bg-white p-4 shadow-sm flex items-center gap-3.5 ${meta.border}`}>
+    <div className={`rounded-xl border bg-white p-4 shadow-sm flex items-center gap-3 ${meta.border}`}>
       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${meta.iconBg}`}>
         {meta.emoji}
       </div>
@@ -1204,7 +1205,7 @@ function StockCharts({ byStatus, matrixRows, totalValue }: { byStatus: StatusSum
   return (
     <div className="mb-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h3 className="mb-3 font-semibold text-sm text-slate-800 uppercase tracking-wider">🥧 สัดส่วน Stock RM/WIP/FG (มูลค่า)</h3>
+        <h3 className="mb-3 font-semibold text-sm text-slate-800 uppercase tracking-wider">🥧 สัดส่วนสต็อก RM/WIP/FG (มูลค่า)</h3>
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex h-[180px] w-[180px] items-center justify-center rounded-full shadow-inner" style={{ background: totalValue > 0 ? `conic-gradient(#3b82f6 0deg ${rmDeg}deg, #f59e0b ${rmDeg}deg ${rmDeg + wipDeg}deg, #10b981 ${rmDeg + wipDeg}deg 360deg)` : '#e5e7eb' }}>
             <div className="flex h-[6.5rem] w-[6.5rem] flex-col items-center justify-center rounded-full bg-white text-center border border-slate-100 shadow-sm leading-tight">
@@ -1277,19 +1278,19 @@ function LegendRow({ color, label, value, qty }: { color: string; label: string;
 
 
 const matrixColumns: Array<ResizableColumnDefinition<string>> = [
-  { key: 'group', defaultWidth: 150 },
-  { key: 'rmQty', defaultWidth: 100 },
-  { key: 'rmVal', defaultWidth: 110 },
-  { key: 'rmAvgCost', defaultWidth: 110 },
-  { key: 'wipQty', defaultWidth: 100 },
-  { key: 'wipVal', defaultWidth: 110 },
-  { key: 'wipAvgCost', defaultWidth: 110 },
-  { key: 'fgQty', defaultWidth: 100 },
-  { key: 'fgVal', defaultWidth: 110 },
-  { key: 'fgAvgCost', defaultWidth: 110 },
-  { key: 'totalQty', defaultWidth: 100 },
-  { key: 'totalValue', defaultWidth: 110 },
-  { key: 'totalAvgCost', defaultWidth: 120 },
+  { key: 'group', defaultWidth: 180, minWidth: 160 },
+  { key: 'rmQty', defaultWidth: 120, minWidth: 105 },
+  { key: 'rmVal', defaultWidth: 130, minWidth: 115 },
+  { key: 'rmAvgCost', defaultWidth: 160, minWidth: 140 },
+  { key: 'wipQty', defaultWidth: 130, minWidth: 115 },
+  { key: 'wipVal', defaultWidth: 130, minWidth: 115 },
+  { key: 'wipAvgCost', defaultWidth: 170, minWidth: 150 },
+  { key: 'fgQty', defaultWidth: 130, minWidth: 115 },
+  { key: 'fgVal', defaultWidth: 130, minWidth: 115 },
+  { key: 'fgAvgCost', defaultWidth: 160, minWidth: 140 },
+  { key: 'totalQty', defaultWidth: 120, minWidth: 105 },
+  { key: 'totalValue', defaultWidth: 140, minWidth: 125 },
+  { key: 'totalAvgCost', defaultWidth: 170, minWidth: 150 },
 ]
 
 function MatrixTable({
@@ -1314,7 +1315,7 @@ function MatrixTable({
   onSort?: (key: string) => void
 }) {
   const valueFor = (status: string) => byStatus.find((item) => item.status === status) ?? { count: 0, qty: 0, status, value: 0 }
-  const columnResize = useResizableColumns('stock.balance.matrix.v7', matrixColumns)
+  const columnResize = useResizableColumns('stock.balance.matrix.v8', matrixColumns)
   return (
     <>
       {/* Desktop View (Table) */}
@@ -1354,26 +1355,26 @@ function MatrixTable({
             {!isLoading && matrixRows.map((row) => (
               <Fragment key={row.group}>
                 <tr className="bg-slate-50/70 transition-colors hover:bg-slate-100/70">
-                  <td className="p-3.5 text-slate-855 min-w-0 max-w-0 overflow-hidden">
+                  <td className="p-3 text-slate-855 min-w-0 max-w-0 overflow-hidden">
                     <div className="truncate font-bold" title={row.group}>{row.group}</div>
                     <div className="mt-0.5 truncate text-xs font-medium text-slate-500">{row.products.length.toLocaleString('th-TH')} รายการสินค้า</div>
                   </td>
-                  <td className="p-3.5 text-right text-blue-700 bg-blue-50/10 border-x border-slate-100">{row.rmQty ? formatMoney(row.rmQty) : '-'}</td>
-                  <td className="p-3.5 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100">{row.rmVal ? formatMoney(row.rmVal) : '-'}</td>
-                  <td className="p-3.5 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100">{row.rmQty !== 0 ? `${formatMoney(row.rmVal / row.rmQty)} บ.` : '-'}</td>
-                  <td className="p-3.5 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100">{row.wipQty ? formatMoney(row.wipQty) : '-'}</td>
-                  <td className="p-3.5 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100">{row.wipVal ? formatMoney(row.wipVal) : '-'}</td>
-                  <td className="p-3.5 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100">{row.wipQty !== 0 ? `${formatMoney(row.wipVal / row.wipQty)} บ.` : '-'}</td>
-                  <td className="p-3.5 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100">{row.fgQty ? formatMoney(row.fgQty) : '-'}</td>
-                  <td className="p-3.5 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100">{row.fgVal ? formatMoney(row.fgVal) : '-'}</td>
-                  <td className="p-3.5 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100">{row.fgQty !== 0 ? `${formatMoney(row.fgVal / row.fgQty)} บ.` : '-'}</td>
-                  <td className="p-3.5 text-right">{formatMoney(matrixRowQty(row))}</td>
-                  <td className="p-3.5 text-right text-emerald-700">{formatMoney(matrixRowValue(row))}</td>
-                  <td className="p-3.5 text-right text-emerald-700">{matrixRowQty(row) !== 0 ? `${formatMoney(matrixRowValue(row) / matrixRowQty(row))} บ.` : '-'}</td>
+                  <td className="p-3 text-right text-blue-700 bg-blue-50/10 border-x border-slate-100">{row.rmQty ? formatMoney(row.rmQty) : '-'}</td>
+                  <td className="p-3 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100">{row.rmVal ? formatMoney(row.rmVal) : '-'}</td>
+                  <td className="p-3 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100">{row.rmQty !== 0 ? `${formatMoney(row.rmVal / row.rmQty)} บ.` : '-'}</td>
+                  <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100">{row.wipQty ? formatMoney(row.wipQty) : '-'}</td>
+                  <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100">{row.wipVal ? formatMoney(row.wipVal) : '-'}</td>
+                  <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100">{row.wipQty !== 0 ? `${formatMoney(row.wipVal / row.wipQty)} บ.` : '-'}</td>
+                  <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100">{row.fgQty ? formatMoney(row.fgQty) : '-'}</td>
+                  <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100">{row.fgVal ? formatMoney(row.fgVal) : '-'}</td>
+                  <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100">{row.fgQty !== 0 ? `${formatMoney(row.fgVal / row.fgQty)} บ.` : '-'}</td>
+                  <td className="p-3 text-right">{formatMoney(matrixRowQty(row))}</td>
+                  <td className="p-3 text-right text-emerald-700">{formatMoney(matrixRowValue(row))}</td>
+                  <td className="p-3 text-right text-emerald-700">{matrixRowQty(row) !== 0 ? `${formatMoney(matrixRowValue(row) / matrixRowQty(row))} บ.` : '-'}</td>
                 </tr>
                 {row.products.map((product) => (
                   <tr key={`${row.group}-${product.productId}`} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="p-3.5 pl-8 text-slate-700 min-w-0 max-w-0 overflow-hidden">
+                    <td className="p-3 pl-8 text-slate-700 min-w-0 max-w-0 overflow-hidden">
                       <div className="flex items-start gap-2 min-w-0 w-full">
                         <span className="mt-1.5 h-px w-4 shrink-0 bg-slate-300" />
                         <div className="min-w-0 flex-1 overflow-hidden">
@@ -1386,18 +1387,18 @@ function MatrixTable({
                         </div>
                       </div>
                     </td>
-                    <td className="p-3.5 text-right text-blue-700 bg-blue-50/10 border-x border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.rmQty ? formatMoney(product.rmQty) : '-'}</td>
-                    <td className="p-3.5 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.rmVal ? formatMoney(product.rmVal) : '-'}</td>
-                    <td className="p-3.5 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.rmQty !== 0 ? `${formatMoney(product.rmVal / product.rmQty)} บ.` : '-'}</td>
-                    <td className="p-3.5 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.wipQty ? formatMoney(product.wipQty) : '-'}</td>
-                    <td className="p-3.5 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.wipVal ? formatMoney(product.wipVal) : '-'}</td>
-                    <td className="p-3.5 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.wipQty !== 0 ? `${formatMoney(product.wipVal / product.wipQty)} บ.` : '-'}</td>
-                    <td className="p-3.5 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.fgQty ? formatMoney(product.fgQty) : '-'}</td>
-                    <td className="p-3.5 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.fgVal ? formatMoney(product.fgVal) : '-'}</td>
-                    <td className="p-3.5 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.fgQty !== 0 ? `${formatMoney(product.fgVal / product.fgQty)} บ.` : '-'}</td>
-                    <td className="p-3.5 text-right whitespace-nowrap pl-4 tabular-nums">{formatMoney(matrixProductQty(product))}</td>
-                    <td className="p-3.5 text-right text-emerald-700 whitespace-nowrap pl-4 tabular-nums">{formatMoney(matrixProductValue(product))}</td>
-                    <td className="p-3.5 text-right text-emerald-700 whitespace-nowrap pl-4 tabular-nums">{matrixProductQty(product) !== 0 ? `${formatMoney(matrixProductValue(product) / matrixProductQty(product))} บ.` : '-'}</td>
+                    <td className="p-3 text-right text-blue-700 bg-blue-50/10 border-x border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.rmQty ? formatMoney(product.rmQty) : '-'}</td>
+                    <td className="p-3 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.rmVal ? formatMoney(product.rmVal) : '-'}</td>
+                    <td className="p-3 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.rmQty !== 0 ? `${formatMoney(product.rmVal / product.rmQty)} บ.` : '-'}</td>
+                    <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.wipQty ? formatMoney(product.wipQty) : '-'}</td>
+                    <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.wipVal ? formatMoney(product.wipVal) : '-'}</td>
+                    <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.wipQty !== 0 ? `${formatMoney(product.wipVal / product.wipQty)} บ.` : '-'}</td>
+                    <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.fgQty ? formatMoney(product.fgQty) : '-'}</td>
+                    <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.fgVal ? formatMoney(product.fgVal) : '-'}</td>
+                    <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 whitespace-nowrap pl-4 tabular-nums">{product.fgQty !== 0 ? `${formatMoney(product.fgVal / product.fgQty)} บ.` : '-'}</td>
+                    <td className="p-3 text-right whitespace-nowrap pl-4 tabular-nums">{formatMoney(matrixProductQty(product))}</td>
+                    <td className="p-3 text-right text-emerald-700 whitespace-nowrap pl-4 tabular-nums">{formatMoney(matrixProductValue(product))}</td>
+                    <td className="p-3 text-right text-emerald-700 whitespace-nowrap pl-4 tabular-nums">{matrixProductQty(product) !== 0 ? `${formatMoney(matrixProductValue(product) / matrixProductQty(product))} บ.` : '-'}</td>
                   </tr>
                 ))}
               </Fragment>
@@ -1407,19 +1408,19 @@ function MatrixTable({
           {matrixRows.length ? (
             <tfoot className="bg-slate-50 border-t border-slate-200/80 font-bold text-slate-800">
               <tr>
-                <td className="p-3.5 overflow-hidden truncate">รวมทั้งหมด ({totalMatrixRows} หมวด)</td>
-                <td className="p-3.5 text-right text-blue-700 bg-blue-50/10 border-x border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('RM').qty)}</td>
-                <td className="p-3.5 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('RM').value)}</td>
-                <td className="p-3.5 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100 overflow-hidden truncate">{valueFor('RM').qty !== 0 ? `${formatMoney(valueFor('RM').value / valueFor('RM').qty)} บ.` : '-'}</td>
-                <td className="p-3.5 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('WIP').qty)}</td>
-                <td className="p-3.5 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('WIP').value)}</td>
-                <td className="p-3.5 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 overflow-hidden truncate">{valueFor('WIP').qty !== 0 ? `${formatMoney(valueFor('WIP').value / valueFor('WIP').qty)} บ.` : '-'}</td>
-                <td className="p-3.5 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('FG').qty)}</td>
-                <td className="p-3.5 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('FG').value)}</td>
-                <td className="p-3.5 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 overflow-hidden truncate">{valueFor('FG').qty !== 0 ? `${formatMoney(valueFor('FG').value / valueFor('FG').qty)} บ.` : '-'}</td>
-                <td className="p-3.5 text-right overflow-hidden truncate">{formatMoney(totalQty)}</td>
-                <td className="p-3.5 text-right text-emerald-700 overflow-hidden truncate">{formatMoney(totalValue)}</td>
-                <td className="p-3.5 text-right text-emerald-700 overflow-hidden truncate">{totalQty !== 0 ? `${formatMoney(totalValue / totalQty)} บ.` : '-'}</td>
+                <td className="p-3 overflow-hidden truncate">รวมทั้งหมด ({totalMatrixRows} หมวด)</td>
+                <td className="p-3 text-right text-blue-700 bg-blue-50/10 border-x border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('RM').qty)}</td>
+                <td className="p-3 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('RM').value)}</td>
+                <td className="p-3 text-right text-blue-700 bg-blue-50/10 border-r border-slate-100 overflow-hidden truncate">{valueFor('RM').qty !== 0 ? `${formatMoney(valueFor('RM').value / valueFor('RM').qty)} บ.` : '-'}</td>
+                <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('WIP').qty)}</td>
+                <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('WIP').value)}</td>
+                <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 overflow-hidden truncate">{valueFor('WIP').qty !== 0 ? `${formatMoney(valueFor('WIP').value / valueFor('WIP').qty)} บ.` : '-'}</td>
+                <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('FG').qty)}</td>
+                <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 overflow-hidden truncate">{formatMoney(valueFor('FG').value)}</td>
+                <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 overflow-hidden truncate">{valueFor('FG').qty !== 0 ? `${formatMoney(valueFor('FG').value / valueFor('FG').qty)} บ.` : '-'}</td>
+                <td className="p-3 text-right overflow-hidden truncate">{formatMoney(totalQty)}</td>
+                <td className="p-3 text-right text-emerald-700 overflow-hidden truncate">{formatMoney(totalValue)}</td>
+                <td className="p-3 text-right text-emerald-700 overflow-hidden truncate">{totalQty !== 0 ? `${formatMoney(totalValue / totalQty)} บ.` : '-'}</td>
               </tr>
             </tfoot>
           ) : null}
@@ -1554,16 +1555,16 @@ function MatrixTable({
 }
 
 const detailColumns: Array<ResizableColumnDefinition<string>> = [
-  { key: 'product', defaultWidth: 200 },
-  { key: 'group', defaultWidth: 100 },
-  { key: 'warehouse', defaultWidth: 110 },
-  { key: 'branch', defaultWidth: 120 },
-  { key: 'qty', defaultWidth: 110 },
-  { key: 'awaitingBill', defaultWidth: 90 },
-  { key: 'onHold', defaultWidth: 90 },
-  { key: 'ready', defaultWidth: 90 },
-  { key: 'avgCost', defaultWidth: 100 },
-  { key: 'value', defaultWidth: 120 },
+  { key: 'product', defaultWidth: 240, minWidth: 180 },
+  { key: 'group', defaultWidth: 130, minWidth: 110 },
+  { key: 'warehouse', defaultWidth: 140, minWidth: 120 },
+  { key: 'branch', defaultWidth: 140, minWidth: 120 },
+  { key: 'qty', defaultWidth: 140, minWidth: 120 },
+  { key: 'awaitingBill', defaultWidth: 110, minWidth: 90 },
+  { key: 'onHold', defaultWidth: 110, minWidth: 90 },
+  { key: 'ready', defaultWidth: 110, minWidth: 90 },
+  { key: 'avgCost', defaultWidth: 125, minWidth: 110 },
+  { key: 'value', defaultWidth: 145, minWidth: 125 },
 ]
 
 function DetailTable({
@@ -1581,7 +1582,7 @@ function DetailTable({
   onOpen: (row: BalanceRow) => void
   onSort?: (key: string) => void
 }) {
-  const columnResize = useResizableColumns('stock.balance.detail.v5', detailColumns)
+  const columnResize = useResizableColumns('stock.balance.detail.v6', detailColumns)
   return (
     <>
       {/* Mobile View */}
@@ -1700,7 +1701,7 @@ function DetailTable({
                   }
                 }}
               >
-                <td className="p-3.5 text-slate-800 min-w-0 overflow-hidden">
+                <td className="p-3 text-slate-800 min-w-0 overflow-hidden">
                   <div className="truncate" title={`${row.productCode} ${row.productName}`}>
                     <span className="text-slate-500">{row.productCode}</span> {row.productName}
                   </div>
@@ -1708,17 +1709,17 @@ function DetailTable({
                     <div className="mt-0.5 truncate text-xs font-normal text-slate-400" title={`Lot: ${row.lotNo}`}>Lot: {row.lotNo}</div>
                   ) : null}
                 </td>
-                <td className="p-3.5 text-slate-800 overflow-hidden truncate">{row.productMetalGroup || 'อื่นๆ'}</td>
-                <td className="p-3.5 text-center overflow-hidden truncate"><StockStatusCell row={row} /></td>
-                <td className="p-3.5 text-slate-655 overflow-hidden truncate" title={row.branchName}>
+                <td className="p-3 text-slate-800 overflow-hidden truncate">{row.productMetalGroup || 'อื่นๆ'}</td>
+                <td className="p-3 text-center overflow-hidden truncate"><StockStatusCell row={row} /></td>
+                <td className="p-3 text-slate-655 overflow-hidden truncate" title={row.branchName}>
                   {row.branchName}
                 </td>
-                <td className={`p-3.5 text-right overflow-hidden truncate ${row.qty < 0 ? 'text-red-655' : ''}`}>{formatMoney(row.qty)}</td>
-                <td className="p-3.5 text-right border-r border-slate-105 text-slate-800 overflow-hidden truncate">{row.awaitingBillQty ? formatMoney(row.awaitingBillQty) : '-'}</td>
-                <td className="p-3.5 text-right text-amber-700 bg-amber-50/10 border-r border-slate-105 overflow-hidden truncate">{row.onHoldQty ? formatMoney(row.onHoldQty) : '-'}</td>
-                <td className="p-3.5 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-105 overflow-hidden truncate">{formatMoney(row.readyQty)}</td>
-                <td className="p-3.5 text-right text-slate-505 font-mono overflow-hidden truncate">{formatMoney(row.avgCost)}</td>
-                <td className="p-3.5 text-right text-emerald-700 font-mono overflow-hidden truncate">{formatMoney(row.value)}</td>
+                <td className={`p-3 text-right overflow-hidden truncate ${row.qty < 0 ? 'text-red-655' : ''}`}>{formatMoney(row.qty)}</td>
+                <td className="p-3 text-right border-r border-slate-105 text-slate-800 overflow-hidden truncate">{row.awaitingBillQty ? formatMoney(row.awaitingBillQty) : '-'}</td>
+                <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-105 overflow-hidden truncate">{row.onHoldQty ? formatMoney(row.onHoldQty) : '-'}</td>
+                <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-105 overflow-hidden truncate">{formatMoney(row.readyQty)}</td>
+                <td className="p-3 text-right text-slate-505 font-mono overflow-hidden truncate">{formatMoney(row.avgCost)}</td>
+                <td className="p-3 text-right text-emerald-700 font-mono overflow-hidden truncate">{formatMoney(row.value)}</td>
               </tr>
             ))}
             {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={10}>ไม่มีสต๊อก</td></tr> : null}
@@ -1726,13 +1727,13 @@ function DetailTable({
           {rows.length ? (
             <tfoot className="bg-slate-50 border-t border-slate-200/80 font-bold text-slate-800">
               <tr>
-                <td className="p-3.5 overflow-hidden truncate" colSpan={4}>รวมหน้านี้ ({rows.length} รายการ)</td>
-                <td className="p-3.5 text-right font-mono overflow-hidden truncate">{formatMoney(rows.reduce((sum, row) => sum + row.qty, 0))}</td>
-                <td className="p-3.5 text-right border-r border-slate-100 font-mono text-slate-800 overflow-hidden truncate">{formatMoney(rows.reduce((sum, row) => sum + row.awaitingBillQty, 0))}</td>
-                <td className="p-3.5 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 font-mono overflow-hidden truncate">{formatMoney(rows.reduce((sum, row) => sum + row.onHoldQty, 0))}</td>
-                <td className="p-3.5 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 font-mono overflow-hidden truncate">{formatMoney(rows.reduce((sum, row) => sum + row.readyQty, 0))}</td>
+                <td className="p-3 overflow-hidden truncate" colSpan={4}>รวมหน้านี้ ({rows.length} รายการ)</td>
+                <td className="p-3 text-right font-mono overflow-hidden truncate">{formatMoney(rows.reduce((sum, row) => sum + row.qty, 0))}</td>
+                <td className="p-3 text-right border-r border-slate-100 font-mono text-slate-800 overflow-hidden truncate">{formatMoney(rows.reduce((sum, row) => sum + row.awaitingBillQty, 0))}</td>
+                <td className="p-3 text-right text-amber-700 bg-amber-50/10 border-r border-slate-100 font-mono overflow-hidden truncate">{formatMoney(rows.reduce((sum, row) => sum + row.onHoldQty, 0))}</td>
+                <td className="p-3 text-right text-emerald-700 bg-emerald-50/10 border-r border-slate-100 font-mono overflow-hidden truncate">{formatMoney(rows.reduce((sum, row) => sum + row.readyQty, 0))}</td>
                 <td className="overflow-hidden truncate" />
-                <td className="p-3.5 text-right text-emerald-700 font-mono overflow-hidden truncate">{formatMoney(rows.reduce((sum, row) => sum + row.value, 0))}</td>
+                <td className="p-3 text-right text-emerald-700 font-mono overflow-hidden truncate">{formatMoney(rows.reduce((sum, row) => sum + row.value, 0))}</td>
               </tr>
             </tfoot>
           ) : null}
@@ -1766,14 +1767,7 @@ function PaginationControls({
         พบทั้งหมด {totalItems.toLocaleString('th-TH')} {label}
       </span>
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          aria-label="จำนวนรายการต่อหน้า"
-          className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800"
-          value={pageSize}
-          onChange={(event) => onPageSizeChange(Number(event.target.value))}
-        >
-          {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-        </select>
+        <PageSizeDropdown options={PAGE_SIZE_OPTIONS} value={pageSize} onChange={onPageSizeChange} />
         <button
           className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
           disabled={currentPage <= 1}

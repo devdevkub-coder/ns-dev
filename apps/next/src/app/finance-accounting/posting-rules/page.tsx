@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { PostingRulesTable } from './PostingRulesTable'
 
 export const metadata: Metadata = {
-  title: 'Posting Rules | NS Scrap ERP',
+  title: 'กฎการลงบัญชี | NS Scrap ERP',
 }
 
 const ruleGroups = [
@@ -111,7 +111,7 @@ export default function PostingRulesPage() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
         <section className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-900">Boundary ที่ยังต้องรักษา</h3>
+          <h3 className="text-sm font-bold text-slate-900">ขอบเขตที่ต้องรักษา</h3>
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
             {boundaries.map(([title, detail]) => (
               <div key={title} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

@@ -1,18 +1,26 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/Dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
-import { Download, Plus } from 'lucide-react'
+import { Download, Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import {
+  applyMobileFilterDraft,
+  createMobileFilterDraft,
+  toggleProductionOrderStatus,
+  updateMobileFilterDraft,
+  type ProductionOrderMobileFilterState,
+} from './production-orders-mobile-filter-state'
 
 type Category = { availableForSale: boolean; code: string; name: string; stockEffect: string }
 type ProductionMovementRow = {
@@ -34,6 +42,7 @@ type ProductionMovementRow = {
 type ProductionOrderRow = {
   branchName: string
   closedAt: string | null
+  createdAt: string | null
   date: string
   docNo: string
   id: string
@@ -61,6 +70,7 @@ type ProductionOrderRow = {
 }
 type ProductionOrdersPayload = {
   categories: Category[]
+  filters: { branches: Array<{ code: string; name: string }> }
   page: number
   pageSize: number
   rows: ProductionOrderRow[]
@@ -87,37 +97,39 @@ type ProductStockPayload = {
 }
 
 const emptyOptions: ProductionOrderOptions = { branches: [], machines: [], productionLines: [], productionTypes: [], products: [], warehouses: [] }
-const pageSizeOptions = [10, 25, 50, 100]
+const pageSizeOptions = [10, 25]
 const statusOptions = ['', 'Open', 'In Production', 'Partially Completed', 'Completed', 'Cancelled']
 const sortOptions = [
-  { label: 'วันที่สร้าง', value: 'date' },
+  { label: 'วันที่ใบสั่งผลิต', value: 'date' },
   { label: 'เลขที่ใบสั่งผลิต', value: 'docNo' },
   { label: 'สถานะผลิต', value: 'status' },
-  { label: 'ต้นทุนเข้า', value: 'inputCost' },
-  { label: 'มูลค่าผลผลิต', value: 'outputValue' },
 ]
 
-type ProductionOrderColumnKey = 'index' | 'date' | 'docNo' | 'branch' | 'productName' | 'machine' | 'warehouseName' | 'inputQty' | 'wipQty' | 'outputQty' | 'yield' | 'status'
+type ProductionOrderColumnKey = 'index' | 'date' | 'createdAt' | 'docNo' | 'branch' | 'productName' | 'machine' | 'warehouseName' | 'inputQty' | 'wipQty' | 'outputQty' | 'yield' | 'status' | 'action'
 
 const productionOrderColumns: Array<ResizableColumnDefinition<ProductionOrderColumnKey>> = [
-  { key: 'index', defaultWidth: 60, minWidth: 50 },
-  { key: 'date', defaultWidth: 100, minWidth: 80 },
+  { key: 'index', defaultWidth: 56, minWidth: 50 },
+  { key: 'date', defaultWidth: 140, minWidth: 140 },
+  { key: 'createdAt', defaultWidth: 140, minWidth: 140 },
   { key: 'docNo', defaultWidth: 130, minWidth: 100 },
-  { key: 'branch', defaultWidth: 120, minWidth: 90 },
-  { key: 'productName', defaultWidth: 180, minWidth: 130 },
-  { key: 'machine', defaultWidth: 140, minWidth: 100 },
-  { key: 'warehouseName', defaultWidth: 140, minWidth: 100 },
+  { key: 'branch', defaultWidth: 110, minWidth: 90 },
+  { key: 'productName', defaultWidth: 170, minWidth: 130 },
+  { key: 'machine', defaultWidth: 130, minWidth: 100 },
+  { key: 'warehouseName', defaultWidth: 130, minWidth: 100 },
   { key: 'inputQty', defaultWidth: 120, minWidth: 95 },
-  { key: 'wipQty', defaultWidth: 120, minWidth: 95 },
+  { key: 'wipQty', defaultWidth: 160, minWidth: 140 },
   { key: 'outputQty', defaultWidth: 120, minWidth: 95 },
-  { key: 'yield', defaultWidth: 80, minWidth: 60 },
-  { key: 'status', defaultWidth: 110, minWidth: 90 },
+  { key: 'yield', defaultWidth: 120, minWidth: 105 },
+  { key: 'status', defaultWidth: 110, minWidth: 104, maxWidth: 144 },
+  { key: 'action', defaultWidth: 72, minWidth: 72, maxWidth: 88 },
 ]
 const productionMovementColumnCount = 10
 const productStockColumnCount = 5
+const activeSegmentClass = 'border-[#334155] bg-[#334155] text-white dark:border-blue-500 dark:bg-blue-500/20'
+const inactiveSegmentClass = 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
 
 function MatchButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
-  const className = active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+  const className = active ? activeSegmentClass : inactiveSegmentClass
   return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${className}`} type="button" onClick={onClick}>{label}</button>
 }
 
@@ -145,14 +157,16 @@ export function ProductionOrdersPageClient() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [modalMode, setModalMode] = useState<'create' | 'detail' | null>(null)
+  const [mobileFilterDraft, setMobileFilterDraft] = useState<ProductionOrderMobileFilterState | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [search, setSearch] = useState('')
+  const [branchCode, setBranchCode] = useState('')
   const [selectedRow, setSelectedRow] = useState<ProductionOrderRow | null>(null)
   const [sort, setSort] = useState('date')
-  const [status, setStatus] = useState('Open')
+  const [statuses, setStatuses] = useState<string[]>([])
 
-  const columnResize = useResizableColumns('production.orders.v5', productionOrderColumns)
+  const columnResize = useResizableColumns('production.orders.v7', productionOrderColumns)
 
   function toggleSort(nextSortBy: string) {
     setPage(1)
@@ -183,6 +197,15 @@ export function ProductionOrdersPageClient() {
 
   const isWeekPeriod = dateFrom === expectedWeekStart && dateTo === todayDateInput()
   const isMonthPeriod = dateFrom === expectedMonthStart && dateTo === todayDateInput()
+  const mobileDateFrom = mobileFilterDraft?.dateFrom ?? dateFrom
+  const mobileDateTo = mobileFilterDraft?.dateTo ?? dateTo
+  const mobileDirection = mobileFilterDraft?.direction ?? direction
+  const mobileSort = mobileFilterDraft?.sort ?? sort
+  const mobileStatuses = mobileFilterDraft?.statuses ?? statuses
+  const isMobileAllPeriod = !mobileDateFrom && !mobileDateTo
+  const isMobileTodayPeriod = mobileDateFrom === todayDateInput() && mobileDateTo === todayDateInput()
+  const isMobileWeekPeriod = mobileDateFrom === expectedWeekStart && mobileDateTo === todayDateInput()
+  const isMobileMonthPeriod = mobileDateFrom === expectedMonthStart && mobileDateTo === todayDateInput()
 
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const latestLoadRequestRef = useRef(0)
@@ -194,8 +217,9 @@ export function ProductionOrdersPageClient() {
     setIsLoading(true)
     try {
       const params = new URLSearchParams({ direction, page: String(page), pageSize: String(pageSize), sort })
+      if (branchCode) params.set('branchCode', branchCode)
       if (search.trim()) params.set('search', search.trim())
-      if (status) params.set('status', status)
+      statuses.forEach((status) => params.append('status', status))
       if (dateFrom) params.set('dateFrom', dateFrom)
       if (dateTo) params.set('dateTo', dateTo)
       const payload = await dailyFetchJson<ProductionOrdersPayload>(`/api/production/orders?${params.toString()}`)
@@ -208,7 +232,7 @@ export function ProductionOrdersPageClient() {
       if (requestId !== latestLoadRequestRef.current) return
       setIsLoading(false)
     }
-  }, [dateFrom, dateTo, direction, page, pageSize, search, sort, status])
+  }, [branchCode, dateFrom, dateTo, direction, page, pageSize, search, sort, statuses])
 
   useEffect(() => {
     void loadData()
@@ -216,19 +240,23 @@ export function ProductionOrdersPageClient() {
 
   const currentRows = useMemo(() => data?.rows ?? [], [data?.rows])
   const totalPages = data?.summary.totalPages ?? 1
-  const activeMobileFilterCount = (dateFrom || dateTo ? 1 : 0) + (status ? 1 : 0)
+  const activeMobileFilterCount = (branchCode ? 1 : 0) + (dateFrom || dateTo ? 1 : 0) + (statuses.length > 0 ? 1 : 0)
+  const hasActiveFilters = Boolean(search.trim() || branchCode || dateFrom || dateTo || statuses.length > 0)
   const exportHref = useMemo(() => {
     const params = new URLSearchParams({ direction, format: 'xlsx', sort })
+    if (branchCode) params.set('branchCode', branchCode)
     if (search.trim()) params.set('search', search.trim())
-    if (status) params.set('status', status)
+    statuses.forEach((status) => params.append('status', status))
     if (dateFrom) params.set('dateFrom', dateFrom)
     if (dateTo) params.set('dateTo', dateTo)
     return `/api/production/orders?${params.toString()}`
-  }, [dateFrom, dateTo, direction, search, sort, status])
+  }, [branchCode, dateFrom, dateTo, direction, search, sort, statuses])
   const listControls = (
     <>
-      <div className="flex items-center gap-3">
-        <span>รวมทั้งหมด <span className="font-semibold text-slate-900">{data?.summary.total ?? 0}</span> รายการ</span>
+      <div>
+        พบทั้งหมด <span className="font-semibold text-slate-900">{data?.summary.total ?? 0}</span> รายการ
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
         {columnResize.hasCustomWidths ? (
           <Button
             className="hidden lg:inline-flex"
@@ -242,9 +270,7 @@ export function ProductionOrdersPageClient() {
         ) : null}
       </div>
       <div className="flex items-center gap-2">
-        <select className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
-          {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-        </select>
+        <PageSizeDropdown options={pageSizeOptions} value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
         <Button disabled={page <= 1} size="sm" variant="outline" type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
         <span className="px-1 text-sm font-medium">หน้า {data?.page ?? page} / {totalPages}</span>
         <Button disabled={page >= totalPages} size="sm" variant="outline" type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
@@ -254,9 +280,15 @@ export function ProductionOrdersPageClient() {
 
   function clearFilters() {
     setSearch('')
-    setStatus('')
+    setBranchCode('')
+    setStatuses([])
     setDateFrom('')
     setDateTo('')
+    setPage(1)
+  }
+
+  function toggleAppliedStatus(status: string) {
+    setStatuses((current) => toggleProductionOrderStatus(current, status))
     setPage(1)
   }
 
@@ -274,6 +306,51 @@ export function ProductionOrdersPageClient() {
     setDateFrom(formatDateLocal(start))
     setDateTo(today)
     setPage(1)
+  }
+
+  function openMobileFilters() {
+    setMobileFilterDraft(createMobileFilterDraft({ branchCode, dateFrom, dateTo, direction, sort, statuses }))
+    setShowMobileFilters(true)
+  }
+
+  function closeMobileFilters() {
+    setMobileFilterDraft(null)
+    setShowMobileFilters(false)
+  }
+
+  function updateMobileFilters(patch: Partial<ProductionOrderMobileFilterState>) {
+    setMobileFilterDraft((current) => updateMobileFilterDraft(
+      current ?? createMobileFilterDraft({ branchCode, dateFrom, dateTo, direction, sort, statuses }),
+      patch,
+    ))
+  }
+
+  function setMobilePeriod(period: 'today' | 'week' | 'month' | '') {
+    if (!period) {
+      updateMobileFilters({ dateFrom: '', dateTo: '' })
+      return
+    }
+    const today = todayDateInput()
+    const start = new Date(`${today}T00:00:00`)
+    if (period === 'week') start.setDate(start.getDate() - 6)
+    if (period === 'month') start.setDate(1)
+    updateMobileFilters({ dateFrom: formatDateLocal(start), dateTo: today })
+  }
+
+  function applyMobileFilters() {
+    if (!mobileFilterDraft) {
+      closeMobileFilters()
+      return
+    }
+    const nextFilters = applyMobileFilterDraft(mobileFilterDraft)
+    setBranchCode(nextFilters.branchCode)
+    setDateFrom(nextFilters.dateFrom)
+    setDateTo(nextFilters.dateTo)
+    setDirection(nextFilters.direction)
+    setSort(nextFilters.sort)
+    setStatuses(nextFilters.statuses)
+    setPage(1)
+    closeMobileFilters()
   }
 
   function closeModal(refresh = false) {
@@ -298,55 +375,61 @@ export function ProductionOrdersPageClient() {
       {/* Desktop Toolbar (Hidden on Mobile) */}
       <div className="hidden lg:block mb-3 space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
-          <input
-            className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm h-9 border-slate-300"
-            placeholder="ค้นหาเลขที่ใบสั่งผลิต / สินค้า / หมายเหตุ..."
-            type="search"
-            value={search}
-            onChange={(event) => { setSearch(event.target.value); setPage(1) }}
-          />
-          <label className="text-xs text-slate-500">วันที่:</label>
-          <DatePickerInput className="w-[130px] !h-9 text-sm" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
+          <div className="relative min-w-[260px] flex-1">
+            <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <input
+              aria-label="ค้นหาใบสั่งผลิต"
+              className="h-9 w-full rounded-md border border-slate-300 px-3 py-2 pl-9 text-sm"
+              placeholder="ค้นหาเลขที่ใบสั่งผลิต / สินค้า / หมายเหตุ..."
+              type="search"
+              value={search}
+              onChange={(event) => { setSearch(event.target.value); setPage(1) }}
+            />
+          </div>
+          <label className="text-xs text-slate-500">วันที่ใบสั่งผลิต:</label>
+          <DatePickerInput ariaLabel="วันที่ใบสั่งผลิตตั้งแต่" className="w-[130px] !h-9 text-sm" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
           <span className="text-slate-400">→</span>
-          <DatePickerInput className="w-[130px] !h-9 text-sm" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
-          <select className="h-9 rounded-md border px-3 text-sm bg-white text-slate-800 border-slate-300" value={sort} onChange={(event) => { setSort(event.target.value); setPage(1) }}>
-            {sortOptions.map((option) => <option key={option.value} value={option.value}>เรียง: {option.label}</option>)}
+          <DatePickerInput ariaLabel="วันที่ใบสั่งผลิตถึง" className="w-[130px] !h-9 text-sm" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+          <select aria-label="กรองตามสาขา" className="h-9 w-40 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800" value={branchCode} onChange={(event) => { setBranchCode(event.target.value); setPage(1) }}>
+            <option value="">ทุกสาขา</option>
+            {(data?.filters.branches ?? []).map((branch) => <option key={branch.code} value={branch.code}>{branch.name}</option>)}
           </select>
-          <button className="h-9 rounded-md border px-3 text-sm bg-white text-slate-700 hover:bg-slate-50 border-slate-300" type="button" onClick={() => setDirection((value) => value === 'asc' ? 'desc' : 'asc')}>{direction === 'asc' ? 'น้อยไปมาก' : 'มากไปน้อย'}</button>
-          {(search || dateFrom || dateTo || status) ? (
+          {hasActiveFilters ? (
             <button className="h-9 rounded-md bg-slate-100 px-3 text-xs hover:bg-slate-200" type="button" onClick={clearFilters}>
               ล้างตัวกรอง
             </button>
           ) : null}
         </div>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm text-slate-500 font-medium">ช่วงเวลา:</span>
+              <span className="text-xs text-slate-500 font-medium">ช่วงเวลา:</span>
               <MatchButton active={isAllPeriod} label="ทั้งหมด" onClick={() => setPeriod('')} />
               <MatchButton active={isTodayPeriod} label="วันนี้" onClick={() => setPeriod('today')} />
               <MatchButton active={isWeekPeriod} label="7 วัน" onClick={() => setPeriod('week')} />
               <MatchButton active={isMonthPeriod} label="เดือนนี้" onClick={() => setPeriod('month')} />
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm text-slate-500 font-medium">สถานะ:</span>
-              <MatchButton active={status === ''} label="ทุกสถานะ" onClick={() => { setStatus(''); setPage(1) }} tone="dark" />
-              <MatchButton active={status === 'Open'} label="ยังไม่เริ่ม" onClick={() => { setStatus('Open'); setPage(1) }} tone="dark" />
-              <MatchButton active={status === 'In Production'} label="กำลังผลิต" onClick={() => { setStatus('In Production'); setPage(1) }} tone="amber" />
-              <MatchButton active={status === 'Partially Completed'} label="เสร็จบางส่วน" onClick={() => { setStatus('Partially Completed'); setPage(1) }} tone="amber" />
-              <MatchButton active={status === 'Completed'} label="เสร็จสิ้น" onClick={() => { setStatus('Completed'); setPage(1) }} tone="emerald" />
-              <MatchButton active={status === 'Cancelled'} label="ยกเลิก" onClick={() => { setStatus('Cancelled'); setPage(1) }} tone="red" />
+              <span className="text-xs text-slate-500 font-medium">สถานะผลิต:</span>
+              <MatchButton active={statuses.length === 0} label="ทุกสถานะ" onClick={() => toggleAppliedStatus('')} tone="dark" />
+              <MatchButton active={statuses.includes('Open')} label="ยังไม่เริ่ม" onClick={() => toggleAppliedStatus('Open')} tone="dark" />
+              <MatchButton active={statuses.includes('In Production')} label="กำลังผลิต" onClick={() => toggleAppliedStatus('In Production')} tone="amber" />
+              <MatchButton active={statuses.includes('Partially Completed')} label="เสร็จบางส่วน" onClick={() => toggleAppliedStatus('Partially Completed')} tone="amber" />
+              <MatchButton active={statuses.includes('Completed')} label="เสร็จสิ้น" onClick={() => toggleAppliedStatus('Completed')} tone="emerald" />
+              <MatchButton active={statuses.includes('Cancelled')} label="ยกเลิก" onClick={() => toggleAppliedStatus('Cancelled')} tone="red" />
             </div>
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <span className="text-xs text-slate-500">พบ <b className="text-slate-700">{data?.summary.total ?? 0}</b> ใบ</span>
             <Button asChild className="gap-2" size="sm" variant="export">
-              <a href={exportHref}>
+              <a href={exportHref} title="ส่งออกได้สูงสุด 10,000 รายการตามตัวกรองปัจจุบัน">
                 <Download className="size-4" />
                 <span>ส่งออก Excel</span>
               </a>
             </Button>
-            <button className="flex h-9 items-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700" type="button" onClick={() => setModalMode('create')}>+ ใบสั่งผลิตใหม่</button>
+            <button className="flex h-9 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700" type="button" onClick={() => setModalMode('create')}>
+              <Plus className="size-4" />
+              ใบสั่งผลิตใหม่
+            </button>
           </div>
         </div>
       </div>
@@ -354,21 +437,27 @@ export function ProductionOrdersPageClient() {
       {/* Mobile Toolbar (Hidden on Desktop) */}
       <div className="mb-3 space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden animate-fade-in">
         <div className="flex gap-2 items-center">
-          <input            className="min-w-[150px] flex-1 rounded-md border px-3 h-9 text-sm border-slate-300"
-            placeholder="ค้นหาใบสั่งผลิต..."            type="search"            value={search}            onChange={(event) => { setSearch(event.target.value); setPage(1) }}          />
-          <button className="h-9 rounded-md bg-slate-100 px-2.5 text-xs text-slate-700" type="button" onClick={() => void loadData()}>
-            Refresh
-          </button>
+          <div className="relative min-w-[150px] flex-1">
+            <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <input
+              aria-label="ค้นหาใบสั่งผลิต"
+              className="h-9 w-full rounded-md border border-slate-300 px-3 pl-9 text-sm"
+              placeholder="ค้นหาใบสั่งผลิต..."
+              type="search"
+              value={search}
+              onChange={(event) => { setSearch(event.target.value); setPage(1) }}
+            />
+          </div>
           <button
             type="button"
             className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            onClick={() => setShowMobileFilters(true)}
+            onClick={openMobileFilters}
           >
             ตัวกรอง {activeMobileFilterCount > 0 ? `(${activeMobileFilterCount})` : ''}
           </button>
         </div>
         <Button asChild className="w-full gap-2" size="sm" variant="export">
-          <a href={exportHref}>
+          <a href={exportHref} title="ส่งออกได้สูงสุด 10,000 รายการตามตัวกรองปัจจุบัน">
             <Download className="size-4" />
             <span>ส่งออก Excel</span>
           </a>
@@ -385,112 +474,131 @@ export function ProductionOrdersPageClient() {
                 className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 onClick={() => {
                   clearFilters()
-                  setShowMobileFilters(false)
+                  closeMobileFilters()
                 }}
               >
                 ล้างตัวกรอง
               </button>
               <button
                 type="button"
-                className="h-11 rounded-md bg-slate-900 text-sm font-semibold text-white hover:bg-slate-800"
-                onClick={() => setShowMobileFilters(false)}
+                className="h-11 rounded-md bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700"
+                onClick={applyMobileFilters}
               >
                 ใช้ตัวกรอง
               </button>
             </>
           }
-          onClose={() => setShowMobileFilters(false)}
+          onClose={closeMobileFilters}
           title="ตัวกรองใบสั่งผลิต"
         >
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
+                <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800" value={mobileFilterDraft?.branchCode ?? branchCode} onChange={(event) => updateMobileFilters({ branchCode: event.target.value })}>
+                  <option value="">ทุกสาขา</option>
+                  {(data?.filters.branches ?? []).map((branch) => <option key={branch.code} value={branch.code}>{branch.name}</option>)}
+                </select>
+              </label>
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ช่วงเวลา</span>
                 <div className="flex flex-wrap gap-2">
-                  <button className={`flex-1 h-9 rounded-md text-xs border ${isAllPeriod ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 text-slate-700 bg-white'}`} type="button" onClick={() => setPeriod('')}>ทั้งหมด</button>
-                  <button className={`flex-1 h-9 rounded-md text-xs border ${isTodayPeriod ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 text-slate-700 bg-white'}`} type="button" onClick={() => setPeriod('today')}>วันนี้</button>
-                  <button className={`flex-1 h-9 rounded-md text-xs border ${isWeekPeriod ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 text-slate-700 bg-white'}`} type="button" onClick={() => setPeriod('week')}>7 วัน</button>
-                  <button className={`flex-1 h-9 rounded-md text-xs border ${isMonthPeriod ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 text-slate-700 bg-white'}`} type="button" onClick={() => setPeriod('month')}>เดือนนี้</button>
+                  <button className={`flex-1 h-9 rounded-md text-xs border ${isMobileAllPeriod ? activeSegmentClass : inactiveSegmentClass}`} type="button" onClick={() => setMobilePeriod('')}>ทั้งหมด</button>
+                  <button className={`flex-1 h-9 rounded-md text-xs border ${isMobileTodayPeriod ? activeSegmentClass : inactiveSegmentClass}`} type="button" onClick={() => setMobilePeriod('today')}>วันนี้</button>
+                  <button className={`flex-1 h-9 rounded-md text-xs border ${isMobileWeekPeriod ? activeSegmentClass : inactiveSegmentClass}`} type="button" onClick={() => setMobilePeriod('week')}>7 วัน</button>
+                  <button className={`flex-1 h-9 rounded-md text-xs border ${isMobileMonthPeriod ? activeSegmentClass : inactiveSegmentClass}`} type="button" onClick={() => setMobilePeriod('month')}>เดือนนี้</button>
                 </div>
               </div>
 
               <div>
-                <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">วันที่ใบสั่งผลิต</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput className="flex-1" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
+                  <DatePickerInput ariaLabel="วันที่ใบสั่งผลิตตั้งแต่" className="flex-1" value={mobileDateFrom} onChange={(value) => updateMobileFilters({ dateFrom: value })} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput className="flex-1" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+                  <DatePickerInput ariaLabel="วันที่ใบสั่งผลิตถึง" className="flex-1" value={mobileDateTo} onChange={(value) => updateMobileFilters({ dateTo: value })} />
                 </div>
               </div>
 
               <div>
-                <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะ</span>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะผลิต</span>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     className={`h-9 rounded-md text-xs font-medium border outline-none ${
-                      status === ''                        ? 'border-slate-700 bg-slate-700 text-white'                        : 'border-slate-300 text-slate-700 bg-white hover:bg-slate-50'
+                      mobileStatuses.length === 0 ? activeSegmentClass : inactiveSegmentClass
                     }`}
                     type="button"
-                    onClick={() => { setStatus(''); setPage(1) }}
+                    onClick={() => updateMobileFilters({ statuses: [] })}
                   >
                     ทุกสถานะ
                   </button>
                   <button
                     className={`h-9 rounded-md text-xs font-medium border outline-none ${
-                      status === 'Open'                        ? 'border-slate-700 bg-slate-700 text-white'                        : 'border-slate-300 text-slate-700 bg-white hover:bg-slate-50'
+                      mobileStatuses.includes('Open') ? activeSegmentClass : inactiveSegmentClass
                     }`}
                     type="button"
-                    onClick={() => { setStatus('Open'); setPage(1) }}
+                    onClick={() => updateMobileFilters({ statuses: toggleProductionOrderStatus(mobileStatuses, 'Open') })}
                   >
                     ยังไม่เริ่ม
                   </button>
                   <button
                     className={`h-9 rounded-md text-xs font-medium border outline-none ${
-                      status === 'In Production'                        ? 'border-slate-700 bg-slate-700 text-white'                        : 'border-slate-300 text-slate-700 bg-white hover:bg-slate-50'
+                      mobileStatuses.includes('In Production') ? activeSegmentClass : inactiveSegmentClass
                     }`}
                     type="button"
-                    onClick={() => { setStatus('In Production'); setPage(1) }}
+                    onClick={() => updateMobileFilters({ statuses: toggleProductionOrderStatus(mobileStatuses, 'In Production') })}
                   >
                     กำลังผลิต
                   </button>
                   <button
                     className={`h-9 rounded-md text-xs font-medium border outline-none ${
-                      status === 'Partially Completed'                        ? 'border-slate-700 bg-slate-700 text-white'                        : 'border-slate-300 text-slate-700 bg-white hover:bg-slate-50'
+                      mobileStatuses.includes('Partially Completed') ? activeSegmentClass : inactiveSegmentClass
                     }`}
                     type="button"
-                    onClick={() => { setStatus('Partially Completed'); setPage(1) }}
+                    onClick={() => updateMobileFilters({ statuses: toggleProductionOrderStatus(mobileStatuses, 'Partially Completed') })}
                   >
                     เสร็จบางส่วน
                   </button>
                   <button
                     className={`h-9 rounded-md text-xs font-medium border outline-none ${
-                      status === 'Completed'                        ? 'border-slate-700 bg-slate-700 text-white'                        : 'border-slate-300 text-slate-700 bg-white hover:bg-slate-50'
+                      mobileStatuses.includes('Completed') ? activeSegmentClass : inactiveSegmentClass
                     }`}
                     type="button"
-                    onClick={() => { setStatus('Completed'); setPage(1) }}
+                    onClick={() => updateMobileFilters({ statuses: toggleProductionOrderStatus(mobileStatuses, 'Completed') })}
                   >
                     เสร็จสิ้น
                   </button>
                   <button
                     className={`h-9 rounded-md text-xs font-medium border outline-none ${
-                      status === 'Cancelled'                        ? 'border-slate-700 bg-slate-700 text-white'                        : 'border-slate-300 text-slate-700 bg-white hover:bg-slate-50'
+                      mobileStatuses.includes('Cancelled') ? activeSegmentClass : inactiveSegmentClass
                     }`}
                     type="button"
-                    onClick={() => { setStatus('Cancelled'); setPage(1) }}
+                    onClick={() => updateMobileFilters({ statuses: toggleProductionOrderStatus(mobileStatuses, 'Cancelled') })}
                   >
                     ยกเลิก
                   </button>
                 </div>
               </div>
 
-              <label className="block">
+              <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">เรียงลำดับ</span>
-                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={sort} onChange={(event) => { setSort(event.target.value); setPage(1) }}>
-                  {sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
-              </label>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                  <select aria-label="เรียงลำดับตาม" className="h-10 min-w-0 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800" value={mobileSort} onChange={(event) => updateMobileFilters({ sort: event.target.value })}>
+                    {sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                  <button
+                    className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    type="button"
+                    onClick={() => updateMobileFilters({ direction: mobileDirection === 'asc' ? 'desc' : 'asc' })}
+                  >
+                    {mobileDirection === 'asc' ? 'น้อยไปมาก' : 'มากไปน้อย'}
+                  </button>
+                </div>
+              </div>
         </MobileFilterSheet>
       ) : null}
 
-      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:hidden">
+      <div className="flex flex-col gap-2 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:hidden">
+        {listControls}
+      </div>
+      <div className="hidden items-center justify-between gap-2 px-1 py-1 text-sm text-slate-600 lg:flex">
         {listControls}
       </div>
 
@@ -499,18 +607,12 @@ export function ProductionOrdersPageClient() {
         <>
           {/* Desktop Table View */}
           <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-            <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-              {listControls}
-            </div>
             <div className="overflow-x-auto">
             <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
-                {productionOrderColumns.map((column, index) => {
-                  const style = index === productionOrderColumns.length - 1
-                    ? { minWidth: column.minWidth }
-                    : columnResize.getColumnStyle(column.key)
-                  return <col key={column.key} style={style} />
-                })}
+                {productionOrderColumns.map((column) => (
+                  <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+                ))}
               </colgroup>
               <thead className="border-b border-slate-200 bg-slate-100 text-xs font-semibold text-slate-500">
                 <tr>
@@ -518,43 +620,53 @@ export function ProductionOrdersPageClient() {
                   <ResizableTableHead
                     activeSortKey={sort}
                     direction={direction}
-                    label="วันที่สร้าง"
+                    label="วันที่ใบสั่งผลิต"
                     sortKey="date"
                     onSort={toggleSort}
-                    resizeProps={columnResize.getResizeHandleProps('date', 'วันที่สร้าง')}
+                    resizeProps={columnResize.getResizeHandleProps('date', 'วันที่ใบสั่งผลิต')}
                   />
+                  <ResizableTableHead align="right" label="วันที่สร้างรายการ" resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้างรายการ')} />
                   <ResizableTableHead
                     activeSortKey={sort}
                     direction={direction}
+                    align="right"
                     label="เลขที่ใบสั่งผลิต"
                     sortKey="docNo"
                     onSort={toggleSort}
                     resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ใบสั่งผลิต')}
                   />
-                  <ResizableTableHead label="สาขา" resizeProps={columnResize.getResizeHandleProps('branch', 'สาขา')} />
-                  <ResizableTableHead label="สินค้าที่ผลิต" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้าที่ผลิต')} />
-                  <ResizableTableHead label="เครื่องจักร" resizeProps={columnResize.getResizeHandleProps('machine', 'เครื่องจักร')} />
-                  <ResizableTableHead label="คลังรับผลผลิต" resizeProps={columnResize.getResizeHandleProps('warehouseName', 'คลังรับผลผลิต')} />
+                  <ResizableTableHead align="right" label="สาขา" resizeProps={columnResize.getResizeHandleProps('branch', 'สาขา')} />
+                  <ResizableTableHead align="right" label="สินค้าที่ผลิต" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้าที่ผลิต')} />
+                  <ResizableTableHead align="right" label="เครื่องจักร" resizeProps={columnResize.getResizeHandleProps('machine', 'เครื่องจักร')} />
+                  <ResizableTableHead align="right" label="คลังรับผลผลิต" resizeProps={columnResize.getResizeHandleProps('warehouseName', 'คลังรับผลผลิต')} />
                   <ResizableTableHead align="right" label="ปริมาณเบิก (กก.)" resizeProps={columnResize.getResizeHandleProps('inputQty', 'ปริมาณเบิก (กก.)')} />
-                  <ResizableTableHead align="right" label="WIP คงเหลือ" resizeProps={columnResize.getResizeHandleProps('wipQty', 'WIP คงเหลือ')} />
+                  <ResizableTableHead align="right" label="งานระหว่างทำคงเหลือ" resizeProps={columnResize.getResizeHandleProps('wipQty', 'งานระหว่างทำคงเหลือ')} />
                   <ResizableTableHead align="right" label="ปริมาณผลิต (กก.)" resizeProps={columnResize.getResizeHandleProps('outputQty', 'ปริมาณผลิต (กก.)')} />
-                  <ResizableTableHead align="right" label="Yield" resizeProps={columnResize.getResizeHandleProps('yield', 'Yield')} />
+                  <ResizableTableHead align="right" label="อัตราผลได้" resizeProps={columnResize.getResizeHandleProps('yield', 'อัตราผลได้')} />
                   <ResizableTableHead
                     activeSortKey={sort}
-                    align="center"
+                    align="right"
                     direction={direction}
                     label="สถานะผลิต"
                     sortKey="status"
                     onSort={toggleSort}
                     resizeProps={columnResize.getResizeHandleProps('status', 'สถานะผลิต')}
                   />
+                  <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody>
                 {currentRows.length === 0 ? (
                   <tr>
                     <td className="p-12 text-center text-slate-400" colSpan={productionOrderColumns.length}>
-                      ยังไม่มีใบสั่งผลิต
+                      <div className="space-y-3">
+                        <div>{hasActiveFilters ? 'ไม่พบใบสั่งผลิตตามเงื่อนไข' : 'ยังไม่มีใบสั่งผลิต'}</div>
+                        {hasActiveFilters ? (
+                          <button className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" onClick={clearFilters}>
+                            ล้างตัวกรอง
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ) : null}
@@ -569,13 +681,14 @@ export function ProductionOrdersPageClient() {
                     >
                       <td className="p-3 whitespace-nowrap text-slate-500 font-mono">{(page - 1) * pageSize + index + 1}</td>
                       <td className="p-3 whitespace-nowrap">{formatDateDisplay(row.date)}</td>
-                      <td className="p-3 font-mono font-semibold text-slate-900 truncate" title={row.docNo}>{row.docNo}</td>
-                      <td className="p-3 truncate" title={row.branchName}>{row.branchName}</td>
-                      <td className="p-3 min-w-0">
+                      <td className="p-3 whitespace-nowrap text-right text-slate-500">{formatDateDisplay(row.createdAt)}</td>
+                      <td className="p-3 truncate text-right font-mono font-semibold text-slate-900" title={row.docNo}>{row.docNo}</td>
+                      <td className="p-3 truncate text-right" title={row.branchName}>{row.branchName}</td>
+                      <td className="p-3 min-w-0 text-right">
                         <div className="font-semibold text-slate-800 truncate" title={row.productName || 'ยังไม่ได้กำหนดสินค้า'}>{row.productName || 'ยังไม่ได้กำหนดสินค้า'}</div>
                         <div className="text-xs text-slate-400 font-mono mt-0.5 truncate">{row.productCode || row.productId || '-'}</div>
                       </td>
-                      <td className="p-3 min-w-0">
+                      <td className="p-3 min-w-0 text-right">
                         {row.machineName ? (
                           <div className="truncate">
                             <span className="font-medium text-slate-800" title={row.machineName}>{row.machineName}</span>
@@ -583,7 +696,7 @@ export function ProductionOrdersPageClient() {
                           </div>
                         ) : '-'}
                       </td>
-                      <td className="p-3 truncate" title={row.warehouseName}>{row.warehouseName || '-'}</td>
+                      <td className="p-3 truncate text-right" title={row.warehouseName}>{row.warehouseName || '-'}</td>
                       <td className="p-3 text-right font-medium tabular-nums text-slate-700">{formatMoney(row.inputQty)}</td>
                       <td className="p-3 text-right font-medium tabular-nums text-slate-600">{formatMoney(wipQty)}</td>
                       <td className="p-3 text-right font-semibold tabular-nums text-slate-800">{formatMoney(row.outputQty)}</td>
@@ -594,8 +707,21 @@ export function ProductionOrdersPageClient() {
                           </span>
                         ) : '-'}
                       </td>
-                      <td className="p-3 text-center">
-                        <StatusBadge status={row.status} />
+                      <td className="p-3 text-right">
+                        <StatusBadge compact status={row.status} />
+                      </td>
+                      <td className="p-3 text-right">
+                        <button
+                          className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setSelectedRow(row)
+                            setModalMode('detail')
+                          }}
+                        >
+                          เปิด
+                        </button>
                       </td>
                     </tr>
                   )
@@ -606,7 +732,7 @@ export function ProductionOrdersPageClient() {
           </div>
 
           {/* Mobile Grid/Card View */}
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:hidden">
+          <div className="grid grid-cols-1 gap-3 pb-16 md:grid-cols-2 lg:hidden">
             {currentRows.map((row) => (
               <OrderCard
                 key={row.id}
@@ -618,9 +744,13 @@ export function ProductionOrdersPageClient() {
         </>
       ) : null}
       {!isLoading && currentRows.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-400 shadow-sm lg:hidden">
-          <div className="mb-2 text-3xl font-semibold">ใบสั่งผลิต</div>
-          <div>ยังไม่มีใบสั่งผลิต</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-400 shadow-sm lg:hidden">
+          <div>{hasActiveFilters ? 'ไม่พบใบสั่งผลิตตามเงื่อนไข' : 'ยังไม่มีใบสั่งผลิต'}</div>
+          {hasActiveFilters ? (
+            <button className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" onClick={clearFilters}>
+              ล้างตัวกรอง
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -641,36 +771,56 @@ export function ProductionOrdersPageClient() {
   )
 }
 
-function OrderCard({ onOpen, row }: { onOpen: () => void; row: ProductionOrderRow }) {
+export function OrderCard({ onOpen, row }: { onOpen: () => void; row: ProductionOrderRow }) {
   const yieldPct = row.inputQty > 0 ? (row.outputQty / row.inputQty) * 100 : 0
   const wipQty = Math.max(0, row.wipQty ?? 0)
   return (
-    <div className={`relative cursor-pointer overflow-hidden rounded-xl border p-4 shadow-sm transition hover:shadow-md ${cardClass(row.status)}`} onClick={onOpen}>
-      <div className="absolute right-2.5 top-2.5"><StatusBadge status={row.status} /></div>
-      <div className="mb-1 font-mono text-sm text-slate-500">{row.docNo}</div>
-      <div className="mb-3 text-sm text-slate-600">{formatDateDisplay(row.date)} · {row.branchName}</div>
-      <div className="mb-3 rounded-xl border border-slate-200 bg-white/80 p-3.5">
-        <div className="mb-1 text-xs font-semibold text-slate-500 uppercase tracking-wide">สินค้าที่ผลิต</div>
-        <div className="text-base font-bold leading-tight text-amber-700 truncate">{row.productName || 'ยังไม่ได้กำหนดสินค้า'}</div>
-        <div className="mt-1 text-sm text-slate-600 truncate">{row.productCode || row.productId || '-'} · {row.warehouseName}</div>
+    <article
+      aria-label={`เปิดใบสั่งผลิต ${row.docNo}`}
+      className={`w-full cursor-pointer overflow-hidden rounded-xl border p-3.5 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${cardClass(row.status)}`}
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        onOpen()
+      }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate font-mono text-sm font-semibold text-slate-800">{row.docNo}</div>
+          <div className="mt-0.5 truncate text-xs text-slate-500">{row.branchName}</div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="text-xs text-slate-500">{formatDateDisplay(row.date)}</div>
+          <div className="mt-1"><StatusBadge status={row.status} /></div>
+        </div>
       </div>
-      <div className="mb-3 grid grid-cols-3 gap-2.5 text-center">
+
+      <div className="mt-3 border-t border-slate-200/70 pt-3">
+        <div className="truncate text-sm font-bold text-slate-800">{row.productName || 'ยังไม่ได้กำหนดสินค้า'}</div>
+        <div className="mt-0.5 truncate text-xs text-slate-500">{row.productCode || row.productId || '-'} · {row.warehouseName}</div>
+        <div className="mt-0.5 text-xs text-slate-500">สร้างรายการ {formatDateDisplay(row.createdAt)}</div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-3 divide-x divide-slate-200 border-y border-slate-200/70 py-2 text-center">
         <MiniMetric label="เบิก" tone="red" value={row.inputQty} />
-        <MiniMetric label="WIP" tone="amber" value={wipQty} />
+        <MiniMetric label="งานระหว่างทำ" tone="amber" value={wipQty} />
         <MiniMetric label="ผลิต" tone="emerald" value={row.outputQty} />
       </div>
       {row.inputQty > 0 ? (
-        <div className="mb-3 bg-white/40 p-2 rounded-xl border border-slate-200/50">
-          <div className="mb-1 flex justify-between text-sm"><span className="text-slate-600 font-medium">Yield (สัดส่วนผลิต)</span><span className={`font-bold ${yieldPct >= 90 ? 'text-emerald-700' : yieldPct >= 70 ? 'text-blue-700' : 'text-amber-700'}`}>{yieldPct.toFixed(1)}%</span></div>
-          <div className="h-2.5 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-blue-500" style={{ width: `${Math.min(100, yieldPct)}%` }} /></div>
+        <div className="mt-2 flex items-center justify-between text-xs">
+          <span className="font-medium text-slate-500">อัตราผลได้</span>
+          <span className={`font-bold ${yieldPct >= 90 ? 'text-emerald-700' : yieldPct >= 70 ? 'text-blue-700' : 'text-amber-700'}`}>{yieldPct.toFixed(1)}%</span>
         </div>
       ) : null}
       {row.status === 'Completed' ? <CountdownTimer closedAt={row.closedAt} /> : null}
-      <div className="flex items-center justify-between border-t border-slate-200/60 pt-3">
-        <div className="text-sm"><span className="text-slate-500">ต้นทุนเบิก:</span><b className="ml-1 text-slate-800 font-bold">{formatMoney(row.inputCost)}</b></div>
-        <button className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-bold text-white hover:bg-blue-700" type="button">เปิด</button>
+      <div className="mt-2.5 flex items-center justify-between border-t border-slate-200/70 pt-2.5">
+        <div className="text-xs"><span className="text-slate-500">ต้นทุนเบิก:</span><b className="ml-1 text-slate-800">{formatMoney(row.inputCost)}</b></div>
+        <span aria-hidden className="text-xs font-bold text-blue-700">ดูรายละเอียด →</span>
       </div>
-    </div>
+    </article>
   )
 }
 
@@ -688,7 +838,7 @@ function CountdownTimer({ closedAt }: { closedAt: string | null }) {
       const remainingMs = expireTime - now
 
       if (remainingMs <= 0) {
-        setText('หมดเวลาแก้ไข (Locked)')
+        setText('หมดเวลาแก้ไข')
         return
       }
 
@@ -713,7 +863,7 @@ function CountdownTimer({ closedAt }: { closedAt: string | null }) {
 
   if (!text) return null
 
-  const isLocked = text.includes('Locked')
+  const isLocked = text === 'หมดเวลาแก้ไข'
 
   return (
     <div className={`mb-3 flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md ${isLocked ? 'bg-slate-200 text-slate-600 border border-slate-300' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
@@ -1114,30 +1264,28 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
 
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(false) }}>
-      <DialogContent className="max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 outline-none focus:outline-none max-h-[90vh] animate-fade-in" hideClose>
-        <div className="bg-slate-900 px-5 py-4 shrink-0 border-b border-slate-800">
-          <div className="flex items-center justify-between gap-3">
+      <DialogContent className="max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 dark:bg-[#0f172a] border-0 outline-none focus:outline-none max-h-[90vh] animate-fade-in" hideClose>
+        <DialogHeader className="shrink-0 rounded-none border-b border-slate-800 bg-slate-900 px-4 py-4 text-white dark:border-slate-700 dark:bg-[#0f172a] sm:px-5">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
                 <DialogTitle className="font-mono text-lg font-bold text-white">{isCreate ? 'ใบสั่งผลิตใหม่' : row?.docNo ?? ''}</DialogTitle>
-                <StatusBadge status={isCreate ? 'Open' : row?.status ?? '-'} />
+                {isCreate ? (
+                  <span className="inline-flex rounded-full border border-blue-400/30 bg-blue-400/15 px-2.5 py-0.5 text-xs font-semibold text-blue-100">ร่างใหม่</span>
+                ) : (
+                  <StatusBadge status={row?.status ?? '-'} />
+                )}
               </div>
               <DialogDescription className="mt-1 text-sm text-slate-300">
-                {isCreate ? 'เปิดงานผลิตใหม่โดยยังไม่กระทบสต็อก' : `${row?.productName || '-'} · ${row?.branchName || '-'}`}
+                {isCreate ? 'สถานะจะเป็น “ยังไม่เริ่ม” หลังบันทึก และยังไม่กระทบสต็อก' : `${row?.productName || '-'} · ${row?.branchName || '-'}`}
               </DialogDescription>
             </div>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
               {isCreate ? (
                 <>
+                  <ModalDismissButton onClick={() => onClose(false)} />
                   <button
-                    className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white transition-colors hover:border-rose-700 hover:bg-rose-700"
-                    type="button"
-                    onClick={() => onClose(false)}
-                  >
-                    ยกเลิก
-                  </button>
-                  <button
-                    className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+                    className="h-11 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50 sm:h-9"
                     disabled={isSaving}
                     type="button"
                     onClick={() => void submitCreate()}
@@ -1148,43 +1296,37 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
               ) : row ? (
                 <>
                   {rowWipQty <= 0 && row.status !== 'Completed' && row.status !== 'Cancelled' ? (
-                    <button className="h-9 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 disabled:opacity-50" disabled={isSaving} type="button" onClick={() => void patchOrder('complete')}>จบงาน</button>
+                    <button className="h-11 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 disabled:opacity-50 sm:h-9" disabled={isSaving} type="button" onClick={() => void patchOrder('complete')}>จบงาน</button>
                   ) : null}
                   {row.inputCount <= 0 && row.outputCount <= 0 && row.status !== 'Cancelled' ? (
-                    <button className="h-9 rounded-md border border-slate-700 bg-slate-800 px-4 text-sm font-normal text-white hover:bg-slate-700 disabled:opacity-50" disabled={isSaving} type="button" onClick={() => void patchOrder('cancel')}>ยกเลิก</button>
+                    <button className="h-11 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-medium text-white hover:border-rose-700 hover:bg-rose-700 disabled:opacity-50 sm:h-9" disabled={isSaving} type="button" onClick={() => void patchOrder('cancel')}>ยกเลิกใบสั่งผลิต</button>
                   ) : null}
-                  <button
-                    className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white transition-colors hover:border-rose-700 hover:bg-rose-700"
-                    type="button"
-                    onClick={() => onClose(false)}
-                  >
-                    ปิด
-                  </button>
+                  <ModalDismissButton onClick={() => onClose(false)} />
                 </>
               ) : null}
             </div>
           </div>
           {error ? <div className="mt-3"><Alert tone="red" title="บันทึกไม่สำเร็จ" text={error} /></div> : null}
-        </div>
+        </DialogHeader>
 
         <div className="flex-1 overflow-y-auto bg-slate-50 space-y-3 p-4">
           {!isCreate ? (
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-6 text-sm">
-              <Metric label="วัตถุดิบเบิก" value={formatMoney(row?.inputQty ?? 0)} tone="danger" />
-              <Metric label="ผลผลิตได้" value={formatMoney(row?.outputQty ?? 0)} />
-              <Metric label="WIP คงเหลือ" value={formatMoney(rowWipQty)} />
-              <Metric label="RM Cost" value={formatMoney(row?.inputCost ?? 0)} />
-              <Metric label="Output Value" value={formatMoney(row?.outputValue ?? 0)} />
-              <Metric label="Yield" value={`${((row?.inputQty ?? 0) > 0 ? ((row?.outputQty ?? 0) / (row?.inputQty ?? 1)) * 100 : 0).toFixed(1)}%`} />
+            <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-3">
+              <Metric label="วัตถุดิบเบิก (กก.)" value={formatMoney(row?.inputQty ?? 0)} tone="danger" />
+              <Metric label="ผลผลิต (กก.)" value={formatMoney(row?.outputQty ?? 0)} />
+              <Metric label="งานระหว่างผลิต (กก.)" value={formatMoney(rowWipQty)} />
+              <Metric label="ต้นทุนวัตถุดิบ (บาท)" value={formatMoney(row?.inputCost ?? 0)} />
+              <Metric label="มูลค่าผลผลิต (บาท)" value={formatMoney(row?.outputValue ?? 0)} />
+              <Metric label="อัตราผลได้" value={`${((row?.inputQty ?? 0) > 0 ? ((row?.outputQty ?? 0) / (row?.inputQty ?? 1)) * 100 : 0).toFixed(1)}%`} />
             </div>
           ) : null}
 
           {!isCreate ? (
             <Tabs className="gap-0" value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
               <TabsList className="w-full flex-nowrap overflow-x-auto" variant="line">
-                <TabsTrigger value="header" variant="line">Header</TabsTrigger>
-                <TabsTrigger value="input" variant="line">Input ({row?.inputCount ?? 0})</TabsTrigger>
-                <TabsTrigger value="output" variant="line">Output ({row?.outputCount ?? 0})</TabsTrigger>
+                <TabsTrigger className="min-h-11 px-4 font-semibold dark:text-slate-300 dark:data-[state=active]:border-blue-400 dark:data-[state=active]:text-white" value="header" variant="line">ข้อมูลทั่วไป</TabsTrigger>
+                <TabsTrigger className="min-h-11 px-4 font-semibold dark:text-slate-300 dark:data-[state=active]:border-blue-400 dark:data-[state=active]:text-white" value="input" variant="line">วัตถุดิบเบิก ({row?.inputCount ?? 0})</TabsTrigger>
+                <TabsTrigger className="min-h-11 px-4 font-semibold dark:text-slate-300 dark:data-[state=active]:border-blue-400 dark:data-[state=active]:text-white" value="output" variant="line">ผลผลิต ({row?.outputCount ?? 0})</TabsTrigger>
               </TabsList>
             </Tabs>
           ) : null}
@@ -1192,11 +1334,12 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
           {(isCreate || tab === 'header') ? (
             isCreate ? (
               <div className="space-y-3">
+                <p className="text-xs font-medium text-slate-600"><span className="font-bold text-red-600">*</span> ช่องที่จำเป็นต้องกรอก</p>
                 {/* กลุ่มที่ 1: ข้อมูลพื้นฐาน */}
                 <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">ข้อมูลพื้นฐาน</h3>
+                  <h3 className="mb-3 border-b border-slate-100 pb-2 text-sm font-semibold text-slate-800">ข้อมูลพื้นฐาน</h3>
                   <div className="grid gap-3 text-sm md:grid-cols-3">
-                    <FormField error={createErrors.date} label="วันที่ *">
+                    <FormField error={createErrors.date} label="วันที่ใบสั่งผลิต *">
                       <DatePickerInput value={createForm.date} onChange={(date) => updateCreateForm('date', date)} className="w-full !h-9" />
                     </FormField>
                     <SelectField error={createErrors.branchCode} label="สาขา *" placeholder="เลือกสาขา" value={createForm.branchCode} options={options.branches} onChange={updateCreateBranch} />
@@ -1224,19 +1367,23 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
 
                 {/* กลุ่มที่ 2: เครื่องจักร & ไลน์ผลิต */}
                 <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">เครื่องจักร & ไลน์ผลิต</h3>
+                  <h3 className="mb-3 border-b border-slate-100 pb-2 text-sm font-semibold text-slate-800">เครื่องจักรและไลน์ผลิต</h3>
                   <div className="grid gap-3 text-sm md:grid-cols-3">
                     <SelectField label="เครื่องจักร" allowBlank value={createForm.machineCode} options={options.machines} onChange={updateCreateMachine} />
-                    <ReadField label="ประเภทเครื่องจักร" value={createForm.machineType || '-'} />
+                    <FormField label="ประเภทเครื่องจักร">
+                      <div aria-disabled="true" className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-100 px-3 text-sm text-slate-700">
+                        <span className={createForm.machineType ? 'font-medium' : 'text-slate-500'}>{createForm.machineType || 'ระบบจะแสดงหลังเลือกเครื่องจักร'}</span>
+                      </div>
+                    </FormField>
                     <SelectField label="ไลน์ผลิต" allowBlank value={createForm.productionLineCode} options={options.productionLines} onChange={(productionLineCode) => updateCreateForm('productionLineCode', productionLineCode)} />
                   </div>
                 </div>
 
                 {/* กลุ่มที่ 3: ข้อมูลเพิ่มเติม */}
                 <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">ข้อมูลเพิ่มเติม</h3>
+                  <h3 className="mb-3 border-b border-slate-100 pb-2 text-sm font-semibold text-slate-800">ข้อมูลเพิ่มเติม</h3>
                   <div className="grid gap-3 text-sm md:grid-cols-3">
-                    <FormField label="Shift">
+                    <FormField label="กะการผลิต">
                       <select
                         className="w-full rounded-md border px-3 py-2 border-slate-300 bg-white h-9 text-sm outline-none text-slate-800"
                         value={createForm.shift}
@@ -1248,7 +1395,7 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
                     </FormField>
                     <div className="md:col-span-2">
                       <FormField label="หมายเหตุ">
-                        <input className="w-full rounded-md border px-3 py-2 border-slate-300 bg-white" value={createForm.notes} onChange={(event) => updateCreateForm('notes', event.target.value)} />
+                        <textarea className="min-h-20 w-full resize-y rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="ระบุหมายเหตุเพิ่มเติม (ถ้ามี)" value={createForm.notes} onChange={(event) => updateCreateForm('notes', event.target.value)} />
                       </FormField>
                     </div>
                   </div>
@@ -1260,8 +1407,9 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
                   <h4 className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">ข้อมูลใบสั่งผลิต</h4>
                   <div className="grid grid-cols-2 gap-x-5 gap-y-4 text-sm">
                     <ReadField label="เลขที่เอกสาร" value={row?.docNo ?? '-'} />
-                    <ReadField label="วันที่" value={row?.date ?? '-'} />
-                    <ReadField label="สถานะ" value={row?.status ? statusLabel(row.status) : '-'} />
+                    <ReadField label="วันที่ใบสั่งผลิต" value={formatDateDisplay(row?.date)} />
+                    <ReadField label="วันที่สร้างรายการ" value={formatDateDisplay(row?.createdAt)} />
+                    <ReadField label="สถานะผลิต" value={row?.status ? statusLabel(row.status) : '-'} />
                     <ReadField label="สินค้าเป้าหมาย" value={row?.productName ?? '-'} />
                   </div>
                 </div>
@@ -1272,7 +1420,7 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
                     <ReadField label="เครื่องจักร" value={row?.machineName ?? '-'} />
                     <ReadField label="ประเภทเครื่องจักร" value={row?.machineType ?? '-'} />
                     <ReadField label="คลังรับผลผลิต" value={row?.warehouseName ?? '-'} />
-                    <ReadField label="WIP" value={formatMoney(rowWipQty)} />
+                    <ReadField label="งานระหว่างผลิตคงเหลือ (กก.)" value={formatMoney(rowWipQty)} />
                     <ReadField label="หมายเหตุ" value={row?.notes || '-'} />
                   </div>
                 </div>
@@ -1429,8 +1577,8 @@ function MovementPanel({
               <th className="p-2 text-right">น้ำหนัก (กก.)</th>
               <th className="p-2 text-right">ราคา/กก.</th>
               <th className="p-2 text-right">รวมมูลค่า</th>
-              <th className="p-2 text-center">สถานะ</th>
-              <th className="p-2 text-center">จัดการ</th>
+              <th className="p-2 text-right">สถานะ</th>
+              <th className="p-2 text-right">จัดการ</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -1453,15 +1601,15 @@ function MovementPanel({
                   <td className="p-2 whitespace-nowrap text-right font-medium tabular-nums">{formatMoney(row.qty)}</td>
                   <td className="p-2 whitespace-nowrap text-right text-slate-500 tabular-nums">{formatMoney(row.unitCost)}</td>
                   <td className="p-2 whitespace-nowrap text-right font-semibold text-slate-800 tabular-nums">{formatMoney(row.totalCost)}</td>
-                  <td className="p-2 text-center">
+                  <td className="p-2 text-right">
                     <span className={`rounded-md px-1.5 py-0.5 text-xs font-bold ${isRowActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                       {isRowActive ? 'Active' : 'Reversed'}
                     </span>
                   </td>
-                  <td className="p-2 text-center">
+                  <td className="p-2 text-right">
                     {canWrite && isRowActive ? (
                       <button
-                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-normal text-slate-700 hover:bg-slate-50"
                         type="button"
                         onClick={() => onReverse(row.docNo)}
                       >
@@ -1579,7 +1727,7 @@ function ProductStockPreview({
           <thead className="border-b border-indigo-100 bg-indigo-50 text-xs font-semibold text-indigo-700">
             <tr>
               <th className="p-2 text-left">สาขา / คลัง</th>
-              <th className="p-2 text-center">ประเภท</th>
+              <th className="p-2 text-right">ประเภท</th>
               <th className="p-2 text-right">จำนวนคงเหลือ (กก.)</th>
               <th className="p-2 text-right">ราคาเฉลี่ย/กก.</th>
               <th className="p-2 text-right">รวมมูลค่า</th>
@@ -1593,7 +1741,7 @@ function ProductStockPreview({
                     {stock.branchCode} / {row.warehouseCode || destinationWarehouseName}
                   </span>
                 </td>
-                <td className="p-2 text-center"><span className="rounded bg-slate-100 px-1 py-0.5 text-xs font-bold text-slate-600">{row.status}</span></td>
+                <td className="p-2 text-right"><span className="rounded bg-slate-100 px-1 py-0.5 text-xs font-bold text-slate-600">{row.status}</span></td>
                 <td className="p-2 whitespace-nowrap text-right font-bold text-slate-900 tabular-nums">{formatMoney(row.qty)}</td>
                 <td className="p-2 whitespace-nowrap text-right text-slate-500 tabular-nums">{formatMoney(row.avgCost)}</td>
                 <td className="p-2 whitespace-nowrap text-right font-bold text-slate-800 tabular-nums">{formatMoney(row.value)}</td>
@@ -1686,18 +1834,30 @@ function SelectField({ allowBlank = false, disabled = false, error, helperText, 
 
 function MiniMetric({ label, tone, value }: { label: string; tone: 'amber' | 'emerald' | 'red'; value: number }) {
   const color = tone === 'red' ? 'text-red-700' : tone === 'emerald' ? 'text-emerald-700' : 'text-amber-700'
-  return <div className="rounded-md bg-white/70 p-2"><div className={`text-xs font-medium ${color}`}>{label}</div><div className={`text-base font-bold ${color}`}>{formatMoney(value)}</div></div>
+  return <div className="px-2"><div className="text-xs font-medium text-slate-500">{label}</div><div className={`text-sm font-bold ${color}`}>{formatMoney(value)} กก.</div></div>
 }
 
 function Metric({ label, value, tone = 'normal' }: { label: string; tone?: 'normal' | 'danger'; value: string }) {
   return <SharedKpiCard label={label} tone={tone} value={value} />
 }
 
+function ModalDismissButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      className="h-11 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-medium text-white transition-colors hover:border-rose-700 hover:bg-rose-700 sm:h-9"
+      type="button"
+      onClick={onClick}
+    >
+      ปิด
+    </button>
+  )
+}
+
 function ReadField({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <div className="text-sm text-slate-500 font-semibold">{label}</div>
-      <div className="mt-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">{value}</div>
+    <div className="min-w-0 border-b border-slate-100 pb-2">
+      <div className="text-xs font-semibold text-slate-500">{label}</div>
+      <div className="mt-1 break-words text-sm font-medium text-slate-800">{value}</div>
     </div>
   )
 }
@@ -1708,21 +1868,25 @@ function Alert({ text, title, tone }: { text: string; title: string; tone: 'red'
 }
 
 function cardClass(status: string) {
-  if (status === 'Completed') return 'border-emerald-300 bg-emerald-50'
-  if (status === 'In Production' || status === 'Partially Completed') return 'border-blue-400 bg-blue-50'
-  if (status === 'Cancelled') return 'border-slate-300 bg-slate-50 opacity-70'
+  if (status === 'Cancelled') return 'border-slate-200 bg-white opacity-70 dark:opacity-100'
   return 'border-slate-200 bg-white hover:border-blue-300'
 }
 
-function statusClass(status: string) {
-  if (status === 'In Production') return 'bg-purple-100 text-purple-700'
-  if (status === 'Partially Completed') return 'bg-amber-100 text-amber-700'
-  if (status === 'Completed') return 'bg-emerald-100 text-emerald-700'
-  if (status === 'Cancelled') return 'bg-red-100 text-red-700'
-  return 'bg-slate-100 text-slate-700'
+function statusClass(status: string, compact = false) {
+  if (status === 'In Production') return compact ? 'text-purple-700' : 'bg-purple-100 text-purple-700'
+  if (status === 'Partially Completed') return compact ? 'text-amber-700' : 'bg-amber-100 text-amber-700'
+  if (status === 'Completed') return compact ? 'text-emerald-700' : 'bg-emerald-100 text-emerald-700'
+  if (status === 'Cancelled') return compact ? 'text-red-700' : 'bg-red-100 text-red-700'
+  return compact ? 'text-slate-700' : 'bg-slate-100 text-slate-700'
 }
 
-function StatusBadge({ status }: { status: string }) {
-  return <span className={`rounded-full px-3 py-1 text-sm font-bold ${statusClass(status)}`}>{statusLabel(status)}</span>
+function StatusBadge({ compact = false, status }: { compact?: boolean; status: string }) {
+  return compact ? (
+    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${statusClass(status, true)}`}>
+      <span className="size-1.5 rounded-full bg-current" />
+      {statusLabel(status)}
+    </span>
+  ) : (
+    <span className={`rounded-full px-3 py-1 text-sm font-bold ${statusClass(status)}`}>{statusLabel(status)}</span>
+  )
 }
-

@@ -4,13 +4,13 @@ import { CostAllocatorPageClient } from '@/components/dual-costing/CostAllocator
 import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
 
 export const metadata: Metadata = {
-  title: 'Cost Allocator | NS Scrap ERP',
+  title: 'จัดสรรต้นทุน | NS Scrap ERP',
 }
 
 export default function CostAllocatorPage() {
   return (
     <>
-      <PageTitleOverride title="Cost Allocator" />
+      <PageTitleOverride title="จัดสรรต้นทุน" />
       <Suspense fallback={<div className="p-8 text-center text-xs text-slate-500">กำลังโหลด...</div>}>
         <CostAllocatorPageClient />
       </Suspense>

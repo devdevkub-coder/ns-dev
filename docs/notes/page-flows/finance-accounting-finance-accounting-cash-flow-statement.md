@@ -91,6 +91,12 @@ finance/accounting read model: งบกระแสเงินสด
 
 P2 proof completed against current Next page/API code. Remaining work is formula/source/cutoff refinement only when the target report definition changes or a page-specific discrepancy is found.
 
+## UI Checkpoint 2026-07-12
+
+- ระบุชื่อ table business surface ให้ชัดเป็น `งบกระแสเงินสด` และเปลี่ยน KPI/กิจกรรมกระแสเงินสดที่เป็นภาษาอังกฤษให้เป็น Thai-first
+- ปุ่มคืนค่าความกว้างตารางและปุ่มปิด modal ใช้น้ำหนักตัวอักษรปกติตาม action baseline; ตารางยังรักษาคอลัมน์แรกชิดซ้ายและคอลัมน์ถัดไปชิดขวา
+- เหตุผล: คงรูปแบบรายงานที่อ่านได้สม่ำเสมอกับ list/table มาตรฐาน โดยไม่เปลี่ยนข้อมูลกระแสเงินสดหรือ drilldown
+
 ## Implementation Checklist
 
 - [x] Verify current API response shape and source tables

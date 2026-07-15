@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
-import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
+import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
@@ -70,14 +70,14 @@ export function CashOthersSummaryPageClient() {
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
-        <label className="text-xs font-bold text-slate-500">As of</label>
+        <label className="text-xs font-bold text-slate-500">ณ วันที่</label>
         <DatePickerInput className="w-[140px]" value={asOf} onChange={setAsOf} />
         <span className="flex-1" />
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <Grand icon="💰" label="Total Asset" value={summary.totalAsset} />
-        <Grand icon="📉" label="Total Debt" value={summary.totalDebt} />
-        <Grand icon="⚖️" label="Net Worth" value={summary.netWorth} />
+        <Grand icon="💰" label="สินทรัพย์รวม" value={summary.totalAsset} />
+        <Grand icon="📉" label="หนี้สินรวม" value={summary.totalDebt} />
+        <Grand icon="⚖️" label="มูลค่าสุทธิ" value={summary.netWorth} />
         <Grand danger={(summary.cashNeededToday ?? 0) > (summary.totalCash ?? 0)} icon="💸" label="เงินที่ต้องใช้วันนี้" value={summary.cashNeededToday} />
       </div>
       <TradingPendingBlock summary={data?.tradingPending ?? {}} />
@@ -107,41 +107,33 @@ function TradingPendingBlock({ summary }: { summary: Record<string, number> }) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
-          <span className="text-xl">🔄</span> Trading Pending รับเงิน — Trading ซื้อจ่ายแล้ว แต่ Sales ยังไม่เปิด
+          <span className="text-xl">🔄</span> รายการซื้อขายรอรับเงิน — ซื้อจ่ายแล้ว แต่ยังไม่เปิดขาย
         </h3>
-        <Link className="rounded-md bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-bold text-white transition-colors outline-none focus:outline-none" href="/trading/matching">
-          Trading Matching →
+        <Link className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-normal text-white outline-none transition-colors hover:bg-slate-800 focus:outline-none" href="/trading/matching">
+          ไปหน้าจับคู่รายการ →
         </Link>
       </div>
       <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
-        <Mini label="📋 บิลซื้อ" tone="purple" value={`${money(summary.billCount)} ใบ`} />
-        <Mini label="💸 จ่ายไปแล้ว" tone="blue" value={money(summary.paidAmount)} />
-        <Mini label="✓ Match แล้ว" tone="emerald" value={money(summary.matchedAmount)} />
-        <Mini label="⏳ Pending รับเงิน" tone="purpleStrong" value={money(summary.pendingAmount)} />
+        <Mini label="บิลซื้อ" tone="purple" value={`${money(summary.billCount)} ใบ`} />
+        <Mini label="จ่ายแล้ว" tone="blue" value={money(summary.paidAmount)} />
+        <Mini label="จับคู่แล้ว" tone="emerald" value={money(summary.matchedAmount)} />
+        <Mini label="รอรับเงิน" tone="purpleStrong" value={money(summary.pendingAmount)} />
       </div>
     </div>
   )
 }
 
 function Mini({ label, tone, value }: { label: string; tone: string; value: string }) {
-  const numericValue = parseFloat(value.replace(/[^0-9.-]/g, ''))
-  const isZero = isNaN(numericValue) ? false : numericValue === 0
-
-  const textToneMap: Record<string, string> = {
-    amber: 'text-amber-700',
-    blue: 'text-blue-700',
-    emerald: 'text-emerald-700',
-    purple: 'text-purple-700',
-    purpleStrong: 'text-purple-800',
-    red: 'text-red-700'
+  const toneMap: Record<string, KpiCardTone> = {
+    amber: 'amber',
+    blue: 'blue',
+    emerald: 'emerald',
+    purple: 'purple',
+    purpleStrong: 'purple',
+    red: 'red',
   }
-  const color = isZero ? 'text-slate-900' : (textToneMap[tone] ?? 'text-slate-700')
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
-      <div className="text-xs text-slate-500 font-medium">{label}</div>
-      <div className={`mt-0.5 break-words text-lg font-bold ${color}`}>{value}</div>
-    </div>
-  )
+
+  return <SharedKpiCard className="p-3 sm:p-3" label={label} tone={toneMap[tone] ?? 'slate'} value={value} />
 }
 
 function DonutPanel({ empty, items, title, total, tone }: { empty?: string; items: Array<{ color: string; name: string; val: number }>; title: string; total: number; tone: string }) {
@@ -185,7 +177,7 @@ function ArAging({ aging, total }: { aging: Record<string, number>; total: numbe
   const max = Math.max(1, ...Object.values(aging))
   return (
     <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
-      <h3 className="mb-3 font-bold text-sm text-cyan-700">📥 AR Aging — อายุลูกหนี้</h3>
+      <h3 className="mb-3 font-bold text-sm text-cyan-700">📥 อายุลูกหนี้</h3>
       <div className="space-y-3">
         {Object.entries(aging).map(([key, amount]) => (
           <div key={key}>
@@ -200,7 +192,7 @@ function ArAging({ aging, total }: { aging: Record<string, number>; total: numbe
         ))}
       </div>
       <div className="mt-4 flex justify-between border-t border-slate-100 pt-3 text-sm font-bold text-slate-800">
-        <span>รวม AR</span>
+        <span>รวมลูกหนี้</span>
         <span className="text-cyan-700 font-mono">{money(total)}</span>
       </div>
     </div>
@@ -213,9 +205,9 @@ function agingLabel(key: string) {
 
 function CashTable({ rows, total }: { rows: AnyRow[]; total: number }) {
   return (
-    <Panel heading="💵 CASH & OTHERS" tone="emerald" total={total}>
+    <Panel heading="💵 เงินสดและรายการอื่น" tone="emerald" total={total}>
       <Table
-        headers={['บัญชี', 'ประเภท', 'สกุล', 'Balance', 'THB Equiv']}
+        headers={['บัญชี', 'ประเภท', 'สกุล', 'ยอดคงเหลือ', 'เทียบเท่า บาท']}
         rows={rows.map((row) => [
           text(row.name),
           text(row.type),
@@ -230,13 +222,13 @@ function CashTable({ rows, total }: { rows: AnyRow[]; total: number }) {
 
 function ReceivableTable({ row }: { row: Record<string, number> }) {
   return (
-    <Panel heading="📈 RECEIVABLE / ลูกหนี้" tone="blue" total={row.totalAR}>
+    <Panel heading="ลูกหนี้" tone="blue" total={row.totalAR}>
       <KeyRows
         rows={[
           ['ลูกหนี้ในประเทศ', row.arDomestic],
           ['ลูกหนี้ต่างประเทศ', row.arOverseas],
           ['ลูกหนี้เกินกำหนด', row.arOverdue, 'amber'],
-          ['+ Customer Advance ที่รับไว้', row.customerAdvanceTotal, 'emerald']
+          ['+ เงินรับล่วงหน้าจากลูกค้า', row.customerAdvanceTotal, 'emerald']
         ]}
       />
     </Panel>
@@ -245,13 +237,13 @@ function ReceivableTable({ row }: { row: Record<string, number> }) {
 
 function StockTable({ row }: { row: Record<string, number> }) {
   return (
-    <Panel heading="📦 STOCK" tone="amber" total={row.val}>
+    <Panel heading="สต๊อก" tone="amber" total={row.val}>
       <KeyRows
         rows={[
-          ['น้ำหนัก Stock รวม', `${money(row.qty)} กก.`],
-          ['มูลค่า Stock รวม (WAC)', row.val],
-          ['Stock ที่จ่ายเงินแล้ว (ประมาณ)', row.paidVal, 'emerald'],
-          ['Stock ที่ยังค้างจ่าย', row.unpaidVal, 'amber']
+          ['น้ำหนักสต๊อกรวม', `${money(row.qty)} กก.`],
+          ['มูลค่าสต๊อกรวม (WAC)', row.val],
+          ['สต๊อกที่จ่ายเงินแล้ว (ประมาณ)', row.paidVal, 'emerald'],
+          ['สต๊อกที่ยังค้างจ่าย', row.unpaidVal, 'amber']
         ]}
       />
     </Panel>
@@ -260,14 +252,14 @@ function StockTable({ row }: { row: Record<string, number> }) {
 
 function DebtTable({ row }: { row: Record<string, number> }) {
   return (
-    <Panel heading="📉 DEBT / ภาระหนี้" tone="red" total={row.totalAP + row.customerAdvanceTotal}>
+    <Panel heading="ภาระหนี้" tone="red" total={row.totalAP + row.customerAdvanceTotal}>
       <KeyRows
         rows={[
           ['เจ้าหนี้การค้า (AP)', row.totalAP],
           ['เจ้าหนี้เกินกำหนด', row.apOverdue, 'red'],
-          ['Customer Advance (Liability)', row.customerAdvanceTotal],
+          ['เงินรับล่วงหน้าจากลูกค้า (หนี้สิน)', row.customerAdvanceTotal],
           ['ค่าใช้จ่ายวันนี้', row.expenseToday, 'amber'],
-          ['Supplier Advance ที่จ่ายไว้ (Asset)', row.supplierAdvanceTotal, 'emerald']
+          ['เงินจ่ายล่วงหน้าผู้ขาย (สินทรัพย์)', row.supplierAdvanceTotal, 'emerald']
         ]}
       />
     </Panel>
@@ -295,7 +287,7 @@ function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
       label: header,
       defaultWidth: index === 0 ? 190 : index >= headers.length - 2 ? 135 : 120,
       minWidth: index === 0 ? 145 : index >= headers.length - 2 ? 115 : 95,
-      align: index >= headers.length - 2 ? 'right' : 'left',
+      align: index === 0 ? 'left' : 'right',
     }))
   }, [headers])
   const columnResize = useResizableColumns('main.cash-others-summary.cash-accounts.v1', columns)
@@ -324,7 +316,7 @@ function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
       {/* Desktop view */}
       {columnResize.hasCustomWidths ? (
         <div className="mb-2 hidden justify-end px-3 pt-3 lg:flex">
-          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
+          <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-normal text-slate-600 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
         </div>
       ) : null}
       <div className="hidden overflow-x-auto lg:block">
@@ -354,8 +346,8 @@ function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
             {sortedRows.map((row, index) => (
               <tr key={`${row[0]}-${index}`} className="hover:bg-slate-50/30 transition-colors">
                 {row.map((cell, cellIndex) => (
-                  <td key={`${cell}-${cellIndex}`} className={`px-3 py-3 ${cellIndex >= row.length - 2 ? 'text-right font-mono tabular-nums' : 'text-slate-700'}`}>
-                    <div className={cellIndex >= row.length - 2 ? 'whitespace-nowrap' : 'truncate'} title={cell}>{cell}</div>
+                  <td key={`${cell}-${cellIndex}`} className={`px-3 py-3 ${cellIndex === 0 ? 'text-slate-700' : cellIndex >= row.length - 2 ? 'text-right font-mono tabular-nums' : 'text-right text-slate-700'}`}>
+                    <div className={cellIndex === 0 ? 'truncate' : 'whitespace-nowrap'} title={cell}>{cell}</div>
                   </td>
                 ))}
               </tr>

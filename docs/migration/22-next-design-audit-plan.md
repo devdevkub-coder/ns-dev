@@ -573,10 +573,10 @@ Expected:
   - The page no longer overrides the app font with `font-sans`, and the Manual target-cost field now uses the money input pattern instead of `type="number"`.
   - Browser QA remains pending.
 - `/dual-costing/cost-pool`
-  - After the latest correction, the main Cost Pool table now uses the active lined/resizable table shell with Thai-first business headers, persisted column widths, reset-width control, and final status-column auto-stretch.
-  - Follow-up correction after visual feedback: every business header now uses `ResizableTableHead` sorting props, shows inactive/active up/down sort indicators, applies client-side ascending/descending sorting before pagination, and uses fixed table layout so resize handles visibly adjust the columns like `/daily/weight-ticket-list` and `/sales/po-sell`.
-  - The table now shows the branch column already present in the read model, mobile uses dense cards from the same sorted paged row set instead of horizontal table scrolling, and filter/pagination wording/sizing follows the shared list baseline more closely.
-  - Browser QA remains pending.
+  - The 2026-07-12 re-audit found the earlier 2026-07-01 mechanics note stale after `90ecb35f` replaced the flat resizable table with a grouped expandable table.
+  - Canonical normalization restores shared resize/sort/fixed-layout/nowrap/reset mechanics to the grouped product table and moves source lots into a read-only detail dialog with its own resizable table and dense mobile cards.
+  - Desktop/mobile filters, Cost Type/Status segmentation, external count/pagination placement, action treatment, and KPI composition now follow `/daily/weight-ticket-list`; grouping by product and having no line tabs remain documented business-specific adaptations.
+  - Runtime formulas, API/export contract, permissions, allocation usage, and DB state are unchanged. Local compilation validation is required before closeout; browser QA is deferred until explicitly requested.
 - `/dual-costing/match-log`
   - After the latest correction, the desktop audit table now uses the active lined/resizable table shell with persisted column widths, reset-width control, and column-definition based loading/empty `colSpan` values.
   - Follow-up correction after visual feedback: every business header now uses `ResizableTableHead` sorting props, shows inactive/active up/down sort indicators, applies client-side ascending/descending sorting after PO Sell target filtering and before pagination, and uses fixed table layout so resize handles visibly adjust the columns like `/dual-costing/cost-pool`.

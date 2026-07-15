@@ -119,6 +119,21 @@ export const stockAdjustReasonOptions = [
   'อื่นๆ (Other)',
 ] as const
 
+const stockAdjustReasonLabels: Record<string, string> = {
+  'หาของไม่เจอ (Missing)': 'หาของไม่เจอ',
+  'นับจริง 0 แต่ระบบมี (Lost/Damaged)': 'นับจริง 0 แต่ระบบมี',
+  'นับได้เกินระบบ (Found Excess)': 'นับได้เกินระบบ',
+  'สูญหาย (Lost)': 'สูญหาย',
+  'เสียหาย (Damaged)': 'เสียหาย',
+  'ผิดสาขา/คลัง (Wrong Branch)': 'ผิดสาขา/คลัง',
+  'อื่นๆ (Other)': 'อื่นๆ',
+}
+
+export function stockAdjustReasonLabel(value: string | null | undefined) {
+  if (!value) return '-'
+  return stockAdjustReasonLabels[value] ?? value
+}
+
 export const stockAdjustReasonSchema = z.enum(stockAdjustReasonOptions)
 
 export const stockAdjustFormSchema = z.object({

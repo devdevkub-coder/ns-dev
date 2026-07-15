@@ -34,7 +34,7 @@ export function DatePickerInput({
   className,
   disabled = false,
   id,
-  placeholder = '24/05/2026',
+  placeholder = 'วว/ดด/ปปปป',
   readOnly = false,
   required = false,
   showClearButton = true,

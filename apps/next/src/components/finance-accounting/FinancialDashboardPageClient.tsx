@@ -121,7 +121,10 @@ export function FinancialDashboardPageClient() {
         </Panel>
       </div>
 
-      <Section title=" เงินสด & สภาพคล่อง">
+      <Section
+        title=" เงินสด & สภาพคล่อง"
+        gridClassName="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6"
+      >
         <Card label=" เงินสด" tone="emerald" value={money(s.cashBalance)} />
         <Card label=" ธนาคาร" tone="blue" value={money(s.bankBalance)} />
         <Card label=" FCD" tone="purple" value={money(s.fcdBalance)} />
@@ -132,18 +135,35 @@ export function FinancialDashboardPageClient() {
 
       <Section title=" ลูกหนี้ & เจ้าหนี้">
         <Card label=" ลูกหนี้รวม (AR)" tone="blue" value={money(s.ar)} />
+        <Card label=" ต้นทุนรอเปิดบิล" tone="amber" value={money(s.pendingDeliveryCost)} note="ใบส่งของที่ยังไม่เปิดบิลขาย" />
         <Card label=" Trading รอจับคู่" tone="purple" value={money(s.tradingPendingValue)} note="จ่ายซื้อแล้ว รอเปิดบิลขาย" />
         <Card label=" เจ้าหนี้รวม (AP)" tone="red" value={money(s.ap)} />
       </Section>
 
-      <Section title=" ทรัพย์สิน & หนี้สิน">
+      <Section
+        title=" ทรัพย์สิน & หนี้สิน"
+        gridClassName="grid grid-cols-1 gap-4 p-4 md:grid-cols-3"
+      >
         <Card label="มูลค่าสต็อก (WAC)" tone="orange" value={money(s.inv)} />
         <Card label="ทรัพย์สินถาวร (NBV)" tone="violet" value={money(s.totalNBV)} />
         <Card label="เงินกู้/ลีสซิ่งคงเหลือ" tone="rose" value={money(s.totalLoan)} />
       </Section>
 
+      <Section
+        title="กระแสเงินสด 7/30 วัน"
+        subtitle="ยอดเงินที่ต้องเตรียมจ่าย vs จะได้รับ"
+        gridClassName="grid grid-cols-1 gap-4 p-4 md:grid-cols-3"
+      >
+        {(data?.cashPeriods ?? []).map((period) => (
+          <CashFlowCard key={period.label} period={period} />
+        ))}
+      </Section>
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Section title={` ผลประกอบการ ${data?.filters.monthStart.slice(0, 7) ?? asOf.slice(0, 7)}`}>
+        <Section
+          title={` ผลประกอบการ ${data?.filters.monthStart.slice(0, 7) ?? asOf.slice(0, 7)}`}
+          gridClassName="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2"
+        >
           <Card label="รายได้" tone="emerald" value={money(s.rev)} />
           <Card label="กำไรขั้นต้น" tone="blue" value={money(s.gp)} note={`${(s.gpPct ?? 0).toFixed(1)}%`} />
           <Card label="กำไรสุทธิ" tone={(s.np ?? 0) > 0 ? 'emerald' : (s.np ?? 0) < 0 ? 'red' : 'slate'} value={money(s.np)} note={`${(s.npPct ?? 0).toFixed(1)}%`} />
@@ -280,6 +300,33 @@ function CashPeriod({ period }: { period: { cashIn: number; label: string; need:
   )
 }
 
+function CashFlowCard({ period }: { period: { cashIn: number; label: string; need: number } }) {
+  const net = period.cashIn - period.need
+  const netLabel = net >= 0 ? 'เกินดุล' : 'ขาดดุล'
+  const netTone = net >= 0 ? 'text-emerald-600' : 'text-rose-600'
+  const icon = period.label === 'วันนี้' ? 'วันนี้' : period.label === '7 วัน' ? '7 วันข้างหน้า' : '30 วันข้างหน้า'
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-4 text-sm font-bold text-slate-800">{icon}</div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-lg border border-rose-100 bg-rose-50/50 p-3">
+          <div className="text-xs font-semibold text-rose-500">ต้องจ่าย</div>
+          <div className="mt-1 font-mono text-xl font-bold text-rose-600">{money(period.need)}</div>
+        </div>
+        <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-3">
+          <div className="text-xs font-semibold text-emerald-500">จะได้รับ</div>
+          <div className="mt-1 font-mono text-xl font-bold text-emerald-600">{money(period.cashIn)}</div>
+        </div>
+      </div>
+      <div className={`mt-4 flex items-center justify-center gap-2 border-t border-slate-100 pt-3 text-sm font-bold ${netTone}`}>
+        <span>{netLabel}</span>
+        <span>{money(net)}</span>
+      </div>
+    </div>
+  )
+}
+
 function Bar({ amount, color, label, max, tone }: { amount: number; color: string; label: string; max: number; tone: string }) {
   return (
     <div className="mb-3">
@@ -294,7 +341,17 @@ function Bar({ amount, color, label, max, tone }: { amount: number; color: strin
   )
 }
 
-function Section({ children, subtitle, title }: { children: ReactNode; subtitle?: string; title: string }) {
+function Section({
+  children,
+  gridClassName,
+  subtitle,
+  title,
+}: {
+  children: ReactNode
+  gridClassName?: string
+  subtitle?: string
+  title: string
+}) {
   return (
     <div className="overflow-hidden rounded-md border border-slate-200/80 bg-white shadow-sm">
       <div className="border-b border-slate-100 bg-slate-50/70 px-4 py-3">
@@ -303,7 +360,7 @@ function Section({ children, subtitle, title }: { children: ReactNode; subtitle?
           {subtitle ? <span className="text-xs font-normal text-slate-400">{subtitle}</span> : null}
         </h3>
       </div>
-      <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
+      <div className={gridClassName ?? 'grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4'}>
         {children}
       </div>
     </div>

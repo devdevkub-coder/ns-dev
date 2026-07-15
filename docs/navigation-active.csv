@@ -1,7 +1,7 @@
 "source","category","menu","route_or_key","parent_menu","note"
 "active","Dashboard & Reports","Owner Daily Control (เปิดทุกเช้า)","/owner-daily","",""
 "active","Dashboard & Reports","Daily Report (รายงานประจำวัน)","/daily-report","",""
-"active","Dashboard & Reports","Dashboard","/dashboard","",""
+"active","Dashboard & Reports","Dashboard Overview","/dashboard-overview","",""
 "active","Dashboard & Reports","Profit & Cost Analysis","/profit-cost-analysis","",""
 "active","Dashboard & Reports","วางแผนการขาย (LME)","/sales-plan","",""
 "active","Dashboard & Reports","Sales Tracking Dashboard","/sales-commission","",""

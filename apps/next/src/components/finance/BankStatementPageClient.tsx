@@ -200,15 +200,15 @@ export function BankStatementPageClient() {
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         {/* Desktop View */}
         <div className="hidden lg:flex flex-wrap items-center gap-2">
-          <select className="w-64 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={accountId} onChange={(event) => { setPage(1); setAccountId(event.target.value) }}>
+          <select className="h-9 w-64 rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={accountId} onChange={(event) => { setPage(1); setAccountId(event.target.value) }}>
             {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.name} ({account.type})</option>)}
           </select>
-          <DatePickerInput className="w-[130px]" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
+          <DatePickerInput className="h-9 w-[130px]" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
           <span className="text-xs text-slate-400">→</span>
-          <DatePickerInput className="w-[130px]" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
+          <DatePickerInput className="h-9 w-[130px]" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
         </div>
         <div className="mt-2 hidden justify-end lg:flex">
-          <button className="flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting} type="button" onClick={() => void exportXlsx()}>
+          <button className="flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting} type="button" onClick={() => void exportXlsx()}>
             <Download aria-hidden="true" className="size-4" />
             <span>{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</span>
           </button>
@@ -217,7 +217,7 @@ export function BankStatementPageClient() {
         {/* Mobile View (Collapsible Filters) */}
         <div className="block lg:hidden space-y-2.5">
           <div className="flex flex-wrap gap-2">
-            <select className="min-w-[160px] flex-1 rounded-md border px-3 py-2 text-sm font-medium text-slate-900" value={accountId} onChange={(event) => { setPage(1); setAccountId(event.target.value) }}>
+            <select className="h-9 min-w-[160px] flex-1 rounded-md border px-3 text-sm text-slate-900" value={accountId} onChange={(event) => { setPage(1); setAccountId(event.target.value) }}>
               {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.name} ({account.type})</option>)}
             </select>
             <button
@@ -230,7 +230,7 @@ export function BankStatementPageClient() {
               ตัวกรอง
             </button>
             <button
-              className="inline-flex h-9 shrink-0 items-center rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-60"
+              className="inline-flex h-9 shrink-0 items-center rounded-md bg-emerald-600 px-4 text-sm font-normal text-white disabled:opacity-60"
               disabled={isExporting}
               type="button"
               onClick={() => void exportXlsx()}
@@ -244,11 +244,11 @@ export function BankStatementPageClient() {
               <div className="grid grid-cols-2 gap-2 items-center">
                 <label className="text-xs text-slate-500">
                   จากวันที่
-                  <DatePickerInput className="mt-1 w-full" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
                 </label>
                 <label className="text-xs text-slate-500">
                   ถึงวันที่
-                  <DatePickerInput className="mt-1 w-full" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
                 </label>
               </div>
             </div>
@@ -338,17 +338,17 @@ export function BankStatementPageClient() {
       </div>
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="grid gap-3 lg:grid-cols-6">
-          <input autoComplete="off" className="rounded-md border px-3 py-2 text-sm lg:col-span-2" placeholder="ค้นหาเลขอ้างอิง / คำอธิบาย / หมายเหตุ" type="search" value={q} onChange={(event) => { setPage(1); setQ(event.target.value) }} />
-          <select className="rounded-md border px-3 py-2 text-sm" value={refType} onChange={(event) => { setPage(1); setRefType(event.target.value) }}>
-            <option value="">ทุก ref type</option>
+          <input autoComplete="off" className="h-9 rounded-md border px-3 text-sm lg:col-span-2" placeholder="ค้นหาเลขอ้างอิง / คำอธิบาย / หมายเหตุ" type="search" value={q} onChange={(event) => { setPage(1); setQ(event.target.value) }} />
+          <select className="h-9 rounded-md border px-3 text-sm" value={refType} onChange={(event) => { setPage(1); setRefType(event.target.value) }}>
+            <option value="">ทุกประเภทอ้างอิง</option>
             {(data?.filters.refTypes ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
-          <select className="rounded-md border px-3 py-2 text-sm" value={type} onChange={(event) => { setPage(1); setType(event.target.value) }}>
-            <option value="">ทุก type</option>
+          <select className="h-9 rounded-md border px-3 text-sm" value={type} onChange={(event) => { setPage(1); setType(event.target.value) }}>
+            <option value="">ทุกประเภทรายการ</option>
             {(data?.filters.types ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
-          <button className="rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700" type="button" onClick={() => { setPage(1); setSortDirection((current) => current === 'asc' ? 'desc' : 'asc') }}>วันที่ {sortDirection === 'asc' ? 'เก่าไปใหม่' : 'ใหม่ไปเก่า'}</button>
-          <button className="rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700" type="button" onClick={() => { setFrom(''); setPage(1); setQ(''); setRefType(''); setTo(''); setType('') }}>ล้างตัวกรอง</button>
+          <button className="h-9 rounded-md bg-slate-100 px-3 text-sm font-normal text-slate-700" type="button" onClick={() => { setPage(1); setSortDirection((current) => current === 'asc' ? 'desc' : 'asc') }}>วันที่ {sortDirection === 'asc' ? 'เก่าไปใหม่' : 'ใหม่ไปเก่า'}</button>
+          <button className="h-9 rounded-md bg-slate-100 px-3 text-sm font-normal text-slate-700" type="button" onClick={() => { setFrom(''); setPage(1); setQ(''); setRefType(''); setTo(''); setType('') }}>ล้างตัวกรอง</button>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500">บัญชี {selectedAccount?.code ? `${selectedAccount.code} - ` : ''}{selectedAccount?.name ?? '-'} / {selectedAccount?.bankName ?? '-'}</span>
@@ -603,9 +603,9 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: BankRow }) {
               <DetailItem label="บัญชี" value={row.accountName || '-'} />
               <DetailItem label="ธนาคาร" value={row.bankName || '-'} />
               <DetailItem label="เลขบัญชี" value={row.accountNo || '-'} />
-              <DetailItem label="Ref type" value={row.refType || '-'} />
-              <DetailItem label="Type" value={row.type || '-'} />
-              <DetailItem label="Cash flow" value={row.cashFlowCategory || '-'} />
+              <DetailItem label="ประเภทอ้างอิง" value={row.refType || '-'} />
+              <DetailItem label="ประเภทรายการ" value={row.type || '-'} />
+              <DetailItem label="หมวดกระแสเงินสด" value={row.cashFlowCategory || '-'} />
             </div>
           </div>
 

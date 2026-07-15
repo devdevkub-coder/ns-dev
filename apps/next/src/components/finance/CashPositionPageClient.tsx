@@ -136,10 +136,10 @@ export function CashPositionPageClient() {
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="grid grid-cols-1 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
-        <SharedKpiCard icon={netCash >= 0 ? '💰' : '⚠️'} label="Net Cash Position" note="= Cash + Bank + FCD + AR − AP − OD ใช้" tone={netCash >= 0 ? 'emerald' : 'red'} value={formatMoney(netCash)} />
+        <SharedKpiCard icon={netCash >= 0 ? '💰' : '⚠️'} label="สภาพคล่องสุทธิ" note="= เงินสด + ธนาคาร + FCD + ลูกหนี้ − เจ้าหนี้ − OD ใช้ไป" tone={netCash >= 0 ? 'emerald' : 'red'} value={formatMoney(netCash)} />
 
         <div className="bg-white p-4 border border-slate-200 rounded-xl shadow-sm">
-          <div className="mb-2 text-sm font-bold text-slate-700">🥧 องค์ประกอบเงิน (Liquid)</div>
+          <div className="mb-2 text-sm font-bold text-slate-700">🥧 องค์ประกอบสภาพคล่อง</div>
           <div className="mx-auto flex h-36 w-36 items-center justify-center rounded-full p-6" style={{ background: donut }}>
             <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-white text-center text-xs font-bold text-slate-700">
               <span className="text-xs font-normal text-slate-500">รวม</span>
@@ -147,14 +147,14 @@ export function CashPositionPageClient() {
             </div>
           </div>
           <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">
-            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-emerald-500" />💵 Cash</span>
-            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-blue-500" />🏦 Bank</span>
+            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-emerald-500" />💵 เงินสด</span>
+            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-blue-500" />🏦 ธนาคาร</span>
             <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-indigo-500" />💱 FCD</span>
           </div>
         </div>
 
         <div className="bg-white p-4 border border-slate-200 rounded-xl shadow-sm">
-          <div className="mb-2 text-sm font-bold text-slate-700">⚖ AR vs AP</div>
+          <div className="mb-2 text-sm font-bold text-slate-700">⚖ ลูกหนี้เทียบเจ้าหนี้</div>
           <div className="space-y-3 text-sm">
             <div>
               <div className="mb-1 flex justify-between"><span className="text-emerald-600">📥 ลูกหนี้ (AR)</span><span className="font-bold text-emerald-700">{formatMoney(arTotal)}</span></div>
@@ -165,7 +165,7 @@ export function CashPositionPageClient() {
               <div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-red-500" style={{ width: arTotal > 0 ? `${Math.min(100, (apTotal / arTotal) * 100)}%` : '0%' }} /></div>
             </div>
             <div className={`rounded-xl p-2 text-center ${arTotal >= apTotal ? 'bg-emerald-50' : 'bg-red-50'}`}>
-              <div className="text-xs text-slate-500">Net (AR − AP)</div>
+              <div className="text-xs text-slate-500">สุทธิ (ลูกหนี้ − เจ้าหนี้)</div>
               <div className={`text-xl font-bold ${arTotal >= apTotal ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(arTotal - apTotal)}</div>
             </div>
           </div>
@@ -174,7 +174,7 @@ export function CashPositionPageClient() {
 
       {topAccounts.length > 0 ? (
         <div className="bg-white p-4 border border-slate-200 rounded-xl shadow-sm">
-          <div className="mb-3 text-sm font-bold text-slate-700">🏆 Top บัญชีที่มียอด</div>
+          <div className="mb-3 text-sm font-bold text-slate-700">🏆 บัญชีที่มียอดสูงสุด</div>
           <div className="space-y-2">
             {topAccounts.map((account, index) => (
               <div key={account.id} className="text-sm">
@@ -193,13 +193,13 @@ export function CashPositionPageClient() {
       <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
         <Metric tone="emerald" label="เงินสดรวม" value={formatMoney(cashTotal)} />
         <Metric tone="blue" label="ธนาคารรวม" value={formatMoney(bankTotal)} />
-        <Metric tone="indigo" label="FCD (THB equiv.)" value={formatMoney(fcdTotal)} />
+        <Metric tone="indigo" label="FCD (เทียบบาท)" value={formatMoney(fcdTotal)} />
         <SharedKpiCard icon="⚠️" label="OD ใช้ไป" note={`เหลือใช้ ${formatMoney(odAvailTotal)}`} tone={odUsedTotal === 0 ? 'slate' : 'amber'} value={formatMoney(odUsedTotal)} />
         <SharedKpiCard className="col-span-2" icon="📥" label="ลูกหนี้รวม (เงินที่จะได้รับ)" tone={arTotal === 0 ? 'slate' : 'emerald'} value={formatMoney(arTotal)} />
         <SharedKpiCard className="col-span-2" icon="📤" label="เจ้าหนี้รวม (เงินที่ต้องจ่าย)" tone={apTotal === 0 ? 'slate' : 'red'} value={formatMoney(apTotal)} />
       </div>
 
-      <SharedKpiCard icon={netCash >= 0 ? '💰' : '⚠️'} label="Net Cash Position (สภาพคล่องสุทธิ)" note="= เงินสด + ธนาคาร + FCD + ลูกหนี้ - เจ้าหนี้ - OD ใช้ไป" tone={netCash >= 0 ? 'emerald' : 'red'} value={formatMoney(netCash)} />
+      <SharedKpiCard icon={netCash >= 0 ? '💰' : '⚠️'} label="สภาพคล่องสุทธิ" note="= เงินสด + ธนาคาร + FCD + ลูกหนี้ - เจ้าหนี้ - OD ใช้ไป" tone={netCash >= 0 ? 'emerald' : 'red'} value={formatMoney(netCash)} />
 
       <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-4 py-3 flex items-center justify-between">

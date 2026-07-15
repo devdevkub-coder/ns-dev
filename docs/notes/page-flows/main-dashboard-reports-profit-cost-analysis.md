@@ -97,3 +97,7 @@ Profit & Cost Analysis เป็น management margin/cost view จาก PB, SB
 - [ ] Add COGS/WAC reconciliation tests
 - [ ] Define product/customer/supplier row drilldown
 - [ ] Decide permission split from generic report permission
+
+## 2026-07-12 Table consistency checkpoint
+
+`/profit-cost-analysis` keeps its report surfaces and calculations unchanged while the product-detail table now aligns numeric headers with numeric cells and uses the canonical `p-2` header / `p-3` body density. What is what: the modal table is a read-only purchase/sales/stock breakdown for the selected product. Why it stays this way: detail values must scan vertically without introducing a page-local spacing or alignment variant; APIs, COGS/GP formulas, permissions, database schema, and DB state are unchanged.

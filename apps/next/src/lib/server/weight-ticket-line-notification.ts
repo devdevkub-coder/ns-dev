@@ -958,7 +958,7 @@ ${partyLabel}: ${ticket.partyName}
 ${pdfUrl}`
 }
 
-export async function sendLinePush(targetId: string, messages: any[], token: string, retryKey?: string) {
+export async function sendLinePush(targetId: string, messages: any[], token: string, retryKey?: string, signal?: AbortSignal) {
   if (!token) throw new Error('ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN')
 
   const headers: Record<string, string> = {
@@ -976,6 +976,7 @@ export async function sendLinePush(targetId: string, messages: any[], token: str
     }),
     headers,
     method: 'POST',
+    signal,
   })
 
   if (response.status === 409 && retryKey) {

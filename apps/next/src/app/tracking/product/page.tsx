@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { ProductTrackingPageClient } from '@/components/tracking/ProductTrackingPageClient'
 
 export const metadata: Metadata = {
-  title: 'Product Tracking | NS Scrap ERP',
+  title: 'ติดตามสินค้า | NS Scrap ERP',
 }
 
 type ProductTrackingPageProps = {

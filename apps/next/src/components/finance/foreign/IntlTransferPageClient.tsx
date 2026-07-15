@@ -189,13 +189,9 @@ export function IntlTransferPageClient() {
         <div className="overflow-x-auto">
         <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth, width: '100%' }}>
           <colgroup>
-            {intlTransferColumns.map((column, index) => {
-              const style = columnResize.getColumnStyle(column.key)
-              if (index === intlTransferColumns.length - 1) {
-                return <col key={column.key} style={{ minWidth: column.minWidth }} />
-              }
-              return <col key={column.key} style={style} />
-            })}
+            {intlTransferColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
           </colgroup>
           <thead className="bg-slate-100">
             <tr>

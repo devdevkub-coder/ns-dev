@@ -7,6 +7,8 @@ import { getErrorMessage } from '@/lib/api-client'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ActiveToggle } from '@/components/ui/ActiveToggle'
+import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader } from '@/components/ui/Dialog'
 
 // Validation Schema for credentials and basic configs
 const credentialsSchema = z.object({
@@ -37,6 +39,22 @@ type Target = {
   last_event_type: string | null
 }
 
+type LineDocumentType = 'WTI' | 'WTO' | 'PB' | 'SB' | 'PMT' | 'RCP'
+
+type RoutingRuleConditions = {
+  documentTypes?: LineDocumentType[]
+  branchCodes?: string[]
+  warehouseIds?: string[]
+  productIds?: string[]
+  partyIds?: string[]
+  minNetWeight?: number | null
+  maxNetWeight?: number | null
+  minImpurityWeight?: number | null
+  requiresImages?: boolean
+  requiresScalePhoto?: boolean
+  timeWindows?: unknown[]
+}
+
 type RoutingRule = {
   id: string
   name: string
@@ -46,8 +64,17 @@ type RoutingRule = {
   target_id: string
   template_id: string | null
   stop_after_match: boolean
-  conditions: any
+  conditions: RoutingRuleConditions
 }
+
+const lineDocumentTypeOptions: Array<{ type: LineDocumentType; label: string }> = [
+  { type: 'WTI', label: 'ใบรับของ' },
+  { type: 'WTO', label: 'ใบส่งของ' },
+  { type: 'PB', label: 'บิลซื้อ' },
+  { type: 'SB', label: 'บิลขาย' },
+  { type: 'PMT', label: 'ใบจ่ายเงิน Supplier' },
+  { type: 'RCP', label: 'ใบรับเงิน Customer' },
+]
 
 type MessageTemplate = {
   id: string
@@ -231,6 +258,26 @@ function targetStatusSortValue(target: Target) {
   return target.is_active ? 'อยู่ในกลุ่ม' : 'ปิดใช้งาน'
 }
 
+function TargetAvatar({ size = 'sm', target }: { size?: 'sm' | 'md'; target: Target }) {
+  const fallback = target.target_type === 'group' ? 'G' : target.target_type === 'room' ? 'R' : 'U'
+  const sizeClass = size === 'md' ? 'size-10 text-sm' : 'size-8 text-xs'
+
+  return (
+    <div aria-hidden="true" className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100 font-bold text-slate-500 ${sizeClass}`}>
+      <span>{fallback}</span>
+      {target.picture_url ? (
+        <img
+          alt=""
+          className="absolute inset-0 size-full object-cover"
+          src={target.picture_url}
+          onError={(event) => { event.currentTarget.style.display = 'none' }}
+          onLoad={(event) => { event.currentTarget.style.display = 'block' }}
+        />
+      ) : null}
+    </div>
+  )
+}
+
 function getTargetSortValue(target: Target, key: TargetColKey): SortValue {
   switch (key) {
     case 'targetInfo':
@@ -333,6 +380,7 @@ export function LineSettingsPageClient() {
   // Rule Modals / Forms state
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false)
   const [editingRule, setEditingRule] = useState<Partial<RoutingRule> | null>(null)
+  const [ruleFieldErrors, setRuleFieldErrors] = useState<{ documentTypes?: string; targetId?: string }>({})
 
   // Template Modals / Forms state
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
@@ -786,8 +834,27 @@ export function LineSettingsPageClient() {
     e.preventDefault()
     setError(null)
     setMessage(null)
-    if (!editingRule?.name || !editingRule?.target_id) {
-      setError('กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน')
+    const documentTypes = editingRule?.conditions?.documentTypes ?? []
+    const mixesDocumentCategories = documentTypes.some((type) => type === 'WTI' || type === 'WTO')
+      && documentTypes.some((type) => type === 'PB' || type === 'SB' || type === 'PMT' || type === 'RCP')
+    const hasActiveGroupTarget = targets.some((target) => (
+      target.target_id === editingRule?.target_id
+      && target.target_type === 'group'
+      && target.is_active
+    ))
+    const nextFieldErrors = {
+      documentTypes: documentTypes.length === 0
+        ? 'เลือกเอกสารอย่างน้อย 1 ประเภท'
+        : (mixesDocumentCategories ? 'กรุณาแยกใบรับ-ส่งของกับเอกสารการเงินเป็นคนละกฎ' : undefined),
+      targetId: hasActiveGroupTarget ? undefined : 'เลือกกลุ่ม LINE ที่เปิดใช้งานอยู่',
+    }
+    setRuleFieldErrors(nextFieldErrors)
+    if (nextFieldErrors.documentTypes || nextFieldErrors.targetId || !editingRule) {
+      setError('กรุณาเลือกประเภทเอกสารและกลุ่ม LINE ให้ครบ')
+      requestAnimationFrame(() => {
+        const fieldId = nextFieldErrors.documentTypes ? 'line-rule-document-types' : 'line-rule-target'
+        document.getElementById(fieldId)?.focus()
+      })
       return
     }
 
@@ -795,16 +862,26 @@ export function LineSettingsPageClient() {
       const isEdit = !!editingRule.id
       const url = '/api/admin/line-rules'
       const method = isEdit ? 'PATCH' : 'POST'
+      const targetName = targets.find((target) => target.target_id === editingRule.target_id)?.display_name || 'LINE'
+      const documentNames = documentTypes.map((type) => lineDocumentTypeOptions.find((option) => option.type === type)?.label || type)
+      const conditions = { ...editingRule.conditions, documentTypes }
+      if (!documentTypes.some((type) => type === 'WTI' || type === 'WTO')) {
+        delete conditions.minNetWeight
+        delete conditions.maxNetWeight
+        delete conditions.minImpurityWeight
+        delete conditions.requiresImages
+        delete conditions.requiresScalePhoto
+      }
       const payload = {
         id: editingRule.id,
-        name: editingRule.name,
+        name: editingRule.id && editingRule.name ? editingRule.name : `${documentNames.join(', ')} → ${targetName}`,
         description: editingRule.description,
         priority: Number(editingRule.priority ?? 100),
         isActive: editingRule.is_active,
         targetId: editingRule.target_id,
         templateId: editingRule.template_id ? Number(editingRule.template_id) : null,
         stopAfterMatch: editingRule.stop_after_match,
-        conditions: editingRule.conditions || {},
+        conditions,
       }
 
       const res = await fetch(url, {
@@ -818,6 +895,7 @@ export function LineSettingsPageClient() {
       setMessage(isEdit ? 'แก้ไขกฎกระจายการแจ้งเตือนสำเร็จ' : 'เพิ่มกฎกระจายการแจ้งเตือนสำเร็จ')
       setIsRuleModalOpen(false)
       setEditingRule(null)
+      setRuleFieldErrors({})
       void loadRules()
     } catch (caught) {
       setError(getErrorMessage(caught, 'บันทึกกฎขัดข้อง'))
@@ -961,7 +1039,7 @@ export function LineSettingsPageClient() {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error || 'ส่งแจ้งเตือนซ้ำล้มเหลว')
       }
-      setMessage(`🚀 บังคับส่งใบชั่ง ${documentNo} ในคิวสำเร็จแล้ว!`)
+      setMessage(`🚀 บังคับส่งเอกสาร ${documentNo} ในคิวสำเร็จแล้ว!`)
       void loadJobs()
       void loadAnalytics()
     } catch (caught) {
@@ -1501,13 +1579,7 @@ export function LineSettingsPageClient() {
                         <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-3 py-3">
                             <div className="flex items-center gap-3">
-                              {t.picture_url ? (
-                                <img src={t.picture_url} alt={t.display_name || "Profile"} className="h-8 w-8 rounded-full border border-slate-200 flex-shrink-0" />
-                              ) : (
-                                <div className="h-8 w-8 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center font-bold text-xs flex-shrink-0">
-                                  {t.target_type === 'group' ? 'G' : t.target_type === 'room' ? 'R' : 'U'}
-                                </div>
-                              )}
+                              <TargetAvatar target={t} />
                               <div className="truncate">
                                 <div className="font-semibold text-slate-800 flex items-center gap-1.5">
                                   <span className="truncate">{t.display_name}</span>
@@ -1607,13 +1679,7 @@ export function LineSettingsPageClient() {
                   sortedTargets.map((t) => (
                     <div key={t.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
                       <div className="flex items-center gap-3">
-                        {t.picture_url ? (
-                          <img src={t.picture_url} alt={t.display_name || "Profile"} className="w-10 h-10 rounded-full object-cover" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-xs font-bold">
-                            {t.target_type === 'group' ? 'G' : t.target_type === 'room' ? 'R' : 'U'}
-                          </div>
-                        )}
+                        <TargetAvatar size="md" target={t} />
                         <div>
                           <div className="font-bold text-slate-900 flex items-center gap-1.5">
                             {t.display_name}
@@ -1708,14 +1774,15 @@ export function LineSettingsPageClient() {
                 <button
                   className="px-3.5 py-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition focus:outline-none h-8"
                   onClick={() => {
+                    setRuleFieldErrors({})
                     setEditingRule({
                       name: '',
                       priority: 100,
                       is_active: true,
                       target_id: '',
                       template_id: null,
-                      stop_after_match: false,
-                      conditions: {}
+                      stop_after_match: true,
+                      conditions: { documentTypes: [] }
                     })
                     setIsRuleModalOpen(true)
                   }}
@@ -1812,6 +1879,7 @@ export function LineSettingsPageClient() {
                                   type="button"
                                   className="px-2 py-1 text-xs font-semibold text-slate-600 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 rounded-md transition focus:outline-none h-7 flex items-center"
                                   onClick={() => {
+                                    setRuleFieldErrors({})
                                     setEditingRule(r)
                                     setIsRuleModalOpen(true)
                                   }}
@@ -1880,6 +1948,7 @@ export function LineSettingsPageClient() {
                             type="button"
                             className="px-2.5 py-1 text-xs border border-slate-200 rounded hover:bg-slate-50 text-slate-700 h-8 flex items-center"
                             onClick={() => {
+                              setRuleFieldErrors({})
                               setEditingRule(r)
                               setIsRuleModalOpen(true)
                             }}
@@ -2485,209 +2554,298 @@ export function LineSettingsPageClient() {
 
       {/* Rule Add/Edit Modal */}
       {isRuleModalOpen && editingRule && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 animate-fade-in">
-          <div className="relative w-full max-w-lg overflow-hidden rounded-md bg-slate-900 shadow-2xl animate-zoom-in">
-            {/* Header */}
-            <div className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
-              <h3 className="text-base font-bold">
-                {editingRule.id ? '📝 แก้ไขกฎการกระจายข่าวสาร' : '🛣️ เพิ่มกฎส่งข้อความแจ้งเตือน'}
-              </h3>
-              <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                <button
-                  type="button"
-                  className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white transition hover:border-rose-700 hover:bg-rose-700 focus:outline-none"
-                  onClick={() => {
-                    setIsRuleModalOpen(false)
-                    setEditingRule(null)
+        <Dialog
+          open={isRuleModalOpen}
+          onOpenChange={(open) => {
+            setIsRuleModalOpen(open)
+            if (!open) {
+              setEditingRule(null)
+              setRuleFieldErrors({})
+            }
+          }}
+        >
+          <DialogContent
+            className="max-h-[90vh] max-w-2xl"
+            fallbackTitle={editingRule.id ? 'แก้ไขการส่งแจ้งเตือน LINE' : 'เพิ่มการส่งแจ้งเตือน LINE'}
+            hideClose
+            mobileAppShell={false}
+          >
+            <form id="line-rule-form" className="flex min-h-0 flex-1 flex-col overflow-hidden" onSubmit={handleSaveRule}>
+              <DialogHeader className="shrink-0 px-5 py-4">
+                <h3 className="text-base font-bold text-white">
+                  {editingRule.id ? 'แก้ไขการส่งแจ้งเตือน LINE' : 'เพิ่มการส่งแจ้งเตือน LINE'}
+                </h3>
+              </DialogHeader>
+
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50 p-4 text-sm">
+              <section id="line-rule-document-types" tabIndex={-1} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 outline-none">
+                <div>
+                  <h4 className="font-bold text-slate-800">1. เลือกเอกสารที่ต้องการส่ง <span className="text-rose-600">*</span></h4>
+                  <p className="mt-1 text-xs text-slate-500">เลือก WTI/WTO คู่กันได้ หรือเลือก PB/SB/PMT/RCP คู่กันได้ หากส่งเข้ากลุ่มเดียวกัน</p>
+                </div>
+                <div className={`grid grid-cols-2 gap-2 sm:grid-cols-3 ${ruleFieldErrors.documentTypes ? 'rounded-md bg-rose-50 p-2 ring-1 ring-rose-400' : ''}`}>
+                  {lineDocumentTypeOptions.map((option) => {
+                    const selected = editingRule.conditions?.documentTypes?.includes(option.type) ?? false
+                    return (
+                      <button
+                        key={option.type}
+                        aria-pressed={selected}
+                        className={`min-h-12 rounded-md border px-3 py-2 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${selected
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-800 shadow-sm'
+                          : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-50'
+                          }`}
+                        type="button"
+                        onClick={() => {
+                          const current = new Set<LineDocumentType>(editingRule.conditions?.documentTypes ?? [])
+                          if (selected) current.delete(option.type)
+                          else {
+                            if (option.type === 'WTI' || option.type === 'WTO') {
+                              current.delete('PB')
+                              current.delete('SB')
+                              current.delete('PMT')
+                              current.delete('RCP')
+                            } else {
+                              current.delete('WTI')
+                              current.delete('WTO')
+                            }
+                            current.add(option.type)
+                          }
+                          const documentTypes = lineDocumentTypeOptions.map((item) => item.type).filter((type) => current.has(type))
+                          const conditions = { ...editingRule.conditions, documentTypes }
+                          if (!documentTypes.some((type) => type === 'WTI' || type === 'WTO')) {
+                            delete conditions.minNetWeight
+                            delete conditions.maxNetWeight
+                            delete conditions.minImpurityWeight
+                            delete conditions.requiresImages
+                            delete conditions.requiresScalePhoto
+                          }
+                          setEditingRule({ ...editingRule, conditions })
+                          setRuleFieldErrors((currentErrors) => ({ ...currentErrors, documentTypes: undefined }))
+                        }}
+                      >
+                        <span className="block font-bold">{option.label}</span>
+                        <span className="text-xs opacity-70">{option.type}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+                {ruleFieldErrors.documentTypes ? <p className="text-xs font-medium text-rose-600">{ruleFieldErrors.documentTypes}</p> : null}
+              </section>
+
+              <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+                <label className="block font-bold text-slate-800" htmlFor="line-rule-target">2. เลือกกลุ่ม LINE ที่จะส่ง <span className="text-rose-600">*</span></label>
+                <select
+                  id="line-rule-target"
+                  aria-invalid={Boolean(ruleFieldErrors.targetId)}
+                  className={`h-10 w-full rounded-md border bg-white px-3 text-sm focus:outline-none ${ruleFieldErrors.targetId ? 'border-rose-500 bg-rose-50' : 'border-slate-300'}`}
+                  value={editingRule.target_id || ''}
+                  onChange={(event) => {
+                    setEditingRule({ ...editingRule, target_id: event.target.value })
+                    setRuleFieldErrors((currentErrors) => ({ ...currentErrors, targetId: undefined }))
                   }}
                 >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  form="line-rule-form"
-                  className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-bold text-white transition hover:bg-emerald-700 focus:outline-none"
-                >
-                  บันทึกกฎ
-                </button>
+                  <option disabled value="">เลือกกลุ่ม LINE</option>
+                  {targets.filter((target) => target.is_active && target.target_type === 'group').map((target) => (
+                    <option key={target.id} value={target.target_id}>{target.display_name}</option>
+                  ))}
+                </select>
+                {ruleFieldErrors.targetId ? <p className="text-xs font-medium text-rose-600">{ruleFieldErrors.targetId}</p> : null}
+              </section>
+
+              <details className="rounded-xl border border-slate-200 bg-white">
+                <summary className="cursor-pointer select-none px-4 py-3 font-semibold text-slate-700">
+                  ตั้งค่าเพิ่มเติม (ไม่จำเป็น)
+                  {Boolean(
+                    editingRule.description
+                    || (editingRule.priority ?? 100) !== 100
+                    || editingRule.stop_after_match === false
+                    || editingRule.conditions?.branchCodes?.length
+                    || editingRule.conditions?.minNetWeight != null
+                    || editingRule.conditions?.minImpurityWeight != null
+                    || editingRule.conditions?.requiresImages
+                    || editingRule.conditions?.requiresScalePhoto
+                    || editingRule.conditions?.warehouseIds?.length
+                    || editingRule.conditions?.productIds?.length
+                    || editingRule.conditions?.partyIds?.length
+                    || editingRule.conditions?.maxNetWeight != null
+                    || editingRule.conditions?.timeWindows?.length
+                  ) ? <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">ตั้งค่าไว้แล้ว</span> : null}
+                </summary>
+                <div className="space-y-4 border-t border-slate-200 p-4">
+                  {editingRule.conditions?.warehouseIds?.length
+                    || editingRule.conditions?.productIds?.length
+                    || editingRule.conditions?.partyIds?.length
+                    || editingRule.conditions?.maxNetWeight != null
+                    || editingRule.conditions?.timeWindows?.length ? (
+                    <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      กฎนี้มีเงื่อนไขขั้นสูงเดิม เช่น คลัง สินค้า คู่ค้า น้ำหนักสูงสุด หรือช่วงเวลา ระบบจะคงเงื่อนไขเหล่านี้ไว้เมื่อบันทึก
+                    </div>
+                  ) : null}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="space-y-1 sm:col-span-2">
+                      <span className="block font-medium text-slate-700">คำอธิบายเพิ่มเติม</span>
+                      <textarea
+                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none"
+                        placeholder="เว้นว่างได้"
+                        rows={2}
+                        value={editingRule.description || ''}
+                        onChange={(event) => setEditingRule({ ...editingRule, description: event.target.value })}
+                      />
+                    </label>
+                    <label className="space-y-1">
+                      <span className="block font-medium text-slate-700">ลำดับกฎ</span>
+                      <input
+                        className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 [appearance:textfield] focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        min="0"
+                        step="1"
+                        type="number"
+                        value={editingRule.priority ?? 100}
+                        onChange={(event) => setEditingRule({ ...editingRule, priority: Number(event.target.value) })}
+                      />
+                    </label>
+                    <div className="flex items-end pb-2">
+                      <ActiveToggle
+                        checked={editingRule.stop_after_match ?? true}
+                        label="ส่งเข้ากลุ่มนี้กลุ่มเดียว"
+                        onChange={(checked) => setEditingRule({ ...editingRule, stop_after_match: checked })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div>
+                      <h5 className="font-medium text-slate-700">จำกัดเฉพาะสาขา</h5>
+                      <p className="text-xs text-slate-500">ไม่เลือกสาขา หมายถึงส่งจากทุกสาขา</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        aria-pressed={(editingRule.conditions?.branchCodes?.length ?? 0) === 0}
+                        className={`h-9 rounded-md border px-3 text-sm ${((editingRule.conditions?.branchCodes?.length ?? 0) === 0)
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                          : 'border-slate-300 bg-white text-slate-600'
+                          }`}
+                        type="button"
+                        onClick={() => setEditingRule({
+                          ...editingRule,
+                          conditions: { ...editingRule.conditions, branchCodes: [] }
+                        })}
+                      >
+                        ทุกสาขา
+                      </button>
+                      {branches.filter((branch) => branch.code).map((branch) => {
+                        const code = branch.code as string
+                        const selected = editingRule.conditions?.branchCodes?.includes(code) ?? false
+                        return (
+                          <button
+                            key={branch.id}
+                            aria-pressed={selected}
+                            className={`h-9 rounded-md border px-3 text-sm ${selected
+                              ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                              : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
+                              }`}
+                            type="button"
+                            onClick={() => {
+                              const current = new Set(editingRule.conditions?.branchCodes ?? [])
+                              if (selected) current.delete(code)
+                              else current.add(code)
+                              setEditingRule({
+                                ...editingRule,
+                                conditions: { ...editingRule.conditions, branchCodes: [...current] }
+                              })
+                            }}
+                          >
+                            {branch.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {editingRule.conditions?.documentTypes?.some((type) => type === 'WTI' || type === 'WTO') ? (
+                    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <h5 className="font-medium text-slate-700">เงื่อนไขเฉพาะใบรับ-ส่งของ</h5>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="space-y-1">
+                          <span className="block text-slate-600">น้ำหนักสุทธิต่ำสุด (กก.)</span>
+                          <input
+                            className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            min="0"
+                            placeholder="ไม่กำหนด"
+                            step="0.01"
+                            type="number"
+                            value={editingRule.conditions?.minNetWeight ?? ''}
+                            onChange={(event) => setEditingRule({
+                              ...editingRule,
+                              conditions: { ...editingRule.conditions, minNetWeight: event.target.value ? Number(event.target.value) : null }
+                            })}
+                          />
+                        </label>
+                        <label className="space-y-1">
+                          <span className="block text-slate-600">สิ่งเจือปนต่ำสุด (กก.)</span>
+                          <input
+                            className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            min="0"
+                            placeholder="ไม่กำหนด"
+                            step="0.01"
+                            type="number"
+                            value={editingRule.conditions?.minImpurityWeight ?? ''}
+                            onChange={(event) => setEditingRule({
+                              ...editingRule,
+                              conditions: { ...editingRule.conditions, minImpurityWeight: event.target.value ? Number(event.target.value) : null }
+                            })}
+                          />
+                        </label>
+                      </div>
+                      <div className="flex flex-wrap gap-5">
+                        <ActiveToggle
+                          checked={editingRule.conditions?.requiresImages === true}
+                          label="ต้องมีรูปหน้างาน"
+                          onChange={(checked) => setEditingRule({
+                            ...editingRule,
+                            conditions: { ...editingRule.conditions, requiresImages: checked }
+                          })}
+                        />
+                        <ActiveToggle
+                          checked={editingRule.conditions?.requiresScalePhoto === true}
+                          label="ต้องมีรูปตาชั่ง"
+                          onChange={(checked) => setEditingRule({
+                            ...editingRule,
+                            conditions: { ...editingRule.conditions, requiresScalePhoto: checked }
+                          })}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </details>
               </div>
-            </div>
 
-            {/* Form */}
-            <form id="line-rule-form" onSubmit={handleSaveRule} className="space-y-4 bg-slate-50 p-5 text-xs">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1 col-span-2">
-                  <label className="block font-bold text-slate-700">ชื่อกฎ (ตั้งให้อ่านง่าย) *</label>
-                  <input
-                    type="text"
-                    required
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
-                    placeholder="เช่น ส่งใบรับสินค้าชั่งทองแดงน้ำหนักสูงกว่า 5 ตัน ไปหน้าเตา"
-                    value={editingRule.name || ''}
-                    onChange={(e) => setEditingRule({ ...editingRule, name: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-1 col-span-2">
-                  <label className="block font-bold text-slate-700">คำอธิบายเพิ่มเติม</label>
-                  <textarea
-                    rows={2}
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none"
-                    placeholder="รายละเอียดเพิ่มเติมของกฎนี้..."
-                    value={editingRule.description || ''}
-                    onChange={(e) => setEditingRule({ ...editingRule, description: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block font-bold text-slate-700">ผู้รับปลายทาง (LINE Target) *</label>
-                  <select
-                    required
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
-                    value={editingRule.target_id || ''}
-                    onChange={(e) => setEditingRule({ ...editingRule, target_id: e.target.value })}
+              <DialogFooter className="shrink-0 flex-col items-stretch gap-3 border-slate-200 sm:flex-row sm:items-center sm:justify-between">
+                <ActiveToggle
+                  checked={editingRule.is_active ?? true}
+                  label="เปิดใช้งานกฎนี้"
+                  onChange={(checked) => setEditingRule({ ...editingRule, is_active: checked })}
+                />
+                <div className="flex justify-end gap-2">
+                  <DialogClose asChild>
+                    <button
+                      type="button"
+                      className="h-9 rounded-md border border-slate-300 bg-white px-4 text-sm font-normal text-slate-700 transition hover:bg-slate-50 focus:outline-none"
+                    >
+                      ยกเลิก
+                    </button>
+                  </DialogClose>
+                  <button
+                    type="submit"
+                    className="h-9 rounded-md bg-slate-900 px-5 text-sm font-normal text-white transition hover:bg-slate-800 focus:outline-none"
                   >
-                    <option value="">-- เลือกผู้รับ --</option>
-                    {targets.map(t => (
-                      <option key={t.id} value={t.target_id}>{t.display_name} ({t.target_id.slice(0, 6)}...)</option>
-                    ))}
-                  </select>
+                    บันทึก
+                  </button>
                 </div>
-
-                <div className="space-y-1">
-                  <label className="block font-bold text-slate-700">ลำดับกฎ / Priority *</label>
-                  <input
-                    type="number"
-                    required
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
-                    value={editingRule.priority ?? 100}
-                    onChange={(e) => setEditingRule({ ...editingRule, priority: Number(e.target.value) })}
-                  />
-                </div>
-              </div>
-
-              {/* Conditions Builder block */}
-              <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/50">
-                <h4 className="font-bold text-slate-800 text-xs">🛠️ ตั้งค่าเงื่อนไขการส่งออก (Conditions JSON):</h4>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="block text-slate-600 font-medium">ประเภทบิล (เช่น WTI, WTO)</label>
-                    <input
-                      type="text"
-                      className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs"
-                      placeholder="ป้อนคอมมาแยก เช่น WTI, WTO"
-                      value={editingRule.conditions?.documentTypes?.join(', ') || ''}
-                      onChange={(e) => {
-                        const val = e.target.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
-                        setEditingRule({
-                          ...editingRule,
-                          conditions: { ...editingRule.conditions, documentTypes: val }
-                        })
-                      }}
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-slate-600 font-medium">สาขาที่เข้าเงื่อนไข (Branch Codes)</label>
-                    <input
-                      type="text"
-                      className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs"
-                      placeholder="ป้อนคอมมาแยก เช่น 01, 02"
-                      value={editingRule.conditions?.branchCodes?.join(', ') || ''}
-                      onChange={(e) => {
-                        const val = e.target.value.split(',').map(s => s.trim()).filter(Boolean)
-                        setEditingRule({
-                          ...editingRule,
-                          conditions: { ...editingRule.conditions, branchCodes: val }
-                        })
-                      }}
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-slate-600 font-medium">น้ำหนักสุทธิต่ำสุด (กก.)</label>
-                    <input
-                      type="number"
-                      className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs"
-                      value={editingRule.conditions?.minNetWeight || ''}
-                      onChange={(e) => {
-                        setEditingRule({
-                          ...editingRule,
-                          conditions: { ...editingRule.conditions, minNetWeight: e.target.value ? Number(e.target.value) : null }
-                        })
-                      }}
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-slate-600 font-medium">สิ่งเจือปนต่ำสุด (กก.)</label>
-                    <input
-                      type="number"
-                      className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs"
-                      value={editingRule.conditions?.minImpurityWeight || ''}
-                      onChange={(e) => {
-                        setEditingRule({
-                          ...editingRule,
-                          conditions: { ...editingRule.conditions, minImpurityWeight: e.target.value ? Number(e.target.value) : null }
-                        })
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-4 pt-1 font-semibold text-slate-600">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editingRule.conditions?.requiresImages === true}
-                      onChange={(e) => {
-                        setEditingRule({
-                          ...editingRule,
-                          conditions: { ...editingRule.conditions, requiresImages: e.target.checked }
-                        })
-                      }}
-                    />
-                    <span>ต้องมีรูปถ่ายหน้างานแนบ</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editingRule.conditions?.requiresScalePhoto === true}
-                      onChange={(e) => {
-                        setEditingRule({
-                          ...editingRule,
-                          conditions: { ...editingRule.conditions, requiresScalePhoto: e.target.checked }
-                        })
-                      }}
-                    />
-                    <span>ต้องมีรูปตาชั่ง/น้ำหนัก</span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex gap-4 select-none font-semibold text-slate-700">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editingRule.stop_after_match}
-                    onChange={(e) => setEditingRule({ ...editingRule, stop_after_match: e.target.checked })}
-                  />
-                  <span>หยุดตรวจสอบกฎต่อไปเมื่อตรงกฎข้อนี้ (Stop after match)</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editingRule.is_active}
-                    onChange={(e) => setEditingRule({ ...editingRule, is_active: e.target.checked })}
-                  />
-                  <span>เปิดใช้งานกฎข้อนี้</span>
-                </label>
-              </div>
-
+              </DialogFooter>
             </form>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Template Add/Edit Modal & Live Preview */}

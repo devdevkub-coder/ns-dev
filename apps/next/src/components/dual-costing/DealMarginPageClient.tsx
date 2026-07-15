@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -161,20 +162,10 @@ export function DealMarginPageClient() {
             คืนค่าเดิมตาราง
           </Button>
         ) : null}
-        <Select
-          aria-label="จำนวนรายการต่อหน้า"
-          className="h-9 w-auto px-2 py-1"
-          disabled={isLoading}
-          value={pageSize}
-          onChange={(event) => {
-            setPageSize(Number(event.target.value) as (typeof pageSizeOptions)[number])
-            setPage(1)
-          }}
-        >
-          {pageSizeOptions.map((option) => (
-            <option key={option} value={option}>{option} / หน้า</option>
-          ))}
-        </Select>
+        <PageSizeDropdown disabled={isLoading} options={pageSizeOptions} value={pageSize} onChange={(size) => {
+          setPageSize(size as (typeof pageSizeOptions)[number])
+          setPage(1)
+        }} />
         <Button disabled={safePage <= 1 || isLoading} className="h-9" size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
         <span className="px-1">หน้า {safePage} / {totalPages}</span>
         <Button disabled={safePage >= totalPages || isLoading} className="h-9" size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
@@ -203,7 +194,7 @@ export function DealMarginPageClient() {
           </div>
         </DualCostingPanel>
 
-        <DualCostingPanel title="สถานะการ Match">
+        <DualCostingPanel title="สถานะการจับคู่">
           <MatchStatusDonut
             fully={data?.summary.fullyMatched ?? 0}
             none={data?.summary.none ?? 0}
@@ -217,7 +208,7 @@ export function DealMarginPageClient() {
         <DualCostingStatCard label="รายได้ดีลรวม" tone="emerald" value={formatMoney(data?.summary.revenue ?? 0)} />
         <DualCostingStatCard label="ต้นทุนที่จับคู่รวม" tone="red" value={formatMoney(data?.summary.cost ?? 0)} />
         <DualCostingStatCard label="กำไรดีลรวม" tone="purple" value={formatMoney(data?.summary.margin ?? 0)} />
-        <DualCostingStatCard label="Margin %" tone={marginPositive ? 'emerald' : 'red'} value={`${(data?.summary.marginPct ?? 0).toFixed(2)}%`} />
+        <DualCostingStatCard label="อัตรากำไร" tone={marginPositive ? 'emerald' : 'red'} value={`${(data?.summary.marginPct ?? 0).toFixed(2)}%`} />
       </div>
 
       <DualCostingFilterCard>
@@ -233,7 +224,9 @@ export function DealMarginPageClient() {
               {(data?.filters.channels ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
             </Select>
             {hasActiveFilters ? <Button size="sm" type="button" variant="secondary" className="h-9 rounded-md" onClick={clearFilters}>ล้างตัวกรอง</Button> : null}
-            <Button asChild size="sm" variant="export" className="ml-auto h-9 rounded-md px-3 text-xs font-semibold focus-visible:ring-slate-100">
+          </div>
+          <div className="mt-2 flex justify-end border-t border-slate-100 pt-2">
+            <Button asChild size="sm" variant="export" className="h-9 rounded-md px-3 text-xs font-normal focus-visible:ring-slate-100">
               <a href={exportHref}>ส่งออก Excel</a>
             </Button>
           </div>
@@ -303,13 +296,9 @@ export function DealMarginPageClient() {
         <div className="overflow-x-auto">
         <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth, width: '100%' }}>
           <colgroup>
-            {dealMarginColumns.map((column, index) => {
-              const style = columnResize.getColumnStyle(column.key)
-              if (index === dealMarginColumns.length - 1) {
-                return <col key={column.key} style={{ minWidth: column.minWidth }} />
-              }
-              return <col key={column.key} style={style} />
-            })}
+            {dealMarginColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
           </colgroup>
           <thead className="bg-slate-100">
             <tr>
@@ -325,8 +314,8 @@ export function DealMarginPageClient() {
               <ResizableTableHead align="right" label="ต้นทุนเฉลี่ย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="avgCost" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('avgCost', 'ต้นทุนเฉลี่ย')} />
               <ResizableTableHead align="right" label="ต้นทุนที่จับคู่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="matchedCost" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('matchedCost', 'ต้นทุนที่จับคู่')} />
               <ResizableTableHead align="right" label="กำไรดีล" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="margin" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('margin', 'กำไรดีล')} />
-              <ResizableTableHead align="right" label="Margin %" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="marginPct" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('marginPct', 'Margin %')} />
-              <ResizableTableHead align="center" label="สถานะ Match" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="statusMatch" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('statusMatch', 'สถานะ Match')} />
+              <ResizableTableHead align="right" label="อัตรากำไร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="marginPct" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('marginPct', 'อัตรากำไร')} />
+              <ResizableTableHead align="right" label="สถานะการจับคู่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="statusMatch" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('statusMatch', 'สถานะการจับคู่')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -347,7 +336,7 @@ export function DealMarginPageClient() {
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums text-slate-900">{formatMoney(row.matchedCost)}</td>
                 <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${row.margin >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatMoney(row.margin)}</td>
                 <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums ${row.marginPct >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{row.marginPct.toFixed(2)}%</td>
-                <td className="px-3 py-3 text-center"><MatchStatusBadge status={row.statusMatch} /></td>
+                <td className="px-3 py-3 text-right"><MatchStatusBadge status={row.statusMatch} /></td>
               </tr>
             ))}
           </tbody>
@@ -396,7 +385,7 @@ export function DealMarginPageClient() {
               </div>
             </div>
             <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-xs">
-              <span className="text-slate-500">กำไรดีล (Margin %)</span>
+              <span className="text-slate-500">กำไรดีล (อัตรากำไร)</span>
               <span className={`font-mono font-bold ${row.margin >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatMoney(row.margin)} ({row.marginPct.toFixed(2)}%)</span>
             </div>
           </div>
@@ -429,7 +418,7 @@ function MatchStatusBadge({ status }: { status: string }) {
     : status === 'Partial'
       ? 'border-amber-200/50 bg-amber-50 text-amber-700'
       : 'border-slate-200/50 bg-slate-100 text-slate-600'
-  const label = status === 'Fully' ? 'Fully Matched' : status === 'Partial' ? 'Partial Match' : 'No Match'
+  const label = status === 'Fully' ? 'จับคู่ครบ' : status === 'Partial' ? 'จับคู่บางส่วน' : 'ยังไม่จับคู่'
 
   return <span className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${className}`}>{label}</span>
 }
@@ -443,7 +432,7 @@ function MatchStatusDonut({ fully, none, partial, total }: { fully: number; none
 
   return (
     <>
-      <svg aria-label="Match status distribution" className="mx-auto block h-[140px] w-[140px]" role="img" viewBox="0 0 200 200">
+      <svg aria-label="สัดส่วนสถานะการจับคู่" className="mx-auto block h-[140px] w-[140px]" role="img" viewBox="0 0 200 200">
         {total > 0 ? (
           <>
             <circle cx="100" cy="100" r="70" fill="none" stroke="#10b981" strokeDasharray={`${fullyArc} ${circumference}`} strokeWidth="40" transform="rotate(-90 100 100)" />
@@ -451,13 +440,13 @@ function MatchStatusDonut({ fully, none, partial, total }: { fully: number; none
             <circle cx="100" cy="100" r="70" fill="none" stroke="#94a3b8" strokeDasharray={`${noneArc} ${circumference}`} strokeDashoffset={-(fullyArc + partialArc)} strokeWidth="40" transform="rotate(-90 100 100)" />
           </>
         ) : null}
-        <text x="100" y="95" fill="#64748b" fontSize="12" textAnchor="middle">{total} Deals</text>
+        <text x="100" y="95" fill="#64748b" fontSize="12" textAnchor="middle">{total} ดีล</text>
         <text x="100" y="115" fill="#0f172a" fontSize="14" fontWeight="bold" textAnchor="middle">{fullyPct.toFixed(0)}%</text>
       </svg>
       <div className="mt-1 flex justify-center gap-2 text-xs">
-        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-md bg-emerald-500" />Fully</span>
-        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-md bg-amber-500" />Partial</span>
-        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-md bg-slate-400" />None</span>
+        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-md bg-emerald-500" />จับคู่ครบ</span>
+        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-md bg-amber-500" />จับคู่บางส่วน</span>
+        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-md bg-slate-400" />ยังไม่จับคู่</span>
       </div>
     </>
   )

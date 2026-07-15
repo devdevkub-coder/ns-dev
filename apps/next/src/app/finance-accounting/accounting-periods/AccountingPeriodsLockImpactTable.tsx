@@ -52,11 +52,11 @@ export function AccountingPeriodsLockImpactTable({ rows }: { rows: readonly (rea
           </div>
           {columnResize.hasCustomWidths ? (
             <button
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none"
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-normal text-slate-700 hover:bg-slate-50 focus-visible:outline-none"
               type="button"
               onClick={columnResize.resetColumnWidths}
             >
-              คืนค่าตาราง
+              คืนค่าเดิมตาราง
             </button>
           ) : null}
         </div>
@@ -72,14 +72,14 @@ export function AccountingPeriodsLockImpactTable({ rows }: { rows: readonly (rea
           <thead className="bg-slate-100">
             <tr>
               <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="หมวดงาน" resizeProps={columnResize.getResizeHandleProps('area', 'หมวดงาน')} sortKey="area" onSort={handleSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="ผลกระทบที่ต้องล็อก" resizeProps={columnResize.getResizeHandleProps('impact', 'ผลกระทบที่ต้องล็อก')} sortKey="impact" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="ผลกระทบที่ต้องล็อก" resizeProps={columnResize.getResizeHandleProps('impact', 'ผลกระทบที่ต้องล็อก')} sortKey="impact" onSort={handleSort} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 bg-white">
             {sortedRows.map((row) => (
               <tr key={row.area} className="transition-colors hover:bg-slate-50">
                 <td className="whitespace-nowrap p-3 align-top font-semibold text-slate-900">{row.area}</td>
-                <td className="min-w-0 p-3 align-top text-slate-700"><span className="break-words">{row.impact}</span></td>
+                <td className="min-w-0 p-3 align-top text-right text-slate-700"><span className="block break-words">{row.impact}</span></td>
               </tr>
             ))}
           </tbody>

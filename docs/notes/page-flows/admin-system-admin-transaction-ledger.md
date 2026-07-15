@@ -95,3 +95,7 @@ P3 proof completed from current code. Remaining report/formula proof belongs to 
 - [x] Verify current API route methods and permission boundary
 - [x] Keep business transaction side effects out of this page
 - [x] Update this file if admin/system code changes
+
+## 2026-07-12 Table consistency checkpoint
+
+`/admin/transaction-ledger` now paginates the filtered/sorted ledger at 25 rows by default with 10/25/50/100 page-size controls, the same page slice for desktop rows and mobile cards, an automatic page reset when filters change, and one result count only in the pagination row. What is what: pagination controls only the read-only ledger result already loaded from the existing API. Why it stays this way: the operational list must use the same count/range/navigation pattern as the approved table baseline without changing account balances, duplicate detection, exports, API behavior, permissions, database schema, or DB state; 50/100 are explicit opt-in reconciliation sizes for reviewers who need to scan a larger loaded batch, while 25 remains the default.

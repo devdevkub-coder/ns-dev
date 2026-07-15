@@ -81,6 +81,7 @@ export async function saveSalesPlanLmeConfigByActor(
     create: {
       description: 'Sales Plan LME reference pricing config (manual + live fetched values)',
       key: SALES_PLAN_LME_CONFIG_KEY,
+      updated_at: new Date(),
       updated_by: updatedBy,
       value: JSON.stringify(parsed),
     },

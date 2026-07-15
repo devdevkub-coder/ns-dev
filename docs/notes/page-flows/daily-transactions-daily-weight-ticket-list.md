@@ -72,7 +72,10 @@ User decision updated on 2026-07-11: WTO draft/save must not reserve stock. The 
 
 ## Current UI Behavior Summary
 
+- Customer-approved design decision (2026-07-12): the current rendered `/daily/weight-ticket-list` page is the canonical full-page UX/UI reference for the active Next app, covering page hierarchy, Light/Dark color roles, modal/dialog/mobile-sheet composition, filter layout, table/action/status treatment, pagination, responsive behavior, and spacing. Other pages copy this visual/interaction system while keeping their own business fields, statuses, permissions, labels, and actions.
 - หน้า list แสดง WTI/WTO และส่ง context ประเภทเอกสารไปหน้า create/edit ให้ถูกต้อง
+- Desktop table ใช้ balanced default-width contract รวม `1,660px` ที่ viewport `1440px`: ให้พื้นที่ผู้ขายและ action ตามข้อมูลจริง แต่ลดช่องว่างเกินจำเป็นในวันที่สร้าง, สาขา, ทะเบียนรถ, น้ำหนัก, สถานะ และอัปเดตล่าสุด. คอลัมน์ `จัดการ` ใช้ default/minimum 390px เพราะชุด action สูงสุด 5 ปุ่มกว้าง 366px และต้องเหลือ body padding 12px ทั้งสองด้าน; saved width เดิมที่ต่ำกว่า 390px จะถูก clamp โดย resize hook เพื่อไม่ให้ปุ่มล้นซ้ายไปทับ `อัปเดตล่าสุด`. ตารางยังคง internal horizontal scroll เพราะ action set ของ WTI/WTO มีหลายปุ่ม.
+- Customer-approved readability follow-up (2026-07-14): ตารางรายการใช้เส้นแนวนอนบาง `1px` สี `--color-scrap-line` ระหว่างแถวจาก global `table.ns-table` rule เพื่อช่วยไล่อ่านรายการที่มีหลายคอลัมน์ โดยไม่เพิ่มเส้นตั้ง ไม่เปลี่ยน row hover และไม่ลดความเด่นของสถานะหรือแถวยกเลิก. สี `slate-100` จากรอบแรกถูกยกเลิกเพราะจางจนผู้ใช้มองไม่เห็นบนพื้นขาว.
 - modal create/edit ของใบรับ/ส่งของใช้รายการสินค้าเป็น card หลัก และในแต่ละ card แยกเป็น `เต๋าสินค้า`, `สรุปน้ำหนักเต๋า`, `ซื้อเพิ่มจากสิ่งเจือปน`, `สิ่งเจือปน`, และ summary รวมท้ายรายการ
 - ต้องเลือกสินค้าก่อนจึงจะกรอกน้ำหนัก เพิ่มเต๋า แนบรูป หรือเพิ่มสิ่งเจือปนได้
 - ถ้าเปลี่ยนสินค้าใน card หลัก ต้องล้างเต๋า รูป สิ่งเจือปน และรายการซื้อเพิ่มที่ผูกกับสินค้าเดิม

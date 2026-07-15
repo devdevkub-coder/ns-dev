@@ -1,11 +1,20 @@
 import { prisma } from './prisma'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { loadBillLineNotificationSource, notifyBillLine } from './bill-line-notification'
+import { loadCustomerReceiptLineNotificationSource, notifyCustomerReceiptLine } from './customer-receipt-line-notification'
+import { loadPurchasePaymentLineNotificationSource, notifyPurchasePaymentLine } from './purchase-payment-line-notification'
 import { notifyWeightTicketLine } from './weight-ticket-line-notification'
 import { findScopedWeightTicket, getWeightTicketUsageCounts, mapWeightTicketRow, type WeightTicketRow } from './weight-tickets'
-import { resolveLineTargetsForWeightTicket } from './line-notification-routing'
+import { resolveLineTargetsForDocument, resolveLineTargetsForWeightTicket } from './line-notification-routing'
 
 export type JobStatus = 'pending' | 'sent' | 'failed' | 'skipped' | 'processing'
+export type LineNotificationSourceType = 'weight_ticket' | 'purchase_bill' | 'sales_bill' | 'purchase_payment' | 'customer_receipt'
+
+export type LineNotificationSource = {
+  documentNo: string
+  sourceType: LineNotificationSourceType
+}
 
 type EnqueueOptions = {
   customMessage?: string
@@ -36,13 +45,64 @@ async function loadWeightTicket(documentNo: string) {
   }
 }
 
+async function loadNotificationSource(source: LineNotificationSource) {
+  if (source.sourceType === 'weight_ticket') {
+    const loaded = await loadWeightTicket(source.documentNo)
+    if (!loaded) return null
+    return {
+      documentType: loaded.record.type,
+      id: loaded.id,
+      routingDocument: loaded.record,
+    }
+  }
+
+  if (source.sourceType === 'purchase_payment') {
+    const loaded = await loadPurchasePaymentLineNotificationSource(source.documentNo)
+    if (!loaded) return null
+    return {
+      documentType: loaded.documentType,
+      id: loaded.id,
+      routingDocument: loaded.routingDocument,
+    }
+  }
+
+  if (source.sourceType === 'customer_receipt') {
+    const loaded = await loadCustomerReceiptLineNotificationSource(source.documentNo)
+    if (!loaded) return null
+    return {
+      documentType: loaded.documentType,
+      id: loaded.id,
+      routingDocument: loaded.routingDocument,
+    }
+  }
+
+  const loaded = await loadBillLineNotificationSource(source.sourceType, source.documentNo)
+  if (!loaded) return null
+  return {
+    documentType: loaded.documentType,
+    id: loaded.id,
+    routingDocument: loaded.routingDocument,
+  }
+}
+
+function sourceNotFoundMessage(source: LineNotificationSource) {
+  if (source.sourceType === 'weight_ticket') {
+    return `ไม่พบเอกสารใบชั่งน้ำหนักเลขที่ ${source.documentNo}`
+  }
+  return `ไม่พบเอกสาร ${source.documentNo}`
+}
+
 /**
  * Enqueue a new notification job into line_notification_jobs table.
  */
 export async function enqueueNotificationJob(documentNo: string, options: EnqueueOptions) {
-  const loaded = await loadWeightTicket(documentNo)
+  return enqueueNotificationSource({ documentNo, sourceType: 'weight_ticket' }, options)
+}
+
+async function enqueueNotificationSource(source: LineNotificationSource, options: EnqueueOptions) {
+  const loaded = await loadNotificationSource(source)
   if (!loaded) {
-    throw new Error(`ไม่พบเอกสารใบชั่งน้ำหนักเลขที่ ${documentNo}`)
+    throw new Error(sourceNotFoundMessage(source))
   }
 
   // Resolve Targets
@@ -59,8 +119,9 @@ export async function enqueueNotificationJob(documentNo: string, options: Enqueu
       : 'unknown'
     targets = [{ targetId: options.targetId, targetType }]
   } else {
-    // Call our newly created Routing Engine
-    const decisions = await resolveLineTargetsForWeightTicket(loaded.record)
+    const decisions = source.sourceType === 'weight_ticket'
+      ? await resolveLineTargetsForWeightTicket(loaded.routingDocument)
+      : await resolveLineTargetsForDocument(loaded.routingDocument, { allowFallback: false })
     targets = decisions.map(d => ({ targetId: d.targetId, targetType: d.targetType }))
   }
 
@@ -79,7 +140,7 @@ export async function enqueueNotificationJob(documentNo: string, options: Enqueu
     if (!options.force) {
       const existingJob = await prisma.line_notification_jobs.findFirst({
         where: {
-          source_type: 'weight_ticket',
+          source_type: source.sourceType,
           source_id: loaded.id,
           target_id: target.targetId,
           status: { in: ['pending', 'sent', 'processing'] }
@@ -95,10 +156,10 @@ export async function enqueueNotificationJob(documentNo: string, options: Enqueu
     try {
       const job = await prisma.line_notification_jobs.create({
         data: {
-          source_type: 'weight_ticket',
+          source_type: source.sourceType,
           source_id: loaded.id,
-          document_no: documentNo,
-          document_type: loaded.record.type,
+          document_no: source.documentNo,
+          document_type: loaded.documentType,
           target_id: target.targetId,
           target_type: target.targetType,
           custom_message: options.customMessage || null,
@@ -115,7 +176,7 @@ export async function enqueueNotificationJob(documentNo: string, options: Enqueu
         // Query for active pending/processing job first
         let existingJob = await prisma.line_notification_jobs.findFirst({
           where: {
-            source_type: 'weight_ticket',
+            source_type: source.sourceType,
             source_id: loaded.id,
             target_id: target.targetId,
             status: { in: ['pending', 'processing'] }
@@ -127,7 +188,7 @@ export async function enqueueNotificationJob(documentNo: string, options: Enqueu
         if (!existingJob) {
           existingJob = await prisma.line_notification_jobs.findFirst({
             where: {
-              source_type: 'weight_ticket',
+              source_type: source.sourceType,
               source_id: loaded.id,
               target_id: target.targetId,
               status: 'sent'
@@ -151,9 +212,21 @@ export async function enqueueNotificationJob(documentNo: string, options: Enqueu
   }
 }
 
+export async function enqueueAndExecuteNotification(source: LineNotificationSource, options: EnqueueOptions) {
+  const enqueued = await enqueueNotificationSource(source, options)
+  if (enqueued.status !== 'enqueued') {
+    return { ...enqueued, executionResults: [] }
+  }
+
+  const executionResults = await Promise.all(enqueued.jobs.map((job) =>
+    executeNotificationJob(job.id, { force: options.force }),
+  ))
+  return { ...enqueued, executionResults }
+}
+
 /**
  * Execute a single line notification job by ID.
- * Uses notifyWeightTicketLine helper to run actual PDF and LINE push logic.
+ * Dispatches the queued source to its LINE notification renderer.
  */
 export async function executeNotificationJob(jobId: string, options?: { force?: boolean; lockedBy?: string }) {
   const startTime = Date.now()
@@ -201,22 +274,53 @@ export async function executeNotificationJob(jobId: string, options?: { force?: 
     })
     const appUrl = appUrlConfig?.value || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
-    // Check fonts availability first
-    const fonts = checkFontsAvailability()
-    if (!fonts.available) {
-      throw new Error(`ไม่พบไฟล์ฟอนต์ภาษาไทยสำหรับสร้างเอกสาร PDF (Tried paths: ${fonts.triedPaths.join(', ')})`)
+    type NotificationDispatchResult = {
+      error?: string
+      lineRequestId?: string | null
+      pdfUrl?: string
+      sentResults?: Array<{ lineRequestId?: string | null }>
+      status: number
     }
 
-    // 3. Delegate execution to notifyWeightTicketLine
-    const result = await notifyWeightTicketLine(job.document_no, {
-      force: true, // We bypass log check inside notifyWeightTicketLine because we control it here
-      targetId: job.target_id,
-      customMessage: job.custom_message || undefined,
-      requestedBy: job.requested_by || 'system',
-      origin: appUrl,
-      scopedBranchIds: [],
-      retryKey: String(job.retry_key)
-    })
+    let result: NotificationDispatchResult
+    if (job.source_type === 'weight_ticket') {
+      const fonts = checkFontsAvailability()
+      if (!fonts.available) {
+        throw new Error(`ไม่พบไฟล์ฟอนต์ภาษาไทยสำหรับสร้างเอกสาร PDF (Tried paths: ${fonts.triedPaths.join(', ')})`)
+      }
+      result = await notifyWeightTicketLine(job.document_no, {
+        force: true, // We bypass log check inside notifyWeightTicketLine because we control it here
+        targetId: job.target_id,
+        customMessage: job.custom_message || undefined,
+        requestedBy: job.requested_by || 'system',
+        origin: appUrl,
+        scopedBranchIds: [],
+        retryKey: String(job.retry_key)
+      })
+    } else if (job.source_type === 'purchase_bill' || job.source_type === 'sales_bill') {
+      result = await notifyBillLine(job.source_type, job.document_no, {
+        targetId: job.target_id,
+        customMessage: job.custom_message || undefined,
+        origin: appUrl,
+        retryKey: String(job.retry_key),
+      })
+    } else if (job.source_type === 'purchase_payment') {
+      result = await notifyPurchasePaymentLine(job.document_no, {
+        targetId: job.target_id,
+        customMessage: job.custom_message || undefined,
+        origin: appUrl,
+        retryKey: String(job.retry_key),
+      })
+    } else if (job.source_type === 'customer_receipt') {
+      result = await notifyCustomerReceiptLine(job.document_no, {
+        targetId: job.target_id,
+        customMessage: job.custom_message || undefined,
+        origin: appUrl,
+        retryKey: String(job.retry_key),
+      })
+    } else {
+      throw new Error(`ไม่รองรับ LINE notification source_type: ${job.source_type}`)
+    }
 
     if (result.status !== 200 && result.status !== 201 && result.status !== 409) {
       throw new Error(result.error || 'ส่ง LINE Notification ไม่สำเร็จ')

@@ -89,3 +89,9 @@ Daily Report เป็นรายงานประจำวัน/ช่วง
 - [ ] Define print/export layout
 - [ ] Add route mapping for PB/SB/EXP/BST source rows
 - [ ] Add cutoff-date test cases
+
+## 2026-07-12 Thai-first UI checkpoint
+
+- Verified the rendered `/daily-report` and `/analytics-dashboard` surfaces in Codex Browser before changing visible copy.
+- Daily cash movement now labels its net column/value as `สุทธิ` / `เงินสดสุทธิ`. Analytics uses Thai-first dashboard, tab, ranking, product, and action wording; the floating report actions keep their existing desktop-only placement but now use the shared compact `h-9 rounded-md` action treatment and normal font weight.
+- This is presentation-only: reports remain read-only and their formulas, filters, export/print behavior, API contracts, permissions, database schema, and business data did not change.

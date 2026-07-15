@@ -3,13 +3,13 @@ import { DealMarginPageClient } from '@/components/dual-costing/DealMarginPageCl
 import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
 
 export const metadata: Metadata = {
-  title: 'Deal Margin Report | NS Scrap ERP',
+  title: 'รายงานกำไรดีล | NS Scrap ERP',
 }
 
 export default function DealMarginPage() {
   return (
     <>
-      <PageTitleOverride title="Deal Margin Report" />
+      <PageTitleOverride title="รายงานกำไรดีล" />
       <DealMarginPageClient />
     </>
   )

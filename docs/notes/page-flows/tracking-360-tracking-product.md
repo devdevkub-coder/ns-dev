@@ -252,3 +252,7 @@ Target detail payload fields:
 - [x] Add allocation, production, loss, and yield signals
 - [x] Reconcile COGS/GP with final Sales Bill/Stock policy for direct WTO, PSALE, and mixed Trading+WTO sales lines
 - [x] Keep hold/available owned by Stock Balance and link to it from Product detail
+
+## 2026-07-12 Table consistency checkpoint
+
+`/tracking/product` detail tables now align numeric headers with numeric cells and use canonical `p-2` header / `p-3` body density. What is what: these remain read-only product profitability, movement, and yearly comparison facts. Why it stays this way: detail columns should scan consistently without changing allocation/COGS/GP formulas, exports, API behavior, permissions, database schema, or DB state.

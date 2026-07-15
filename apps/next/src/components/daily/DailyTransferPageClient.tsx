@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input } from '@/components/ui/Input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -37,10 +38,10 @@ const transferColumns: Array<ResizableColumnDefinition<TransferColumnKey>> = [
   { key: 'date', defaultWidth: 120, minWidth: 100 },
   { key: 'from', defaultWidth: 240, minWidth: 150 },
   { key: 'to', defaultWidth: 240, minWidth: 150 },
-  { key: 'amount', defaultWidth: 110, minWidth: 90 },
-  { key: 'fee', defaultWidth: 100, minWidth: 80 },
-  { key: 'byPerson', defaultWidth: 160, minWidth: 120 },
-  { key: 'notes', defaultWidth: 200, minWidth: 120 },
+  { key: 'amount', defaultWidth: 130, minWidth: 110 },
+  { key: 'fee', defaultWidth: 130, minWidth: 110 },
+  { key: 'byPerson', defaultWidth: 180, minWidth: 140 },
+  { key: 'notes', defaultWidth: 240, minWidth: 160 },
   { key: 'action', defaultWidth: 180, minWidth: 150 },
 ]
 
@@ -76,7 +77,7 @@ export function DailyTransferPageClient() {
   const [fromAccountId, setFromAccountId] = useState('')
   const [toAccountId, setToAccountId] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const columnResize = useResizableColumns('daily.transfer.v5', transferColumns)
+  const columnResize = useResizableColumns('daily.transfer.v6', transferColumns)
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
 
@@ -468,14 +469,7 @@ export function DailyTransferPageClient() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {columnResize.hasCustomWidths ? <Button className="font-normal" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
-          <select
-            aria-label="จำนวนรายการต่อหน้า"
-            className="h-9 w-auto rounded-md border border-slate-300 px-2 py-1 text-sm"
-            value={pageSize}
-            onChange={(event) => setPageSize(Number(event.target.value))}
-          >
-            {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-          </select>
+          <PageSizeDropdown options={pageSizeOptions} value={pageSize} onChange={setPageSize} />
           <Button className="font-normal" disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
           <span className="px-1">หน้า {currentPage} / {totalPages}</span>
           <Button className="font-normal" disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
@@ -644,13 +638,9 @@ export function DailyTransferPageClient() {
       <div className="hidden lg:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
         <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
-            {transferColumns.map((column, index) => {
-              const style = columnResize.getColumnStyle(column.key);
-              if (index === transferColumns.length - 1) {
-                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
-              }
-              return <col key={column.key} style={style} />;
-            })}
+            {transferColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
           </colgroup>
           <TableHeader>
             <tr>
@@ -812,4 +802,3 @@ function SelectField(props: { error?: string; label: string; onChange: (value: s
     </label>
   )
 }
-

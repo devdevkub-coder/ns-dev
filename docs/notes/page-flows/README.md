@@ -68,7 +68,7 @@ updated: 2026-06-11
 |---|---|---|---|
 | `/owner-daily` | Owner Daily Control | [main-dashboard-reports-owner-daily.md](main-dashboard-reports-owner-daily.md) | [[Main Dashboard Reports Flow]] |
 | `/daily-report` | Daily Report | [main-dashboard-reports-daily-report.md](main-dashboard-reports-daily-report.md) | [[Main Dashboard Reports Flow]] |
-| `/dashboard` | Financial Dashboard | [main-dashboard-reports-dashboard.md](main-dashboard-reports-dashboard.md) | [[Main Dashboard Reports Flow]] |
+| `/dashboard-overview` | Dashboard Overview | [main-dashboard-reports-dashboard.md](main-dashboard-reports-dashboard.md) | [[Main Dashboard Reports Flow]] |
 | `/profit-cost-analysis` | Profit & Cost Analysis | [main-dashboard-reports-profit-cost-analysis.md](main-dashboard-reports-profit-cost-analysis.md) | [[Main Dashboard Reports Flow]] |
 | `/sales-plan` | วางแผนการขาย (LME) | [main-dashboard-reports-sales-plan.md](main-dashboard-reports-sales-plan.md) | [[Sales Flow]] |
 | `/sales-commission` | Sales Tracking Dashboard | [main-dashboard-reports-sales-commission.md](main-dashboard-reports-sales-commission.md) | [[Main Dashboard Reports Flow]] |

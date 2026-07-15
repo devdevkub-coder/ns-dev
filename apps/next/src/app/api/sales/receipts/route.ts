@@ -5,6 +5,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { cancelCustomerReceipt, createCustomerReceipt, replaceCustomerReceipt } from '@/lib/server/customer-receipts'
 import { currentActor, listDailyAccounts, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jobs'
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import { prisma } from '@/lib/server/prisma'
 
@@ -17,6 +18,17 @@ const RECEIPT_QUEUE_STATUSES = ['pending', 'active']
 function logReceiptQueueError(context: string, caught: unknown) {
   const message = caught instanceof Error ? caught.message : String(caught)
   console.error(`[sales/receipts] ${context}: ${message}`)
+}
+
+async function notifyCustomerReceiptAfterCommit(documentNo: string, requestedBy: string) {
+  try {
+    await enqueueAndExecuteNotification(
+      { sourceType: 'customer_receipt', documentNo },
+      { requestedBy, force: false },
+    )
+  } catch (caught) {
+    console.error('[customer_receipt] LINE notification failed', caught)
+  }
 }
 
 type PendingReceiptSalesBill = {
@@ -361,6 +373,7 @@ export async function POST(request: Request) {
 
     const values = customerReceiptFormSchema.parse(await request.json())
     const result = await createCustomerReceipt(values, context)
+    await notifyCustomerReceiptAfterCommit(result.id, currentActor(context))
 
     return NextResponse.json(result)
   } catch (caught) {
@@ -382,6 +395,7 @@ export async function PATCH(request: Request) {
     if (payload.action === 'replace') {
       const values = customerReceiptFormSchema.parse(payload.values)
       const result = await replaceCustomerReceipt(payload.docNo ?? values.id ?? '', values, payload.reason ?? 'แก้ไข Receipt Voucher โดยยกเลิกใบเดิมและออกใบใหม่', context)
+      await notifyCustomerReceiptAfterCommit(result.id, currentActor(context))
       return NextResponse.json(result)
     }
     return NextResponse.json({ code: 'BAD_REQUEST', error: 'action ไม่ถูกต้อง' }, { status: 400 })

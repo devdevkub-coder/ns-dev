@@ -5,7 +5,7 @@ tags:
   - menu
   - dual-costing
 status: accepted-baseline
-updated: 2026-06-11
+updated: 2026-07-12
 route: /dual-costing/cost-pool
 ---
 
@@ -18,7 +18,7 @@ route: /dual-costing/cost-pool
 | Menu section | Dual Costing |
 | Route | `/dual-costing/cost-pool` |
 | Page | Cost Pool |
-| Current Next | accepted code baseline with target-rule gaps |
+| Current Next | canonical UI baseline with durable allocation gap |
 
 ## Canonical References
 
@@ -59,6 +59,16 @@ Target rule ล่าสุดหลังเทียบ legacy:
 - export XLSX ด้วย row set เดียวกับตาราง
 - ช่วย user ตรวจว่ามีต้นทุนเหลือพอสำหรับ allocation หรือไม่
 
+## Current UI Behavior Summary
+
+- ใช้ `/daily/weight-ticket-list` เป็น canonical visual/interaction system แต่ Cost Pool คง field ธุรกิจของตัวเองและมี data surface หลักเพียงชุดเดียว จึงไม่สร้าง line tabs ที่ไม่มีความหมาย
+- หน้าหลักจัดกลุ่ม Cost Pool ตามสินค้าเพื่อให้เห็นปริมาณตั้งต้น จับคู่แล้ว คงเหลือ ต้นทุนเฉลี่ย และมูลค่าคงเหลือก่อน จากนั้น `ดูรายละเอียด` จึงเปิด read-only dialog เพื่อแสดง lot ต้นทุนที่ประกอบเป็นยอดรวม กลุ่มสินค้าและ dialog นี้เป็นโครงข้อมูลธุรกิจ ไม่ใช่ visual override
+- เก็บ summary ตัดสินใจเฉพาะ Purchase, Production และ Regrade; aggregate KPI ที่ซ้ำกับยอดในตารางถูกตัดออกเพื่อให้ผู้ใช้เข้าถึง filter และรายการได้เร็วขึ้น
+- Desktop ใช้ filter card สองแถวตั้งแต่ `md` โดย Cost Type และ Status เป็น segmented single-select ตาม API contract; mobile ใช้ compact search/filter/export row และ shared `MobileFilterSheet`
+- Count, reset-width, page-size และ pagination อยู่ในแถวเดียวภายนอก table shell; desktop table ใช้ shared resizable/sortable fixed-layout header และ mobile ใช้ dense cards
+- หัวคอลัมน์ตัวเลขชิดขวาแนวเดียวกับค่าด้านล่าง โดย sort icon อยู่ก่อน label เพื่อไม่ดันข้อความหัวตารางออกจากแนวตัวเลข
+- XLSX ใช้ query filters ชุดเดียวกับหน้าจอ และการจัดลำดับ lot ตาม FIFO/LIFO/Cheap/Expensive ยังคงมาจาก API โดย detail table ไม่ re-sort ซ้ำ
+
 ## Non-Responsibilities
 
 - ไม่สร้าง stock movement
@@ -75,7 +85,8 @@ Target rule ล่าสุดหลังเทียบ legacy:
 | 2 | เลือก product/source/status/cost type | API/client filter เฉพาะ candidate ที่ตรง |
 | 3 | toggle available only | ซ่อน `Fully Used` หรือ available qty <= 0 |
 | 4 | เลือก sort | FIFO/LIFO/Cheap/Expensive |
-| 5 | Export | ส่งออก XLSX ด้วย filter ปัจจุบัน |
+| 5 | เปิดดูรายละเอียดสินค้า | แสดง lot ต้นทุนของสินค้านั้นใน read-only dialog โดยไม่เปลี่ยน allocation หรือ stock |
+| 6 | Export | ส่งออก XLSX ด้วย filter ปัจจุบัน |
 
 ## API / Data Contract
 
@@ -143,9 +154,11 @@ Read-only. No stock, payment, AP/AR, PO/PB status, or bank statement side effect
 - Current API is implemented and protected by `finance.cash.view`.
 - Current route returns a useful read model and XLSX export.
 - 2026-06-14 runtime now enforces target eligibility for all Cost Pool rows and restores the legacy source breadth for PB/Production/Regrade read visibility.
+- 2026-07-12 UI follows the customer-approved full-page reference with canonical filters, pagination, resizable grouped table, dense mobile cards, and a read-only lot-detail dialog without changing API, formulas, permissions, or DB state.
 
 ## Current Gap
 
+- UI checkpoint 2026-07-12: menu, breadcrumb, and page title use Thai-first `กองต้นทุน`; the Cost Pool domain term remains only where it identifies the underlying business data.
 - Current usage reduction relies on `trading_deals` / normalized stock cost-pool allocated qty depending on source; durable allocation ledger is still future work.
 
 ## Implementation Checklist
@@ -155,4 +168,9 @@ Read-only. No stock, payment, AP/AR, PO/PB status, or bank statement side effect
 - [x] Enforce copper/brass eligibility in API
 - [x] Restore legacy Production/Regrade read visibility where normalized pool entries exist
 - [x] Keep PB item visibility aligned with legacy Spot Buy behavior
+- [x] Normalize desktop/mobile filters and Cost Type/Status segmented controls
+- [x] Restore grouped-table resize/sort/fixed-layout mechanics and reset control
+- [x] Move count/page-size/pagination outside the table shell
+- [x] Replace inline lot expansion with a read-only detail dialog
+- [x] Remove aggregate KPI cards that duplicate the primary table
 - [ ] Add/reconcile durable allocation usage source

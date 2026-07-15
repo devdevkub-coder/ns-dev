@@ -22,7 +22,7 @@ export function PurchaseBillsPageClient({ initialTab = 'bills' }: { initialTab?:
       <Tabs className="gap-0" value={tab} onValueChange={(value) => switchTab(value as PurchaseBillsTab)}>
         <TabsList className="w-full" variant="line">
           <TabsTrigger value="bills" variant="line">บิลรับซื้อ</TabsTrigger>
-          <TabsTrigger value="supplier-swap-history" variant="line">ประวัติเปลี่ยนบิล Supplier</TabsTrigger>
+          <TabsTrigger value="supplier-swap-history" variant="line">ประวัติเปลี่ยนบิลผู้ขาย</TabsTrigger>
         </TabsList>
       </Tabs>
 

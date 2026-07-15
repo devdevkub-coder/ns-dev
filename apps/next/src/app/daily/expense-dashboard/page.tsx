@@ -3,14 +3,14 @@ import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
 import { DailyExpensePageClient } from '@/components/daily/DailyExpensePageClient'
 
 export const metadata: Metadata = {
-  title: 'Dashboard ค่าใช้จ่าย | NS Scrap ERP',
+  title: 'แดชบอร์ดค่าใช้จ่าย | NS Scrap ERP',
 }
 
 export default function DailyExpenseDashboardPage() {
   return (
     <>
       <PageTitleOverride
-        title="Dashboard ค่าใช้จ่าย"
+        title="แดชบอร์ดค่าใช้จ่าย"
       />
       <DailyExpensePageClient dashboardOnly />
     </>

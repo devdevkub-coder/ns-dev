@@ -16,6 +16,7 @@ import {
   type SupplierFormValues,
 } from '@/lib/supplier'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { FormSelectField } from '@/components/ui/FormSelectField'
@@ -724,20 +725,10 @@ export function SuppliersPageClient() {
                 คืนค่าเดิมตาราง
               </Button>
             ) : null}
-            <select
-              aria-label="จำนวนรายการต่อหน้า"
-              className="h-9 rounded-md border border-slate-300 px-2 py-1 text-sm bg-white"
-              value={pageSize}
-              onChange={(event) => {
-                setPage(1)
-                setPageSize(Number(event.target.value))
-              }}
-            >
-              <option value={10}>10 / หน้า</option>
-              <option value={25}>25 / หน้า</option>
-              <option value={50}>50 / หน้า</option>
-              <option value={100}>100 / หน้า</option>
-            </select>
+            <PageSizeDropdown value={pageSize} onChange={(size) => {
+              setPage(1)
+              setPageSize(size)
+            }} />
             <Button disabled={page <= 1 || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage(Math.max(1, page - 1))}>ก่อนหน้า</Button>
             <span className="px-1 text-xs">หน้า {currentPage} / {totalPages}</span>
             <Button disabled={page >= totalPages || isLoading} size="sm" type="button" variant="outline" onClick={() => setPage(Math.min(totalPages, currentPage + 1))}>ถัดไป</Button>

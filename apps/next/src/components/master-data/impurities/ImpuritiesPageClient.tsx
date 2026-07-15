@@ -6,6 +6,7 @@ import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -329,17 +330,10 @@ export function ImpuritiesPageClient() {
                   คืนค่าเดิมตาราง
                 </Button>
               ) : null}
-              <select
-                aria-label="จำนวนรายการต่อหน้า"
-                className="h-9 rounded-md border border-slate-300 px-2 py-1 text-sm bg-white"
-                value={pageSize}
-                onChange={(event) => {
-                  setPage(1)
-                  setPageSize(Number(event.target.value))
-                }}
-              >
-                {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-              </select>
+              <PageSizeDropdown options={pageSizeOptions} value={pageSize} onChange={(size) => {
+                setPage(1)
+                setPageSize(size)
+              }} />
               <Button
                 disabled={page <= 1 || isLoading}
                 size="sm"
@@ -558,4 +552,3 @@ function MatchButton({ active, label, onClick }: { active: boolean; label: strin
   const className = active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
   return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${className}`} type="button" onClick={onClick}>{label}</button>
 }
-

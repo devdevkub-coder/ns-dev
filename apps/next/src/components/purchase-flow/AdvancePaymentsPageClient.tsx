@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Select } from '@/components/ui/Select'
@@ -606,9 +607,7 @@ export function AdvancePaymentsPageClient() {
       <span>พบทั้งหมด {data?.pagination.totalRows ?? 0} รายการ</span>
       <div className="flex flex-wrap items-center gap-2">
         {columnResize.hasCustomWidths ? <Button className="h-9 font-normal" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
-        <Select aria-label="จำนวนรายการต่อหน้า" className="h-9 w-auto min-w-[96px] px-2" value={String(pageSize)} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
-          {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-        </Select>
+        <PageSizeDropdown value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
         <Button className="h-9 font-normal" disabled={page <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
         <span className="px-1">หน้า {data?.pagination.page ?? page} / {data?.pagination.totalPages ?? 1}</span>
         <Button className="h-9 font-normal" disabled={page >= (data?.pagination.totalPages ?? 1)} size="sm" type="button" variant="outline" onClick={() => setPage((current) => current + 1)}>ถัดไป</Button>

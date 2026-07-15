@@ -284,10 +284,10 @@ export function SystemSettingsPageClient() {
               ) : null}
               <Table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: whtColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
                 <colgroup>
-                  {whtColumns.map((column, index) => (
+                  {whtColumns.map((column) => (
                     <col
                       key={column.key}
-                      style={index === whtColumns.length - 1 ? { minWidth: column.minWidth } : whtColumnResize.getColumnStyle(column.key)}
+                      style={whtColumnResize.getColumnStyle(column.key)}
                     />
                   ))}
                 </colgroup>
