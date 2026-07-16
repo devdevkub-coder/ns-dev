@@ -459,7 +459,7 @@ async function buildSalesPlanningSnapshot() {
       metalGroup: product.metalGroup,
       name: product.name,
       wac: product.wac,
-      })),
+    })),
     productDetails: details,
     productRows,
     reconciliation,
