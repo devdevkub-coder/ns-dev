@@ -65,6 +65,7 @@ Status update on 2026-07-15:
 Status update on 2026-07-16:
 - Applied the CADV create/branch migrations and the Supplier ADV base-credit normalization migration directly to SIT with transactional error stopping.
 - SIT now has the CADV tables with required document branch support and validated ADV arithmetic constraints. `ADV012607-0004` reconciles to gross cash 10,700, allocated base 4,900, and remaining base 5,100.
+- Repaired the SIT Storage layer after the database refresh left product/WTI storage keys without buckets or binary objects. Public 10 MB buckets `product-images` and `weight-ticket-pdfs` now use the documented MIME contracts and match the current UAT source object counts at 124 and 407. A real product thumbnail returned HTTP 200, and a service-role upload/public-read/delete health check passed for `weight-ticket-pdfs`.
 - Supabase CLI still reports pre-existing migration-history drift, so do not run a blanket `supabase db push` until remote-only migration versions are reconciled with the repository.
 
 ### Staging / UAT

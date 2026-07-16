@@ -194,7 +194,7 @@ export function WeightTicketListPageClient() {
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('WTI')
   const [statusFilter, setStatusFilter] = useState<StatusFilter[]>([])
-  const [sortBy, setSortBy] = useState<WeightTicketSortBy>('createdAt')
+  const [sortBy, setSortBy] = useState<WeightTicketSortBy>('documentNo')
   const [sortDir, setSortDir] = useState<WeightTicketSortDir>('desc')
   const [branchFilter, setBranchFilter] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
@@ -315,7 +315,7 @@ export function WeightTicketListPageClient() {
   function clearFilters() {
     setQuery('')
     setStatusFilter([])
-    setSortBy('createdAt')
+    setSortBy('documentNo')
     setSortDir('desc')
     setBranchFilter('all')
     setDateFrom('')
