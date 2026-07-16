@@ -10,6 +10,7 @@ export type SalesBillDetail = {
   channelName: string
   createdBy: string
   customerAddress: string
+  customerAdvanceAmount: number
   customerAdvanceDocNo: string
   customerCode: string
   customerName: string
@@ -420,6 +421,9 @@ export async function getSalesBillDetail(
       orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
       select: {
         allocated_amount: true,
+        allocated_subtotal_amount: true,
+        allocated_total_amount: true,
+        allocated_vat_amount: true,
         created_at: true,
         customer_advance_doc_no: true,
         id: true,
@@ -692,7 +696,7 @@ export async function getSalesBillDetail(
       unit: 'กก.',
     })),
     ...customerAdvanceAllocations.map((allocation) => ({
-      amount: toNumber(allocation.allocated_amount),
+      amount: toNumber(allocation.allocated_total_amount) || toNumber(allocation.allocated_amount),
       createdAt: allocation.created_at.toISOString(),
       docNo: allocation.customer_advance_doc_no,
       id: `customer-advance:${String(allocation.id)}`,
@@ -708,6 +712,9 @@ export async function getSalesBillDetail(
     const dateCompare = Date.parse(right.createdAt) - Date.parse(left.createdAt)
     return dateCompare || left.id.localeCompare(right.id)
   })
+  const customerAdvanceAmount = customerAdvanceAllocations.reduce((sum, allocation) => (
+    sum + (toNumber(allocation.allocated_total_amount) || toNumber(allocation.allocated_amount))
+  ), 0)
   return {
     billDate: bill.bill_date ? toDateOnly(bill.bill_date) : '',
     branchId: bill.branches?.code ?? '',
@@ -715,6 +722,7 @@ export async function getSalesBillDetail(
     channelName: bill.sales_channels?.name ?? '-',
     createdBy: bill.created_by ?? '-',
     customerAddress: customerAddress(bill.customers),
+    customerAdvanceAmount,
     customerAdvanceDocNo: customerAdvanceAllocations.map((allocation) => allocation.customer_advance_doc_no).find(Boolean) ?? '',
     customerCode: bill.customers?.code ?? '-',
     customerName: bill.customers?.name ?? '-',

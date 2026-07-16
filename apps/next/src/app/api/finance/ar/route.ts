@@ -298,7 +298,10 @@ export async function GET(request: Request) {
         ...row,
         drilldown: {
           customerAdvances: advancesForBill.map((allocation) => ({
-            allocatedAmount: toNumber(allocation.allocated_amount),
+            allocatedAmount: toNumber(allocation.allocated_total_amount) || toNumber(allocation.allocated_amount),
+            allocatedSubtotalAmount: toNumber(allocation.allocated_subtotal_amount) || toNumber(allocation.allocated_amount),
+            allocatedTotalAmount: toNumber(allocation.allocated_total_amount) || toNumber(allocation.allocated_amount),
+            allocatedVatAmount: toNumber(allocation.allocated_vat_amount),
             docNo: allocation.customer_advance_doc_no,
             href: '/sales/receipts',
             outstandingAfter: toNumber(allocation.outstanding_after),

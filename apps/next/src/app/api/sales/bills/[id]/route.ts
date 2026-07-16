@@ -3,6 +3,7 @@ import { salesBillCancelSchema } from '@/lib/sales'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission, type AppAuthContext } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { refreshCustomerAdvanceAllocation } from '@/lib/server/customer-advance-settlement'
 import { prisma } from '@/lib/server/prisma'
 import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { getSalesBillDetail } from '@/lib/server/sales-bill-detail'
@@ -106,6 +107,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           doc_no: true,
           id: true,
           items: true,
+          sales_bill_customer_advance_allocations: {
+            select: { customer_advance_doc_no: true },
+            where: { status: 'active' },
+          },
           status: true,
           transaction_mode: true,
           vat_amount: true,
@@ -274,6 +279,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           },
         }),
       ])
+
+      if (bill.sales_bill_customer_advance_allocations.length > 0) {
+        const advanceDocNos = [...new Set(bill.sales_bill_customer_advance_allocations.map((allocation) => allocation.customer_advance_doc_no))]
+        const advances = await tx.customer_advances.findMany({
+          select: { id: true },
+          where: { doc_no: { in: advanceDocNos } },
+        })
+        for (const advance of advances) {
+          await refreshCustomerAdvanceAllocation(tx, advance.id, actor)
+        }
+      }
 
       const updated = await tx.sales_bills.update({
         data: {

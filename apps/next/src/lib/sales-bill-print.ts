@@ -296,7 +296,7 @@ export function buildSalesBillPrintHtml(bill: SalesBillDetail, profile: CompanyP
           <div class="total-row"><div>ยอดหลังหักส่วนลด</div><div class="num">${money(afterDiscount)}</div></div>
           <div class="total-row"><div>VAT ${escapeHtml(bill.vatType)}</div><div class="num">${money(bill.vatAmount)}</div></div>
           <div class="total-row final"><div>ยอดรวมทั้งสิ้น</div><div class="num">${money(bill.totalAmount)}</div></div>
-          <div class="total-row advance"><div>หักมัดจำ Customer${bill.customerAdvanceDocNo ? ` (${escapeHtml(bill.customerAdvanceDocNo)})` : ''}</div><div class="num">${money(bill.receivedAmount || bill.paidAmount)}</div></div>
+          <div class="total-row advance"><div>ใช้มัดจำ Customer${bill.customerAdvanceDocNo ? ` (${escapeHtml(bill.customerAdvanceDocNo)})` : ''}</div><div class="num">${money(bill.customerAdvanceAmount)}</div></div>
           <div class="total-row"><div>ยอดลูกหนี้สุทธิ</div><div class="num strong">${money(bill.receivableBalance)}</div></div>
         </div>
       </section>

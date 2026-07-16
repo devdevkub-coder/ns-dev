@@ -47,6 +47,91 @@ export function calculateCustomerAdvanceTaxBreakdown(params: {
   }
 }
 
+export function calculateCustomerAdvancePaidBaseCapacity(params: {
+  receivedGrossAmount: number
+  subtotalAmount: number
+  targetAmount: number
+}) {
+  const receivedGrossAmount = Math.max(0, Number.isFinite(params.receivedGrossAmount) ? params.receivedGrossAmount : 0)
+  const subtotalAmount = Math.max(0, Number.isFinite(params.subtotalAmount) ? params.subtotalAmount : 0)
+  const targetAmount = Math.max(0, Number.isFinite(params.targetAmount) ? params.targetAmount : 0)
+  if (subtotalAmount <= 0 || receivedGrossAmount <= 0) return 0
+  if (targetAmount <= 0) throw new Error('ยอดรวม CADV ต้องมากกว่า 0')
+
+  return roundCustomerAdvanceMoney(Math.min(
+    subtotalAmount,
+    receivedGrossAmount * subtotalAmount / targetAmount,
+  ))
+}
+
+export function calculateCustomerAdvanceAllocation(params: {
+  availableBaseAmount: number
+  billSubtotalAmount: number
+  billTotalAmount: number
+  billVatAmount: number
+}) {
+  const availableBaseAmount = Math.max(0, Number.isFinite(params.availableBaseAmount) ? params.availableBaseAmount : 0)
+  const billSubtotalAmount = Math.max(0, Number.isFinite(params.billSubtotalAmount) ? params.billSubtotalAmount : 0)
+  const billTotalAmount = Math.max(0, Number.isFinite(params.billTotalAmount) ? params.billTotalAmount : 0)
+  const billVatAmount = Math.max(0, Number.isFinite(params.billVatAmount) ? params.billVatAmount : 0)
+  const allocatedSubtotalAmount = roundCustomerAdvanceMoney(Math.min(availableBaseAmount, billSubtotalAmount))
+  const billVatRatio = billSubtotalAmount > 0 ? billVatAmount / billSubtotalAmount : 0
+  const allocatedVatAmount = roundCustomerAdvanceMoney(allocatedSubtotalAmount * billVatRatio)
+  const allocatedTotalAmount = roundCustomerAdvanceMoney(Math.min(
+    billTotalAmount,
+    allocatedSubtotalAmount + allocatedVatAmount,
+  ))
+
+  return {
+    allocatedAmount: allocatedSubtotalAmount,
+    allocatedSubtotalAmount,
+    allocatedTotalAmount,
+    allocatedVatAmount,
+    remainingBaseAmount: roundCustomerAdvanceMoney(Math.max(0, availableBaseAmount - allocatedSubtotalAmount)),
+  }
+}
+
+export function calculateSalesBillPostCustomerAdvanceTotals(params: {
+  advanceBaseAllocatedAmount: number
+  discountAmount?: number
+  hasVat: boolean
+  subtotalAmount: number
+  vatRatePercent: number
+  vatType?: 'NONE' | 'EXCLUDE' | 'INCLUDE' | string | null
+}) {
+  const subtotalAmount = Math.max(0, roundCustomerAdvanceMoney(params.subtotalAmount))
+  const discountAmount = Math.max(0, roundCustomerAdvanceMoney(params.discountAmount ?? 0))
+  const advanceBaseAllocatedAmount = Math.max(0, roundCustomerAdvanceMoney(params.advanceBaseAllocatedAmount))
+  const vatRatePercent = Math.max(0, Math.min(100, Number(params.vatRatePercent) || 0))
+  const vatType = params.vatType ?? (params.hasVat ? 'EXCLUDE' : 'NONE')
+  const afterDiscountAmount = Math.max(0, roundCustomerAdvanceMoney(subtotalAmount - discountAmount))
+  const hasVat = Boolean(params.hasVat) && vatType !== 'NONE' && vatRatePercent > 0
+  const vatBeforeAdvance = hasVat
+    ? vatType === 'INCLUDE'
+      ? roundCustomerAdvanceMoney(afterDiscountAmount * vatRatePercent / (100 + vatRatePercent))
+      : roundCustomerAdvanceMoney(afterDiscountAmount * vatRatePercent / 100)
+    : 0
+  const taxableBaseBeforeAdvance = hasVat && vatType === 'INCLUDE'
+    ? Math.max(0, roundCustomerAdvanceMoney(afterDiscountAmount - vatBeforeAdvance))
+    : afterDiscountAmount
+  const taxableBaseAmount = Math.max(0, roundCustomerAdvanceMoney(taxableBaseBeforeAdvance - advanceBaseAllocatedAmount))
+  const vatAmount = hasVat
+    ? roundCustomerAdvanceMoney(taxableBaseAmount * vatRatePercent / 100)
+    : 0
+  const totalAmount = hasVat
+    ? roundCustomerAdvanceMoney(taxableBaseAmount + vatAmount)
+    : taxableBaseAmount
+
+  return {
+    advanceBaseAppliedAmount: Math.min(advanceBaseAllocatedAmount, taxableBaseBeforeAdvance),
+    afterDiscountAmount,
+    taxableBaseAmount,
+    totalAmount,
+    vatAmount,
+    vatBeforeAdvance,
+  }
+}
+
 export const customerAdvanceFormSchema = z.object({
   amount: positiveDecimal('ยอดเงินล่วงหน้าที่ต้องรับ'),
   branchId: requiredCode('สาขา'),

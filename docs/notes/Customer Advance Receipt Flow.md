@@ -134,7 +134,7 @@ flowchart LR
 
 ### Sales Bill integration
 
-Sales Bill เลือกได้เฉพาะ CADV ที่ `received/partially_allocated` ของลูกค้าคนเดียวกัน และมี `available_to_allocate > 0`. การหักเขียน `sales_bill_customer_advance_allocations`; ถ้า SB edit/cancel ต้อง release allocation กลับ CADV ใน transaction เดียว. ห้ามเลือก CADV ที่เป็น `pending_receipt` หรือ `partially_received` มาใช้หัก SB.
+Sales Bill เลือกได้เฉพาะ CADV ที่ `received/partially_allocated` ของลูกค้าคนเดียวกัน สาขาเดียวกัน และมี `available_amount > 0`. `available_amount` เป็นเครดิตฐานก่อน VAT ไม่ใช่ยอดเงินสดรวม. ลำดับคำนวณต้องเหมือน Supplier ADV/PB: หักส่วนลดของ SB ก่อน, หัก CADV จากฐานก่อน VAT หลังส่วนลด, แล้วคำนวณ VAT ของ SB ใหม่จากฐานที่เหลือ. การหักเขียน `sales_bill_customer_advance_allocations` พร้อม `allocated_subtotal_amount`, `allocated_vat_amount`, และ `allocated_total_amount`; `allocated_amount` ต้องเท่ากับฐานที่ใช้หัก (`allocated_subtotal_amount`). ถ้า SB edit/cancel ต้อง release allocation กลับ CADV และ recalculate `allocated_amount`, `available_amount`, status ใน transaction เดียว. ห้ามเลือก CADV ที่เป็น `pending_receipt` หรือ `partially_received` มาใช้หัก SB.
 
 ## Target Data Model
 
@@ -154,8 +154,9 @@ Sales Bill เลือกได้เฉพาะ CADV ที่ `received/part
 - `vat_type = INCLUDE`: ผู้ใช้กรอกยอดก่อน VAT ใน `amount`; server snapshot อัตราจาก VAT master แล้วเก็บ `target_amount = subtotal_amount + vat_amount`.
 - `target_amount` คือยอดเงินสดรวมที่ RCP ต้องรับจากลูกค้า.
 - เมื่อเชื่อม Receipt allocation ต้องแปลงเงินสดที่รับจริงเป็นเครดิตฐานตามสัดส่วนเดียวกับ ADV Supplier; `available_amount` สำหรับหัก Sales Bill ต้องเป็นยอดฐานก่อน VAT ไม่ใช่ยอด gross.
-- Sales Bill ที่ใช้ CADV ต้องหักเครดิตฐานจากยอดก่อน VAT แล้วคำนวณ VAT ของบิลจากฐานที่เหลือ เพื่อไม่เอา VAT ของเงินล่วงหน้ามาหักซ้ำ.
-- รอบนี้ยังไม่แก้ `/sales/receipts` หรือ Sales Bill allocation เพราะ CADV source document ยังไม่ถูกเชื่อมกับ RCP; contract ข้างต้นเป็นข้อบังคับของ batch integration ถัดไป.
+- Sales Bill ที่ใช้ CADV ต้องหักส่วนลดก่อน จากนั้นหักเครดิตฐานจากยอดก่อน VAT หลังส่วนลด แล้วคำนวณ VAT ของบิลจากฐานที่เหลือ เพื่อไม่เอา VAT ของเงินล่วงหน้ามาหักซ้ำ.
+- Sales Bill allocation แก้แล้วให้เลือกจาก `customer_advances` ไม่ใช่ `bank_statement.ref_type = CADV`, และเขียน allocation breakdown สำหรับ AR/detail/print.
+- รอบนี้ยังไม่แก้ `/sales/receipts`; CADV จะพร้อมใช้หัก SB ก็ต่อเมื่อ receipt integration หรือ data repair populate `received_amount`/`available_amount` ตาม contract นี้.
 
 ## Non-Responsibilities
 

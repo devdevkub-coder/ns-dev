@@ -89,6 +89,19 @@
   - Tax VAT/WHT intentionally continues to read purchase VAT from `purchase_bills` as the filing/report source; supplier ADV VAT is an allocation support snapshot and must not be counted as a second independent input-VAT document until a normalized tax ledger/filing flow is designed.
 - [ ] Add focused tests/service checks for no-VAT ADV, VAT ADV, partial allocation, PB cancel/edit release, and tax report non-duplication
 
+## Active Follow-up: Customer Advance CADV Sales Bill Allocation
+
+เป้าหมาย: ให้ Customer Advance (`CADV`) ฝั่งขายใช้หลักคำนวณเดียวกับ Supplier Advance ฝั่งซื้อ โดยหักฐานก่อน VAT ออกจาก Sales Bill แล้วคำนวณ VAT ใหม่จากฐานที่เหลือ
+
+- [x] Add CADV helper for gross receipt -> pre-VAT base capacity, allocation base/VAT/total split, and post-advance Sales Bill totals
+- [x] Add DB migration/Prisma fields for `sales_bill_customer_advance_allocations` breakdown: `allocated_subtotal_amount`, `allocated_vat_amount`, `allocated_total_amount`
+- [x] Update `/api/sales/bills` create/edit/cancel to select CADV from `customer_advances`, write allocation breakdown, and refresh CADV `allocated_amount`/`available_amount`/status
+- [x] Update AR drilldown, Sales Bill detail, and print read models to display CADV allocated total from allocation facts
+- [x] Add focused CADV calculation tests for receipt base capacity, allocation split, VAT recalculation, and cap-at-bill-base behavior
+- [x] Apply the CADV allocation-breakdown migration to dev-target `fhglqymcdmrgbsbadnwr` and record migration version `20260716082726`
+- [ ] Apply the CADV allocation-breakdown migration to any SIT/UAT/production runtime database before deploying this code there
+- [ ] Implement `/sales/receipts` -> CADV receipt allocation so RCP populates CADV `received_amount` and `available_amount` from real cash receipts
+
 ## Active Follow-up: AR/AP Balance Source Of Truth
 
 เป้าหมาย: ให้หน้า AR/AP และ report อ่านยอดค้างจาก snapshot ของเอกสารต้นทาง (`sales_bills`, `purchase_bills`) เป็นหลัก และใช้ receipt/payment/allocation logs เป็น drilldown/audit เท่านั้น เพื่อไม่ให้ยอดค้างคลาดเมื่อมี Customer/Supplier Advance หรือ cancellation/reversal
@@ -792,7 +805,8 @@ Reporting rule:
 - [x] Fix `/api/finance/ap` AP source-of-truth: use `purchase_bills.payable_balance` and `purchase_bills.paid_amount` as the primary balance/read fields; use `payments`, `payment_allocations`, `payment_approvals`, and `supplier_advance_allocations` only for PMT/PMA/ADV drilldown/audit.
 - [ ] Remove `/finance/ap` channel filter until purchase channel exists as a real document source; do not keep an empty dropdown or fallback query.
 - [ ] Keep AP aging on current policy: `purchase_bills.date` is the aging base date. Do not add credit term/due-date schema in this batch.
-- [ ] design dedicated `customer_advances` and `customer_advance_allocations` tables so `/finance/customer-advance` no longer depends on `bank_statement.ref_type = CADV` only
+- [x] design dedicated `customer_advances` source table so `/finance/customer-advance` and SB CADV selection no longer depend on `bank_statement.ref_type = CADV` only
+- [ ] design dedicated customer receipt -> CADV allocation facts for `/sales/receipts`; SB allocation facts exist as `sales_bill_customer_advance_allocations`
 - [ ] harden `/daily/petty-advance` with expense allocation, status logs, cancel/reverse policy, and server-side return-over-remaining guard
 - [ ] sync `/finance/bank` and `/finance/cash-position` with complete source links, as-of/currency policy, and read-only/admin-cleanup boundary
 

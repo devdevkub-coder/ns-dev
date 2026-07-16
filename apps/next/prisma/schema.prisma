@@ -2899,25 +2899,28 @@ model po_sell_allocation_logs {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model sales_bill_customer_advance_allocations {
-  id                      BigInt      @id @default(autoincrement())
-  sales_bill_id           BigInt
-  customer_advance_doc_no String
-  customer_id             BigInt?
-  customer_code_snapshot  String
-  customer_name_snapshot  String
-  allocated_amount        Decimal     @default(0) @db.Decimal
-  outstanding_before      Decimal     @default(0) @db.Decimal
-  outstanding_after       Decimal     @default(0) @db.Decimal
-  status                  String      @default("active")
-  notes                   String?
-  meta                    Json?
-  created_at              DateTime    @default(now()) @db.Timestamptz(6)
-  created_by              String?
-  updated_at              DateTime    @default(now()) @db.Timestamptz(6)
-  updated_by              String?
-  version                 Int         @default(1)
-  customers               customers?  @relation(fields: [customer_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  sales_bills             sales_bills @relation(fields: [sales_bill_id], references: [id], onUpdate: NoAction)
+  id                        BigInt      @id @default(autoincrement())
+  sales_bill_id             BigInt
+  customer_advance_doc_no   String
+  customer_id               BigInt?
+  customer_code_snapshot    String
+  customer_name_snapshot    String
+  allocated_amount          Decimal     @default(0) @db.Decimal(18, 2)
+  allocated_subtotal_amount Decimal     @default(0) @db.Decimal(18, 2)
+  allocated_vat_amount      Decimal     @default(0) @db.Decimal(18, 2)
+  allocated_total_amount    Decimal     @default(0) @db.Decimal(18, 2)
+  outstanding_before        Decimal     @default(0) @db.Decimal(18, 2)
+  outstanding_after         Decimal     @default(0) @db.Decimal(18, 2)
+  status                    String      @default("active")
+  notes                     String?
+  meta                      Json?
+  created_at                DateTime    @default(now()) @db.Timestamptz(6)
+  created_by                String?
+  updated_at                DateTime    @default(now()) @db.Timestamptz(6)
+  updated_by                String?
+  version                   Int         @default(1)
+  customers                 customers?  @relation(fields: [customer_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  sales_bills               sales_bills @relation(fields: [sales_bill_id], references: [id], onUpdate: NoAction)
 
   @@index([sales_bill_id, status], map: "idx_sales_bill_customer_advance_allocations_bill_status")
   @@index([customer_advance_doc_no, status], map: "idx_sales_bill_customer_advance_allocations_advance_status")

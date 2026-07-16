@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { XLSX } from '@/lib/server/xlsx'
 import { salesBillFormSchema, type SalesBillFormValues } from '@/lib/sales'
+import { calculateCustomerAdvanceAllocation, calculateSalesBillPostCustomerAdvanceTotals } from '@/lib/customer-advance'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission, type AppAuthContext } from '@/lib/server/auth-context'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
@@ -23,6 +24,7 @@ import { appendWtoPendingOutEventsForHoldKeys, appendWtoPendingOutEventsForSales
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION } from '@/lib/server/weight-ticket-usage-history'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
+import { refreshCustomerAdvanceAllocation } from '@/lib/server/customer-advance-settlement'
 import { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -276,15 +278,128 @@ function billOrderBy(query: BillQuery): Prisma.sales_billsOrderByWithRelationInp
 function calculateSalesTotals(values: SalesBillFormValues, vatRatePercent: number) {
   const grossProfitBase = values.items.reduce((sum, item) => sum + Math.max(0, item.qty * item.price), 0)
   const subtotal = values.items.reduce((sum, item) => sum + Math.max(0, item.qty * item.price - item.discount), 0)
-  const afterDiscount = Math.max(0, subtotal - values.discountTotal)
-  const rate = Math.max(0, Math.min(100, vatRatePercent))
-  const vatAmount = !values.hasVat || values.vatType === 'NONE'
-    ? 0
-    : values.vatType === 'INCLUDE'
-      ? afterDiscount * rate / (100 + rate)
-      : afterDiscount * (rate / 100)
-  const totalAmount = values.hasVat && values.vatType === 'EXCLUDE' ? afterDiscount + vatAmount : afterDiscount
-  return { grossProfitBase, subtotal, totalAmount, vatAmount }
+  const totals = calculateSalesBillPostCustomerAdvanceTotals({
+    advanceBaseAllocatedAmount: 0,
+    discountAmount: values.discountTotal,
+    hasVat: values.hasVat,
+    subtotalAmount: subtotal,
+    vatRatePercent,
+    vatType: values.vatType,
+  })
+  return {
+    afterDiscount: totals.afterDiscountAmount,
+    grossProfitBase,
+    subtotal,
+    taxableBaseAmount: totals.taxableBaseAmount,
+    totalAmount: totals.totalAmount,
+    vatAmount: totals.vatAmount,
+  }
+}
+
+function applyCustomerAdvanceToSalesTotals(
+  values: SalesBillFormValues,
+  vatRatePercent: number,
+  advanceBaseAllocatedAmount: number,
+) {
+  const subtotal = values.items.reduce((sum, item) => sum + Math.max(0, item.qty * item.price - item.discount), 0)
+  const totals = calculateSalesBillPostCustomerAdvanceTotals({
+    advanceBaseAllocatedAmount,
+    discountAmount: values.discountTotal,
+    hasVat: values.hasVat,
+    subtotalAmount: subtotal,
+    vatRatePercent,
+    vatType: values.vatType,
+  })
+  return {
+    subtotal,
+    taxableBaseAmount: totals.taxableBaseAmount,
+    totalAmount: totals.totalAmount,
+    vatAmount: totals.vatAmount,
+  }
+}
+
+function salesLineTotalsAfterCustomerAdvance(
+  totals: ReturnType<typeof calculateSalesTotals>,
+  settledTotals: Pick<ReturnType<typeof calculateSalesTotals>, 'totalAmount' | 'vatAmount' | 'taxableBaseAmount'>,
+): ReturnType<typeof calculateSalesTotals> {
+  return {
+    ...totals,
+    taxableBaseAmount: settledTotals.taxableBaseAmount,
+    totalAmount: settledTotals.totalAmount,
+    vatAmount: settledTotals.vatAmount,
+  }
+}
+
+type CustomerAdvanceSelectionClient = Pick<
+  typeof prisma,
+  'customer_advances' | 'sales_bill_customer_advance_allocations'
+>
+
+async function validateCustomerAdvanceSelection(
+  client: CustomerAdvanceSelectionClient,
+  params: {
+    billId?: bigint
+    billTotals: ReturnType<typeof calculateSalesTotals>
+    branchId: bigint
+    customerId: bigint
+    docNo?: string | null
+  },
+) {
+  const docNo = params.docNo?.trim()
+  if (!docNo) return null
+
+  const advance = await client.customer_advances.findUnique({
+    select: {
+      allocated_amount: true,
+      available_amount: true,
+      branch_id: true,
+      cancelled_at: true,
+      customer_id: true,
+      customer_advance_statuses: { select: { code: true } },
+      doc_no: true,
+      id: true,
+      received_amount: true,
+      status_id: true,
+      subtotal_amount: true,
+      target_amount: true,
+      vat_amount: true,
+    },
+    where: { doc_no: docNo },
+  })
+  if (!advance || advance.cancelled_at) throw new Error('ไม่พบเอกสาร CADV ที่ต้องการใช้หักบิล')
+  if (advance.branch_id !== params.branchId) throw new Error('เอกสาร CADV ต้องอยู่สาขาเดียวกับบิลขาย')
+  if (advance.customer_id !== params.customerId) throw new Error('เอกสาร CADV ต้องเป็นลูกค้าเดียวกับบิลขาย')
+  if (!['received', 'partially_allocated', 'allocated'].includes(advance.customer_advance_statuses.code)) {
+    throw new Error('เอกสาร CADV นี้ยังไม่พร้อมใช้หักบิล')
+  }
+
+  const activeCurrentBillAllocatedAmount = params.billId
+    ? toNumber((await client.sales_bill_customer_advance_allocations.aggregate({
+        _sum: { allocated_subtotal_amount: true },
+        where: {
+          customer_advance_doc_no: advance.doc_no,
+          sales_bill_id: params.billId,
+          status: 'active',
+        },
+      }))._sum.allocated_subtotal_amount)
+    : 0
+  const availableBaseAmount = Math.max(0, toNumber(advance.available_amount) + activeCurrentBillAllocatedAmount)
+  if (availableBaseAmount <= 0.01) throw new Error('เอกสาร CADV นี้ไม่มียอดคงเหลือสำหรับใช้หักบิลแล้ว')
+  if (params.billTotals.taxableBaseAmount <= 0.01) throw new Error('บิลขายไม่มียอดก่อน VAT ให้หัก CADV')
+
+  const allocation = calculateCustomerAdvanceAllocation({
+    availableBaseAmount,
+    billSubtotalAmount: params.billTotals.taxableBaseAmount,
+    billTotalAmount: params.billTotals.totalAmount,
+    billVatAmount: params.billTotals.vatAmount,
+  })
+  if (allocation.allocatedSubtotalAmount <= 0.01) throw new Error('ยอด CADV ไม่สามารถหักกับบิลขายนี้ได้')
+
+  return {
+    advance,
+    allocation,
+    availableBaseAmount,
+  }
 }
 
 function salesItems(
@@ -923,7 +1038,7 @@ async function validateStockDeliverySelection(
 async function salesOptionsPayload(scope: Awaited<ReturnType<typeof salesBranchScope>>) {
   const allowedBranchCodes = scope.codes
   const allowedBranchIds = scope.ids
-  const [branches, customers, products, salesChannels, warehouses, vatRatePercent, deliveryTickets, poSellRows, tradingPurchaseBills, tradingManualCostSources, tradingAllocationFacts, customerAdvanceRows, customerAdvanceAllocations] = await Promise.all([
+  const [branches, customers, products, salesChannels, warehouses, vatRatePercent, deliveryTickets, poSellRows, tradingPurchaseBills, tradingManualCostSources, tradingAllocationFacts, customerAdvanceRows] = await Promise.all([
     prisma.branches.findMany({
       orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
       select: { active: true, code: true, id: true, name: true },
@@ -1044,23 +1159,28 @@ async function salesOptionsPayload(scope: Awaited<ReturnType<typeof salesBranchS
       },
       where: { status: 'active' },
     }),
-    prisma.bank_statement.findMany({
-      include: {
-        accounts: { select: { name: true } },
+    prisma.customer_advances.findMany({
+      orderBy: [{ document_date: 'desc' }, { doc_no: 'desc' }],
+      select: {
+        available_amount: true,
+        branch_id: true,
+        customer_code_snapshot: true,
+        customer_id: true,
+        customer_advance_statuses: { select: { code: true, name: true } },
+        doc_no: true,
+        document_date: true,
+        received_amount: true,
+        subtotal_amount: true,
+        target_amount: true,
       },
-      orderBy: [{ date: 'desc' }, { created_at: 'desc' }, { id: 'desc' }],
       take: 500,
       where: {
-        ref_type: 'CADV',
-      },
-    }),
-    prisma.sales_bill_customer_advance_allocations.findMany({
-      select: {
-        allocated_amount: true,
-        customer_advance_doc_no: true,
-      },
-      where: {
-        status: 'active',
+        ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
+        available_amount: { gt: 0 },
+        cancelled_at: null,
+        customer_advance_statuses: {
+          code: { in: ['received', 'partially_allocated', 'allocated'] },
+        },
       },
     }),
   ])
@@ -1085,14 +1205,6 @@ async function salesOptionsPayload(scope: Awaited<ReturnType<typeof salesBranchS
     current.qty += toNumber(fact.qty)
     matchedTradingCostBySource.set(sourceKey, current)
   })
-  const customerAdvanceUsedById = new Map<string, number>()
-  customerAdvanceAllocations.forEach((allocation) => {
-    customerAdvanceUsedById.set(
-      allocation.customer_advance_doc_no,
-      (customerAdvanceUsedById.get(allocation.customer_advance_doc_no) ?? 0) + toNumber(allocation.allocated_amount),
-    )
-  })
-
   return {
     branches: branches.map((branch) => ({
       ...branch,
@@ -1205,25 +1317,23 @@ async function salesOptionsPayload(scope: Awaited<ReturnType<typeof salesBranchS
       }),
     ],
     customerAdvancePayments: customerAdvanceRows.flatMap((advance) => {
-      const customerCode = String(advance.ref_id ?? '').trim()
+      const customerCode = advance.customer_code_snapshot
       const customer = customerByCode.get(customerCode)
       if (!customer) return []
-      const amount = toNumber(advance.amount_in)
-      const usedAmount = customerAdvanceUsedById.get(advance.doc_no) ?? 0
-      const remainingAmount = Math.max(0, amount - usedAmount)
+      const amount = toNumber(advance.target_amount)
+      const remainingAmount = toNumber(advance.available_amount)
       if (remainingAmount <= 0.01) return []
-      const docNo = advance.ref_no ?? advance.doc_no
       return [{
         active: true,
-        advanceDate: toDateOnly(advance.date),
+        advanceDate: toDateOnly(advance.document_date),
         amount,
-        branch_id: null,
+        branch_id: branchCodeById.get(advance.branch_id) ?? null,
         customer_id: customerCode,
         id: advance.doc_no,
-        label: `${docNo} · คงเหลือ ${remainingAmount.toLocaleString('th-TH')} บาท`,
-        name: docNo,
+        label: `${advance.doc_no} · คงเหลือ ${remainingAmount.toLocaleString('th-TH')} บาท`,
+        name: advance.doc_no,
         remainingAmount,
-        status: usedAmount > 0.01 ? 'Partially Used' : 'Open',
+        status: advance.customer_advance_statuses.name,
       }]
     }),
     products: products.map((product) => ({
@@ -1474,35 +1584,23 @@ export async function POST(request: Request) {
       if (poSell.branch_id && branch?.id && poSell.branch_id !== branch.id) return NextResponse.json({ code: 'BAD_REQUEST', error: `สาขาของบิลขายไม่ตรงกับ PO Sell ${poSell.doc_no}` }, { status: 400 })
     }
 
-    const selectedCustomerAdvance = values.customerAdvanceId
-      ? await prisma.bank_statement.findUnique({
-          select: {
-            amount_in: true,
-            doc_no: true,
-            ref_id: true,
-            ref_no: true,
-            ref_type: true,
-          },
-          where: { doc_no: values.customerAdvanceId },
-        })
-      : null
-    if (values.customerAdvanceId && !selectedCustomerAdvance) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบเอกสารรับเงินล่วงหน้าที่เลือก' }, { status: 400 })
-    if (selectedCustomerAdvance && selectedCustomerAdvance.ref_type !== 'CADV') return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารรับเงินล่วงหน้าไม่ถูกต้อง' }, { status: 400 })
-    if (selectedCustomerAdvance && String(selectedCustomerAdvance.ref_id ?? '').trim() !== customer.code) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารรับเงินล่วงหน้าต้องเป็นลูกค้าเดียวกับบิลขาย' }, { status: 400 })
-    const customerAdvanceUsedAmount = selectedCustomerAdvance
-      ? toNumber((await prisma.sales_bill_customer_advance_allocations.aggregate({
-          _sum: { allocated_amount: true },
-          where: {
-            customer_advance_doc_no: selectedCustomerAdvance.doc_no,
-            status: 'active',
-          },
-        }))._sum.allocated_amount)
-      : 0
-    const customerAdvanceAvailable = selectedCustomerAdvance
-      ? Math.max(0, toNumber(selectedCustomerAdvance.amount_in) - customerAdvanceUsedAmount)
-      : 0
-    if (selectedCustomerAdvance && customerAdvanceAvailable <= 0.01) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารรับเงินล่วงหน้านี้ไม่มียอดคงเหลือสำหรับใช้หักบิลแล้ว' }, { status: 400 })
-    const customerAdvanceApplied = selectedCustomerAdvance ? Math.min(totals.totalAmount, customerAdvanceAvailable) : 0
+    const selectedCustomerAdvance = await validateCustomerAdvanceSelection(prisma, {
+      billTotals: totals,
+      branchId: branch.id,
+      customerId: customer.id,
+      docNo: values.customerAdvanceId,
+    }).catch((error) => {
+      if (error instanceof Error) return error
+      throw error
+    })
+    if (selectedCustomerAdvance instanceof Error) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: selectedCustomerAdvance.message }, { status: 400 })
+    }
+    const customerAdvanceAllocation = selectedCustomerAdvance?.allocation ?? null
+    const settledTotals = customerAdvanceAllocation
+      ? applyCustomerAdvanceToSalesTotals(values, vatRatePercent, customerAdvanceAllocation.allocatedSubtotalAmount)
+      : totals
+    const salesBillStatus = settledTotals.totalAmount <= 0.01 ? 'received' : 'unreceived'
 
     const productByCode = new Map(products.map((product) => [requireBusinessCode(product.code, `สินค้า ${product.id}`), product]))
     const parsedProductIds = requestedProductCodes.map((productCode) => productByCode.get(productCode)?.id ?? null)
@@ -1759,18 +1857,18 @@ export async function POST(request: Request) {
           note: values.note,
           notes: values.note,
           po_sell_id: selectedHeaderPoSell?.id ?? null,
-          paid_amount: customerAdvanceApplied,
-          receivable_balance: Math.max(0, totals.totalAmount - customerAdvanceApplied),
-          received_amount: customerAdvanceApplied,
+          paid_amount: 0,
+          receivable_balance: settledTotals.totalAmount,
+          received_amount: 0,
           ref_no: values.refNo,
-          status: 'unreceived',
+          status: salesBillStatus,
           subtotal: totals.subtotal,
-          total_amount: totals.totalAmount,
+          total_amount: settledTotals.totalAmount,
           total_cost: totalCost,
           transaction_mode: values.transactionMode,
           updated_at: createdAt,
           updated_by: actor,
-          vat_amount: totals.vatAmount,
+          vat_amount: settledTotals.vatAmount,
           vat_invoice_date: values.vatInvoiceDate ? normalizeDate(values.vatInvoiceDate) : null,
           vat_invoice_issued: values.vatInvoiceIssued,
           vat_invoice_no: values.vatInvoiceNo,
@@ -1789,7 +1887,7 @@ export async function POST(request: Request) {
           createdAt,
           items,
           parsedProductIds: parsedProductIds as bigint[],
-          totals,
+          totals: salesLineTotalsAfterCustomerAdvance(totals, settledTotals),
         }),
       })
       const createdLines = await tx.sales_bill_lines.findMany({
@@ -1849,25 +1947,32 @@ export async function POST(request: Request) {
           })))
       }
 
-      if (selectedCustomerAdvance && customerAdvanceApplied > 0) {
+      if (selectedCustomerAdvance && customerAdvanceAllocation) {
         await tx.sales_bill_customer_advance_allocations.create({
           data: {
-            allocated_amount: customerAdvanceApplied,
+            allocated_amount: customerAdvanceAllocation.allocatedAmount,
+            allocated_subtotal_amount: customerAdvanceAllocation.allocatedSubtotalAmount,
+            allocated_total_amount: customerAdvanceAllocation.allocatedTotalAmount,
+            allocated_vat_amount: customerAdvanceAllocation.allocatedVatAmount,
             created_at: createdAt,
             created_by: actor,
-            customer_advance_doc_no: selectedCustomerAdvance.doc_no,
+            customer_advance_doc_no: selectedCustomerAdvance.advance.doc_no,
             customer_code_snapshot: customer.code,
             customer_id: customer.id,
             customer_name_snapshot: customer.name,
-            meta: { source: 'sales_bill_create' },
-            outstanding_after: Math.max(0, customerAdvanceAvailable - customerAdvanceApplied),
-            outstanding_before: customerAdvanceAvailable,
+            meta: {
+              source: 'sales_bill_create',
+              totalAppliedAmount: customerAdvanceAllocation.allocatedTotalAmount,
+            },
+            outstanding_after: customerAdvanceAllocation.remainingBaseAmount,
+            outstanding_before: selectedCustomerAdvance.availableBaseAmount,
             sales_bill_id: createdBill.id,
             status: 'active',
             updated_at: createdAt,
             updated_by: actor,
           },
         })
+        await refreshCustomerAdvanceAllocation(tx, selectedCustomerAdvance.advance.id, actor)
       }
 
       await appendSalesBillStatusLog(tx, {
@@ -1882,7 +1987,7 @@ export async function POST(request: Request) {
         },
         note: values.note || null,
         salesBillId: createdBill.id,
-        toStatus: 'unreceived',
+        toStatus: salesBillStatus,
       })
 
       for (const [poSellDocNo, allocation] of poSellAllocations.entries()) {
@@ -2536,40 +2641,27 @@ export async function PATCH(request: Request) {
       const totalCost = roundMoney(toNumber(bill.total_cost ?? bill.cogs_amount))
       const headerPoSellDocNo = values.poSellId?.trim() || undefined
       const oldCustomerAdvanceAllocations = bill.sales_bill_customer_advance_allocations.filter((allocation) => allocation.status === 'active')
-      const oldCustomerAdvanceAllocatedAmount = oldCustomerAdvanceAllocations.reduce((sum, allocation) => sum + toNumber(allocation.allocated_amount), 0)
+      const oldCustomerAdvanceAllocatedAmount = oldCustomerAdvanceAllocations.reduce((sum, allocation) => sum + (toNumber(allocation.allocated_subtotal_amount) || toNumber(allocation.allocated_amount)), 0)
       const requestedCustomerAdvanceDocNo = values.customerAdvanceId?.trim() || ''
-      const selectedCustomerAdvance = requestedCustomerAdvanceDocNo
-        ? await prisma.bank_statement.findUnique({
-            select: {
-              amount_in: true,
-              doc_no: true,
-              ref_id: true,
-              ref_no: true,
-              ref_type: true,
-            },
-            where: { doc_no: requestedCustomerAdvanceDocNo },
-          })
-        : null
-      if (requestedCustomerAdvanceDocNo && !selectedCustomerAdvance) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบเอกสารรับเงินล่วงหน้าที่เลือก' }, { status: 400 })
-      if (selectedCustomerAdvance && selectedCustomerAdvance.ref_type !== 'CADV') return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารรับเงินล่วงหน้าไม่ถูกต้อง' }, { status: 400 })
-      if (selectedCustomerAdvance && String(selectedCustomerAdvance.ref_id ?? '').trim() !== customer.code) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารรับเงินล่วงหน้าต้องเป็นลูกค้าเดียวกับบิลขาย' }, { status: 400 })
-      const selectedCustomerAdvanceUsedAmount = selectedCustomerAdvance
-        ? toNumber((await prisma.sales_bill_customer_advance_allocations.aggregate({
-            _sum: { allocated_amount: true },
-            where: {
-              customer_advance_doc_no: selectedCustomerAdvance.doc_no,
-              sales_bill_id: { not: bill.id },
-              status: 'active',
-            },
-          }))._sum.allocated_amount)
-        : 0
-      const selectedCustomerAdvanceAvailable = selectedCustomerAdvance
-        ? Math.max(0, toNumber(selectedCustomerAdvance.amount_in) - selectedCustomerAdvanceUsedAmount)
-        : 0
-      const customerAdvanceApplied = selectedCustomerAdvance
-        ? Math.min(totals.totalAmount, selectedCustomerAdvanceAvailable)
-        : 0
-      if (selectedCustomerAdvance && customerAdvanceApplied <= 0.01) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารรับเงินล่วงหน้านี้ไม่มียอดคงเหลือสำหรับใช้หักบิลแล้ว' }, { status: 400 })
+      const selectedCustomerAdvance = await validateCustomerAdvanceSelection(prisma, {
+        billId: bill.id,
+        billTotals: totals,
+        branchId: branch.id,
+        customerId: customer.id,
+        docNo: requestedCustomerAdvanceDocNo,
+      }).catch((error) => {
+        if (error instanceof Error) return error
+        throw error
+      })
+      if (selectedCustomerAdvance instanceof Error) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: selectedCustomerAdvance.message }, { status: 400 })
+      }
+      const customerAdvanceAllocation = selectedCustomerAdvance?.allocation ?? null
+      const settledTotals = customerAdvanceAllocation
+        ? applyCustomerAdvanceToSalesTotals(values, vatRatePercent, customerAdvanceAllocation.allocatedSubtotalAmount)
+        : totals
+      const customerAdvanceApplied = customerAdvanceAllocation?.allocatedTotalAmount ?? 0
+      const salesBillStatus = settledTotals.totalAmount <= 0.01 ? 'received' : 'unreceived'
       await prisma.$transaction(async (tx) => {
         let stockCostDelta = 0
         let activeSalesBillLines = bill.sales_bill_lines
@@ -2581,7 +2673,7 @@ export async function PATCH(request: Request) {
             createdAt,
             items,
             parsedProductIds: parsedProductIdsByLine as bigint[],
-            totals,
+            totals: salesLineTotalsAfterCustomerAdvance(totals, settledTotals),
           })
           await tx.sales_bill_lines.createMany({
             data: allLineRows.filter((line) => newItems.some((item) => item.lineNo === line.line_no)),
@@ -2858,6 +2950,14 @@ export async function PATCH(request: Request) {
             },
             where: { sales_bill_id: bill.id, status: 'active' },
           })
+          const releasedAdvanceDocNos = [...new Set(oldCustomerAdvanceAllocations.map((allocation) => allocation.customer_advance_doc_no))]
+          const releasedAdvances = await tx.customer_advances.findMany({
+            select: { id: true },
+            where: { doc_no: { in: releasedAdvanceDocNos } },
+          })
+          for (const releasedAdvance of releasedAdvances) {
+            await refreshCustomerAdvanceAllocation(tx, releasedAdvance.id, actor)
+          }
         }
 
         const updatedTotalCost = roundMoney(totalCost + stockCostDelta)
@@ -2871,16 +2971,17 @@ export async function PATCH(request: Request) {
             items: items as Prisma.InputJsonValue,
             note: values.note,
             notes: values.note,
-            paid_amount: customerAdvanceApplied,
-            receivable_balance: Math.max(0, totals.totalAmount - customerAdvanceApplied),
+            paid_amount: 0,
+            receivable_balance: settledTotals.totalAmount,
             ref_no: values.refNo,
-            received_amount: customerAdvanceApplied,
+            received_amount: 0,
             subtotal: totals.subtotal,
-            total_amount: totals.totalAmount,
+            status: salesBillStatus,
+            total_amount: settledTotals.totalAmount,
             total_cost: updatedTotalCost,
             updated_at: createdAt,
             updated_by: actor,
-            vat_amount: totals.vatAmount,
+            vat_amount: settledTotals.vatAmount,
             vat_invoice_date: values.vatInvoiceDate ? normalizeDate(values.vatInvoiceDate) : null,
             vat_invoice_issued: values.vatInvoiceIssued,
             vat_invoice_no: values.vatInvoiceNo,
@@ -2915,7 +3016,7 @@ export async function PATCH(request: Request) {
               unit_snapshot: item.unit,
               updated_at: createdAt,
               updated_by: actor,
-              vat_amount: totals.subtotal > 0 ? totals.vatAmount * (Math.max(0, item.amount) / totals.subtotal) : 0,
+              vat_amount: totals.subtotal > 0 ? settledTotals.vatAmount * (Math.max(0, item.amount) / totals.subtotal) : 0,
               version: { increment: 1 },
             },
             where: { id: activeLine.id },
@@ -2959,13 +3060,16 @@ export async function PATCH(request: Request) {
             salesBillDocNo: bill.doc_no,
           }))
         }
-        if (selectedCustomerAdvance && customerAdvanceApplied > 0) {
+        if (selectedCustomerAdvance && customerAdvanceAllocation) {
           await tx.sales_bill_customer_advance_allocations.create({
             data: {
-              allocated_amount: customerAdvanceApplied,
+              allocated_amount: customerAdvanceAllocation.allocatedAmount,
+              allocated_subtotal_amount: customerAdvanceAllocation.allocatedSubtotalAmount,
+              allocated_total_amount: customerAdvanceAllocation.allocatedTotalAmount,
+              allocated_vat_amount: customerAdvanceAllocation.allocatedVatAmount,
               created_at: createdAt,
               created_by: actor,
-              customer_advance_doc_no: selectedCustomerAdvance.doc_no,
+              customer_advance_doc_no: selectedCustomerAdvance.advance.doc_no,
               customer_code_snapshot: customer.code,
               customer_id: customer.id,
               customer_name_snapshot: customer.name,
@@ -2973,15 +3077,17 @@ export async function PATCH(request: Request) {
                 oldAllocatedAmount: oldCustomerAdvanceAllocatedAmount,
                 reason: 'sales_bill_edit_customer_advance',
                 source: 'sales_bill_edit',
+                totalAppliedAmount: customerAdvanceAllocation.allocatedTotalAmount,
               },
-              outstanding_after: Math.max(0, selectedCustomerAdvanceAvailable - customerAdvanceApplied),
-              outstanding_before: selectedCustomerAdvanceAvailable,
+              outstanding_after: customerAdvanceAllocation.remainingBaseAmount,
+              outstanding_before: selectedCustomerAdvance.availableBaseAmount,
               sales_bill_id: bill.id,
               status: 'active',
               updated_at: createdAt,
               updated_by: actor,
             },
           })
+          await refreshCustomerAdvanceAllocation(tx, selectedCustomerAdvance.advance.id, actor)
         }
         for (const [poSellDocNo, allocation] of poSellAllocations.entries()) {
           const poSell = poSellByDocNo.get(poSellDocNo)
@@ -3012,7 +3118,7 @@ export async function PATCH(request: Request) {
           },
           note: values.note,
           salesBillId: bill.id,
-          toStatus: bill.status ?? 'unreceived',
+          toStatus: salesBillStatus,
         })
       }, { timeout: 30000 })
 
@@ -3140,6 +3246,13 @@ export async function PATCH(request: Request) {
         },
       })
 
+      const activeCustomerAdvanceAllocations = await tx.sales_bill_customer_advance_allocations.findMany({
+        select: { customer_advance_doc_no: true },
+        where: {
+          sales_bill_id: bill.id,
+          status: 'active',
+        },
+      })
       await Promise.all([
         tx.sales_bill_lines.updateMany({
           data: {
@@ -3190,6 +3303,17 @@ export async function PATCH(request: Request) {
           },
         }),
       ])
+
+      if (activeCustomerAdvanceAllocations.length > 0) {
+        const advanceDocNos = [...new Set(activeCustomerAdvanceAllocations.map((allocation) => allocation.customer_advance_doc_no))]
+        const advances = await tx.customer_advances.findMany({
+          select: { id: true },
+          where: { doc_no: { in: advanceDocNos } },
+        })
+        for (const advance of advances) {
+          await refreshCustomerAdvanceAllocation(tx, advance.id, actor)
+        }
+      }
 
       await appendSalesBillStatusLog(tx, {
         action: SALES_BILL_STATUS_ACTION.CANCELLED,
