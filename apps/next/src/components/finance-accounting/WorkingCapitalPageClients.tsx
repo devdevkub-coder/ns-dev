@@ -372,6 +372,8 @@ export function StockFinancePageClient() {
   const topProducts = data?.topProducts ?? []
   const visibleTopProducts = showAllTopProducts ? topProducts : topProducts.slice(0, 5)
   const canToggleTopProducts = topProducts.length > 5
+  const opportunityValue = data?.summary.marginPotential ?? 0
+  const oldStockPct = percent(oldStock?.value ?? 0, total)
 
   return (
     <section className="space-y-4">
