@@ -11,7 +11,7 @@ import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Select } from '@/components/ui/Select'
 import { ApiError } from '@/lib/api-client'
-import { customerAdvanceFormSchema } from '@/lib/customer-advance'
+import { calculateCustomerAdvanceTaxBreakdown, customerAdvanceFormSchema, type CustomerAdvanceVatType } from '@/lib/customer-advance'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 
@@ -37,9 +37,14 @@ type CustomerAdvanceRow = {
   invoiceNo: string
   status: string
   statusLabel: string
+  subtotalAmount: number
   targetAmount: number
   totalGrossWeight: number
   totalNetWeight: number
+  vatAmount: number
+  vatRatePercent: number
+  vatType: CustomerAdvanceVatType
+  vatTypeLabel: string
 }
 
 type CustomerAdvanceResponse = {
@@ -50,6 +55,14 @@ type CustomerAdvanceResponse = {
   pagination: { page: number; pageSize: number; totalPages: number; totalRows: number }
   products: MasterOption[]
   rows: CustomerAdvanceRow[]
+  settings: {
+    vatRates: Array<{
+      effectiveFrom: string
+      effectiveTo: string | null
+      isDefault: boolean
+      ratePercent: number
+    }>
+  }
 }
 
 type CustomerAdvanceLine = {
@@ -70,6 +83,7 @@ type CustomerAdvanceFormState = {
   invoiceNo: string
   lines: CustomerAdvanceLine[]
   remark: string
+  vatType: CustomerAdvanceVatType
 }
 
 type FormErrors = Record<string, string>
@@ -86,6 +100,7 @@ const initialForm = (): CustomerAdvanceFormState => ({
   invoiceNo: '',
   lines: [emptyLine('line-0')],
   remark: '',
+  vatType: 'NONE',
 })
 
 function decimalValue(value: string) {
@@ -99,6 +114,14 @@ function parseDecimal(value: string) {
 
 function formatQuantity(value: number) {
   return new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 0 }).format(value)
+}
+
+function vatRateForDate(rates: CustomerAdvanceResponse['settings']['vatRates'], documentDate: string) {
+  if (!documentDate) return null
+  const match = rates.find((rate) => rate.effectiveFrom <= documentDate && (!rate.effectiveTo || rate.effectiveTo >= documentDate))
+  return match && Number.isFinite(match.ratePercent) && match.ratePercent > 0 && match.ratePercent <= 100
+    ? match.ratePercent
+    : null
 }
 
 function clearLineErrors(errors: FormErrors) {
@@ -174,6 +197,15 @@ export function CustomerAdvanceForm() {
     netWeight: form.lines.reduce((total, line) => total + parseDecimal(line.netWeight), 0),
     quantity: form.lines.reduce((total, line) => total + parseDecimal(line.quantity), 0),
   }), [form.lines])
+  const selectedVatRatePercent = useMemo(() => data ? vatRateForDate(data.settings.vatRates, form.documentDate) : null, [data, form.documentDate])
+  const taxBreakdown = useMemo(() => data && (form.vatType === 'NONE' || selectedVatRatePercent !== null) ? calculateCustomerAdvanceTaxBreakdown({
+    amount: parseDecimal(form.amount),
+    vatRatePercent: selectedVatRatePercent ?? 0,
+    vatType: form.vatType,
+  }) : null, [data, form.amount, form.vatType, selectedVatRatePercent])
+  const vatConfigurationError = form.vatType === 'INCLUDE' && form.documentDate && selectedVatRatePercent === null
+    ? 'ไม่พบอัตรา VAT ที่เปิดใช้งานสำหรับวันที่เอกสาร'
+    : ''
 
   const updateField = <K extends Exclude<keyof CustomerAdvanceFormState, 'lines'>>(key: K, value: CustomerAdvanceFormState[K]) => {
     setForm((current) => ({
@@ -314,12 +346,23 @@ export function CustomerAdvanceForm() {
               </FormSection>
 
               <FormSection description="ยอดที่ต้องรับจากลูกค้าสำหรับรายการ CADV นี้" title="ยอดรับเงินล่วงหน้า">
-                <div className="grid gap-3 md:grid-cols-6"><Field error={formErrors.amount} label="ยอดเงินล่วงหน้าที่ต้องรับ *" className="md:col-span-4"><DecimalInput aria-label="ยอดเงินล่วงหน้าที่ต้องรับ" digits={2} value={form.amount} onChange={(value) => updateField('amount', value)} /></Field><Field error={formErrors.currencyCode} label="สกุลเงิน *" className="md:col-span-2"><Select disabled={isLoading || !data} value={form.currencyCode} onChange={(event) => updateField('currencyCode', event.target.value)}><option value="">เลือกสกุลเงิน</option>{data?.currencies.map((currency) => <option key={currency.code} value={currency.code}>{currency.code} - {currency.name}</option>)}</Select></Field></div>
+                <div className="grid gap-3 md:grid-cols-6">
+                  <Field error={formErrors.amount} label={form.vatType === 'INCLUDE' ? 'ยอดก่อน VAT *' : 'ยอดเงินล่วงหน้าที่ต้องรับ *'} className="md:col-span-2">
+                    <DecimalInput aria-label={form.vatType === 'INCLUDE' ? 'ยอดก่อน VAT' : 'ยอดเงินล่วงหน้าที่ต้องรับ'} digits={2} value={form.amount} onChange={(value) => updateField('amount', value)} />
+                  </Field>
+                  <Field error={formErrors.vatType || vatConfigurationError} label="VAT *" className="md:col-span-2">
+                    <Select className={form.vatType === 'INCLUDE' ? 'border-amber-500 bg-amber-50 font-medium text-slate-800' : ''} value={form.vatType} onChange={(event) => updateField('vatType', event.target.value as CustomerAdvanceVatType)}>
+                      <option value="NONE">ไม่มี VAT</option>
+                      <option value="INCLUDE">มี VAT</option>
+                    </Select>
+                  </Field>
+                  <Field error={formErrors.currencyCode} label="สกุลเงิน *" className="md:col-span-2"><Select disabled={isLoading || !data} value={form.currencyCode} onChange={(event) => updateField('currencyCode', event.target.value)}><option value="">เลือกสกุลเงิน</option>{data?.currencies.map((currency) => <option key={currency.code} value={currency.code}>{currency.code} - {currency.name}</option>)}</Select></Field>
+                </div>
               </FormSection>
 
               <FormSection description="ข้อมูลเพิ่มเติมที่ไม่มีใน Packing List" title="หมายเหตุ"><Field error={formErrors.remark} label="หมายเหตุ"><textarea className="min-h-20 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-blue-100" placeholder="ระบุหมายเหตุ" value={form.remark} onChange={(event) => updateField('remark', event.target.value)} /></Field></FormSection>
             </div>
-            <aside className="h-fit rounded-md border border-slate-200 bg-slate-50 p-4"><h3 className="text-sm font-semibold text-slate-900">สรุปรายการ CADV</h3><dl className="mt-3 space-y-2 text-sm"><SummaryRow label="จำนวนสินค้า" value={formatQuantity(totals.quantity)} /><SummaryRow label="น้ำหนักรวม" value={`${formatQuantity(totals.grossWeight)} กก.`} /><SummaryRow label="น้ำหนักสุทธิ" value={`${formatQuantity(totals.netWeight)} กก.`} /></dl><div className="my-4 border-t border-slate-200" /><SummaryRow strong label="ยอดเงินล่วงหน้าที่ต้องรับ" value={`${formatMoney(parseDecimal(form.amount))}${form.currencyCode ? ` ${form.currencyCode}` : ''}`} /><div className="mt-4 space-y-2"><Button className="w-full gap-2" disabled={isSaving || isLoading || !data} type="button" onClick={() => void submit()}><Save className="h-4 w-4" />{isSaving ? 'กำลังบันทึก' : 'บันทึก CADV'}</Button></div></aside>
+            <aside className="h-fit rounded-md border border-slate-200 bg-slate-50 p-4"><h3 className="text-sm font-semibold text-slate-900">สรุปรายการ CADV</h3><dl className="mt-3 space-y-2 text-sm"><SummaryRow label="จำนวนสินค้า" value={formatQuantity(totals.quantity)} /><SummaryRow label="น้ำหนักรวม" value={`${formatQuantity(totals.grossWeight)} กก.`} /><SummaryRow label="น้ำหนักสุทธิ" value={`${formatQuantity(totals.netWeight)} กก.`} /></dl>{taxBreakdown ? <><div className="my-4 border-t border-slate-200" /><dl className="space-y-2 text-sm"><SummaryRow label="VAT" value={form.vatType === 'INCLUDE' ? `มี VAT ${formatQuantity(taxBreakdown.vatRatePercent)}%` : 'ไม่มี VAT'} />{form.vatType === 'INCLUDE' ? <SummaryRow label="ยอดก่อน VAT" value={`${formatMoney(taxBreakdown.subtotalAmount)}${form.currencyCode ? ` ${form.currencyCode}` : ''}`} /> : null}{form.vatType === 'INCLUDE' ? <SummaryRow label="ยอด VAT" value={`${formatMoney(taxBreakdown.vatAmount)}${form.currencyCode ? ` ${form.currencyCode}` : ''}`} /> : null}<SummaryRow strong label="ยอดเงินล่วงหน้าที่ต้องรับ" value={`${formatMoney(taxBreakdown.targetAmount)}${form.currencyCode ? ` ${form.currencyCode}` : ''}`} /></dl></> : null}<div className="mt-4 space-y-2"><Button className="w-full gap-2" disabled={isSaving || isLoading || !data || Boolean(vatConfigurationError)} type="button" onClick={() => void submit()}><Save className="h-4 w-4" />{isSaving ? 'กำลังบันทึก' : 'บันทึก CADV'}</Button></div></aside>
           </div>
         </div>
       </DialogContent>
@@ -341,7 +384,7 @@ export function CustomerAdvanceForm() {
         {detailRow ? (
           <div className="flex-1 overflow-y-auto space-y-4 bg-slate-50 p-4">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <DetailMetric label="ยอดที่ต้องรับ" value={`${formatMoney(detailRow.targetAmount)} ${detailRow.currencyCode}`} />
+              <DetailMetric label="ยอดรวมที่ต้องรับ" value={`${formatMoney(detailRow.targetAmount)} ${detailRow.currencyCode}`} />
               <DetailMetric label="คงเหลือ" value={`${formatMoney(detailRow.availableAmount)} ${detailRow.currencyCode}`} />
               <DetailMetric label="น้ำหนักรวม" value={`${formatQuantity(detailRow.totalGrossWeight)} กก.`} />
               <DetailMetric label="น้ำหนักสุทธิ" value={`${formatQuantity(detailRow.totalNetWeight)} กก.`} />
@@ -358,6 +401,9 @@ export function CustomerAdvanceForm() {
                   ['รหัสลูกค้า', detailRow.customerCode],
                   ['Invoice No.', detailRow.invoiceNo || '-'],
                   ['Contract No.', detailRow.contractNo || '-'],
+                  ['VAT', detailRow.vatType === 'INCLUDE' ? `${detailRow.vatTypeLabel} ${formatQuantity(detailRow.vatRatePercent)}%` : detailRow.vatTypeLabel],
+                  ['ยอดก่อน VAT', `${formatMoney(detailRow.subtotalAmount)} ${detailRow.currencyCode}`],
+                  ['ยอด VAT', `${formatMoney(detailRow.vatAmount)} ${detailRow.currencyCode}`],
                   ['สถานะ', detailRow.statusLabel],
                 ]}
               />
@@ -525,7 +571,7 @@ export function CustomerAdvanceForm() {
                         <p className="text-xs">{row.contractNo || '-'}</p>
                       </td>
                       <td className="p-3 text-right tabular-nums">{formatQuantity(row.totalNetWeight)} กก.</td>
-                      <td className="p-3 text-right tabular-nums">{formatMoney(row.targetAmount)} {row.currencyCode}</td>
+                      <td className="p-3 text-right tabular-nums"><p>{formatMoney(row.targetAmount)} {row.currencyCode}</p><p className="text-xs text-slate-500">{row.vatTypeLabel}</p></td>
                       <td className="p-3 text-right tabular-nums">{formatMoney(row.availableAmount)} {row.currencyCode}</td>
                       <td className="p-3">
                         <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold text-slate-700">

@@ -2426,6 +2426,10 @@ model customer_advances {
   invoice_no                   String?
   contract_no                  String?
   currency_code                String
+  vat_type                     String                         @default("NONE")
+  vat_rate_percent             Decimal                        @default(0) @db.Decimal(5, 2)
+  subtotal_amount              Decimal                        @db.Decimal(18, 2)
+  vat_amount                   Decimal                        @default(0) @db.Decimal(18, 2)
   target_amount                Decimal                        @db.Decimal(18, 2)
   received_amount              Decimal                        @default(0) @db.Decimal(18, 2)
   available_amount             Decimal                        @default(0) @db.Decimal(18, 2)

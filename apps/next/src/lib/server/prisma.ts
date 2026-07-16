@@ -53,6 +53,13 @@ function hasExpectedDelegates(client: PrismaClient) {
   ].every((field) => appUserFields.includes(field))
   const salesBillFields = runtimeModels?.sales_bills?.fields?.map((field) => field.name) ?? []
   const hasSalesBillExportOrderField = salesBillFields.includes('export_order_no')
+  const customerAdvanceFields = runtimeModels?.customer_advances?.fields?.map((field) => field.name) ?? []
+  const hasCustomerAdvanceVatFields = [
+    'subtotal_amount',
+    'vat_amount',
+    'vat_rate_percent',
+    'vat_type',
+  ].every((field) => customerAdvanceFields.includes(field))
 
   return typeof clientRecord.weight_ticket_product_summaries?.createMany === 'function'
     && typeof clientRecord.weight_ticket_product_summary_lines?.createMany === 'function'
@@ -82,6 +89,7 @@ function hasExpectedDelegates(client: PrismaClient) {
     && hasAccountSubtypeField
     && hasAppUserProfileFields
     && hasCompanyProfileBranchIdField
+    && hasCustomerAdvanceVatFields
     && hasPaymentMethodTypeField
     && hasSalesBillExportOrderField
 }

@@ -12,6 +12,41 @@ const optionalText = (label: string, maximum: number) => z.preprocess(blankToNul
 const positiveDecimal = (label: string) => z.coerce.number({ invalid_type_error: `${label}ต้องเป็นตัวเลข` }).finite(`${label}ต้องเป็นตัวเลข`).gt(0, `${label}ต้องมากกว่า 0`).refine((value) => Number.isInteger(value * 100), `${label}ใช้ทศนิยมได้ไม่เกิน 2 ตำแหน่ง`)
 const nonNegativeDecimal = (label: string) => z.coerce.number({ invalid_type_error: `${label}ต้องเป็นตัวเลข` }).finite(`${label}ต้องเป็นตัวเลข`).min(0, `${label}ต้องไม่ติดลบ`).refine((value) => Number.isInteger(value * 100), `${label}ใช้ทศนิยมได้ไม่เกิน 2 ตำแหน่ง`)
 
+export const customerAdvanceVatTypeValues = ['NONE', 'INCLUDE'] as const
+export type CustomerAdvanceVatType = typeof customerAdvanceVatTypeValues[number]
+
+export function customerAdvanceVatTypeLabel(value: string) {
+  if (value === 'INCLUDE') return 'มี VAT'
+  if (value === 'NONE') return 'ไม่มี VAT'
+  throw new Error(`ประเภท VAT ของ CADV ไม่ถูกต้อง: ${value}`)
+}
+
+export function roundCustomerAdvanceMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+export function calculateCustomerAdvanceTaxBreakdown(params: {
+  amount: number
+  vatRatePercent: number
+  vatType: CustomerAdvanceVatType
+}) {
+  const subtotalAmount = roundCustomerAdvanceMoney(Math.max(0, params.amount))
+  const vatRatePercent = params.vatType === 'INCLUDE'
+    ? Math.max(0, Math.min(100, params.vatRatePercent))
+    : 0
+  const vatAmount = params.vatType === 'INCLUDE'
+    ? roundCustomerAdvanceMoney(subtotalAmount * vatRatePercent / 100)
+    : 0
+
+  return {
+    subtotalAmount,
+    targetAmount: roundCustomerAdvanceMoney(subtotalAmount + vatAmount),
+    vatAmount,
+    vatRatePercent,
+    vatType: params.vatType,
+  }
+}
+
 export const customerAdvanceFormSchema = z.object({
   amount: positiveDecimal('ยอดเงินล่วงหน้าที่ต้องรับ'),
   branchId: requiredCode('สาขา'),
@@ -27,6 +62,7 @@ export const customerAdvanceFormSchema = z.object({
     quantity: positiveDecimal('จำนวน'),
   })).min(1, 'ต้องมีรายการสินค้าอย่างน้อย 1 รายการ').max(100, 'รายการสินค้าเกิน 100 รายการ'),
   remark: optionalText('หมายเหตุ', 500),
+  vatType: z.enum(customerAdvanceVatTypeValues),
 }).superRefine((value, context) => {
   const productIds = new Set<string>()
   value.lines.forEach((line, index) => {

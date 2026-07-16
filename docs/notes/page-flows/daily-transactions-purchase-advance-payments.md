@@ -34,6 +34,8 @@ route: /purchase/advance-payments
 
 ADV เป็น source document ของเงินล่วงหน้า Supplier ก่อนนำไป allocate เข้า PB. CADV เป็น source document ฝั่ง Customer ก่อนรับเงินจริงผ่าน `/sales/receipts`; หน้า `/finance/customer-advance` ไม่ใช่หน้าทำงานหลักแล้ว.
 
+ทั้ง ADV และ CADV ต้องมี VAT dropdown `ไม่มี VAT` / `มี VAT`. เมื่อเลือกมี VAT ผู้ใช้กรอกยอดก่อน VAT, server ใช้อัตราจาก VAT master ตามวันที่เอกสารและ snapshot ยอดก่อน VAT, VAT และยอดรวม. สำหรับ CADV ยอดรวมเป็นเงินสดเป้าหมายที่ RCP ต้องรับ ส่วนยอดฐานเป็นเครดิตที่จะใช้หักยอดก่อน VAT ของ Sales Bill หลังเชื่อม receipt/allocation flow.
+
 แม้สอง tab อยู่หน้าเดียวกันเพื่อให้ผู้ใช้ค้นพบง่าย แต่ห้าม share business API, status, validation หรือ table เพราะ ADV เป็นเงินออก Supplier ขณะที่ CADV เป็นคำขอรับเงินจาก Customer. ดู canonical contract ที่ [[Customer Advance Receipt Flow]].
 
 หน้า list เป็น working surface หลักของทั้งสอง tab. การสร้าง/แก้ไข `ADV` และการสร้าง `CADV` ต้องเปิดเป็น modal จากหน้ารายการ เพื่อไม่ให้ผู้ใช้เสีย context ของ filter, pagination, และรายการเอกสารที่กำลังตรวจอยู่. Modal เป็นเพียง editing surface ชั่วคราว; หลังบันทึกสำเร็จต้องปิด modal, reload list, และคง filter เดิม.

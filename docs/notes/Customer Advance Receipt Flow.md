@@ -41,7 +41,8 @@ created: 2026-07-15
 | ลูกค้า | Yes | เลือกจาก Customer master ที่ active และผูกกับสาขาที่เลือก |
 | Invoice No. | No | snapshot จากเอกสารภายนอก |
 | Contract No. | No | snapshot จากเอกสารภายนอก |
-| ยอดเงินล่วงหน้าที่ต้องรับ | Yes | amount > 0; เป็นยอดที่ RCP ดึงมาเป็นยอดตั้งต้น |
+| VAT | Yes | dropdown `ไม่มี VAT` / `มี VAT`; อัตรามาจาก VAT master ตามวันที่เอกสาร ไม่มี hardcode/fallback |
+| ยอดเงินล่วงหน้าที่ต้องรับ | Yes | amount > 0; เมื่อเลือก `มี VAT` ช่องนี้คือยอดก่อน VAT และระบบคำนวณยอด VAT/ยอดรวมที่ RCP ต้องรับ |
 | สกุลเงิน | Yes | เลือกจาก Currency master; ไม่มี default/fallback ใน client |
 | หมายเหตุ | No | ข้อความอ้างอิงเพิ่ม |
 | ไฟล์ Packing List/Invoice | No | attachment reference; ไม่เก็บ Data URL ใน row |
@@ -107,6 +108,7 @@ flowchart LR
   invoiceNo?: "IE6906005",
   contractNo?: "MAX-2606002",
   amount: "500000.00",
+  vatType: "INCLUDE",
   currencyCode: "THB",
   remark?: "",
   lines: [{
@@ -138,13 +140,22 @@ Sales Bill เลือกได้เฉพาะ CADV ที่ `received/part
 
 | Table | Responsibility |
 |---|---|
-| `customer_advances` | CADV header, required branch FK, customer snapshot, invoice/contract, requested/received/allocated/remaining amounts, status |
+| `customer_advances` | CADV header, required branch FK, customer snapshot, invoice/contract, VAT snapshot, requested/received/allocated/remaining amounts, status |
 | `customer_advance_items` | product/qty/gross/net snapshots ต่อ CADV |
 | `customer_receipt_advance_allocations` | RCP -> CADV receipt facts; แยกจาก RCP -> SB allocation |
 | `sales_bill_customer_advance_allocations` | CADV -> SB application facts; มีอยู่แล้วใน Sales Bill contract |
 | `customer_advance_status_logs` | append-only lifecycle/audit |
 
 `bank_statement` เป็น cash fact ของ `RCP` ไม่ใช่ header/source of truth ของ CADV. ไฟล์แนบอยู่ใน Storage/attachment table ภายหลัง ไม่อยู่ใน text/base64 field ของ CADV.
+
+## VAT And Balance Contract
+
+- `vat_type = NONE`: `subtotal_amount = target_amount`, `vat_amount = 0`, `vat_rate_percent = 0`.
+- `vat_type = INCLUDE`: ผู้ใช้กรอกยอดก่อน VAT ใน `amount`; server snapshot อัตราจาก VAT master แล้วเก็บ `target_amount = subtotal_amount + vat_amount`.
+- `target_amount` คือยอดเงินสดรวมที่ RCP ต้องรับจากลูกค้า.
+- เมื่อเชื่อม Receipt allocation ต้องแปลงเงินสดที่รับจริงเป็นเครดิตฐานตามสัดส่วนเดียวกับ ADV Supplier; `available_amount` สำหรับหัก Sales Bill ต้องเป็นยอดฐานก่อน VAT ไม่ใช่ยอด gross.
+- Sales Bill ที่ใช้ CADV ต้องหักเครดิตฐานจากยอดก่อน VAT แล้วคำนวณ VAT ของบิลจากฐานที่เหลือ เพื่อไม่เอา VAT ของเงินล่วงหน้ามาหักซ้ำ.
+- รอบนี้ยังไม่แก้ `/sales/receipts` หรือ Sales Bill allocation เพราะ CADV source document ยังไม่ถูกเชื่อมกับ RCP; contract ข้างต้นเป็นข้อบังคับของ batch integration ถัดไป.
 
 ## Non-Responsibilities
 
@@ -155,4 +166,4 @@ Sales Bill เลือกได้เฉพาะ CADV ที่ `received/part
 
 ## Implementation Boundary
 
-รอบ CADV source-document นี้มี `CustomerAdvanceForm` ใน tab รับเงินล่วงหน้าแล้ว: ตารางเรียก `GET /api/sales/customer-advances`, ฟอร์มเปิดเป็น modal จากหน้ารายการและเรียก `POST /api/sales/customer-advances`, และทุก lookup มาจาก master/status database records. การสร้าง CADV ต้องเลือกสาขาก่อนลูกค้า, API recheck ว่าลูกค้าผูกกับสาขานั้นผ่าน `customer_branches`, เลขเอกสารออกตามสาขาและเดือนเอกสารในรูป `CADV{branch}{YYMM}-####`, และ list filter มีสาขาเป็นตัวกรองหลัก. การสร้าง CADV เขียน header, lines, initial status log, และ audit log ใน transaction เดียว โดยไม่สร้าง RCP/bank statement/AR และไม่เปลี่ยนยอด SB. Migration `20260715133000_create_customer_advances.sql` ถูก apply แล้วบน dev-target เมื่อ 2026-07-15 ผ่าน env ใน `apps/next/.env.local`; migration follow-up `20260715143000_add_branch_to_customer_advances.sql` เพิ่ม required `branch_id`, FK/index, และ renumber ข้อมูลเดิมตามสาขาแล้ว. ตาราง `customer_advance_statuses`, `customer_advances`, `customer_advance_items`, และ `customer_advance_status_logs` พร้อม status seed ใช้งานได้จริงในฐาน dev. ยังไม่มี upload ไฟล์ เพราะ attachment table และ Storage contract ยังไม่ถูกเพิ่ม; ห้ามให้ form รับไฟล์แล้วทิ้งข้อมูล.
+รอบ CADV source-document นี้มี `CustomerAdvanceForm` ใน tab รับเงินล่วงหน้าแล้ว: ตารางเรียก `GET /api/sales/customer-advances`, ฟอร์มเปิดเป็น modal จากหน้ารายการและเรียก `POST /api/sales/customer-advances`, และทุก lookup มาจาก master/status database records. การสร้าง CADV ต้องเลือกสาขาก่อนลูกค้า, API recheck ว่าลูกค้าผูกกับสาขานั้นผ่าน `customer_branches`, เลขเอกสารออกตามสาขาและเดือนเอกสารในรูป `CADV{branch}{YYMM}-####`, และ list filter มีสาขาเป็นตัวกรองหลัก. การสร้าง CADV เขียน header, VAT breakdown, lines, initial status log, และ audit log ใน transaction เดียว โดยไม่สร้าง RCP/bank statement/AR และไม่เปลี่ยนยอด SB. Migration `20260715133000_create_customer_advances.sql` ถูก apply แล้วบน dev-target เมื่อ 2026-07-15 ผ่าน env ใน `apps/next/.env.local`; migration follow-up `20260715143000_add_branch_to_customer_advances.sql` เพิ่ม required `branch_id`, FK/index, และ renumber ข้อมูลเดิมตามสาขาแล้ว. Migration `20260716190000_add_customer_advance_vat_breakdown.sql` เพิ่ม `vat_type`, `vat_rate_percent`, `subtotal_amount`, `vat_amount` และ arithmetic constraints; dev-target backfill CADV เดิม 2 รายการเป็น `NONE` และตรวจ breakdown ผ่าน 2/2 เมื่อ 2026-07-16. ตาราง `customer_advance_statuses`, `customer_advances`, `customer_advance_items`, และ `customer_advance_status_logs` พร้อม status seed ใช้งานได้จริงในฐาน dev. ยังไม่มี upload ไฟล์ เพราะ attachment table และ Storage contract ยังไม่ถูกเพิ่ม; ห้ามให้ form รับไฟล์แล้วทิ้งข้อมูล.

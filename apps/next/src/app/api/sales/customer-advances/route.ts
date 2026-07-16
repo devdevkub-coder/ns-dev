@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { Prisma } from '../../../../../generated/prisma/client'
-import { customerAdvanceFormSchema } from '@/lib/customer-advance'
+import { calculateCustomerAdvanceTaxBreakdown, customerAdvanceFormSchema, customerAdvanceVatTypeLabel } from '@/lib/customer-advance'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
@@ -8,6 +8,7 @@ import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { isCustomerEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { prisma } from '@/lib/server/prisma'
+import { requiredActiveVatRatePercent } from '@/lib/server/tax-settings'
 
 export const runtime = 'nodejs'
 
@@ -66,9 +67,14 @@ function rowJson(row: CustomerAdvanceRow) {
     receivedAmount: toNumber(row.received_amount),
     status: row.customer_advance_statuses.code,
     statusLabel: row.customer_advance_statuses.name,
+    subtotalAmount: toNumber(row.subtotal_amount),
     targetAmount: toNumber(row.target_amount),
     totalGrossWeight: row.customer_advance_items.reduce((total, item) => total + toNumber(item.gross_weight), 0),
     totalNetWeight: row.customer_advance_items.reduce((total, item) => total + toNumber(item.net_weight), 0),
+    vatAmount: toNumber(row.vat_amount),
+    vatRatePercent: toNumber(row.vat_rate_percent),
+    vatType: row.vat_type,
+    vatTypeLabel: customerAdvanceVatTypeLabel(row.vat_type),
   }
 }
 
@@ -135,7 +141,7 @@ export async function GET(request: Request) {
       } : {}),
     }
 
-    const [branches, rows, totalRows, customers, products, currencies, statuses] = await Promise.all([
+    const [branches, rows, totalRows, customers, products, currencies, statuses, vatRates] = await Promise.all([
       prisma.branches.findMany({
         orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
         select: { active: true, code: true, id: true, name: true },
@@ -176,6 +182,11 @@ export async function GET(request: Request) {
         select: { code: true, name: true },
         where: { active: true },
       }),
+      prisma.vat_settings.findMany({
+        orderBy: [{ is_default: 'desc' }, { effective_from: 'desc' }, { updated_at: 'desc' }, { id: 'asc' }],
+        select: { effective_from: true, effective_to: true, is_default: true, rate_percent: true },
+        where: { active: true },
+      }),
     ])
 
     return NextResponse.json({
@@ -193,6 +204,14 @@ export async function GET(request: Request) {
       pagination: { page, pageSize, totalPages: Math.max(1, Math.ceil(totalRows / pageSize)), totalRows },
       products: products.map((product) => ({ code: product.code, id: product.id.toString(), name: product.name, unit: product.unit })),
       rows: rows.map(rowJson),
+      settings: {
+        vatRates: vatRates.map((rate) => ({
+          effectiveFrom: toDateOnly(rate.effective_from),
+          effectiveTo: rate.effective_to ? toDateOnly(rate.effective_to) : null,
+          isDefault: rate.is_default,
+          ratePercent: toNumber(rate.rate_percent),
+        })),
+      },
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -207,7 +226,7 @@ export async function POST(request: Request) {
     const values = customerAdvanceFormSchema.parse(await request.json())
     const actor = actorEmail(context)
 
-    const [branch, customer, currency, initialStatuses, products] = await Promise.all([
+    const [branch, customer, currency, initialStatuses, products, vatRatePercent] = await Promise.all([
       findActiveBranchReferenceByCodeOrId(values.branchId),
       prisma.customers.findFirst({ select: { code: true, id: true, name: true }, where: { active: true, id: BigInt(values.customerId) } }),
       prisma.currencies.findUnique({ select: { code: true }, where: { code: values.currencyCode } }),
@@ -216,6 +235,9 @@ export async function POST(request: Request) {
         select: { code: true, id: true, name: true },
         where: { active: true, id: { in: values.lines.map((line) => BigInt(line.productId)) } },
       }),
+      values.vatType === 'INCLUDE'
+        ? requiredActiveVatRatePercent(normalizeDate(values.documentDate))
+        : Promise.resolve(0),
     ])
 
     if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { branchId: ['เลือกสาขา'] } }, { status: 400 })
@@ -240,6 +262,12 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
+    const taxBreakdown = calculateCustomerAdvanceTaxBreakdown({
+      amount: values.amount,
+      vatRatePercent,
+      vatType: values.vatType,
+    })
+
     const created = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('customer_advances.doc_no'))`
       const docNo = await nextCustomerAdvanceDocNo(branch, values.documentDate, tx)
@@ -260,8 +288,12 @@ export async function POST(request: Request) {
           received_amount: 0,
           remark: values.remark,
           status_id: initialStatuses[0].id,
-          target_amount: values.amount,
+          subtotal_amount: taxBreakdown.subtotalAmount,
+          target_amount: taxBreakdown.targetAmount,
           updated_by: actor,
+          vat_amount: taxBreakdown.vatAmount,
+          vat_rate_percent: taxBreakdown.vatRatePercent,
+          vat_type: taxBreakdown.vatType,
           customer_advance_items: {
             create: values.lines.map((line, index) => {
               const product = productsById.get(line.productId)
@@ -293,7 +325,7 @@ export async function POST(request: Request) {
           customer_advance_id: advance.id,
           event_key: `customer-advance.created.${advance.doc_no}`,
           received_amount_snapshot: 0,
-          target_amount_snapshot: values.amount,
+          target_amount_snapshot: taxBreakdown.targetAmount,
           to_status_id: initialStatuses[0].id,
         },
       })
@@ -301,7 +333,14 @@ export async function POST(request: Request) {
     })
 
     await recordAuditLog({
-      afterData: { docNo: created.doc_no },
+      afterData: {
+        docNo: created.doc_no,
+        subtotalAmount: taxBreakdown.subtotalAmount,
+        targetAmount: taxBreakdown.targetAmount,
+        vatAmount: taxBreakdown.vatAmount,
+        vatRatePercent: taxBreakdown.vatRatePercent,
+        vatType: taxBreakdown.vatType,
+      },
       context,
       entityId: created.id.toString(),
       entityLabel: created.doc_no,
