@@ -333,15 +333,6 @@ export function WorkingCapitalPageClient() {
           </div>
         </Panel>
       </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
-        <Kpi label="รอบเงินสด (CCC)" value={`${(s?.ccc ?? 0).toFixed(1)} วัน`} tone={(s?.ccc ?? 0) < 60 ? 'emerald' : (s?.ccc ?? 0) < 90 ? 'amber' : 'red'} />
-        <Kpi label="วันเก็บเงินลูกค้า" value={(s?.arDays ?? 0).toFixed(1)} tone="blue" />
-        <Kpi label="วันจ่ายเจ้าหนี้" value={(s?.apDays ?? 0).toFixed(1)} tone="emerald" />
-        <Kpi label="วันคงเหลือสต็อก" value={(s?.invDays ?? 0).toFixed(1)} tone="amber" />
-        <Kpi label="รอบหมุนสต็อก" value={`${(s?.stockTurnover ?? 0).toFixed(2)}x`} tone="slate" />
-        <Kpi label="อัตราส่วนทุนหมุนเวียน" value={(s?.currentRatio ?? 0).toFixed(2)} tone={(s?.currentRatio ?? 0) >= 1 ? 'emerald' : 'red'} />
-        <Kpi label="อัตราส่วนสภาพคล่องเร็ว" value={(s?.quickRatio ?? 0).toFixed(2)} tone={(s?.quickRatio ?? 0) >= 0.5 ? 'emerald' : 'red'} />
-      </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <Insight tone="amber" title="เงินจมในสต็อกกี่วัน" value={`${(s?.invDays ?? 0).toFixed(0)} วัน`} body={`เอามูลค่าสต็อก ${money(s?.inv)} เทียบกับต้นทุนขายเฉลี่ยต่อวัน ${money((s?.cogs ?? 0) / periodDays)}`} />
         <Insight tone="blue" title="ลูกหนี้เก็บเงินกี่วัน" value={`${(s?.arDays ?? 0).toFixed(0)} วัน`} body={`เอายอดลูกหนี้ ${money(s?.ar)} เทียบกับยอดขายเฉลี่ยต่อวัน ${money((s?.revenue ?? 0) / periodDays)}`} />
