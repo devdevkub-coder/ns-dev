@@ -962,12 +962,6 @@ function ForecastMega({ horizon, summary }: { horizon: number; summary?: Forecas
         <div className={`break-words font-mono text-3xl font-bold leading-tight tabular-nums ${ok ? 'text-emerald-700' : 'text-rose-700'}`}>{money(summary?.endCash)}</div>
         <div className="mt-1 text-sm font-medium text-slate-600">เงินสด ณ สิ้น {horizon} วัน</div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <ForecastMiniStat label="เริ่มต้น" tone="blue" value={money(summary?.startCash)} />
-        <ForecastMiniStat label="รับคาดการณ์" tone="emerald" value={`+${money(summary?.totalIn)}`} />
-        <ForecastMiniStat label="จ่ายคาดการณ์" tone="red" value={`-${money(summary?.totalOut)}`} />
-        <ForecastMiniStat label="ยอดต่ำสุด" tone={(summary?.lowestBal ?? 0) >= 0 ? 'slate' : 'red'} value={money(summary?.lowestBal)} />
-      </div>
       {summary?.negCount ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
           เงินสดติดลบ {summary.negCount.toLocaleString('th-TH')} วัน
@@ -1060,25 +1054,6 @@ function ProjectionSvg({ days }: { days: ProjectionDay[] }) {
           {shortThaiDate(days.at(-1)?.date ?? '')}
         </ForecastChartNote>
       </div>
-    </div>
-  )
-}
-
-function ForecastMiniStat({ label, tone, value }: { label: string; tone: 'amber' | 'blue' | 'emerald' | 'red' | 'slate'; value: string }) {
-  const toneClass = tone === 'blue'
-    ? 'text-blue-700 bg-blue-50 border-blue-100'
-    : tone === 'emerald'
-      ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
-      : tone === 'red'
-        ? 'text-rose-700 bg-rose-50 border-rose-100'
-        : tone === 'amber'
-          ? 'text-amber-700 bg-amber-50 border-amber-100'
-          : 'text-slate-700 bg-slate-50 border-slate-200'
-
-  return (
-    <div className={`rounded-xl border p-3 ${toneClass}`}>
-      <div className="text-[11px] font-semibold">{label}</div>
-      <div className="mt-1 break-words font-mono text-base font-bold tabular-nums">{value}</div>
     </div>
   )
 }
