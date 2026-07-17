@@ -10,6 +10,7 @@ import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-referen
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveCustomers, listActiveSuppliers } from '@/lib/server/reference-master-cache'
 import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
 import { salesBillLineFactsForBills, type SalesBillLineFactRow } from '@/lib/server/sales-bill-line-facts'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
@@ -303,8 +304,8 @@ export async function GET(request: Request) {
           ...(customer ? { customer_id: customer.id } : {}),
         },
       }),
-      prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true }, where: { active: { not: false } } }),
-      prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true }, where: { active: { not: false } } }),
+      listActiveSuppliers(),
+      listActiveCustomers(),
       prisma.production_orders.findMany({
         include: {
           production_inputs: { where: { status: 'active' } },
@@ -721,8 +722,8 @@ export async function GET(request: Request) {
       filters: {
         metalGroups: Array.from(new Set(products.map((product) => product.metal_group).filter(Boolean))).sort(),
         products: products.map((product) => ({ active: product.active, code: product.code, id: requireBusinessCode(product.code, `สินค้า ${product.id}`), metalGroup: product.metal_group, name: product.name })),
-        suppliers: visibleSuppliers.map((row) => ({ active: row.active, code: row.code, id: requireBusinessCode(row.code, `ผู้ขาย ${row.id}`), name: row.name })),
-        customers: visibleCustomers.map((row) => ({ active: row.active, code: row.code, id: requireBusinessCode(row.code, `ลูกค้า ${row.id}`), name: row.name })),
+        suppliers: visibleSuppliers.map((row) => ({ active: true, code: row.code, id: requireBusinessCode(row.code, `ผู้ขาย ${row.id}`), name: row.name })),
+        customers: visibleCustomers.map((row) => ({ active: true, code: row.code, id: requireBusinessCode(row.code, `ลูกค้า ${row.id}`), name: row.name })),
       },
       monthly,
       rows,

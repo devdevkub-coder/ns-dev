@@ -4,7 +4,9 @@ import { parseInternalBigIntId } from '@/lib/business-code'
 import { mapPrismaSupplier } from '@/lib/domain/supplier'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import { prisma } from '@/lib/server/prisma'
+import { invalidateSupplierReferenceCache } from '@/lib/server/reference-master-cache'
 import { listSalespersonReferencesByIds } from '@/lib/server/salesperson-reference'
 import type { SupplierPaymentMethodRecord } from '@/lib/supplier'
 import type { Prisma } from '../../../../../../generated/prisma/client'
@@ -59,12 +61,9 @@ export async function PATCH(request: Request, { params }: SupplierRouteProps) {
           },
         },
       }),
-      prisma.payment_methods.findMany({
-        orderBy: [{ name: 'asc' }],
-        select: { name: true, type: true },
-        where: { active: true },
-      }),
+      getActivePaymentMethods() as Promise<SupplierPaymentMethodRecord[]>,
     ])
+    await invalidateSupplierReferenceCache()
     const salespersonReferences = await listSalespersonReferencesByIds([supplier.sales_id])
 
     return NextResponse.json(mapPrismaSupplier(supplier as any, paymentMethods as SupplierPaymentMethodRecord[], {

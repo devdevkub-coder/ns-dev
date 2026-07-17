@@ -2,7 +2,8 @@ import { requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, masterDataListJson, normalizeCode, parseMasterDataForm, toIso } from '@/lib/server/master-data'
-import { findActiveBranchReferenceByCodeOrId, outwardBranchReference } from '@/lib/server/branch-reference'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { invalidateWarehouseReferenceCache, listWarehouseMasterRecords, type WarehouseMasterRecord } from '@/lib/server/reference-master-cache'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -10,13 +11,18 @@ export const runtime = 'nodejs'
 type WarehouseRow = Prisma.warehousesGetPayload<{ include: { branches: true } }>
 const warehouseTypes = new Set(['RM', 'WIP', 'FG', 'SCRAP'])
 
-function mapWarehouse(row: WarehouseRow) {
+function mapWarehouse(row: WarehouseMasterRecord | WarehouseRow) {
+  const cachedRecord = 'branchCode' in row
   const outwardId = requireBusinessCode(row.code, `คลัง ${row.id}`)
+  const branchCode = cachedRecord ? row.branchCode : row.branches?.code ?? null
+  const branchName = cachedRecord ? row.branchName : row.branches?.name ?? null
+  const createdAt = cachedRecord ? row.createdAt : toIso(row.created_at)
+  const updatedAt = cachedRecord ? row.updatedAt : null
   return {
     id: outwardId,
     code: outwardId,
     name: row.name,
-    active: row.active ?? true,
+    active: row.active === true,
     type: row.type ?? null,
     phone: null,
     email: null,
@@ -30,12 +36,12 @@ function mapWarehouse(row: WarehouseRow) {
     currency: null,
     openingBalance: null,
     odLimit: null,
-    ...outwardBranchReference(row.branches, row.branch_id),
+    ...(branchCode ? { branchId: branchCode, branchName } : { branchId: null, branchName: null }),
     address: null,
     commissionPct: null,
     baseSalary: null,
-    createdAt: toIso(row.created_at),
-    updatedAt: null,
+    createdAt,
+    updatedAt,
   }
 }
 
@@ -44,10 +50,7 @@ export async function GET() {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'master.reference.view')
 
-    const rows = await prisma.warehouses.findMany({
-      include: { branches: true },
-      orderBy: [{ code: 'asc' }, { name: 'asc' }],
-    })
+    const rows = await listWarehouseMasterRecords()
     return masterDataListJson(rows.map(mapWarehouse))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -67,7 +70,7 @@ export async function POST(request: Request) {
     if (!branch) return errorJson(new Error('เลือกสาขา'), 'สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
     const existing = values.id
       ? await prisma.warehouses.findFirst({
-        select: { id: true },
+        select: { branches: { select: { code: true } }, id: true },
         where: {
           OR: [
             { code: values.id.toUpperCase() },
@@ -95,6 +98,7 @@ export async function POST(request: Request) {
       },
       include: { branches: true },
     })
+    await invalidateWarehouseReferenceCache([branch.code, existing?.branches?.code ?? ''])
     return masterDataJson(mapWarehouse(row))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

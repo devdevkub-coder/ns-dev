@@ -3,7 +3,7 @@ import { requireBusinessCode } from '@/lib/business-code'
 import { getProductImageDisplay } from '@/lib/product-images'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { prisma } from '@/lib/server/prisma'
+import { listActiveProductReferences, listActiveProductThumbnailReferences } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -12,16 +12,16 @@ export async function GET() {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'daily.weight_tickets.view')
 
-    const products = await prisma.products.findMany({
-      orderBy: [{ code: 'asc' }, { id: 'asc' }],
-      select: { code: true, id: true, image_storage_key: true, image_thumbnail_storage_key: true, name: true, type: true, unit: true },
-      where: { active: true },
-    })
+    const [products, thumbnails] = await Promise.all([
+      listActiveProductReferences(),
+      listActiveProductThumbnailReferences(),
+    ])
+    const thumbnailByCode = new Map(thumbnails.map((thumbnail) => [thumbnail.code, thumbnail.thumbnailStorageKey]))
 
     return NextResponse.json({
       rows: products.map((product) => {
         const code = requireBusinessCode(product.code, `สินค้า ${product.id}`)
-        const image = getProductImageDisplay(product.image_storage_key, product.image_thumbnail_storage_key)
+        const image = getProductImageDisplay(null, thumbnailByCode.get(code) ?? null)
         return {
           code,
           id: code,

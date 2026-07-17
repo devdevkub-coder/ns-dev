@@ -6,6 +6,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveSupplierPaymentOptions, listActiveSuppliers } from '@/lib/server/reference-master-cache'
 import { isPurchaseBillCancelledStatus, PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
@@ -28,6 +29,64 @@ type ReceiptVoucherExportRow = {
   totalQty: number
   updatedAt?: string
 }
+
+type ActiveSupplierRecord = Awaited<ReturnType<typeof listActiveSuppliers>>[number]
+type ActiveSupplierPaymentOptionRecord = Awaited<ReturnType<typeof listActiveSupplierPaymentOptions>>[number]
+type ActivePaymentMethodRecord = Awaited<ReturnType<typeof getActivePaymentMethods>>[number]
+type ActiveReceiptVoucherReferenceRow = Prisma.receipt_vouchersGetPayload<{
+  select: { purchase_bill_doc_no: true }
+}>
+type PurchaseBillReceiptOptionRow = Prisma.purchase_billsGetPayload<{
+  select: {
+    date: true
+    doc_no: true
+    id: true
+    license_plate: true
+    note: true
+    notes: true
+    purchase_bill_items: {
+      select: {
+        amount: true
+        display_name: true
+        line_no: true
+        price: true
+        product_code: true
+        product_name: true
+        qty: true
+        unit: true
+      }
+    }
+    suppliers: { select: { code: true } }
+    supplier_address_snapshot: true
+    supplier_name_snapshot: true
+    supplier_phone_snapshot: true
+    supplier_sales_rep_snapshot: true
+    supplier_tax_id_snapshot: true
+    total_amount: true
+  }
+}>
+type ReceiptVoucherPurchaseBillLookupRow = Prisma.purchase_billsGetPayload<{
+  select: {
+    doc_no: true
+    suppliers: { select: { code: true } }
+  }
+}>
+type ReceiptVoucherRow = Prisma.receipt_vouchersGetPayload<{
+  include: {
+    receipt_voucher_status_logs: {
+      select: {
+        action: true
+        created_at: true
+        created_by: true
+        from_status: true
+        id: true
+        note: true
+        to_status: true
+        total_amount_snapshot: true
+      }
+    }
+  }
+}>
 
 const receiptVoucherItemSchema = z.object({
   description: z.string().trim().min(1, 'กรุณากรอกรายการ'),
@@ -356,7 +415,7 @@ export async function GET(request: Request) {
     const actor = currentActor(context)
 
     // Find all referenced purchase bill doc numbers in active (non-cancelled) receipt vouchers
-    const activeReceiptVouchers = await prisma.receipt_vouchers.findMany({
+    const activeReceiptVouchers: ActiveReceiptVoucherReferenceRow[] = await prisma.receipt_vouchers.findMany({
       where: {
         status: { not: 'cancelled' },
         purchase_bill_doc_no: { not: null },
@@ -366,31 +425,20 @@ export async function GET(request: Request) {
       },
     })
     const referencedBillDocNos = activeReceiptVouchers
-      .map((rv) => rv.purchase_bill_doc_no)
+      .map((rv: ActiveReceiptVoucherReferenceRow) => rv.purchase_bill_doc_no)
       .filter((docNo): docNo is string => docNo !== null)
 
-    const [suppliers, purchaseBills, receiptVoucherPurchaseBills, rows, companyProfile, paymentMethods] = await Promise.all([
-      prisma.suppliers.findMany({
-        orderBy: [{ code: 'asc' }, { name: 'asc' }],
-        select: {
-          active: true,
-          address: true,
-          code: true,
-          name: true,
-          phone: true,
-          sales_rep: true,
-          supplier_bank_accounts: {
-            include: {
-              bank_names: { select: { name: true } },
-            },
-            where: { active: true },
-            orderBy: [{ is_primary: 'desc' }, { code: 'asc' }],
-          },
-          tax_id: true,
-        },
-        take: 5000,
-        where: { active: true },
-      }),
+    const [suppliers, supplierPaymentOptions, purchaseBills, receiptVoucherPurchaseBills, rows, companyProfile, paymentMethods]: [
+      ActiveSupplierRecord[],
+      ActiveSupplierPaymentOptionRecord[],
+      PurchaseBillReceiptOptionRow[],
+      ReceiptVoucherPurchaseBillLookupRow[],
+      ReceiptVoucherRow[],
+      Awaited<ReturnType<typeof prisma.company_profiles.findFirst>>,
+      ActivePaymentMethodRecord[],
+    ] = await Promise.all([
+      listActiveSuppliers(),
+      listActiveSupplierPaymentOptions(),
       prisma.purchase_bills.findMany({
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         select: {
@@ -470,21 +518,24 @@ export async function GET(request: Request) {
       getActivePaymentMethods(),
     ])
 
+    const supplierPaymentOptionByCode = new Map<string, ActiveSupplierPaymentOptionRecord>(
+      supplierPaymentOptions.map((supplier: ActiveSupplierPaymentOptionRecord) => [supplier.code, supplier] as const),
+    )
     const supplierCodeByPurchaseBillDocNo = new Map(
-      receiptVoucherPurchaseBills.map((bill) => [bill.doc_no, bill.suppliers?.code ?? '']),
+      receiptVoucherPurchaseBills.map((bill: ReceiptVoucherPurchaseBillLookupRow) => [bill.doc_no, bill.suppliers?.code ?? ''] as const),
     )
     const supplierCodeByTaxId = new Map(
       suppliers
-        .map((supplier) => [supplier.tax_id?.trim() ?? '', supplier.code] as const)
+        .map((supplier: ActiveSupplierRecord) => [supplier.taxId?.trim() ?? '', supplier.code] as const)
         .filter(([taxId]) => taxId),
     )
     const supplierCodeByName = new Map(
       suppliers
-        .map((supplier) => [supplier.name.trim(), supplier.code] as const)
+        .map((supplier: ActiveSupplierRecord) => [supplier.name.trim(), supplier.code] as const)
         .filter(([name]) => name),
     )
 
-    const receiptVoucherRows = rows.map((row) => ({
+    const receiptVoucherRows = rows.map((row: ReceiptVoucherRow) => ({
       amountInWords: row.amount_in_words ?? '',
       createdAt: row.created_at?.toISOString() ?? '',
       createdBy: row.created_by ?? '',
@@ -511,7 +562,7 @@ export async function GET(request: Request) {
       cancelNote: row.cancel_note ?? '',
       cancelledAt: row.cancelled_at?.toISOString() ?? '',
       cancelledBy: row.cancelled_by ?? '',
-      timeline: row.receipt_voucher_status_logs.map((log) => ({
+      timeline: row.receipt_voucher_status_logs.map((log: ReceiptVoucherRow['receipt_voucher_status_logs'][number]) => ({
         action: log.action,
         createdAt: log.created_at.toISOString(),
         createdBy: log.created_by ?? '',
@@ -544,32 +595,35 @@ export async function GET(request: Request) {
         }
         : null,
       currentActor: actor,
-      paymentMethods: paymentMethods.map((method) => ({
+      paymentMethods: paymentMethods.map((method: ActivePaymentMethodRecord) => ({
         name: method.name,
         type: method.type,
       })),
-      suppliers: suppliers.map((supplier) => ({
-        address: supplier.address ?? '',
-        bankAccounts: (supplier.supplier_bank_accounts ?? []).map((account) => ({
-          accountName: account.account_name ?? '',
-          accountNo: account.account_no ?? '',
-          bankName: account.bank_names?.name ?? '',
-          branchCode: account.branch_code ?? '',
-          code: account.code,
-          isPrimary: Boolean(account.is_primary),
-          paymentMethod: account.payment_method ?? 'เงินโอน',
-        })),
-        code: supplier.code,
-        id: supplier.code,
-        name: supplier.name,
-        phone: supplier.phone ?? '',
-        taxId: supplier.tax_id ?? '',
-      })),
-      purchaseBills: purchaseBills.map((bill) => ({
+      suppliers: suppliers.map((supplier: ActiveSupplierRecord) => {
+        const paymentOption = supplierPaymentOptionByCode.get(supplier.code)
+        return {
+          address: supplier.address ?? '',
+          bankAccounts: (paymentOption?.bankAccounts ?? []).map((account: ActiveSupplierPaymentOptionRecord['bankAccounts'][number], index: number) => ({
+            accountName: '',
+            accountNo: account.accountNo ?? '',
+            bankName: account.bankName ?? '',
+            branchCode: '',
+            code: `${supplier.code}-${index + 1}`,
+            isPrimary: paymentOption?.bankAccount != null && account.accountNo === paymentOption.bankAccount,
+            paymentMethod: account.paymentMethod ?? 'เงินโอน',
+          })),
+          code: supplier.code,
+          id: supplier.code,
+          name: supplier.name,
+          phone: supplier.phone ?? '',
+          taxId: supplier.taxId ?? '',
+        }
+      }),
+      purchaseBills: purchaseBills.map((bill: PurchaseBillReceiptOptionRow) => ({
         date: toDateOnly(bill.date),
         docNo: bill.doc_no,
         id: bill.doc_no,
-        items: bill.purchase_bill_items.map((item) => ({
+        items: bill.purchase_bill_items.map((item: PurchaseBillReceiptOptionRow['purchase_bill_items'][number]) => ({
           amount: toNumber(item.amount),
           description: purchaseBillItemDescription(item),
           id: `${bill.doc_no}-${item.line_no}`,
@@ -603,7 +657,7 @@ export async function POST(request: Request) {
     const actor = currentActor(context)
     const values = receiptVoucherWriteSchema.parse(await request.json())
 
-    const created = await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const docNo = await nextReceiptVoucherDocNo(tx, values.date)
       const data = await buildVoucherWriteData(tx, values, actor, actor)
       const created = await tx.receipt_vouchers.create({
@@ -641,7 +695,7 @@ export async function PATCH(request: Request) {
     const body = await request.json()
     if (body?.action === 'cancel') {
       const values = receiptVoucherCancelSchema.parse(body)
-      const cancelled = await prisma.$transaction(async (tx) => {
+      const cancelled = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const existing = await tx.receipt_vouchers.findUnique({
           select: { doc_no: true, id: true, status: true, total_amount: true },
           where: { doc_no: values.docNo },
@@ -682,7 +736,7 @@ export async function PATCH(request: Request) {
       docNo: z.string().trim().min(1, 'ไม่พบเลขที่ใบสำคัญรับเงิน'),
     }).parse(body)
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existing = await tx.receipt_vouchers.findUnique({
         select: { created_by: true, doc_no: true, id: true, status: true },
         where: { doc_no: values.docNo },

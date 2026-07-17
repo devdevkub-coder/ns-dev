@@ -5,6 +5,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveCustomers, listActiveSuppliers } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -280,8 +281,8 @@ export async function GET(request: Request) {
         take: 10000,
         where: salesWhere,
       }),
-      prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], select: { code: true, id: true, name: true }, where: { active: true } }),
-      prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { code: true, id: true, name: true }, where: { active: true } }),
+      listActiveSuppliers(),
+      listActiveCustomers(),
       prisma.products.findMany({ orderBy: [{ code: 'asc' }], select: { code: true, id: true, name: true, unit: true }, where: { active: true } }),
       prisma.po_buys.findMany({
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
@@ -578,12 +579,12 @@ export async function GET(request: Request) {
     const pendingSellAmount = salesRows.reduce((sum, row) => sum + row.pendingAmount, 0)
 
     const supplierOptions: Option[] = suppliers.map((supplier) => ({
-      code: supplier.code ? requireBusinessCode(supplier.code, `Supplier ${supplier.id}`) : undefined,
+      code: supplier.code,
       id: optionId(supplier.id),
       name: supplier.name,
     }))
     const customerOptions: Option[] = customers.map((customer) => ({
-      code: customer.code ? requireBusinessCode(customer.code, `Customer ${customer.id}`) : undefined,
+      code: customer.code,
       id: optionId(customer.id),
       name: customer.name,
     }))

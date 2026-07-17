@@ -1,11 +1,11 @@
 import type { Prisma } from '../../../../../../generated/prisma/client'
 import { NextResponse } from 'next/server'
-import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -16,8 +16,12 @@ function displayCurrency(value: string | null | undefined) {
   return (value || 'THB').trim().toUpperCase()
 }
 
-function accountLabel(account: { account_no: string | null; name: string }) {
-  return account.account_no ? `${account.account_no} - ${account.name}` : account.name
+function accountLabel(account: { accountNo: string | null; name: string }) {
+  return account.accountNo ? `${account.accountNo} - ${account.name}` : account.name
+}
+
+function cachedAmount(value: string | null) {
+  return value == null ? 0 : Number(value)
 }
 
 function movementType(row: StatementRow) {
@@ -56,23 +60,7 @@ export async function GET(request: Request) {
     const to = url.searchParams.get('to')
 
     const [allAccounts, fxRates] = await Promise.all([
-      prisma.accounts.findMany({
-        orderBy: [{ name: 'asc' }, { account_no: 'asc' }],
-        select: {
-          account_no: true,
-          active: true,
-          bank: true,
-          bank_name: true,
-          branches: { select: { id: true, name: true } },
-          code: true,
-          currency: true,
-          id: true,
-          name: true,
-          opening_balance: true,
-          type: true,
-        },
-        where: { active: true },
-      }),
+      listActiveAccounts(),
       prisma.fx_rates.findMany({
         orderBy: [{ rate_date: 'desc' }, { updated_at: 'desc' }],
         take: 5000,
@@ -80,11 +68,11 @@ export async function GET(request: Request) {
       }),
     ])
 
-    const accounts = allAccounts.filter((account) => {
+    const accounts = allAccounts.filter((account: AccountReferenceRecord) => {
       const currency = displayCurrency(account.currency)
       return account.type === 'FCD' || (currency !== 'THB' && currency.length > 0)
     })
-    const selectedAccount = accounts.find((account) => account.id === internalAccountId) ?? accounts[0] ?? null
+    const selectedAccount = accounts.find((account: AccountReferenceRecord) => account.id === internalAccountId) ?? accounts[0] ?? null
 
     const rateFor = buildRateLookup(fxRates)
 
@@ -98,7 +86,7 @@ export async function GET(request: Request) {
     }) : []
 
     const selectedCurrency = selectedAccount ? displayCurrency(selectedAccount.currency) : ''
-    let foreignBal = selectedAccount ? toNumber(selectedAccount.opening_balance) : 0
+    let foreignBal = selectedAccount ? cachedAmount(selectedAccount.openingBalance) : 0
     let thbBal = 0
     const rows = selectedAccount ? [{
       date: '-',
@@ -107,7 +95,7 @@ export async function GET(request: Request) {
       foreignIn: 0,
       foreignOut: 0,
       fxRate: 0,
-      id: `opening-${requireBusinessCode(selectedAccount.code, `บัญชีเงิน ${selectedAccount.id}`)}`,
+      id: `opening-${selectedAccount.code}`,
       refNo: '-',
       thbBal,
       thbIn: 0,
@@ -115,7 +103,7 @@ export async function GET(request: Request) {
       type: 'ยอดยกมา',
     }] : []
 
-    statementRows.forEach((row) => {
+    statementRows.forEach((row: StatementRow) => {
       const date = toDateOnly(row.date)
       const fxRate = rateFor(selectedCurrency, date)
       const thbIn = toNumber(row.amount_in)
@@ -141,24 +129,24 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       account: selectedAccount ? {
-        accountNo: selectedAccount.account_no,
-        bankName: selectedAccount.bank_name ?? selectedAccount.bank ?? '',
-        branchName: selectedAccount.branches?.name ?? '',
-        code: requireBusinessCode(selectedAccount.code, `บัญชีเงิน ${selectedAccount.id}`),
+        accountNo: selectedAccount.accountNo,
+        bankName: selectedAccount.bankName ?? selectedAccount.bank ?? '',
+        branchName: selectedAccount.branchName ?? '',
+        code: selectedAccount.code,
         currency: selectedCurrency,
-        id: requireBusinessCode(selectedAccount.code, `บัญชีเงิน ${selectedAccount.id}`),
+        id: selectedAccount.code,
         name: selectedAccount.name,
-        openingBalance: toNumber(selectedAccount.opening_balance),
+        openingBalance: cachedAmount(selectedAccount.openingBalance),
         type: selectedAccount.type,
       } : null,
       filters: {
-        accounts: accounts.map((account) => ({
-          accountNo: account.account_no,
-          bankName: account.bank_name ?? account.bank ?? '',
-          branchName: account.branches?.name ?? '',
-          code: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
+        accounts: accounts.map((account: AccountReferenceRecord) => ({
+          accountNo: account.accountNo,
+          bankName: account.bankName ?? account.bank ?? '',
+          branchName: account.branchName ?? '',
+          code: account.code,
           currency: displayCurrency(account.currency),
-          id: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
+          id: account.code,
           label: accountLabel(account),
           name: account.name,
           type: account.type,

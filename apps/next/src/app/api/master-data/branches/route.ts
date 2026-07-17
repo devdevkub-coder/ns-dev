@@ -2,16 +2,29 @@ import { requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, masterDataListJson, normalizeCode, parseMasterDataForm, toIso } from '@/lib/server/master-data'
+import { invalidateBranchReferenceCache, listBranchMasterRecords, type BranchMasterRecord } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
-function mapBranch(row: Awaited<ReturnType<typeof prisma.branches.findMany>>[number]) {
+type BranchWriteRow = {
+  active: boolean | null
+  address: string | null
+  code: string
+  created_at: Date | null
+  id: bigint
+  name: string
+  phone: string | null
+  updated_at: Date | null
+}
+
+function mapBranch(row: BranchMasterRecord | BranchWriteRow) {
+  const cachedRecord = 'createdAt' in row
   const outwardId = requireBusinessCode(row.code, `สาขา ${row.id}`)
   return {
     id: outwardId,
     code: outwardId,
     name: row.name,
-    active: row.active ?? true,
+    active: row.active === true,
     type: null,
     phone: row.phone,
     email: null,
@@ -30,8 +43,8 @@ function mapBranch(row: Awaited<ReturnType<typeof prisma.branches.findMany>>[num
     address: row.address,
     commissionPct: null,
     baseSalary: null,
-    createdAt: toIso(row.created_at),
-    updatedAt: toIso(row.updated_at),
+    createdAt: cachedRecord ? row.createdAt : toIso(row.created_at),
+    updatedAt: cachedRecord ? row.updatedAt : toIso(row.updated_at),
   }
 }
 
@@ -40,7 +53,7 @@ export async function GET() {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'master.reference.view')
 
-    const rows = await prisma.branches.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }] })
+    const rows = await listBranchMasterRecords()
     return masterDataListJson(rows.map(mapBranch))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -71,6 +84,7 @@ export async function POST(request: Request) {
       create: { code, name: values.name, phone: values.phone || null, address: values.address || null, active: values.active },
       update: { code, name: values.name, phone: values.phone || null, address: values.address || null, active: values.active },
     })
+    await invalidateBranchReferenceCache()
     return masterDataJson(mapBranch(row))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

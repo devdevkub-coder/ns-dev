@@ -5,6 +5,7 @@ import { parseInternalBigIntId } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
+import { invalidateProductReferenceCache } from '@/lib/server/reference-master-cache'
 import type { Prisma } from '../../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -56,6 +57,7 @@ export async function PATCH(request: Request, { params }: ProductRouteProps) {
       where: { id: resolved.id },
     })
 
+    await invalidateProductReferenceCache()
     return NextResponse.json(mapPrismaProduct(product))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

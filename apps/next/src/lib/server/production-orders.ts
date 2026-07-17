@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { requireBusinessCode } from '@/lib/business-code'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranches, listActiveWarehouses } from '@/lib/server/reference-master-cache'
 
 type DbClient = Prisma.TransactionClient | typeof prisma
 
@@ -105,7 +106,7 @@ async function nextDocNo(
     from ${Prisma.raw(`public.${tableName}`)}
     where ${Prisma.raw(docNoColumn)} like ${`${startsWith}%`}
   `
-  const lastNumber = rows.reduce((max, row) => {
+  const lastNumber = rows.reduce((max: number, row: { doc_no: string }) => {
     const running = Number(String(row.doc_no).split('-').at(-1))
     return Number.isFinite(running) && running > max ? running : max
   }, 0)
@@ -214,7 +215,7 @@ async function appendOrderStatusLog(tx: Prisma.TransactionClient, input: {
 }
 
 export async function createProductionOrder(values: CreateProductionOrderValues, actor: string) {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const [branch, product] = await Promise.all([
       findActiveBranchByCode(tx, values.branchCode),
       findActiveProductByCode(tx, values.targetProductCode),
@@ -279,13 +280,13 @@ async function stockSnapshot(tx: DbClient, input: {
       warehouse_id: input.warehouseId,
     },
   })
-  const qty = rows.reduce((sum, row) => sum + toNumber(row.qty_in) - toNumber(row.qty_out), 0)
-  const value = rows.reduce((sum, row) => sum + toNumber(row.value_in) - toNumber(row.value_out), 0)
+  const qty = rows.reduce((sum: number, row: (typeof rows)[number]) => sum + toNumber(row.qty_in) - toNumber(row.qty_out), 0)
+  const value = rows.reduce((sum: number, row: (typeof rows)[number]) => sum + toNumber(row.value_in) - toNumber(row.value_out), 0)
   return { qty, unitCost: qty > 0 ? value / qty : 0, value }
 }
 
 export async function createProductionInput(orderDocNo: string, values: CreateProductionInputValues, actor: string) {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const order = await findOrderByDocNo(tx, orderDocNo)
     const isGrace = isGracePeriodActive(order)
     if (!['Open', 'In Production', 'Partially Completed'].includes(order.status ?? '') && !isGrace) {
@@ -398,7 +399,7 @@ export async function createProductionInput(orderDocNo: string, values: CreatePr
 }
 
 export async function reverseProductionInput(orderDocNo: string, inputDocNo: string, values: ReverseProductionMovementValues, actor: string) {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const order = await findOrderByDocNo(tx, orderDocNo)
     const isGrace = isGracePeriodActive(order)
     if (['Completed', 'Cancelled'].includes(order.status ?? '') && (!isGrace || order.status === 'Cancelled')) {
@@ -412,7 +413,7 @@ export async function reverseProductionInput(orderDocNo: string, inputDocNo: str
     if (inputs.length === 0) throw new ProductionOrderError(`ไม่พบรายการเบิกวัตถุดิบที่ reverse ได้ ${inputDocNo}`, 404)
 
     const wip = await productionWipBalance(tx, order.id)
-    const reverseQty = inputs.reduce((sum, row) => sum + toNumber(row.qty), 0)
+    const reverseQty = inputs.reduce((sum: number, row: (typeof inputs)[number]) => sum + toNumber(row.qty), 0)
     if (reverseQty > wip.wipQty + 0.000001) throw new ProductionOrderError('WIP ถูกใช้ไปแล้ว ไม่สามารถ reverse input ชุดนี้ได้')
 
     const reversalDocNo = await nextDocNo(tx, 'production_inputs', 'PI-REV', values.date)
@@ -496,7 +497,7 @@ export async function reverseProductionInput(orderDocNo: string, inputDocNo: str
 }
 
 export async function createProductionOutput(orderDocNo: string, values: CreateProductionOutputValues, actor: string) {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const order = await findOrderByDocNo(tx, orderDocNo)
     const isGrace = isGracePeriodActive(order)
     if (!['In Production', 'Partially Completed'].includes(order.status ?? '') && !isGrace) throw new ProductionOrderError('สถานะใบสั่งผลิตไม่อนุญาตให้รับผลผลิต')
@@ -664,7 +665,7 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
 }
 
 export async function reverseProductionOutput(orderDocNo: string, outputDocNo: string, values: ReverseProductionMovementValues, actor: string) {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const order = await findOrderByDocNo(tx, orderDocNo)
     const isGrace = isGracePeriodActive(order)
     if (['Completed', 'Cancelled'].includes(order.status ?? '') && (!isGrace || order.status === 'Cancelled')) {
@@ -789,7 +790,7 @@ export async function reverseProductionOutput(orderDocNo: string, outputDocNo: s
 }
 
 export async function completeProductionOrder(orderDocNo: string, note: string | undefined, actor: string) {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const order = await findOrderByDocNo(tx, orderDocNo)
     const wip = await productionWipBalance(tx, order.id)
     if (Math.abs(wip.wipQty) > 0.000001) throw new ProductionOrderError('ยังมี WIP คงเหลือ ไม่สามารถปิดงานได้')
@@ -811,7 +812,7 @@ export async function completeProductionOrder(orderDocNo: string, note: string |
 }
 
 export async function cancelProductionOrder(orderDocNo: string, reason: string, actor: string) {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const order = await findOrderByDocNo(tx, orderDocNo)
     const [activeInputs, activeOutputs] = await Promise.all([
       tx.production_inputs.count({ where: { order_id: order.id, status: 'active' } }),
@@ -843,19 +844,19 @@ export async function readProductionWip(orderDocNo: string) {
 
 export async function productionOrderOptions() {
   const [branches, warehouses, products, machines, lines] = await Promise.all([
-    prisma.branches.findMany({ orderBy: [{ code: 'asc' }], select: { active: true, code: true, id: true, name: true }, where: { active: true } }),
-    prisma.warehouses.findMany({ orderBy: [{ code: 'asc' }], select: { active: true, branch_id: true, branches: { select: { code: true } }, code: true, id: true, name: true, type: true }, where: { active: true } }),
+    listActiveBranches(),
+    listActiveWarehouses(),
     prisma.products.findMany({ orderBy: [{ code: 'asc' }], select: { active: true, code: true, id: true, name: true }, where: { active: true } }),
     prisma.production_machines.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, id: true, name: true, type: true }, where: { active: true } }),
     prisma.production_lines.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, id: true, name: true }, where: { active: true } }),
   ])
   return {
-    branches: branches.map((row) => ({ code: requireBusinessCode(row.code, `สาขา ${row.id}`), id: requireBusinessCode(row.code, `สาขา ${row.id}`), name: row.name })),
-    machines: machines.map((row) => ({ code: row.name, id: row.name, name: row.name, type: row.type })),
-    productionLines: lines.map((row) => ({ code: row.name, id: row.name, name: row.name })),
-    products: products.map((row) => ({ code: requireBusinessCode(row.code, `สินค้า ${row.id}`), id: requireBusinessCode(row.code, `สินค้า ${row.id}`), name: row.name })),
+    branches: branches.map((row: (typeof branches)[number]) => ({ code: requireBusinessCode(row.code, `สาขา ${row.id}`), id: requireBusinessCode(row.code, `สาขา ${row.id}`), name: row.name })),
+    machines: machines.map((row: (typeof machines)[number]) => ({ code: row.name, id: row.name, name: row.name, type: row.type })),
+    productionLines: lines.map((row: (typeof lines)[number]) => ({ code: row.name, id: row.name, name: row.name })),
+    products: products.map((row: (typeof products)[number]) => ({ code: requireBusinessCode(row.code, `สินค้า ${row.id}`), id: requireBusinessCode(row.code, `สินค้า ${row.id}`), name: row.name })),
     productionTypes: ['Sorting', 'Baling', 'Melting', 'Processing'],
-    warehouses: warehouses.map((row) => ({ branchCode: row.branches?.code ?? null, code: row.code, id: row.code, name: row.name, type: row.type })),
+    warehouses: warehouses.map((row: (typeof warehouses)[number]) => ({ branchCode: row.branchCode, code: row.code, id: row.code, name: row.name, type: row.type })),
   }
 }
 

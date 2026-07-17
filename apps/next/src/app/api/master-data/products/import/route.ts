@@ -5,6 +5,7 @@ import { toProductWriteInput } from '@/lib/domain/product'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
+import { findActiveProductTypeReferenceByName, findActiveProductUnitReferenceByNameOrSymbol, invalidateProductReferenceCache } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -91,10 +92,7 @@ function firstIssueMessage(rowNumber: number, message: string) {
 async function assertActiveProductType(name: string | null) {
   if (!name) return
 
-  const productType = await prisma.product_types.findFirst({
-    select: { id: true },
-    where: { active: true, name },
-  })
+  const productType = await findActiveProductTypeReferenceByName(name)
 
   if (!productType) throw new Error(`ประเภทสินค้า "${name}" ไม่ถูกต้องหรือถูกปิดใช้งาน`)
 }
@@ -102,16 +100,7 @@ async function assertActiveProductType(name: string | null) {
 async function assertActiveProductUnit(unit: string | null) {
   if (!unit) return
 
-  const productUnit = await prisma.product_units.findFirst({
-    select: { id: true },
-    where: {
-      active: true,
-      OR: [
-        { name: unit },
-        { symbol: unit },
-      ],
-    },
-  })
+  const productUnit = await findActiveProductUnitReferenceByNameOrSymbol(unit)
 
   if (!productUnit) throw new Error(`หน่วยสินค้า "${unit}" ไม่ถูกต้องหรือถูกปิดใช้งาน`)
 }
@@ -223,6 +212,7 @@ export async function POST(request: Request) {
         })
     }))
 
+    await invalidateProductReferenceCache()
     const updated = validRows.filter((row) => existingIdByCode.has(row.code)).length
     return NextResponse.json({
       inserted: validRows.length - updated,

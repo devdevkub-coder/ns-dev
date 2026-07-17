@@ -4,6 +4,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
+import { listAllAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import { toNumber } from '@/lib/server/master-data'
 import { XLSX } from '@/lib/server/xlsx'
@@ -56,9 +57,7 @@ function duplicateKey(row: {
 
 async function ledgerPayload(limit: number) {
   const [accounts, movements, balanceGroups] = await Promise.all([
-    prisma.accounts.findMany({
-      orderBy: [{ active: 'desc' }, { name: 'asc' }, { account_no: 'asc' }],
-    }),
+    listAllAccounts(),
     prisma.bank_statement.findMany({
       include: { accounts: true },
       orderBy: [{ date: 'desc' }, { created_at: 'desc' }, { id: 'desc' }],
@@ -71,7 +70,9 @@ async function ledgerPayload(limit: number) {
     }),
   ])
 
-  const refIds = uniqueStrings(movements.map((row) => row.ref_id))
+  type MovementRow = (typeof movements)[number]
+
+  const refIds = uniqueStrings(movements.map((row: MovementRow) => row.ref_id))
   const refInternalIds = uniqueBigInts(refIds)
   const [payments, receipts, expenses, transfers, pettyAdvances, pettyReturns] = await Promise.all([
     prisma.payments.findMany({
@@ -102,15 +103,29 @@ async function ledgerPayload(limit: number) {
     }),
   ])
 
+  type PaymentRow = (typeof payments)[number]
+  type ReceiptRow = (typeof receipts)[number]
+  type ExpenseRow = (typeof expenses)[number]
+  type TransferRow = (typeof transfers)[number]
+  type PettyAdvanceRow = (typeof pettyAdvances)[number]
+  type PettyReturnRow = (typeof pettyReturns)[number]
+
   const purchaseBills = await prisma.purchase_bills.findMany({
-    where: { id: { in: uniqueBigInts(payments.map((payment) => payment.bill_id)) } },
+    where: { id: { in: uniqueBigInts(payments.map((payment: PaymentRow) => payment.bill_id)) } },
   })
   const salesBills = await prisma.sales_bills.findMany({
-    where: { id: { in: uniqueBigInts(receipts.map((receipt) => receipt.bill_id)) } },
+    where: { id: { in: uniqueBigInts(receipts.map((receipt: ReceiptRow) => receipt.bill_id)) } },
   })
 
-  const purchaseBillById = new Map(purchaseBills.map((bill) => [bill.id, bill]))
-  const salesBillById = new Map(salesBills.map((bill) => [bill.id, bill]))
+  type PurchaseBillRow = (typeof purchaseBills)[number]
+  type SalesBillRow = (typeof salesBills)[number]
+
+  const purchaseBillById = new Map<bigint, PurchaseBillRow>(
+    purchaseBills.map((bill: PurchaseBillRow) => [bill.id, bill] as const),
+  )
+  const salesBillById = new Map<bigint, SalesBillRow>(
+    salesBills.map((bill: SalesBillRow) => [bill.id, bill] as const),
+  )
 
   const paymentByKey = new Map<string, (typeof payments)[number]>()
   for (const payment of payments) {
@@ -128,12 +143,18 @@ async function ledgerPayload(limit: number) {
     expenseByKey.set(expense.doc_no, expense)
     if (expense.voucher_id) expenseByKey.set(expense.voucher_id, expense)
   }
-  const transferById = new Map(transfers.map((transfer) => [stringifyBusinessValue(transfer.id), transfer]))
-  const pettyAdvanceById = new Map(pettyAdvances.map((advance) => [stringifyBusinessValue(advance.id), advance]))
-  const pettyReturnById = new Map(pettyReturns.flatMap((entry) => {
-    const keys = [entry.doc_no, stringifyBusinessValue(entry.id)].filter(Boolean)
-    return keys.map((key) => [key, entry] as const)
-  }))
+  const transferById = new Map<string, TransferRow>(
+    transfers.map((transfer: TransferRow) => [stringifyBusinessValue(transfer.id), transfer] as const),
+  )
+  const pettyAdvanceById = new Map<string, PettyAdvanceRow>(
+    pettyAdvances.map((advance: PettyAdvanceRow) => [stringifyBusinessValue(advance.id), advance] as const),
+  )
+  const pettyReturnById = new Map<string, PettyReturnRow>(
+    pettyReturns.flatMap((entry: PettyReturnRow) => {
+      const keys = [entry.doc_no, stringifyBusinessValue(entry.id)].filter((value): value is string => Boolean(value))
+      return keys.map((key) => [key, entry] as const)
+    }),
+  )
 
   const balanceTotals = new Map<bigint, number>()
   for (const group of balanceGroups) {
@@ -141,10 +162,15 @@ async function ledgerPayload(limit: number) {
     balanceTotals.set(group.account_id, (toNumber(group._sum.amount_in) ?? 0) - (toNumber(group._sum.amount_out) ?? 0))
   }
 
-  const openingBalanceByAccount = new Map(accounts.map((account) => [account.id, toNumber(account.opening_balance) ?? 0]))
-  const runningByAccount = new Map(openingBalanceByAccount)
+  const openingBalanceByAccount = new Map<bigint, number>(
+    accounts.map((account: AccountReferenceRecord) => [
+      account.id,
+      account.openingBalance == null ? 0 : Number(account.openingBalance),
+    ] as const),
+  )
+  const runningByAccount = new Map<bigint, number>(openingBalanceByAccount)
   const runningBalanceById = new Map<bigint, number>()
-  for (const row of [...movements].sort((left, right) => {
+  for (const row of [...movements].sort((left: MovementRow, right: MovementRow) => {
     const dateOrder = left.date.getTime() - right.date.getTime()
     if (dateOrder !== 0) return dateOrder
     const createdOrder = (left.created_at?.getTime() ?? 0) - (right.created_at?.getTime() ?? 0)
@@ -168,14 +194,14 @@ async function ledgerPayload(limit: number) {
     .map((group) => ({
       accountName: group[0].accounts?.name ?? '-',
       count: group.length,
-      ids: group.map((row) => row.doc_no),
+      ids: group.map((row: MovementRow) => row.doc_no),
       refNo: group[0].ref_no ?? group[0].doc_no ?? '-',
       refType: group[0].ref_type ?? group[0].type ?? 'BANK',
-      totalIn: group.reduce((sum, row) => sum + (toNumber(row.amount_in) ?? 0), 0),
-      totalOut: group.reduce((sum, row) => sum + (toNumber(row.amount_out) ?? 0), 0),
+      totalIn: group.reduce((sum: number, row: MovementRow) => sum + (toNumber(row.amount_in) ?? 0), 0),
+      totalOut: group.reduce((sum: number, row: MovementRow) => sum + (toNumber(row.amount_out) ?? 0), 0),
     }))
 
-  const rows = movements.map((row) => {
+  const rows = movements.map((row: MovementRow) => {
     const refType = row.ref_type ?? row.type ?? 'BANK'
     const refId = row.ref_id
     const linkedBills: LinkedBill[] = []
@@ -238,18 +264,18 @@ async function ledgerPayload(limit: number) {
   })
 
   return {
-    accounts: accounts.map((account) => {
-      const code = requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`)
-      const openingBalance = toNumber(account.opening_balance) ?? 0
+    accounts: accounts.map((account: AccountReferenceRecord) => {
+      const code = account.code
+      const openingBalance = account.openingBalance == null ? 0 : Number(account.openingBalance)
       return {
-        accountNo: account.account_no,
-        active: account.active ?? true,
+        accountNo: account.accountNo,
+        active: account.active,
         balance: openingBalance + (balanceTotals.get(account.id) ?? 0),
         code,
         currency: account.currency ?? 'THB',
         id: code,
         name: account.name,
-        odLimit: toNumber(account.od_limit) ?? 0,
+        odLimit: account.odLimit == null ? 0 : Number(account.odLimit),
         openingBalance,
         type: account.type,
       }
@@ -260,6 +286,9 @@ async function ledgerPayload(limit: number) {
 }
 
 async function buildWorkbook(payload: Awaited<ReturnType<typeof ledgerPayload>>) {
+  type LedgerPayloadRow = Awaited<ReturnType<typeof ledgerPayload>>['rows'][number]
+  type LedgerPayloadLinkedBill = LedgerPayloadRow['linkedBills'][number]
+
   const generatedAt = new Date()
   const summaryRows = [
     ['Export ณ', generatedAt.toLocaleString('th-TH')],
@@ -267,12 +296,12 @@ async function buildWorkbook(payload: Awaited<ReturnType<typeof ledgerPayload>>)
     ['จำนวนบัญชี', payload.accounts.length.toLocaleString('th-TH')],
     ['กลุ่มยอดซ้ำที่ตรวจพบ', payload.duplicateGroups.length.toLocaleString('th-TH')],
   ]
-  const dataRows = payload.rows.map((row) => ({
+  const dataRows = payload.rows.map((row: LedgerPayloadRow) => ({
     'วันที่': row.date,
     'บัญชี': row.accountName,
     'ประเภท': row.refType,
     'เลขที่': row.refNo,
-    'บิลที่เกี่ยวข้อง': row.linkedBills.map((bill) => `${bill.type}:${bill.docNo}`).join(', '),
+    'บิลที่เกี่ยวข้อง': row.linkedBills.map((bill: LedgerPayloadLinkedBill) => `${bill.type}:${bill.docNo}`).join(', '),
     'ผู้รับ/ส่ง': row.payee,
     'รายละเอียด': row.description || row.note,
     'เงินเข้า': row.amountIn,

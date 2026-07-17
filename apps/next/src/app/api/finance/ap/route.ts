@@ -8,6 +8,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranches, listActiveSupplierBranchOptions } from '@/lib/server/reference-master-cache'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
@@ -111,28 +112,15 @@ export async function GET(request: Request) {
         take: 10000,
         where: billWhere(query, branch?.id ?? null, supplier?.id ?? null),
       }),
-      prisma.suppliers.findMany({
-        orderBy: [{ code: 'asc' }, { name: 'asc' }],
-        select: {
-          active: true,
-          code: true,
-          id: true,
-          name: true,
-          supplier_branches: {
-            select: {
-              branches: { select: { code: true } },
-            },
-            where: { active: true },
-          },
-        },
-        where: { active: true },
-      }),
-      prisma.branches.findMany({
-        orderBy: [{ name: 'asc' }],
-        select: { active: true, code: true, id: true, name: true },
-        where: { active: true },
-      }),
+      listActiveSupplierBranchOptions(),
+      listActiveBranches(),
     ])
+    const branchOptions = branches.map((branch) => ({
+      active: true,
+      code: branch.code,
+      id: branch.id,
+      name: branch.name,
+    }))
 
     const today = new Date()
     const search = query.q?.trim().toLowerCase()
@@ -357,15 +345,13 @@ export async function GET(request: Request) {
       byBucket,
       bySupplier,
       filters: {
-        branches: branches.map((row) => ({ active: row.active, code: row.code, id: row.code, name: row.name })),
+        branches: branchOptions.map((row) => ({ active: row.active, code: row.code, id: row.code, name: row.name })),
         statuses,
         suppliers: suppliers.map((row) => {
           const code = requireBusinessCode(row.code, `ผู้ขาย ${row.id}`)
           return {
-            active: row.active,
-            branchIds: row.supplier_branches
-              .map((mapping) => mapping.branches?.code)
-              .filter((branchCode): branchCode is string => Boolean(branchCode)),
+            active: true,
+            branchIds: row.branchIds,
             code,
             id: code,
             name: row.name,

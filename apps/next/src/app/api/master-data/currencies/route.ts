@@ -2,10 +2,24 @@ import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, masterDataListJson, parseMasterDataForm, toIso, toNumber } from '@/lib/server/master-data'
+import { invalidateCurrencyReferenceCache, listCurrencies } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
-function mapCurrency(row: Awaited<ReturnType<typeof prisma.currencies.findMany>>[number]) {
+function normalizeCurrencyRate(value: unknown) {
+  if (value == null) return null
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  if (typeof value === 'object' && value && 'toNumber' in value && typeof (value as { toNumber: unknown }).toNumber === 'function') {
+    return ((value as { toNumber: () => number }).toNumber)()
+  }
+  return null
+}
+
+function mapCurrency(row: { code: string; id: bigint; name: string; rateToThb?: string | number | null; rate_to_thb?: string | number | null; symbol: string | null; updatedAt?: string | null; updated_at?: Date | null }) {
   const outwardId = requireBusinessCode(row.code, `สกุลเงิน ${row.id}`)
   return {
     id: outwardId,
@@ -17,7 +31,7 @@ function mapCurrency(row: Awaited<ReturnType<typeof prisma.currencies.findMany>>
     email: null,
     note: null,
     symbol: row.symbol,
-    rateToThb: toNumber(row.rate_to_thb),
+    rateToThb: normalizeCurrencyRate('rateToThb' in row ? row.rateToThb : row.rate_to_thb),
     parentId: null,
     channelType: null,
     bankName: null,
@@ -31,7 +45,7 @@ function mapCurrency(row: Awaited<ReturnType<typeof prisma.currencies.findMany>>
     commissionPct: null,
     baseSalary: null,
     createdAt: null,
-    updatedAt: toIso(row.updated_at),
+    updatedAt: 'updatedAt' in row ? row.updatedAt : toIso(row.updated_at ?? null),
   }
 }
 
@@ -40,7 +54,7 @@ export async function GET() {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'master.reference.view')
 
-    const rows = await prisma.currencies.findMany({ orderBy: [{ code: 'asc' }, { symbol: 'asc' }, { name: 'asc' }] })
+    const rows = await listCurrencies()
     return masterDataListJson(rows.map(mapCurrency))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -72,7 +86,8 @@ export async function POST(request: Request) {
       : await prisma.currencies.create({
         data: { code: symbol, name: values.name, symbol, rate_to_thb: values.rateToThb },
       })
-    return masterDataJson(mapCurrency(row))
+    await invalidateCurrencyReferenceCache()
+    return masterDataJson(mapCurrency({ ...row, rate_to_thb: row.rate_to_thb?.toNumber() ?? null }))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return errorJson(caught, 'บันทึกข้อมูลสกุลเงินไม่ได้')

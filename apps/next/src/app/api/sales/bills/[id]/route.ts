@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 import { salesBillCancelSchema } from '@/lib/sales'
+import type { Prisma } from '../../../../../../generated/prisma/client'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission, type AppAuthContext } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { refreshCustomerAdvanceAllocation } from '@/lib/server/customer-advance-settlement'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranchesByCodes } from '@/lib/server/reference-master-cache'
 import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { getSalesBillDetail } from '@/lib/server/sales-bill-detail'
 import { activeSalesReceiptCount, isSalesBillActiveForCancel } from '@/lib/server/sales-bill-cancel-policy'
@@ -24,10 +26,7 @@ async function salesBranchScope(context: AppAuthContext, requestedBranchCode?: s
   const allowedCodes = getBranchCodeIntersection(context, requestedBranchCode)
   if (allowedCodes === null) return { ids: null }
   if (allowedCodes.length === 0) return { ids: [] as bigint[] }
-  const branches = await prisma.branches.findMany({
-    select: { id: true },
-    where: { code: { in: allowedCodes } },
-  })
+  const branches = await listActiveBranchesByCodes(allowedCodes)
   return { ids: branches.map((branch) => branch.id) }
 }
 
@@ -79,7 +78,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       if (!scopedBill) {
         return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลขายที่ต้องการ' }, { status: 404 })
       }
-      const result = await prisma.$transaction((tx) => runTradingSalesBillAllocationCorrection(tx, {
+      const result = await prisma.$transaction((tx: Prisma.TransactionClient) => runTradingSalesBillAllocationCorrection(tx, {
         actor,
         allocations: values.allocations,
         billRef,
@@ -99,7 +98,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const billRef = decodeURIComponent(id)
     const branchScope = await salesBranchScope(auth)
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const bill = await tx.sales_bills.findFirst({
         select: {
           branch_id: true,
@@ -145,7 +144,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           await appendWtoPendingOutEventsFromHoldIds(tx, {
             actor,
             eventTypeForHold: () => 'sales_bill_cancel_reopen',
-            holdIds: reopenedPendingOut.map((hold) => hold.id),
+            holdIds: reopenedPendingOut.map((hold: (typeof reopenedPendingOut)[number]) => hold.id),
             occurredAt: cancelledAt,
             referenceDocNo: bill.doc_no,
             referenceDocType: 'SB',
@@ -154,7 +153,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         }
       }
       if (usageLogs.length > 0) {
-        await appendWeightTicketUsageLogs(tx, usageLogs.map((log) => ({
+        await appendWeightTicketUsageLogs(tx, usageLogs.map((log: (typeof usageLogs)[number]) => ({
           action: WEIGHT_TICKET_USAGE_ACTION.RELEASED_FROM_SALES_BILL,
           actor,
           allocatedDeductWeight: toNumber(log.allocated_deduct_weight),
@@ -173,10 +172,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           targetType: 'SALES_BILL' as const,
           weightTicketId: log.weight_ticket_id,
           weightTicketProductSummaryId: log.weight_ticket_product_summary_id ?? BigInt(0),
-        })).filter((entry) => entry.weightTicketProductSummaryId !== BigInt(0)))
+        })).filter((entry: { weightTicketProductSummaryId: bigint }) => entry.weightTicketProductSummaryId !== BigInt(0)))
 
         const usageBySummaryId = new Map<bigint, number>()
-        usageLogs.forEach((log) => {
+        usageLogs.forEach((log: (typeof usageLogs)[number]) => {
           if (!log.weight_ticket_product_summary_id) return
           usageBySummaryId.set(log.weight_ticket_product_summary_id, (usageBySummaryId.get(log.weight_ticket_product_summary_id) ?? 0) + toNumber(log.allocated_net_weight))
         })
@@ -189,7 +188,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           where: { id: summaryId },
         })))
 
-        const ticketIds = [...new Set(usageLogs.map((log) => log.weight_ticket_id))]
+        const ticketIds = [...new Set<bigint>(usageLogs.map((log: (typeof usageLogs)[number]) => log.weight_ticket_id))]
         await Promise.all(ticketIds.map(async (ticketId) => {
           const ticket = await tx.weight_tickets.findUnique({ select: { status: true }, where: { id: ticketId } })
           if (!ticket) return
@@ -281,7 +280,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       ])
 
       if (bill.sales_bill_customer_advance_allocations.length > 0) {
-        const advanceDocNos = [...new Set(bill.sales_bill_customer_advance_allocations.map((allocation) => allocation.customer_advance_doc_no))]
+        const advanceDocNos = [...new Set(bill.sales_bill_customer_advance_allocations.map((allocation: (typeof bill.sales_bill_customer_advance_allocations)[number]) => allocation.customer_advance_doc_no))]
         const advances = await tx.customer_advances.findMany({
           select: { id: true },
           where: { doc_no: { in: advanceDocNos } },

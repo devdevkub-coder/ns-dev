@@ -9,6 +9,7 @@ import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-ref
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { addToFinancialAgingBucketTotals, computeFinancialDueAging, emptyFinancialAgingBucketTotals, financialAgingBuckets } from '@/lib/server/document-aging'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveCustomers, searchActiveCustomers } from '@/lib/server/reference-master-cache'
 import { salesBillLineFactsByBillId, salesBillLineFactTotals, type SalesBillLineFactRow } from '@/lib/server/sales-bill-line-facts'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
@@ -115,11 +116,14 @@ export async function GET(request: Request) {
     const asOfDate = new Date()
 
     const [customers, bills, receipts] = await Promise.all([
-      prisma.customers.findMany({
-        orderBy: [{ code: 'asc' }, { name: 'asc' }],
-        select: { active: true, code: true, credit_limit: true, credit_term: true, id: true, name: true },
-        where: { active: { not: false }, ...(customer ? { id: customer.id } : {}) },
-      }),
+      (async () => {
+        const rows = customer
+          ? await listActiveCustomers()
+          : search
+          ? await searchActiveCustomers(search)
+          : await listActiveCustomers()
+        return customer ? rows.filter((row) => row.id === customer.id) : rows
+      })(),
       prisma.sales_bills.findMany({
         include: { sales_channels: { select: { code: true, name: true } } },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
@@ -168,7 +172,7 @@ export async function GET(request: Request) {
         const receivable = Math.max(0, toNumber(bill.receivable_balance) || toNumber(bill.total_amount) - received)
         const aging = computeFinancialDueAging({
           asOfDate,
-          creditTermDays: bill.credit_term ?? customer.credit_term ?? 0,
+          creditTermDays: bill.credit_term ?? customer.creditTerm ?? 0,
           documentDate: bill.date,
           dueDate: bill.due_date,
         })
@@ -191,7 +195,7 @@ export async function GET(request: Request) {
       }, { agingBuckets: emptyFinancialAgingBucketTotals(), billCount: 0, cogs: 0, gp: 0, lowMarginBillCount: 0, negativeMarginBillCount: 0, oldestArAgeDays: 0, overdueArAmount: 0, overdueArBillCount: 0, pendingArBillCount: 0, qty: 0, receivable: 0, revenue: 0 })
       const receivedAmount = customerReceipts.reduce((sum, receipt) => sum + toNumber(receipt.amount) + toNumber(receipt.withholding_tax) + toNumber(receipt.discount), 0)
       const gp = totals.gp || totals.revenue - totals.cogs
-      const creditLimit = toNumber(customer.credit_limit)
+      const creditLimit = Number(customer.creditLimit ?? 0)
 
       const customerYearBills = scopedBills.filter((bill) => bill.customer_id === customer.id && inYearMonth(bill.date, year, null, dateFrom, dateTo))
       const monthlyData = Array.from({ length: 12 }, (_, index) => {
@@ -289,7 +293,7 @@ export async function GET(request: Request) {
         const gp = toNumber(bill.gross_profit) || revenue - cogs
         const aging = computeFinancialDueAging({
           asOfDate,
-          creditTermDays: bill.credit_term ?? customers.find((customer) => customer.id === detailCustomer.id)?.credit_term ?? 0,
+          creditTermDays: bill.credit_term ?? customers.find((customer) => customer.id === detailCustomer.id)?.creditTerm ?? 0,
           documentDate: bill.date,
           dueDate: bill.due_date,
         })
@@ -308,7 +312,7 @@ export async function GET(request: Request) {
         }
       }, { agingBuckets: emptyFinancialAgingBucketTotals(), gp: 0, lowMarginBillCount: 0, negativeMarginBillCount: 0, oldestArAgeDays: 0, overdueArAmount: 0, overdueArBillCount: 0, pendingArBillCount: 0, receivable: 0, revenue: 0 })
       const detailCustomerMaster = customers.find((customer) => customer.id === detailCustomer.id)
-      const detailCreditLimit = toNumber(detailCustomerMaster?.credit_limit)
+      const detailCreditLimit = Number(detailCustomerMaster?.creditLimit ?? 0)
 
       return {
         bills: detailBills.slice(0, 50).map((bill) => {
@@ -319,7 +323,7 @@ export async function GET(request: Request) {
           const gp = toNumber(bill.gross_profit) || revenue - cogs
           const aging = computeFinancialDueAging({
             asOfDate,
-            creditTermDays: bill.credit_term ?? detailCustomerMaster?.credit_term ?? 0,
+            creditTermDays: bill.credit_term ?? detailCustomerMaster?.creditTerm ?? 0,
             documentDate: bill.date,
             dueDate: bill.due_date,
           })
@@ -440,7 +444,7 @@ export async function GET(request: Request) {
       filters: {
         customers: visibleCustomers.map((customer) => {
           const code = requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`)
-          return { active: customer.active, code, id: code, name: customer.name }
+          return { active: true, code, id: code, name: customer.name }
         }),
         productCategories: productFilters.productCategories,
         products: productFilters.products,

@@ -5,6 +5,7 @@ import { mapPrismaCustomer } from '@/lib/domain/customer'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
+import { invalidateCustomerReferenceCache } from '@/lib/server/reference-master-cache'
 import { listSalespersonReferencesByIds } from '@/lib/server/salesperson-reference'
 import type { Prisma } from '../../../../../../../generated/prisma/client'
 
@@ -45,6 +46,7 @@ export async function PATCH(request: Request, { params }: CustomerStatusRoutePro
         active: values.active,
       },
     })
+    await invalidateCustomerReferenceCache()
     const salespersonReferences = await listSalespersonReferencesByIds([customer.sales_id])
 
     return NextResponse.json(mapPrismaCustomer(customer as any, {

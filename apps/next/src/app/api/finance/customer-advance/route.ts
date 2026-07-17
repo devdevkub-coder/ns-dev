@@ -6,6 +6,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveCustomers } from '@/lib/server/reference-master-cache'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -100,16 +101,10 @@ export async function GET(request: Request) {
         take: 10000,
         where: statementWhere(query),
       }),
-      prisma.customers.findMany({
-        orderBy: [{ code: 'asc' }, { name: 'asc' }],
-        select: { active: true, code: true, id: true, name: true },
-        where: { active: true },
-      }),
+      listActiveCustomers(),
     ])
 
-    const customerByCode = new Map(
-      customers.map((customer) => [requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`), customer] as const),
-    )
+    const customerByCode = new Map(customers.map((customer) => [customer.code, customer] as const))
     const allRows = bankRows.map((row) => {
       const description = row.description ?? row.desc ?? ''
       const customerNameFromText = extractCustomerName(description)
@@ -166,10 +161,12 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       filters: {
-        customers: customers.map((customer) => {
-          const code = requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`)
-          return { active: customer.active, code, id: code, name: customer.name }
-        }),
+        customers: customers.map((customer) => ({
+          active: true,
+          code: customer.code,
+          id: customer.code,
+          name: customer.name,
+        })),
         statuses: ['Open', 'Partially Used', 'Fully Used', 'Cancelled'],
       },
       pagination: {

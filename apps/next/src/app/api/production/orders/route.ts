@@ -7,6 +7,7 @@ import { currentActor, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { createProductionOrder, createProductionOrderSchema, ProductionOrderError } from '@/lib/server/production-orders'
 import { parseProductionOrdersQuery } from '@/lib/server/production-orders-query'
+import { listActiveBranches, listActiveBranchesByCodes, listWarehouseMasterRecords } from '@/lib/server/reference-master-cache'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -198,17 +199,10 @@ export async function GET(request: Request) {
         take,
         where,
       }),
-      prisma.warehouses.findMany({
-        select: { code: true, id: true, name: true },
-      }),
-      isXlsx ? Promise.resolve([]) : prisma.branches.findMany({
-        orderBy: [{ code: 'asc' }],
-        select: { code: true, name: true },
-        where: {
-          active: true,
-          ...(visibleBranchCodes ? { code: { in: visibleBranchCodes } } : {}),
-        },
-      }),
+      listWarehouseMasterRecords(),
+      isXlsx
+        ? Promise.resolve([])
+        : (visibleBranchCodes ? listActiveBranchesByCodes(visibleBranchCodes) : listActiveBranches()),
     ])
 
     const warehouseById = new Map(warehouses.map((warehouse) => [warehouse.id.toString(), warehouse]))

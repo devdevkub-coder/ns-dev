@@ -5,6 +5,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { findActiveBranchReferenceByCodeOrId, listActiveBranches } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -92,33 +93,11 @@ function profileForBranch(profile: CompanyProfileRow | null) {
 }
 
 async function activeBranches() {
-  return prisma.branches.findMany({
-    orderBy: [{ code: 'asc' }, { id: 'asc' }],
-    select: { address: true, code: true, id: true, name: true, phone: true },
-    where: { active: true },
-  })
+  return listActiveBranches()
 }
 
 async function findActiveBranch(value: string | null | undefined) {
-  const normalized = String(value ?? '').trim()
-  if (!normalized) return null
-
-  const branchByCode = await prisma.branches.findFirst({
-    select: { address: true, code: true, id: true, name: true, phone: true },
-    where: {
-      active: true,
-      code: normalized.toUpperCase(),
-    },
-  })
-  if (branchByCode || !normalized.match(/^\d+$/)) return branchByCode
-
-  return prisma.branches.findFirst({
-    select: { address: true, code: true, id: true, name: true, phone: true },
-    where: {
-      active: true,
-      id: BigInt(normalized),
-    },
-  })
+  return findActiveBranchReferenceByCodeOrId(value)
 }
 
 async function profileBranchIdSet() {
@@ -126,7 +105,10 @@ async function profileBranchIdSet() {
     select: { branch_id: true },
     where: { branch_id: { not: null } },
   })
-  return new Set(rows.map((row) => row.branch_id?.toString()).filter((value): value is string => Boolean(value)))
+  const branchIds = rows
+    .map((row: { branch_id: bigint | null }) => row.branch_id?.toString() ?? null)
+    .filter((value: string | null): value is string => value != null)
+  return new Set<string>(branchIds)
 }
 
 export async function GET(request: Request) {

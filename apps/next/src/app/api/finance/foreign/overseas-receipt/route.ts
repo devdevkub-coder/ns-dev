@@ -1,14 +1,34 @@
+import type { Prisma } from '../../../../../../generated/prisma/client'
 import { NextResponse } from 'next/server'
 import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import {
+  listActiveAccounts,
+  listActiveCustomers,
+  listCurrencies,
+  type AccountReferenceRecord,
+  type CurrencyReferenceRecord,
+  type CustomerReferenceRecord,
+} from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
-function accountLabel(account: { account_no: string | null; currency: string | null; name: string; type: string }) {
-  const prefix = account.account_no ? `${account.account_no} - ` : ''
+type SalesBillReceiptOptionRow = Prisma.sales_billsGetPayload<{
+  select: {
+    customer_id: true
+    customers: { select: { code: true } }
+    doc_no: true
+    id: true
+    receivable_balance: true
+    total_amount: true
+  }
+}>
+
+function accountLabel(account: { accountNo: string | null; currency: string | null; name: string; type: string }) {
+  const prefix = account.accountNo ? `${account.accountNo} - ` : ''
   return `${prefix}${account.name} (${account.type} - ${(account.currency || 'THB').toUpperCase()})`
 }
 
@@ -22,24 +42,15 @@ export async function GET(request: Request) {
     const to = url.searchParams.get('to')
 
     const [accounts, customers, salesBills, currencies, fxRates, statementRows] = await Promise.all([
-      prisma.accounts.findMany({
-        orderBy: [{ name: 'asc' }, { account_no: 'asc' }],
-        select: { account_no: true, active: true, code: true, currency: true, id: true, name: true, type: true },
-        where: { active: true },
-      }),
-      prisma.customers.findMany({
-        orderBy: [{ code: 'asc' }, { name: 'asc' }],
-        select: { active: true, code: true, id: true, market_scope: true, name: true },
-        take: 1000,
-        where: { active: true },
-      }),
+      listActiveAccounts(),
+      listActiveCustomers(),
       prisma.sales_bills.findMany({
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         select: { customer_id: true, customers: { select: { code: true } }, doc_no: true, id: true, receivable_balance: true, total_amount: true },
         take: 1000,
         where: { receivable_balance: { gt: 0 } },
       }),
-      prisma.currencies.findMany({ orderBy: [{ symbol: 'asc' }, { name: 'asc' }] }),
+      listCurrencies(),
       prisma.fx_rates.findMany({
         orderBy: [{ rate_date: 'desc' }, { updated_at: 'desc' }],
         take: 100,
@@ -60,7 +71,7 @@ export async function GET(request: Request) {
       }),
     ])
 
-    const receiptAccounts = accounts.filter((account) => {
+    const receiptAccounts = accounts.filter((account: AccountReferenceRecord) => {
       const type = account.type.toLowerCase()
       const currency = (account.currency || 'THB').toUpperCase()
       return type.includes('bank') || type.includes('ธนาคาร') || type === 'fcd' || type === 'od' || currency !== 'THB'
@@ -72,35 +83,35 @@ export async function GET(request: Request) {
         writeBehavior: 'read_form_only_no_bank_statement_or_fx_gain_loss_mutation',
       },
       filters: {
-        accounts: receiptAccounts.map((account) => ({
-          code: account.account_no,
+        accounts: receiptAccounts.map((account: AccountReferenceRecord) => ({
+          code: account.accountNo,
           currency: (account.currency || 'THB').toUpperCase(),
-          id: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
+          id: account.code,
           label: accountLabel(account),
           name: account.name,
           type: account.type,
         })),
-        currencies: currencies.map((currency) => ({
+        currencies: currencies.map((currency: CurrencyReferenceRecord) => ({
           code: (currency.symbol ?? '').trim().toUpperCase(),
           name: currency.name,
-          rateToThb: toNumber(currency.rate_to_thb),
+          rateToThb: currency.rateToThb == null ? 0 : Number(currency.rateToThb),
           symbol: currency.symbol,
         })),
-        customers: customers.map((customer) => ({
-          code: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
-          id: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
+        customers: customers.map((customer: CustomerReferenceRecord) => ({
+          code: customer.code,
+          id: customer.code,
           label: customer.code ? `${customer.code} - ${customer.name}` : customer.name,
-          marketScope: customer.market_scope,
+          marketScope: customer.marketScope,
           name: customer.name,
         })),
-        latestFxRates: fxRates.map((rate) => ({
+        latestFxRates: fxRates.map((rate: Awaited<ReturnType<typeof prisma.fx_rates.findMany>>[number]) => ({
           date: toDateOnly(rate.rate_date),
           fromCurrency: rate.from_currency,
           rate: toNumber(rate.rate),
           rateType: rate.rate_type,
           toCurrency: rate.to_currency,
         })),
-        salesBills: salesBills.map((bill) => ({
+        salesBills: salesBills.map((bill: SalesBillReceiptOptionRow) => ({
           customerId: bill.customers?.code ? requireBusinessCode(bill.customers.code, `ลูกค้าบิลขาย ${bill.id}`) : '',
           docNo: bill.doc_no,
           id: bill.doc_no,
@@ -108,7 +119,7 @@ export async function GET(request: Request) {
           totalAmount: toNumber(bill.total_amount),
         })),
       },
-      rows: statementRows.map((row) => ({
+      rows: statementRows.map((row: Awaited<ReturnType<typeof prisma.bank_statement.findMany>>[number]) => ({
         amountThb: toNumber(row.amount_in) - toNumber(row.amount_out),
         date: toDateOnly(row.date),
         description: row.description ?? row.desc ?? '',
@@ -120,8 +131,8 @@ export async function GET(request: Request) {
       })),
       summary: {
         postedRows: statementRows.length,
-        totalFeeThb: statementRows.reduce((sum, row) => sum + (row.ref_type === 'ORC-FEE' ? toNumber(row.amount_out) : 0), 0),
-        totalReceivedThb: statementRows.reduce((sum, row) => sum + (row.ref_type === 'ORC' ? toNumber(row.amount_in) : 0), 0),
+        totalFeeThb: statementRows.reduce((sum: number, row: Awaited<ReturnType<typeof prisma.bank_statement.findMany>>[number]) => sum + (row.ref_type === 'ORC-FEE' ? toNumber(row.amount_out) : 0), 0),
+        totalReceivedThb: statementRows.reduce((sum: number, row: Awaited<ReturnType<typeof prisma.bank_statement.findMany>>[number]) => sum + (row.ref_type === 'ORC' ? toNumber(row.amount_in) : 0), 0),
       },
     })
   } catch (caught) {

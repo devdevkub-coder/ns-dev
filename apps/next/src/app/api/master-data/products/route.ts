@@ -5,6 +5,7 @@ import { productFormSchema } from '@/lib/product'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
+import { findActiveProductTypeReferenceByName, findActiveProductUnitReferenceByNameOrSymbol, invalidateProductReferenceCache } from '@/lib/server/reference-master-cache'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -67,13 +68,7 @@ function productSearchWhere(q: string, filters: { active: string; productType: s
 async function assertActiveProductType(name: string | null) {
   if (!name) return
 
-  const productType = await prisma.product_types.findFirst({
-    select: { id: true },
-    where: {
-      active: true,
-      name,
-    },
-  })
+  const productType = await findActiveProductTypeReferenceByName(name)
 
   if (!productType) {
     throw new Error('ประเภทสินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
@@ -83,16 +78,7 @@ async function assertActiveProductType(name: string | null) {
 async function assertActiveProductUnit(unit: string | null) {
   if (!unit) return
 
-  const productUnit = await prisma.product_units.findFirst({
-    select: { id: true },
-    where: {
-      active: true,
-      OR: [
-        { name: unit },
-        { symbol: unit },
-      ],
-    },
-  })
+  const productUnit = await findActiveProductUnitReferenceByNameOrSymbol(unit)
 
   if (!productUnit) {
     throw new Error('หน่วยสินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
@@ -184,6 +170,7 @@ export async function POST(request: Request) {
       ? await prisma.products.update({ where: { id: existingProduct.id }, data: payload, select: productSelect })
       : await prisma.products.create({ data: payload, select: productSelect })
 
+    await invalidateProductReferenceCache()
     return NextResponse.json(mapPrismaProduct(product))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

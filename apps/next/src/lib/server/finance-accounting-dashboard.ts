@@ -5,6 +5,7 @@ import { buildCashFlowAnalysis } from '@/lib/server/finance-accounting-cashflow-
 import { buildBalanceSheet, buildPlStatement } from '@/lib/server/finance-accounting-statements'
 import { buildStockFinance, buildWorkingCapital } from '@/lib/server/finance-accounting-working-capital'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveAccounts, listActiveBranches, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
 
 export type FinancialDashboardFilter = {
   asOf: Date
@@ -51,29 +52,34 @@ function sourceState() {
   }
 }
 
+function cachedMoney(value: string | null) {
+  return value == null ? 0 : Number(value)
+}
+
 async function cashSplit(asOf: Date, branchId?: string) {
   const branch = branchId ? await findActiveBranchReferenceByCodeOrId(branchId) : null
-  const [accounts, bankRows] = await Promise.all([
-    prisma.accounts.findMany({ where: { active: true, ...(branch?.id != null ? { branch_id: branch.id } : {}) } }),
-    prisma.bank_statement.findMany({
+  const accounts = (await listActiveAccounts()).filter((account: AccountReferenceRecord) => branch?.id == null || account.branchId === branch.id)
+  const accountIds = accounts.map((account: AccountReferenceRecord) => account.id)
+  const bankRows = accountIds.length === 0
+    ? []
+    : await prisma.bank_statement.findMany({
       orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
       take: 30000,
-      where: { date: { lte: endOfDay(asOf) }, ...(branch?.id != null ? { accounts: { branch_id: branch.id } } : {}) },
-    }),
-  ])
+      where: { account_id: { in: accountIds }, date: { lte: endOfDay(asOf) } },
+    })
   const balances = new Map<bigint, number>()
-  accounts.forEach((account) => balances.set(account.id, toNumber(account.opening_balance)))
-  bankRows.forEach((row) => {
+  accounts.forEach((account: AccountReferenceRecord) => balances.set(account.id, cachedMoney(account.openingBalance)))
+  bankRows.forEach((row: (typeof bankRows)[number]) => {
     if (!row.account_id) return
     const previous = balances.get(row.account_id) ?? 0
     balances.set(row.account_id, row.balance === null || row.balance === undefined ? previous + toNumber(row.amount_in) - toNumber(row.amount_out) : toNumber(row.balance))
   })
-  const byKind = accounts.reduce((acc, account) => {
+  const byKind = accounts.reduce((acc, account: AccountReferenceRecord) => {
     const balance = balances.get(account.id) ?? 0
-    const type = [account.type, account.name, account.bank_name, account.bank].filter(Boolean).join(' ').toLowerCase()
+    const type = [account.type, account.name, account.bankName, account.bank].filter(Boolean).join(' ').toLowerCase()
     if (type.includes('od')) {
       acc.odUsed += Math.max(0, -balance)
-      acc.odLimit += toNumber(account.od_limit)
+      acc.odLimit += cachedMoney(account.odLimit)
     } else if (type.includes('fcd') || type.includes('foreign')) {
       acc.fcdBalance += balance
     } else if (type.includes('cash') || type.includes('เงินสด')) {
@@ -110,7 +116,7 @@ export async function buildFinancialDashboard(filter: FinancialDashboardFilter) 
   const currentMonthStart = monthStart(asOf)
   const last30Start = addDays(asOf, -29)
   const [branches, balanceSheet, monthPl, cashAnalysis, workingCapital, stockFinance, split, pendingDeliveryCost, monthlyPL] = await Promise.all([
-    prisma.branches.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }], select: { code: true, id: true, name: true }, where: { active: true } }),
+    listActiveBranches(),
     buildBalanceSheet({ asOf, branchId: filter.branchId }),
     buildPlStatement({ branchId: filter.branchId, from: currentMonthStart, to: asOf, transactionMode: 'ALL' }),
     buildCashFlowAnalysis({ branchId: filter.branchId, from: currentMonthStart, to: asOf }),

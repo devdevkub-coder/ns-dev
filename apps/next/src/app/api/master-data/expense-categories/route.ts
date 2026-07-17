@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, masterDataListJson, nextSequentialCode, parseMasterDataForm } from '@/lib/server/master-data'
+import { findActiveExpenseTypeReferenceByCode } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -71,10 +72,7 @@ export async function POST(request: Request) {
     const values = parseMasterDataForm(await request.json())
     let expenseTypeId: bigint | null = null
     if (values.type) {
-      const expenseType = await prisma.expense_types.findFirst({
-        where: { active: true, code: values.type },
-        select: { id: true },
-      })
+      const expenseType = await findActiveExpenseTypeReferenceByCode(values.type)
       if (!expenseType) throw new Error('ประเภทค่าใช้จ่ายที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
       expenseTypeId = expenseType.id
     }

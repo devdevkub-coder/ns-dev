@@ -4,6 +4,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { fxRateFormSchema } from '@/lib/finance-foreign'
 import { prisma } from '@/lib/server/prisma'
+import { listCurrencies } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -83,7 +84,7 @@ export async function GET(request: Request) {
           ...(active === 'true' ? { active: true } : active === 'false' ? { active: false } : {}),
         },
       }),
-      prisma.currencies.findMany({ orderBy: [{ symbol: 'asc' }, { name: 'asc' }] }),
+      listCurrencies(),
     ])
 
     const rows = rates.map(mapRate)
@@ -99,7 +100,7 @@ export async function GET(request: Request) {
           code: (currency.symbol ?? '').trim().toUpperCase(),
           displayCode: (currency.symbol ?? '').trim().toUpperCase(),
           name: currency.name,
-          rateToThb: toNumber(currency.rate_to_thb),
+          rateToThb: currency.rateToThb == null ? 0 : Number(currency.rateToThb),
           symbol: currency.symbol,
         })),
         fromCurrencies: Array.from(new Set(rows.map((row) => row.fromCurrency))).sort(),

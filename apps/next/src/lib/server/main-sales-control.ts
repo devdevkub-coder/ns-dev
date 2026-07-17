@@ -6,6 +6,7 @@ import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { getSalesPlanLmeConfigAutoRefresh, type SalesPlanLmeConfig } from './sales-plan-lme'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
+import { listActiveBranches, listActiveCustomers, listActiveSuppliers, listActiveWarehousesByBranch } from '@/lib/server/reference-master-cache'
 import { listSalesPlans } from './sales-plans'
 
 type JsonItem = Prisma.JsonObject
@@ -39,6 +40,10 @@ type PendingProductRow = {
   soldValue: number
   wac: number
 }
+
+type CustomerReferenceRow = Awaited<ReturnType<typeof listActiveCustomers>>[number]
+type SupplierReferenceRow = Awaited<ReturnType<typeof listActiveSuppliers>>[number]
+type BranchReferenceRow = Awaited<ReturnType<typeof listActiveBranches>>[number]
 
 function isCostPoolEligibleMetalGroup(metalGroup: string) {
   const normalized = metalGroup.toLowerCase()
@@ -149,7 +154,7 @@ async function productsContext() {
     select: { code: true, id: true, metal_group: true, name: true, std_cost: true },
     where: { active: { not: false } },
   })
-  const refs = products.map((product) => ({
+  const refs: ProductRef[] = products.map((product: (typeof products)[number]) => ({
     code: product.code,
     id: product.id,
     itemStatus: '',
@@ -158,7 +163,7 @@ async function productsContext() {
     wac: toNumber(product.std_cost),
   }))
   const byKey = new Map<string, ProductRef>()
-  refs.forEach((product) => productKey(product).forEach((key) => byKey.set(key, product)))
+  refs.forEach((product: ProductRef) => productKey(product).forEach((key) => byKey.set(key, product)))
   return { byKey, refs }
 }
 
@@ -195,27 +200,19 @@ function poSellItems(row: { items: unknown; product_id: bigint | null; qty: unkn
 async function buildSalesPlanningSnapshot() {
   const config = await getSalesPlanLmeConfigAutoRefresh()
   const { byKey, refs } = await productsContext()
-  const salesPlanRefs = refs.filter((product) => isCostPoolEligibleMetalGroup(product.metalGroup))
-  const productById = new Map(refs.map((product) => [product.id, product] as const))
+  const salesPlanRefs = refs.filter((product: ProductRef) => isCostPoolEligibleMetalGroup(product.metalGroup))
+  const productById = new Map<bigint, ProductRef>(refs.map((product: ProductRef) => [product.id, product] as const))
   const [poSells, poBuys, stockRows, customers, salesChannels, tradingDeals, purchaseBills, samutSakhonWarehouses] = await Promise.all([
     prisma.po_sells.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
     prisma.po_buys.findMany({ orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
     prisma.stock_ledger.findMany({ orderBy: [{ date: 'desc' }], take: 50000 }),
-    prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, market_scope: true, name: true } }),
+    listActiveCustomers(),
     prisma.sales_channels.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true }, where: { active: true } }),
     prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 10000, where: { NOT: { status: { in: ['Cancelled', 'cancelled'] } } } }),
     prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } } }, orderBy: [{ date: 'desc' }], take: 10000, where: { status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] } } }),
-    prisma.warehouses.findMany({
-      select: { id: true },
-      where: {
-        active: true,
-        branches: {
-          is: { code: SALES_PLAN_SAMUT_SAKHON_BRANCH_CODE },
-        },
-      },
-    }),
+    listActiveWarehousesByBranch(SALES_PLAN_SAMUT_SAKHON_BRANCH_CODE),
   ])
-  const samutSakhonWarehouseIds = new Set(samutSakhonWarehouses.map((warehouse) => warehouse.id))
+  const samutSakhonWarehouseIds = new Set<bigint>(samutSakhonWarehouses.map((warehouse: (typeof samutSakhonWarehouses)[number]) => warehouse.id))
 
   const productAgg = new Map<string, PendingProductRow>()
   const details: Array<{ customerId: string; customerName: string; date: string; deliveryDate: string; docNo: string; id: string; itemPrice: number; itemQty: number; matched: number; productId: string; remaining: number; remainValue: number }> = []
@@ -248,7 +245,7 @@ async function buildSalesPlanningSnapshot() {
     return productAgg.get(key)!
   }
 
-  poSells.filter((po) => activePoSellStatus(po.status)).forEach((po) => {
+  poSells.filter((po: (typeof poSells)[number]) => activePoSellStatus(po.status)).forEach((po: (typeof poSells)[number]) => {
     poSellItems(po, byKey).forEach((item) => {
       const qty = item.qty
       const remaining = Math.max(0, item.remainingQty)
@@ -277,7 +274,7 @@ async function buildSalesPlanningSnapshot() {
     })
   })
 
-  const productRows = Array.from(productAgg.values()).map((row) => {
+  const productRows = Array.from(productAgg.values()).map((row: PendingProductRow) => {
     const qty = row.remainQty + row.soldQty
     const value = row.remainValue + row.soldValue
     const avgPriceAll = qty > 0 ? value / qty : 0
@@ -292,10 +289,10 @@ async function buildSalesPlanningSnapshot() {
       gainVsLme: target > 0 ? (avgPriceRemain - target) * row.remainQty : 0,
       gainVsWac: (avgPriceRemain - row.wac) * row.remainQty,
     }
-  }).sort((left, right) => right.remainValue - left.remainValue)
+  }).sort((left: PendingProductRow, right: PendingProductRow) => right.remainValue - left.remainValue)
 
   const stockByProduct = new Map<bigint, { qty: number; value: number }>()
-  stockRows.forEach((stock) => {
+  stockRows.forEach((stock: (typeof stockRows)[number]) => {
     if (stock.product_id == null) return
     const product = productById.get(stock.product_id)
     if (product && isCopperOrBrassGroup(product.metalGroup) && (stock.warehouse_id == null || !samutSakhonWarehouseIds.has(stock.warehouse_id))) return
@@ -306,13 +303,13 @@ async function buildSalesPlanningSnapshot() {
   })
 
   const matchedByProduct = new Map<bigint, number>()
-  tradingDeals.forEach((deal) => {
+  tradingDeals.forEach((deal: (typeof tradingDeals)[number]) => {
     if (deal.product_id == null) return
     matchedByProduct.set(deal.product_id, (matchedByProduct.get(deal.product_id) ?? 0) + toNumber(deal.matched_qty))
   })
 
   const spotByProduct = new Map<bigint, { amount: number; qty: number }>()
-  purchaseBills.forEach((bill) => {
+  purchaseBills.forEach((bill: (typeof purchaseBills)[number]) => {
     purchaseBillItemRows(bill).filter(isJsonItem).forEach((item) => {
       const product = lookupProduct(item, byKey)
       if (!product) return
@@ -324,7 +321,7 @@ async function buildSalesPlanningSnapshot() {
   })
 
   const poBuyByProduct = new Map<bigint, { amount: number; qty: number }>()
-  poBuys.filter((po) => activeStatus(po.status)).forEach((po) => {
+  poBuys.filter((po: (typeof poBuys)[number]) => activeStatus(po.status)).forEach((po: (typeof poBuys)[number]) => {
     const product = po.product_id != null ? byKey.get(String(po.product_id).trim().toLowerCase()) : undefined
     if (!product) return
     const qty = toNumber(po.remaining_qty ?? po.qty)
@@ -336,7 +333,7 @@ async function buildSalesPlanningSnapshot() {
   })
 
   const poSellOpenByProduct = new Map<string, number>()
-  poSells.filter((po) => activePoSellStatus(po.status)).forEach((po) => {
+  poSells.filter((po: (typeof poSells)[number]) => activePoSellStatus(po.status)).forEach((po: (typeof poSells)[number]) => {
     poSellItems(po, byKey).forEach((item) => {
       if (!item.product?.id && !item.productId) return
       const key = item.product ? String(item.product.id) : item.productId
@@ -344,7 +341,7 @@ async function buildSalesPlanningSnapshot() {
     })
   })
 
-  const reconciliation = salesPlanRefs.map((product) => {
+  const reconciliation = salesPlanRefs.map((product: ProductRef) => {
     const stock = stockByProduct.get(product.id) ?? { qty: 0, value: 0 }
     const spotRaw = spotByProduct.get(product.id) ?? { amount: 0, qty: 0 }
     const matched = matchedByProduct.get(product.id) ?? 0
@@ -370,7 +367,7 @@ async function buildSalesPlanningSnapshot() {
   }).filter((row) => row.poOnOrderQty > 0 || row.spotInPoolQty > 0 || row.stockQty !== 0)
 
   const pendingSaleTable = salesPlanRefs
-    .map((product) => {
+    .map((product: ProductRef) => {
       const stock = stockByProduct.get(product.id) ?? { qty: 0, value: 0 }
       const spotRaw = spotByProduct.get(product.id) ?? { amount: 0, qty: 0 }
       const matched = matchedByProduct.get(product.id) ?? 0
@@ -414,46 +411,46 @@ async function buildSalesPlanningSnapshot() {
   const pendingSaleTotals = {
     count: pendingSaleTable.length,
     shortageCount: pendingSaleTable.filter((row) => row.realPendingSale < 0).length,
-    totalLockedBuy: pendingSaleTable.reduce((sum, row) => sum + row.lockedBuy, 0),
-    totalLockedSell: pendingSaleTable.reduce((sum, row) => sum + row.lockedSell, 0),
-    totalPendingSaleQty: pendingSaleTable.reduce((sum, row) => sum + row.pendingSaleQty, 0),
-    totalPendingSaleValue: pendingSaleTable.reduce((sum, row) => sum + row.pendingSaleValue, 0),
-    totalRealPending: pendingSaleTable.reduce((sum, row) => sum + row.realPendingSale, 0),
-    totalStock: pendingSaleTable.reduce((sum, row) => sum + row.stock, 0),
+    totalLockedBuy: pendingSaleTable.reduce((sum: number, row) => sum + row.lockedBuy, 0),
+    totalLockedSell: pendingSaleTable.reduce((sum: number, row) => sum + row.lockedSell, 0),
+    totalPendingSaleQty: pendingSaleTable.reduce((sum: number, row) => sum + row.pendingSaleQty, 0),
+    totalPendingSaleValue: pendingSaleTable.reduce((sum: number, row) => sum + row.pendingSaleValue, 0),
+    totalRealPending: pendingSaleTable.reduce((sum: number, row) => sum + row.realPendingSale, 0),
+    totalStock: pendingSaleTable.reduce((sum: number, row) => sum + row.stock, 0),
   }
 
   const summary = {
-    avgRemainPrice: productRows.reduce((sum, row) => sum + row.remainValue, 0) / Math.max(1, productRows.reduce((sum, row) => sum + row.remainQty, 0)),
+    avgRemainPrice: productRows.reduce((sum: number, row) => sum + row.remainValue, 0) / Math.max(1, productRows.reduce((sum: number, row) => sum + row.remainQty, 0)),
     productCount: productRows.length,
-    totalGainVsLme: productRows.reduce((sum, row) => sum + row.gainVsLme, 0),
-    totalGainVsWac: productRows.reduce((sum, row) => sum + row.gainVsWac, 0),
-    totalRemainQty: productRows.reduce((sum, row) => sum + row.remainQty, 0),
-    totalRemainValue: productRows.reduce((sum, row) => sum + row.remainValue, 0),
+    totalGainVsLme: productRows.reduce((sum: number, row) => sum + row.gainVsLme, 0),
+    totalGainVsWac: productRows.reduce((sum: number, row) => sum + row.gainVsWac, 0),
+    totalRemainQty: productRows.reduce((sum: number, row) => sum + row.remainQty, 0),
+    totalRemainValue: productRows.reduce((sum: number, row) => sum + row.remainValue, 0),
   }
   const reconTotals = {
     productCount: reconciliation.length,
-    totalPoOnOrderQty: reconciliation.reduce((sum, row) => sum + row.poOnOrderQty, 0),
-    totalPoOnOrderValue: reconciliation.reduce((sum, row) => sum + row.poOnOrderValue, 0),
-    totalSpotInPoolQty: reconciliation.reduce((sum, row) => sum + row.spotInPoolQty, 0),
-    totalSpotInPoolValue: reconciliation.reduce((sum, row) => sum + row.spotInPoolValue, 0),
-    totalStockQty: reconciliation.reduce((sum, row) => sum + row.stockQty, 0),
-    totalStockValue: reconciliation.reduce((sum, row) => sum + row.stockValue, 0),
+    totalPoOnOrderQty: reconciliation.reduce((sum: number, row) => sum + row.poOnOrderQty, 0),
+    totalPoOnOrderValue: reconciliation.reduce((sum: number, row) => sum + row.poOnOrderValue, 0),
+    totalSpotInPoolQty: reconciliation.reduce((sum: number, row) => sum + row.spotInPoolQty, 0),
+    totalSpotInPoolValue: reconciliation.reduce((sum: number, row) => sum + row.spotInPoolValue, 0),
+    totalStockQty: reconciliation.reduce((sum: number, row) => sum + row.stockQty, 0),
+    totalStockValue: reconciliation.reduce((sum: number, row) => sum + row.stockValue, 0),
   }
 
   return {
-    channels: salesChannels.map((channel) => {
+    channels: salesChannels.map((channel: (typeof salesChannels)[number]) => {
       const code = requireBusinessCode(channel.code, `ช่องทางขาย ${channel.id}`)
       return { id: code, name: channel.name }
     }),
-    customers: customers.map((customer) => {
+    customers: customers.map((customer: CustomerReferenceRow) => {
       const code = requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`)
-      return { active: customer.active ?? true, code, id: code, marketScope: customer.market_scope === 'ต่างประเทศ' ? 'ต่างประเทศ' : 'ในประเทศ', name: customer.name }
+      return { active: true, code, id: code, marketScope: customer.marketScope === 'ต่างประเทศ' ? 'ต่างประเทศ' : 'ในประเทศ', name: customer.name }
     }),
     lmeConfig: config,
-    metalGroups: Array.from(new Set(salesPlanRefs.map((product) => product.metalGroup).filter(Boolean))).sort(),
+    metalGroups: Array.from(new Set(salesPlanRefs.map((product: ProductRef) => product.metalGroup).filter((value: string) => Boolean(value)))).sort(),
     pendingSaleTable,
     pendingSaleTotals,
-    planProductOptions: salesPlanRefs.map((product) => ({
+    planProductOptions: salesPlanRefs.map((product: ProductRef) => ({
       code: product.code,
       id: product.code,
       metalGroup: product.metalGroup,
@@ -479,7 +476,7 @@ export async function buildSalesPlan() {
   const month = new Date().toISOString().slice(0, 7)
   const planRows = await listSalesPlans(month)
   const lockedKgByProduct = new Map<string, number>()
-  planRows.forEach((plan) => {
+  planRows.forEach((plan: (typeof planRows)[number]) => {
     if (!['locked', 'po_created'].includes(String(plan.status))) return
     const key = String(plan.productId).trim().toLowerCase()
     lockedKgByProduct.set(key, (lockedKgByProduct.get(key) ?? 0) + Number(plan.totalKg ?? 0))
@@ -548,17 +545,17 @@ export async function buildSalesPlan() {
       writeActionsEnabled: true,
     },
     summary: {
-      avgPctLme: remainRows.length ? remainRows.reduce((sum, row) => sum + row.bestPlanPct, 0) / remainRows.length : 0,
-      lockedContainers: planRows.filter((row) => ['locked', 'po_created'].includes(String(row.status))).reduce((sum, row) => sum + Number(row.containers ?? 0), 0),
-      lockedCount: planRows.filter((row) => ['locked', 'po_created'].includes(String(row.status))).length,
-      pendingCount: planRows.filter((row) => String(row.status) === 'draft').length,
+      avgPctLme: remainRows.length ? remainRows.reduce((sum: number, row) => sum + row.bestPlanPct, 0) / remainRows.length : 0,
+      lockedContainers: planRows.filter((row: (typeof planRows)[number]) => ['locked', 'po_created'].includes(String(row.status))).reduce((sum: number, row: (typeof planRows)[number]) => sum + Number(row.containers ?? 0), 0),
+      lockedCount: planRows.filter((row: (typeof planRows)[number]) => ['locked', 'po_created'].includes(String(row.status))).length,
+      pendingCount: planRows.filter((row: (typeof planRows)[number]) => String(row.status) === 'draft').length,
       plansCount: planRows.length,
-      stockRemainingKg: remainRows.reduce((sum, row) => sum + row.remainingKg, 0),
-      stockRemainingValue: remainRows.reduce((sum, row) => sum + row.value, 0),
-      totalContainers: planRows.reduce((sum, row) => sum + Number(row.containers ?? 0), 0),
-      totalKg: planRows.reduce((sum, row) => sum + Number(row.totalKg ?? 0), 0),
+      stockRemainingKg: remainRows.reduce((sum: number, row) => sum + row.remainingKg, 0),
+      stockRemainingValue: remainRows.reduce((sum: number, row) => sum + row.value, 0),
+      totalContainers: planRows.reduce((sum: number, row: (typeof planRows)[number]) => sum + Number(row.containers ?? 0), 0),
+      totalKg: planRows.reduce((sum: number, row: (typeof planRows)[number]) => sum + Number(row.totalKg ?? 0), 0),
       totalLockedProfit: 0,
-      totalProjectedProfit: remainRows.reduce((sum, row) => sum + row.projectedProfit, 0),
+      totalProjectedProfit: remainRows.reduce((sum: number, row) => sum + row.projectedProfit, 0),
     },
   }
 }
@@ -589,7 +586,7 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
 
   const [salespersons, suppliers, currentBills, annualBills, branches] = await Promise.all([
     prisma.salespersons.findMany({ orderBy: [{ name: 'asc' }], where: { active: { not: false } } }),
-    prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], where: { active: { not: false } } }),
+    listActiveSuppliers(),
     prisma.purchase_bills.findMany({
       include: {
         purchase_bill_items: {
@@ -610,12 +607,19 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
       },
       where: annualWhere,
     }),
-    prisma.branches.findMany({ orderBy: [{ code: 'asc' }], where: { active: { not: false } } }),
+    listActiveBranches(),
   ])
 
-  const salesById = new Map(salespersons.map((sales) => [String(sales.id), sales]))
-  const salesCodeById = new Map(salespersons.map((sales) => [String(sales.id), requireBusinessCode(sales.code, `พนักงานขาย ${sales.id}`)]))
-  const supplierSalesById = new Map(suppliers.map((supplier) => [String(supplier.id), supplier.sales_id != null ? (salesCodeById.get(String(supplier.sales_id)) ?? '') : '']))
+  const salesById = new Map<string, (typeof salespersons)[number]>(
+    salespersons.map((sales: (typeof salespersons)[number]) => [String(sales.id), sales] as const),
+  )
+  const salesCodeById = new Map<string, string>(
+    salespersons.map((sales: (typeof salespersons)[number]) => [String(sales.id), requireBusinessCode(sales.code, `พนักงานขาย ${sales.id}`)] as const),
+  )
+  const salesIdByCode = new Map<string, string>(Array.from(salesCodeById.entries()).map(([salesId, code]) => [code, salesId] as const))
+  const supplierSalesById = new Map<string, string>(
+    suppliers.map((supplier: SupplierReferenceRow) => [String(supplier.id), supplier.salesId != null ? (salesCodeById.get(String(supplier.salesId)) ?? '') : ''] as const),
+  )
 
   const getSalesIdForBill = (bill: { sales_id: bigint | null; supplier_id: bigint | null }) => {
     return bill.sales_id != null
@@ -624,10 +628,10 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
   }
 
   const supplierCounts = new Map<string, Set<string>>()
-  suppliers.forEach((supplier) => {
-    const salesId = supplier.sales_id != null ? (salesCodeById.get(String(supplier.sales_id)) ?? '_UNASSIGNED_') : '_UNASSIGNED_'
+  suppliers.forEach((supplier: SupplierReferenceRow) => {
+    const salesId = supplier.salesId != null ? (salesCodeById.get(String(supplier.salesId)) ?? '_UNASSIGNED_') : '_UNASSIGNED_'
     const set = supplierCounts.get(salesId) ?? new Set<string>()
-    if (supplier.code) set.add(requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`))
+    if (supplier.code) set.add(requireBusinessCode(String(supplier.code), `ผู้ขาย ${supplier.id}`))
     supplierCounts.set(salesId, set)
   })
 
@@ -651,7 +655,7 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
 
   const ensure = (salesId: string) => {
     if (!summary.has(salesId)) {
-      const sales = salespersons.find((s) => requireBusinessCode(s.code, `พนักงานขาย ${s.id}`) === salesId)
+      const sales = salesId === '_UNASSIGNED_' ? undefined : salesById.get(salesIdByCode.get(salesId) ?? '')
       summary.set(salesId, {
         billCount: 0,
         id: salesId,
@@ -674,7 +678,7 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
   }
 
   // Pre-populate summary mapping for all active salespeople to guarantee they exist on dashboard
-  salespersons.forEach((sales) => {
+  salespersons.forEach((sales: (typeof salespersons)[number]) => {
     const code = requireBusinessCode(sales.code, `พนักงานขาย ${sales.id}`)
     ensure(code)
   })
@@ -687,7 +691,7 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
     const row = ensure(salesId)
     row.billCount += 1
     if (bill.suppliers?.code) {
-      row.supplierIds.add(requireBusinessCode(bill.suppliers.code, `ผู้ขายบิลซื้อ ${bill.id}`))
+      row.supplierIds.add(requireBusinessCode(String(bill.suppliers.code), `ผู้ขายบิลซื้อ ${bill.id}`))
     }
 
     const items = bill.purchase_bill_items || []
@@ -793,7 +797,7 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
       dateFrom: toDateOnly(periodFrom),
       dateTo: toDateOnly(periodTo),
       periods: ['today', 'week', 'month', 'quarter', 'year'],
-      branches: branches.map((b) => ({ id: b.id.toString(), name: b.name }))
+      branches: branches.map((branch: BranchReferenceRow) => ({ id: branch.id.toString(), name: branch.name }))
     },
     salesRows,
     sourceState: {
@@ -801,9 +805,9 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
       limitations: ['Period changes, CSV export, supplier assignment, bulk assignment, and persisted commission closing remain disabled until authorization and audit are designed.'],
       writeActionsEnabled: false,
     },
-    suppliers: suppliers.map((supplier) => {
-      const code = requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`)
-      return { code, id: code, name: supplier.name, phone: supplier.phone ?? '', salesId: supplier.sales_id != null ? (salesCodeById.get(String(supplier.sales_id)) ?? '') : '' }
+    suppliers: suppliers.map((supplier: SupplierReferenceRow) => {
+      const code = requireBusinessCode(String(supplier.code), `ผู้ขาย ${supplier.id}`)
+      return { code, id: code, name: supplier.name, phone: supplier.phone ?? '', salesId: supplier.salesId != null ? (salesCodeById.get(String(supplier.salesId)) ?? '') : '' }
     }),
     totals,
   }

@@ -18,6 +18,7 @@ import { hasLockedPaymentApproval } from '@/lib/server/payment-approval-pending'
 import { isSupplierEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { findActivePaymentMethodReferenceByName } from '@/lib/server/reference-master-cache'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 
 export const runtime = 'nodejs'
@@ -100,7 +101,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       findActiveBranchReferenceByCodeOrId(values.branchId),
       values.fundingAccountId ? findActiveAccountReferenceByCode(values.fundingAccountId) : Promise.resolve(null),
       values.paymentMethod
-        ? prisma.payment_methods.findFirst({ select: { id: true, name: true, type: true }, where: { active: true, name: values.paymentMethod } })
+        ? findActivePaymentMethodReferenceByName(values.paymentMethod)
         : Promise.resolve(null),
       values.productName
         ? prisma.products.findFirst({ select: { id: true, name: true }, where: { active: true, name: values.productName } })

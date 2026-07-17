@@ -2,6 +2,7 @@ import type { Prisma } from '../../../generated/prisma/client'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemQty } from '@/lib/server/purchase-bill-items'
+import { listActiveAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
 
 type JsonItem = Prisma.JsonObject
 
@@ -59,22 +60,22 @@ function calendarWeeks<T extends { date: string }>(days: T[], start: Date) {
   return weeks
 }
 
-function cashAccountText(account: { bank: string | null; bank_name: string | null; name: string; type: string }) {
-  return [account.type, account.name, account.bank_name, account.bank].filter(Boolean).join(' ').toLowerCase()
+function cashAccountText(account: { bank: string | null; bankName: string | null; name: string; type: string }) {
+  return [account.type, account.name, account.bankName, account.bank].filter(Boolean).join(' ').toLowerCase()
 }
 
-function isCashAccount(account: { bank: string | null; bank_name: string | null; name: string; type: string }) {
+function isCashAccount(account: { bank: string | null; bankName: string | null; name: string; type: string }) {
   const value = cashAccountText(account)
   return ['เงินสด', 'ธนาคาร', 'od', 'cash', 'bank'].some((term) => value.includes(term))
 }
 
+function cachedMoney(value: string | null) {
+  return value == null ? 0 : Number(value)
+}
+
 export async function buildCashFlowCalendar(monthValue?: string | null) {
   const { daysInMonth, month, next, start } = monthBounds(monthValue)
-  const accounts = await prisma.accounts.findMany({
-    orderBy: [{ active: 'desc' }, { name: 'asc' }, { account_no: 'asc' }],
-    select: { active: true, account_no: true, bank: true, bank_name: true, code: true, id: true, name: true, opening_balance: true, type: true },
-    where: { active: { not: false } },
-  })
+  const accounts = await listActiveAccounts()
   const cashAccounts = accounts.filter(isCashAccount)
   const scopedAccounts = cashAccounts.length ? cashAccounts : accounts
   const accountIds = scopedAccounts.map((account) => account.id)
@@ -92,12 +93,13 @@ export async function buildCashFlowCalendar(monthValue?: string | null) {
       where: { account_id: { in: accountIds }, date: { gte: start, lt: next } },
     }),
   ])
+  type OpeningRow = (typeof openingRows)[number]
 
-  const openingCash = scopedAccounts.reduce((sum, account) => sum + toNumber(account.opening_balance), 0)
-    + openingRows.reduce((sum, row) => sum + toNumber(row.amount_in) - toNumber(row.amount_out), 0)
+  const openingCash = scopedAccounts.reduce((sum: number, account: AccountReferenceRecord) => sum + cachedMoney(account.openingBalance), 0)
+    + openingRows.reduce((sum: number, row: OpeningRow) => sum + toNumber(row.amount_in) - toNumber(row.amount_out), 0)
 
   const entriesByDay = new Map<string, Array<{ account: string; date: string; description: string; id: string; in: number; out: number; refNo: string; type: string }>>()
-  monthRows.forEach((row) => {
+  monthRows.forEach((row: (typeof monthRows)[number]) => {
     const key = dayId(row.date)
     if (!entriesByDay.has(key)) entriesByDay.set(key, [])
     entriesByDay.get(key)!.push({
@@ -139,7 +141,7 @@ export async function buildCashFlowCalendar(monthValue?: string | null) {
 
   return {
     accounts: scopedAccounts.map((account) => ({
-      code: account.account_no,
+      code: account.accountNo,
       id: account.code,
       name: account.name,
       type: account.type,
@@ -193,6 +195,11 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
       where: { date: { gte: start, lt: next } },
     }),
   ])
+  type PurchaseBillRow = (typeof purchaseBills)[number]
+  type SalesBillRow = (typeof salesBills)[number]
+  type ExpenseRow = (typeof expenses)[number]
+  type ReceiptRow = (typeof receipts)[number]
+  type PaymentRow = (typeof payments)[number]
 
   const daily = new Map<string, {
     apIncrease: number
@@ -248,7 +255,7 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
     })
   })
 
-  purchaseBills.filter((bill) => activeStatus(bill.status)).forEach((bill) => {
+  purchaseBills.filter((bill: PurchaseBillRow) => activeStatus(bill.status)).forEach((bill: PurchaseBillRow) => {
     const row = daily.get(dayId(bill.date))
     if (!row) return
     const qty = purchaseBillItemQty(bill)
@@ -259,10 +266,10 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
     row.purchaseDocs.push({ amount, docNo: bill.doc_no, id: bill.doc_no, qty })
   })
 
-  salesBills.filter((bill) => activeStatus(bill.status)).forEach((bill) => {
+  salesBills.filter((bill: SalesBillRow) => activeStatus(bill.status)).forEach((bill: SalesBillRow) => {
     const row = daily.get(dayId(bill.date))
     if (!row) return
-    const qty = Array.isArray(bill.items) ? bill.items.filter(isJsonItem).reduce((sum, item) => sum + itemQty(item), 0) : 0
+    const qty = Array.isArray(bill.items) ? bill.items.filter(isJsonItem).reduce((sum: number, item: JsonItem) => sum + itemQty(item), 0) : 0
     const amount = toNumber(bill.total_amount)
     const cogs = toNumber(bill.cogs_amount) || toNumber(bill.total_cost)
     const gp = toNumber(bill.gross_profit) || amount - cogs
@@ -274,7 +281,7 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
     row.saleDocs.push({ amount, cogs, docNo: bill.doc_no, gp, id: bill.doc_no, qty })
   })
 
-  expenses.filter((expense) => activeStatus(expense.status)).forEach((expense) => {
+  expenses.filter((expense: ExpenseRow) => activeStatus(expense.status)).forEach((expense: ExpenseRow) => {
     const row = daily.get(dayId(expense.date))
     if (!row) return
     const amount = toNumber(expense.net_amount) || toNumber(expense.amount)
@@ -282,7 +289,7 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
     row.expenseDocs.push({ amount, category: expense.expense_categories?.name ?? '-', docNo: expense.doc_no, id: expense.doc_no, payee: expense.payee ?? '-' })
   })
 
-  receipts.filter((receipt) => activeStatus(receipt.status)).forEach((receipt) => {
+  receipts.filter((receipt: ReceiptRow) => activeStatus(receipt.status)).forEach((receipt: ReceiptRow) => {
     const row = daily.get(dayId(receipt.date))
     if (!row) return
     const amount = toNumber(receipt.net_amount) || toNumber(receipt.amount)
@@ -290,7 +297,7 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
     row.receiptDocs.push({ amount, docNo: receipt.doc_no, id: receipt.doc_no })
   })
 
-  payments.filter((payment) => activeStatus(payment.status)).forEach((payment) => {
+  payments.filter((payment: PaymentRow) => activeStatus(payment.status)).forEach((payment: PaymentRow) => {
     const row = daily.get(dayId(payment.date))
     if (!row) return
     const amount = toNumber(payment.net_amount) || toNumber(payment.amount)

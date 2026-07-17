@@ -1,48 +1,13 @@
-import { prisma } from '@/lib/server/prisma'
-
-type BranchReference = {
-  code: string
-  id: bigint
-  name: string
-}
+import { findActiveBranchReferenceByCodeOrId as findCachedActiveBranchReferenceByCodeOrId, listActiveBranchesByCodes, type BranchReferenceRecord as BranchReference } from '@/lib/server/reference-master-cache'
 
 export async function findActiveBranchReferenceByCodeOrId(
   value: string | bigint | null | undefined,
 ): Promise<BranchReference | null> {
-  const normalized = String(value ?? '').trim()
-  if (!normalized) return null
-
-  const branch = await prisma.branches.findFirst({
-    select: { code: true, id: true, name: true },
-    where: {
-      active: true,
-      OR: [
-        { code: normalized.toUpperCase() },
-        ...(normalized.match(/^\d+$/) ? [{ id: BigInt(normalized) }] : []),
-      ],
-    },
-  })
-
-  if (!branch) return null
-
-  return {
-    code: branch.code,
-    id: branch.id,
-    name: branch.name,
-  }
+  return findCachedActiveBranchReferenceByCodeOrId(value)
 }
 
 export async function findActiveBranchReferencesByCodes(codes: string[]) {
-  const normalizedCodes = [...new Set(codes.map((code) => code.trim().toUpperCase()).filter(Boolean))]
-  if (!normalizedCodes.length) return []
-
-  return prisma.branches.findMany({
-    select: { code: true, id: true, name: true },
-    where: {
-      active: true,
-      code: { in: normalizedCodes },
-    },
-  })
+  return listActiveBranchesByCodes(codes)
 }
 
 export function outwardBranchReference(

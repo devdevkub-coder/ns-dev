@@ -3,6 +3,7 @@ import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, type MasterDataRouteProps, updateMasterDataStatusSchema, toIso, toNumber } from '@/lib/server/master-data'
 import { outwardBranchReference } from '@/lib/server/branch-reference'
+import { invalidateAccountReferenceCache, listActivePaymentMethods } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -34,10 +35,7 @@ export async function PATCH(request: Request, { params }: MasterDataRouteProps) 
 
     const { id } = await params
     const values = updateMasterDataStatusSchema.parse(await request.json())
-    const paymentMethodRows = await prisma.payment_methods.findMany({
-      select: { name: true, type: true },
-      where: { active: true },
-    })
+    const paymentMethodRows = await listActivePaymentMethods()
     const paymentMethodTypes = new Map(paymentMethodRows.map((row) => [row.name, row.type === 'cash' ? 'cash' : 'bank'] as const))
     const resolved = await prisma.accounts.findFirst({
       select: { id: true },
@@ -56,6 +54,7 @@ export async function PATCH(request: Request, { params }: MasterDataRouteProps) 
         where: { account_id: resolved.id },
       }),
     ])
+    await invalidateAccountReferenceCache()
     const branch = outwardBranchReference(row.branches, row.branch_id)
     const outwardId = requireBusinessCode(row.code, `บัญชีเงิน ${row.id}`)
 

@@ -25,6 +25,14 @@ import { appendPurchaseBillStatusLog, createInitialPurchaseBillStatusLog, PURCHA
 import { syncPurchaseBillCostPoolEntries } from '@/lib/server/purchase-cost-pool'
 import { prisma } from '@/lib/server/prisma'
 import { refreshPurchaseBillSettlement, refreshSupplierAdvancePaymentAllocation } from '@/lib/server/purchase-bill-settlement'
+import {
+  listActiveBranches,
+  listActiveBranchesByCodes,
+  listActiveSupplierBranchOptions,
+  listActiveSupplierPaymentOptions,
+  listActiveSuppliers,
+  listActiveWarehouses,
+} from '@/lib/server/reference-master-cache'
 import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jobs'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import { appendPurchaseBillStockReversal } from '@/lib/server/stock-ledger-reversal'
@@ -133,11 +141,6 @@ type PurchaseBillWarehouseRefRow = {
   id: bigint
   name: string
   type: string | null
-}
-
-type SupplierBranchMappingRow = {
-  branch_code: string | null
-  supplier_id: bigint
 }
 
 type PoBuyRefRow = {
@@ -1638,40 +1641,34 @@ function supplierSnapshotFields(supplier: {
   }
 }
 
-async function supplierBranchCodeMap(supplierIds: bigint[]) {
-  const result = new Map<bigint, string[]>()
-  if (supplierIds.length === 0) return result
-  try {
-    const rows = await prisma.$queryRaw<SupplierBranchMappingRow[]>`
-      select sb.supplier_id, b.code as branch_code
-      from public.supplier_branches sb
-      join public.branches b on b.id = sb.branch_id
-      where sb.active is true
-        and sb.supplier_id in (${Prisma.join(supplierIds)})
-    `
-    for (const row of rows) {
-      if (!row.branch_code) continue
-      const current = result.get(row.supplier_id) ?? []
-      current.push(row.branch_code)
-      result.set(row.supplier_id, current)
-    }
-  } catch {
-    return result
-  }
-  return result
-}
-
 async function optionsPayload(allowedBranchCodes?: string[] | null) {
-  let allowedBranchIds: bigint[] | undefined = undefined
-  if (allowedBranchCodes) {
-    const matchingBranches = await prisma.branches.findMany({
-      where: { code: { in: allowedBranchCodes } },
-      select: { id: true },
-    })
-    allowedBranchIds = matchingBranches.map((b) => b.id)
-  }
+  const [branchRefs, supplierBranchOptions, supplierPaymentOptions, supplierRefs, warehouseRefs] = await Promise.all([
+    allowedBranchCodes ? listActiveBranchesByCodes(allowedBranchCodes) : listActiveBranches(),
+    listActiveSupplierBranchOptions(),
+    listActiveSupplierPaymentOptions(),
+    listActiveSuppliers(),
+    listActiveWarehouses(),
+  ])
+  const branches = branchRefs.map((branch) => ({
+    active: true,
+    code: branch.code,
+    id: branch.id,
+    name: branch.name,
+  }))
+  const allowedBranchIds = branches.map((branch) => branch.id)
+  const allowedBranchCodeSet = allowedBranchCodes ? new Set(allowedBranchCodes) : null
+  const warehouses = warehouseRefs
+    .filter((warehouse) => !allowedBranchCodeSet || (warehouse.branchCode != null && allowedBranchCodeSet.has(warehouse.branchCode)))
+    .map((warehouse): PurchaseBillWarehouseRefRow => ({
+      active: true,
+      branch_id: warehouse.branchCode ? (branches.find((branch) => branch.code === warehouse.branchCode)?.id ?? null) : null,
+      code: warehouse.code,
+      id: warehouse.id,
+      name: warehouse.name,
+      type: warehouse.type ?? null,
+    }))
 
-  const [advancePayments, branches, poBuys, products, salespersons, suppliers, warehouses, vatRatePercent, weightTickets] = await Promise.all([
+  const [advancePayments, poBuys, products, salespersons, vatRatePercent, weightTickets] = await Promise.all([
     prisma.supplier_advance_payments.findMany({
       orderBy: [{ advance_date: 'desc' }, { doc_no: 'desc' }],
       select: {
@@ -1702,15 +1699,8 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
       take: 500,
       where: {
         cancelled_at: null,
-        ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
+        ...(allowedBranchCodes ? { branch_id: { in: allowedBranchIds } } : {}),
       },
-    }),
-    prisma.branches.findMany({
-      where: {
-        ...(allowedBranchCodes ? { code: { in: allowedBranchCodes } } : {}),
-      },
-      orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
-      select: { active: true, code: true, id: true, name: true },
     }),
     prisma.po_buys.findMany({
       orderBy: [{ doc_no: 'desc' }],
@@ -1718,40 +1708,18 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
       take: 500,
       where: {
         status: { in: [PO_BUY_STATUS.OPEN, PO_BUY_STATUS.PARTIAL] },
-        ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
+        ...(allowedBranchCodes ? { branch_id: { in: allowedBranchIds } } : {}),
       },
     }),
     prisma.products.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, unit: true } }),
     prisma.salespersons.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
-    prisma.suppliers.findMany({
-      orderBy: [{ active: 'desc' }, { name: 'asc' }],
-      select: {
-        active: true,
-        code: true,
-        id: true,
-        name: true,
-        sales_id: true,
-        sales_rep: true,
-        supplier_bank_accounts: {
-          include: {
-            bank_names: { select: { name: true } },
-          },
-          where: { active: true },
-          orderBy: [{ is_primary: 'desc' }, { code: 'asc' }],
-        },
-      },
-    }),
-    prisma.warehouses.findMany({
-      orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
-      select: { active: true, branch_id: true, code: true, id: true, name: true, type: true },
-    }),
     activeVatRatePercent(new Date()),
     prisma.weight_tickets.findMany({
       select: weightTicketOptionSelect,
       orderBy: [{ document_date: 'desc' }, { doc_no: 'desc' }],
       take: 300,
       where: {
-        ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
+        ...(allowedBranchCodes ? { branch_id: { in: allowedBranchIds } } : {}),
         cancelled_at: null,
         doc_type: 'WTI',
         status: { in: ['received', 'partially_billed'] },
@@ -1763,8 +1731,9 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
   const productCodeById = new Map(products.map((product) => [product.id, requireBusinessCode(product.code, `สินค้า ${product.id}`)]))
   const productNameById = new Map(products.map((product) => [product.id, product.name]))
   const salespersonCodeById = new Map(salespersons.map((salesperson) => [salesperson.id, requireBusinessCode(salesperson.code, `พนักงานขาย ${salesperson.id}`)]))
-  const supplierCodeById = new Map(suppliers.map((supplier) => [supplier.id, requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`)]))
-  const supplierBranchCodesBySupplierId = await supplierBranchCodeMap(suppliers.map((supplier) => supplier.id))
+  const supplierBranchOptionById = new Map(supplierBranchOptions.map((supplier) => [supplier.id, supplier] as const))
+  const supplierRefById = new Map(supplierRefs.map((supplier) => [supplier.id, supplier] as const))
+  const supplierCodeById = new Map(supplierPaymentOptions.map((supplier) => [supplier.id, supplier.code] as const))
   const advanceApprovalRows = advancePayments.length > 0
     ? await prisma.payment_approvals.findMany({
       select: {
@@ -1867,24 +1836,28 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
       ...salesperson,
       id: requireBusinessCode(salesperson.code, `พนักงานขาย ${salesperson.id}`),
     })),
-    suppliers: suppliers.map((supplier) => ({
-      active: supplier.active,
-      bankAccounts: (supplier.supplier_bank_accounts ?? []).map((account) => ({
-        accountName: account.account_name ?? '',
-        accountNo: account.account_no ?? '',
-        bankName: account.bank_names?.name ?? '',
-        branchCode: account.branch_code ?? '',
-        code: account.code,
-        isPrimary: Boolean(account.is_primary),
-        paymentMethod: account.payment_method ?? 'เงินโอน',
-      })),
-      branchIds: supplierBranchCodesBySupplierId.get(supplier.id) ?? [],
-      code: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),
-      id: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),
-      name: supplier.name,
-      sales_id: supplier.sales_id != null ? (salespersonCodeById.get(supplier.sales_id) ?? null) : null,
-      sales_name: supplier.sales_rep,
-    })),
+    suppliers: supplierPaymentOptions.map((supplier) => {
+      const supplierBranchOption = supplierBranchOptionById.get(supplier.id)
+      const supplierRef = supplierRefById.get(supplier.id)
+      return {
+        active: supplier.active,
+        bankAccounts: supplier.bankAccounts.map((account) => ({
+          accountName: account.accountName ?? '',
+          accountNo: account.accountNo ?? '',
+          bankName: account.bankName ?? '',
+          branchCode: account.branchCode ?? '',
+          code: account.code,
+          isPrimary: supplier.bankAccount != null && account.accountNo === supplier.bankAccount,
+          paymentMethod: account.paymentMethod ?? 'เงินโอน',
+        })),
+        branchIds: supplierBranchOption?.branchIds ?? [],
+        code: supplier.code,
+        id: supplier.code,
+        name: supplier.name,
+        sales_id: supplierRef?.salesId != null ? (salespersonCodeById.get(supplierRef.salesId) ?? null) : null,
+        sales_name: supplierRef?.salesRep ?? null,
+      }
+    }),
     vatRatePercent,
     warehouses: (warehouses as PurchaseBillWarehouseRefRow[]).map((warehouse) => ({
       ...warehouse,

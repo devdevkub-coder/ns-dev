@@ -18,11 +18,12 @@ MOC สำหรับชุดเอกสาร `docs/migration/` ใช้ค
 
 ## Start Here
 
-- [[docs/migration/README|Migration README]] - ภาพรวมชุดเอกสาร, เป้าหมาย และลำดับอ่าน
-- [[docs/migration/00-doc-index|Documentation Index]] - canonical document map
-- [[docs/migration/00-current-work|Current Work]] - latest status and next batch
+- [[docs/migration/README|Migration README]] - entrypoint สั้นของชุด migration docs
+- [[docs/migration/00-doc-index|Documentation Index]] - router กลางว่าเรื่องไหนควรไปอ่านไฟล์ไหน
+- [[docs/migration/00-current-work|Current Work]] - latest active handoff only
 - [[REQUIREMENTS_TARGET_SYSTEM|Target Requirements]] - requirements กลางที่ใช้ยืนยัน scope
 - [[AGENTS]] - rules สำหรับ agent, database, environment และ git safety
+- [[README|Notes Index]] - entrypoint กลางของ business/domain/page-flow notes
 - [[2026-05-16-project-decisions|Project Decisions]] - decision log ล่าสุดของโปรเจกต์
 
 ## Document Set

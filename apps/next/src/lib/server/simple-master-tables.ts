@@ -1,6 +1,18 @@
 import { z } from 'zod'
 import { parseInternalBigIntId } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
+import {
+  invalidateBankNameReferenceCache,
+  invalidateMachineTypeReferenceCache,
+  invalidateOverseasRemittancePurposeReferenceCache,
+  invalidatePaymentMethodReferenceCache,
+  invalidateProductTypeReferenceCache,
+  invalidateProductUnitReferenceCache,
+  findActiveMachineTypeReferenceByName,
+  listMachineTypes,
+  listProductTypes,
+  listProductUnits,
+} from '@/lib/server/reference-master-cache'
 import { getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import {
@@ -83,7 +95,7 @@ function prepareSimpleMasterBody(kind: SimpleMasterKind, body: unknown) {
 
 async function nextBankNameId() {
   const rows = await prisma.bank_names.findMany({ select: { code: true } })
-  const maxNumber = rows.reduce((max, row) => {
+  const maxNumber = rows.reduce((max: number, row: { code: string }) => {
     const matched = row.code.match(/^BANK-(\d+)$/i)
     const value = matched ? Number(matched[1]) : 0
     return Number.isFinite(value) ? Math.max(max, value) : max
@@ -93,7 +105,7 @@ async function nextBankNameId() {
 
 async function nextDirectorPersonCode() {
   const rows = await prisma.director_employees.findMany({ select: { code: true } })
-  const maxNumber = rows.reduce((max, row) => {
+  const maxNumber = rows.reduce((max: number, row: { code: string }) => {
     const matched = row.code.match(/^P(\d+)$/i)
     const value = matched ? Number(matched[1]) : 0
     return Number.isFinite(value) ? Math.max(max, value) : max
@@ -261,8 +273,8 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
         code: null,
         name: record.name,
         active: record.active,
-        createdAt: toIso(record.created_at as Date | null),
-        updatedAt: toIso(record.updated_at as Date | null),
+        createdAt: (record.createdAt as string | null | undefined) ?? toIso(record.created_at as Date | null),
+        updatedAt: (record.updatedAt as string | null | undefined) ?? toIso(record.updated_at as Date | null),
       }
     },
     data: (values, _id, _code) => ({
@@ -365,8 +377,8 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
         name: record.name,
         symbol: record.symbol,
         active: record.active,
-        createdAt: toIso(record.created_at as Date | null),
-        updatedAt: toIso(record.updated_at as Date | null),
+        createdAt: (record.createdAt as string | null | undefined) ?? toIso(record.created_at as Date | null),
+        updatedAt: (record.updatedAt as string | null | undefined) ?? toIso(record.updated_at as Date | null),
       }
     },
     data: (values, _id, code) => ({
@@ -388,8 +400,8 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
         code: record.code,
         name: record.name,
         active: record.active,
-        createdAt: toIso(record.created_at as Date | null),
-        updatedAt: toIso(record.updated_at as Date | null),
+        createdAt: (record.createdAt as string | null | undefined) ?? toIso(record.created_at as Date | null),
+        updatedAt: (record.updatedAt as string | null | undefined) ?? toIso(record.updated_at as Date | null),
       }
     },
     data: (values, _id, code) => ({
@@ -520,6 +532,21 @@ async function nextId(config: SimpleMasterConfig) {
 export async function listSimpleMasterData(kind: SimpleMasterKind) {
   await requireSimpleMasterPermission(kind, 'view')
 
+  if (kind === 'machineTypes') {
+    const rows = await listMachineTypes()
+    return masterDataListJson(rows.map((row) => configs.machineTypes.map(row)))
+  }
+
+  if (kind === 'productUnits') {
+    const rows = await listProductUnits()
+    return masterDataListJson(rows.map((row) => configs.productUnits.map(row)))
+  }
+
+  if (kind === 'productTypes') {
+    const rows = await listProductTypes()
+    return masterDataListJson(rows.map((row) => configs.productTypes.map(row)))
+  }
+
   const config = configs[kind]
   const rows = await config.delegate().findMany({ orderBy: config.orderBy, include: config.include })
   return masterDataListJson(rows.map(config.map))
@@ -532,7 +559,7 @@ export async function saveSimpleMasterData(request: Request, kind: SimpleMasterK
   const rawValues = validateSimpleMasterValues(kind, parseMasterDataForm(prepareSimpleMasterBody(kind, await request.json())))
   const values = config.normalizeValues ? await config.normalizeValues(rawValues) : rawValues
   if (kind === 'machines' && values.type) {
-    const machineType = await prisma.production_machine_types.findFirst({ where: { active: true, name: values.type } })
+    const machineType = await findActiveMachineTypeReferenceByName(values.type)
     if (!machineType) throw new Error('ประเภทเครื่องจักรที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
   const lookupKey = config.lookupKey ?? 'id'
@@ -565,6 +592,24 @@ export async function saveSimpleMasterData(request: Request, kind: SimpleMasterK
         data,
         include: config.include,
       })
+  if (kind === 'bankNames') {
+    await invalidateBankNameReferenceCache()
+  }
+  if (kind === 'paymentMethods') {
+    await invalidatePaymentMethodReferenceCache()
+  }
+  if (kind === 'machineTypes') {
+    await invalidateMachineTypeReferenceCache()
+  }
+  if (kind === 'productUnits') {
+    await invalidateProductUnitReferenceCache()
+  }
+  if (kind === 'productTypes') {
+    await invalidateProductTypeReferenceCache()
+  }
+  if (kind === 'remittancePurposes') {
+    await invalidateOverseasRemittancePurposeReferenceCache()
+  }
   return masterDataJson(config.map(row))
 }
 
@@ -582,5 +627,23 @@ export async function patchSimpleMasterData(request: Request, kind: SimpleMaster
     data: { active: values.active },
     include: config.include,
   })
+  if (kind === 'bankNames') {
+    await invalidateBankNameReferenceCache()
+  }
+  if (kind === 'paymentMethods') {
+    await invalidatePaymentMethodReferenceCache()
+  }
+  if (kind === 'machineTypes') {
+    await invalidateMachineTypeReferenceCache()
+  }
+  if (kind === 'productUnits') {
+    await invalidateProductUnitReferenceCache()
+  }
+  if (kind === 'productTypes') {
+    await invalidateProductTypeReferenceCache()
+  }
+  if (kind === 'remittancePurposes') {
+    await invalidateOverseasRemittancePurposeReferenceCache()
+  }
   return masterDataJson(config.map(row))
 }

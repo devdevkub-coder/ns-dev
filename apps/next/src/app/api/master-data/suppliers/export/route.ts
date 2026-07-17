@@ -5,6 +5,7 @@ import { supplierPaymentMethodGroup, type SupplierPaymentMethodRecord } from '@/
 import { formatAccountNoDisplay, formatPhoneDisplay } from '@/lib/format'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSalespersonReferenceByCodeOrId, listSalespersonReferencesByIds } from '@/lib/server/salesperson-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
@@ -238,11 +239,7 @@ export async function GET(request: Request) {
         where,
       }),
       prisma.suppliers.count({ where }),
-      prisma.payment_methods.findMany({
-        orderBy: [{ name: 'asc' }],
-        select: { name: true, type: true },
-        where: { active: true },
-      }),
+      getActivePaymentMethods() as Promise<SupplierPaymentMethodRecord[]>,
     ])
     const visibleRows = salesId && !resolvedSalesperson
       ? []

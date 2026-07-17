@@ -6,6 +6,7 @@ import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { getAllowedBranchIds } from '@/lib/server/branch-scope'
+import { listActiveSuppliers, searchActiveSuppliers } from '@/lib/server/reference-master-cache'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { addToFinancialAgingBucketTotals, computeFinancialDueAging, emptyFinancialAgingBucketTotals, financialAgingBuckets } from '@/lib/server/document-aging'
 import { prisma } from '@/lib/server/prisma'
@@ -176,7 +177,14 @@ export async function GET(request: Request) {
     const asOfDate = new Date()
 
     const [suppliers, bills, payments, weightTickets, gradeAdjustments] = await Promise.all([
-      prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], where: { active: { not: false } } }),
+      (async () => {
+        const rows = supplier
+          ? await listActiveSuppliers()
+          : search
+          ? await searchActiveSuppliers(search)
+          : await listActiveSuppliers()
+        return supplier ? rows.filter((row) => row.id === supplier.id) : rows
+      })(),
       prisma.purchase_bills.findMany({
         include: {
           purchase_bill_items: {
@@ -620,7 +628,7 @@ export async function GET(request: Request) {
       byProduct,
       detail,
       filters: {
-        suppliers: visibleSuppliers.map((row) => ({ active: row.active, code: row.code, id: requireBusinessCode(row.code, `ผู้ขาย ${row.id}`), name: row.name })),
+        suppliers: visibleSuppliers.map((row) => ({ active: true, code: row.code, id: requireBusinessCode(row.code, `ผู้ขาย ${row.id}`), name: row.name })),
         productCategories: productFilters.productCategories,
         products: productFilters.products,
       },

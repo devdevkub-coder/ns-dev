@@ -5,6 +5,7 @@ import { accountMasterDataFormSchema } from '@/lib/master-data'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, masterDataListJson, normalizeCode, toIso, toNumber } from '@/lib/server/master-data'
 import { findActiveBranchReferenceByCodeOrId, outwardBranchReference } from '@/lib/server/branch-reference'
+import { findActiveBankNameReferenceByName, findActivePaymentMethodReferenceByName, invalidateAccountReferenceCache, listActivePaymentMethods } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -137,10 +138,7 @@ function mapAccount(
 }
 
 async function getPaymentMethodTypes() {
-  const rows = await prisma.payment_methods.findMany({
-    select: { name: true, type: true },
-    where: { active: true },
-  })
+  const rows = await listActivePaymentMethods()
   return new Map(rows.map((row) => [row.name, row.type === 'cash' ? 'cash' : 'bank'] as const))
 }
 
@@ -150,7 +148,7 @@ async function getNextAccountCode() {
     select: { code: true },
     where: { code: { startsWith: 'ACC' } },
   })
-  const lastNumber = rows.reduce((max, row) => {
+  const lastNumber = rows.reduce((max: number, row: { code: string | null }) => {
     const matched = String(row.code ?? '').match(/^ACC(\d+)$/i)
     const value = matched ? Number(matched[1]) : 0
     return Number.isFinite(value) ? Math.max(max, value) : max
@@ -161,13 +159,7 @@ async function getNextAccountCode() {
 async function assertActiveBankName(bankName: string | null) {
   if (!bankName) return
 
-  const bank = await prisma.bank_names.findFirst({
-    select: { id: true },
-    where: {
-      active: true,
-      name: bankName,
-    },
-  })
+  const bank = await findActiveBankNameReferenceByName(bankName)
 
   if (!bank) {
     throw new Error('ชื่อธนาคารที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
@@ -181,13 +173,7 @@ async function assertActivePaymentMethod(paymentMethodName: string | null) {
     throw new Error('เลือกประเภท')
   }
 
-  const row = await prisma.payment_methods.findFirst({
-    select: { id: true, type: true },
-    where: {
-      active: true,
-      name: paymentMethod,
-    },
-  })
+  const row = await findActivePaymentMethodReferenceByName(paymentMethod)
 
   if (!row) {
     throw new Error('ประเภทที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
@@ -213,11 +199,11 @@ export async function GET() {
         where: { account_id: { not: null } },
       }),
     ])
-    const statementTotalByAccountId = new Map(statementTotals.map((total) => [
+    const statementTotalByAccountId = new Map<string, number>(statementTotals.map((total) => [
       total.account_id?.toString() ?? '',
       ((toNumber(total._sum?.amount_in) ?? 0) - (toNumber(total._sum?.amount_out) ?? 0)),
     ] as const))
-    return masterDataListJson(rows.map((row) => mapAccount(row, paymentMethodTypes, statementTotalByAccountId)))
+    return masterDataListJson(rows.map((row: Awaited<ReturnType<typeof prisma.accounts.findMany>>[number]) => mapAccount(row, paymentMethodTypes, statementTotalByAccountId)))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return errorJson(caught, 'โหลดข้อมูลบัญชีเงินไม่ได้', 500)
@@ -295,10 +281,11 @@ export async function POST(request: Request) {
         where: { account_id: row.id },
       }),
     ])
-    const statementTotalByAccountId = new Map([[
+    const statementTotalByAccountId = new Map<string, number>([[
       row.id.toString(),
       ((toNumber(statementSum._sum?.amount_in) ?? 0) - (toNumber(statementSum._sum?.amount_out) ?? 0)),
     ]])
+    await invalidateAccountReferenceCache()
     return masterDataJson(mapAccount(row, paymentMethodTypes, statementTotalByAccountId))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

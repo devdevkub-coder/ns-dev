@@ -3,6 +3,7 @@ import { requireBusinessCode } from '@/lib/business-code'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranches } from '@/lib/server/reference-master-cache'
 
 const CANCELLED_STATUSES = ['cancelled', 'void', 'ยกเลิก']
 
@@ -72,11 +73,7 @@ function dueDate(year: number, month: number, day: number) {
 }
 
 async function listBranches() {
-  const branches = await prisma.branches.findMany({
-    orderBy: [{ code: 'asc' }, { name: 'asc' }],
-    select: { code: true, id: true, name: true },
-    where: { active: true },
-  })
+  const branches = await listActiveBranches()
   return branches.map((branch) => {
     const code = requireBusinessCode(branch.code, `สาขา ${branch.id}`)
     return { code, id: code, name: branch.name }

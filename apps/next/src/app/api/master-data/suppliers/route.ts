@@ -7,6 +7,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { invalidateSupplierReferenceCache, listActiveBankNames } from '@/lib/server/reference-master-cache'
 import { findActiveSalespersonReferenceByCodeOrId, listSalespersonReferencesByIds } from '@/lib/server/salesperson-reference'
 import { z } from 'zod'
 import type { Prisma } from '../../../../../generated/prisma/client'
@@ -303,7 +304,7 @@ export async function POST(request: Request) {
     }
     const [paymentMethods, bankNameRows] = await Promise.all([
       getActivePaymentMethods() as Promise<SupplierPaymentMethodRecord[]>,
-      prisma.bank_names.findMany({ select: { id: true, name: true }, where: { active: true } }),
+      listActiveBankNames(),
     ])
     const bankNamesByName = new Map(bankNameRows.map((row) => [row.name, row] as const))
     throwSupplierBankAccountValidationError(values, paymentMethods)
@@ -363,6 +364,7 @@ export async function POST(request: Request) {
         include: supplierInclude,
       })
     })
+    await invalidateSupplierReferenceCache()
 
     return NextResponse.json(mapPrismaSupplier(supplier as any, paymentMethods, {
       salesId: resolvedSalesperson?.code ?? null,

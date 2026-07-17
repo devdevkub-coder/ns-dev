@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { salesBillStockReturnSchema } from '@/lib/sales'
+import type { Prisma } from '../../../../../../../generated/prisma/client'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission, type AppAuthContext } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranchesByCodes } from '@/lib/server/reference-master-cache'
 import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { closeActiveWtoPendingOutForSalesBillReturn, WtoPendingOutError } from '@/lib/server/stock-holds'
 import { appendWtoPendingOutEventsForHoldKeys } from '@/lib/server/weight-ticket-pending-out-events'
@@ -16,10 +18,7 @@ async function salesBranchScope(context: AppAuthContext) {
   const allowedCodes = getBranchCodeIntersection(context)
   if (allowedCodes === null) return { ids: null }
   if (allowedCodes.length === 0) return { ids: [] as bigint[] }
-  const branches = await prisma.branches.findMany({
-    select: { id: true },
-    where: { code: { in: allowedCodes } },
-  })
+  const branches = await listActiveBranchesByCodes(allowedCodes)
   return { ids: branches.map((branch) => branch.id) }
 }
 
@@ -40,7 +39,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const returnDate = normalizeDate(returnedAt.toISOString().slice(0, 10))
     const branchScope = await salesBranchScope(auth)
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const bill = await tx.sales_bills.findFirst({
         select: {
           branch_id: true,

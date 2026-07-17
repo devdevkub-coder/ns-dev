@@ -4,6 +4,7 @@ import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-referen
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
+import { listActiveAccounts, listActiveBranches, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
 
 const CANCELLED_STATUSES = ['cancelled', 'void', 'ยกเลิก']
 const DAY_MS = 86_400_000
@@ -64,12 +65,12 @@ function sourceState(extra: string[] = []) {
   }
 }
 
+function cachedMoney(value: string | null) {
+  return value == null ? 0 : Number(value)
+}
+
 async function listBranches() {
-  const branches = await prisma.branches.findMany({
-    orderBy: [{ code: 'asc' }, { name: 'asc' }],
-    select: { code: true, id: true, name: true },
-    where: { active: true },
-  })
+  const branches = await listActiveBranches()
   return branches.map((branch) => {
     const code = requireBusinessCode(branch.code, `สาขา ${branch.id}`)
     return { code, id: code, name: branch.name }
@@ -77,17 +78,18 @@ async function listBranches() {
 }
 
 async function cashAsOf(asOf: Date, branchId?: bigint | null) {
-  const [accounts, bankRows] = await Promise.all([
-    prisma.accounts.findMany({ select: { id: true, opening_balance: true }, where: { active: true, ...branchWhere(branchId) } }),
-    prisma.bank_statement.findMany({
+  const accounts = (await listActiveAccounts()).filter((account: AccountReferenceRecord) => branchId == null || account.branchId === branchId)
+  const accountIds = accounts.map((account: AccountReferenceRecord) => account.id)
+  const bankRows = accountIds.length === 0
+    ? []
+    : await prisma.bank_statement.findMany({
       orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
       take: 30000,
-      where: { date: { lte: endOfDay(asOf) }, ...(branchId ? { accounts: { branch_id: branchId } } : {}) },
-    }),
-  ])
+      where: { account_id: { in: accountIds }, date: { lte: endOfDay(asOf) } },
+    })
   const balances = new Map<bigint, number>()
-  accounts.forEach((account) => balances.set(account.id, toNumber(account.opening_balance)))
-  bankRows.forEach((row) => {
+  accounts.forEach((account: AccountReferenceRecord) => balances.set(account.id, cachedMoney(account.openingBalance)))
+  bankRows.forEach((row: (typeof bankRows)[number]) => {
     if (!row.account_id) return
     const previous = balances.get(row.account_id) ?? 0
     balances.set(row.account_id, row.balance === null || row.balance === undefined ? previous + toNumber(row.amount_in) - toNumber(row.amount_out) : toNumber(row.balance))
@@ -125,7 +127,7 @@ async function stockSnapshot(asOf: Date, branchId?: bigint | null) {
   const byProduct = new Map<string, { ageDays: number; code: string; daysSinceSale: number; id: string; metalGroup: string; name: string; qty: number; status: string; stdPrice: number; value: number }>()
   let paidValue = 0
   let unpaidValue = 0
-  rows.forEach((row) => {
+  rows.forEach((row: (typeof rows)[number]) => {
     const productId = row.product_id == null ? 'UNKNOWN' : String(row.product_id)
     const current = byProduct.get(productId) ?? {
       ageDays: 0,
@@ -177,14 +179,19 @@ async function workingInputs(filter: PeriodDaysFilter) {
 
 export async function buildWorkingCapital(filter: PeriodDaysFilter) {
   const [sales, purchases, salesAsOf, purchasesAsOf, schedules, stock, cash, branches] = await workingInputs(filter)
+  type SalesBillRow = (typeof sales)[number]
+  type PurchaseBillRow = (typeof purchases)[number]
+  type SalesAsOfRow = (typeof salesAsOf)[number]
+  type PurchaseAsOfRow = (typeof purchasesAsOf)[number]
+  type ScheduleRow = (typeof schedules)[number]
   const prevTo = addDays(filter.asOf, -filter.periodDays)
   const prevFrom = addDays(prevTo, -filter.periodDays + 1)
-  const revenue = sales.reduce((sum, bill) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
-  const cogs = sales.reduce((sum, bill) => sum + (toNumber(bill.cogs_amount) || toNumber(bill.total_cost)), 0)
-  const purchaseTotal = purchases.reduce((sum, bill) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
-  const ar = salesAsOf.reduce((sum, bill) => sum + Math.max(0, toNumber(bill.receivable_balance) || toNumber(bill.total_amount) - toNumber(bill.received_amount)), 0)
-  const ap = purchasesAsOf.reduce((sum, bill) => sum + Math.max(0, toNumber(bill.payable_balance) || toNumber(bill.total_amount) - toNumber(bill.paid_amount)), 0)
-  const currentLoan = schedules.reduce((sum, row) => sum + Math.max(0, toNumber(row.principal_amount) - toNumber(row.paid_amount)), 0)
+  const revenue = sales.reduce((sum: number, bill: SalesBillRow) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
+  const cogs = sales.reduce((sum: number, bill: SalesBillRow) => sum + (toNumber(bill.cogs_amount) || toNumber(bill.total_cost)), 0)
+  const purchaseTotal = purchases.reduce((sum: number, bill: PurchaseBillRow) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
+  const ar = salesAsOf.reduce((sum: number, bill: SalesAsOfRow) => sum + Math.max(0, toNumber(bill.receivable_balance) || toNumber(bill.total_amount) - toNumber(bill.received_amount)), 0)
+  const ap = purchasesAsOf.reduce((sum: number, bill: PurchaseAsOfRow) => sum + Math.max(0, toNumber(bill.payable_balance) || toNumber(bill.total_amount) - toNumber(bill.paid_amount)), 0)
+  const currentLoan = schedules.reduce((sum: number, row: ScheduleRow) => sum + Math.max(0, toNumber(row.principal_amount) - toNumber(row.paid_amount)), 0)
   const dailyRevenue = revenue / Math.max(1, filter.periodDays)
   const dailyCogs = cogs / Math.max(1, filter.periodDays)
   const dailyPurchases = purchaseTotal / Math.max(1, filter.periodDays)
@@ -198,11 +205,11 @@ export async function buildWorkingCapital(filter: PeriodDaysFilter) {
   const quickRatio = currentLiab > 0 ? (cash + ar) / currentLiab : 0
   const stockTurnover = stock.totalValue > 0 ? cogs / stock.totalValue : 0
   const annualizedTurnover = stockTurnover * (365 / Math.max(1, filter.periodDays))
-  const previousSales = salesAsOf.filter((bill) => bill.date >= prevFrom && bill.date <= endOfDay(prevTo))
-  const previousPurchases = purchasesAsOf.filter((bill) => bill.date >= prevFrom && bill.date <= endOfDay(prevTo))
-  const previousRevenue = previousSales.reduce((sum, bill) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
-  const previousCogs = previousSales.reduce((sum, bill) => sum + (toNumber(bill.cogs_amount) || toNumber(bill.total_cost)), 0)
-  const previousPurchaseTotal = previousPurchases.reduce((sum, bill) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
+  const previousSales = salesAsOf.filter((bill: SalesAsOfRow) => bill.date >= prevFrom && bill.date <= endOfDay(prevTo))
+  const previousPurchases = purchasesAsOf.filter((bill: PurchaseAsOfRow) => bill.date >= prevFrom && bill.date <= endOfDay(prevTo))
+  const previousRevenue = previousSales.reduce((sum: number, bill: SalesAsOfRow) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
+  const previousCogs = previousSales.reduce((sum: number, bill: SalesAsOfRow) => sum + (toNumber(bill.cogs_amount) || toNumber(bill.total_cost)), 0)
+  const previousPurchaseTotal = previousPurchases.reduce((sum: number, bill: PurchaseAsOfRow) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
   const previousDailyRevenue = previousRevenue / Math.max(1, filter.periodDays)
   const previousDailyCogs = previousCogs / Math.max(1, filter.periodDays)
   const previousDailyPurchases = previousPurchaseTotal / Math.max(1, filter.periodDays)
@@ -248,7 +255,7 @@ export async function buildStockFinance(filter: PeriodDaysFilter) {
     { count: 0, key: '61-90', value: 0 },
     { count: 0, key: '90+', value: 0 },
   ]
-  stock.products.forEach((row) => {
+  stock.products.forEach((row: (typeof stock.products)[number]) => {
     const bucket = row.ageDays <= 30 ? aging[0] : row.ageDays <= 60 ? aging[1] : row.ageDays <= 90 ? aging[2] : aging[3]
     bucket.count += 1
     bucket.value += row.value
@@ -269,7 +276,7 @@ export async function buildStockFinance(filter: PeriodDaysFilter) {
     sourceState: sourceState(['Paid/unpaid stock is approximated from current positive stock value until bill-level settlement linkage is finalized.']),
     summary: {
       itemCount: productRows.length,
-      marginPotential: productRows.reduce((sum, row) => sum + row.marginPotential, 0),
+      marginPotential: productRows.reduce((sum: number, row: (typeof productRows)[number]) => sum + row.marginPotential, 0),
       paidValue: stock.paidValue,
       totalQty: stock.totalQty,
       totalValue,
@@ -299,7 +306,16 @@ async function profitInputs(filter: ProfitLeakFilter) {
 
 export async function buildProfitLeak(filter: ProfitLeakFilter) {
   const [sales, purchases, expenses, loanPayments, stockLossRows, productionLossRows, fxRows, payments, receipts, branches] = await profitInputs(filter)
-  const negMarginItems = sales.flatMap((bill) => jsonRows(bill.items).map((item, index) => {
+  type ProfitSalesBillRow = (typeof sales)[number]
+  type ProfitPurchaseBillRow = (typeof purchases)[number]
+  type ExpenseRow = (typeof expenses)[number]
+  type LoanPaymentRow = (typeof loanPayments)[number]
+  type StockLossRow = (typeof stockLossRows)[number]
+  type ProductionLossRow = (typeof productionLossRows)[number]
+  type FxRow = (typeof fxRows)[number]
+  type PaymentRow = (typeof payments)[number]
+  type ReceiptRow = (typeof receipts)[number]
+  const negMarginItems = sales.flatMap((bill: ProfitSalesBillRow) => jsonRows(bill.items).map((item, index) => {
     const qty = jsonNumber(item.netWeight, item.weight, item.qty)
     const price = jsonNumber(item.price, item.unitPrice, item.unit_price)
     const cost = jsonNumber(item.unitCost, item.unit_cost, item.cost)
@@ -315,16 +331,18 @@ export async function buildProfitLeak(filter: ProfitLeakFilter) {
       qty,
       unitCost: cost,
     }
-  })).filter((row) => row.loss > 0)
-  const lowMarginBills = sales.map((bill) => {
+  })).filter((row: { loss: number }) => row.loss > 0)
+  const lowMarginBills = sales.map((bill: ProfitSalesBillRow) => {
     const revenue = toNumber(bill.total_amount)
     const cost = toNumber(bill.cogs_amount) || toNumber(bill.total_cost)
     const gp = revenue - cost
     const gpPct = revenue > 0 ? gp / revenue * 100 : 0
     return { customer: bill.customers?.name ?? '-', docNo: bill.doc_no, gpPct, id: bill.doc_no, revenue, shortfall: Math.max(0, filter.targetMargin / 100 * revenue - gp) }
-  }).filter((row) => row.revenue > 0 && row.gpPct < filter.targetMargin).sort((left, right) => right.shortfall - left.shortfall).slice(0, 15)
+  }).filter((row: { gpPct: number; revenue: number }) => row.revenue > 0 && row.gpPct < filter.targetMargin)
+    .sort((left: { shortfall: number }, right: { shortfall: number }) => right.shortfall - left.shortfall)
+    .slice(0, 15)
   const expenseByCategory = new Map<string, { amount: number; date: string; docNo: string; id: string; payee: string }[]>()
-  expenses.forEach((expense) => {
+  expenses.forEach((expense: ExpenseRow) => {
     const key = expense.expense_categories?.name ?? 'OTHER'
     const rows = expenseByCategory.get(key) ?? []
     rows.push({ amount: toNumber(expense.net_amount) || toNumber(expense.amount), date: dateOnly(expense.date), docNo: expense.doc_no, id: expense.doc_no, payee: expense.payee ?? '-' })
@@ -332,18 +350,18 @@ export async function buildProfitLeak(filter: ProfitLeakFilter) {
   })
   const outliers = Array.from(expenseByCategory.entries()).flatMap(([category, rows]) => {
     if (rows.length < 3) return []
-    const mean = rows.reduce((sum, row) => sum + row.amount, 0) / rows.length
-    const std = Math.sqrt(rows.reduce((sum, row) => sum + (row.amount - mean) ** 2, 0) / rows.length)
+    const mean = rows.reduce((sum: number, row: (typeof rows)[number]) => sum + row.amount, 0) / rows.length
+    const std = Math.sqrt(rows.reduce((sum: number, row: (typeof rows)[number]) => sum + (row.amount - mean) ** 2, 0) / rows.length)
     const threshold = mean + 1.5 * std
-    return rows.filter((row) => row.amount > threshold).map((row) => ({ ...row, category, mean, over: row.amount - mean, threshold }))
+    return rows.filter((row: (typeof rows)[number]) => row.amount > threshold).map((row: (typeof rows)[number]) => ({ ...row, category, mean, over: row.amount - mean, threshold }))
   }).sort((left, right) => right.over - left.over)
-  const interestExpense = loanPayments.reduce((sum, row) => sum + toNumber(row.interest_amount), 0)
-  const stockLoss = stockLossRows.reduce((sum, row) => sum + toNumber(row.value_out), 0)
-  const productionLoss = productionLossRows.reduce((sum, row) => sum + toNumber(row.total_cost), 0)
-  const fxLoss = fxRows.reduce((sum, row) => sum + Math.min(0, toNumber(row.gain_loss)), 0)
-  const bankFee = payments.reduce((sum, row) => sum + toNumber(row.bank_fee) + toNumber(row.fee), 0) + receipts.reduce((sum, row) => sum + toNumber(row.bank_fee), 0)
+  const interestExpense = loanPayments.reduce((sum: number, row: LoanPaymentRow) => sum + toNumber(row.interest_amount), 0)
+  const stockLoss = stockLossRows.reduce((sum: number, row: StockLossRow) => sum + toNumber(row.value_out), 0)
+  const productionLoss = productionLossRows.reduce((sum: number, row: ProductionLossRow) => sum + toNumber(row.total_cost), 0)
+  const fxLoss = fxRows.reduce((sum: number, row: FxRow) => sum + Math.min(0, toNumber(row.gain_loss)), 0)
+  const bankFee = payments.reduce((sum: number, row: PaymentRow) => sum + toNumber(row.bank_fee) + toNumber(row.fee), 0) + receipts.reduce((sum: number, row: ReceiptRow) => sum + toNumber(row.bank_fee), 0)
   const customerMargins = new Map<string, { cost: number; name: string; revenue: number }>()
-  sales.forEach((bill) => {
+  sales.forEach((bill: ProfitSalesBillRow) => {
     const key = bill.customers?.code ? requireBusinessCode(bill.customers.code, `ลูกค้าบิลขาย ${bill.id}`) : 'UNKNOWN'
     const current = customerMargins.get(key) ?? { cost: 0, name: bill.customers?.name ?? '-', revenue: 0 }
     current.revenue += toNumber(bill.total_amount)
@@ -353,7 +371,7 @@ export async function buildProfitLeak(filter: ProfitLeakFilter) {
   const lowCustomers = Array.from(customerMargins.entries()).map(([id, row]) => ({ id, gpPct: row.revenue > 0 ? (row.revenue - row.cost) / row.revenue * 100 : 0, name: row.name, revenue: row.revenue }))
     .filter((row) => row.revenue > 0 && row.gpPct < filter.targetMargin).sort((left, right) => left.gpPct - right.gpPct).slice(0, 10)
   const supplierCost = new Map<string, { productName: string; qty: number; supplierName: string; value: number }>()
-  purchases.forEach((bill) => purchaseBillItemRows(bill).forEach((item) => {
+  purchases.forEach((bill: ProfitPurchaseBillRow) => purchaseBillItemRows(bill).forEach((item) => {
     const productId = jsonString(item.productCode, item.code, item.productName, item.name) || 'UNKNOWN'
     const supplierCode = bill.suppliers?.code ? requireBusinessCode(bill.suppliers.code, `ผู้ขายบิลซื้อ ${bill.id}`) : 'UNKNOWN'
     const key = `${supplierCode}|${productId}`
@@ -376,7 +394,7 @@ export async function buildProfitLeak(filter: ProfitLeakFilter) {
     const allAvg = avg && avg.qty > 0 ? avg.value / avg.qty : 0
     return { id: key, premium: myAvg - allAvg, premiumPct: allAvg > 0 ? (myAvg - allAvg) / allAvg * 100 : 0, productName: row.productName, qty: row.qty, supplierName: row.supplierName }
   }).filter((row) => row.premium > 0 && row.qty > 0).sort((left, right) => right.premium * right.qty - left.premium * left.qty).slice(0, 10)
-  const negTotal = negMarginItems.reduce((sum, row) => sum + row.loss, 0)
+  const negTotal = negMarginItems.reduce((sum: number, row: (typeof negMarginItems)[number]) => sum + row.loss, 0)
   const totalLeak = negTotal + interestExpense + stockLoss + productionLoss + Math.abs(fxLoss) + bankFee
   return {
     branches,

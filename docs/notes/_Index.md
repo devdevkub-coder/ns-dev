@@ -20,6 +20,7 @@ created: 2026-05-16
 - [[REQUIREMENTS_TARGET_SYSTEM|Target Requirements]] - requirements กลาง, scope, role, module, tech stack และ phasing
 - [[docs/migration/00-doc-index|Documentation Index]] - สารบัญกลางและ canonical source ของเอกสาร
 - [[docs/migration/00-current-work|Current Work]] - สถานะล่าสุดและ next task
+- [[README|Notes Index]] - entrypoint กลางของ business/domain/page-flow notes
 - [[AGENTS]] - agent rules, safety rules, environment rules และ migration priority
 - [[2026-05-16-project-decisions|Project Decisions]] - decision log ของโปรเจกต์
 - [[Current Module Status]] - สถานะล่าสุดของ Vue modules ที่ย้ายเข้า `old-apps/vue/`
@@ -29,7 +30,7 @@ created: 2026-05-16
 - [[Master Data Current Code Baseline]] - decision ล่าสุดว่า Master Data ใน current Next code ถูกต้องแล้วและเป็น accepted baseline สำหรับเอกสารรายหน้า ไม่ต้องรอ legacy proof
 - [[P1 Finance Production Current Code Baseline]] - decision ล่าสุดว่า Finance/Production/Daily read-model กลุ่ม P1 ใน current Next code/API ถูกต้องเป็น accepted baseline แล้ว เหลือเฉพาะ source/cutoff/status/write-side-effect reconciliation เมื่อปรับ behavior
 - [[P2 Report Current Code Baseline]] - decision ล่าสุดว่า report/read-model กลุ่ม P2 ใน current Next code/API ถูกต้องเป็น accepted baseline แล้ว เหลือเฉพาะ formula/source/cutoff reconciliation เมื่อมีการปรับ report
-- [[Migration Documents]] - MOC สำหรับเอกสาร migration ทั้งชุด
+- [[Migration Documents]] - MOC เดิมของเอกสาร migration; ใช้เป็น reference เพิ่มเติม ไม่ใช่ start-here หลัก
 - [[Purchase Flow]] - flow ซื้อแบบละเอียด: Stock/Trading, PO/Spot, ใบรับของ/WTI, ใบส่งของ/WTO, กรอกจำนวน/น้ำหนัก, ปิดรับไม่ครบ, เลขเอกสาร, สถานะ, ผลกระทบต่อ PO/PB/Stock/Cost Pool, และ `PB/payable handoff` ไป Payment Flow
 - [[WTI-WTO Flow]] - canonical flow ของหน้า `ชั่งสินค้า / รับ-ส่งของ` และ `รายการใบรับ-ส่งของ`: create/edit/list/detail/timeline, รูปสินค้า/รูปรถ, print/share, product thumbnail preload, และจุดตัด `WTI -> PB` / `WTO -> SB`
 - [[Stock Ledger and Stock Balance]] - canonical note แยกความหมาย `stock_ledger` (movement fact) ออกจาก `stock คงเหลือ` (derived balance), รวม ownership ของ movement, key ที่ใช้ aggregate, และผลกระทบกับ `WTI/WTO/PB/SB`

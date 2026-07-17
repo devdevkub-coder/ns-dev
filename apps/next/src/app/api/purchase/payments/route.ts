@@ -31,12 +31,162 @@ import { appendPurchaseBillStatusLog, PURCHASE_BILL_STATUS_ACTION } from '@/lib/
 import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jobs'
 import { prisma } from '@/lib/server/prisma'
 import { refreshPurchaseBillSettlement } from '@/lib/server/purchase-bill-settlement'
+import { listActiveBranchesByCodes, listActiveSupplierPaymentOptions, listSupplierReferencesByIds } from '@/lib/server/reference-master-cache'
 import { activeWhtRatePercent } from '@/lib/server/tax-settings'
 
 export const runtime = 'nodejs'
 
 type DecimalLike = number | { toNumber: () => number } | null | undefined
 type PayableSourceType = 'advance_payment' | 'expense' | 'petty_advance_return' | 'purchase_bill'
+type PaymentApprovalRecord = {
+  approved_amount: DecimalLike
+  approved_at?: Date | null
+  created_at?: Date | null
+  destination_account_no_snapshot: string | null
+  destination_bank_name_snapshot: string | null
+  destination_payment_method_snapshot: string | null
+  doc_no: string | null
+  id: bigint
+  paid_at?: Date | null
+  party_id: string | null
+  party_name_snapshot: string | null
+  payment_id?: bigint | null
+  source_doc_no_snapshot: string | null
+  source_id: string
+  source_type: string
+  status?: string | null
+  updated_at?: Date | null
+}
+
+type PaymentAccountSplitRecord = {
+  accounts: { code: string | null; id: bigint; name: string | null } | null
+  amount: DecimalLike
+  id: bigint
+}
+
+type PaymentListRecord = {
+  accounts: { code: string | null; id: bigint; name: string | null } | null
+  amount: DecimalLike
+  bank_fee: DecimalLike
+  created_at: Date
+  date: Date
+  discount: DecimalLike
+  doc_no: string
+  fee: DecimalLike
+  id: bigint
+  method: string | null
+  net_amount: DecimalLike
+  notes: string | null
+  payment_account_splits: PaymentAccountSplitRecord[]
+  payment_approval_id: bigint | null
+  payment_approvals: { party_name_snapshot: string | null; source_doc_no_snapshot: string | null; source_type: string | null } | null
+  status: string | null
+  supplier_id: bigint | null
+  suppliers: { name: string | null } | null
+  voucher_id: string | null
+  withholding_tax: DecimalLike
+}
+
+type PurchaseBillPaymentSourceRecord = {
+  date: Date
+  doc_no: string
+  id: bigint
+  paid_amount: DecimalLike
+  payable_balance: DecimalLike
+  status: string | null
+  supplier_id: bigint | null
+  total_amount: DecimalLike
+}
+
+type SupplierAdvancePaymentSourceRecord = {
+  advance_date: Date
+  amount: DecimalLike
+  doc_no: string
+  id: bigint
+  status: string | null
+  supplier_id: bigint | null
+}
+
+type ExpensePaymentSourceRecord = {
+  amount: DecimalLike
+  date: Date
+  doc_no: string
+  id: bigint
+  net_amount: DecimalLike
+  payee: string | null
+  payee_account_no: string | null
+  payee_bank: string | null
+  status: string | null
+  supplier_id: bigint | null
+  vat: DecimalLike
+  wht: DecimalLike
+}
+
+type PettyAdvanceReturnSourceRecord = {
+  amount: DecimalLike
+  date: Date
+  doc_no: string
+  id: bigint
+  petty_advances: {
+    doc_no: string | null
+    recipient_name: string | null
+  }
+  status: string | null
+}
+
+type PostPurchaseBillSourceRecord = {
+  branch_id: bigint | null
+  doc_no: string
+  id: bigint
+  license_plate: string | null
+  sales_id: bigint | null
+  status: string | null
+  supplier_id: bigint | null
+  suppliers: { address: string | null; code: string | null; name: string | null; phone: string | null; tax_id: string | null } | null
+}
+
+type PostAdvanceSourceRecord = {
+  branch_id: bigint | null
+  doc_no: string
+  id: bigint
+  status: string | null
+  supplier_id: bigint | null
+  suppliers: { address: string | null; code: string | null; name: string | null; phone: string | null; tax_id: string | null } | null
+}
+
+type PostExpenseSourceRecord = {
+  branch_id: bigint | null
+  doc_no: string
+  id: bigint
+  payee: string | null
+  status: string | null
+  supplier_id: bigint | null
+  suppliers: { code: string | null; name: string | null } | null
+}
+
+type PostPettyReturnSourceRecord = {
+  accounts: { branch_id: bigint | null } | null
+  doc_no: string
+  id: bigint
+  petty_advances: { doc_no: string | null; recipient_name: string | null; recipient_person_code: string | null }
+  status: string | null
+}
+
+type ExistingApprovalPaymentRecord = {
+  amount: DecimalLike
+  bill_id: bigint | null
+  discount: DecimalLike
+  id: bigint
+  payment_approval_id: bigint | null
+  status: string | null
+  withholding_tax: DecimalLike
+}
+
+type BankStatementWithAccountRecord = {
+  accounts: { id: bigint; name: string | null } | null
+  doc_no: string
+  id: bigint
+}
 
 const PAYABLE_SOURCE_TYPES: PayableSourceType[] = ['purchase_bill', 'advance_payment', 'expense', 'petty_advance_return']
 
@@ -68,7 +218,7 @@ async function nextSupplierPaymentDocNo(tx: Prisma.TransactionClient, date: stri
     where doc_no like ${`PMT${compactDate}-%`}
        or doc_no like ${`PMT__${compactDate}-%`}
   `
-  const lastNumber = rows.reduce((max, row) => {
+  const lastNumber = rows.reduce((max: number, row: { doc_no: string }) => {
     const running = Number(row.doc_no.split('-').at(-1))
     return Number.isFinite(running) && running > max ? running : max
   }, 0)
@@ -97,21 +247,7 @@ export async function GET() {
   try {
     const prismaExt = prisma as typeof prisma & {
       payment_approvals: {
-        findMany: (args: unknown) => Promise<Array<{
-          approved_amount: DecimalLike
-          approved_at: Date | null
-          doc_no: string | null
-          destination_account_no_snapshot: string | null
-          destination_bank_name_snapshot: string | null
-          destination_payment_method_snapshot: string | null
-          id: bigint
-          party_id: string | null
-          party_name_snapshot: string | null
-          source_doc_no_snapshot: string | null
-          source_id: string
-          source_type: string
-          status: string | null
-        }>>
+        findMany: (args: unknown) => Promise<PaymentApprovalRecord[]>
       }
     }
     const context = await getCurrentAuthContext()
@@ -120,32 +256,12 @@ export async function GET() {
     const allowedBranchCodes = getBranchCodeIntersection(context)
     let allowedBranchIds: bigint[] | undefined = undefined
     if (allowedBranchCodes) {
-      const matchingBranches = await prisma.branches.findMany({
-        where: { code: { in: allowedBranchCodes } },
-        select: { id: true }
-      })
-      allowedBranchIds = matchingBranches.map((b) => b.id)
+      const matchingBranches = await listActiveBranchesByCodes(allowedBranchCodes)
+      allowedBranchIds = matchingBranches.map((b: { id: bigint }) => b.id)
     }
 
-    const [accounts, suppliers, approvals, payments, paymentMethods, whtRatePercent] = await Promise.all([
+    const [accounts, approvals, payments, paymentMethods, whtRatePercent] = await Promise.all([
       listDailyAccounts(),
-      prisma.suppliers.findMany({
-        orderBy: [{ name: 'asc' }],
-        select: {
-          active: true,
-          code: true,
-          id: true,
-          name: true,
-          supplier_bank_accounts: {
-            include: {
-              bank_names: {
-                select: { code: true, name: true },
-              },
-            },
-            orderBy: [{ is_primary: 'desc' }, { created_at: 'asc' }],
-          },
-        },
-      }),
       prismaExt.payment_approvals.findMany({
         orderBy: [{ approved_at: 'desc' }, { created_at: 'desc' }],
         select: {
@@ -183,21 +299,23 @@ export async function GET() {
       }),
       getActivePaymentMethods(),
       activeWhtRatePercent(new Date()),
-    ])
-    const supplierCodeById = new Map(suppliers.map((supplier) => [supplier.id, requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`)]))
-    const supplierCodeSet = new Set(suppliers.map((supplier) => requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`)))
-    const resolveSupplierCode = (partyId: string | null, sourceSupplierId: bigint | null | undefined) => {
+    ]) as [Awaited<ReturnType<typeof listDailyAccounts>>, PaymentApprovalRecord[], PaymentListRecord[], Awaited<ReturnType<typeof getActivePaymentMethods>>, number]
+    const resolveSupplierCode = (
+      partyId: string | null,
+      sourceSupplierId: bigint | null | undefined,
+      supplierCodeById: Map<bigint, string>,
+    ) => {
       if (partyId) {
         const internalId = parseInternalBigIntId(partyId)
         if (internalId != null) return supplierCodeById.get(internalId) ?? ''
-        return supplierCodeSet.has(partyId) ? partyId : ''
+        return partyId.trim().toUpperCase()
       }
       return sourceSupplierId != null ? (supplierCodeById.get(sourceSupplierId) ?? '') : ''
     }
 
-    const approvalInternalIds = new Set(approvals.map((approval) => stringifyBusinessValue(approval.id)))
+    const approvalInternalIds = new Set(approvals.map((approval: PaymentApprovalRecord) => stringifyBusinessValue(approval.id)))
     const approvalDocNoByInternalId = new Map(
-      approvals.map((approval) => [stringifyBusinessValue(approval.id), requireDocumentNo(approval.doc_no, `อนุมัติจ่าย ${approval.id}`)] as const),
+      approvals.map((approval: PaymentApprovalRecord) => [stringifyBusinessValue(approval.id), requireDocumentNo(approval.doc_no, `อนุมัติจ่าย ${approval.id}`)] as const),
     )
     const paymentTotalsByApprovalId = new Map<string, number>()
     for (const payment of payments) {
@@ -208,21 +326,21 @@ export async function GET() {
     }
 
     const purchaseBillIds = [...new Set(approvals
-      .filter((approval) => approval.source_type === 'purchase_bill')
-      .map((approval) => parseInternalBigIntId(approval.source_id))
-      .filter((value): value is bigint => value != null))]
+      .filter((approval: PaymentApprovalRecord) => approval.source_type === 'purchase_bill')
+      .map((approval: PaymentApprovalRecord) => parseInternalBigIntId(approval.source_id))
+      .filter((value: bigint | null): value is bigint => value != null))]
     const advanceIds = [...new Set(approvals
-      .filter((approval) => approval.source_type === 'advance_payment')
-      .map((approval) => parseInternalBigIntId(approval.source_id))
-      .filter((value): value is bigint => value != null))]
+      .filter((approval: PaymentApprovalRecord) => approval.source_type === 'advance_payment')
+      .map((approval: PaymentApprovalRecord) => parseInternalBigIntId(approval.source_id))
+      .filter((value: bigint | null): value is bigint => value != null))]
     const expenseIds = [...new Set(approvals
-      .filter((approval) => approval.source_type === 'expense')
-      .map((approval) => parseInternalBigIntId(approval.source_id))
-      .filter((value): value is bigint => value != null))]
+      .filter((approval: PaymentApprovalRecord) => approval.source_type === 'expense')
+      .map((approval: PaymentApprovalRecord) => parseInternalBigIntId(approval.source_id))
+      .filter((value: bigint | null): value is bigint => value != null))]
     const pettyReturnIds = [...new Set(approvals
-      .filter((approval) => approval.source_type === 'petty_advance_return')
-      .map((approval) => parseInternalBigIntId(approval.source_id))
-      .filter((value): value is bigint => value != null))]
+      .filter((approval: PaymentApprovalRecord) => approval.source_type === 'petty_advance_return')
+      .map((approval: PaymentApprovalRecord) => parseInternalBigIntId(approval.source_id))
+      .filter((value: bigint | null): value is bigint => value != null))]
     const [purchaseBills, advancePayments, expenses, pettyReturns] = await Promise.all([
       prisma.purchase_bills.findMany({
         orderBy: [{ date: 'desc' }],
@@ -265,7 +383,25 @@ export async function GET() {
         },
         where: { id: { in: pettyReturnIds } },
       }),
+    ]) as [
+      PurchaseBillPaymentSourceRecord[],
+      SupplierAdvancePaymentSourceRecord[],
+      ExpensePaymentSourceRecord[],
+      PettyAdvanceReturnSourceRecord[],
+    ]
+    const supplierReferenceIds = Array.from(new Set([
+      ...payments.map((payment: PaymentListRecord) => payment.supplier_id),
+      ...purchaseBills.map((bill: PurchaseBillPaymentSourceRecord) => bill.supplier_id),
+      ...advancePayments.map((advance: SupplierAdvancePaymentSourceRecord) => advance.supplier_id),
+      ...expenses.map((expense: ExpensePaymentSourceRecord) => expense.supplier_id),
+      ...approvals.map((approval: PaymentApprovalRecord) => parseInternalBigIntId(approval.party_id)),
+    ].filter((value: bigint | null): value is bigint => value != null)))
+    const [supplierOptions, supplierReferences] = await Promise.all([
+      listActiveSupplierPaymentOptions(),
+      listSupplierReferencesByIds(supplierReferenceIds),
     ])
+    const supplierCodeById = new Map(supplierReferences.map((supplier) => [supplier.id, supplier.code] as const))
+    const supplierNameById = new Map(supplierReferences.map((supplier) => [supplier.id, supplier.name] as const))
     const billById = new Map(purchaseBills.map((bill: typeof purchaseBills[number]) => [bill.id, bill]))
     const advanceById = new Map(advancePayments.map((advance: typeof advancePayments[number]) => [advance.id, advance]))
     const expenseById = new Map(expenses.map((expense: typeof expenses[number]) => [expense.id, expense]))
@@ -289,7 +425,7 @@ export async function GET() {
           active: true,
           bankName: expense.payee_bank,
           paymentMethod: null,
-        }].filter((account) => Boolean(account.accountNo || account.bankName)),
+        }].filter((account: { accountNo: string | null; bankName: string | null }) => Boolean(account.accountNo || account.bankName)),
         code: partyCode,
         id: partyCode,
         name: expense.payee || expense.doc_no,
@@ -313,7 +449,9 @@ export async function GET() {
         bankAccounts: [],
         code: partyCode,
         id: partyCode,
-        name: entry.petty_advances.recipient_name || entry.petty_advances.doc_no,
+        name:
+          entry.petty_advances.recipient_name?.trim()
+          || requireDocumentNo(entry.petty_advances.doc_no, `เอกสารคืนเงินสำรองจ่าย ${entry.id}`),
       })
     }
     const pettyReturnParties = Array.from(pettyReturnPartiesById.values())
@@ -347,7 +485,7 @@ export async function GET() {
               status: approval.status ?? '',
               sourceDocNo,
               sourceType: 'purchase_bill',
-              supplierId: resolveSupplierCode(approval.party_id, bill.supplier_id),
+              supplierId: resolveSupplierCode(approval.party_id, bill.supplier_id, supplierCodeById),
               totalAmount: approvedAmount,
             }
           }
@@ -371,7 +509,7 @@ export async function GET() {
               sourceDocNo,
               sourceType: 'expense',
               status: approval.status ?? '',
-              supplierId: resolveSupplierCode(approval.party_id, expense.supplier_id) || expensePartyCode(expense.payee, expense.doc_no),
+              supplierId: resolveSupplierCode(approval.party_id, expense.supplier_id, supplierCodeById) || expensePartyCode(expense.payee, expense.doc_no),
               totalAmount: approvedAmount || totalAmount,
             }
           }
@@ -416,18 +554,18 @@ export async function GET() {
             sourceType: 'advance_payment',
             status: approval.status ?? '',
             sourceDocNo,
-            supplierId: resolveSupplierCode(approval.party_id, advance.supplier_id),
+            supplierId: resolveSupplierCode(approval.party_id, advance.supplier_id, supplierCodeById),
             totalAmount: approvedAmount,
           }
         })
         .filter((bill): bill is NonNullable<typeof bill> => Boolean(bill)),
-      rows: payments.map((payment) => {
+      rows: payments.map((payment: PaymentListRecord) => {
         const splits = payment.payment_account_splits ?? []
         const accountSummaries = splits.length > 0
-          ? splits.map((split) => `${split.accounts?.name ?? '-'} - ${toNumber(split.amount).toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`)
+          ? splits.map((split: PaymentAccountSplitRecord) => `${split.accounts?.name ?? '-'} - ${toNumber(split.amount).toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`)
           : [`${payment.accounts?.name ?? '-'} - ${toNumber(payment.amount).toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`]
         const accountSplits = splits.length > 0
-          ? splits.map((split) => ({
+          ? splits.map((split: PaymentAccountSplitRecord) => ({
               accountId: split.accounts?.code ? requireBusinessCode(split.accounts.code, `บัญชีเงิน ${split.accounts.id}`) : '',
               amount: toNumber(split.amount),
               id: split.id.toString(),
@@ -454,9 +592,15 @@ export async function GET() {
           method: payment.method ?? '',
           netAmount: toNumber(payment.net_amount),
           notes: payment.notes ?? '',
-          partyName: payment.suppliers?.name ?? payment.payment_approvals?.party_name_snapshot ?? '-',
+          partyName: payment.suppliers?.name
+            ?? (payment.supplier_id ? (supplierNameById.get(payment.supplier_id) ?? null) : null)
+            ?? payment.payment_approvals?.party_name_snapshot
+            ?? '-',
           supplierId: payment.supplier_id ? (supplierCodeById.get(payment.supplier_id) ?? '') : '',
-          supplierName: payment.suppliers?.name ?? payment.payment_approvals?.party_name_snapshot ?? '-',
+          supplierName: payment.suppliers?.name
+            ?? (payment.supplier_id ? (supplierNameById.get(payment.supplier_id) ?? null) : null)
+            ?? payment.payment_approvals?.party_name_snapshot
+            ?? '-',
           voucherId: payment.voucher_id ?? payment.doc_no,
           status: payment.status ?? 'active',
           withholdingTax: toNumber(payment.withholding_tax),
@@ -465,19 +609,12 @@ export async function GET() {
       }),
       paymentMethods,
       settings: { whtRatePercent },
-      suppliers: [...suppliers.map((supplier: typeof suppliers[number]) => ({
+      suppliers: [...supplierOptions.map((supplier) => ({
         active: supplier.active,
-        bankAccount: supplier.supplier_bank_accounts.find((account) => account.is_primary)?.account_no
-          ?? supplier.supplier_bank_accounts[0]?.account_no
-          ?? null,
-        bankAccounts: (supplier.supplier_bank_accounts ?? []).map((account) => ({
-          accountNo: account.account_no,
-          active: account.active,
-          bankName: account.bank_names?.name ?? null,
-          paymentMethod: account.payment_method,
-        })),
-        code: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),
-        id: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),
+        bankAccount: supplier.bankAccount,
+        bankAccounts: supplier.bankAccounts,
+        code: supplier.code,
+        id: supplier.code,
         name: supplier.name,
       })), ...expenseParties, ...pettyReturnParties],
     })
@@ -531,7 +668,7 @@ export async function POST(request: Request) {
     }
     const allAccounts = await listDailyAccounts()
     for (const split of paymentSplits) {
-      const account = allAccounts.find((a) => a.id === split.accountId)
+      const account = allAccounts.find((a: (typeof allAccounts)[number]) => a.id === split.accountId)
       if (account) {
         const splitAmount = toNumber(split.amount)
         const available = (account.balance ?? 0) + (account.subtype === 'current' ? (account.odLimit ?? 0) : 0)
@@ -553,24 +690,12 @@ export async function POST(request: Request) {
     if (!activePaymentMethod) throw new Error('วิธีจ่ายไม่ถูกต้องหรือไม่ active')
     const paymentMethod = activePaymentMethod.name
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const txExt = tx as typeof tx & {
         payment_approvals: {
-          findMany: (args: unknown) => Promise<Array<{
-          approved_amount: DecimalLike
-          destination_account_no_snapshot: string | null
-          destination_bank_name_snapshot: string | null
-          destination_payment_method_snapshot: string | null
-          doc_no: string | null
-          id: bigint
-          party_id: string | null
-          party_name_snapshot: string | null
-          source_doc_no_snapshot: string | null
-          source_id: string
-          source_type: string
-        }>>
-        update: (args: unknown) => Promise<unknown>
-      }
+          findMany: (args: unknown) => Promise<PaymentApprovalRecord[]>
+          update: (args: unknown) => Promise<unknown>
+        }
       }
       const lineApprovalDocNos = [...new Set(paymentLineTotals.map((line) => line.approvalId).filter(Boolean) as string[])]
       const [account] = await Promise.all([
@@ -579,7 +704,7 @@ export async function POST(request: Request) {
           where: { id: primaryAccount.id },
         }),
       ])
-      const approvals = lineApprovalDocNos.length > 0
+      const approvals: PaymentApprovalRecord[] = lineApprovalDocNos.length > 0
         ? await txExt.payment_approvals.findMany({
           where: {
             doc_no: { in: lineApprovalDocNos },
@@ -588,29 +713,31 @@ export async function POST(request: Request) {
           },
         })
         : []
-      const approvalByDocNo = new Map(approvals.map((approval: typeof approvals[number]) => [requireDocumentNo(approval.doc_no, `อนุมัติจ่าย ${approval.id}`), approval]))
+      const approvalByDocNo = new Map<string, PaymentApprovalRecord>(
+        approvals.map((approval: PaymentApprovalRecord) => [requireDocumentNo(approval.doc_no, `อนุมัติจ่าย ${approval.id}`), approval] as const),
+      )
       if (approvalByDocNo.size !== lineApprovalDocNos.length) throw new Error('รายการอนุมัติโอนเงินบางรายการไม่ถูกต้องหรือถูกใช้งานแล้ว')
-      assertCompatiblePaymentDestinations(approvals.map((approval) => ({
+      assertCompatiblePaymentDestinations(approvals.map((approval: PaymentApprovalRecord) => ({
         accountNo: approval.destination_account_no_snapshot,
         bankName: approval.destination_bank_name_snapshot,
         paymentMethod: approval.destination_payment_method_snapshot,
       })), paymentMethod, activePaymentMethod.type)
       const purchaseBillSourceIds = [...new Set(approvals
-        .filter((approval) => approval.source_type === 'purchase_bill')
-        .map((approval) => parseInternalBigIntId(approval.source_id))
-        .filter((value): value is bigint => value != null))]
+        .filter((approval: PaymentApprovalRecord) => approval.source_type === 'purchase_bill')
+        .map((approval: PaymentApprovalRecord) => parseInternalBigIntId(approval.source_id))
+        .filter((value: bigint | null): value is bigint => value != null))]
       const advanceSourceIds = [...new Set(approvals
-        .filter((approval) => approval.source_type === 'advance_payment')
-        .map((approval) => parseInternalBigIntId(approval.source_id))
-        .filter((value): value is bigint => value != null))]
+        .filter((approval: PaymentApprovalRecord) => approval.source_type === 'advance_payment')
+        .map((approval: PaymentApprovalRecord) => parseInternalBigIntId(approval.source_id))
+        .filter((value: bigint | null): value is bigint => value != null))]
       const expenseSourceIds = [...new Set(approvals
-        .filter((approval) => approval.source_type === 'expense')
-        .map((approval) => parseInternalBigIntId(approval.source_id))
-        .filter((value): value is bigint => value != null))]
+        .filter((approval: PaymentApprovalRecord) => approval.source_type === 'expense')
+        .map((approval: PaymentApprovalRecord) => parseInternalBigIntId(approval.source_id))
+        .filter((value: bigint | null): value is bigint => value != null))]
       const pettyReturnSourceIds = [...new Set(approvals
-        .filter((approval) => approval.source_type === 'petty_advance_return')
-        .map((approval) => parseInternalBigIntId(approval.source_id))
-        .filter((value): value is bigint => value != null))]
+        .filter((approval: PaymentApprovalRecord) => approval.source_type === 'petty_advance_return')
+        .map((approval: PaymentApprovalRecord) => parseInternalBigIntId(approval.source_id))
+        .filter((value: bigint | null): value is bigint => value != null))]
       const [lineBills, lineAdvances, lineExpenses, linePettyReturns] = await Promise.all([
         tx.purchase_bills.findMany({
           select: {
@@ -662,16 +789,37 @@ export async function POST(request: Request) {
           },
           where: { id: { in: pettyReturnSourceIds } },
         }),
-      ])
-      const billByDocNo = new Map(lineBills.map((bill: typeof lineBills[number]) => [bill.doc_no, bill]))
-      const billById = new Map(lineBills.map((bill: typeof lineBills[number]) => [bill.id.toString(), bill]))
-      const advanceByDocNo = new Map(lineAdvances.map((advance: typeof lineAdvances[number]) => [advance.doc_no, advance]))
-      const advanceById = new Map(lineAdvances.map((advance: typeof lineAdvances[number]) => [advance.id.toString(), advance]))
-      const expenseByDocNo = new Map(lineExpenses.map((expense: typeof lineExpenses[number]) => [expense.doc_no, expense]))
-      const expenseById = new Map(lineExpenses.map((expense: typeof lineExpenses[number]) => [expense.id.toString(), expense]))
-      const pettyReturnById = new Map(linePettyReturns.map((entry: typeof linePettyReturns[number]) => [entry.id.toString(), entry]))
-      const pettyReturnByAdvanceDocNo = new Map(linePettyReturns.map((entry: typeof linePettyReturns[number]) => [entry.petty_advances.doc_no, entry]))
-      const sourceRecipientForApproval = (approval: typeof approvals[number]) => {
+      ]) as [
+        PostPurchaseBillSourceRecord[],
+        PostAdvanceSourceRecord[],
+        PostExpenseSourceRecord[],
+        PostPettyReturnSourceRecord[],
+      ]
+      const billByDocNo = new Map<string, PostPurchaseBillSourceRecord>(
+        lineBills.map((bill: PostPurchaseBillSourceRecord) => [bill.doc_no, bill] as const),
+      )
+      const billById = new Map<string, PostPurchaseBillSourceRecord>(
+        lineBills.map((bill: PostPurchaseBillSourceRecord) => [bill.id.toString(), bill] as const),
+      )
+      const advanceByDocNo = new Map<string, PostAdvanceSourceRecord>(
+        lineAdvances.map((advance: PostAdvanceSourceRecord) => [advance.doc_no, advance] as const),
+      )
+      const advanceById = new Map<string, PostAdvanceSourceRecord>(
+        lineAdvances.map((advance: PostAdvanceSourceRecord) => [advance.id.toString(), advance] as const),
+      )
+      const expenseByDocNo = new Map<string, PostExpenseSourceRecord>(
+        lineExpenses.map((expense: PostExpenseSourceRecord) => [expense.doc_no, expense] as const),
+      )
+      const expenseById = new Map<string, PostExpenseSourceRecord>(
+        lineExpenses.map((expense: PostExpenseSourceRecord) => [expense.id.toString(), expense] as const),
+      )
+      const pettyReturnById = new Map<string, PostPettyReturnSourceRecord>(
+        linePettyReturns.map((entry: PostPettyReturnSourceRecord) => [entry.id.toString(), entry] as const),
+      )
+      const pettyReturnByAdvanceDocNo = new Map<string | null, PostPettyReturnSourceRecord>(
+        linePettyReturns.map((entry: PostPettyReturnSourceRecord) => [entry.petty_advances.doc_no, entry] as const),
+      )
+      const sourceRecipientForApproval = (approval: PaymentApprovalRecord) => {
         if (approval.source_type === 'purchase_bill') {
           const bill = billById.get(approval.source_id)
           return bill ? {
@@ -702,12 +850,12 @@ export async function POST(request: Request) {
           partyName: pettyReturn.petty_advances.recipient_name,
         } : null
       }
-      const sourceRecipients = approvals.map((approval) => {
+      const sourceRecipients = approvals.map((approval: PaymentApprovalRecord) => {
         const sourceRecipient = sourceRecipientForApproval(approval)
         if (!sourceRecipient) throw new Error('ไม่พบผู้รับเงินของเอกสารต้นทาง')
         return sourceRecipient
       })
-      const canonicalApprovalRecipients = approvals.map((approval, index) => {
+      const canonicalApprovalRecipients = approvals.map((approval: PaymentApprovalRecord, index: number) => {
         const sourceRecipient = sourceRecipients[index]!
         const canonicalRecipient = canonicalizePaymentRecipientForSource({
           partyId: approval.party_id,
@@ -725,16 +873,16 @@ export async function POST(request: Request) {
       if (paymentLineTotals.some((line) => !line.approvalId)) {
         throw new Error('ต้องเลือกจากรายการที่อนุมัติโอนเงินแล้วเท่านั้น')
       }
-      const lineApprovalInternalIds = approvals.map((approval) => approval.id)
-      const existingApprovalPayments = lineApprovalInternalIds.length > 0
-        ? await (tx as any).payments.findMany({
-          select: { amount: true, discount: true, id: true, payment_approval_id: true, status: true, withholding_tax: true },
+      const lineApprovalInternalIds = approvals.map((approval: PaymentApprovalRecord) => approval.id)
+      const existingApprovalPayments = (lineApprovalInternalIds.length > 0
+        ? await tx.payments.findMany({
+          select: { amount: true, bill_id: true, discount: true, id: true, payment_approval_id: true, status: true, withholding_tax: true },
           where: {
             payment_approval_id: { in: lineApprovalInternalIds },
             NOT: { status: 'cancelled' },
           },
         })
-        : []
+        : []) as ExistingApprovalPaymentRecord[]
       const settledByApprovalId = new Map<string, number>()
       for (const payment of existingApprovalPayments) {
         const approvalId = payment.payment_approval_id ? stringifyBusinessValue(payment.payment_approval_id) : ''
@@ -760,11 +908,11 @@ export async function POST(request: Request) {
       const existingPayments = await tx.payments.findMany({
         select: { bill_id: true, payment_approval_id: true },
         where: { voucher_id: voucherId },
-      })
+      }) as Array<{ bill_id: bigint | null; payment_approval_id: bigint | null }>
       await tx.payment_allocations.deleteMany({ where: { payment_voucher_id: voucherId } })
       await tx.payment_account_splits.deleteMany({ where: { payment_voucher_id: voucherId } })
       await tx.payments.deleteMany({ where: { voucher_id: voucherId } })
-      const payments = []
+      const payments: Array<{ doc_no: string; id: bigint }> = []
       const paidAt = new Date()
       for (const line of paymentLineTotals) {
         const lineSourceDocNo = requireDocumentNo(line.billId, 'เอกสารอ้างอิง')
@@ -796,7 +944,7 @@ export async function POST(request: Request) {
         if (Math.abs(lineSettlementAmount - approvalRemaining) > 0.01) {
           throw new Error(`ยอดจ่ายของ ${line.approvalId} ต้องเท่ากับยอด PMA ที่เหลือ`)
         }
-        const payment = await (tx as any).payments.create({
+        const payment = await tx.payments.create({
           data: {
             account_id: primaryAccount.id,
             amount: line.amount,
@@ -819,6 +967,7 @@ export async function POST(request: Request) {
             voucher_id: voucherId,
             withholding_tax: 0,
           },
+          select: { doc_no: true, id: true },
         })
         const nextSettled = (settledByApprovalId.get(approvalInternalId) ?? 0) + lineSettlementAmount
         settledByApprovalId.set(approvalInternalId, nextSettled)
@@ -891,7 +1040,9 @@ export async function POST(request: Request) {
         include: { accounts: true },
         where: { doc_no: { in: statementDocNos } },
       })
-      const statementByDocNo = new Map(createdStatements.map((statement) => [statement.doc_no, statement] as const))
+      const statementByDocNo = new Map<string, BankStatementWithAccountRecord>(
+        createdStatements.map((statement: BankStatementWithAccountRecord) => [statement.doc_no, statement] as const),
+      )
       const primaryPayment = payments[0]
       if (!primaryPayment) throw new Error('ไม่พบ PMT ที่ต้องการบันทึก timeline')
       await createPaymentAccountSplitFacts(tx, paymentSplits.map((split, index) => {
@@ -950,7 +1101,7 @@ export async function POST(request: Request) {
       })
 
       const billIdsToRefresh = [...new Set([
-        ...existingPayments.map((payment) => payment.bill_id).filter((value): value is bigint => value != null),
+        ...existingPayments.map((payment: { bill_id: bigint | null }) => payment.bill_id).filter((value: bigint | null): value is bigint => value != null),
         ...paymentLineTotals
           .map((line) => billByDocNo.get(requireDocumentNo(line.billId, 'เอกสารอ้างอิง'))?.id ?? null)
           .filter((value): value is bigint => value != null),

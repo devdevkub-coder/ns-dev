@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, type MasterDataRouteProps, updateMasterDataStatusSchema } from '@/lib/server/master-data'
+import { invalidateExpenseTypeReferenceCache } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -16,6 +17,7 @@ export async function PATCH(request: Request, { params }: MasterDataRouteProps) 
       select: { active: true, code: true, created_at: true, name: true, updated_at: true },
       where: { code: id },
     })
+    await invalidateExpenseTypeReferenceCache()
     return masterDataJson({
       id: row.code,
       code: row.code,

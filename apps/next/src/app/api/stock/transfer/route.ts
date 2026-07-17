@@ -7,6 +7,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranches, listActiveWarehouses } from '@/lib/server/reference-master-cache'
 import { normalizeStockReferenceInput, stockBalanceSnapshot } from '@/lib/server/stock'
 import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
 
@@ -394,19 +395,9 @@ export async function GET(request: Request) {
       } : {}),
     }
 
-    const [branches, warehouses, products, rows, totalRows, summary, sourceStock] = await Promise.all([
-      prisma.branches.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
-      prisma.warehouses.findMany({
-        orderBy: [{ code: 'asc' }, { name: 'asc' }],
-        select: {
-          active: true,
-          branches: { select: { code: true } },
-          branch_id: true,
-          code: true,
-          id: true,
-          name: true,
-        },
-      }),
+    const [branchRefs, warehouseRefs, products, rows, totalRows, summary, sourceStock] = await Promise.all([
+      listActiveBranches(),
+      listActiveWarehouses(),
       prisma.products.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
       prisma.stock_transfers.findMany({
         include: transferInclude,
@@ -422,6 +413,21 @@ export async function GET(request: Request) {
       }),
       buildSourceStockPreview(url),
     ])
+    const branches = branchRefs.map((branch) => ({
+      active: true,
+      code: branch.code,
+      id: branch.id,
+      name: branch.name,
+    }))
+    const branchIdByCode = new Map(branches.map((branch) => [branch.code, branch.id] as const))
+    const warehouses = warehouseRefs.map((warehouse) => ({
+      active: true,
+      branches: warehouse.branchCode ? { code: warehouse.branchCode } : null,
+      branch_id: warehouse.branchCode ? (branchIdByCode.get(warehouse.branchCode) ?? null) : null,
+      code: warehouse.code,
+      id: warehouse.id,
+      name: warehouse.name,
+    }))
 
     return NextResponse.json({
       branches: branches.map((branch) => ({

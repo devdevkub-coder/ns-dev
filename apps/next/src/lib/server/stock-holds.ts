@@ -1,9 +1,23 @@
 import { requireBusinessCode } from '@/lib/business-code'
 import { roundMoney, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { findActiveBranchReferenceByCodeOrId, listActiveWarehousesByBranch } from '@/lib/server/reference-master-cache'
 import type { Prisma } from '../../../generated/prisma/client'
 
 const WTO_WAREHOUSE_TYPES = ['RM', 'FG'] as const
+
+function isWtoWarehouseType(type: string | null): type is 'RM' | 'FG' {
+  return type === 'RM' || type === 'FG'
+}
+
+function toWtoWarehouseReference(row: { code: string; id: bigint; name: string; type: string | null }): WtoWarehouseReference {
+  return {
+    code: requireBusinessCode(row.code, `คลัง ${row.id}`),
+    id: row.id,
+    name: row.name,
+    type: row.type,
+  }
+}
 
 export type WtoStockOption = {
   availableQty: number
@@ -202,10 +216,7 @@ export async function loadWtoStockOptions(input: {
   }
 
   const [branch, product] = await Promise.all([
-    prisma.branches.findFirst({
-      select: { code: true, id: true, name: true },
-      where: { active: true, code: branchCode },
-    }),
+    findActiveBranchReferenceByCodeOrId(branchCode),
     prisma.products.findFirst({
       select: { code: true, id: true, name: true },
       where: { active: true, code: productCode },
@@ -219,15 +230,14 @@ export async function loadWtoStockOptions(input: {
     throw new WtoStockOptionError('ไม่พบสินค้าที่ใช้งาน', 404, 'PRODUCT_NOT_FOUND')
   }
 
-  const warehouses = await prisma.warehouses.findMany({
-    orderBy: [{ type: 'asc' }, { name: 'asc' }, { code: 'asc' }],
-    select: { code: true, id: true, name: true, type: true },
-    where: {
-      active: true,
-      branch_id: branch.id,
-      type: { in: [...WTO_WAREHOUSE_TYPES] },
-    },
-  })
+  const warehouses = (await listActiveWarehousesByBranch(branch.code))
+    .filter((warehouse) => isWtoWarehouseType(warehouse.type))
+    .map((warehouse) => ({
+      code: warehouse.code,
+      id: warehouse.id,
+      name: warehouse.name,
+      type: warehouse.type,
+    }))
 
   const warehouseIds = warehouses.map((warehouse) => warehouse.id)
   if (!warehouseIds.length) {
@@ -268,16 +278,16 @@ export async function loadWtoStockOptions(input: {
   const onHandByWarehouse = new Map(
     warehouses.map((warehouse) => {
       const qty = ledgerSums
-        .filter((row) => row.warehouse_id === warehouse.id && row.output_category === warehouse.type && row.not_available_for_sale !== true)
-        .reduce((sum, row) => sum + toNumber(row._sum.qty_in) - toNumber(row._sum.qty_out), 0)
+        .filter((row: Awaited<typeof ledgerSums>[number]) => row.warehouse_id === warehouse.id && row.output_category === warehouse.type && row.not_available_for_sale !== true)
+        .reduce((sum: number, row: Awaited<typeof ledgerSums>[number]) => sum + toNumber(row._sum.qty_in) - toNumber(row._sum.qty_out), 0)
       return [warehouse.id, qty] as const
     }),
   )
   const onHoldByWarehouse = new Map(
     warehouses.map((warehouse) => {
       const qty = holdSums
-        .filter((row) => row.warehouse_id === warehouse.id && row.output_category === warehouse.type && row.not_available_for_sale !== true)
-        .reduce((sum, row) => sum + toNumber(row._sum.qty), 0)
+        .filter((row: Awaited<typeof holdSums>[number]) => row.warehouse_id === warehouse.id && row.output_category === warehouse.type && row.not_available_for_sale !== true)
+        .reduce((sum: number, row: Awaited<typeof holdSums>[number]) => sum + toNumber(row._sum.qty), 0)
       return [warehouse.id, qty] as const
     }),
   )
@@ -310,24 +320,26 @@ export async function resolveWtoWarehousesForLines(tx: TxClient, input: {
   const warehouseCodes = [...new Set(input.lines.map((line) => normalizeCode(line.warehouseId)).filter(Boolean))]
   if (!warehouseCodes.length) return new Map<string, WtoWarehouseReference>()
 
-  const warehouses = await tx.warehouses.findMany({
-    select: { code: true, id: true, name: true, type: true },
-    where: {
-      active: true,
-      branch_id: input.branchId,
-      code: { in: warehouseCodes },
-      type: { in: [...WTO_WAREHOUSE_TYPES] },
-    },
-  })
+  const branch = await findActiveBranchReferenceByCodeOrId(input.branchId)
+  if (!branch) {
+    throw new WtoPendingOutError('ไม่พบสาขาที่ใช้งานสำหรับรายการใบส่งของ')
+  }
+
+  const warehouses = (await listActiveWarehousesByBranch(branch.code))
+    .filter((warehouse) => {
+      const code = normalizeCode(warehouse.code)
+      return warehouseCodes.includes(code) && isWtoWarehouseType(warehouse.type)
+    })
+    .map((warehouse) => ({
+      code: warehouse.code,
+      id: warehouse.id,
+      name: warehouse.name,
+      type: warehouse.type,
+    }))
   const warehouseByCode = new Map(
     warehouses.map((warehouse) => [
       normalizeCode(warehouse.code),
-      {
-        code: requireBusinessCode(warehouse.code, `คลัง ${warehouse.id}`),
-        id: warehouse.id,
-        name: warehouse.name,
-        type: warehouse.type,
-      },
+      toWtoWarehouseReference(warehouse),
     ] as const),
   )
   const missingIndex = input.lines.findIndex((line) => {
@@ -377,7 +389,7 @@ async function loadSaleableBuckets(tx: TxClient, input: {
   ])
 
   const onHoldByBucket = new Map<string, number>()
-  holdSums.forEach((row) => {
+  holdSums.forEach((row: Awaited<typeof holdSums>[number]) => {
     const key = bucketKey({
       lotNo: row.lot_no,
       notAvailableForSale: row.not_available_for_sale,
@@ -389,7 +401,7 @@ async function loadSaleableBuckets(tx: TxClient, input: {
   })
 
   const onHandBuckets = new Map<string, WtoStockBucket>()
-  ledgerSums.forEach((row) => {
+  ledgerSums.forEach((row: Awaited<typeof ledgerSums>[number]) => {
     const key = bucketKey({
       lotNo: row.lot_no,
       notAvailableForSale: row.not_available_for_sale,
@@ -435,7 +447,7 @@ async function allocateWtoPendingOutBuckets(tx: TxClient, input: {
     select: { id: true, type: true },
     where: { id: { in: warehouseIds } },
   })
-  const warehouseTypeById = new Map(warehouseTypes.map((warehouse) => [warehouse.id, warehouse.type] as const))
+  const warehouseTypeById = new Map(warehouseTypes.map((warehouse: Awaited<typeof warehouseTypes>[number]) => [warehouse.id, warehouse.type] as const))
   const buckets = await loadSaleableBuckets(tx, {
     branchId: input.branchId,
     productIds: [...new Set(requiredLines.map((line) => line.product_id))],
@@ -500,7 +512,7 @@ async function loadAverageCostByBucketKey(tx: TxClient, input: {
   })
 
   const totalsByBucket = new Map<string, { qty: number; value: number }>()
-  ledgerSums.forEach((row) => {
+  ledgerSums.forEach((row: Awaited<typeof ledgerSums>[number]) => {
     const key = bucketKey({
       lotNo: row.lot_no,
       notAvailableForSale: row.not_available_for_sale,
@@ -555,7 +567,7 @@ export async function validateWtoStockAvailability(tx: TxClient, input: {
     tx.warehouses.findMany({ select: { id: true, type: true }, where: { id: { in: warehouseIds } } }),
     loadSaleableBuckets(tx, { branchId: input.branchId, productIds, warehouseIds }),
   ])
-  const warehouseTypeById = new Map(warehouses.map((warehouse) => [warehouse.id, warehouse.type] as const))
+  const warehouseTypeById = new Map(warehouses.map((warehouse: Awaited<typeof warehouses>[number]) => [warehouse.id, warehouse.type] as const))
   const availableByKey = new Map<string, number>()
   for (const bucket of buckets) {
     const warehouseType = warehouseTypeById.get(bucket.warehouseId) ?? null
@@ -707,7 +719,7 @@ export async function createActiveWtoPendingOut(tx: TxClient, input: {
       weight_ticket_id: input.weightTicketId,
     },
   })
-  return createdHolds.map((hold) => hold.id)
+  return createdHolds.map((hold: Awaited<typeof createdHolds>[number]) => hold.id)
 }
 
 export async function snapshotActiveWtoPendingOutCosts(tx: TxClient, input: {
@@ -725,10 +737,21 @@ export async function snapshotActiveWtoPendingOutCosts(tx: TxClient, input: {
   })
   if (!holds.length) return [] as bigint[]
 
+  const productIds = Array.from(new Set<bigint>(
+    holds
+      .map((hold: Awaited<typeof holds>[number]) => hold.product_id)
+      .filter((value: bigint | null): value is bigint => value != null),
+  ))
+  const warehouseIds = Array.from(new Set<bigint>(
+    holds
+      .map((hold: Awaited<typeof holds>[number]) => hold.warehouse_id)
+      .filter((value: bigint | null): value is bigint => value != null),
+  ))
+
   const costByBucketKey = await loadAverageCostByBucketKey(tx, {
     branchId: input.branchId,
-    productIds: [...new Set(holds.map((hold) => hold.product_id))],
-    warehouseIds: [...new Set(holds.map((hold) => hold.warehouse_id))],
+    productIds,
+    warehouseIds,
   })
   const now = new Date()
 
@@ -989,7 +1012,7 @@ export async function reopenConsumedWtoPendingOutForSalesBill(tx: TxClient, inpu
   }
 
   await tx.stock_ledger.createMany({
-    data: ledgerRows.map((row) => ({
+    data: ledgerRows.map((row: Awaited<typeof ledgerRows>[number]) => ({
       branch_id: row.branch_id,
       created_by: input.actor,
       date: input.cancelDate,
@@ -1052,7 +1075,7 @@ export async function reopenConsumedWtoPendingOutForSalesBill(tx: TxClient, inpu
       updated_by: input.actor,
     },
     where: {
-      id: { in: holds.map((hold) => hold.id) },
+      id: { in: holds.map((hold: Awaited<typeof holds>[number]) => hold.id) },
       status: 'consumed',
     },
   })

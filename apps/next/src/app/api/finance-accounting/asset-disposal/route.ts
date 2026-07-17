@@ -4,6 +4,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveCustomers } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -64,7 +65,7 @@ async function payload() {
       orderBy: [{ disposal_date: 'desc' }, { id: 'desc' }],
       take: 5000,
     }),
-    prisma.customers.findMany({ orderBy: { code: 'asc' }, select: { code: true, id: true, name: true }, where: { active: true }, take: 5000 }),
+    listActiveCustomers(),
   ])
   const assetOptions = assets
     .filter((asset) => !['Sold', 'Disposed', 'Lost', 'Inactive'].includes(asset.asset_status || ''))

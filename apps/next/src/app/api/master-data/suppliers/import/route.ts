@@ -13,7 +13,9 @@ import {
 import { supplierBankAccountRows, toSupplierWriteInput } from '@/lib/domain/supplier'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBankNames, listActiveBranches } from '@/lib/server/reference-master-cache'
 import type { Prisma } from '../../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -381,19 +383,9 @@ export async function POST(request: Request) {
         select: { code: true, id: true, name: true },
         where: { active: { not: false } },
       }),
-      prisma.payment_methods.findMany({
-        orderBy: [{ name: 'asc' }],
-        select: { name: true, type: true },
-        where: { active: true },
-      }),
-      prisma.bank_names.findMany({
-        select: { id: true, name: true },
-        where: { active: true },
-      }),
-      prisma.branches.findMany({
-        select: { code: true },
-        where: { active: true },
-      }),
+      getActivePaymentMethods() as Promise<SupplierPaymentMethodRecord[]>,
+      listActiveBankNames(),
+      listActiveBranches(),
     ])
     const activeBranchCodes = new Set(activeBranches.map((branch) => branch.code))
     const bankNamesByName = new Map(bankNameRows.map((row) => [row.name, row] as const))

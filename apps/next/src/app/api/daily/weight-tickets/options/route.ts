@@ -4,7 +4,12 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { branchScopeIds } from '@/lib/server/weight-tickets'
 import { prisma } from '@/lib/server/prisma'
-import { customerBranchEligibilityWhere, supplierBranchEligibilityWhere } from '@/lib/server/party-branch-eligibility'
+import {
+  listActiveBranches,
+  listActiveBranchesByCodes,
+  listActiveCustomerBranchOptionsByBranchCodes,
+  listActiveSupplierBranchOptionsByBranchCodes,
+} from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -14,51 +19,11 @@ export async function GET() {
     requirePermission(context, 'daily.weight_tickets.view')
 
     const scopedBranchIds = branchScopeIds(context)
-    const branches = await prisma.branches.findMany({
-      orderBy: [{ code: 'asc' }, { name: 'asc' }],
-      select: { code: true, id: true, name: true },
-      where: {
-        active: true,
-        ...(scopedBranchIds.length ? { code: { in: scopedBranchIds } } : {}),
-      },
-    })
+    const branches = scopedBranchIds.length ? await listActiveBranchesByCodes(scopedBranchIds) : await listActiveBranches()
+    const branchCodes = branches.map((branch) => branch.code)
     const [suppliers, customers, impurities] = await Promise.all([
-      prisma.suppliers.findMany({
-        orderBy: [{ name: 'asc' }, { code: 'asc' }],
-        select: {
-          code: true,
-          id: true,
-          name: true,
-          supplier_branches: {
-            select: {
-              branches: { select: { code: true } },
-            },
-            where: { active: true },
-          },
-        },
-        where: {
-          active: true,
-          ...(branches.length ? { OR: branches.map((branch) => supplierBranchEligibilityWhere(branch.id)) } : {}),
-        },
-      }),
-      prisma.customers.findMany({
-        orderBy: [{ name: 'asc' }, { code: 'asc' }],
-        select: {
-          code: true,
-          id: true,
-          name: true,
-          customer_branches: {
-            select: {
-              branches: { select: { code: true } },
-            },
-            where: { active: true },
-          },
-        },
-        where: {
-          active: true,
-          ...(branches.length ? { OR: branches.map((branch) => customerBranchEligibilityWhere(branch.id)) } : {}),
-        },
-      }),
+      listActiveSupplierBranchOptionsByBranchCodes(branchCodes),
+      listActiveCustomerBranchOptionsByBranchCodes(branchCodes),
       prisma.impurities.findMany({
         orderBy: [{ name: 'asc' }, { id: 'asc' }],
         select: { active: true, id: true, name: true },
@@ -68,31 +33,21 @@ export async function GET() {
 
     return NextResponse.json({
       branches: branches.map((branch) => {
-        const code = requireBusinessCode(branch.code, `สาขา ${branch.id}`)
+        const code = requireBusinessCode(branch.code, `สาขา ${branch.id.toString()}`)
         return { code, id: code, name: branch.name }
       }),
-      suppliers: suppliers.map((supplier) => {
-        const code = requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`)
-        return {
-          branchIds: supplier.supplier_branches
-            .map((mapping) => mapping.branches?.code)
-            .filter((branchCode): branchCode is string => Boolean(branchCode)),
-          code,
-          id: code,
-          name: supplier.name,
-        }
-      }),
-      customers: customers.map((customer) => {
-        const code = requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`)
-        return {
-          branchIds: customer.customer_branches
-            .map((mapping) => mapping.branches?.code)
-            .filter((branchCode): branchCode is string => Boolean(branchCode)),
-          code,
-          id: code,
-          name: customer.name,
-        }
-      }),
+      suppliers: suppliers.map((supplier) => ({
+        branchIds: supplier.branchIds,
+        code: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),
+        id: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),
+        name: supplier.name,
+      })),
+      customers: customers.map((customer) => ({
+        branchIds: customer.branchIds,
+        code: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
+        id: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
+        name: customer.name,
+      })),
       impurities: impurities.map((impurity) => ({
         id: impurity.id.toString(),
         label: impurity.name,

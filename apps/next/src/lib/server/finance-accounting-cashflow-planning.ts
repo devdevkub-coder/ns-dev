@@ -4,6 +4,7 @@ import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-referen
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { buildTaxVatWht } from '@/lib/server/finance-accounting-tax'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveAccounts, listActiveBranches, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
 
 const CANCELLED_STATUSES = ['cancelled', 'void', 'ยกเลิก']
 const DAY_MS = 86_400_000
@@ -74,6 +75,10 @@ function branchWhere(branchId?: bigint | null) {
   return branchId ? { branch_id: branchId } : {}
 }
 
+function cachedMoney(value: string | null) {
+  return value == null ? 0 : Number(value)
+}
+
 function sourceState() {
   return {
     basis: 'Cash flow planning/source from operational transactions. Not a statutory cash flow statement.',
@@ -87,11 +92,7 @@ function sourceState() {
 }
 
 async function listBranches() {
-  const branches = await prisma.branches.findMany({
-    orderBy: [{ code: 'asc' }, { name: 'asc' }],
-    select: { code: true, id: true, name: true },
-    where: { active: true },
-  })
+  const branches = await listActiveBranches()
   return branches.map((branch) => {
     const code = requireBusinessCode(branch.code, `สาขา ${branch.id}`)
     return { code, id: code, name: branch.name }
@@ -100,10 +101,7 @@ async function listBranches() {
 
 async function cashAsOf(asOf: Date, branchId?: bigint | null) {
   const [accounts, bankRows] = await Promise.all([
-    prisma.accounts.findMany({
-      select: { id: true, od_limit: true, opening_balance: true },
-      where: { active: true, ...branchWhere(branchId) },
-    }),
+    listActiveAccounts(),
     prisma.bank_statement.findMany({
       include: { accounts: { select: { branch_id: true } } },
       orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
@@ -111,8 +109,9 @@ async function cashAsOf(asOf: Date, branchId?: bigint | null) {
       where: { date: { lte: endOfDay(asOf) }, ...(branchId ? { accounts: { branch_id: branchId } } : {}) },
     }),
   ])
+  const scopedAccounts = accounts.filter((account: AccountReferenceRecord) => branchId == null || account.branchId === branchId)
   const balances = new Map<bigint, number>()
-  accounts.forEach((account) => balances.set(account.id, toNumber(account.opening_balance)))
+  scopedAccounts.forEach((account: AccountReferenceRecord) => balances.set(account.id, cachedMoney(account.openingBalance)))
   bankRows.forEach((row: BankRow) => {
     if (!row.account_id) return
     const previous = balances.get(row.account_id) ?? 0
@@ -120,7 +119,7 @@ async function cashAsOf(asOf: Date, branchId?: bigint | null) {
   })
   return {
     balance: Array.from(balances.values()).reduce((sum, value) => sum + value, 0),
-    odLimit: accounts.reduce((sum, account) => sum + toNumber(account.od_limit), 0),
+    odLimit: scopedAccounts.reduce((sum: number, account: AccountReferenceRecord) => sum + cachedMoney(account.odLimit), 0),
     odUsed: Math.abs(Math.min(0, Array.from(balances.values()).reduce((sum, value) => sum + value, 0))),
   }
 }
@@ -207,27 +206,37 @@ export async function buildCashFlowAnalysis(filter: AnalysisFilter) {
   const branchRef = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
   const [salesAsOf, purchasesAsOf] = await loadBillsAsOf(filter.to, branchRef?.id ?? null)
   const cash = await cashAsOf(filter.to, branchRef?.id ?? null)
-  const revenue = sales.reduce((sum, bill) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
-  const purchasesTotal = purchases.reduce((sum, bill) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
-  const cogs = sales.reduce((sum, bill) => sum + (toNumber(bill.cogs_amount) || toNumber(bill.total_cost)), 0)
-  const expensesTotal = expenses.reduce((sum, expense) => sum + (toNumber(expense.net_amount) || toNumber(expense.amount)), 0)
-  const interestExpense = loanPayments.reduce((sum, payment) => sum + toNumber(payment.interest_amount), 0)
+  type PeriodSalesBill = (typeof sales)[number]
+  type PeriodPurchaseBill = (typeof purchases)[number]
+  type PeriodExpense = (typeof expenses)[number]
+  type PeriodReceipt = (typeof receipts)[number]
+  type PeriodPayment = (typeof payments)[number]
+  type PeriodLoanPayment = (typeof loanPayments)[number]
+  type PeriodStockRow = (typeof stockRows)[number]
+
+  const revenue = sales.reduce((sum: number, bill: PeriodSalesBill) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
+  const purchasesTotal = purchases.reduce((sum: number, bill: PeriodPurchaseBill) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
+  const cogs = sales.reduce((sum: number, bill: PeriodSalesBill) => sum + (toNumber(bill.cogs_amount) || toNumber(bill.total_cost)), 0)
+  const expensesTotal = expenses.reduce((sum: number, expense: PeriodExpense) => sum + (toNumber(expense.net_amount) || toNumber(expense.amount)), 0)
+  const interestExpense = loanPayments.reduce((sum: number, payment: PeriodLoanPayment) => sum + toNumber(payment.interest_amount), 0)
   const netProfit = revenue - cogs - expensesTotal - interestExpense
-  const receiptsIn = receipts.reduce((sum, receipt) => sum + toNumber(receipt.amount), 0)
-  const supplierPaymentsOut = payments.reduce((sum, payment) => sum + toNumber(payment.amount) + toNumber(payment.fee) + toNumber(payment.bank_fee), 0)
-  const expensePaidOut = expenses.filter((expense: Expense) => ['paid', 'Paid', 'จ่ายแล้ว'].includes(expense.paid_status ?? '')).reduce((sum, expense) => sum + (toNumber(expense.net_amount) || toNumber(expense.amount)), 0)
+  const receiptsIn = receipts.reduce((sum: number, receipt: PeriodReceipt) => sum + toNumber(receipt.amount), 0)
+  const supplierPaymentsOut = payments.reduce((sum: number, payment: PeriodPayment) => sum + toNumber(payment.amount) + toNumber(payment.fee) + toNumber(payment.bank_fee), 0)
+  const expensePaidOut = expenses.filter((expense: Expense) => ['paid', 'Paid', 'จ่ายแล้ว'].includes(expense.paid_status ?? '')).reduce((sum: number, expense: PeriodExpense) => sum + (toNumber(expense.net_amount) || toNumber(expense.amount)), 0)
   const operatingCashFlow = receiptsIn - supplierPaymentsOut - expensePaidOut - interestExpense
   const ar = arRows(salesAsOf, filter.to)
   const ap = apRows(purchasesAsOf, filter.to)
-  const stockNow = stockRows.reduce((sum, row) => sum + toNumber(row.value_in) - toNumber(row.value_out), 0)
-  const arNow = ar.reduce((sum, row) => sum + row.receivableBalance, 0)
-  const apNow = ap.reduce((sum, row) => sum + row.payableBalance, 0)
+  type ReceivableRow = (typeof ar)[number]
+  type PayableRow = (typeof ap)[number]
+  const stockNow = stockRows.reduce((sum: number, row: PeriodStockRow) => sum + toNumber(row.value_in) - toNumber(row.value_out), 0)
+  const arNow = ar.reduce((sum: number, row: ReceivableRow) => sum + row.receivableBalance, 0)
+  const apNow = ap.reduce((sum: number, row: PayableRow) => sum + row.payableBalance, 0)
   const in7Limit = addDays(filter.to, 7)
   const in30Limit = addDays(filter.to, 30)
-  const cashIn7 = ar.filter((row) => row.dueDate <= in7Limit).reduce((sum, row) => sum + row.receivableBalance, 0)
-  const cashIn30 = ar.filter((row) => row.dueDate <= in30Limit).reduce((sum, row) => sum + row.receivableBalance, 0)
-  const cashOut7 = ap.filter((row) => row.dueDate <= in7Limit).reduce((sum, row) => sum + row.payableBalance, 0)
-  const cashOut30 = ap.filter((row) => row.dueDate <= in30Limit).reduce((sum, row) => sum + row.payableBalance, 0)
+  const cashIn7 = ar.filter((row: ReceivableRow) => row.dueDate <= in7Limit).reduce((sum: number, row: ReceivableRow) => sum + row.receivableBalance, 0)
+  const cashIn30 = ar.filter((row: ReceivableRow) => row.dueDate <= in30Limit).reduce((sum: number, row: ReceivableRow) => sum + row.receivableBalance, 0)
+  const cashOut7 = ap.filter((row: PayableRow) => row.dueDate <= in7Limit).reduce((sum: number, row: PayableRow) => sum + row.payableBalance, 0)
+  const cashOut30 = ap.filter((row: PayableRow) => row.dueDate <= in30Limit).reduce((sum: number, row: PayableRow) => sum + row.payableBalance, 0)
   const projected7 = cash.balance + cashIn7 - cashOut7
   const projected30 = cash.balance + cashIn30 - cashOut30
   const periodDays = Math.max(1, daysBetween(filter.to, filter.from) + 1)
@@ -404,7 +413,7 @@ export async function buildCashFlowForecastCalendar(filter: ForecastFilter) {
       overdue: schedule.due_date < filter.startDate,
       refNo: schedule.loans?.contract_no ?? `LN-${schedule.installment_no ?? ''}`,
       type: 'LOAN' as const,
-    })).filter((event) => event.amount > 0),
+    })).filter((event: ForecastEvent) => event.amount > 0),
   ]
 
   const currentTax = await buildTaxVatWht({ branchId: filter.branchId, month: filter.startDate.getMonth() + 1, year: filter.startDate.getFullYear() })

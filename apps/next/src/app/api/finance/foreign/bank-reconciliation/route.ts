@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -20,19 +20,7 @@ export async function GET(request: Request) {
     const from = url.searchParams.get('from')
     const to = url.searchParams.get('to')
 
-    const accounts = await prisma.accounts.findMany({
-      orderBy: [{ name: 'asc' }, { account_no: 'asc' }],
-      select: {
-        account_no: true,
-        bank_name: true,
-        code: true,
-        currency: true,
-        id: true,
-        name: true,
-        type: true,
-      },
-      where: { active: true },
-    })
+    const accounts = await listActiveAccounts()
     const selectedAccount = accounts.find((account) => account.id === internalAccountId) ?? accounts[0] ?? null
 
     const erpRows = selectedAccount ? await prisma.bank_statement.findMany({
@@ -55,7 +43,7 @@ export async function GET(request: Request) {
         matchState: 'not_available',
         writeBehavior: 'read_only_no_import_no_match',
       },
-      erpRows: erpRows.map((row) => ({
+      erpRows: erpRows.map((row: Awaited<ReturnType<typeof prisma.bank_statement.findMany>>[number]) => ({
         date: toDateOnly(row.date),
         id: row.doc_no,
         in: toNumber(row.amount_in),
@@ -64,20 +52,20 @@ export async function GET(request: Request) {
         type: row.ref_type || row.type || '-',
       })),
       filters: {
-        accounts: accounts.map((account) => ({
-          accountNo: account.account_no,
-          bankName: account.bank_name,
-          code: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
+        accounts: accounts.map((account: AccountReferenceRecord) => ({
+          accountNo: account.accountNo,
+          bankName: account.bankName,
+          code: account.code,
           currency: account.currency,
-          id: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
-          label: account.account_no ? `${account.account_no} - ${account.name}` : account.name,
+          id: account.code,
+          label: account.accountNo ? `${account.accountNo} - ${account.name}` : account.name,
           name: account.name,
           type: account.type,
         })),
       },
       importedRows: [],
       selectedAccount: selectedAccount ? {
-        id: requireBusinessCode(selectedAccount.code, `บัญชีเงิน ${selectedAccount.id}`),
+        id: selectedAccount.code,
         name: selectedAccount.name,
       } : null,
       stats: {

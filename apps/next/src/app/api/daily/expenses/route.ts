@@ -13,6 +13,7 @@ import {
   PAYMENT_STATUS_ACTION,
 } from '@/lib/server/payment-history'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveSupplierPaymentOptions } from '@/lib/server/reference-master-cache'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import { activeVatRatePercent, activeWhtRatePercent } from '@/lib/server/tax-settings'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
@@ -56,6 +57,15 @@ type PayeeOption = {
   code: string
   name: string
   source: 'customer' | 'supplier' | 'salesperson' | 'employee'
+}
+
+type SupplierPaymentOption = Awaited<ReturnType<typeof listActiveSupplierPaymentOptions>>[number]
+type ExpenseJsonRow = ReturnType<typeof expenseJson>
+type ExpenseCategoryLookupRow = {
+  active: boolean | null
+  code: string
+  id: bigint
+  name: string
 }
 
 function payeeSourceLabel(source: PayeeOption['source']) {
@@ -119,7 +129,7 @@ async function nextSupplierPaymentDocNo(tx: Prisma.TransactionClient, date: stri
     where doc_no like ${`PMT${compactDate}-%`}
        or doc_no like ${`PMT__${compactDate}-%`}
   `
-  const lastNumber = rows.reduce((max, row) => {
+  const lastNumber = rows.reduce((max: number, row: { doc_no: string }) => {
     const running = Number(row.doc_no.split('-').at(-1))
     return Number.isFinite(running) && running > max ? running : max
   }, 0)
@@ -147,7 +157,7 @@ function numberValue(value: unknown) {
 function normalizeStoredExpenseLines(row: ExpenseWithRelations): ExpenseLineJson[] {
   const items = Array.isArray(row.items) ? row.items : []
   const lines = items
-    .flatMap((item, index) => {
+    .flatMap((item: unknown, index: number) => {
       if (!isRecord(item)) return []
       const amount = roundMoney(numberValue(item.amount))
       const vatAmount = roundMoney(numberValue(item.vatAmount))
@@ -166,7 +176,7 @@ function normalizeStoredExpenseLines(row: ExpenseWithRelations): ExpenseLineJson
         whtPct: numberValue(item.whtPct),
       }]
     })
-    .filter((line) => line.amount > 0)
+    .filter((line: ExpenseLineJson) => line.amount > 0)
 
   if (lines.length > 0) return lines
 
@@ -313,20 +323,7 @@ export async function GET(request: Request) {
         include: { expense_types: { select: { active: true, code: true, name: true } } },
         orderBy: [{ active: 'desc' }, { name: 'asc' }],
       }),
-      prisma.suppliers.findMany({
-        orderBy: [{ active: 'desc' }, { name: 'asc' }],
-        select: {
-          code: true,
-          name: true,
-          supplier_bank_accounts: {
-            include: { bank_names: { select: { name: true } } },
-            orderBy: [{ is_primary: 'desc' }, { created_at: 'asc' }],
-            where: { active: { not: false } },
-          },
-        },
-        take: 2500,
-        where: { active: { not: false } },
-      }),
+      listActiveSupplierPaymentOptions(),
       prisma.expenses.findMany({
         include: {
           accounts: true,
@@ -353,24 +350,24 @@ export async function GET(request: Request) {
       activeWhtRatePercent(new Date()),
     ])
 
-    const mappedRows = rows.map(expenseJson).filter((row) => {
-      const lineSearchText = row.lines.map((line) => `${line.categoryName} ${line.description ?? ''}`).join(' ')
+    const mappedRows = rows.map(expenseJson).filter((row: ExpenseJsonRow) => {
+      const lineSearchText = row.lines.map((line: ExpenseLineJson) => `${line.categoryName} ${line.description ?? ''}`).join(' ')
       return (
-        (!categoryId || row.categoryId === categoryId || row.lines.some((line) => line.categoryId === categoryId)) &&
+        (!categoryId || row.categoryId === categoryId || row.lines.some((line: ExpenseLineJson) => line.categoryId === categoryId)) &&
         (!search || `${row.docNo} ${row.payee} ${row.refDocNo ?? ''} ${row.description ?? ''} ${lineSearchText}`.toLowerCase().includes(search))
       )
     })
 
     const payeeOptions = buildPayeeOptions([
-      supplierPayees.map((row) => ({
-        bankAccounts: row.supplier_bank_accounts.map((account) => ({
-          accountName: account.account_name,
-          accountNo: account.account_no,
+      supplierPayees.map((row: SupplierPaymentOption) => ({
+        bankAccounts: row.bankAccounts.map((account, index) => ({
+          accountName: null,
+          accountNo: account.accountNo,
           active: account.active,
-          bankName: account.bank_names?.name ?? null,
-          code: account.code,
-          isPrimary: account.is_primary,
-          paymentMethod: account.payment_method,
+          bankName: account.bankName,
+          code: `${row.code}:${index}`,
+          isPrimary: index === 0,
+          paymentMethod: account.paymentMethod,
         })),
         code: row.code,
         name: row.name,
@@ -384,7 +381,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       accounts,
-      categories: categories.map((row) => ({
+      categories: categories.map((row: { active: boolean | null, code: string, expense_types: { code: string, name: string } | null, name: string }) => ({
         active: row.active,
         id: row.code,
         name: row.name,
@@ -421,7 +418,14 @@ export async function POST(request: Request) {
           whtPct: 0,
         }]
     const categoryCodes = Array.from(new Set(rawLines.map((line) => line.categoryId).filter((value): value is string => Boolean(value))))
-    const [vatRatePercent, whtRatePercent, account, categoryRows, branch, supplier] = await Promise.all([
+    const [vatRatePercent, whtRatePercent, account, categoryRows, branch, supplier]: [
+      number,
+      number,
+      Awaited<ReturnType<typeof findActiveAccountReferenceByCode>> | null,
+      ExpenseCategoryLookupRow[],
+      Awaited<ReturnType<typeof findActiveBranchReferenceByCodeOrId>> | null,
+      Awaited<ReturnType<typeof findActiveSupplierReferenceByCodeOrId>> | null,
+    ] = await Promise.all([
       activeVatRatePercent(new Date()),
       activeWhtRatePercent(new Date()),
       values.accountId
@@ -432,11 +436,11 @@ export async function POST(request: Request) {
             select: { active: true, code: true, id: true, name: true },
             where: { code: { in: categoryCodes } },
           })
-        : Promise.resolve([]),
+        : Promise.resolve<ExpenseCategoryLookupRow[]>([]),
       values.branchId ? findActiveBranchReferenceByCodeOrId(values.branchId) : Promise.resolve(null),
       findActiveSupplierReferenceByCodeOrId(values.supplierId),
     ])
-    const categoryByCode = new Map(categoryRows.map((category) => [category.code, category]))
+    const categoryByCode = new Map<string, ExpenseCategoryLookupRow>(categoryRows.map((category: ExpenseCategoryLookupRow) => [category.code, category] as const))
     const invalidCategoryCode = categoryCodes.find((code) => {
       const category = categoryByCode.get(code)
       return !category || category.active === false
@@ -482,7 +486,7 @@ export async function POST(request: Request) {
     const whtPcts = Array.from(new Set(persistedLines.map((line) => line.whtPct).filter((pct) => pct > 0)))
     const headerWhtPct = whtPcts.length === 1 ? whtPcts[0] : 0
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existingExpense = values.id
         ? await findExpenseByDocNo(tx, values.id, {
             date: true,

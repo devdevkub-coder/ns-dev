@@ -5,6 +5,7 @@ import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { findActiveBranchReferencesByCodes } from '@/lib/server/branch-reference'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranches } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -186,12 +187,7 @@ export async function GET() {
         },
         orderBy: [{ is_system: 'desc' }, { name: 'asc' }],
       }),
-      prisma.branches.findMany({
-        orderBy: [{ code: 'asc' }, { name: 'asc' }],
-        where: {
-          active: true,
-        },
-      }),
+      listActiveBranches(),
       prisma.departments.findMany({
         orderBy: [{ code: 'asc' }, { name: 'asc' }],
         where: {

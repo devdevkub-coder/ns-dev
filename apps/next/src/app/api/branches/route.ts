@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, getBranchCodeIntersection } from '@/lib/server/auth-context'
-import { prisma } from '@/lib/server/prisma'
+import { listActiveBranches, listActiveBranchesByCodes } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -9,15 +9,7 @@ export async function GET() {
   try {
     const context = await getCurrentAuthContext()
     const allowedBranchCodes = getBranchCodeIntersection(context)
-    const rows = await prisma.branches.findMany({
-      orderBy: [{ code: 'asc' }, { name: 'asc' }],
-      select: { code: true, id: true, name: true },
-      where: {
-        active: true,
-        ...(allowedBranchCodes ? { code: { in: allowedBranchCodes } } : {}),
-      },
-    })
-
+    const rows = allowedBranchCodes ? await listActiveBranchesByCodes(allowedBranchCodes) : await listActiveBranches()
 
     return NextResponse.json({
       branches: rows.map((row) => ({

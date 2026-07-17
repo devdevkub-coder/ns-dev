@@ -7,7 +7,9 @@ import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-ref
 import { loadProductionMetrics, summarizeProductionMetrics } from '@/lib/server/production-reports'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemQty, purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
+import { listActiveAccounts, listActiveBranches, listActiveCustomers, listActiveSuppliers, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
 import { salesBillLineFactsByBillId, salesBillLineFactTotals, type SalesBillLineFactRow } from '@/lib/server/sales-bill-line-facts'
+import type { Prisma } from '../../../generated/prisma/client'
 
 export type MainDashboardFilter = {
   branchId?: string
@@ -89,12 +91,42 @@ function deltaValue(current: number, previous: number) {
   return { amount, pct }
 }
 
-async function runReadBatch<T extends readonly unknown[]>(tasks: { [K in keyof T]: () => Promise<T[K]> }) {
+function cachedMoney(value: string | null) {
+  return value == null ? 0 : Number(value)
+}
+
+type PurchaseBillRow = Prisma.purchase_billsGetPayload<{
+  include: { purchase_bill_items: true; suppliers: true }
+}>
+
+type SalesBillRow = Prisma.sales_billsGetPayload<{
+  include: { customers: true }
+}>
+
+type ExpenseRow = Prisma.expensesGetPayload<{
+  include: { expense_categories: true }
+}>
+
+type StockLedgerRow = Prisma.stock_ledgerGetPayload<{
+  include: { branches: true; products: true }
+}>
+
+type TradingDealRow = Prisma.trading_dealsGetPayload<Record<string, never>>
+type BankStatementRow = Prisma.bank_statementGetPayload<{ include: { accounts: true } }>
+type LoanScheduleRow = Prisma.loan_schedulesGetPayload<{ include: { loans: true } }>
+type ProductRow = Prisma.productsGetPayload<Record<string, never>>
+type SalespersonRow = Prisma.salespersonsGetPayload<Record<string, never>>
+type HistoricalMonthlyRow = Prisma.historical_monthlyGetPayload<Record<string, never>>
+type BranchReferenceRow = Awaited<ReturnType<typeof listActiveBranches>>[number]
+type SupplierReferenceRow = Awaited<ReturnType<typeof listActiveSuppliers>>[number]
+type CustomerReferenceRow = Awaited<ReturnType<typeof listActiveCustomers>>[number]
+
+async function runReadBatch<const T extends readonly (() => Promise<unknown>)[]>(tasks: T): Promise<{ [K in keyof T]: Awaited<ReturnType<T[K]>> }> {
   const results: unknown[] = []
   for (const task of tasks) {
     results.push(await task())
   }
-  return results as unknown as T
+  return results as { [K in keyof T]: Awaited<ReturnType<T[K]>> }
 }
 
 function itemRows(items: unknown) {
@@ -142,7 +174,7 @@ function salesLineRows(lines: SalesBillLineFactRow[] | undefined) {
 
 async function cashBalances(asOf: Date) {
   const [accounts, bankRows] = await Promise.all([
-    prisma.accounts.findMany({ where: { active: true } }),
+    listActiveAccounts(),
     prisma.bank_statement.findMany({
       orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
       take: 30000,
@@ -150,18 +182,18 @@ async function cashBalances(asOf: Date) {
     }),
   ])
   const balances = new Map<bigint, number>()
-  accounts.forEach((account) => balances.set(account.id, toNumber(account.opening_balance)))
-  bankRows.forEach((row) => {
+  accounts.forEach((account: AccountReferenceRecord) => balances.set(account.id, cachedMoney(account.openingBalance)))
+  bankRows.forEach((row: Prisma.bank_statementGetPayload<Record<string, never>>) => {
     if (!row.account_id) return
     const previous = balances.get(row.account_id) ?? 0
     balances.set(row.account_id, row.balance === null || row.balance === undefined ? previous + toNumber(row.amount_in) - toNumber(row.amount_out) : toNumber(row.balance))
   })
-  return accounts.reduce((acc, account) => {
+  return accounts.reduce((acc: { bank: number; cash: number; fcd: number; odLimit: number; odUsed: number }, account: AccountReferenceRecord) => {
     const balance = balances.get(account.id) ?? 0
-    const type = [account.type, account.name, account.bank_name, account.bank].filter(Boolean).join(' ').toLowerCase()
+    const type = [account.type, account.name, account.bankName, account.bank].filter(Boolean).join(' ').toLowerCase()
     if (type.includes('od')) {
       acc.odUsed += Math.max(0, -balance)
-      acc.odLimit += toNumber(account.od_limit)
+      acc.odLimit += cachedMoney(account.odLimit)
     } else if (type.includes('fcd') || type.includes('foreign') || type.includes('ต่างประเทศ')) {
       acc.fcd += balance
     } else if (type.includes('cash') || type.includes('เงินสด')) {
@@ -185,7 +217,31 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   const todayStart = startOfDay(selectedDate)
   const todayEnd = endOfDay(selectedDate)
 
-  const [purchases, sales, expenses, previousSales, previousExpenses, payments, receipts, stockRows, deals, finance, previousFinance, productionRows, cash, previousCash, bankToday, bankRange, loanSchedules, products, salespersons, branches, suppliers, customers, historicalRows] = await runReadBatch([
+  const [purchases, sales, expenses, previousSales, previousExpenses, payments, receipts, stockRows, deals, finance, previousFinance, productionRows, cash, previousCash, bankToday, bankRange, loanSchedules, products, salespersons, branches, suppliers, customers, historicalRows]: readonly [
+    PurchaseBillRow[],
+    SalesBillRow[],
+    ExpenseRow[],
+    SalesBillRow[],
+    ExpenseRow[],
+    Prisma.paymentsGetPayload<Record<string, never>>[],
+    Prisma.receiptsGetPayload<Record<string, never>>[],
+    StockLedgerRow[],
+    TradingDealRow[],
+    Awaited<ReturnType<typeof buildFinancialDashboard>>,
+    Awaited<ReturnType<typeof buildFinancialDashboard>>,
+    Awaited<ReturnType<typeof loadProductionMetrics>>,
+    Awaited<ReturnType<typeof cashBalances>>,
+    Awaited<ReturnType<typeof cashBalances>>,
+    BankStatementRow[],
+    BankStatementRow[],
+    LoanScheduleRow[],
+    ProductRow[],
+    SalespersonRow[],
+    BranchReferenceRow[],
+    SupplierReferenceRow[],
+    CustomerReferenceRow[],
+    HistoricalMonthlyRow[],
+  ] = await runReadBatch([
     () => prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, supplier_id: supplier?.id, date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
     () => prisma.sales_bills.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, customer_id: customer?.id || undefined, date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
     () => prisma.expenses.findMany({ include: { expense_categories: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
@@ -205,9 +261,9 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
     () => prisma.loan_schedules.findMany({ include: { loans: true }, orderBy: [{ due_date: 'asc' }], take: 1000, where: { due_date: { lte: todayEnd }, payment_status: { notIn: ['Paid', 'paid', 'PAID', 'cancelled', 'Cancelled'] } } }),
     () => prisma.products.findMany({ where: { active: { not: false } } }),
     () => prisma.salespersons.findMany({ where: { active: { not: false } } }),
-    () => prisma.branches.findMany({ orderBy: [{ name: 'asc' }], where: { active: { not: false } } }),
-    () => prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], select: { code: true, id: true, name: true }, where: { active: { not: false } } }),
-    () => prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { code: true, id: true, name: true }, where: { active: { not: false } } }),
+    () => listActiveBranches(),
+    () => listActiveSuppliers(),
+    () => listActiveCustomers(),
     () => prisma.historical_monthly.findMany({ orderBy: [{ year: 'asc' }, { month: 'asc' }], take: 5000 }),
   ] as const)
 

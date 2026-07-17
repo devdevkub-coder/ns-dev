@@ -90,7 +90,7 @@ updated: 2026-06-25
 | `sales_bill_source_allocations` | `sales_bill_id`, `sales_line_no`, `source_type`, `source_doc_no`, `source_line_no`, `product_id`, `allocated_qty`, `movement_owner`, `stock_ledger_ref_type`, `status` | target source type สำหรับ stock sale คือ `WTO`; `movement_owner` = `SALES_BILL`; cancel ต้อง mark `cancelled/reversed` ไม่ลบ |
 | `sales_bill_po_sell_allocations` | `sales_bill_id`, `sales_line_no`, `po_sell_id`, `po_sell_line_no`, `allocation_type`, `product_id`, `allocated_qty`, `unit_price`, `allocated_amount`, `status` | `allocation_type` = `PO_SELL` หรือ `SPOT_SALE`; `PO_SELL` ต้อง validate customer/branch/product/remaining ใน transaction |
 | `po_sell_allocation_logs` | `po_sell_id`, `sales_bill_id`, `sales_bill_line_no`, `action`, `allocated_qty`, `allocated_amount`, `from_remaining_qty`, `to_remaining_qty` | append-only audit สำหรับ `allocated_to_sales_bill` และ `released_from_sales_bill`; detail/timeline อ่าน log นี้ก่อน allocation fact |
-| `sales_bill_customer_advance_allocations` | `sales_bill_id`, `customer_advance_doc_no`, `customer_id`, `allocated_amount`, `outstanding_before`, `outstanding_after`, `status` | ต้อง block over-allocation จาก active allocation facts และ release แบบ append/update status ใน transaction เดียวกับ SB cancel/correction |
+| `sales_bill_customer_advance_allocations` | `sales_bill_id`, `customer_advance_doc_no`, `customer_id`, `allocated_amount`, `allocated_subtotal_amount`, `allocated_vat_amount`, `allocated_total_amount`, `outstanding_before`, `outstanding_after`, `status` | `allocated_amount` เป็นเครดิตฐานก่อน VAT และต้องเท่ากับ `allocated_subtotal_amount`; VAT/total เป็นผลของการลดฐาน SB หลังส่วนลด ต้อง block over-allocation จาก active allocation facts และ release แบบ append/update status ใน transaction เดียวกับ SB cancel/correction |
 
 Index minimum:
 
@@ -373,10 +373,10 @@ Validation:
 | 1 | ยอดเงินรวม | sum line amount ก่อนส่วนลดท้ายบิล |
 | 2 | หักส่วนลด | money input pattern เดียวกับ PB |
 | 3 | ยอดหลังหักส่วนลด | subtotal - discount |
-| 4 | VAT | คำนวณจากยอดหลังหักส่วนลดตาม VAT config/snapshot |
-| 5 | ยอดรวมทั้งสิ้น | ยอดหลังหักส่วนลด + VAT หรือ gross ตาม VAT mode |
-| 6 | หักมัดจำ/เงินล่วงหน้า Customer | เลือก Customer advance ที่จ่ายแล้วและยัง available |
-| 7 | ยอดลูกหนี้สุทธิ | grand total - allocated customer advance |
+| 4 | หักมัดจำ/เงินล่วงหน้า Customer | เลือก Customer advance ที่รับเงินจริงแล้วและยังมี available base |
+| 5 | ฐานก่อน VAT สุทธิ | ยอดหลังหักส่วนลด - CADV allocated base |
+| 6 | VAT | คำนวณจากฐานก่อน VAT สุทธิหลังหัก CADV ตาม VAT config/snapshot |
+| 7 | ยอดลูกหนี้สุทธิ | ฐานก่อน VAT สุทธิ + VAT |
 
 กติกาใบกำกับภาษี:
 
@@ -387,8 +387,11 @@ Validation:
 กติกามัดจำ:
 
 - Customer advance เป็น source เงินล่วงหน้าฝั่ง Customer แยกจาก receipt ปกติ
-- เลือกได้เฉพาะ Customer/สาขาเดียวกันและยังมียอด available
-- ห้าม allocate เกินยอด available และห้ามทำให้ยอดลูกหนี้สุทธิติดลบ
+- เลือกได้เฉพาะ Customer/สาขาเดียวกัน, รับเงินจริงแล้ว, และยังมี `available_amount`
+- `available_amount` ของ CADV เป็นเครดิตฐานก่อน VAT ไม่ใช่ยอดเงินสดรวม
+- ลำดับการคำนวณต้องเป็น `ยอดขายหลังส่วนลด -> หัก CADV base -> คำนวณ VAT จากฐานที่เหลือ`
+- `sales_bill_customer_advance_allocations.allocated_amount` ต้องเท่ากับ `allocated_subtotal_amount`; ส่วน `allocated_vat_amount` และ `allocated_total_amount` เป็นผลของ VAT ที่ลดลงจากบิล
+- ห้าม allocate เกินยอด available base และห้ามทำให้ยอดลูกหนี้สุทธิติดลบ
 - ถ้าแก้หรือยกเลิก `SB` ต้อง release/recalculate customer advance allocation ใน transaction เดียวกัน
 - Detail/print ต้องเห็นว่า `SB` หักมัดจำจากเอกสารใด จำนวนเท่าไร และเหลือยอดรับชำระเท่าไร
 
@@ -474,9 +477,9 @@ Design/API รายละเอียดอยู่ที่ [[Stock Ledger DB
 #### Batch SB-3: Totals, VAT, And Deposit
 
 - [x] ใช้ money input pattern สำหรับ `ราคา/หน่วย`, `ส่วนลด`, และส่วนลดท้ายบิล
-- [x] แสดง VAT/totals ตาม visual baseline ของ `PB`; ใน create form ใช้ checkbox `มี VAT` เป็น control เดียว ไม่แสดง selector `ไม่คิด VAT / VAT แยก / รวม VAT` ซ้ำ และวางช่องมัดจำก่อน `ส่วนลดท้ายบิล`
+- [x] แสดง VAT/totals ตาม visual baseline ของ `PB`; ใน create form ใช้ checkbox `มี VAT` เป็น control เดียว ไม่แสดง selector `ไม่คิด VAT / VAT แยก / รวม VAT` ซ้ำ และคำนวณตามลำดับ ส่วนลด -> CADV base -> VAT
 - [x] เพิ่ม selector `รับเงินล่วงหน้า/มัดจำ Customer`
-- [x] คำนวณ `ยอดลูกหนี้สุทธิ = ยอดสุทธิ - มัดจำ Customer`
+- [x] คำนวณ `ยอดลูกหนี้สุทธิ = ฐานหลังส่วนลดและหลังหัก CADV base + VAT จากฐานที่เหลือ`
 - [x] ย้าย Customer advance availability/create path ไป dedicated `sales_bill_customer_advance_allocations` fact table; legacy snapshot markers ถูก backfill ด้วย migration
 - [x] เพิ่ม release/cancel Customer advance allocation เมื่อยกเลิก `SB`; full edit/recalculate ยังปิดไว้ตาม policy
 

@@ -6,6 +6,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranches } from '@/lib/server/reference-master-cache'
 import { findActiveSalespersonReferenceByCodeOrId } from '@/lib/server/salesperson-reference'
 import type { Prisma } from '../../../../../../generated/prisma/client'
 
@@ -157,11 +158,11 @@ async function syncCustomerBranches(
     ...(input.primaryBranchCode ? [input.primaryBranchCode.trim().toUpperCase()] : []),
   ]))
   const primaryBranchCode = input.primaryBranchCode?.trim().toUpperCase() || branchCodes[0] || null
-  const branches = await tx.branches.findMany({
+  const branches: Array<{ code: string; id: bigint }> = await tx.branches.findMany({
     select: { code: true, id: true },
     where: { active: true, code: { in: branchCodes } },
   })
-  const branchByCode = new Map(branches.map((branch) => [branch.code, branch] as const))
+  const branchByCode = new Map<string, { code: string; id: bigint }>(branches.map((branch) => [branch.code, branch] as const))
   const missingCodes = branchCodes.filter((code) => !branchByCode.has(code))
   if (missingCodes.length) {
     throw new Error(`สาขาไม่ถูกต้องหรือถูกปิดใช้งาน: ${missingCodes.join(', ')}`)
@@ -226,7 +227,7 @@ async function nextCustomerCodeSequence(blankCodeCount: number) {
     select: { code: true },
     where: { code: { startsWith: 'CUS' } },
   })
-  const maxNumber = existingCustomers.reduce((max, row) => {
+  const maxNumber = existingCustomers.reduce((max: number, row: (typeof existingCustomers)[number]) => {
     const matched = String(row.code ?? '').match(/^CUS(\d+)$/i)
     const value = matched ? Number(matched[1]) : 0
     return Number.isFinite(value) ? Math.max(max, value) : max
@@ -271,10 +272,7 @@ export async function POST(request: Request) {
 
     const blankCodeRows = rows.filter((row) => !cellText(row, 'code')).length
     const generatedCodes = await nextCustomerCodeSequence(blankCodeRows)
-    const activeBranches = await prisma.branches.findMany({
-      select: { code: true },
-      where: { active: true },
-    })
+    const activeBranches = await listActiveBranches()
     const activeBranchCodes = new Set(activeBranches.map((branch) => branch.code))
     let generatedCodeIndex = 0
     const issues: string[] = []
@@ -378,7 +376,7 @@ export async function POST(request: Request) {
     }
 
     const actor = context.appUser?.email ?? context.authUser.email ?? null
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       for (const [index, row] of validRows.entries()) {
         const payload = toCustomerWriteInput(row, {
           salesId: salespersonReferences[index]?.id ?? null,

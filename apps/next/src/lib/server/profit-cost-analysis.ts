@@ -5,6 +5,7 @@ import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-ref
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
+import { listActiveBranches, listActiveCustomers, listActiveSuppliers } from '@/lib/server/reference-master-cache'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 
 type JsonItem = Prisma.JsonObject
@@ -45,6 +46,29 @@ type ProductAgg = {
   targetMarginPct: number
   unit: string
 }
+
+type ProductRow = Prisma.productsGetPayload<{
+  select: { code: true; id: true; metal_group: true; name: true; unit: true }
+}>
+
+type PurchaseBillRow = Prisma.purchase_billsGetPayload<{
+  include: { branches: true; purchase_bill_items: true; suppliers: true }
+}>
+
+type SalesBillRow = Prisma.sales_billsGetPayload<{
+  include: { branches: true; customers: true; sales_channels: true }
+}>
+
+type StockLedgerRow = Prisma.stock_ledgerGetPayload<{
+  include: { products: true }
+}>
+
+type BranchReferenceRow = Awaited<ReturnType<typeof listActiveBranches>>[number]
+type SupplierReferenceRow = Awaited<ReturnType<typeof listActiveSuppliers>>[number]
+type CustomerReferenceRow = Awaited<ReturnType<typeof listActiveCustomers>>[number]
+type SalesChannelRow = Prisma.sales_channelsGetPayload<{
+  select: { active: true; code: true; id: true; name: true }
+}>
 
 function startOfDay(date: string) {
   return new Date(`${date}T00:00:00.000Z`)
@@ -150,7 +174,16 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
   const supplier = filter.supplierId ? await findActiveSupplierReferenceByCodeOrId(filter.supplierId) : null
   const salesChannelId = parseInternalBigIntId(filter.salesChannelId)
 
-  const [products, purchaseBills, salesBills, stockRows, branches, salesChannels, suppliers, customers] = await Promise.all([
+  const [products, purchaseBills, salesBills, stockRows, branches, salesChannels, suppliers, customers]: [
+    ProductRow[],
+    PurchaseBillRow[],
+    SalesBillRow[],
+    StockLedgerRow[],
+    BranchReferenceRow[],
+    SalesChannelRow[],
+    SupplierReferenceRow[],
+    CustomerReferenceRow[],
+  ] = await Promise.all([
     prisma.products.findMany({
       orderBy: [{ metal_group: 'asc' }, { code: 'asc' }, { name: 'asc' }],
       select: { code: true, id: true, metal_group: true, name: true, unit: true },
@@ -189,10 +222,10 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
         ...(branch?.id != null ? { branch_id: branch.id } : {}),
       },
     }),
-    prisma.branches.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
+    listActiveBranches(),
     prisma.sales_channels.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
-    prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
-    prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, credit_term: true, id: true, name: true } }),
+    listActiveSuppliers(),
+    listActiveCustomers(),
   ])
 
   const productRefs: ProductRef[] = products.map((product) => ({
@@ -271,7 +304,7 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
     let itemRevenueTotal = 0
     let billQty = 0
     if (Array.isArray(bill.items)) {
-      bill.items.filter(isJsonItem).forEach((item) => {
+      bill.items.filter(isJsonItem).forEach((item: JsonItem) => {
         const row = ensureProductRow(item)
         const qty = itemQty(item)
         const revenue = itemAmount(item)
@@ -384,11 +417,11 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
     filters: {
       branches: branches.map((row) => {
         const code = requireBusinessCode(row.code, `สาขา ${row.id}`)
-        return { active: row.active ?? true, code, id: code, name: row.name }
+        return { active: true, code, id: code, name: row.name }
       }),
       customers: customers.map((row) => {
         const code = requireBusinessCode(row.code, `ลูกค้า ${row.id}`)
-        return { active: row.active ?? true, code, creditTerm: row.credit_term ?? 0, id: code, name: row.name }
+        return { active: true, code, creditTerm: row.creditTerm ?? 0, id: code, name: row.name }
       }),
       dateFrom: filter.dateFrom,
       dateTo: filter.dateTo,
@@ -401,7 +434,7 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
       selectedMetalGroups: Array.from(selectedMetalGroups),
       suppliers: suppliers.map((row) => {
         const code = requireBusinessCode(row.code, `ผู้ขาย ${row.id}`)
-        return { active: row.active ?? true, code, id: code, name: row.name }
+        return { active: true, code, id: code, name: row.name }
       }),
     },
     rows: {

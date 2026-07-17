@@ -3,6 +3,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listSupplierReferencesByIds } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -41,7 +42,7 @@ export async function GET() {
         .filter((value): value is bigint => value != null),
     ))
     const [suppliers, bills] = await Promise.all([
-      supplierIds.length ? prisma.suppliers.findMany({ select: { code: true, id: true, name: true }, where: { id: { in: supplierIds } } }) : [],
+      listSupplierReferencesByIds(supplierIds),
       billIds.length ? prisma.purchase_bills.findMany({ select: { doc_no: true, id: true }, where: { id: { in: billIds } } }) : [],
     ])
     const supplierCodeById = new Map(suppliers.map((supplier) => [supplier.id, supplier.code]))

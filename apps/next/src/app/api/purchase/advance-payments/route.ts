@@ -13,6 +13,7 @@ import { currentActor, listDailyAccounts, normalizeDate, toDateOnly, toNumber } 
 import { isSupplierEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { listActiveBranches, listActivePaymentMethods, listActiveSupplierBranchOptions } from '@/lib/server/reference-master-cache'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import type { Prisma } from '../../../../../generated/prisma/client'
@@ -54,6 +55,28 @@ type PaymentMethodOption = {
   id: string
   name: string
   type: string
+}
+
+type ActiveBranchOption = Awaited<ReturnType<typeof listActiveBranches>>[number]
+type ActivePaymentMethodOption = Awaited<ReturnType<typeof listActivePaymentMethods>>[number]
+type ActiveSupplierBranchOption = Awaited<ReturnType<typeof listActiveSupplierBranchOptions>>[number]
+type ProductOptionRow = Prisma.productsGetPayload<{
+  select: { active: true, code: true, id: true, name: true, unit: true }
+}>
+type AdvanceSummaryRow = Prisma.supplier_advance_paymentsGetPayload<{
+  select: {
+    allocated_amount: true
+    amount: true
+    remaining_amount: true
+    status: true
+    total_amount: true
+  }
+}>
+type AdvanceSummaryAccumulator = {
+  pendingCount: number
+  totalAdvance: number
+  totalAllocated: number
+  totalRemaining: number
 }
 
 function rowJson(row: AdvancePaymentRow) {
@@ -219,16 +242,20 @@ export async function GET(request: Request) {
         : {}),
     }
 
-    const [accounts, branches, paymentMethods, products, rows, summaryRows, suppliers, totalRows] = await Promise.all([
+    const [accounts, branches, paymentMethods, suppliers, products, rows, summaryRows, totalRows]: [
+      Awaited<ReturnType<typeof listDailyAccounts>>,
+      ActiveBranchOption[],
+      ActivePaymentMethodOption[],
+      ActiveSupplierBranchOption[],
+      ProductOptionRow[],
+      AdvancePaymentRow[],
+      AdvanceSummaryRow[],
+      number,
+    ] = await Promise.all([
       listDailyAccounts(),
-      prisma.branches.findMany({
-        orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
-        select: { active: true, code: true, id: true, name: true },
-      }),
-      prisma.payment_methods.findMany({
-        orderBy: [{ active: 'desc' }, { name: 'asc' }],
-        select: { active: true, code: true, name: true, type: true },
-      }),
+      listActiveBranches(),
+      listActivePaymentMethods(),
+      listActiveSupplierBranchOptions(),
       prisma.products.findMany({
         orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
         select: { active: true, code: true, id: true, name: true, unit: true },
@@ -275,27 +302,17 @@ export async function GET(request: Request) {
         take: 10000,
         where,
       }),
-      prisma.suppliers.findMany({
-        orderBy: [{ active: 'desc' }, { name: 'asc' }],
-        select: {
-          active: true,
-          code: true,
-          id: true,
-          name: true,
-          supplier_branches: {
-            select: {
-              branches: { select: { code: true } },
-            },
-            where: { active: true },
-          },
-        },
-        take: 5000,
-      }),
       prisma.supplier_advance_payments.count({ where }),
     ])
+    const branchOptions = branches.map((branch: ActiveBranchOption) => ({
+      active: true,
+      code: branch.code,
+      id: branch.id,
+      name: branch.name,
+    }))
 
     const mappedRows = rows.map(rowJson)
-    const summary = summaryRows.reduce((accumulator, row) => ({
+    const summary = summaryRows.reduce((accumulator: AdvanceSummaryAccumulator, row: AdvanceSummaryRow) => ({
       pendingCount: accumulator.pendingCount + (row.status === 'pending_approval' ? 1 : 0),
       totalAdvance: accumulator.totalAdvance + (toNumber(row.total_amount) || toNumber(row.amount)),
       totalAllocated: accumulator.totalAllocated + toNumber(row.allocated_amount),
@@ -305,7 +322,7 @@ export async function GET(request: Request) {
       totalAdvance: 0,
       totalAllocated: 0,
       totalRemaining: 0,
-    })
+    } satisfies AdvanceSummaryAccumulator)
 
     if (url.searchParams.get('format') === 'xlsx') {
       const exportRows = await prisma.supplier_advance_payments.findMany({
@@ -342,7 +359,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       accounts,
-      branches: branches.map((branch) => ({ ...branch, id: branch.code })),
+      branches: branchOptions.map((branch: { active: boolean, code: string, id: bigint, name: string }) => ({ ...branch, id: branch.code })),
       filters: {
         statuses: [
           { label: 'ทั้งหมด', value: 'all' },
@@ -362,13 +379,13 @@ export async function GET(request: Request) {
         totalPages: Math.max(1, Math.ceil(totalRows / pageSize)),
         totalRows,
       },
-      paymentMethods: paymentMethods.map((method): PaymentMethodOption => ({
+      paymentMethods: paymentMethods.map((method: ActivePaymentMethodOption): PaymentMethodOption => ({
         active: method.active,
         id: method.code,
         name: method.name,
         type: method.type,
       })),
-      products: products.map((product) => ({
+      products: products.map((product: ProductOptionRow) => ({
         active: product.active,
         code: product.code,
         id: requireBusinessCode(product.code, `สินค้า ${product.id}`),
@@ -377,11 +394,9 @@ export async function GET(request: Request) {
       })),
       rows: mappedRows,
       summary,
-      suppliers: suppliers.map((supplier) => ({
-        active: supplier.active,
-        branchIds: supplier.supplier_branches
-          .map((mapping) => mapping.branches?.code)
-          .filter((branchCode): branchCode is string => Boolean(branchCode)),
+      suppliers: suppliers.map((supplier: ActiveSupplierBranchOption) => ({
+        active: true,
+        branchIds: supplier.branchIds,
         code: supplier.code,
         id: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),
         name: supplier.name,
@@ -430,7 +445,7 @@ export async function POST(request: Request) {
       vatType: values.vatType,
     })
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const created = await tx.supplier_advance_payments.create({
         data: {
           advance_type: values.advanceType,

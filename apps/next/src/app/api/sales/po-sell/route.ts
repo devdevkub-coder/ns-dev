@@ -4,12 +4,13 @@ import { XLSX } from '@/lib/server/xlsx'
 import { poSellFormSchema, type PoSellFormValues } from '@/lib/sales'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission, type AppAuthContext } from '@/lib/server/auth-context'
-import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
+import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { isCustomerEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranches, listActiveBranchesByCodes, listActiveCustomerBranchOptions, type BranchReferenceRecord, type CustomerBranchOptionRecord } from '@/lib/server/reference-master-cache'
 import { findActiveSalesChannelReferenceByCode } from '@/lib/server/sales-channel-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import { activeVatRatePercent } from '@/lib/server/tax-settings'
@@ -40,6 +41,111 @@ type LinkedSalesPlanRow = {
   sell_price: { toNumber: () => number } | number
   status: string
   total_kg: { toNumber: () => number } | number
+}
+
+type BranchScopeRow = {
+  code: string
+  id: bigint
+}
+
+type BranchLookupRow = {
+  code: string
+  id: bigint
+  name: string
+}
+
+type SalesChannelLookupRow = {
+  code: string | null
+  id: bigint
+  name: string
+}
+
+type ProductLookupRow = {
+  active?: boolean | null
+  code: string | null
+  id: bigint
+  name: string
+  unit: string | null
+}
+
+type SalesBillLinkRow = Prisma.sales_billsGetPayload<{
+  select: { id: true, po_sell_id: true }
+}>
+
+type TradingDealLinkRow = Prisma.trading_dealsGetPayload<{
+  select: {
+    matched_purchase_amount: true
+    matched_qty: true
+    matched_sales_amount: true
+    sales_bill_id: true
+  }
+}>
+
+type ActiveAllocationRow = Prisma.sales_bill_po_sell_allocationsGetPayload<{
+  select: { po_sell_id: true }
+}>
+
+type PoSellListRow = Prisma.po_sellsGetPayload<{
+  include: { customers: true }
+}>
+
+type PoSellResponseRow = {
+  branchId: string | null
+  branchName: string
+  canCancel: boolean
+  canEdit: boolean
+  cancelDisabledReason: string
+  channelId: string | null
+  channelName: string
+  createdAt: string
+  createdBy: string
+  customerAddress: string
+  customerId: string | null
+  customerName: string
+  customerPhone: string
+  customerTaxId: string
+  docNo: string
+  documentStatus: PoSellDocumentStatus
+  documentStatusLabel: string
+  editDisabledReason: string
+  expectedDelivery: string
+  hasVat: boolean
+  id: string
+  itemCount: number
+  items: Array<{
+    discount: number
+    note: string | null
+    price: number
+    productId: string
+    productName: string
+    qty: number
+    remainingQty: number
+    totalAmount: number
+    unit: string | null
+    unitPrice: number
+  }>
+  margin: number
+  marginPct: number
+  matchStatus: string
+  matchStatusLabel: string
+  matchedCost: number
+  matchedPct: number
+  matchedQty: number
+  note: string | null
+  productName: string
+  qty: number
+  remainingAmount: number
+  remainingQty: number
+  requireDelivery: boolean
+  status: string
+  subtotal: number
+  totalAmount: number
+  unitPrice: number
+  updatedAt: string
+  updatedBy: string
+  vatAmount: number
+  vatRatePercent: number
+  vatType: string
 }
 
 const DOCUMENT_STATUS_OPTIONS = [
@@ -81,11 +187,13 @@ async function salesBranchScope(context: AppAuthContext, requestedBranchCode?: s
   const allowedCodes = getBranchCodeIntersection(context, requestedBranchCode)
   if (allowedCodes === null) return { codes: null, ids: null }
   if (allowedCodes.length === 0) return { codes: [], ids: [] as bigint[] }
-  const branches = await prisma.branches.findMany({
-    select: { code: true, id: true },
-    where: { code: { in: allowedCodes } },
-  })
-  return { codes: allowedCodes, ids: branches.map((branch) => branch.id) }
+  const branches = await listActiveBranchesByCodes(allowedCodes)
+  return {
+    codes: allowedCodes,
+    ids: branches
+      .map((branch) => parseInternalBigIntId(branch.id))
+      .filter((branchId): branchId is bigint => branchId !== null),
+  }
 }
 
 function scopedBranchWhere(allowedBranchIds: bigint[] | null): Prisma.po_sellsWhereInput {
@@ -191,7 +299,7 @@ async function releasePoSellShortCloseDualCosting(
     releasedAt: Date
   },
 ) {
-  const linkedBills = await tx.sales_bills.findMany({
+  const linkedBills: Array<{ id: bigint }> = await tx.sales_bills.findMany({
     select: { id: true },
     where: {
       po_sell_id: params.poSell.id,
@@ -199,7 +307,17 @@ async function releasePoSellShortCloseDualCosting(
     },
   })
   const linkedBillIds = linkedBills.map((bill) => bill.id)
-  const activeFacts = await tx.trading_allocation_facts.findMany({
+  const activeFacts: Array<{
+    id: bigint
+    matched_cogs: Prisma.Decimal | number | null
+    notes: string | null
+    product_id: bigint | null
+    qty: Prisma.Decimal | number | null
+    sales_amount: Prisma.Decimal | number | null
+    source_doc_no: string | null
+    source_line_no: number | null
+    trading_deal_id: bigint | null
+  }> = await tx.trading_allocation_facts.findMany({
     orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
     select: {
       id: true,
@@ -222,7 +340,9 @@ async function releasePoSellShortCloseDualCosting(
   })
 
   const fulfilledQty = Math.max(0, toNumber(params.poSell.qty) - toNumber(params.poSell.remaining_qty))
-  const matchedQty = activeFacts.reduce((sum, fact) => sum + toNumber(fact.qty), 0)
+  const matchedQty = activeFacts.reduce((sum: number, fact: {
+    qty: Prisma.Decimal | number | null
+  }) => sum + toNumber(fact.qty), 0)
   let qtyToRelease = Math.max(0, matchedQty - fulfilledQty)
   if (qtyToRelease <= 0.001) {
     return { releasedDealCount: 0, releasedFactCount: 0, releasedQty: 0 }
@@ -530,44 +650,34 @@ async function nextPoSellDocNo(date: Date) {
 }
 
 async function optionsPayload(scope: { codes: string[] | null }) {
-  const [branches, customers, products, salesChannels] = await Promise.all([
-    prisma.branches.findMany({
-      orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
-      select: { active: true, code: true, id: true, name: true },
-      where: scope.codes === null ? undefined : { code: { in: scope.codes } },
-    }),
-    prisma.customers.findMany({
-      orderBy: [{ active: 'desc' }, { name: 'asc' }],
-      select: {
-        active: true,
-        code: true,
-        id: true,
-        market_scope: true,
-        name: true,
-        customer_branches: {
-          select: {
-            branches: { select: { code: true } },
-          },
-          where: { active: true },
-        },
-      },
-    }),
+  const [branchRefs, customers, products, salesChannels]: [
+    BranchReferenceRecord[],
+    CustomerBranchOptionRecord[],
+    Array<{ active: boolean | null, code: string | null, id: bigint, name: string, unit: string | null }>,
+    Array<{ active: boolean | null, code: string | null, id: bigint, name: string }>,
+  ] = await Promise.all([
+    scope.codes === null ? listActiveBranches() : listActiveBranchesByCodes(scope.codes),
+    listActiveCustomerBranchOptions(),
     prisma.products.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, unit: true } }),
     prisma.sales_channels.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
   ])
+  const branches = branchRefs.map((branch: BranchReferenceRecord) => ({
+    active: true,
+    code: branch.code,
+    id: branch.id,
+    name: branch.name,
+  }))
   return {
     branches: branches.map((branch) => ({
       ...branch,
       id: requireBusinessCode(branch.code, `สาขา ${branch.id}`),
     })),
-    customers: customers.map((customer) => ({
+    customers: customers.map((customer: CustomerBranchOptionRecord) => ({
       id: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
-      active: customer.active,
-      branchIds: customer.customer_branches
-        .map((mapping) => mapping.branches?.code)
-        .filter((branchCode): branchCode is string => Boolean(branchCode)),
+      active: true,
+      branchIds: customer.branchIds,
       code: customer.code,
-      marketScope: customer.market_scope === 'ต่างประเทศ' ? 'ต่างประเทศ' : 'ในประเทศ',
+      marketScope: customer.marketScope === 'ต่างประเทศ' ? 'ต่างประเทศ' : 'ในประเทศ',
       name: customer.name,
     })),
     products: products.map((product) => ({
@@ -601,7 +711,14 @@ export async function GET(request: Request) {
       ...(createdAtWhere ? { created_at: createdAtWhere } : {}),
     }
 
-    const [poSells, branches, channels, products, salesBills, tradingDeals] = await Promise.all([
+    const [poSells, branches, channels, products, salesBills, tradingDeals]: [
+      PoSellListRow[],
+      BranchLookupRow[],
+      SalesChannelLookupRow[],
+      ProductLookupRow[],
+      SalesBillLinkRow[],
+      TradingDealLinkRow[],
+    ] = await Promise.all([
       prisma.po_sells.findMany({
         include: { customers: true },
         orderBy: [{ created_at: 'desc' }, { doc_no: 'desc' }],
@@ -610,7 +727,7 @@ export async function GET(request: Request) {
       }),
       prisma.branches.findMany({ select: { code: true, id: true, name: true } }),
       prisma.sales_channels.findMany({ select: { code: true, id: true, name: true } }),
-      prisma.products.findMany({ select: { code: true, id: true, name: true } }),
+      prisma.products.findMany({ select: { code: true, id: true, name: true, unit: true } }),
       prisma.sales_bills.findMany({
         orderBy: [{ date: 'desc' }],
         take: 10000,
@@ -622,24 +739,24 @@ export async function GET(request: Request) {
         where: { NOT: { status: { in: ['Cancelled', 'cancelled', 'Canceled', 'canceled'] } } },
       }),
     ])
-    const poSellIds = poSells.map((po) => po.id)
-    const activeAllocations = poSellIds.length
+    const poSellIds = poSells.map((po: PoSellListRow) => po.id)
+    const activeAllocations: ActiveAllocationRow[] = poSellIds.length
       ? await prisma.sales_bill_po_sell_allocations.findMany({
         select: { po_sell_id: true },
         where: { po_sell_id: { in: poSellIds }, status: 'active' },
       })
       : []
 
-    const branchById = new Map(branches.map((branch) => [branch.id, branch]))
-    const channelById = new Map(channels.map((channel) => [channel.id, channel]))
-    const productById = new Map(products.map((product) => [product.id, product]))
+    const branchById = new Map<bigint, BranchLookupRow>(branches.map((branch: BranchLookupRow) => [branch.id, branch] as const))
+    const channelById = new Map<bigint, SalesChannelLookupRow>(channels.map((channel: SalesChannelLookupRow) => [channel.id, channel] as const))
+    const productById = new Map<bigint, ProductLookupRow>(products.map((product: ProductLookupRow) => [product.id, product] as const))
     const lockedPoSellIds = new Set<bigint>()
-    activeAllocations.forEach((allocation) => {
+    activeAllocations.forEach((allocation: ActiveAllocationRow) => {
       if (allocation.po_sell_id) lockedPoSellIds.add(allocation.po_sell_id)
     })
 
     const salesBillIdsByPoSellId = new Map<bigint, Set<bigint>>()
-    salesBills.forEach((bill) => {
+    salesBills.forEach((bill: SalesBillLinkRow) => {
       if (!bill.po_sell_id) return
       lockedPoSellIds.add(bill.po_sell_id)
       const current = salesBillIdsByPoSellId.get(bill.po_sell_id) ?? new Set<bigint>()
@@ -648,7 +765,7 @@ export async function GET(request: Request) {
     })
 
     const tradingDealsBySalesBillId = new Map<bigint, typeof tradingDeals>()
-    tradingDeals.forEach((deal) => {
+    tradingDeals.forEach((deal: TradingDealLinkRow) => {
       if (!deal.sales_bill_id) return
       const current = tradingDealsBySalesBillId.get(deal.sales_bill_id) ?? []
       current.push(deal)
@@ -656,14 +773,14 @@ export async function GET(request: Request) {
     })
 
     const matchedByPoSellId = new Map<bigint, { cost: number; qty: number; salesAmount: number }>()
-    poSells.forEach((po) => {
+    poSells.forEach((po: PoSellListRow) => {
       const billIds = salesBillIdsByPoSellId.get(po.id) ?? new Set<bigint>()
       let cost = 0
       let qty = 0
       let salesAmount = 0
       billIds.forEach((billId) => {
         const deals = tradingDealsBySalesBillId.get(billId) ?? []
-        deals.forEach((deal) => {
+        deals.forEach((deal: TradingDealLinkRow) => {
           cost += toNumber(deal.matched_purchase_amount)
           qty += toNumber(deal.matched_qty)
           salesAmount += toNumber(deal.matched_sales_amount)
@@ -672,7 +789,7 @@ export async function GET(request: Request) {
       matchedByPoSellId.set(po.id, { cost, qty, salesAmount })
     })
 
-    const rows = poSells.map((po) => {
+    const rows: PoSellResponseRow[] = poSells.map((po: PoSellListRow) => {
       const fallbackProduct = po.product_id ? productById.get(po.product_id) : null
       const fallbackProductCode = fallbackProduct?.code ? requireBusinessCode(fallbackProduct.code, `สินค้า ${po.product_id}`) : ''
       const fallbackProductName = fallbackProduct?.name ?? ''
@@ -749,12 +866,12 @@ export async function GET(request: Request) {
         subtotal: toNumber(po.subtotal) || totalAmount,
       }
     })
-      .filter((row) => !activeStatusFilter || row.documentStatus === activeStatusFilter)
-      .filter((row) => !activeMatchStatusFilter || row.matchStatus === activeMatchStatusFilter)
-      .filter((row) => !q || `${row.docNo} ${row.customerName} ${row.channelName} ${row.branchName} ${row.productName} ${row.documentStatusLabel} ${row.status} ${row.matchStatus} ${row.matchStatusLabel}`.toLowerCase().includes(q))
+      .filter((row: PoSellResponseRow) => !activeStatusFilter || row.documentStatus === activeStatusFilter)
+      .filter((row: PoSellResponseRow) => !activeMatchStatusFilter || row.matchStatus === activeMatchStatusFilter)
+      .filter((row: PoSellResponseRow) => !q || `${row.docNo} ${row.customerName} ${row.channelName} ${row.branchName} ${row.productName} ${row.documentStatusLabel} ${row.status} ${row.matchStatus} ${row.matchStatusLabel}`.toLowerCase().includes(q))
 
     if (url.searchParams.get('format') === 'xlsx') {
-      return xlsxResponse(await buildWorkbook(rows.map((row) => ({
+      return xlsxResponse(await buildWorkbook(rows.map((row: PoSellResponseRow) => ({
         Branch: row.branchName,
         Channel: row.channelName,
         Customer: stringifyBusinessValue(row.customerName),
@@ -787,17 +904,17 @@ export async function GET(request: Request) {
       options: await optionsPayload(branchScope),
       rows,
       summary: {
-        fullyMatched: rows.filter((row) => row.matchStatus === 'Fully Matched').length,
-        margin: rows.reduce((sum, row) => sum + row.margin, 0),
-        open: rows.filter((row) => row.documentStatus === 'open').length,
-        overMatched: rows.filter((row) => row.matchStatus === 'Over Matched').length,
-        partiallyMatched: rows.filter((row) => row.matchStatus === 'Partially Matched').length,
-        qty: rows.reduce((sum, row) => sum + row.qty, 0),
-        remainingAmount: rows.reduce((sum, row) => sum + row.remainingAmount, 0),
-        remainingQty: rows.reduce((sum, row) => sum + row.remainingQty, 0),
-        totalAmount: rows.reduce((sum, row) => sum + row.totalAmount, 0),
+        fullyMatched: rows.filter((row: PoSellResponseRow) => row.matchStatus === 'Fully Matched').length,
+        margin: rows.reduce((sum: number, row: PoSellResponseRow) => sum + row.margin, 0),
+        open: rows.filter((row: PoSellResponseRow) => row.documentStatus === 'open').length,
+        overMatched: rows.filter((row: PoSellResponseRow) => row.matchStatus === 'Over Matched').length,
+        partiallyMatched: rows.filter((row: PoSellResponseRow) => row.matchStatus === 'Partially Matched').length,
+        qty: rows.reduce((sum: number, row: PoSellResponseRow) => sum + row.qty, 0),
+        remainingAmount: rows.reduce((sum: number, row: PoSellResponseRow) => sum + row.remainingAmount, 0),
+        remainingQty: rows.reduce((sum: number, row: PoSellResponseRow) => sum + row.remainingQty, 0),
+        totalAmount: rows.reduce((sum: number, row: PoSellResponseRow) => sum + row.totalAmount, 0),
         totalRows: rows.length,
-        unmatched: rows.filter((row) => row.matchStatus === 'Not Matched').length,
+        unmatched: rows.filter((row: PoSellResponseRow) => row.matchStatus === 'Not Matched').length,
       },
     })
   } catch (caught) {
@@ -822,7 +939,12 @@ export async function POST(request: Request) {
     }
     const productCodes = [...new Set(requestedProductCodes)]
 
-    const [customer, branch, channel, products] = await Promise.all([
+    const [customer, branch, channel, products]: [
+      Awaited<ReturnType<typeof findActiveCustomerReferenceByCodeOrId>>,
+      Awaited<ReturnType<typeof findActiveBranchReferenceByCodeOrId>>,
+      Awaited<ReturnType<typeof findActiveSalesChannelReferenceByCode>>,
+      ProductLookupRow[],
+    ] = await Promise.all([
       findActiveCustomerReferenceByCodeOrId(values.customerId),
       values.branchId ? findActiveBranchReferenceByCodeOrId(values.branchId) : Promise.resolve(null),
       values.channelId ? findActiveSalesChannelReferenceByCode(values.channelId) : Promise.resolve(null),
@@ -846,13 +968,13 @@ export async function POST(request: Request) {
     }
     if (values.channelId && !channel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
 
-    const productByCode = new Map(products.map((product) => [requireBusinessCode(product.code, `สินค้า ${product.id}`), product]))
+    const productByCode = new Map<string, ProductLookupRow>(products.map((product: ProductLookupRow) => [requireBusinessCode(product.code, `สินค้า ${product.id}`), product] as const))
     const parsedProductIds = requestedProductCodes.map((productCode) => productByCode.get(productCode)?.id ?? null)
     const missingProduct = requestedProductCodes.find((productCode) => !productByCode.has(productCode))
     if (missingProduct || parsedProductIds.some((productId) => productId == null)) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     }
-    const productById = new Map(products.map((product) => [product.id, product]))
+    const productById = new Map<bigint, ProductLookupRow>(products.map((product: ProductLookupRow) => [product.id, product] as const))
 
     const items = poSellItems(values, parsedProductIds as bigint[], productById)
     const qty = items.reduce((sum, item) => sum + item.qty, 0)
@@ -882,7 +1004,7 @@ export async function POST(request: Request) {
       if (Math.abs(qty - toNumber(linkedPlan.total_kg)) > 0.001) return NextResponse.json({ code: 'BAD_REQUEST', error: 'จำนวน กก. ใน PO ไม่ตรงกับแผนขาย' }, { status: 400 })
       if (Math.abs((items[0]?.unitPrice ?? 0) - toNumber(linkedPlan.sell_price)) > 0.01) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ราคาขายใน PO ไม่ตรงกับแผนขาย' }, { status: 400 })
     }
-    const created = await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const poSell = await tx.po_sells.create({
         data: {
           branch_id: branch?.id ?? null,
@@ -970,7 +1092,7 @@ export async function PATCH(request: Request) {
       const reason = values.note?.trim() || 'ยกเลิกจากหน้า PO Sell'
       const cancelLine = `ยกเลิกโดย ${actor} เมื่อ ${updatedAt.toLocaleString('th-TH')} - เหตุผล: ${reason}`
       const cancelledItems = Array.isArray(existing.items)
-        ? existing.items.map((item) => (item && typeof item === 'object' && !Array.isArray(item) ? { ...item, remainingQty: 0 } : item))
+        ? existing.items.map((item: unknown) => (item && typeof item === 'object' && !Array.isArray(item) ? { ...item, remainingQty: 0 } : item))
         : existing.items
       await prisma.po_sells.update({
         data: {
@@ -1000,10 +1122,10 @@ export async function PATCH(request: Request) {
       const reason = values.note.trim()
       const shortCloseLine = `ปิดส่งไม่ครบโดย ${actor} เมื่อ ${updatedAt.toLocaleString('th-TH')} - ปิดคงเหลือ ${toNumber(existing.remaining_qty).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} กก. เหตุผล: ${reason}`
       const shortClosedItems = Array.isArray(existing.items)
-        ? existing.items.map((item) => (item && typeof item === 'object' && !Array.isArray(item) ? { ...item, remainingQty: 0 } : item))
+        ? existing.items.map((item: unknown) => (item && typeof item === 'object' && !Array.isArray(item) ? { ...item, remainingQty: 0 } : item))
         : existing.items
 
-      const releaseResult = await prisma.$transaction(async (tx) => {
+      const releaseResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const released = await releasePoSellShortCloseDualCosting(tx, {
           actor,
           poSell: existing,
@@ -1052,7 +1174,12 @@ export async function PATCH(request: Request) {
     }
     const productCodes = [...new Set(requestedProductCodes)]
 
-    const [customer, branch, channel, products] = await Promise.all([
+    const [customer, branch, channel, products]: [
+      Awaited<ReturnType<typeof findActiveCustomerReferenceByCodeOrId>>,
+      Awaited<ReturnType<typeof findActiveBranchReferenceByCodeOrId>>,
+      Awaited<ReturnType<typeof findActiveSalesChannelReferenceByCode>>,
+      ProductLookupRow[],
+    ] = await Promise.all([
       findActiveCustomerReferenceByCodeOrId(values.customerId),
       values.branchId ? findActiveBranchReferenceByCodeOrId(values.branchId) : Promise.resolve(null),
       values.channelId ? findActiveSalesChannelReferenceByCode(values.channelId) : Promise.resolve(null),
@@ -1076,13 +1203,13 @@ export async function PATCH(request: Request) {
     }
     if (values.channelId && !channel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
 
-    const productByCode = new Map(products.map((product) => [requireBusinessCode(product.code, `สินค้า ${product.id}`), product]))
+    const productByCode = new Map<string, ProductLookupRow>(products.map((product: ProductLookupRow) => [requireBusinessCode(product.code, `สินค้า ${product.id}`), product] as const))
     const parsedProductIds = requestedProductCodes.map((productCode) => productByCode.get(productCode)?.id ?? null)
     const missingProduct = requestedProductCodes.find((productCode) => !productByCode.has(productCode))
     if (missingProduct || parsedProductIds.some((productId) => productId == null)) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     }
-    const productById = new Map(products.map((product) => [product.id, product]))
+    const productById = new Map<bigint, ProductLookupRow>(products.map((product: ProductLookupRow) => [product.id, product] as const))
     const items = poSellItems(values, parsedProductIds as bigint[], productById)
     const qty = items.reduce((sum, item) => sum + item.qty, 0)
     const subtotal = items.reduce((sum, item) => sum + item.totalRevenue, 0)

@@ -8,6 +8,7 @@ import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { isCustomerEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { prisma } from '@/lib/server/prisma'
+import { findCurrencyReferenceByCode, listActiveBranches, listActiveCustomerBranchOptions, listCurrencies } from '@/lib/server/reference-master-cache'
 import { requiredActiveVatRatePercent } from '@/lib/server/tax-settings'
 
 export const runtime = 'nodejs'
@@ -142,10 +143,7 @@ export async function GET(request: Request) {
     }
 
     const [branches, rows, totalRows, customers, products, currencies, statuses, vatRates] = await Promise.all([
-      prisma.branches.findMany({
-        orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
-        select: { active: true, code: true, id: true, name: true },
-      }),
+      listActiveBranches(),
       prisma.customer_advances.findMany({
         include: {
           branches: true,
@@ -158,25 +156,13 @@ export async function GET(request: Request) {
         where,
       }),
       prisma.customer_advances.count({ where }),
-      prisma.customers.findMany({
-        orderBy: [{ code: 'asc' }, { name: 'asc' }],
-        select: {
-          code: true,
-          customer_branches: {
-            select: { branches: { select: { code: true } } },
-            where: { active: true },
-          },
-          id: true,
-          name: true,
-        },
-        where: { active: true },
-      }),
+      listActiveCustomerBranchOptions(),
       prisma.products.findMany({
         orderBy: [{ code: 'asc' }, { name: 'asc' }],
         select: { code: true, id: true, name: true, unit: true },
         where: { active: true },
       }),
-      prisma.currencies.findMany({ orderBy: { code: 'asc' }, select: { code: true, name: true, symbol: true } }),
+      listCurrencies(),
       prisma.customer_advance_statuses.findMany({
         orderBy: { sort_order: 'asc' },
         select: { code: true, name: true },
@@ -190,11 +176,9 @@ export async function GET(request: Request) {
     ])
 
     return NextResponse.json({
-      branches: branches.map((branch) => ({ active: branch.active, code: branch.code, id: branch.code, name: branch.name })),
+      branches: branches.map((branch) => ({ active: true, code: branch.code, id: branch.code, name: branch.name })),
       customers: customers.map((customer) => ({
-        branchIds: customer.customer_branches
-          .map((mapping) => mapping.branches?.code)
-          .filter((branchCode): branchCode is string => Boolean(branchCode)),
+        branchIds: customer.branchIds,
         code: customer.code,
         id: customer.id.toString(),
         name: customer.name,
@@ -229,7 +213,7 @@ export async function POST(request: Request) {
     const [branch, customer, currency, initialStatuses, products, vatRatePercent] = await Promise.all([
       findActiveBranchReferenceByCodeOrId(values.branchId),
       prisma.customers.findFirst({ select: { code: true, id: true, name: true }, where: { active: true, id: BigInt(values.customerId) } }),
-      prisma.currencies.findUnique({ select: { code: true }, where: { code: values.currencyCode } }),
+      findCurrencyReferenceByCode(values.currencyCode),
       prisma.customer_advance_statuses.findMany({ select: { id: true }, where: { active: true, is_initial: true } }),
       prisma.products.findMany({
         select: { code: true, id: true, name: true },

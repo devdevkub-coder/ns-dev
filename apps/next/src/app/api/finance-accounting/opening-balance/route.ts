@@ -3,6 +3,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listAllAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -13,21 +14,17 @@ export async function GET() {
 
     const [row, accounts] = await Promise.all([
       prisma.opening_balance.findFirst({ orderBy: { id: 'asc' } }),
-      prisma.accounts.findMany({
-        include: { branches: { select: { code: true, name: true } } },
-        orderBy: [{ name: 'asc' }, { account_no: 'asc' }],
-        take: 5000,
-      }),
+      listAllAccounts(),
     ])
     return NextResponse.json({
-      accounts: accounts.map((account) => ({
-        branchCode: account.branches?.code || '',
-        branchName: account.branches?.name || '',
-        code: account.account_no || '',
-        currency: account.currency || 'THB',
+      accounts: accounts.map((account: AccountReferenceRecord) => ({
+        branchCode: account.branchCode ?? '',
+        branchName: account.branchName ?? '',
+        code: account.accountNo ?? '',
+        currency: account.currency ?? 'THB',
         name: account.name,
-        odLimit: toNumber(account.od_limit),
-        openingBalance: toNumber(account.opening_balance),
+        odLimit: account.odLimit == null ? 0 : Number(account.odLimit),
+        openingBalance: account.openingBalance == null ? 0 : Number(account.openingBalance),
         type: account.type,
       })),
       designState: {

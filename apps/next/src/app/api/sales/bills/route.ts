@@ -25,6 +25,13 @@ import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION } from '@/lib/server/weight-ticket-usage-history'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import { refreshCustomerAdvanceAllocation } from '@/lib/server/customer-advance-settlement'
+import {
+  listActiveBranches,
+  listActiveBranchesByCodes,
+  listActiveCustomerBranchOptions,
+  listActiveWarehouses,
+  type WarehouseReferenceRecord,
+} from '@/lib/server/reference-master-cache'
 import { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -211,10 +218,7 @@ async function salesBranchScope(context: AppAuthContext, requestedBranchCode?: s
   const allowedCodes = getBranchCodeIntersection(context, requestedBranchCode)
   if (allowedCodes === null) return { codes: null, ids: null }
   if (allowedCodes.length === 0) return { codes: [], ids: [] as bigint[] }
-  const branches = await prisma.branches.findMany({
-    select: { code: true, id: true },
-    where: { code: { in: allowedCodes } },
-  })
+  const branches = await listActiveBranchesByCodes(allowedCodes)
   return {
     codes: allowedCodes,
     ids: branches.map((branch) => branch.id),
@@ -1038,46 +1042,12 @@ async function validateStockDeliverySelection(
 async function salesOptionsPayload(scope: Awaited<ReturnType<typeof salesBranchScope>>) {
   const allowedBranchCodes = scope.codes
   const allowedBranchIds = scope.ids
-  const [branches, customers, products, salesChannels, warehouses, vatRatePercent, deliveryTickets, poSellRows, tradingPurchaseBills, tradingManualCostSources, tradingAllocationFacts, customerAdvanceRows] = await Promise.all([
-    prisma.branches.findMany({
-      orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
-      select: { active: true, code: true, id: true, name: true },
-      where: {
-        ...(allowedBranchCodes ? { code: { in: allowedBranchCodes } } : {}),
-      },
-    }),
-    prisma.customers.findMany({
-      orderBy: [{ active: 'desc' }, { name: 'asc' }],
-      select: {
-        active: true,
-        code: true,
-        id: true,
-        market_scope: true,
-        name: true,
-        customer_branches: {
-          select: {
-            branches: { select: { code: true } },
-          },
-          where: { active: true },
-        },
-      },
-    }),
+  const [branchRefs, customerBranchOptions, warehouseRefs, products, salesChannels, vatRatePercent, deliveryTickets, poSellRows, tradingPurchaseBills, tradingManualCostSources, tradingAllocationFacts, customerAdvanceRows] = await Promise.all([
+    allowedBranchCodes ? listActiveBranchesByCodes(allowedBranchCodes) : listActiveBranches(),
+    listActiveCustomerBranchOptions(),
+    listActiveWarehouses(),
     prisma.products.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, unit: true } }),
     prisma.sales_channels.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
-    prisma.warehouses.findMany({
-      orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
-      select: {
-        active: true,
-        branches: { select: { code: true } },
-        branch_id: true,
-        code: true,
-        id: true,
-        name: true,
-      },
-      where: {
-        ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
-      },
-    }),
     activeVatRatePercent(new Date()),
     prisma.weight_tickets.findMany({
       select: deliveryTicketOptionSelect,
@@ -1184,11 +1154,40 @@ async function salesOptionsPayload(scope: Awaited<ReturnType<typeof salesBranchS
       },
     }),
   ])
+  const branches = branchRefs.map((branch) => ({
+    active: true,
+    code: branch.code,
+    id: branch.id,
+    name: branch.name,
+  }))
+  const allowedBranchCodeSet = allowedBranchCodes ? new Set(allowedBranchCodes) : null
+  const warehouses = warehouseRefs
+    .filter((warehouse) => !allowedBranchCodeSet || (warehouse.branchCode != null && allowedBranchCodeSet.has(warehouse.branchCode)))
+    .map((warehouse): {
+      active: true
+      branches: { code: string } | null
+      branch_id: bigint | null
+      code: string
+      id: bigint
+      name: string
+    } => {
+      const branchId = warehouse.branchCode
+        ? branches.find((branch) => branch.code === warehouse.branchCode)?.id ?? null
+        : null
+      return {
+        active: true,
+        branches: warehouse.branchCode ? { code: warehouse.branchCode } : null,
+        branch_id: branchId,
+        code: warehouse.code,
+        id: warehouse.id,
+        name: warehouse.name,
+      }
+    })
   const deliveryUsageMap = await buildDeliveryTicketUsageMap(deliveryTickets)
   const productCodeById = new Map(products.map((product) => [product.id, requireBusinessCode(product.code, `สินค้า ${product.id}`)]))
   const branchCodeById = new Map(branches.map((branch) => [branch.id, requireBusinessCode(branch.code, `สาขา ${branch.id}`)]))
-  const customerCodeById = new Map(customers.map((customer) => [customer.id, requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`)]))
-  const customerByCode = new Map(customers.map((customer) => [requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`), customer] as const))
+  const customerCodeById = new Map(customerBranchOptions.map((customer) => [customer.id, customer.code] as const))
+  const customerByCode = new Map(customerBranchOptions.map((customer) => [customer.code, customer] as const))
   const matchedTradingCostBySource = new Map<string, { amount: number; qty: number }>()
   tradingAllocationFacts.forEach((fact) => {
     const sourceLineNo = fact.source_line_no
@@ -1210,14 +1209,12 @@ async function salesOptionsPayload(scope: Awaited<ReturnType<typeof salesBranchS
       ...branch,
       id: branch.code,
     })),
-    customers: customers.map((customer) => ({
-      id: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
-      active: customer.active,
-      branchIds: customer.customer_branches
-        .map((mapping) => mapping.branches?.code)
-        .filter((branchCode): branchCode is string => Boolean(branchCode)),
+    customers: customerBranchOptions.map((customer) => ({
+      id: customer.code,
+      active: true,
+      branchIds: customer.branchIds,
       code: customer.code,
-      marketScope: customer.market_scope === 'ต่างประเทศ' ? 'ต่างประเทศ' : 'ในประเทศ',
+      marketScope: customer.marketScope === 'ต่างประเทศ' ? 'ต่างประเทศ' : 'ในประเทศ',
       name: customer.name,
     })),
     deliveries: deliveryTickets

@@ -4,6 +4,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listBranchMasterRecords, listWarehouseMasterRecords } from '@/lib/server/reference-master-cache'
 import { normalizeStockReferenceInput, stockBalanceSnapshot, stockReferenceData } from '@/lib/server/stock'
 import { stockAdjustCorrectionSchema, stockAdjustFormSchema, stockAdjustReasonOptions } from '@/lib/stock'
 
@@ -230,22 +231,18 @@ export async function GET(request: Request) {
       }),
       prisma.stock_adjustments.count({ where: listFilter.where }),
     ])
-    const [branches, warehouses, products] = await Promise.all([
-      prisma.branches.findMany({
-        select: { code: true, id: true, name: true },
-        where: { id: { in: [...new Set(adjustments.map((row) => row.branch_id).filter((id): id is bigint => id !== null))] } },
-      }),
-      prisma.warehouses.findMany({
-        select: { id: true, name: true, code: true },
-        where: { id: { in: [...new Set(adjustments.map((row) => row.warehouse_id).filter((id): id is bigint => id !== null))] } },
-      }),
+    const [branchMaster, warehouseMaster, products] = await Promise.all([
+      listBranchMasterRecords(),
+      listWarehouseMasterRecords(),
       prisma.products.findMany({
         select: { code: true, id: true, name: true, metal_group: true },
         where: { id: { in: [...new Set(adjustments.map((row) => row.product_id).filter((id): id is bigint => id !== null))] } },
       }),
     ])
-    const branchById = new Map(branches.map((row) => [row.id, row]))
-    const warehouseById = new Map(warehouses.map((row) => [row.id, row]))
+    const branchIds = new Set(adjustments.map((row) => row.branch_id).filter((id): id is bigint => id !== null))
+    const warehouseIds = new Set(adjustments.map((row) => row.warehouse_id).filter((id): id is bigint => id !== null))
+    const branchById = new Map(branchMaster.filter((row) => branchIds.has(row.id)).map((row) => [row.id, row]))
+    const warehouseById = new Map(warehouseMaster.filter((row) => warehouseIds.has(row.id)).map((row) => [row.id, row]))
     const productById = new Map(products.map((row) => [row.id, row]))
 
     return NextResponse.json({

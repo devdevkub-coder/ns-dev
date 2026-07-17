@@ -1,9 +1,9 @@
-import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
-import { prisma } from '@/lib/server/prisma'
-import type { Prisma } from '../../../generated/prisma/client'
+import { requireBusinessCode } from '@/lib/business-code'
+import { findActiveCustomerReferenceByCodeOrId as findCachedActiveCustomerReferenceByCodeOrId } from '@/lib/server/reference-master-cache'
 
 type CustomerReference = {
   code: string
+  credit_term: number | null
   id: bigint
   market_scope: string | null
   name: string
@@ -12,27 +12,13 @@ type CustomerReference = {
 export async function findActiveCustomerReferenceByCodeOrId(
   value: string | bigint | null | undefined,
 ): Promise<CustomerReference | null> {
-  const normalized = String(value ?? '').trim()
-  if (!normalized) return null
-  const internalId = parseInternalBigIntId(normalized)
-
-  const customer = await prisma.customers.findFirst({
-    select: { code: true, id: true, market_scope: true, name: true },
-    where: {
-      active: true,
-      OR: [
-        { code: normalized.toUpperCase() },
-        ...(internalId != null ? [{ id: internalId }] : []),
-      ],
-    } as Prisma.customersWhereInput,
-  })
-
+  const customer = await findCachedActiveCustomerReferenceByCodeOrId(value)
   if (!customer) return null
-
   return {
-    code: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
-    id: customer.id as bigint,
-    market_scope: customer.market_scope,
+    code: customer.code,
+    credit_term: customer.creditTerm,
+    id: customer.id,
+    market_scope: customer.marketScope,
     name: customer.name,
   }
 }

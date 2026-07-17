@@ -102,6 +102,310 @@
 - [ ] Apply the CADV allocation-breakdown migration to any SIT/UAT/production runtime database before deploying this code there
 - [ ] Implement `/sales/receipts` -> CADV receipt allocation so RCP populates CADV `received_amount` and `available_amount` from real cash receipts
 
+## Active Follow-up: Reference Master Redis Cache
+
+เป้าหมาย: ทำ shared reference cache กลางสำหรับ master option ที่ถูกใช้ซ้ำบ่อย โดยเริ่มจาก `branches` และ `warehouses` ก่อน แล้วค่อยขยายไปยัง lookup/search masters ชุดถัดไป
+
+### Contract
+
+- Database เป็น source of truth เสมอ
+- ชั้น cache เป็น `short-lived server cache -> Redis -> DB`
+- fallback ที่ยอมรับได้มีเฉพาะ `cache miss / Redis unavailable -> read DB`
+- ห้ามให้ route กระจาย logic Redis/DB คนละ style; ทุก route ต้องเรียกผ่าน shared service กลาง
+- create/update/deactivate master ต้อง invalidate key ที่เกี่ยวข้องหลัง write DB สำเร็จ
+- Batch 1 รอบแรกครอบเฉพาะ route/options ที่ใช้ `branches` และ `warehouses` ซ้ำบ่อยที่สุดก่อน
+- route ที่ต้องแสดง inactive rows เช่น master-data list หลัก ห้ามถูกย้ายมาใช้ active-only cache reader โดยตรงจนกว่าจะมี reader contract แยกของมันเอง
+
+### Execution Queue (Canonical)
+
+ส่วนนี้คือคิวงาน cache ที่ทำต่อจริง ให้ใช้แทน checklist ย่อยที่ซ้ำหรือเป็น historical note ด้านล่าง
+
+#### CACHE-P1: Product reference option/search contract
+
+- [x] กำหนด `ProductReferenceRecord` สำหรับ option/search เท่านั้น: `id`, `code`, `name`, `unit`, `type`, `metalGroup`, `active`
+- [x] ยืนยันว่าไม่เก็บ `std_price`, `std_cost`, stock, WAC, หรือ image URL ใน contract นี้; thumbnail storage key อยู่ใน endpoint-only metadata key แยกต่างหาก
+- [x] เพิ่ม active product option/search reader พร้อม key, TTL และ invalidate หลัง create/update/deactivate product สำเร็จ
+- [x] ย้าย consumer ชุดแรกเพียง `GET /api/daily/weight-tickets/products` มาใช้ product reference reader
+- [x] แยก thumbnail ใน response เป็น concern ของ endpoint; ห้ามขยาย product reference cache ให้กลายเป็น image/price/stock cache
+- [x] เพิ่ม focused tests: server memoization, Redis hydration, invalidation, และ active-only contract
+- [x] รัน focused tests, workspace typecheck, lint, production build และ `git diff --check` ของ batch
+
+**Exit criteria:** WTI/WTO product selector อ่าน product option ผ่าน shared service, master product write ล้าง key ถูกต้อง, และไม่มี price/stock/image state ถูก cache ปนใน product reference contract.
+
+#### CACHE-P2: Product image delivery decision
+
+- [x] ตรวจ code path: product option endpoint ไม่ fetch binary หรือเรียก Storage ต่อสินค้า แต่ประกอบ public thumbnail URL จาก cached storage key; binary โหลดผ่าน Storage/CDN จาก browser
+- [ ] วัด runtime latency/transfer จาก deployed environment ก่อนสรุปว่า product thumbnail เป็น bottleneck จริงหรือไม่
+- [ ] ถ้าจำเป็น ให้ออกแบบ image metadata/key แยกจาก product option cache และใช้ Blob/CDN เป็น source ของ binary
+- [ ] ห้ามเปิด task นี้เพียงเพราะ product option cache มีอยู่แล้ว
+
+**Exit criteria:** เปิดเฉพาะเมื่อมีหลักฐานว่า image lookup เป็นคอขวด; ไม่ใช่ส่วนบังคับของ CACHE-P1.
+
+#### CACHE-A1: Account option consumer audit
+
+- [x] ตรวจ consumer read-only ของ `listActiveAccounts()` / `listAllAccounts()` ที่ยัง query master account ซ้ำ
+- [x] ยืนยัน consumer option/label read-only ที่ค้นพบใช้ shared reader แล้ว; ไม่เปิด route migration เพิ่มเพราะไม่มี consumer ที่เข้า contract เหลือ
+- [x] ไม่ย้ายยอดเงินจริง, ledger, balance, หรือ FX valuation มาใช้ account master cache
+- [x] บันทึกผล audit และอ้างอิง focused validation เดิมของ account cache batch
+
+**Audit result:** `rg` พบ `listActiveAccounts()`/`listAllAccounts()` ครอบ read-only option, label และ historical account mapping ที่ยังอยู่ใน scope แล้ว. Direct `prisma.accounts` ที่เหลืออยู่ใน `master-data/accounts` เป็น master list/write resolution หรือคำนวณ statement total จึงต้องอ่าน source ปัจจุบัน ไม่ใช่ cache candidate.
+
+**Exit criteria:** แต่ละ route ที่ย้ายต้องเป็น option/label read-only และไม่อ่าน financial fact จาก cache.
+
+#### CACHE-M1: Cache observability and retirement review
+
+- [x] หลัง CACHE-P1 และ CACHE-A1 มี consumer จริงอย่างน้อยหนึ่งชุด ให้บันทึก cache hit/miss/error แบบไม่เก็บข้อมูลธุรกิจหรือ PII
+- [ ] ตรวจ Redis TTL, invalidation และ error rate จาก runtime จริง
+- [ ] ตัด cache key ที่ไม่มี consumer หรือไม่มีประโยชน์ออก แทนการขยาย master ใหม่โดยไม่มีข้อมูล
+
+**Instrumentation contract:** production emits structured Vercel logs only: `reference_cache_read` (`tier=server|redis|database`, `outcome=hit|miss`) and `reference_cache_error` (`stage=redis_read|redis_write`). Logs contain a normalized cache key family only; branch code, id, and search query are replaced with `*`. Set `REFERENCE_CACHE_OBSERVABILITY_ENABLED=false` only to suppress production logs temporarily; local logging remains opt-in with `true`.
+
+**Exit criteria:** มีข้อมูลเพียงพอตัดสินใจว่าจะขยาย/ลด cache scope ได้ ไม่ใช้ assumption.
+
+### Deferred, Not An Active Task
+
+- transactional validation, stock availability, WAC/cost, ledger, price snapshots, document detail และ report facts ยังอ่าน DB ตาม business transaction
+- master อื่นจะไม่ถูกแตก task จนกว่าจะมี repeated read ที่วัดได้และระบุ contract ได้
+- ไม่ต้องมี DB migration สำหรับ cache batch เหล่านี้
+
+### Batch 1: `branches` + `warehouses`
+
+- [x] เพิ่ม shared reference cache service กลางใน `apps/next/src/lib/server/`
+- [x] เพิ่ม short-lived server cache สำหรับ reference payload
+- [x] เพิ่ม Redis REST adapter สำหรับ read/write/invalidate key กลุ่ม reference
+- [x] ทำ reader กลาง:
+  - [x] `listActiveBranches()`
+  - [x] `listActiveBranchesByCodes(codes)`
+  - [x] `findActiveBranchReferenceByCodeOrId()`
+  - [x] `listActiveWarehouses()`
+  - [x] `listActiveWarehousesByBranch(branchCode)`
+  - [x] `findActiveWarehouseReferenceByCodeOrId()`
+- [ ] ย้าย route ชุดแรกมาใช้ service กลาง:
+  - [x] `/api/branches`
+  - [x] `/api/daily/weight-tickets/options`
+  - [x] `/api/sales/bills` options payload
+  - [x] `/api/purchase/bills` options payload
+  - [x] `/api/stock/transfer`
+  - [x] `/api/purchase/po-buy`
+  - [x] `/api/purchase/advance-payments`
+  - [x] `/api/finance/ar`
+  - [x] `/api/finance/ap`
+  - [x] `/api/master-data/branches` GET reader แยก contract สำหรับ active+inactive
+  - [x] `/api/master-data/warehouses` GET reader แยก contract สำหรับ active+inactive
+  - [x] CACHE-R5 historical labels: `/api/production/orders` และ `/api/stock/adjust` ใช้ full branch/warehouse master reader สำหรับ map เอกสารย้อนหลัง
+- [x] เพิ่ม invalidation หลัง create/update/deactivate branch/warehouse สำเร็จ
+- [x] เพิ่ม focused tests ของ cache key / fallback / invalidation
+- [x] รัน validation proportional to risk แล้วบันทึก checkpoint
+
+### Batch 1 validation checkpoint
+
+- `npx vitest run --config apps/next/vitest.config.ts apps/next/src/lib/server/reference-master-cache.test.ts`
+- `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`
+- `npm run lint --workspace @ns-scrap-erp/next`
+- `npm run build --workspace @ns-scrap-erp/next`
+- `git diff --check -- apps/next/src/app/api/sales/bills/route.ts apps/next/src/app/api/purchase/bills/route.ts apps/next/src/lib/server/reference-master-cache.ts apps/next/src/lib/server/reference-master-cache.test.ts docs/migration/00-current-work.md docs/migration/09-implementation-tasklist.md docs/notes/Reference Master Cache Flow.md`
+
+### Batch 2: lookup masters
+
+- [~] ขยาย service ไปที่ `bank-names`, `currencies`, `expense-types`, `product-units`, `product-types`, `machine-types`
+  - [x] เพิ่ม `listActiveBankNames()` และ `findActiveBankNameReferenceByName()` ใน shared cache service
+  - [x] เพิ่ม invalidation หลัง save/patch `bankNames`
+  - [x] ย้าย `master-data/accounts` bank validation มาใช้ cached bank names
+  - [x] ย้าย `master-data/suppliers` create/import flow มาใช้ cached bank names
+  - [ ] ย้าย consumer อื่นของ `bank_names` เพิ่มตาม contract ที่เหมาะสม
+  - [x] เพิ่ม `listCurrencies()` และ `findCurrencyReferenceByCode()` ใน shared cache service
+  - [x] เพิ่ม invalidation หลัง write `currencies`
+  - [x] ย้าย `finance/foreign/*` option payload และ `sales/customer-advances` มาใช้ cached currencies
+  - [x] ย้าย `master-data/currencies` list reader มาใช้ shared cache
+  - [ ] ย้าย consumer อื่นของ `currencies` เพิ่มตาม contract ที่เหมาะสม
+  - [x] เพิ่ม `listExpenseTypes()` และ `findActiveExpenseTypeReferenceByCode()` ใน shared cache service
+  - [x] เพิ่ม invalidation หลัง write `expense-types`
+  - [x] ย้าย `master-data/expense-types` list reader มาใช้ shared cache
+  - [x] ย้าย `master-data/expense-categories` expense type validation มาใช้ shared cache
+  - [ ] ย้าย consumer อื่นของ `expense-types` เพิ่มตาม contract ที่เหมาะสม
+  - [x] เพิ่ม `listProductTypes()` และ `findActiveProductTypeReferenceByName()` ใน shared cache service
+  - [x] เพิ่ม `listProductUnits()` และ `findActiveProductUnitReferenceByNameOrSymbol()` ใน shared cache service
+  - [x] เพิ่ม invalidation หลัง write `product-types` / `product-units`
+  - [x] ย้าย `master-data/product-types` และ `master-data/product-units` list reader มาใช้ shared cache
+  - [x] ย้าย `master-data/products` create/update และ import validation มาใช้ cached product types / units
+  - [ ] ย้าย consumer อื่นของ `product-types` / `product-units` เพิ่มตาม contract ที่เหมาะสม
+  - [x] เพิ่ม `listMachineTypes()` และ `findActiveMachineTypeReferenceByName()` ใน shared cache service
+  - [x] เพิ่ม invalidation หลัง write `machine-types`
+  - [x] ย้าย `master-data/machine-types` list reader มาใช้ shared cache
+  - [x] ย้าย validation ของ `master-data/machines` มาใช้ cached machine types
+  - [ ] ย้าย consumer อื่นของ `machine-types` เพิ่มตาม contract ที่เหมาะสม
+- [~] ขยาย service ไปที่ `payment-methods`
+  - [x] เพิ่ม `listActivePaymentMethods()` ใน shared cache service
+  - [x] เพิ่ม invalidation หลัง save/patch `paymentMethods`
+  - [x] ย้าย `purchase/advance-payments` มาใช้ cached payment methods
+  - [x] ย้าย `master-data/accounts` read helpers มาใช้ cached payment methods
+  - [x] ย้าย consumer ที่เหลือของ `payment_methods` มาใช้ service กลาง รวม validation/update flow ของ `purchase/advance-payments/[id]` และ `master-data/accounts`
+- [ ] ย้าย read routes/options payload กลุ่ม lookup master มาใช้ service กลาง
+- [~] เพิ่ม invalidation write path ของ master แต่ละตัว
+  - [x] `payment-methods`
+  - [x] `bank-names`
+  - [x] `currencies`
+  - [x] `expense-types`
+  - [x] `product-units`
+  - [x] `product-types`
+  - [x] `machine-types`
+
+### Batch 3: searchable masters
+
+- [~] เพิ่ม search-result cache ของ `customers` และ `suppliers`
+- [x] เพิ่ม shared active reference reader/invalidation ของ `customers` และ `suppliers` สำหรับ code/id lookup กลาง
+- [x] ย้าย `customer-reference` และ `supplier-reference` มาใช้ shared cache service
+- [x] เพิ่ม invalidation หลัง write `master-data/customers` และ `master-data/suppliers`
+- [x] เพิ่ม shared active party option cache (`customer/supplier + branchIds`) สำหรับ route/filter ที่ใช้ shape เดียวกัน
+- [x] ย้าย consumer ชุดแรก `daily/weight-tickets/options`, `finance/ar`, และ `finance/ap` มาใช้ shared party option cache
+- [x] ย้าย consumer active-only เพิ่มอีกชุด `finance/customer-advance`, `finance/supplier-advance`, และ `finance/foreign/overseas-receipt` มาใช้ shared customer/supplier cache
+- [x] ย้าย consumer active-only เพิ่มอีกชุด `sales/customer-advances`, `trading/dashboard`, `finance-accounting/asset-register`, และ `finance-accounting/asset-disposal` มาใช้ shared customer/supplier cache
+- [~] เพิ่ม search-result cache ของ `customers` และ `suppliers`
+- [x] กำหนด normalized query key และ TTL สั้น
+- [~] ย้าย autocomplete/search routes ที่ใช้ซ้ำบ่อยมารูปแบบเดียวกัน
+  - [x] ย้าย `tracking/customer` และ `tracking/supplier` มาใช้ shared search cache ชุดแรก
+  - [ ] ย้าย query-based autocomplete/search routes อื่นเพิ่มตาม contract เดียวกัน
+- [~] ย้าย consumer active-only/filter routes อื่นของ `customers` / `suppliers` ที่ยัง direct DB
+  - [x] ย้าย `tracking/product` filter suppliers/customers มาใช้ shared active cache
+  - [x] ย้าย `sales/receipts` customer selector มาใช้ shared active cache
+  - [x] ย้าย `sales/po-sell` customer selector/options payload มาใช้ shared active customer branch-option cache
+  - [x] ย้าย `/api/sales/bills` customer selector/options payload และ branch scope มาใช้ shared active customer/branch cache
+- [~] ย้าย route detail/action ที่ใช้ branch scope access control แบบ direct `branches.findMany` ไปใช้ cached branch reader
+  - [x] ย้าย `purchase/payments` มาใช้ `listActiveBranchesByCodes()`
+  - [x] ย้าย `purchase/payment-history` และ `purchase/payment-history/[...id]` มาใช้ `listActiveBranchesByCodes()`
+  - [x] ย้าย `sales/bills/[id]` และ `sales/bills/[id]/stock-return` มาใช้ `listActiveBranchesByCodes()`
+  - [x] ปิด targeted validation ของ `purchase/payment-history/route.ts` และ `purchase/payment-history/[...id]/route.ts`
+    - [x] `git diff --check` ของทั้งสองไฟล์ผ่าน
+    - [x] targeted typecheck grep ของทั้งสองไฟล์ไม่พบ error แล้ว
+  - [x] ปิด targeted validation ของ `sales/bills/[id]/route.ts` และ `sales/bills/[id]/stock-return/route.ts`
+    - [x] `git diff --check` ของทั้งสองไฟล์ผ่าน
+    - [x] targeted typecheck grep ของทั้งสองไฟล์ไม่พบ error แล้ว
+  - [ ] ย้าย route read/detail อื่นที่ยังใช้ pattern เดียวกันเพิ่มตามลำดับความเสี่ยง
+- [~] ย้าย route/filter ที่อ่าน active branches ตรงจาก DB ไปใช้ cached branch reader
+  - [x] ย้าย `finance-accounting/asset-register` มาใช้ `listActiveBranches()`
+  - [x] ปิด targeted validation ของ `finance-accounting/asset-register/route.ts`
+    - [x] `git diff --check` ของไฟล์ผ่าน
+    - [x] targeted typecheck grep ของไฟล์ไม่พบ error แล้ว
+  - [x] ย้าย `production/orders` branch filter มาใช้ `listActiveBranches()` / `listActiveBranchesByCodes()`
+  - [x] ย้าย `admin/company-profile` มาใช้ `listActiveBranches()` + `findActiveBranchReferenceByCodeOrId()`
+  - [ ] ย้าย route/filter อื่นที่ยังใช้ active branch option pattern เดียวกันเพิ่มตามลำดับความเสี่ยง
+- [~] ย้าย route/service ที่อ่าน active warehouse/customer/supplier ตรงจาก DB ไปใช้ cached reader ตาม contract เดียวกัน
+  - [x] ย้าย `lib/server/production-orders` (`productionOrderOptions()`) มาใช้ `listActiveBranches()` + `listActiveWarehouses()`
+  - [x] ย้าย `lib/server/main-dashboards` มาใช้ `listActiveBranches()` + `listActiveSuppliers()` + `listActiveCustomers()`
+  - [x] ย้าย `lib/server/profit-cost-analysis` มาใช้ `listActiveBranches()` + `listActiveSuppliers()` + `listActiveCustomers()`
+  - [x] ย้าย `lib/server/main-sales-control` มาใช้ `listActiveCustomers()` + `listActiveSuppliers()` + `listActiveBranches()` + `listActiveWarehousesByBranch()`
+  - [x] ย้าย `lib/server/stock` (`stockReferenceData()`) มาใช้ `listActiveBranches()` + `listActiveWarehouses()` + `listActiveCustomers()`
+  - [x] ย้าย `lib/server/stock-holds` WTO option loader มาใช้ `findActiveBranchReferenceByCodeOrId()` + `listActiveWarehousesByBranch()`
+  - [ ] ย้าย route/service active-only ตัวอื่นเพิ่ม โดยแยกให้ออกจาก contract ที่ต้อง map historical row
+- [~] เพิ่ม active supplier payment-option reader แยกจาก historical summary
+  - [x] เพิ่ม shared `listActiveSupplierPaymentOptions()` สำหรับ active supplier + `supplier_bank_accounts`
+  - [x] ย้าย `/api/purchase/payments` supplier option payload มาใช้ shared active supplier payment-option cache
+  - [x] ย้าย `/api/purchase/receipt-vouchers` supplier option payload มาใช้ shared active supplier payment-option cache
+  - [x] ย้าย `/api/daily/expenses` supplier payee options มาใช้ shared active supplier payment-option cache
+  - [ ] ทยอยย้าย route active supplier + receiving accounts อื่นตาม contract เดียวกัน
+- [~] เพิ่ม historical supplier reader แยก contract จาก active cache
+  - [x] เพิ่ม shared `listSupplierReferencesByIds()` สำหรับ route ที่ต้อง map supplier เดิมตาม `supplier_id`
+  - [x] ย้าย `purchase/payment-history` มาใช้ historical supplier reader
+  - [x] ย้าย `/api/purchase/payments` payment row/bill mapping มาใช้ historical supplier reader
+  - [x] ย้าย `daily/bill-swap-history` มาใช้ historical supplier reader
+  - [ ] ทยอยย้าย route historical supplier ตัวอื่นที่ยัง direct DB ตาม contract เดียวกัน
+- [~] ย้าย consumer supplier branch/payment option routes อื่นที่ยัง direct DB
+  - [x] ย้าย `/api/purchase/advance-payments` supplier selector มาใช้ shared active supplier branch-option cache
+  - [x] ย้าย `/api/purchase/po-buy` supplier selector มาใช้ shared active supplier branch-option cache
+  - [x] ย้าย `/api/purchase/bills` supplier options payload มาใช้ shared active supplier branch/payment option cache
+  - [ ] ทยอยย้าย route supplier branch/payment option อื่นตาม contract เดียวกัน
+- [~] เพิ่ม invalidate active/search keys หลัง write master
+  - [x] invalidate active reference keys และ active party option keys หลัง write `master-data/customers`
+  - [x] invalidate active reference keys และ active party option keys หลัง write `master-data/suppliers`
+  - [~] search-result keys/invalidation เริ่มแล้วสำหรับ `customers` / `suppliers`; route search อื่นจะทยอยตาม
+
+### Batch 3 targeted validation checkpoint
+
+- [x] `reference-master-cache.test.ts` ผ่านหลังยก supplier payment-option contract ให้รองรับ `purchase/bills`
+- [x] `git diff --check -- apps/next/src/lib/server/reference-master-cache.ts apps/next/src/lib/server/reference-master-cache.test.ts apps/next/src/app/api/purchase/bills/route.ts`
+- [ ] targeted typecheck ของ `purchase/bills/route.ts` ยังไม่ผ่าน เพราะ route นี้มี TypeScript debt เดิมกระจายอยู่ทั้งไฟล์และต้องแยกเก็บอีก batch
+- [x] `git diff --check -- apps/next/src/app/api/sales/bills/route.ts`
+- [ ] targeted typecheck ของ `sales/bills/route.ts` ยังไม่ผ่าน เพราะ route นี้มี TypeScript debt เดิมกระจายอยู่ทั้งไฟล์และต้องแยกเก็บอีก batch
+
+- [x] `npx vitest run --config apps/next/vitest.config.ts apps/next/src/lib/server/reference-master-cache.test.ts`
+- [x] targeted typecheck ของ `apps/next/src/lib/server/reference-master-cache.ts` และ `apps/next/src/app/api/purchase/payments/route.ts`
+- [x] `git diff --check -- apps/next/src/lib/server/reference-master-cache.ts apps/next/src/lib/server/reference-master-cache.test.ts apps/next/src/app/api/purchase/payments/route.ts docs/migration/00-current-work.md docs/migration/09-implementation-tasklist.md docs/notes/Reference Master Cache Flow.md`
+- [x] targeted typecheck ของ `apps/next/src/lib/server/reference-master-cache.ts`, `apps/next/src/app/api/purchase/advance-payments/route.ts`, และ `apps/next/src/app/api/purchase/receipt-vouchers/route.ts`
+- [x] `git diff --check -- apps/next/src/lib/server/reference-master-cache.ts apps/next/src/app/api/purchase/advance-payments/route.ts apps/next/src/app/api/purchase/receipt-vouchers/route.ts`
+- [x] targeted typecheck ของ `apps/next/src/lib/server/reference-master-cache.ts`, `apps/next/src/app/api/purchase/po-buy/route.ts`, `apps/next/src/app/api/purchase/advance-payments/route.ts`, `apps/next/src/app/api/purchase/receipt-vouchers/route.ts`, และ `apps/next/src/app/api/daily/expenses/route.ts`
+- [x] `git diff --check -- apps/next/src/lib/server/reference-master-cache.ts apps/next/src/app/api/purchase/po-buy/route.ts apps/next/src/app/api/purchase/advance-payments/route.ts apps/next/src/app/api/purchase/receipt-vouchers/route.ts apps/next/src/app/api/daily/expenses/route.ts docs/migration/00-current-work.md docs/migration/09-implementation-tasklist.md docs/notes/Reference Master Cache Flow.md`
+- [x] targeted typecheck ของ `apps/next/src/lib/server/reference-master-cache.ts`, `apps/next/src/app/api/sales/po-sell/route.ts`, `apps/next/src/app/api/purchase/po-buy/route.ts`, `apps/next/src/app/api/purchase/advance-payments/route.ts`, `apps/next/src/app/api/purchase/receipt-vouchers/route.ts`, และ `apps/next/src/app/api/daily/expenses/route.ts`
+- [x] `git diff --check -- apps/next/src/lib/server/reference-master-cache.ts apps/next/src/app/api/sales/po-sell/route.ts apps/next/src/app/api/purchase/po-buy/route.ts apps/next/src/app/api/purchase/advance-payments/route.ts apps/next/src/app/api/purchase/receipt-vouchers/route.ts apps/next/src/app/api/daily/expenses/route.ts docs/migration/00-current-work.md docs/migration/09-implementation-tasklist.md docs/notes/Reference Master Cache Flow.md`
+- [x] ย้าย active branch consumer เพิ่มอีกชุดมาใช้ shared cache แล้ว:
+  - `apps/next/src/lib/server/branch-scope.ts`
+  - `apps/next/src/app/api/purchase/po-buy/route.ts` เฉพาะ branch-scope resolver
+  - `apps/next/src/app/api/sales/po-sell/route.ts` เฉพาะ branch-scope resolver
+  - `apps/next/src/app/api/master-data/customers/import/route.ts`
+  - `apps/next/src/lib/server/finance-accounting-cashflow-planning.ts`
+  - `apps/next/src/lib/server/finance-accounting-tax.ts`
+  - `apps/next/src/lib/server/finance-accounting-working-capital.ts`
+  - `apps/next/src/lib/server/finance-accounting-statements.ts`
+  - `apps/next/src/lib/server/finance-accounting-dashboard.ts`
+- [x] `git diff --check -- apps/next/src/lib/server/branch-scope.ts apps/next/src/app/api/purchase/po-buy/route.ts apps/next/src/app/api/sales/po-sell/route.ts apps/next/src/app/api/master-data/customers/import/route.ts apps/next/src/lib/server/finance-accounting-cashflow-planning.ts apps/next/src/lib/server/finance-accounting-tax.ts apps/next/src/lib/server/finance-accounting-working-capital.ts apps/next/src/lib/server/finance-accounting-statements.ts apps/next/src/lib/server/finance-accounting-dashboard.ts docs/migration/00-current-work.md docs/migration/09-implementation-tasklist.md docs/notes/Reference Master Cache Flow.md`
+- [x] targeted typecheck grep ของ `master-data/customers/import/route.ts`, `finance-accounting-cashflow-planning.ts`, `finance-accounting-tax.ts`, `finance-accounting-working-capital.ts`, `finance-accounting-statements.ts`, และ `finance-accounting-dashboard.ts` ไม่พบ error
+- [~] workspace-wide validation (`npm run type-check`, `lint`, `build`) ของ batch cache ทั้งก้อนยังไม่ปิด เพราะ current worktree ยังมี TypeScript error ที่ไม่เกี่ยวกับ cache batch ใน `apps/next/src/lib/server/weight-ticket-write/wto.ts`, `apps/next/src/lib/server/weight-tickets.ts`, และ `apps/next/tmp-po-reconcile-test.ts`
+
+### Batch 4: large and scoped masters
+
+- [ ] เพิ่ม `products`
+- [~] เพิ่ม `accounts`
+- [x] เพิ่ม `listActiveAccounts()` และ `findActiveAccountReferenceByCodeOrId()` ใน shared cache service
+- [x] ย้าย `lib/server/account-reference` มาใช้ shared account cache
+- [x] ย้าย `finance/foreign/bank-reconciliation` มาใช้ shared account cache
+- [x] ย้าย `finance/foreign/fcd-ledger` มาใช้ shared account cache
+- [x] ย้าย `finance/foreign/overseas-receipt` มาใช้ shared account cache
+- [x] ย้าย `finance/foreign/intl-transfer` มาใช้ shared account cache
+- [x] ย้าย `finance/bank` มาใช้ shared account cache
+- [x] ย้าย `finance/cash-position` มาใช้ shared account cache
+- [x] เพิ่ม `listAllAccounts()` สำหรับ consumer ที่ต้องอ่านทั้ง active/inactive accounts โดยไม่ปนกับ active-only contract
+- [x] ย้าย `lib/server/daily.ts` (`listDailyAccounts()`) มาใช้ shared all-accounts cache
+- [x] ย้าย `/api/finance-accounting/opening-balance` มาใช้ shared all-accounts cache
+- [x] ย้าย `/api/admin/transaction-ledger` มาใช้ shared all-accounts cache
+- [x] เพิ่ม invalidation หลัง write `master-data/accounts`
+- [x] ปิด targeted validation ของ batch `accounts` รอบนี้:
+  - [x] `npx vitest run src/lib/server/reference-master-cache.test.ts` ใน `apps/next` ผ่าน (`26 tests`)
+  - [x] targeted typecheck grep ของ `reference-master-cache.ts`, `account-reference.ts`, `finance/foreign/*` ชุดที่ย้าย, และ `master-data/accounts/*` ไม่พบ error
+  - [x] `git diff --check` ของไฟล์ batch นี้ผ่าน
+- [x] ปิด targeted validation ของ batch active account read-only (`finance/bank` + `finance/cash-position`)
+  - [x] `npx vitest run src/lib/server/reference-master-cache.test.ts` ใน `apps/next` ผ่าน (`26 tests`)
+  - [x] targeted typecheck grep ของ `reference-master-cache.ts`, `reference-master-cache.test.ts`, `finance/bank/route.ts`, และ `finance/cash-position/route.ts` ไม่พบ error
+  - [x] `git diff --check` ของไฟล์ batch นี้ผ่าน
+- [x] ปิด targeted validation ของ batch all-accounts reader (`daily.ts` + `finance-accounting/opening-balance` + `admin/transaction-ledger`)
+  - [x] `npx vitest run src/lib/server/reference-master-cache.test.ts` ใน `apps/next` ผ่าน (`27 tests`)
+  - [x] targeted typecheck grep ของ `reference-master-cache.ts`, `reference-master-cache.test.ts`, `lib/server/daily.ts`, `finance-accounting/opening-balance/route.ts`, และ `admin/transaction-ledger/route.ts` ไม่พบ error
+  - [x] `git diff --check` ของไฟล์ batch นี้ผ่าน
+- [x] ปิด targeted validation ของ batch active account analytics/calendar (`main-calendars.ts` + `finance-accounting-dashboard.ts` + `finance-accounting-working-capital.ts` + `cash-others-anomaly.ts`)
+  - [x] targeted typecheck grep ของ `main-calendars.ts`, `finance-accounting-dashboard.ts`, `finance-accounting-working-capital.ts`, และ `cash-others-anomaly.ts` ไม่พบ error
+  - [x] `git diff --check` ของไฟล์ batch นี้ผ่าน
+- [x] ปิด targeted validation ของ batch active account finance statement/planning (`finance-accounting-cashflow-planning.ts` + `finance-accounting-statements.ts`)
+  - [x] targeted typecheck grep ของ `finance-accounting-cashflow-planning.ts` และ `finance-accounting-statements.ts` ไม่พบ error
+  - [x] `git diff --check` ของไฟล์ batch นี้ผ่าน
+- [x] ปิด targeted validation ของ `lib/server/main-dashboards.ts`
+  - [x] targeted typecheck grep ของ `main-dashboards.ts` ไม่พบ error
+  - [x] `git diff --check -- apps/next/src/lib/server/main-dashboards.ts` ผ่าน
+- [x] ปิด targeted validation ของ `lib/server/profit-cost-analysis.ts`
+  - [x] targeted typecheck grep ของ `profit-cost-analysis.ts` ไม่พบ error
+  - [x] `git diff --check -- apps/next/src/lib/server/profit-cost-analysis.ts` ผ่าน
+- [x] ปิด targeted validation ของ `lib/server/production-orders.ts`
+  - [x] targeted typecheck grep ของ `production-orders.ts` ไม่พบ error
+  - [x] `git diff --check -- apps/next/src/lib/server/production-orders.ts` ผ่าน
+- [ ] ไล่ consumer active account / all-account อื่นนอก foreign finance / account-reference / analytics-calendar ต่อ
+- [~] เพิ่ม `overseas_recipients` และ `overseas_remittance_purposes`
+- [x] เพิ่ม `listActiveOverseasRecipients()` ใน shared cache service
+- [x] เพิ่ม `listActiveOverseasRemittancePurposes()` ใน shared cache service
+- [x] ย้าย `finance/foreign/intl-transfer` มาใช้ shared beneficiary/remittance-purpose cache
+- [x] เพิ่ม invalidation หลัง write `master-data/beneficiaries`
+- [x] เพิ่ม invalidation หลัง save/patch `remittancePurposes` ผ่าน `simple-master-tables`
+- [x] เพิ่ม focused tests/invalidation coverage สำหรับ `accounts`, `overseas_recipients`, `overseas_remittance_purposes`
+- [ ] ไล่ consumer beneficiary / remittance-purpose อื่นตาม contract เดียวกันต่อ
+- [ ] เพิ่ม remaining option masters ที่มี repeated read สูง
+- [ ] ทบทวน branch-scoped account/product option keys ถ้าจำเป็น
+
 ## Active Follow-up: AR/AP Balance Source Of Truth
 
 เป้าหมาย: ให้หน้า AR/AP และ report อ่านยอดค้างจาก snapshot ของเอกสารต้นทาง (`sales_bills`, `purchase_bills`) เป็นหลัก และใช้ receipt/payment/allocation logs เป็น drilldown/audit เท่านั้น เพื่อไม่ให้ยอดค้างคลาดเมื่อมี Customer/Supplier Advance หรือ cancellation/reversal

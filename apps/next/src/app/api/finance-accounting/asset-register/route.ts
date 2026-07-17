@@ -5,6 +5,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranches, listActiveSuppliers } from '@/lib/server/reference-master-cache'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -23,6 +24,7 @@ type AssetRow = Prisma.assetsGetPayload<{
     suppliers: { select: { code: true; id: true; name: true } }
   }
 }>
+type MappedAssetRow = ReturnType<typeof mapAsset>
 
 function asText(value: unknown, fallback = '') {
   return String(value ?? fallback).trim()
@@ -58,11 +60,11 @@ function monthlyDep(asset: Pick<AssetRow, 'depreciation_method' | 'net_asset_cos
 }
 
 function activeDepreciations(asset: AssetRow) {
-  return asset.depreciations.filter((dep) => dep.status !== 'reversed')
+  return asset.depreciations.filter((dep: AssetRow['depreciations'][number]) => dep.status !== 'reversed')
 }
 
 function mapAsset(asset: AssetRow) {
-  const accumDep = activeDepreciations(asset).reduce((sum, dep) => sum + toNumber(dep.amount), 0)
+  const accumDep = activeDepreciations(asset).reduce((sum: number, dep: AssetRow['depreciations'][number]) => sum + toNumber(dep.amount), 0)
   const netAssetCost = toNumber(asset.net_asset_cost) || (toNumber(asset.original_cost) - toNumber(asset.vat_amount))
   const nbv = Math.max(toNumber(asset.salvage_value), netAssetCost - accumDep)
   return {
@@ -159,25 +161,25 @@ async function payload(search = new URLSearchParams()) {
       orderBy: [{ code: 'asc' }, { name: 'asc' }],
       take: 5000,
     }),
-    prisma.branches.findMany({ orderBy: { code: 'asc' }, select: { code: true, id: true, name: true }, where: { active: true } }),
-    prisma.suppliers.findMany({ orderBy: { code: 'asc' }, select: { code: true, id: true, name: true }, where: { active: true }, take: 5000 }),
+    listActiveBranches(),
+    listActiveSuppliers(),
     prisma.asset_categories.findMany({ orderBy: { code: 'asc' }, select: { name: true }, where: { active: true } }),
     prisma.departments.findMany({ orderBy: { code: 'asc' }, select: { name: true }, where: { active: true } }),
   ])
   let rows = assets.map(mapAsset)
-  if (q) rows = rows.filter((row) => [row.code, row.name, row.location, row.branchName].join(' ').toLowerCase().includes(q))
-  if (category !== 'all') rows = rows.filter((row) => row.category === category)
-  if (status !== 'all') rows = rows.filter((row) => row.assetStatus === status)
-  const categories = Array.from(new Set(assets.map((asset) => asset.category || 'Other'))).sort()
-  const statuses = Array.from(new Set(assets.map((asset) => asset.asset_status || 'Active'))).sort()
+  if (q) rows = rows.filter((row: MappedAssetRow) => [row.code, row.name, row.location, row.branchName].join(' ').toLowerCase().includes(q))
+  if (category !== 'all') rows = rows.filter((row: MappedAssetRow) => row.category === category)
+  if (status !== 'all') rows = rows.filter((row: MappedAssetRow) => row.assetStatus === status)
+  const categories = Array.from(new Set(assets.map((asset: AssetRow) => asset.category || 'Other'))).sort()
+  const statuses = Array.from(new Set(assets.map((asset: AssetRow) => asset.asset_status || 'Active'))).sort()
   const byCategory = categories.map((item) => {
-    const categoryRows = rows.filter((row) => row.category === item)
+    const categoryRows = rows.filter((row: MappedAssetRow) => row.category === item)
     return {
       category: item,
       count: categoryRows.length,
-      cost: categoryRows.reduce((sum, row) => sum + row.netAssetCost, 0),
-      monthlyDep: categoryRows.reduce((sum, row) => sum + row.monthlyDep, 0),
-      nbv: categoryRows.reduce((sum, row) => sum + row.nbv, 0),
+      cost: categoryRows.reduce((sum: number, row: MappedAssetRow) => sum + row.netAssetCost, 0),
+      monthlyDep: categoryRows.reduce((sum: number, row: MappedAssetRow) => sum + row.monthlyDep, 0),
+      nbv: categoryRows.reduce((sum: number, row: MappedAssetRow) => sum + row.nbv, 0),
     }
   })
   return {
@@ -185,19 +187,19 @@ async function payload(search = new URLSearchParams()) {
     options: {
       acquisitionTypes: ACQUISITION_TYPES,
       assetStatuses: STATUSES,
-      branches: branches.map((row) => ({ code: row.code, id: String(row.id), name: row.name })),
-      categories: dbCategories.length > 0 ? dbCategories.map((c) => c.name) : CATEGORIES,
-      departments: dbDepartments.map((d) => d.name),
+      branches: branches.map((row: (typeof branches)[number]) => ({ code: row.code, id: String(row.id), name: row.name })),
+      categories: dbCategories.length > 0 ? dbCategories.map((c: (typeof dbCategories)[number]) => c.name) : CATEGORIES,
+      departments: dbDepartments.map((d: (typeof dbDepartments)[number]) => d.name),
       depreciationMethods: DEPRECIATION_METHODS,
-      suppliers: suppliers.map((row) => ({ code: row.code, id: String(row.id), name: row.name })),
+      suppliers: suppliers.map((row: (typeof suppliers)[number]) => ({ code: row.code, id: String(row.id), name: row.name })),
     },
     rows,
     summary: {
-      accumDep: rows.reduce((sum, row) => sum + row.accumDep, 0),
+      accumDep: rows.reduce((sum: number, row: MappedAssetRow) => sum + row.accumDep, 0),
       count: rows.length,
-      monthlyDep: rows.reduce((sum, row) => sum + row.monthlyDep, 0),
-      nbv: rows.reduce((sum, row) => sum + row.nbv, 0),
-      netAssetCost: rows.reduce((sum, row) => sum + row.netAssetCost, 0),
+      monthlyDep: rows.reduce((sum: number, row: MappedAssetRow) => sum + row.monthlyDep, 0),
+      nbv: rows.reduce((sum: number, row: MappedAssetRow) => sum + row.nbv, 0),
+      netAssetCost: rows.reduce((sum: number, row: MappedAssetRow) => sum + row.netAssetCost, 0),
     },
     byCategory,
   }
@@ -256,7 +258,7 @@ export async function POST(request: NextRequest) {
     if (body.action === 'previewImport') {
       const seen = new Set<string>()
       const rows = Array.isArray(body.rows) ? body.rows : []
-      const existing = new Set((await prisma.assets.findMany({ select: { code: true } })).map((asset) => asset.code.toUpperCase()))
+      const existing = new Set((await prisma.assets.findMany({ select: { code: true } })).map((asset: { code: string }) => asset.code.toUpperCase()))
       return NextResponse.json({
         rows: rows.map((row: Record<string, unknown>, index: number) => {
           const errors: string[] = []
@@ -277,9 +279,9 @@ export async function POST(request: NextRequest) {
       })
     }
     const rows = body.action === 'commitImport' && Array.isArray(body.rows) ? body.rows : [body]
-    const createdOrUpdated = await prisma.$transaction(async (tx) => {
-      const result = []
-      for (const row of rows) {
+    const createdOrUpdated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const result: bigint[] = []
+      for (const row of rows as Record<string, unknown>[]) {
         const input = assetInput(row)
         const duplicate = await tx.assets.findFirst({ select: { id: true }, where: { code: input.code, ...(input.id ? { id: { not: input.id } } : {}) } })
         if (duplicate) throw new Error(`รหัสทรัพย์สินซ้ำ: ${input.code}`)

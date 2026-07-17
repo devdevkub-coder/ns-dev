@@ -8,6 +8,7 @@ import { currentActor, listDailyAccounts, nextDailyDocNo, normalizeDate, toDateO
 import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jobs'
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveCustomers } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -201,7 +202,7 @@ export async function GET() {
 
     const [accounts, customers, outstandingBills, allocatedBills, receipts, paymentMethods] = await Promise.all([
       listDailyAccounts(),
-      prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
+      listActiveCustomers(),
       prisma.sales_bills.findMany({
         select: salesBillSelect,
         orderBy: [{ date: 'desc' }],
@@ -302,8 +303,10 @@ export async function GET() {
         totalAmount: toNumber(bill.total_amount),
       })),
       customers: customers.map((customer) => ({
-        ...customer,
+        active: true,
+        code: customer.code,
         id: customer.code?.trim() || stringifyBusinessValue(customer.id),
+        name: customer.name,
       })),
       paymentMethods,
       rows: receipts.map((receipt) => {

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, masterDataListJson, nextSequentialCode, normalizeCode, parseMasterDataForm } from '@/lib/server/master-data'
+import { invalidateOverseasRecipientReferenceCache } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
     const row = existing
       ? await prisma.overseas_recipients.update({ where: { id: existing.id }, data })
       : await prisma.overseas_recipients.create({ data })
+    await invalidateOverseasRecipientReferenceCache()
     return masterDataJson(mapBeneficiary(row))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

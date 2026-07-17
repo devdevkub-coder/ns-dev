@@ -4,6 +4,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission, getBranchCodeIntersection } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranchesByCodes } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -114,10 +115,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const allowedBranchCodes = getBranchCodeIntersection(authContext)
     let allowedBranchIds: bigint[] | undefined = undefined
     if (allowedBranchCodes) {
-      const matchingBranches = await prisma.branches.findMany({
-        where: { code: { in: allowedBranchCodes } },
-        select: { id: true },
-      })
+      const matchingBranches = await listActiveBranchesByCodes(allowedBranchCodes)
       allowedBranchIds = matchingBranches.map((b) => b.id)
     }
 
@@ -144,7 +142,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     })
 
     if (payments.length > 0) {
-      if (allowedBranchIds && payments.some((p) => p.branch_id != null && !allowedBranchIds.includes(p.branch_id))) {
+      if (allowedBranchIds && payments.some((payment: (typeof payments)[number]) => payment.branch_id != null && !allowedBranchIds.includes(payment.branch_id))) {
         return NextResponse.json({ error: 'ไม่พบรายการจ่ายเงิน' }, { status: 404 })
       }
     }
@@ -202,7 +200,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
             ? 'blue'
             : 'slate'
       const timeline = [
-        ...approvalStatusLogs.map((log) => ({
+        ...approvalStatusLogs.map((log: (typeof approvalStatusLogs)[number]) => ({
           actor: log.created_by ?? '',
           at: timelineDate(log.created_at),
           details: [
@@ -217,7 +215,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
             ? `${approvalStatusLabel(log.from_status)} -> ${approvalStatusLabel(log.to_status)}`
             : approvalStatusLabel(log.to_status),
         })),
-        ...approvalAllocations.map((allocation) => ({
+        ...approvalAllocations.map((allocation: (typeof approvalAllocations)[number]) => ({
           actor: allocation.created_by ?? '',
           at: timelineDate(allocation.status === 'reversed' ? allocation.updated_at ?? allocation.created_at : allocation.created_at),
           details: [
@@ -234,7 +232,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
       return NextResponse.json({
         accountRows: [],
-        approvalRows: approvalAllocations.map((allocation) => ({
+        approvalRows: approvalAllocations.map((allocation: (typeof approvalAllocations)[number]) => ({
           amount: toNumber(allocation.allocated_amount),
           docNo: allocation.payment_doc_no,
           sourceDocNo: allocation.source_doc_no_snapshot ?? '-',
@@ -302,15 +300,15 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       }),
     ])
 
-    const amount = payments.reduce((sum, payment) => sum + toNumber(payment.amount), 0)
-    const withholdingTax = payments.reduce((sum, payment) => sum + toNumber(payment.withholding_tax), 0)
-    const fee = payments.reduce((sum, payment) => sum + toNumber(payment.fee ?? payment.bank_fee), 0)
-    const netAmount = payments.reduce((sum, payment) => sum + toNumber(payment.net_amount), 0)
-    const status = payments.some((payment) => payment.status === 'cancelled') ? 'cancelled' : 'active'
+    const amount = payments.reduce((sum: number, payment: (typeof payments)[number]) => sum + toNumber(payment.amount), 0)
+    const withholdingTax = payments.reduce((sum: number, payment: (typeof payments)[number]) => sum + toNumber(payment.withholding_tax), 0)
+    const fee = payments.reduce((sum: number, payment: (typeof payments)[number]) => sum + toNumber(payment.fee ?? payment.bank_fee), 0)
+    const netAmount = payments.reduce((sum: number, payment: (typeof payments)[number]) => sum + toNumber(payment.net_amount), 0)
+    const status = payments.some((payment: (typeof payments)[number]) => payment.status === 'cancelled') ? 'cancelled' : 'active'
     const paymentCurrentTone: TimelineTone = status === 'cancelled' ? 'rose' : 'emerald'
-    const directSourceRows = payments.flatMap((payment) => directPaymentSourceRows(payment.lines))
+    const directSourceRows = payments.flatMap((payment: (typeof payments)[number]) => directPaymentSourceRows(payment.lines))
     const timeline = [
-      ...statusLogs.map((log) => ({
+      ...statusLogs.map((log: (typeof statusLogs)[number]) => ({
         actor: log.created_by ?? '',
         at: timelineDate(log.created_at),
         details: [
@@ -325,7 +323,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
           ? `${paymentStatusLabel(log.from_status)} -> ${paymentStatusLabel(log.to_status)}`
           : paymentStatusLabel(log.to_status),
       })),
-      ...allocations.map((allocation) => ({
+      ...allocations.map((allocation: (typeof allocations)[number]) => ({
         actor: allocation.created_by ?? '',
         at: timelineDate(allocation.created_at),
         details: [
@@ -338,7 +336,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         title: allocation.status === 'reversed' ? 'คืน PMA allocation' : 'ผูก PMA เข้ากับ PMT',
         transition: allocation.status === 'reversed' ? 'คืน PMA allocation' : 'จัดสรร PMA เข้ากับ PMT',
       })),
-      ...accountSplits.map((split) => ({
+      ...accountSplits.map((split: (typeof accountSplits)[number]) => ({
         actor: split.created_by ?? '',
         at: timelineDate(split.status === 'reversed' ? split.updated_at ?? split.created_at : split.created_at),
         details: [
@@ -354,21 +352,28 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       })),
     ].sort((left, right) => left.at.localeCompare(right.at))
 
+    const sourceDocNos = directSourceRows
+      .map((row: (typeof directSourceRows)[number]) => row.sourceDocNo)
+      .filter((value: string) => value !== '-')
+    const allocationSourceDocNos = allocations
+      .map((allocation: (typeof allocations)[number]) => allocation.source_doc_no_snapshot)
+      .filter((value: string | null): value is string => Boolean(value))
+
     return NextResponse.json({
-      accountRows: accountSplits.map((split) => ({
+      accountRows: accountSplits.map((split: (typeof accountSplits)[number]) => ({
         accountName: split.account_name_snapshot ?? split.accounts?.name ?? '-',
         amount: toNumber(split.amount),
         bankStatementDocNo: split.bank_statement_doc_no ?? '-',
         statusLabel: effectStatusLabel(split.status),
       })),
       approvalRows: allocations.length > 0
-        ? allocations.map((allocation) => ({
+        ? allocations.map((allocation: (typeof allocations)[number]) => ({
             amount: toNumber(allocation.allocated_amount),
             docNo: allocation.payment_approval_doc_no,
             sourceDocNo: allocation.source_doc_no_snapshot ?? '-',
             statusLabel: effectStatusLabel(allocation.status),
           }))
-        : directSourceRows.map((row) => ({
+        : directSourceRows.map((row: (typeof directSourceRows)[number]) => ({
             amount: row.amount,
             docNo: sourceTypeLabel(row.sourceType),
             sourceDocNo: row.sourceDocNo,
@@ -378,7 +383,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         { label: 'เลขที่ PMT', value: firstPayment.doc_no },
         { label: 'วันที่จ่าย', value: dateOrDash(firstPayment.date) },
         { label: 'ผู้ขาย', value: firstPayment.suppliers?.name ?? '-' },
-        { label: 'เอกสารต้นทาง', value: directSourceRows.map((row) => row.sourceDocNo).filter((value) => value !== '-').join(', ') || allocations.map((allocation) => allocation.source_doc_no_snapshot).filter(Boolean).join(', ') || '-' },
+        { label: 'เอกสารต้นทาง', value: sourceDocNos.join(', ') || allocationSourceDocNos.join(', ') || '-' },
         { label: 'วิธีจ่าย', value: firstPayment.method ?? '-' },
         { label: 'หมายเหตุ', value: firstPayment.notes ?? '-' },
       ],

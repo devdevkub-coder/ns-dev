@@ -3480,10 +3480,10 @@ model supplier_advance_allocations {
   supplier_advance_payments        supplier_advance_payments          @relation(fields: [advance_payment_id], references: [id], onUpdate: NoAction)
   purchase_bills                   purchase_bills                     @relation(fields: [purchase_bill_id], references: [id], onUpdate: NoAction)
 
+  @@unique([purchase_bill_id], map: "uq_supplier_advance_allocations_active_bill", where: raw("(status = 'active'::text)"))
   @@index([advance_payment_id], map: "idx_supplier_advance_allocations_advance")
   @@index([purchase_bill_id], map: "idx_supplier_advance_allocations_bill")
   @@index([status], map: "idx_supplier_advance_allocations_status")
-  @@unique([purchase_bill_id], map: "uq_supplier_advance_allocations_active_bill", where: raw("(status = 'active'::text)"))
   @@schema("public")
 }
 

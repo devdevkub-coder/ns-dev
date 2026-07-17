@@ -9,6 +9,7 @@ import { appendPoBuyStatusLog, createInitialPoBuyStatusLog, PO_BUY_STATUS, recon
 import { prisma } from '@/lib/server/prisma'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { isSupplierEligibleForBranch } from '@/lib/server/party-branch-eligibility'
+import { listActiveBranches, listActiveBranchesByCodes, listActiveSupplierBranchOptions, type BranchReferenceRecord, type SupplierBranchOptionRecord } from '@/lib/server/reference-master-cache'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import { activeVatRatePercent } from '@/lib/server/tax-settings'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
@@ -41,6 +42,138 @@ type ProductRow = {
   name: string
   unit: string | null
 }
+
+type BranchLookupRow = {
+  code: string
+  id: bigint
+  name: string
+}
+
+type ResolvedProductRow = Prisma.productsGetPayload<{
+  select: { active: true, code: true, id: true, name: true, unit: true }
+}>
+
+type PoBuyAllocationLogRow = Prisma.po_buy_allocation_logsGetPayload<{
+  select: {
+    action: true
+    allocated_amount: true
+    allocated_qty: true
+    created_at: true
+    created_by: true
+    event_key: true
+    from_remaining_qty: true
+    meta: true
+    note: true
+    po_buy_doc_no: true
+    product_code_snapshot: true
+    product_name_snapshot: true
+    purchase_bill_doc_no: true
+    purchase_bill_line_no: true
+    to_remaining_qty: true
+    unit_price_snapshot: true
+  }
+}>
+
+type PoBuyStatusLogRow = Prisma.po_buy_status_logsGetPayload<{
+  select: {
+    action: true
+    created_at: true
+    created_by: true
+    event_key: true
+    from_status: true
+    meta: true
+    note: true
+    po_buy_doc_no: true
+    to_status: true
+  }
+}>
+
+type PoBuyListRow = Prisma.po_buysGetPayload<{
+  select: {
+    branch_id: true
+    cancelled_at: true
+    cancelled_by: true
+    cancel_note: true
+    created_at: true
+    created_by: true
+    date: true
+    delivery_date: true
+    doc_no: true
+    expected_delivery: true
+    has_vat: true
+    id: true
+    items: true
+    note: true
+    notes: true
+    po_buy_allocation_logs: {
+      select: {
+        action: true
+        allocated_amount: true
+        allocated_qty: true
+        created_at: true
+        created_by: true
+        event_key: true
+        from_remaining_qty: true
+        meta: true
+        note: true
+        po_buy_doc_no: true
+        product_code_snapshot: true
+        product_name_snapshot: true
+        purchase_bill_doc_no: true
+        purchase_bill_line_no: true
+        to_remaining_qty: true
+        unit_price_snapshot: true
+      }
+    }
+    po_buy_status_logs: {
+      select: {
+        action: true
+        created_at: true
+        created_by: true
+        event_key: true
+        from_status: true
+        meta: true
+        note: true
+        po_buy_doc_no: true
+        to_status: true
+      }
+    }
+    product_id: true
+    qty: true
+    remaining_amount: true
+    remaining_qty: true
+    short_closed_at: true
+    short_closed_by: true
+    short_closed_note: true
+    short_closed_qty: true
+    status: true
+    subtotal: true
+    suppliers: {
+      select: {
+        address: true
+        address_district: true
+        address_line1: true
+        address_moo: true
+        address_no: true
+        address_postal_code: true
+        address_province: true
+        address_road: true
+        address_subdistrict: true
+        address_village: true
+        code: true
+        name: true
+      }
+    }
+    supplier_id: true
+    total_amount: true
+    unit_price: true
+    updated_at: true
+    updated_by: true
+    vat_amount: true
+    vat_rate_percent: true
+    vat_type: true
+  }
+}>
 
 function jsonNumber(value: unknown) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
@@ -277,7 +410,7 @@ async function resolveProductsByCodeOrId(productRefs: string[]) {
   const internalIds = normalizedRefs
     .map((value) => parseInternalBigIntId(value))
     .filter((value): value is bigint => value != null)
-  const products = await prisma.products.findMany({
+  const products: ResolvedProductRow[] = await prisma.products.findMany({
     select: { active: true, code: true, id: true, name: true, unit: true },
     where: {
       OR: [
@@ -287,8 +420,8 @@ async function resolveProductsByCodeOrId(productRefs: string[]) {
     },
   })
   return {
-    byInternalId: new Map(products.map((product) => [product.id, product])),
-    byRef: new Map(products.flatMap((product) => {
+    byInternalId: new Map<bigint, ResolvedProductRow>(products.map((product: ResolvedProductRow) => [product.id, product] as const)),
+    byRef: new Map<string, ResolvedProductRow>(products.flatMap((product: ResolvedProductRow) => {
       const outwardId = requireBusinessCode(product.code, `สินค้า ${product.id}`)
       return [
         [outwardId, product] as const,
@@ -312,31 +445,21 @@ async function resolvePoBuyByDocNoOrId(idOrDocNo: string, client: Pick<typeof pr
 }
 
 async function optionsPayload(allowedBranchCodes?: string[] | null) {
-  const [branches, products, suppliers] = await Promise.all([
-    prisma.branches.findMany({
-      where: {
-        ...(allowedBranchCodes ? { code: { in: allowedBranchCodes } } : {}),
-      },
-      orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
-      select: { active: true, code: true, id: true, name: true },
-    }),
+  const [branchRefs, products, suppliers]: [
+    BranchReferenceRecord[],
+    ProductRow[],
+    SupplierBranchOptionRecord[],
+  ] = await Promise.all([
+    allowedBranchCodes ? listActiveBranchesByCodes(allowedBranchCodes) : listActiveBranches(),
     prisma.products.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, unit: true } }),
-    prisma.suppliers.findMany({
-      orderBy: [{ active: 'desc' }, { name: 'asc' }],
-      select: {
-        active: true,
-        code: true,
-        id: true,
-        name: true,
-        supplier_branches: {
-          select: {
-            branches: { select: { code: true } },
-          },
-          where: { active: true },
-        },
-      },
-    }),
+    listActiveSupplierBranchOptions(),
   ])
+  const branches = branchRefs.map((branch: BranchReferenceRecord) => ({
+    active: true,
+    code: branch.code,
+    id: branch.id,
+    name: branch.name,
+  }))
 
   return {
     branches: branches.map((branch) => ({ ...branch, id: branch.code })),
@@ -347,11 +470,9 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
       name: product.name,
       unit: product.unit,
     })),
-    suppliers: suppliers.map((supplier) => ({
-      active: supplier.active,
-      branchIds: supplier.supplier_branches
-        .map((mapping) => mapping.branches?.code)
-        .filter((branchCode): branchCode is string => Boolean(branchCode)),
+    suppliers: suppliers.map((supplier: SupplierBranchOptionRecord) => ({
+      active: true,
+      branchIds: supplier.branchIds,
       code: supplier.code,
       id: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),
       name: supplier.name,
@@ -409,11 +530,10 @@ export async function GET(request: Request) {
     let allowedBranchIds: bigint[] | undefined = undefined
 
     if (allowedBranchCodes) {
-      const matchingBranches = await prisma.branches.findMany({
-        where: { code: { in: allowedBranchCodes } },
-        select: { id: true },
-      })
-      allowedBranchIds = matchingBranches.map((b) => b.id)
+      const matchingBranches = await listActiveBranchesByCodes(allowedBranchCodes)
+      allowedBranchIds = matchingBranches
+        .map((branch) => parseInternalBigIntId(branch.id))
+        .filter((branchId): branchId is bigint => branchId !== null)
     }
 
     const url = new URL(request.url)
@@ -427,7 +547,7 @@ export async function GET(request: Request) {
       .map((value) => value.trim())
       .filter((value) => value && value !== 'all')
 
-    const [poRows, vatRatePercent] = await Promise.all([
+    const [poRows, vatRatePercent]: [PoBuyListRow[], number] = await Promise.all([
       prisma.po_buys.findMany({
         select: {
           branch_id: true,
@@ -525,16 +645,20 @@ export async function GET(request: Request) {
       }),
       activeVatRatePercent(new Date()),
     ])
-    const productIds = [...new Set(poRows.map((row) => row.product_id).filter((value): value is bigint => value != null))]
-    const branchIds = [...new Set(poRows.map((row) => row.branch_id).filter((id): id is bigint => id !== null))]
-    const [branches, products] = await Promise.all([
-      branchIds.length ? prisma.branches.findMany({ where: { id: { in: branchIds } }, select: { code: true, id: true, name: true } }) : Promise.resolve([]),
-      productIds.length ? prisma.products.findMany({ where: { id: { in: productIds } }, select: { code: true, id: true, name: true, unit: true } }) : Promise.resolve([]),
+    const productIds = [...new Set(poRows.map((row: PoBuyListRow) => row.product_id).filter((value): value is bigint => value != null))]
+    const branchIds = [...new Set(poRows.map((row: PoBuyListRow) => row.branch_id).filter((id): id is bigint => id !== null))]
+    const [branches, products]: [BranchLookupRow[], ProductRow[]] = await Promise.all([
+      branchIds.length
+        ? prisma.branches.findMany({ where: { id: { in: branchIds } }, select: { code: true, id: true, name: true } })
+        : Promise.resolve<BranchLookupRow[]>([]),
+      productIds.length
+        ? prisma.products.findMany({ where: { id: { in: productIds } }, select: { active: true, code: true, id: true, name: true, unit: true } })
+        : Promise.resolve<ProductRow[]>([]),
     ])
-    const branchById = new Map(branches.map((branch) => [branch.id, branch]))
-    const productById = new Map(products.map((product) => [product.id, product]))
+    const branchById = new Map<bigint, BranchLookupRow>(branches.map((branch: BranchLookupRow) => [branch.id, branch] as const))
+    const productById = new Map<bigint, ProductRow>(products.map((product: ProductRow) => [product.id, product] as const))
 
-    const rows = poRows.map((po) => {
+    const rows = poRows.map((po: PoBuyListRow) => {
       const productName = po.product_id ? productById.get(po.product_id)?.name ?? '-' : '-'
       const items = itemsFromPo(po, productById, productName)
       const qty = items.reduce((sum, item) => sum + item.qty, 0) || toNumber(po.qty)
@@ -568,7 +692,7 @@ export async function GET(request: Request) {
         shortClosedNote: po.short_closed_note ?? '',
         shortClosedQty: toNumber(po.short_closed_qty),
         status,
-        allocationLogs: po.po_buy_allocation_logs.map((log) => ({
+        allocationLogs: po.po_buy_allocation_logs.map((log: PoBuyAllocationLogRow) => ({
           action: log.action,
           allocatedAmount: toNumber(log.allocated_amount),
           allocatedQty: toNumber(log.allocated_qty),
@@ -587,7 +711,7 @@ export async function GET(request: Request) {
           toRemainingQty: toNumber(log.to_remaining_qty),
           unitPrice: toNumber(log.unit_price_snapshot),
         })),
-        statusLogs: po.po_buy_status_logs.map((log) => ({
+        statusLogs: po.po_buy_status_logs.map((log: PoBuyStatusLogRow) => ({
           action: log.action,
           createdAt: log.created_at?.toISOString() ?? '',
           createdBy: log.created_by ?? '',
@@ -646,7 +770,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       filters: {
-        statuses: Array.from(new Set(poRows.map((row) => row.status ?? 'Open'))).sort(),
+        statuses: Array.from(new Set(poRows.map((row: PoBuyListRow) => row.status ?? 'Open'))).sort(),
       },
       options: await optionsPayload(allowedBranchCodes),
       rows,
@@ -655,9 +779,9 @@ export async function GET(request: Request) {
         partial: rows.filter((row) => row.status === PO_BUY_STATUS.PARTIAL).length,
         received: rows.filter((row) => row.status === PO_BUY_STATUS.RECEIVED).length,
         shortClosed: rows.filter((row) => row.status === PO_BUY_STATUS.SHORT_CLOSED).length,
-        remainingAmount: rows.reduce((sum, row) => sum + row.remainingAmount, 0),
-        remainingQty: rows.reduce((sum, row) => sum + row.remainingQty, 0),
-        totalAmount: rows.reduce((sum, row) => sum + row.totalAmount, 0),
+        remainingAmount: rows.reduce((sum: number, row) => sum + row.remainingAmount, 0),
+        remainingQty: rows.reduce((sum: number, row) => sum + row.remainingQty, 0),
+        totalAmount: rows.reduce((sum: number, row) => sum + row.totalAmount, 0),
         totalRows: rows.length,
       },
       vatRatePercent,
@@ -716,7 +840,7 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
-    const created = await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const docNo = await nextPoBuyDocNo(tx, issuedDate, branch.code)
       const items = poItems(values, resolvedProducts.rows, docNo)
       const qty = items.reduce((sum, item) => sum + item.qty, 0)
@@ -853,7 +977,7 @@ export async function PUT(request: Request) {
     const deliveryDate = normalizeDate(values.expectedDelivery)
 
     const updatedAt = new Date()
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const row = await tx.po_buys.update({
         where: { id: existing.id },
         data: {
@@ -948,7 +1072,7 @@ export async function PATCH(request: Request) {
       }
 
       const shortClosedAt = new Date()
-      const updated = await prisma.$transaction(async (tx) => {
+      const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const current = await resolvePoBuyByDocNoOrId(values.id, tx)
         if (!current) throw new Error('NOT_FOUND')
         const updatedRow = await tx.po_buys.update({
@@ -1007,7 +1131,7 @@ export async function PATCH(request: Request) {
     }
 
     const cancelledAt = new Date()
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const row = await tx.po_buys.update({
         where: { id: existing.id },
         data: {

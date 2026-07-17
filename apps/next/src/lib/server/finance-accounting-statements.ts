@@ -3,6 +3,7 @@ import { requireBusinessCode } from '@/lib/business-code'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveAccounts, listActiveBranches, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
 
 const CANCELLED_STATUSES = ['cancelled', 'void', 'ยกเลิก']
 
@@ -60,10 +61,6 @@ type ExpenseRow = Prisma.expensesGetPayload<{
 
 type BankRow = Prisma.bank_statementGetPayload<{
   include: { accounts: { select: { account_no: true; bank_name: true; name: true; type: true } } }
-}>
-
-type AccountRow = Prisma.accountsGetPayload<{
-  include: { branches: { select: { code: true; name: true } } }
 }>
 
 type AssetRow = Prisma.assetsGetPayload<{
@@ -124,6 +121,10 @@ function branchRow(branch: { code?: string | null; id: string | bigint; name: st
   return { code, id: code, name: branch.name }
 }
 
+function cachedMoney(value: string | null) {
+  return value == null ? 0 : Number(value)
+}
+
 function bankRef(row: BankRow) {
   return row.ref_no || row.ref_type || `${row.accounts?.account_no ?? row.accounts?.name ?? 'BANK'}-${dateOnly(row.date)}`
 }
@@ -141,11 +142,7 @@ function classifyCashFlow(row: BankRow): 'operating' | 'investing' | 'financing'
 }
 
 async function listBranches() {
-  const branches = await prisma.branches.findMany({
-    orderBy: [{ code: 'asc' }, { name: 'asc' }],
-    select: { code: true, id: true, name: true },
-    where: { active: true },
-  })
+  const branches = await listActiveBranches()
   return branches.map(branchRow)
 }
 
@@ -192,6 +189,9 @@ export async function buildPlStatement(filter: PeriodFilter) {
   const salesBills = salesBillsRaw as SalesBillRow[]
   const expenses = expensesRaw as ExpenseRow[]
   const depreciations = depreciationsRaw as Array<Prisma.depreciationsGetPayload<{ include: { assets: { select: { branch_id: true; code: true; name: true } } } }>>
+  type DepreciationRow = (typeof depreciations)[number]
+  type LoanPaymentRow = (typeof loanPayments)[number]
+  type FxGainLossRow = (typeof fxRows)[number]
   const salesDetails = salesBills.map((bill: SalesBillRow) => ({
     amount: toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount),
     date: dateOnly(bill.date),
@@ -210,24 +210,24 @@ export async function buildPlStatement(filter: PeriodFilter) {
     description: expense.expense_categories?.name ?? expense.payee ?? '-',
     refNo: expense.doc_no,
   }))
-  const depreciationDetails = depreciations.map((dep) => ({
+  const depreciationDetails = depreciations.map((dep: DepreciationRow) => ({
     amount: toNumber(dep.amount),
     date: dateOnly(dep.date),
     description: dep.assets?.name ?? '-',
     refNo: dep.assets?.code ?? `DEP-${dateOnly(dep.date)}`,
   }))
-  const interestDetails = loanPayments.map((payment) => ({
+  const interestDetails = loanPayments.map((payment: LoanPaymentRow) => ({
     amount: toNumber(payment.interest_amount),
     date: dateOnly(payment.date),
     description: payment.loans?.lender_name ?? '-',
     refNo: payment.doc_no || payment.loans?.contract_no || '-',
-  })).filter((row) => row.amount > 0)
-  const fxDetails = fxRows.map((row) => ({
+  })).filter((row: DetailRow) => row.amount > 0)
+  const fxDetails = fxRows.map((row: FxGainLossRow) => ({
     amount: toNumber(row.gain_loss),
     date: dateOnly(row.date),
     description: [row.currency, row.ref_type].filter(Boolean).join(' · ') || '-',
     refNo: row.notes || `FX-${dateOnly(row.date)}`,
-  }))
+  })).filter((row: DetailRow) => row.amount !== 0)
 
   const revenue = sumDetails(salesDetails)
   const cogs = sumDetails(cogsDetails)
@@ -285,12 +285,9 @@ async function loadBalanceSheetInputs(filter: AsOfFilter) {
   const asOf = endOfDay(filter.asOf)
   const branch = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
   const branchWhere = branch?.id != null ? { branch_id: branch.id } : {}
+  const accounts = (await listActiveAccounts()).filter((account: AccountReferenceRecord) => branch?.id == null || account.branchId === branch.id)
   return Promise.all([
-    prisma.accounts.findMany({
-      include: { branches: { select: { code: true, name: true } } },
-      orderBy: [{ name: 'asc' }, { account_no: 'asc' }],
-      where: { active: true, ...branchWhere },
-    }),
+    Promise.resolve(accounts),
     prisma.bank_statement.findMany({
       include: { accounts: { select: { account_no: true, bank_name: true, name: true, type: true } } },
       orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
@@ -332,24 +329,24 @@ async function loadBalanceSheetInputs(filter: AsOfFilter) {
 
 export async function buildBalanceSheet(filter: AsOfFilter) {
   const [accountsRaw, bankRowsRaw, salesBillsRaw, purchaseBillsRaw, stockRows, assetsRaw, loans, equity, branches] = await loadBalanceSheetInputs(filter)
-  const accounts = accountsRaw as AccountRow[]
+  const accounts = accountsRaw as AccountReferenceRecord[]
   const bankRows = bankRowsRaw as BankRow[]
   const salesBills = salesBillsRaw as SalesBillRow[]
   const purchaseBills = purchaseBillsRaw as PurchaseBillRow[]
   const assets = assetsRaw as AssetRow[]
   const balances = new Map<bigint, number>()
-  accounts.forEach((account: AccountRow) => balances.set(account.id, toNumber(account.opening_balance)))
+  accounts.forEach((account: AccountReferenceRecord) => balances.set(account.id, cachedMoney(account.openingBalance)))
   bankRows.forEach((row: BankRow) => {
     if (!row.account_id) return
     const previous = balances.get(row.account_id) ?? 0
     const next = row.balance === null || row.balance === undefined ? previous + toNumber(row.amount_in) - toNumber(row.amount_out) : toNumber(row.balance)
     balances.set(row.account_id, next)
   })
-  const cashDetails = accounts.map((account: AccountRow) => ({
+  const cashDetails = accounts.map((account: AccountReferenceRecord) => ({
     amount: balances.get(account.id) ?? 0,
     date: dateOnly(filter.asOf),
-    description: [account.bank_name ?? account.bank, account.name, account.account_no].filter(Boolean).join(' · '),
-    refNo: account.account_no || account.name,
+    description: [account.bankName ?? account.bank, account.name, account.accountNo].filter(Boolean).join(' · '),
+    refNo: account.accountNo || account.name,
   }))
   const cash = sumDetails(cashDetails)
   const arDetails = salesBills.map((bill: SalesBillRow) => ({
@@ -364,35 +361,36 @@ export async function buildBalanceSheet(filter: AsOfFilter) {
     description: bill.suppliers?.name ?? '-',
     refNo: bill.doc_no,
   })).filter((row) => row.amount > 0)
-  const inventoryDetails = stockRows.map((row) => ({
+  type StockLedgerRow = (typeof stockRows)[number]
+  const inventoryDetails = stockRows.map((row: StockLedgerRow) => ({
     amount: toNumber(row.value_in) - toNumber(row.value_out),
     date: dateOnly(row.date),
     description: row.movement_type,
     refNo: row.ref_no || row.ref_type || `STOCK-${dateOnly(row.date)}`,
-  })).filter((row) => row.amount !== 0)
+  })).filter((row: DetailRow) => row.amount !== 0)
   const fixedAssetDetails = assets.map((asset: AssetRow) => {
     const cost = toNumber(asset.net_asset_cost) || (toNumber(asset.original_cost) - toNumber(asset.vat_amount))
-    const accumDep = asset.depreciations.reduce((sum, dep) => sum + toNumber(dep.amount), 0)
+    const accumDep = asset.depreciations.reduce((sum: number, dep: AssetRow['depreciations'][number]) => sum + toNumber(dep.amount), 0)
     return {
       amount: Math.max(toNumber(asset.salvage_value), cost - accumDep),
       date: asset.purchase_date ? dateOnly(asset.purchase_date) : dateOnly(filter.asOf),
       description: asset.name,
       refNo: asset.code,
     }
-  }).filter((row) => row.amount > 0)
+  }).filter((row: DetailRow) => row.amount > 0)
   const fixedCost = assets.reduce((sum, asset) => sum + (toNumber(asset.net_asset_cost) || (toNumber(asset.original_cost) - toNumber(asset.vat_amount))), 0)
-  const accumulatedDep = assets.reduce((sum, asset) => sum + asset.depreciations.reduce((depSum, dep) => depSum + toNumber(dep.amount), 0), 0)
+  const accumulatedDep = assets.reduce((sum: number, asset: AssetRow) => sum + asset.depreciations.reduce((depSum: number, dep: AssetRow['depreciations'][number]) => depSum + toNumber(dep.amount), 0), 0)
   const loanDetails = loans.map((loan: LoanRow) => {
-    const paidPrincipal = loan.loan_payments.reduce((sum, payment) => sum + toNumber(payment.principal_amount), 0)
+    const paidPrincipal = loan.loan_payments.reduce((sum: number, payment: LoanRow['loan_payments'][number]) => sum + toNumber(payment.principal_amount), 0)
     return {
       amount: Math.max(0, toNumber(loan.principal_amount) - paidPrincipal),
       date: loan.start_date ? dateOnly(loan.start_date) : dateOnly(filter.asOf),
       description: loan.lender_name ?? loan.loan_type,
       refNo: loan.contract_no,
     }
-  }).filter((row) => row.amount > 0)
+  }).filter((row: DetailRow) => row.amount > 0)
   const currentLimit = addMonths(filter.asOf, 12)
-  const currentLoan = loans.reduce((sum, loan: LoanRow) => sum + loan.loan_schedules.filter((schedule) => schedule.due_date <= currentLimit && schedule.payment_status !== 'Paid').reduce((scheduleSum, schedule) => scheduleSum + Math.max(0, toNumber(schedule.principal_amount) - toNumber(schedule.paid_amount)), 0), 0)
+  const currentLoan = loans.reduce((sum: number, loan: LoanRow) => sum + loan.loan_schedules.filter((schedule: LoanRow['loan_schedules'][number]) => schedule.due_date <= currentLimit && schedule.payment_status !== 'Paid').reduce((scheduleSum: number, schedule: LoanRow['loan_schedules'][number]) => scheduleSum + Math.max(0, toNumber(schedule.principal_amount) - toNumber(schedule.paid_amount)), 0), 0)
   const totalLoan = sumDetails(loanDetails)
   const longTermLoan = Math.max(0, totalLoan - currentLoan)
   const ar = sumDetails(arDetails)
@@ -464,7 +462,7 @@ export async function buildCashFlowStatement(filter: PeriodFilter) {
   const branch = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
   const accountWhere = branch?.id != null ? { accounts: { branch_id: branch.id } } : {}
   const [accountsRaw, beforeRowsRaw, periodRowsRaw, branches] = await Promise.all([
-    prisma.accounts.findMany({ include: { branches: { select: { code: true, name: true } } }, where: { active: true, ...(branch?.id != null ? { branch_id: branch.id } : {}) } }),
+    listActiveAccounts().then((rows) => rows.filter((account: AccountReferenceRecord) => branch?.id == null || account.branchId === branch.id)),
     prisma.bank_statement.findMany({
       include: { accounts: { select: { account_no: true, bank_name: true, name: true, type: true } } },
       orderBy: [{ date: 'asc' }, { id: 'asc' }],
@@ -479,10 +477,10 @@ export async function buildCashFlowStatement(filter: PeriodFilter) {
     }),
     listBranches(),
   ])
-  const accounts = accountsRaw as AccountRow[]
+  const accounts = accountsRaw.filter((account: AccountReferenceRecord) => branch?.id == null || account.branchId === branch.id)
   const beforeRows = beforeRowsRaw as BankRow[]
   const periodRows = periodRowsRaw as BankRow[]
-  const openingCash = accounts.reduce((sum, account) => sum + toNumber(account.opening_balance), 0) + beforeRows.reduce((sum, row) => sum + toNumber(row.amount_in) - toNumber(row.amount_out), 0)
+  const openingCash = accounts.reduce((sum: number, account: AccountReferenceRecord) => sum + cachedMoney(account.openingBalance), 0) + beforeRows.reduce((sum, row) => sum + toNumber(row.amount_in) - toNumber(row.amount_out), 0)
   const activityRows = periodRows.filter((row: BankRow) => !isInternalTransfer(row)).map((row: BankRow) => {
     const inflow = toNumber(row.amount_in)
     const outflow = toNumber(row.amount_out)

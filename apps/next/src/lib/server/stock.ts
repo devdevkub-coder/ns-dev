@@ -3,6 +3,7 @@ import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranches, listActiveCustomers, listActiveWarehouses } from '@/lib/server/reference-master-cache'
 import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import { XLSX } from '@/lib/server/xlsx'
@@ -21,6 +22,23 @@ const stockLedgerInclude = {
   products: { select: { code: true, metal_group: true, name: true } },
   warehouses: true,
 } as const
+
+const stockReferenceProductSelect = {
+  active: true,
+  code: true,
+  id: true,
+  metal_group: true,
+  name: true,
+} as const
+
+const stockHistoryHoldInclude = {
+  weight_ticket_lines: { select: { line_no: true, net_weight: true, product_name: true } },
+  weight_tickets: { include: { customers: { select: { code: true, name: true } } } },
+} as const
+
+type StockReferenceProductRow = Prisma.productsGetPayload<{ select: typeof stockReferenceProductSelect }>
+type StockHistoryLedgerRow = Prisma.stock_ledgerGetPayload<{ include: typeof stockLedgerInclude }>
+type StockHistoryHoldRow = Prisma.stock_holdsGetPayload<{ include: typeof stockHistoryHoldInclude }>
 
 export function stockKey(input: StockBalanceKey) {
   return [
@@ -200,6 +218,31 @@ type StockBalanceAggregateRow = {
   warehouse_type: string | null
 }
 
+type StockBalancePublicRow = {
+  avgCost: number
+  awaitingBillQty: number
+  branchId: string
+  branchInternalId: bigint | null
+  branchName: string
+  key: string
+  lastDate: string
+  lotNo: string
+  notAvailable: boolean
+  onHoldQty: number
+  productCode: string
+  productId: string
+  productInternalId: bigint | null
+  productMetalGroup: string
+  productName: string
+  qty: number
+  readyQty: number
+  status: string
+  value: number
+  warehouseId: string
+  warehouseInternalId: bigint | null
+  warehouseName: string
+}
+
 function rawNumeric(value: Prisma.Decimal | number | string | null) {
   if (value == null) return 0
   if (typeof value === 'number') return value
@@ -214,30 +257,34 @@ function rawDateOnly(value: Date | string | null) {
 
 export async function stockReferenceData(input?: { includeCustomers?: boolean }) {
   const [branches, warehouses, products, customers] = await Promise.all([
-    prisma.branches.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
-    prisma.warehouses.findMany({
-      orderBy: [{ name: 'asc' }],
-      select: { active: true, branches: { select: { code: true } }, branch_id: true, code: true, id: true, name: true },
-    }),
-    prisma.products.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, metal_group: true, name: true } }),
+    listActiveBranches(),
+    listActiveWarehouses(),
+    prisma.products.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }], select: stockReferenceProductSelect }),
     input?.includeCustomers === false
-      ? Promise.resolve([])
-      : prisma.customers.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
+      ? Promise.resolve([] as Awaited<ReturnType<typeof listActiveCustomers>>)
+      : listActiveCustomers(),
   ])
 
   return {
-    branches: branches.map((row) => {
+    branches: branches.map((row: Awaited<ReturnType<typeof listActiveBranches>>[number]) => {
       const code = requireBusinessCode(row.code, `สาขา ${row.id}`)
-      return { active: row.active, code, id: code, name: row.name }
+      return { active: true, code, id: code, name: row.name }
     }),
-    customers: customers.map((row) => {
+    customers: customers.map((row: Awaited<ReturnType<typeof listActiveCustomers>>[number]) => {
       const code = requireBusinessCode(row.code, `ลูกค้า ${row.id}`)
-      return { active: row.active, code, id: code, name: row.name }
+      return { active: true, code, id: code, name: row.name }
     }),
-    products: products.map((row) => ({ active: row.active, code: row.code, id: row.code, metalGroup: row.metal_group, name: row.name, status: null })),
-    warehouses: warehouses.map((row) => ({
+    products: products.map((row: StockReferenceProductRow) => ({
       active: row.active,
-      branchId: row.branches ? requireBusinessCode(row.branches.code, `สาขาคลัง ${row.branch_id ?? row.id}`) : null,
+      code: row.code,
+      id: row.code,
+      metalGroup: row.metal_group,
+      name: row.name,
+      status: null,
+    })),
+    warehouses: warehouses.map((row: Awaited<ReturnType<typeof listActiveWarehouses>>[number]) => ({
+      active: true,
+      branchId: row.branchCode ? requireBusinessCode(row.branchCode, `สาขาคลัง ${row.id}`) : null,
       code: row.code,
       id: row.code,
       name: row.name,
@@ -413,8 +460,8 @@ export async function stockBalanceSnapshot(input: {
       ) > 0.000001
     `
   ])
-  const holdQtyByStockKey = new Map(
-    holdSums.map((row) => [
+  const holdQtyByStockKey = new Map<string, number>(
+    holdSums.map((row: Awaited<typeof holdSums>[number]) => [
       stockBucketInternalKey({
         branchId: row.branch_id,
         lotNo: row.lot_no,
@@ -427,7 +474,7 @@ export async function stockBalanceSnapshot(input: {
     ]),
   )
 
-  const rows = ledgerRows.map((row) => {
+  const rows = ledgerRows.map((row: StockBalanceAggregateRow): StockBalancePublicRow => {
     const productStatus = stockStatusForLedgerRow(row)
     const qty = rawNumeric(row.qty)
     const value = rawNumeric(row.value)
@@ -466,7 +513,7 @@ export async function stockBalanceSnapshot(input: {
   })
 
   // Merge unbilled weights
-  const rowsByKey = new Map<string, typeof rows[number]>()
+  const rowsByKey = new Map<string, StockBalancePublicRow>()
   for (const row of rows) {
     rowsByKey.set(row.key, row)
   }
@@ -488,7 +535,7 @@ export async function stockBalanceSnapshot(input: {
     if (existing) {
       existing.awaitingBillQty = awaitingQty
     } else {
-      const newRow = {
+      const newRow: StockBalancePublicRow = {
         avgCost: 0,
         branchInternalId: rawAwaiting.branch_id ?? null,
         branchId: rawAwaiting.branch_code ?? '',
@@ -618,10 +665,7 @@ export async function stockBalanceDetail(input: {
       },
     }),
     prisma.stock_holds.findMany({
-      include: {
-        weight_ticket_lines: { select: { line_no: true, net_weight: true, product_name: true } },
-        weight_tickets: { include: { customers: { select: { code: true, name: true } } } },
-      },
+      include: stockHistoryHoldInclude,
       orderBy: [{ held_at: 'desc' }, { id: 'desc' }],
       take: 80,
       where: {
@@ -637,7 +681,7 @@ export async function stockBalanceDetail(input: {
   ])
 
   return {
-    holds: holdRows.map((row) => ({
+    holds: holdRows.map((row: StockHistoryHoldRow) => ({
       customerCode: row.weight_tickets.customers?.code ?? '',
       customerName: row.weight_tickets.customers?.name ?? '-',
       heldAt: row.held_at.toISOString(),
@@ -649,7 +693,7 @@ export async function stockBalanceDetail(input: {
       status: row.status,
       weightTicketDate: toDateOnly(row.weight_tickets.document_date),
     })),
-    ledgerRows: ledgerRows.map((row) => ({
+    ledgerRows: ledgerRows.map((row: StockHistoryLedgerRow) => ({
       createdAt: row.created_at ? row.created_at.toISOString() : '',
       date: toDateOnly(row.date),
       id: row.ledger_key,

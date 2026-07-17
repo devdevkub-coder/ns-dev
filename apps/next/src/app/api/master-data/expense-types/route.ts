@@ -1,15 +1,18 @@
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, masterDataListJson, nextSequentialCode, parseMasterDataForm } from '@/lib/server/master-data'
+import { invalidateExpenseTypeReferenceCache, listExpenseTypes } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
 function mapExpenseType(row: {
   active: boolean | null
   code: string
-  created_at: Date | null
+  createdAt?: string | null
+  created_at?: Date | null
   name: string
-  updated_at: Date | null
+  updatedAt?: string | null
+  updated_at?: Date | null
 }) {
   return {
     id: row.code,
@@ -35,8 +38,8 @@ function mapExpenseType(row: {
     address: null,
     commissionPct: null,
     baseSalary: null,
-    createdAt: row.created_at?.toISOString() ?? null,
-    updatedAt: row.updated_at?.toISOString() ?? null,
+    createdAt: 'createdAt' in row ? row.createdAt ?? null : row.created_at?.toISOString() ?? null,
+    updatedAt: 'updatedAt' in row ? row.updatedAt ?? null : row.updated_at?.toISOString() ?? null,
   }
 }
 
@@ -54,10 +57,7 @@ export async function GET() {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'master.reference.view')
 
-    const rows = await prisma.expense_types.findMany({
-      orderBy: [{ code: 'asc' }, { name: 'asc' }],
-      select: { active: true, code: true, created_at: true, name: true, updated_at: true },
-    })
+    const rows = await listExpenseTypes()
     return masterDataListJson(rows.map(mapExpenseType))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -83,6 +83,7 @@ export async function POST(request: Request) {
           data: { active: values.active, code, name: values.name },
           select: { active: true, code: true, created_at: true, name: true, updated_at: true },
         })
+    await invalidateExpenseTypeReferenceCache()
     return masterDataJson(mapExpenseType(row))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

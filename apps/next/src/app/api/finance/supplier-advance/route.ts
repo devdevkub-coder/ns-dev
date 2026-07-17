@@ -6,6 +6,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveSuppliers } from '@/lib/server/reference-master-cache'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -100,16 +101,10 @@ export async function GET(request: Request) {
         take: 10000,
         where: statementWhere(query),
       }),
-      prisma.suppliers.findMany({
-        orderBy: [{ code: 'asc' }, { name: 'asc' }],
-        select: { active: true, code: true, id: true, name: true },
-        where: { active: true },
-      }),
+      listActiveSuppliers(),
     ])
 
-    const supplierByCode = new Map(
-      suppliers.map((supplier) => [requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`), supplier] as const),
-    )
+    const supplierByCode = new Map(suppliers.map((supplier) => [supplier.code, supplier] as const))
     const allRows = bankRows.map((row) => {
       const description = row.description ?? row.desc ?? ''
       const supplierNameFromText = extractSupplierName(description)
@@ -167,10 +162,12 @@ export async function GET(request: Request) {
     return NextResponse.json({
       filters: {
         statuses: ['Open', 'Partially Used', 'Fully Used', 'Cancelled'],
-        suppliers: suppliers.map((supplier) => {
-          const code = requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`)
-          return { active: supplier.active, code, id: code, name: supplier.name }
-        }),
+        suppliers: suppliers.map((supplier) => ({
+          active: true,
+          code: supplier.code,
+          id: supplier.code,
+          name: supplier.name,
+        })),
       },
       pagination: {
         page: query.page,

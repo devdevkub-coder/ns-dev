@@ -1,6 +1,7 @@
 import type { Prisma } from '../../../generated/prisma/client'
-import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
+import { parseInternalBigIntId } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
+import { listAllAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
 
 export function toDateOnly(value: Date | null | undefined) {
   return value ? value.toISOString().slice(0, 10) : ''
@@ -108,20 +109,7 @@ export async function nextBankStatementDocNos(date: string, count: number, clien
 
 export async function listDailyAccounts() {
   const [accounts, statementTotals] = await Promise.all([
-    prisma.accounts.findMany({
-      orderBy: [{ active: 'desc' }, { name: 'asc' }, { account_no: 'asc' }],
-      select: {
-        active: true,
-        account_no: true,
-        code: true,
-        id: true,
-        name: true,
-        opening_balance: true,
-        type: true,
-        subtype: true,
-        od_limit: true,
-      },
-    }),
+    listAllAccounts(),
     prisma.bank_statement.groupBy({
       by: ['account_id'],
       _sum: {
@@ -131,23 +119,25 @@ export async function listDailyAccounts() {
       where: { account_id: { not: null } },
     }),
   ])
-  const statementTotalByAccountId = new Map(statementTotals.map((total) => [
-    total.account_id?.toString() ?? '',
-    toNumber(total._sum.amount_in) - toNumber(total._sum.amount_out),
-  ] as const))
+  const statementTotalByAccountId = new Map<string, number>(
+    statementTotals.map((total: (typeof statementTotals)[number]) => [
+      total.account_id?.toString() ?? '',
+      toNumber(total._sum.amount_in) - toNumber(total._sum.amount_out),
+    ] as const),
+  )
 
-  return accounts.map((account) => {
-    const realBalance = toNumber(account.opening_balance) + (statementTotalByAccountId.get(account.id.toString()) ?? 0)
-    const odLimit = toNumber(account.od_limit)
+  return accounts.map((account: AccountReferenceRecord) => {
+    const realBalance = (account.openingBalance == null ? 0 : Number(account.openingBalance)) + (statementTotalByAccountId.get(account.id.toString()) ?? 0)
+    const odLimit = account.odLimit == null ? 0 : Number(account.odLimit)
     const odUsed = Math.max(0, -realBalance)
     const odRemaining = Math.max(0, odLimit - odUsed)
     const availableToPay = realBalance + odLimit
 
     return {
-      active: account.active ?? true,
+      active: account.active,
       balance: realBalance,
-      code: account.account_no,
-      id: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
+      code: account.accountNo,
+      id: account.code,
       name: account.name,
       type: account.type,
       subtype: account.subtype,

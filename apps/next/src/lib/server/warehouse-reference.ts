@@ -1,45 +1,12 @@
-import { prisma } from '@/lib/server/prisma'
-
-type WarehouseReference = {
-  branchCode: string | null
-  code: string
-  id: bigint
-  name: string
-  type: string | null
-}
+import {
+  findActiveWarehouseReferenceByCodeOrId as findCachedActiveWarehouseReferenceByCodeOrId,
+  type WarehouseReferenceRecord as WarehouseReference,
+} from '@/lib/server/reference-master-cache'
 
 export async function findActiveWarehouseReferenceByCodeOrId(
   value: string | bigint | null | undefined,
 ): Promise<WarehouseReference | null> {
-  const normalized = String(value ?? '').trim()
-  if (!normalized) return null
-
-  const warehouse = await prisma.warehouses.findFirst({
-    select: {
-      branches: { select: { code: true } },
-      code: true,
-      id: true,
-      name: true,
-      type: true,
-    },
-    where: {
-      active: true,
-      OR: [
-        { code: normalized.toUpperCase() },
-        ...(normalized.match(/^\d+$/) ? [{ id: BigInt(normalized) }] : []),
-      ],
-    },
-  })
-
-  if (!warehouse) return null
-
-  return {
-    branchCode: warehouse.branches?.code ?? null,
-    code: warehouse.code,
-    id: warehouse.id,
-    name: warehouse.name,
-    type: warehouse.type ?? null,
-  }
+  return findCachedActiveWarehouseReferenceByCodeOrId(value)
 }
 
 export function outwardWarehouseReference(

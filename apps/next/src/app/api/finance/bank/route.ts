@@ -1,12 +1,12 @@
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { NextResponse } from 'next/server'
 import { XLSX } from '@/lib/server/xlsx'
-import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -21,6 +21,28 @@ type BankQuery = {
   sortDirection: 'asc' | 'desc'
   to: string | null
   type: string | null
+}
+
+type BankStatementRow = {
+  accountId: string
+  accountName: string
+  accountNo: string
+  amountIn: number
+  amountOut: number
+  bankName: string
+  branchName: string
+  cashFlowCategory: string
+  date: string
+  description: string
+  docNo: string
+  id: string
+  movement: number
+  note: string
+  refId: string
+  refNo: string
+  refType: string
+  runningBalance: number
+  type: string
 }
 
 function parseQuery(url: URL): BankQuery {
@@ -94,31 +116,17 @@ export async function GET(request: Request) {
         take: 10000,
         where: statementWhere(query, internalAccountId, true),
       }),
-      prisma.accounts.findMany({
-        orderBy: [{ name: 'asc' }, { account_no: 'asc' }],
-        select: {
-          account_no: true,
-          active: true,
-          bank_name: true,
-          branches: { select: { id: true, name: true } },
-          code: true,
-          currency: true,
-          id: true,
-          name: true,
-          opening_balance: true,
-          type: true,
-          subtype: true,
-          od_limit: true,
-        },
-        where: { active: true },
-      }),
+      listActiveAccounts(),
     ])
 
-    const accountCodeByInternalId = new Map(accounts.map((account) => [String(account.id), requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`)] as const))
+    const accountCodeByInternalId = new Map(accounts.map((account: AccountReferenceRecord) => [String(account.id), account.code] as const))
     const runningByAccount = new Map<string, number>()
-    accounts.forEach((account) => runningByAccount.set(String(account.id), toNumber(account.opening_balance)))
+    accounts.forEach((account: AccountReferenceRecord) => {
+      const openingBalance = account.openingBalance == null ? 0 : Number(account.openingBalance)
+      runningByAccount.set(String(account.id), openingBalance)
+    })
 
-    const rowsWithRunning = sourceRows.map((row) => {
+    const rowsWithRunning: BankStatementRow[] = sourceRows.map((row: (typeof sourceRows)[number]) => {
       const internalAccountKey = row.account_id?.toString() ?? ''
       const outwardAccountId = internalAccountKey ? (accountCodeByInternalId.get(internalAccountKey) ?? '') : ''
       const previous = runningByAccount.get(internalAccountKey) ?? 0
@@ -149,15 +157,15 @@ export async function GET(request: Request) {
     })
 
     const visibleRows = rowsWithRunning
-      .filter((row) => !query.from || row.date >= query.from)
-      .filter((row) => !search || `${row.accountName} ${row.accountNo} ${row.bankName} ${row.refNo} ${row.refType} ${row.description} ${row.note}`.toLowerCase().includes(search))
-      .sort((left, right) => {
+      .filter((row: BankStatementRow) => !query.from || row.date >= query.from)
+      .filter((row: BankStatementRow) => !search || `${row.accountName} ${row.accountNo} ${row.bankName} ${row.refNo} ${row.refType} ${row.description} ${row.note}`.toLowerCase().includes(search))
+      .sort((left: BankStatementRow, right: BankStatementRow) => {
         const direction = query.sortDirection === 'asc' ? 1 : -1
         return (left.date.localeCompare(right.date) || left.refNo.localeCompare(right.refNo) || left.id.localeCompare(right.id)) * direction
       })
 
     const accountSummary = new Map<string, { accountId: string; accountName: string; amountIn: number; amountOut: number; balance: number; rows: number }>()
-    visibleRows.forEach((row) => {
+    visibleRows.forEach((row: BankStatementRow) => {
       const current = accountSummary.get(row.accountId) ?? { accountId: row.accountId, accountName: row.accountName, amountIn: 0, amountOut: 0, balance: row.runningBalance, rows: 0 }
       current.amountIn += row.amountIn
       current.amountOut += row.amountOut
@@ -167,7 +175,7 @@ export async function GET(request: Request) {
     })
 
     if (url.searchParams.get('format') === 'xlsx') {
-      return xlsxResponse(await buildWorkbook(visibleRows.map((row) => ({
+      return xlsxResponse(await buildWorkbook(visibleRows.map((row: BankStatementRow) => ({
         Account: row.accountName,
         AmountIn: row.amountIn,
         AmountOut: row.amountOut,
@@ -183,25 +191,25 @@ export async function GET(request: Request) {
 
     const start = (query.page - 1) * query.pageSize
     const totalRows = visibleRows.length
-    const refTypes = Array.from(new Set(sourceRows.map((row) => row.ref_type).filter((value): value is string => Boolean(value)))).sort()
-    const types = Array.from(new Set(sourceRows.map((row) => row.type).filter((value): value is string => Boolean(value)))).sort()
+    const refTypes = Array.from(new Set(sourceRows.map((row: (typeof sourceRows)[number]) => row.ref_type).filter((value: string | null): value is string => Boolean(value)))).sort()
+    const types = Array.from(new Set(sourceRows.map((row: (typeof sourceRows)[number]) => row.type).filter((value: string | null): value is string => Boolean(value)))).sort()
 
     return NextResponse.json({
       byAccount: Array.from(accountSummary.values()).sort((left, right) => right.balance - left.balance),
       filters: {
-        accounts: accounts.map((row) => ({
-          accountNo: row.account_no,
-          active: row.active,
-          bankName: row.bank_name,
-          branchName: row.branches?.name ?? '',
-          code: requireBusinessCode(row.code, `บัญชีเงิน ${row.id}`),
+        accounts: accounts.map((row: AccountReferenceRecord) => ({
+          accountNo: row.accountNo,
+          active: true,
+          bankName: row.bankName,
+          branchName: row.branchName ?? '',
+          code: row.code,
           currency: row.currency,
-          id: requireBusinessCode(row.code, `บัญชีเงิน ${row.id}`),
+          id: row.code,
           name: row.name,
-          openingBalance: toNumber(row.opening_balance),
+          openingBalance: row.openingBalance == null ? 0 : Number(row.openingBalance),
           type: row.type,
           subtype: row.subtype,
-          odLimit: row.od_limit ? toNumber(row.od_limit) : null,
+          odLimit: row.odLimit == null ? null : Number(row.odLimit),
         })),
         refTypes,
         types,
@@ -215,9 +223,9 @@ export async function GET(request: Request) {
       rows: visibleRows.slice(start, start + query.pageSize),
       summary: {
         accounts: accountSummary.size,
-        amountIn: visibleRows.reduce((sum, row) => sum + row.amountIn, 0),
-        amountOut: visibleRows.reduce((sum, row) => sum + row.amountOut, 0),
-        netMovement: visibleRows.reduce((sum, row) => sum + row.movement, 0),
+        amountIn: visibleRows.reduce((sum: number, row: BankStatementRow) => sum + row.amountIn, 0),
+        amountOut: visibleRows.reduce((sum: number, row: BankStatementRow) => sum + row.amountOut, 0),
+        netMovement: visibleRows.reduce((sum: number, row: BankStatementRow) => sum + row.movement, 0),
         rows: visibleRows.length,
       },
     })
