@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Activity, ArrowDownRight, ArrowUpRight, Building2, ChartColumnBig, Landmark, Scale, SlidersHorizontal, TrendingUp, Wallet } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { KpiCard as SharedKpiCard, KpiCardGrid, type KpiCardTone } from '@/components/ui/KpiCard'
@@ -638,6 +638,7 @@ export function BalanceSheetPageClient() {
   const totalLiabilities = data?.summary.totalLiabilities ?? 0
   const totalEquity = data?.summary.totalEquity ?? 0
   const balanceDifference = Math.abs(data?.balanceCheck.difference ?? 0)
+  const debtToAsset = totalAssets > 0 ? (totalLiabilities / totalAssets) * 100 : 0
 
   return (
     <section className="space-y-4">
@@ -647,7 +648,6 @@ export function BalanceSheetPageClient() {
         <div className="flex flex-wrap items-center gap-2">
           <DateInput label="ณ วันที่" value={asOf} onChange={setAsOf} />
           <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
-          <BalanceCheckPill balanced={data?.balanceCheck.balanced} difference={data?.balanceCheck.difference} />
           <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => { setAsOf(today()); setBranchId('') }}>ล้างตัวกรอง</button>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -733,28 +733,33 @@ export function BalanceSheetPageClient() {
       ) : null}
 
       <KpiCardGrid className="lg:grid-cols-4 xl:grid-cols-4">
-        <SharedKpiCard className={statementKpiClassName} icon={<Wallet aria-hidden="true" className="size-5" />} label="สินทรัพย์รวม" note={`งบ ณ ${asOfLabel}`} tone="blue" value={money(totalAssets)} />
-        <SharedKpiCard className={statementKpiClassName} icon={<Activity aria-hidden="true" className="size-5" />} label="เงินทุนหมุนเวียน" note={workingCapital >= 0 ? 'สินทรัพย์หมุนเวียนยังมากกว่าหนี้ระยะสั้น' : 'หนี้ระยะสั้นสูงกว่าสินทรัพย์หมุนเวียน'} tone={workingCapital >= 0 ? 'emerald' : 'red'} value={money(workingCapital)} />
-        <SharedKpiCard className={statementKpiClassName} icon={<Landmark aria-hidden="true" className="size-5" />} label="หนี้สินรวม" note={`${percent(totalAssets > 0 ? (totalLiabilities / totalAssets) * 100 : 0)} ของสินทรัพย์`} tone="orange" value={money(totalLiabilities)} />
-        <SharedKpiCard className={statementKpiClassName} icon={<Scale aria-hidden="true" className="size-5" />} label="ส่วนทุนรวม" note={`D/E ${debtToEquity.toFixed(2)} เท่า`} tone="purple" value={money(totalEquity)} />
+        <SharedKpiCard className={statementKpiClassName} icon={<Wallet aria-hidden="true" className="size-5" />} label="Total Assets / สินทรัพย์รวม" note={`งบ ณ ${asOfLabel}`} tone="blue" value={money(totalAssets)} />
+        <SharedKpiCard className={statementKpiClassName} icon={<Landmark aria-hidden="true" className="size-5" />} label="Total Liabilities / หนี้สินรวม" note={`${percent(totalAssets > 0 ? (totalLiabilities / totalAssets) * 100 : 0)} ของสินทรัพย์`} tone="orange" value={money(totalLiabilities)} />
+        <SharedKpiCard className={statementKpiClassName} icon={<Scale aria-hidden="true" className="size-5" />} label="Total Equity / ส่วนทุนรวม" note={`D/E ${debtToEquity.toFixed(2)} เท่า`} tone="purple" value={money(totalEquity)} />
+        <SharedKpiCard className={statementKpiClassName} icon={<Activity aria-hidden="true" className="size-5" />} label="Working Capital / เงินทุนหมุนเวียน" note={workingCapital >= 0 ? 'สินทรัพย์หมุนเวียนยังมากกว่าหนี้ระยะสั้น' : 'หนี้ระยะสั้นสูงกว่าสินทรัพย์หมุนเวียน'} tone={workingCapital >= 0 ? 'emerald' : 'red'} value={money(workingCapital)} />
       </KpiCardGrid>
 
       <AnalysisPanel subtitle={`สรุปภาพรวมของ ${selectedBranch} ณ ${asOfLabel} ก่อนลงไปอ่านตารางสินทรัพย์และหนี้สิน`} title="สรุปที่ควรอ่านก่อน">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <StatementInsightCard
-            body={`${money(currentAssets)}`}
-            title={`สินทรัพย์หมุนเวียน · ${percent(totalAssets > 0 ? (currentAssets / totalAssets) * 100 : 0)}`}
-            tone="default"
-          />
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <StatementInsightCard
             body={`${currentRatio.toFixed(2)} เท่า`}
-            title={currentRatio >= 1 ? 'Current Ratio ยังมี buffer' : 'Current Ratio ต่ำ ควรจับตา'}
+            title="Current Ratio"
             tone={currentRatio >= 1 ? 'good' : 'warn'}
           />
           <StatementInsightCard
             body={`${debtToEquity.toFixed(2)} เท่า`}
-            title={debtToEquity <= 2 ? 'หนี้สินต่อทุนยังไม่สูงมาก' : 'หนี้สินต่อทุนค่อนข้างสูง'}
+            title="Debt-to-Equity"
             tone={debtToEquity <= 2 ? 'good' : 'warn'}
+          />
+          <StatementInsightCard
+            body={percent(debtToAsset)}
+            title="Debt-to-Asset"
+            tone={debtToAsset < 60 ? 'good' : 'warn'}
+          />
+          <StatementInsightCard
+            body={money(workingCapital)}
+            title="Working Capital"
+            tone={workingCapital >= 0 ? 'good' : 'bad'}
           />
           <StatementInsightCard
             body={data?.balanceCheck.balanced ? 'สมดุล' : money(balanceDifference)}
@@ -764,26 +769,99 @@ export function BalanceSheetPageClient() {
         </div>
       </AnalysisPanel>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <AnalysisPanel subtitle="อ่านเร็วว่าสินทรัพย์กองอยู่ที่เงินสด ลูกหนี้ สต็อก หรือทรัพย์สินถาวรมากแค่ไหน" title="โครงสร้างสินทรัพย์">
-          <Waterfall rows={[['เงินสด', data?.summary.cash ?? 0], ['ลูกหนี้ (AR)', data?.summary.ar ?? 0], ['สต็อก', data?.summary.inventory ?? 0], ['ทรัพย์สินถาวร', data?.summary.fixedAssetNet ?? 0]]} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <AnalysisPanel className="h-full" subtitle="อ่านเร็วว่าสินทรัพย์กองอยู่ที่เงินสด ลูกหนี้ สต็อก หรือทรัพย์สินถาวรมากแค่ไหน" title="Assets Breakdown / โครงสร้างสินทรัพย์">
+          <BreakdownDonut
+            centerTotal={totalAssets}
+            segments={[
+              { color: '#10b981', label: 'Cash / เงินสด', value: data?.summary.cash ?? 0 },
+              { color: '#06b6d4', label: 'AR / ลูกหนี้', value: data?.summary.ar ?? 0 },
+              { color: '#f59e0b', label: 'Stock / สต็อก', value: data?.summary.inventory ?? 0 },
+              { color: '#8b5cf6', label: 'Fixed / ทรัพย์สินถาวร', value: data?.summary.fixedAssetNet ?? 0 },
+            ]}
+            legendMode="percent"
+          />
         </AnalysisPanel>
-        <AnalysisPanel subtitle="ช่วยแยกแรงกดจากเจ้าหนี้ เงินกู้ระยะสั้น ระยะยาว และส่วนทุน" title="โครงสร้างหนี้สิน + ส่วนทุน">
-          <Waterfall rows={[['เจ้าหนี้ (AP)', data?.summary.ap ?? 0], ['เงินกู้ระยะสั้น', data?.summary.currentLoan ?? 0], ['เงินกู้ระยะยาว', data?.summary.longTermLoan ?? 0], ['ส่วนทุน', totalEquity]]} />
-        </AnalysisPanel>
-        <AnalysisPanel subtitle="ใช้เป็นทางลัดเหมือน Cash Flow Analysis ก่อนค่อย drill ลงไปในตาราง" title="จุดที่ควรติดตาม">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-            <MiniMetric label="เงินทุนหมุนเวียน" tone={workingCapital >= 0 ? 'emerald' : 'red'} value={money(workingCapital)} />
-            <MiniMetric label="อัตราส่วนทุนหมุนเวียน" tone={currentRatio >= 1 ? 'emerald' : 'amber'} value={`${currentRatio.toFixed(2)} เท่า`} />
-            <MiniMetric label="หนี้สิน/ส่วนทุน" tone={debtToEquity <= 2 ? 'slate' : 'amber'} value={`${debtToEquity.toFixed(2)} เท่า`} />
-            <MiniMetric label="ส่วนต่าง Balance Check" tone={data?.balanceCheck.balanced ? 'emerald' : 'red'} value={data?.balanceCheck.balanced ? '0.00' : money(balanceDifference)} />
-          </div>
+        <AnalysisPanel className="h-full" subtitle="ช่วยแยกแรงกดจากเจ้าหนี้ เงินกู้ระยะสั้น ระยะยาว และส่วนทุน" title="Liab + Equity / โครงสร้างหนี้สิน + ส่วนทุน">
+          <BreakdownDonut
+            centerTotal={(data?.summary.liabilitiesAndEquity ?? 0) || (totalLiabilities + totalEquity)}
+            segments={[
+              { color: '#ef4444', label: 'AP / เจ้าหนี้', value: data?.summary.ap ?? 0 },
+              { color: '#f97316', label: 'Loan / เงินกู้', value: (data?.summary.currentLoan ?? 0) + (data?.summary.longTermLoan ?? 0) },
+              { color: '#10b981', label: 'Equity / ส่วนทุน', value: totalEquity },
+            ]}
+            legendMode="value"
+          />
         </AnalysisPanel>
       </div>
 
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        <StatementTable isLoading={isLoading} rows={data?.sections.assets ?? []} tableKey="balance-sheet-assets" title="สินทรัพย์" onDrill={(line) => line.details?.length ? setDrill({ rows: line.details, title: line.label }) : undefined} />
-        <StatementTable isLoading={isLoading} rows={[...(data?.sections.liabilities ?? []), ...(data?.sections.equity ?? [])]} tableKey="balance-sheet-liabilities-equity" title="หนี้สิน + ส่วนทุน" onDrill={(line) => line.details?.length ? setDrill({ rows: line.details, title: line.label }) : undefined} />
+        <LegacyBalanceSheetTable
+          groups={[
+            {
+              key: 'current-assets',
+              rows: (data?.sections.assets ?? []).filter((line) => line.section === 'currentAssets'),
+              title: 'Current Assets',
+              tone: 'blue',
+              totalLabel: 'Total Current Assets',
+              totalValue: currentAssets,
+            },
+            {
+              key: 'non-current-assets',
+              rows: (data?.sections.assets ?? []).filter((line) => line.section === 'nonCurrentAssets'),
+              title: 'Non-current Assets',
+              tone: 'blue',
+              totalLabel: 'TOTAL ASSETS',
+              totalValue: totalAssets,
+              totalVariant: 'grand',
+            },
+          ]}
+          isLoading={isLoading}
+          title="ASSETS / สินทรัพย์"
+          titleTone="blue"
+          onDrill={(line) => line.details?.length ? setDrill({ rows: line.details, title: line.label }) : undefined}
+        />
+        <LegacyBalanceSheetTable
+          groups={[
+            {
+              key: 'current-liabilities',
+              rows: (data?.sections.liabilities ?? []).filter((line) => line.section === 'currentLiabilities'),
+              title: 'Current Liabilities',
+              tone: 'amber',
+              totalLabel: 'Total Current Liabilities',
+              totalValue: (data?.summary.ap ?? 0) + (data?.summary.currentLoan ?? 0),
+            },
+            {
+              key: 'non-current-liabilities',
+              rows: (data?.sections.liabilities ?? []).filter((line) => line.section === 'nonCurrentLiabilities'),
+              title: 'Non-current Liabilities',
+              tone: 'amber',
+              totalLabel: 'Total Liabilities',
+              totalValue: totalLiabilities,
+            },
+            {
+              key: 'equity',
+              rows: data?.sections.equity ?? [],
+              title: 'Equity',
+              tone: 'purple',
+              totalLabel: 'Total Equity',
+              totalValue: totalEquity,
+            },
+            {
+              key: 'liab-equity-total',
+              rows: [],
+              title: '',
+              tone: 'amber',
+              totalLabel: 'TOTAL LIAB + EQUITY',
+              totalValue: data?.summary.liabilitiesAndEquity ?? (totalLiabilities + totalEquity),
+              totalVariant: 'grand',
+            },
+          ]}
+          isLoading={isLoading}
+          title="LIABILITIES + EQUITY"
+          titleTone="amber"
+          onDrill={(line) => line.details?.length ? setDrill({ rows: line.details, title: line.label }) : undefined}
+        />
       </div>
       {drill ? <DrillModal rows={drill.rows} title={drill.title} onClose={() => setDrill(null)} /> : null}
     </section>
@@ -1125,12 +1203,189 @@ function AnalysisPanel({ children, className = '', subtitle, title }: { children
   return (
     <section className={`rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm sm:p-5 ${className}`}>
       <div className="mb-4">
-        <h2 className="text-sm font-bold text-slate-800 sm:text-base">{title}</h2>
+        <h2 className="text-sm font-bold leading-snug text-slate-800 sm:text-base">{title}</h2>
         {subtitle ? <p className="mt-1 text-xs leading-relaxed text-slate-500">{subtitle}</p> : null}
       </div>
       {children}
     </section>
   )
+}
+
+function BreakdownDonut({
+  centerTotal,
+  legendMode,
+  segments,
+}: {
+  centerTotal: number
+  legendMode: 'percent' | 'value'
+  segments: Array<{ color: string; label: string; value: number }>
+}) {
+  const radius = 70
+  const circumference = 2 * Math.PI * radius
+  const total = centerTotal > 0 ? centerTotal : segments.reduce((sum, segment) => sum + Math.max(segment.value, 0), 0)
+  let offset = 0
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-center py-2">
+        <svg viewBox="0 0 200 200" className="mx-auto h-40 w-full max-w-[210px] sm:h-44 sm:max-w-[220px]">
+        {total > 0 ? (
+          <g transform="rotate(-90 100 100)">
+            {segments.map((segment) => {
+              const safeValue = Math.max(segment.value, 0)
+              const dash = total > 0 ? (safeValue / total) * circumference : 0
+              const currentOffset = offset
+              offset += dash
+
+              return (
+                <circle
+                  key={`${segment.label}-${segment.value}`}
+                  cx="100"
+                  cy="100"
+                  fill="none"
+                  r={radius}
+                  stroke={segment.color}
+                  strokeDasharray={`${dash} ${circumference}`}
+                  strokeDashoffset={-currentOffset}
+                  strokeWidth="30"
+                />
+              )
+            })}
+          </g>
+        ) : (
+          <circle cx="100" cy="100" fill="none" r={radius} stroke="#e2e8f0" strokeWidth="30" />
+        )}
+        <text x="100" y="98" textAnchor="middle" fontSize="10" fill="#64748b">รวม / Total</text>
+        <text x="100" y="115" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#1e293b">{compactMillion(centerTotal)}</text>
+        </svg>
+      </div>
+
+      <div className={`grid gap-x-3 gap-y-1.5 text-[10px] leading-snug ${legendMode === 'percent' ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+        {segments.map((segment) => (
+          <div key={segment.label} className="flex items-start gap-1.5 text-slate-600">
+            <span className="mt-0.5 inline-block h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: segment.color }}></span>
+            <span className="min-w-0 break-words">
+              {segment.label}:{' '}
+              {legendMode === 'percent'
+                ? `${total > 0 ? Math.round((Math.max(segment.value, 0) / total) * 100) : 0}%`
+                : money(segment.value)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function compactMillion(value: number) {
+  return `${(value / 1_000_000).toFixed(1)}M`
+}
+
+function LegacyBalanceSheetTable({
+  groups,
+  isLoading,
+  onDrill,
+  title,
+  titleTone,
+}: {
+  groups: Array<{
+    key: string
+    rows: StatementLine[]
+    title: string
+    tone: 'amber' | 'blue' | 'purple'
+    totalLabel: string
+    totalValue: number
+    totalVariant?: 'grand' | 'normal'
+  }>
+  isLoading: boolean
+  onDrill: (line: StatementLine) => void | undefined
+  title: string
+  titleTone: 'amber' | 'blue'
+}) {
+  const titleClassName = titleTone === 'blue' ? 'text-blue-700' : 'text-amber-700'
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className={`border-b border-slate-100 px-4 py-3 text-lg font-bold ${titleClassName}`}>{title}</div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <tbody>
+            {isLoading ? (
+              <tr>
+                <td className="px-4 py-8 text-center text-slate-400" colSpan={2}>กำลังโหลดข้อมูล</td>
+              </tr>
+            ) : null}
+            {!isLoading && groups.flatMap((group) => group.rows).length === 0 ? (
+              <tr>
+                <td className="px-4 py-8 text-center text-slate-400" colSpan={2}>ยังไม่มีข้อมูล</td>
+              </tr>
+            ) : null}
+            {!isLoading ? groups.map((group) => (
+              <Fragment key={group.key}>
+                {group.title ? (
+                  <tr className={legacySectionRowClassName(group.tone)}>
+                    <td className="p-2 font-bold" colSpan={2}>{group.title}</td>
+                  </tr>
+                ) : null}
+                {group.rows.map((line) => (
+                  <Fragment key={`${group.key}-${line.label}`}>
+                    {line.details?.length ? (
+                      <tr className="border-t border-slate-100 transition hover:bg-slate-50">
+                        <td className="p-0 text-slate-700" colSpan={2}>
+                          <button
+                            className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-2 py-2 pl-6 text-left"
+                            type="button"
+                            onClick={() => onDrill(line)}
+                          >
+                            <span className={line.tone === 'total' ? 'font-medium' : ''}>{line.label}</span>
+                            <span className={`text-right font-mono tabular-nums ${line.amount < 0 ? 'text-red-600' : 'text-slate-800'} ${line.tone === 'total' ? 'font-medium' : ''}`}>
+                              {line.label === 'Accumulated Depreciation' ? `(${formatMoney(Math.abs(line.amount))})` : money(line.amount)}
+                            </span>
+                          </button>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr className="border-t border-slate-100">
+                        <td className="p-2 pl-6 text-slate-700">
+                          <div className="flex items-center gap-1">
+                            <span className={line.tone === 'total' ? 'font-medium' : ''}>{line.label}</span>
+                          </div>
+                        </td>
+                        <td className={`p-2 text-right font-mono tabular-nums ${line.amount < 0 ? 'text-red-600' : 'text-slate-800'} ${line.tone === 'total' ? 'font-medium' : ''}`}>
+                          {line.label === 'Accumulated Depreciation' ? `(${formatMoney(Math.abs(line.amount))})` : money(line.amount)}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                ))}
+                <tr className={legacyTotalRowClassName(group.tone, group.totalVariant ?? 'normal')}>
+                  <td className="p-2 font-bold">{group.totalLabel}</td>
+                  <td className="p-2 text-right font-mono font-bold tabular-nums">{money(group.totalValue)}</td>
+                </tr>
+              </Fragment>
+            )) : null}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function legacySectionRowClassName(tone: 'amber' | 'blue' | 'purple') {
+  if (tone === 'blue') return 'bg-blue-50'
+  if (tone === 'purple') return 'bg-purple-50'
+  return 'bg-amber-50'
+}
+
+function legacyTotalRowClassName(tone: 'amber' | 'blue' | 'purple', variant: 'grand' | 'normal') {
+  if (variant === 'grand') {
+    if (tone === 'blue') return 'border-t-2 border-double border-blue-200 bg-blue-200 text-base'
+    if (tone === 'purple') return 'border-t-2 border-double border-purple-200 bg-purple-200 text-base'
+    return 'border-t-2 border-double border-amber-200 bg-amber-200 text-base'
+  }
+  if (tone === 'blue') return 'border-t bg-blue-100'
+  if (tone === 'purple') return 'border-t bg-purple-100'
+  return 'border-t bg-amber-100'
 }
 
 function SplitCard({ cogs, label, revenue, tone }: { cogs: number; label: string; revenue: number; tone: 'emerald' | 'purple' }) {
