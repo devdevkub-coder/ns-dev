@@ -9,6 +9,7 @@ import { KpiCard } from '@/components/ui/KpiCard'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
+import { Select } from '@/components/ui/Select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 
@@ -1032,16 +1033,16 @@ export function SalesPlanPageClient() {
         <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <label className="text-xs text-slate-500" htmlFor="sales-plan-filter-group">ประเภทโลหะ:</label>
-            <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" id="sales-plan-filter-group" value={planFilterGroup} onChange={(event) => setPlanFilterGroup(event.target.value)}>
+            <Select className="h-9 w-auto text-sm font-normal" id="sales-plan-filter-group" value={planFilterGroup} onChange={(event) => setPlanFilterGroup(event.target.value)}>
               <option value="">ทุกหมวด (ทองแดง+ทองเหลือง)</option>
               <option value="ทองแดง">ทองแดงเท่านั้น</option>
               <option value="ทองเหลือง">ทองเหลืองเท่านั้น</option>
-            </select>
+            </Select>
             <label className="ml-2 text-xs text-slate-500" htmlFor="sales-plan-filter-channel">ช่องทาง:</label>
-            <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" id="sales-plan-filter-channel" value={planFilterChannel} onChange={(event) => setPlanFilterChannel(event.target.value)}>
+            <Select className="h-9 w-auto text-sm font-normal" id="sales-plan-filter-channel" value={planFilterChannel} onChange={(event) => setPlanFilterChannel(event.target.value)}>
               <option value="">ทุกช่องทาง</option>
               {(data?.filters.channels ?? []).map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
-            </select>
+            </Select>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <button
@@ -1212,9 +1213,9 @@ export function SalesPlanPageClient() {
                       />
                     ) : <span className="text-xs font-semibold text-slate-300">-</span>}
                   </td>
-                  <td className="p-1.5"><select className="w-full rounded-xl border border-slate-200 px-2 py-1 text-xs bg-slate-50 outline-none" disabled value={text(row.productId)}><option>{text(row.productName) || '-เลือก-'}</option></select></td>
-                  <td className="p-1.5"><select className="w-full rounded-xl border border-slate-200 px-2 py-1 text-xs bg-slate-50 outline-none" disabled value={text(row.channel)}><option>{text(row.channel) || 'ส่งออก'}</option></select></td>
-                  <td className="p-1.5"><select className="w-full rounded-xl border border-slate-200 px-2 py-1 text-xs bg-slate-50 outline-none" disabled value={text(row.customerId)}><option>{text(row.customerName) || '-เลือก-'}</option></select></td>
+                  <td className="p-1.5"><div className="flex h-10 w-full items-center truncate rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700" title={text(row.productName)}>{text(row.productName) || '-เลือก-'}</div></td>
+                  <td className="p-1.5"><div className="flex h-10 w-full items-center truncate rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700" title={text(row.channel)}>{text(row.channel) || 'ส่งออก'}</div></td>
+                  <td className="p-1.5"><div className="flex h-10 w-full items-center truncate rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700" title={text(row.customerName)}>{text(row.customerName) || '-เลือก-'}</div></td>
                   <td className="p-1.5"><input className={`py-1 text-xs ${salesPlanReadonlyNumberInputClass}`} min="0" readOnly step="1" type="number" value={num(row.containers)} /></td>
                   <td className="p-1.5"><input className={`py-1 text-xs ${salesPlanReadonlyNumberInputClass}`} min="0" readOnly step="any" type="number" value={num(row.kgPerContainer)} /></td>
                   <td className="p-1.5 text-right font-semibold text-slate-800">{money(row.totalKg)}</td>
@@ -1438,10 +1439,10 @@ export function SalesPlanPageClient() {
         <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-end">
           <label className="flex min-w-[200px] flex-col gap-1 text-xs font-medium text-slate-500">
             <span>หมวด</span>
-            <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={insightFilterGroup} onChange={(event) => setInsightFilterGroup(event.target.value)}>
+            <Select className="h-9 text-sm font-medium" value={insightFilterGroup} onChange={(event) => setInsightFilterGroup(event.target.value)}>
               <option value="">ทุกหมวด</option>
               {insightFilterGroupOptions.map((group) => <option key={group} value={group}>{group}</option>)}
-            </select>
+            </Select>
           </label>
           <div className="min-w-[260px] flex-1 lg:max-w-md">
             <div className="mb-1 text-xs font-medium text-slate-500">สินค้า</div>
@@ -1680,23 +1681,6 @@ export function SalesPlanPageClient() {
 
       {error ? <ErrorBox text={error} /> : null}
     </section>
-  )
-}
-
-function Select({ onChange, options, value }: { onChange: (value: string) => void; options: { id: string; name: string }[]; value: string }) {
-  return (
-    <select
-      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none select h-10 transition-all focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      <option value="">ทั้งหมด</option>
-      {options.map((option) => (
-        <option key={option.id} value={option.id}>
-          {option.name}
-        </option>
-      ))}
-    </select>
   )
 }
 
@@ -2427,11 +2411,10 @@ export function SalesCommissionPageClient() {
             <DatePickerInput className="w-full mt-1" value={to} onChange={setTo} />
           </Field>
           <Field label="สาขา">
-            <Select
-              options={data?.filters.branches ?? []}
-              value={branchId}
-              onChange={setBranchId}
-            />
+            <Select className="mt-1 h-9 text-xs font-semibold" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
+              <option value="">ทั้งหมด</option>
+              {(data?.filters.branches ?? []).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+            </Select>
           </Field>
         </div>
         <div className="mt-3.5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-xs">
@@ -2543,8 +2526,8 @@ export function SalesCommissionPageClient() {
       <Panel title="สรุปยอดซื้อรายพนักงานขาย">
         <div className="mb-3.5 flex items-center gap-3">
           <label className="text-xs font-bold text-slate-500">เลือกดูพนักงานขาย:</label>
-          <select
-            className="border border-slate-200 rounded-lg px-3 py-2 text-xs bg-white font-semibold text-slate-700 h-9 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200 transition-all cursor-pointer"
+          <Select
+            className="h-9 w-auto min-w-48 text-xs font-semibold"
             value={summarySalesFilter}
             onChange={(e) => setSummarySalesFilter(e.target.value)}
           >
@@ -2552,7 +2535,7 @@ export function SalesCommissionPageClient() {
             {(data?.salesRows ?? []).map((sale) => (
               <option key={text(sale.id)} value={text(sale.id)}>{text(sale.name)}</option>
             ))}
-          </select>
+          </Select>
         </div>
 
         {summaryResize.hasCustomWidths ? (

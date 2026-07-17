@@ -247,6 +247,7 @@ export function PoOutstandingPageClient() {
         />
         <div className="min-w-[180px]">
           <SearchCombobox
+            inputClassName="h-9 text-sm"
             inputId="outstanding-partner-filter"
             label={tab === 'buy' ? 'ผู้ขาย' : 'ลูกค้า'}
             hideLabel
@@ -258,6 +259,7 @@ export function PoOutstandingPageClient() {
         </div>
         <div className="min-w-[180px]">
           <SearchCombobox
+            inputClassName="h-9 text-sm"
             inputId="outstanding-product-filter"
             label="สินค้า"
             hideLabel

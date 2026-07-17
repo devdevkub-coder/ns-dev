@@ -8,6 +8,7 @@ import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 
 type AccountOption = {
   accountNo: string | null
@@ -72,12 +73,12 @@ function getBankSortValue(row: BankRow, key: BankColumnKey, odLimit: number) {
   return row[key]
 }
 
-export function BankStatementPageClient() {
+export function BankStatementPageClient({ initialFilters }: { initialFilters?: { from?: string; to?: string } } = {}) {
   const latestLoadRequestRef = useRef(0)
   const [accountId, setAccountId] = useState('')
   const [data, setData] = useState<BankPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [from, setFrom] = useState(currentMonthStart())
+  const [from, setFrom] = useState(initialFilters?.from || currentMonthStart())
   const [isExporting, setIsExporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [page, setPage] = useState(1)
@@ -85,7 +86,7 @@ export function BankStatementPageClient() {
   const [refType, setRefType] = useState('')
   const [selectedRow, setSelectedRow] = useState<BankRow | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
-  const [to, setTo] = useState(todayDateInput())
+  const [to, setTo] = useState(initialFilters?.to || todayDateInput())
   const [type, setType] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
 
@@ -200,9 +201,9 @@ export function BankStatementPageClient() {
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         {/* Desktop View */}
         <div className="hidden lg:flex flex-wrap items-center gap-2">
-          <select className="h-9 w-64 rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={accountId} onChange={(event) => { setPage(1); setAccountId(event.target.value) }}>
+          <Select className="h-9 w-64 text-sm" value={accountId} onChange={(event) => { setPage(1); setAccountId(event.target.value) }}>
             {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.name} ({account.type})</option>)}
-          </select>
+          </Select>
           <DatePickerInput className="h-9 w-[130px]" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
           <span className="text-xs text-slate-400">→</span>
           <DatePickerInput className="h-9 w-[130px]" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
@@ -217,9 +218,9 @@ export function BankStatementPageClient() {
         {/* Mobile View (Collapsible Filters) */}
         <div className="block lg:hidden space-y-2.5">
           <div className="flex flex-wrap gap-2">
-            <select className="h-9 min-w-[160px] flex-1 rounded-md border px-3 text-sm text-slate-900" value={accountId} onChange={(event) => { setPage(1); setAccountId(event.target.value) }}>
+            <Select className="h-9 min-w-[160px] flex-1 text-sm text-slate-900" value={accountId} onChange={(event) => { setPage(1); setAccountId(event.target.value) }}>
               {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.name} ({account.type})</option>)}
-            </select>
+            </Select>
             <button
               className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
                 showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
@@ -339,14 +340,14 @@ export function BankStatementPageClient() {
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="grid gap-3 lg:grid-cols-6">
           <input autoComplete="off" className="h-9 rounded-md border px-3 text-sm lg:col-span-2" placeholder="ค้นหาเลขอ้างอิง / คำอธิบาย / หมายเหตุ" type="search" value={q} onChange={(event) => { setPage(1); setQ(event.target.value) }} />
-          <select className="h-9 rounded-md border px-3 text-sm" value={refType} onChange={(event) => { setPage(1); setRefType(event.target.value) }}>
+          <Select className="h-9 text-sm" value={refType} onChange={(event) => { setPage(1); setRefType(event.target.value) }}>
             <option value="">ทุกประเภทอ้างอิง</option>
             {(data?.filters.refTypes ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
-          <select className="h-9 rounded-md border px-3 text-sm" value={type} onChange={(event) => { setPage(1); setType(event.target.value) }}>
+          </Select>
+          <Select className="h-9 text-sm" value={type} onChange={(event) => { setPage(1); setType(event.target.value) }}>
             <option value="">ทุกประเภทรายการ</option>
             {(data?.filters.types ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
+          </Select>
           <button className="h-9 rounded-md bg-slate-100 px-3 text-sm font-normal text-slate-700" type="button" onClick={() => { setPage(1); setSortDirection((current) => current === 'asc' ? 'desc' : 'asc') }}>วันที่ {sortDirection === 'asc' ? 'เก่าไปใหม่' : 'ใหม่ไปเก่า'}</button>
           <button className="h-9 rounded-md bg-slate-100 px-3 text-sm font-normal text-slate-700" type="button" onClick={() => { setFrom(''); setPage(1); setQ(''); setRefType(''); setTo(''); setType('') }}>ล้างตัวกรอง</button>
         </div>

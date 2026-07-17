@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
@@ -152,10 +153,10 @@ export function FcdLedgerPageClient() {
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="flex flex-wrap gap-2">
-        <select className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm md:w-80" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+        <Select className="h-9 w-full border-slate-200 text-sm md:w-80" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
           {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.label} ({account.currency})</option>)}
           {!isLoading && (data?.filters.accounts.length ?? 0) === 0 ? <option value="">ไม่มีบัญชี FCD</option> : null}
-        </select>
+        </Select>
       </div>
 
       <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">

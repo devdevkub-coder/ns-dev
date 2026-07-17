@@ -39,6 +39,7 @@ describe('buildCustomerReceiptLineFlexMessage', () => {
     const serialized = JSON.stringify(message)
 
     expect(message.contents.size).toBe('mega')
+    expect(message.contents.header.contents[0]).toMatchObject({ text: '💰 ใบรับเงิน Customer' })
     expect(message.contents.body.contents[0]).toMatchObject({
       contents: [
         { flex: 3, wrap: true },
@@ -97,6 +98,33 @@ describe('buildCustomerReceiptLineFlexMessage', () => {
     const serialized = JSON.stringify(message)
     expect(serialized).toContain('#047857')
     expect(serialized).not.toContain('#059669')
+  })
+
+  it('shows one repeated single-receipt amount and hides empty adjustments', () => {
+    const message = buildCustomerReceiptLineFlexMessage(receipt({
+      allocations: [{
+        allocatedArAmount: 53_500,
+        discount: 0,
+        receiptAmount: 53_500,
+        salesBillDocumentNo: 'SB2606-0005',
+        withholdingTax: 0,
+      }],
+      companyAccounts: [{ accountCode: 'AC004', accountName: 'กสิกรไทย', amount: 53_500 }],
+      discount: 0,
+      fee: 0,
+      netCashIn: 53_500,
+      notes: '',
+      receivedAmount: 53_500,
+      withholdingTax: 0,
+    }), 'https://erp.example.com/sales/receipts')
+    const serialized = JSON.stringify(message)
+
+    expect(serialized.match(/฿53,500/g)).toHaveLength(1)
+    expect(serialized).toContain('เงินเข้าสุทธิ')
+    expect(serialized).not.toContain('ส่วนลด')
+    expect(serialized).not.toContain('ภาษีหัก ณ ที่จ่าย')
+    expect(serialized).not.toContain('ค่าธรรมเนียม')
+    expect(serialized).not.toContain('หมายเหตุ')
   })
 
   it('groups dense details with the preferred three rounded highlight tabs', () => {

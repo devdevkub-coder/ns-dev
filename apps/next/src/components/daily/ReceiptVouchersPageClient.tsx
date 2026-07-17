@@ -12,6 +12,7 @@ import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { Select } from '@/components/ui/Select'
 import { TableNumberCell } from '@/components/ui/TableNumberCell'
 import { Table, TableBody, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -1061,9 +1062,9 @@ function ReceiptVoucherFormModal({
             <div className="mt-2 md:mt-3">
               <div className="grid grid-cols-2 gap-2 rounded-md border border-slate-200 bg-slate-50 p-2 md:grid-cols-4">
                 <FormField className="col-span-2 md:col-span-1" label="วิธีรับเงิน / เลขบัญชี">
-                  <select
+                  <Select
                     disabled={paymentMethodChoices.length === 0}
-                    className="h-8 md:h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-xs md:text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500"
+                    className="h-10 w-full px-2 text-sm disabled:bg-slate-100 disabled:text-slate-500"
                     value={(() => {
                       const matched = supplierBankAccounts?.find((account) => `${account.paymentMethod} บช.${account.accountNo}` === (form.paymentMethod === CASH_PAYMENT_METHOD ? '' : form.paymentMethod))
                       if (matched) return `${matched.paymentMethod} บช.${matched.accountNo}`
@@ -1075,7 +1076,7 @@ function ReceiptVoucherFormModal({
                     {paymentMethodChoices.map((choice) => (
                       <option key={choice.value} value={choice.value}>{choice.label}</option>
                     ))}
-                  </select>
+                  </Select>
                 </FormField>
                 {(() => {
                   const current = supplierBankAccounts?.find((account) => `${account.paymentMethod} บช.${account.accountNo}` === (form.paymentMethod === CASH_PAYMENT_METHOD ? '' : form.paymentMethod))

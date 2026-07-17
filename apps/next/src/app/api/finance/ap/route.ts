@@ -6,9 +6,15 @@ import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
-import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { normalizeDate, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
+import { getFinanceBranchCodeIntersection } from '@/lib/server/finance-accounting-branch-scope'
 import { prisma } from '@/lib/server/prisma'
-import { listActiveBranches, listActiveSupplierBranchOptions } from '@/lib/server/reference-master-cache'
+import {
+  listActiveBranches,
+  listActiveBranchesByCodes,
+  listActiveSupplierBranchOptions,
+  listActiveSupplierBranchOptionsByBranchCodes,
+} from '@/lib/server/reference-master-cache'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
@@ -37,13 +43,14 @@ function ageBucket(days: number) {
 }
 
 function parseQuery(url: URL): ApQuery {
+  const branchId = url.searchParams.get('branchId')?.trim()
   const page = Number(url.searchParams.get('page') ?? '1')
   const pageSize = Number(url.searchParams.get('pageSize') ?? '50')
   const sortKey = url.searchParams.get('sortKey')
   const sortDirection = url.searchParams.get('sortDirection')
 
   return {
-    branchId: url.searchParams.get('branchId') || null,
+    branchId: branchId && branchId.toUpperCase() !== 'ALL' ? branchId : null,
     bucket: url.searchParams.get('bucket') || null,
     from: url.searchParams.get('from') || null,
     page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
@@ -57,9 +64,13 @@ function parseQuery(url: URL): ApQuery {
   }
 }
 
-function billWhere(query: ApQuery, branchId: bigint | null, supplierId: bigint | null): Prisma.purchase_billsWhereInput {
+function billWhere(query: ApQuery, branchId: bigint | null, allowedBranchCodes: string[] | null, supplierId: bigint | null): Prisma.purchase_billsWhereInput {
   return {
-    ...(branchId !== null ? { branch_id: branchId } : {}),
+    ...(branchId !== null
+      ? { branch_id: branchId }
+      : allowedBranchCodes !== null
+        ? { branches: { is: { code: { in: allowedBranchCodes } } } }
+        : {}),
     ...(supplierId !== null ? { supplier_id: supplierId } : {}),
     ...(query.status ? { status: query.status } : { status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] } }),
     ...(query.from || query.to
@@ -99,7 +110,14 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url)
     const query = parseQuery(url)
+    const allowedBranchCodes = getFinanceBranchCodeIntersection(context)
     const branch = query.branchId ? await findActiveBranchReferenceByCodeOrId(query.branchId) : null
+    if (query.branchId && !branch) {
+      return apiErrorResponse(new Error('ไม่พบสาขาที่เปิดใช้งานตามตัวกรองที่ระบุ'), 'ไม่พบสาขาที่เปิดใช้งานตามตัวกรองที่ระบุ', 404)
+    }
+    if (branch && getFinanceBranchCodeIntersection(context, branch.code)?.length === 0) {
+      return apiErrorResponse(new Error('ไม่มีสิทธิ์ดูข้อมูลของสาขาที่ระบุ'), 'ไม่มีสิทธิ์ดูข้อมูลของสาขาที่ระบุ', 403)
+    }
     const supplier = query.supplierId ? await findActiveSupplierReferenceByCodeOrId(query.supplierId) : null
 
     const [bills, suppliers, branches] = await Promise.all([
@@ -110,10 +128,18 @@ export async function GET(request: Request) {
         },
         orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
         take: 10000,
-        where: billWhere(query, branch?.id ?? null, supplier?.id ?? null),
+        where: billWhere(query, branch?.id ?? null, allowedBranchCodes, supplier?.id ?? null),
       }),
-      listActiveSupplierBranchOptions(),
-      listActiveBranches(),
+      allowedBranchCodes === null
+        ? listActiveSupplierBranchOptions()
+        : allowedBranchCodes.length > 0
+          ? listActiveSupplierBranchOptionsByBranchCodes(allowedBranchCodes)
+          : Promise.resolve([]),
+      allowedBranchCodes === null
+        ? listActiveBranches()
+        : allowedBranchCodes.length > 0
+          ? listActiveBranchesByCodes(allowedBranchCodes)
+          : Promise.resolve([]),
     ])
     const branchOptions = branches.map((branch) => ({
       active: true,
@@ -122,7 +148,7 @@ export async function GET(request: Request) {
       name: branch.name,
     }))
 
-    const today = new Date()
+    const today = normalizeDate(toBangkokDateOnly(new Date()))
     const search = query.q?.trim().toLowerCase()
     const allRows = bills
       .map((bill) => {

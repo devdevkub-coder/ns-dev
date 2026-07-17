@@ -420,7 +420,7 @@ export function CostAllocatorPageClient() {
             <div className="md:col-span-2">
               <label className="mb-1 block text-xs font-semibold text-slate-500">{sourceTypeLabel} *</label>
               <Select
-                className="focus-visible:ring-emerald-100 border-slate-300"
+                className="border-slate-300"
                 value={selectedPoSellId}
                 onChange={(event) => {
                   setSelectedPoSellId(event.target.value)
@@ -435,7 +435,7 @@ export function CostAllocatorPageClient() {
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-500">วิธีจัดสรรต้นทุน</label>
               <Select
-                className="focus-visible:ring-emerald-100 border-slate-300"
+                className="border-slate-300"
                 value={allocationMode}
                 onChange={(event) => {
                   const nextMode = event.target.value

@@ -8,6 +8,7 @@ import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
@@ -390,10 +391,10 @@ export function ProductionOrdersPageClient() {
           <DatePickerInput ariaLabel="วันที่ใบสั่งผลิตตั้งแต่" className="w-[130px] !h-9 text-sm" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
           <span className="text-slate-400">→</span>
           <DatePickerInput ariaLabel="วันที่ใบสั่งผลิตถึง" className="w-[130px] !h-9 text-sm" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
-          <select aria-label="กรองตามสาขา" className="h-9 w-40 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800" value={branchCode} onChange={(event) => { setBranchCode(event.target.value); setPage(1) }}>
+          <Select aria-label="กรองตามสาขา" className="h-9 w-40" value={branchCode} onChange={(event) => { setBranchCode(event.target.value); setPage(1) }}>
             <option value="">ทุกสาขา</option>
             {(data?.filters.branches ?? []).map((branch) => <option key={branch.code} value={branch.code}>{branch.name}</option>)}
-          </select>
+          </Select>
           {hasActiveFilters ? (
             <button className="h-9 rounded-md bg-slate-100 px-3 text-xs hover:bg-slate-200" type="button" onClick={clearFilters}>
               ล้างตัวกรอง
@@ -493,10 +494,10 @@ export function ProductionOrdersPageClient() {
         >
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
-                <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800" value={mobileFilterDraft?.branchCode ?? branchCode} onChange={(event) => updateMobileFilters({ branchCode: event.target.value })}>
+                <Select className="h-9 w-full" value={mobileFilterDraft?.branchCode ?? branchCode} onChange={(event) => updateMobileFilters({ branchCode: event.target.value })}>
                   <option value="">ทุกสาขา</option>
                   {(data?.filters.branches ?? []).map((branch) => <option key={branch.code} value={branch.code}>{branch.name}</option>)}
-                </select>
+                </Select>
               </label>
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ช่วงเวลา</span>
@@ -580,9 +581,9 @@ export function ProductionOrdersPageClient() {
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">เรียงลำดับ</span>
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                  <select aria-label="เรียงลำดับตาม" className="h-10 min-w-0 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800" value={mobileSort} onChange={(event) => updateMobileFilters({ sort: event.target.value })}>
+                  <Select aria-label="เรียงลำดับตาม" className="h-9 min-w-0" value={mobileSort} onChange={(event) => updateMobileFilters({ sort: event.target.value })}>
                     {sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
+                  </Select>
                   <button
                     className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
                     type="button"
@@ -1384,14 +1385,14 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
                   <h3 className="mb-3 border-b border-slate-100 pb-2 text-sm font-semibold text-slate-800">ข้อมูลเพิ่มเติม</h3>
                   <div className="grid gap-3 text-sm md:grid-cols-3">
                     <FormField label="กะการผลิต">
-                      <select
-                        className="w-full rounded-md border px-3 py-2 border-slate-300 bg-white h-9 text-sm outline-none text-slate-800"
+                      <Select
+                        className="h-10 w-full"
                         value={createForm.shift}
                         onChange={(event) => updateCreateForm('shift', event.target.value)}
                       >
                         <option value="เช้า">เช้า</option>
                         <option value="บ่าย">บ่าย</option>
-                      </select>
+                      </Select>
                     </FormField>
                     <div className="md:col-span-2">
                       <FormField label="หมายเหตุ">
@@ -1807,6 +1808,8 @@ function FormField({ children, error, label }: { children: React.ReactNode; erro
 function readFormValue(formElement: HTMLFormElement | undefined, inputId: string) {
   const element = formElement?.querySelector(`#${inputId}`) ?? (typeof document === 'undefined' ? null : document.getElementById(inputId))
   if (element instanceof HTMLInputElement || element instanceof HTMLSelectElement) return element.value.trim()
+  const namedElement = formElement?.elements.namedItem(inputId)
+  if (namedElement instanceof HTMLInputElement) return namedElement.value.trim()
   return ''
 }
 
@@ -1820,13 +1823,13 @@ function getComboboxCode(formElement: HTMLFormElement | undefined, inputId: stri
 function SelectField({ allowBlank = false, disabled = false, error, helperText, label, onChange, options, placeholder, selectId, value, hideCode = false }: { allowBlank?: boolean; disabled?: boolean; error?: string; helperText?: string; label: string; onChange: (value: string) => void; options: Option[]; placeholder?: string; selectId?: string; value: string; hideCode?: boolean }) {
   return (
     <FormField error={error} label={label}>
-      <select id={selectId} className={`w-full rounded-md border px-3 py-2 disabled:bg-slate-100 disabled:text-slate-600 ${error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 bg-white text-slate-800'} h-9 text-sm outline-none`} disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)}>
+      <Select aria-invalid={Boolean(error)} id={selectId} name={selectId} className="h-10 w-full" disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">{allowBlank ? '-' : (placeholder ?? 'เลือกข้อมูล')}</option>
         {options.map((option) => {
           const displayLabel = hideCode ? option.name : (option.code === option.name ? option.name : `${option.code} - ${option.name}`)
           return <option key={`${option.code}-${option.id}`} value={option.code}>{displayLabel}</option>
         })}
-      </select>
+      </Select>
       {helperText ? <span className="mt-1 block text-xs text-slate-500">{helperText}</span> : null}
     </FormField>
   )

@@ -1,16 +1,17 @@
 'use client'
 
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Activity, ArrowDownRight, ArrowUpRight, Building2, ChartColumnBig, Landmark, Scale, SlidersHorizontal, TrendingUp, Wallet } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { KpiCard as SharedKpiCard, KpiCardGrid, type KpiCardTone } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 
 type BranchRow = { code: string; id: string; name: string }
-type DetailRow = { amount: number; date: string; description: string; refNo: string }
+type DetailRow = { amount: number; date: string; description: string; href?: string; refNo: string; sourceType?: string }
 type StatementLine = { amount: number; details?: DetailRow[]; label: string; level?: number; section: string; tone?: 'default' | 'good' | 'bad' | 'muted' | 'total' }
 type SourceState = { basis: string; limitations: string[]; writeActionsEnabled: false }
 type DrillColumnKey = 'amount' | 'date' | 'description' | 'refNo'
@@ -28,6 +29,7 @@ type PlPayload = {
     trading: { cogs: number; dealCogs: number; revenue: number; wacCogs: number }
   }
   summary: {
+    assetDisposalNet: number
     cogs: number
     cogsDeal: number
     cogsDiff: number
@@ -116,11 +118,6 @@ function compareSortValues(left: string | number, right: string | number) {
     : String(left).localeCompare(String(right), 'th', { numeric: true })
 }
 
-function getStatementSortValue(line: StatementLine, key: StatementColumnKey) {
-  if (key === 'drill') return line.details?.length ?? 0
-  return line[key]
-}
-
 function getDrillSortValue(row: DetailRow, key: DrillColumnKey) {
   return row[key]
 }
@@ -166,20 +163,18 @@ function localDateInputValue(date: Date) {
   return `${year}-${month}-${day}`
 }
 
-export function PlStatementPageClient() {
+export function PlStatementPageClient({ initialFilters }: { initialFilters?: { branchId?: string; from?: string; to?: string } } = {}) {
   const [activePreset, setActivePreset] = useState<'custom' | 'month' | 'quarter' | 'today' | 'week' | 'year'>('month')
   const [viewMode, setViewMode] = useState<'month' | 'period' | 'yearly'>('period')
-  const [from, setFrom] = useState(monthStart())
-  const [to, setTo] = useState(today())
-  const [branchId, setBranchId] = useState('')
-  const [mode, setMode] = useState<'ALL' | 'STOCK' | 'TRADING'>('ALL')
+  const [from, setFrom] = useState(initialFilters?.from || monthStart())
+  const [to, setTo] = useState(initialFilters?.to || today())
+  const [branchId, setBranchId] = useState(initialFilters?.branchId || '')
   const [costBasis, setCostBasis] = useState<'COMPARE' | 'DEAL' | 'WAC'>('WAC')
   const [selYear, setSelYear] = useState(String(new Date().getFullYear()))
   const [selMonth, setSelMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0'))
   const [mobileFrom, setMobileFrom] = useState(from)
   const [mobileTo, setMobileTo] = useState(to)
   const [mobileBranchId, setMobileBranchId] = useState(branchId)
-  const [mobileMode, setMobileMode] = useState(mode)
   const [mobileCostBasis, setMobileCostBasis] = useState(costBasis)
   const [mobileViewMode, setMobileViewMode] = useState(viewMode)
   const [mobileSelYear, setMobileSelYear] = useState(selYear)
@@ -208,15 +203,15 @@ export function PlStatementPageClient() {
 
   const url = useMemo(() => {
     const search = new URLSearchParams({
-      costBasis,
       from: effectiveRange.from,
       to: effectiveRange.to,
-      transactionMode: mode,
     })
+    if (costBasis !== 'WAC') search.set('costBasis', costBasis)
     if (branchId) search.set('branchId', branchId)
     return `/api/finance-accounting/pl-statement?${search.toString()}`
-  }, [branchId, costBasis, effectiveRange.from, effectiveRange.to, mode])
-  const { data, error, isLoading } = useApi<PlPayload>(url)
+  }, [branchId, costBasis, effectiveRange.from, effectiveRange.to])
+  const exportHref = `${url}&format=xlsx`
+  const { data, error, isLoading, resolvedUrl } = useApi<PlPayload>(url)
 
   const yearOptions = useMemo(() => {
     const years = new Set<string>([String(new Date().getFullYear())])
@@ -241,11 +236,10 @@ export function PlStatementPageClient() {
       const month = String(index + 1).padStart(2, '0')
       const lastDay = new Date(Number(selYear), index + 1, 0).getDate()
       const search = new URLSearchParams({
-        costBasis,
         from: `${selYear}-${month}-01`,
         to: `${selYear}-${month}-${String(lastDay).padStart(2, '0')}`,
-        transactionMode: mode,
       })
+      if (costBasis !== 'WAC') search.set('costBasis', costBasis)
       if (branchId) search.set('branchId', branchId)
       const payload = await dailyFetchJson<PlPayload>(`/api/finance-accounting/pl-statement?${search.toString()}`)
       return {
@@ -292,38 +286,42 @@ export function PlStatementPageClient() {
       })
 
     return () => { mounted = false }
-  }, [branchId, costBasis, mode, selYear, viewMode])
+  }, [branchId, costBasis, selYear, viewMode])
 
-  const selectedBranch = (data?.branches ?? []).find((branch) => branch.id === branchId)?.name ?? 'ทุกสาขา'
+  const displayData = data && resolvedUrl === url && !isLoading && !error ? data : null
+  const selectedBranch = (displayData?.branches ?? data?.branches ?? []).find((branch) => branch.id === branchId)?.name ?? 'ทุกสาขา'
   const periodLabel = viewMode === 'month'
     ? `${thaiMonthName(selMonth)} ${selYear}`
     : viewMode === 'yearly'
       ? `ม.ค. - ธ.ค. ${selYear}`
       : `${shortThaiDate(effectiveRange.from)} – ${shortThaiDate(effectiveRange.to)}`
   const activeBasis = costBasis === 'DEAL' ? 'Deal Cost' : costBasis === 'COMPARE' ? 'WAC + Compare' : 'WAC'
-  const revenue = data?.summary.revenue ?? 0
-  const grossProfit = data?.summary.grossProfit ?? 0
-  const operatingProfit = data?.summary.operatingProfit ?? 0
-  const netProfitBeforeTax = data?.summary.netProfitBeforeTax ?? 0
-  const cogs = data?.summary.cogs ?? 0
-  const opex = (data?.summary.expenses ?? 0) + (data?.summary.depreciation ?? 0)
-  const interest = data?.summary.interest ?? 0
-  const fxNet = data?.summary.fxNet ?? 0
-  const stockRevenue = data?.split.stock.revenue ?? 0
-  const stockCogs = data?.split.stock.cogs ?? 0
-  const tradingRevenue = data?.split.trading.revenue ?? 0
-  const tradingCogs = data?.split.trading.cogs ?? 0
+  const revenue = displayData?.summary.revenue ?? 0
+  const grossProfit = displayData?.summary.grossProfit ?? 0
+  const operatingProfit = displayData?.summary.operatingProfit ?? 0
+  const netProfitBeforeTax = displayData?.summary.netProfitBeforeTax ?? 0
+  const cogs = displayData?.summary.cogs ?? 0
+  const opex = (displayData?.summary.expenses ?? 0) + (displayData?.summary.depreciation ?? 0)
+  const interest = displayData?.summary.interest ?? 0
+  const fxNet = displayData?.summary.fxNet ?? 0
+  const stockRevenue = displayData?.split.stock.revenue ?? 0
+  const stockCogs = displayData?.split.stock.cogs ?? 0
+  const tradingRevenue = displayData?.split.trading.revenue ?? 0
+  const tradingCogs = displayData?.split.trading.cogs ?? 0
   const grossMarginPct = revenue > 0 ? grossProfit / revenue * 100 : 0
   const operatingMarginPct = revenue > 0 ? operatingProfit / revenue * 100 : 0
   const preTaxMarginPct = revenue > 0 ? netProfitBeforeTax / revenue * 100 : 0
-  const expenseLoadPct = revenue > 0 ? (opex + interest) / revenue * 100 : 0
   const isDealView = costBasis === 'DEAL'
+  const hasActiveFilters = viewMode !== 'period'
+    || from !== monthStart()
+    || to !== today()
+    || branchId !== ''
+    || costBasis !== 'WAC'
 
   function openMobileFilters() {
     setMobileFrom(from)
     setMobileTo(to)
     setMobileBranchId(branchId)
-    setMobileMode(mode)
     setMobileCostBasis(costBasis)
     setMobileViewMode(viewMode)
     setMobileSelYear(selYear)
@@ -365,14 +363,14 @@ export function PlStatementPageClient() {
     <section aria-busy={isLoading || yearlyLoading} className="space-y-4">
       {error ? <ErrorBox message={error} /> : null}
 
-      {data?.historicalBaseline?.hasData ? (
+      {displayData?.historicalBaseline?.hasData ? (
         <AnalysisPanel subtitle="ตัวเลขก่อน Go-Live ที่ legacy ใช้เป็น baseline เดิม" title="Historical Baseline (ม.ค. - เม.ย. 2026)">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <MiniMetric label="Revenue" tone="emerald" value={money(data.historicalBaseline.revenue)} />
-            <MiniMetric label="COGS" tone="red" value={money(data.historicalBaseline.cogs)} />
-            <MiniMetric label="Operating Expenses" tone="amber" value={money(data.historicalBaseline.opex)} />
-            <MiniMetric label="Interest" tone="slate" value={money(data.historicalBaseline.interest)} />
-            <MiniMetric label="Net Profit" tone={data.historicalBaseline.netProfit >= 0 ? 'emerald' : 'red'} value={money(data.historicalBaseline.netProfit)} />
+            <MiniMetric label="Revenue" tone="emerald" value={money(displayData.historicalBaseline.revenue)} />
+            <MiniMetric label="COGS" tone="red" value={money(displayData.historicalBaseline.cogs)} />
+            <MiniMetric label="Operating Expenses" tone="amber" value={money(displayData.historicalBaseline.opex)} />
+            <MiniMetric label="Interest" tone="slate" value={money(displayData.historicalBaseline.interest)} />
+            <MiniMetric label="Net Profit" tone={displayData.historicalBaseline.netProfit >= 0 ? 'emerald' : 'red'} value={money(displayData.historicalBaseline.netProfit)} />
           </div>
         </AnalysisPanel>
       ) : null}
@@ -417,17 +415,11 @@ export function PlStatementPageClient() {
             <YearSelect value={selYear} years={yearOptions} onChange={setSelYear} />
           ) : null}
           <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={(value) => { setBranchId(value); setActivePreset('custom') }} />
-          <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition focus:border-slate-400" value={mode} onChange={(event) => { setMode(event.target.value as 'ALL' | 'STOCK' | 'TRADING'); setActivePreset('custom') }}>
-            <option value="ALL">{modeLabel('ALL')}</option>
-            <option value="STOCK">{modeLabel('STOCK')}</option>
-            <option value="TRADING">{modeLabel('TRADING')}</option>
-          </select>
-          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => {
+          {hasActiveFilters ? <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => {
             setViewMode('period')
             setFrom(monthStart())
             setTo(today())
             setBranchId('')
-            setMode('ALL')
             setCostBasis('WAC')
             setSelYear(String(new Date().getFullYear()))
             setSelMonth(String(new Date().getMonth() + 1).padStart(2, '0'))
@@ -435,7 +427,7 @@ export function PlStatementPageClient() {
           }}
           >
             ล้างตัวกรอง
-          </button>
+          </button> : null}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-sm font-semibold text-slate-600">มุมมองต้นทุน :</span>
@@ -448,6 +440,7 @@ export function PlStatementPageClient() {
             value={costBasis}
             onChange={(value) => setCostBasis(value as 'COMPARE' | 'DEAL' | 'WAC')}
           />
+          <a className="ml-auto inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-3 text-sm font-normal text-white transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600" href={exportHref}>ส่งออก Excel</a>
         </div>
       </div>
 
@@ -456,12 +449,15 @@ export function PlStatementPageClient() {
           <div className="min-w-0">
             <div className="text-xs font-semibold text-slate-500">งบกำไรขาดทุน</div>
             <div className="truncate text-sm font-bold text-slate-800">{periodLabel}</div>
-            <div className="truncate text-xs text-slate-500">{selectedBranch} · {modeLabel(mode)} · {activeBasis}</div>
+            <div className="truncate text-xs text-slate-500">{selectedBranch} · {activeBasis}</div>
           </div>
-          <button type="button" className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500/40" onClick={openMobileFilters}>
-            <SlidersHorizontal aria-hidden="true" className="size-3.5" />
-            ตัวกรอง{branchId || mode !== 'ALL' || costBasis !== 'WAC' ? ' (มี)' : ''}
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <a className="inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600" href={exportHref}>Excel</a>
+            <button type="button" className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500/40" onClick={openMobileFilters}>
+              <SlidersHorizontal aria-hidden="true" className="size-3.5" />
+              ตัวกรอง{branchId || costBasis !== 'WAC' ? ' (มี)' : ''}
+            </button>
+          </div>
         </div>
         <div className="mt-3 flex gap-1.5 overflow-x-auto">
           <QuickPill active={viewMode === 'period'} label="ช่วงวันที่" onClick={() => setViewMode('period')} />
@@ -472,7 +468,7 @@ export function PlStatementPageClient() {
 
       {showMobileFilters ? (
         <MobileFilterSheet
-          title="ตัวกรองเพิ่มเติม"
+          title="ตัวกรองงบกำไรขาดทุน"
           onClose={() => setShowMobileFilters(false)}
           footer={
             <>
@@ -481,7 +477,6 @@ export function PlStatementPageClient() {
                 setMobileFrom(monthStart())
                 setMobileTo(today())
                 setMobileBranchId('')
-                setMobileMode('ALL')
                 setMobileCostBasis('WAC')
                 setMobileSelYear(String(new Date().getFullYear()))
                 setMobileSelMonth(String(new Date().getMonth() + 1).padStart(2, '0'))
@@ -493,7 +488,6 @@ export function PlStatementPageClient() {
                 setFrom(mobileFrom)
                 setTo(mobileTo)
                 setBranchId(mobileBranchId)
-                setMode(mobileMode)
                 setCostBasis(mobileCostBasis)
                 setSelYear(mobileSelYear)
                 setSelMonth(mobileSelMonth)
@@ -525,9 +519,9 @@ export function PlStatementPageClient() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600">ปี</label>
-                <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-slate-400" value={mobileSelYear} onChange={(event) => setMobileSelYear(event.target.value)}>
+                <Select aria-label="ปี" className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-slate-400" value={mobileSelYear} onChange={(event) => setMobileSelYear(event.target.value)}>
                   {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
-                </select>
+                </Select>
               </div>
               {mobileViewMode === 'month' ? (
                 <div>
@@ -538,19 +532,11 @@ export function PlStatementPageClient() {
             </div>
           ) : null}
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
-            <select aria-label="Branch select" className="h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400" value={mobileBranchId} onChange={(event) => setMobileBranchId(event.target.value)}>
+            <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="pl-statement-branch-mobile">สาขา</label>
+            <Select aria-label="สาขา" className="h-9 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400" id="pl-statement-branch-mobile" value={mobileBranchId} onChange={(event) => setMobileBranchId(event.target.value)}>
               <option value="">ทุกสาขา</option>
               {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-600">ประเภทรายการ</label>
-            <select aria-label="Mode select" className="h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400" value={mobileMode} onChange={(event) => setMobileMode(event.target.value as 'ALL' | 'STOCK' | 'TRADING')}>
-              <option value="ALL">{modeLabel('ALL')}</option>
-              <option value="STOCK">{modeLabel('STOCK')}</option>
-              <option value="TRADING">{modeLabel('TRADING')}</option>
-            </select>
+            </Select>
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">มุมมองต้นทุน</label>
@@ -558,20 +544,23 @@ export function PlStatementPageClient() {
           </div>
         </MobileFilterSheet>
       ) : null}
-
+      {displayData ? <SourceNotice sourceState={displayData.sourceState} /> : null}
+      {!displayData && !error ? <PlLoadingState /> : null}
+      {displayData ? (
+        <>
       {costBasis === 'COMPARE' ? (
         <CompareSummaryPanel
-          cogsDeal={data?.summary.cogsDeal ?? 0}
-          cogsDiff={data?.summary.cogsDiff ?? 0}
-          cogsWac={data?.summary.cogsWac ?? 0}
-          grossProfitDeal={data?.summary.grossProfitDeal ?? 0}
-          grossProfitDiff={data?.summary.grossProfitDiff ?? 0}
-          grossProfitWac={data?.summary.grossProfitWac ?? 0}
-          netDeal={data?.summary.netProfitBeforeTaxDeal ?? 0}
-          netDiff={data?.summary.netProfitBeforeTaxDiff ?? 0}
-          netWac={data?.summary.netProfitBeforeTaxWac ?? 0}
+          cogsDeal={displayData.summary.cogsDeal}
+          cogsDiff={displayData.summary.cogsDiff}
+          cogsWac={displayData.summary.cogsWac}
+          grossProfitDeal={displayData.summary.grossProfitDeal}
+          grossProfitDiff={displayData.summary.grossProfitDiff}
+          grossProfitWac={displayData.summary.grossProfitWac}
+          netDeal={displayData.summary.netProfitBeforeTaxDeal}
+          netDiff={displayData.summary.netProfitBeforeTaxDiff}
+          netWac={displayData.summary.netProfitBeforeTaxWac}
           revenue={revenue}
-          replacedCount={data?.summary.dualReplacedCount ?? 0}
+          replacedCount={displayData.summary.dualReplacedCount}
         />
       ) : null}
 
@@ -583,8 +572,8 @@ export function PlStatementPageClient() {
       </KpiCardGrid>
 
       <div className="grid grid-cols-1 gap-4">
-        <AnalysisPanel subtitle={isDealView ? 'มุมมองผู้บริหาร: แทนต้นทุน WAC ด้วย Deal Cost จาก Cost Allocator สำหรับรายการที่จับคู่ได้ (ไม่ใช่งบจริง)' : `เริ่มจากรายได้ แล้วหักต้นทุนและค่าใช้จ่ายเพื่อให้เห็นว่ากำไรหายไปตรงไหน (${activeBasis})`} title="Waterfall / สะพานกำไรขาดทุน">
-          <Waterfall legacyRed rows={[['Revenue (รายได้)', revenue], [isDealView ? '-Deal Cost (ต้นทุนตามดีล)' : '-COGS (ต้นทุนขาย)', -cogs], ['= GP (กำไรขั้นต้น)', grossProfit], ['-Exp (ค่าใช้จ่าย)', -(opex + interest)], ['= NP (กำไรก่อนภาษี)', netProfitBeforeTax]]} />
+        <AnalysisPanel subtitle={isDealView ? 'มุมมองผู้บริหาร: แทนต้นทุน WAC ด้วย Deal Cost จาก Cost Allocator สำหรับรายการที่จับคู่ได้ (ไม่ใช่งบจริง)' : `เริ่มจากรายได้ แล้วหักต้นทุนและค่าใช้จ่ายเพื่อให้เห็นว่ากำไรหายไปตรงไหน (${activeBasis})`} title="องค์ประกอบกำไรก่อนภาษี">
+          <Waterfall legacyRed rows={[['Revenue (รายได้)', revenue], [isDealView ? '-Deal Cost (ต้นทุนตามดีล)' : '-COGS (ต้นทุนขาย)', -cogs], ['= GP (กำไรขั้นต้น)', grossProfit], ['-Operating Expenses', -opex], ['-Interest', -interest], ['FX Gain/(Loss)', fxNet], ['Asset Disposal Gain/(Loss)', displayData.summary.assetDisposalNet], ['= NP (กำไรก่อนภาษี)', netProfitBeforeTax]]} />
         </AnalysisPanel>
       </div>
 
@@ -607,7 +596,7 @@ export function PlStatementPageClient() {
       {viewMode === 'yearly' ? (
         <YearlyPlTable data={yearlyData} isLoading={yearlyLoading} year={selYear} />
       ) : (
-        <StatementTable isLoading={isLoading} rows={data?.sections ?? []} tableKey="pl-statement" title={`งบกำไรขาดทุน (${activeBasis})`} onDrill={(line) => line.details?.length ? setDrill({ rows: line.details, title: line.label }) : undefined} />
+        <StatementTable isLoading={false} rows={displayData.sections} tableKey="pl-statement" title={`งบกำไรขาดทุน (${activeBasis})`} onDrill={(line) => line.details?.length ? setDrill({ rows: line.details, title: line.label }) : undefined} />
       )}
 
       {costBasis === 'COMPARE' ? (
@@ -616,6 +605,8 @@ export function PlStatementPageClient() {
         </div>
       ) : null}
 
+        </>
+      ) : null}
       {drill ? <DrillModal rows={drill.rows} title={drill.title} onClose={() => setDrill(null)} /> : null}
     </section>
   )
@@ -714,15 +705,15 @@ export function BalanceSheetPageClient() {
 
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
-            <select
+            <Select
               aria-label="Branch select"
-              className="h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
+              className="h-9 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
               value={branchId}
               onChange={(event) => setBranchId(event.target.value)}
             >
               <option value="">ทุกสาขา</option>
               {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
+            </Select>
           </div>
 
           <div className="flex items-center justify-between pt-2">
@@ -868,10 +859,10 @@ export function BalanceSheetPageClient() {
   )
 }
 
-export function CashFlowStatementPageClient() {
-  const [from, setFrom] = useState(monthStart())
-  const [to, setTo] = useState(today())
-  const [branchId, setBranchId] = useState('')
+export function CashFlowStatementPageClient({ initialFilters }: { initialFilters?: { branchId?: string; from?: string; to?: string } } = {}) {
+  const [from, setFrom] = useState(initialFilters?.from || monthStart())
+  const [to, setTo] = useState(initialFilters?.to || today())
+  const [branchId, setBranchId] = useState(initialFilters?.branchId || '')
   const [mobileFrom, setMobileFrom] = useState(from)
   const [mobileTo, setMobileTo] = useState(to)
   const [mobileBranchId, setMobileBranchId] = useState(branchId)
@@ -915,7 +906,7 @@ export function CashFlowStatementPageClient() {
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500">ช่วงเวลา:</span>
           <QuickButton onClick={() => { setFrom(monthStart()); setTo(today()) }}>เดือนนี้</QuickButton>
-          <QuickButton onClick={() => { const now = new Date(); setFrom(new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)); setTo(today()) }}>ปีนี้</QuickButton>
+          <QuickButton onClick={() => { const now = new Date(); setFrom(localDateInputValue(new Date(now.getFullYear(), 0, 1))); setTo(today()) }}>ปีนี้</QuickButton>
         </div>
       </div>
 
@@ -945,7 +936,7 @@ export function CashFlowStatementPageClient() {
           </button>
           <button
             type="button"
-            onClick={() => { const now = new Date(); setFrom(new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)); setTo(today()) }}
+            onClick={() => { const now = new Date(); setFrom(localDateInputValue(new Date(now.getFullYear(), 0, 1))); setTo(today()) }}
             className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50"
           >
             ปีนี้
@@ -998,15 +989,15 @@ export function CashFlowStatementPageClient() {
 
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
-            <select
+            <Select
               aria-label="Branch select"
-              className="h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
+              className="h-9 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
               value={mobileBranchId}
               onChange={(event) => setMobileBranchId(event.target.value)}
             >
               <option value="">ทุกสาขา</option>
               {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
+            </Select>
           </div>
 
           <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-500">
@@ -1058,22 +1049,39 @@ function useApi<T>(url: string) {
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(null)
+  const latestRequestRef = useRef(0)
   useEffect(() => {
-    let mounted = true
+    const requestId = latestRequestRef.current + 1
+    latestRequestRef.current = requestId
     setIsLoading(true)
     setError(null)
-    dailyFetchJson<T>(url).then((payload) => mounted ? setData(payload) : undefined).catch((caught) => mounted ? setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลไม่ได้') : undefined).finally(() => mounted ? setIsLoading(false) : undefined)
-    return () => { mounted = false }
+    dailyFetchJson<T>(url)
+      .then((payload) => {
+        if (requestId !== latestRequestRef.current) return
+        setData(payload)
+        setResolvedUrl(url)
+      })
+      .catch((caught) => {
+        if (requestId !== latestRequestRef.current) return
+        setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลไม่ได้')
+      })
+      .finally(() => {
+        if (requestId !== latestRequestRef.current) return
+        setIsLoading(false)
+      })
   }, [url])
-  return { data, error, isLoading }
+  return { data, error, isLoading, resolvedUrl }
 }
 
 function money(value?: number) {
-  const amount = value ?? 0
+  if (value == null || !Number.isFinite(value)) return 'ไม่มีข้อมูล'
+  const amount = Object.is(value, -0) ? 0 : value
   return amount < 0 ? `(${formatMoney(Math.abs(amount))})` : formatMoney(amount)
 }
 
 function percent(value: number) {
+  if (!Number.isFinite(value)) return 'ไม่มีข้อมูล'
   return `${value.toLocaleString('th-TH', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
 }
 
@@ -1083,16 +1091,37 @@ function shortThaiDate(value: string) {
   return new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }).format(new Date(year, month - 1, day))
 }
 
-function modeLabel(mode: string) {
-  if (mode === 'STOCK') return 'เฉพาะสต็อก'
-  if (mode === 'TRADING') return 'เฉพาะซื้อขาย'
-  return 'ทั้งหมด (สต็อก + ซื้อขาย)'
-}
-
 const thaiMonthLabels = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
 
 function thaiMonthName(month: string) {
   return thaiMonthLabels[Math.max(0, Number(month) - 1)] ?? month
+}
+
+function SourceNotice({ sourceState }: { sourceState: SourceState }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs leading-relaxed text-slate-600" role="note">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="rounded-md bg-slate-200/70 px-2 py-1 font-semibold text-slate-700">ข้อมูลเพื่อการบริหาร · ยังไม่ใช่งบปิดบัญชี</span>
+        <span>หน่วย: บาท</span>
+        <span aria-hidden="true">·</span>
+        <span>เกณฑ์ข้อมูล: {sourceState.basis || 'ไม่มีข้อมูล'}</span>
+      </div>
+      {sourceState.limitations.length ? <p className="mt-2">ข้อจำกัด: {sourceState.limitations.join(' · ')}</p> : null}
+    </div>
+  )
+}
+
+function PlLoadingState() {
+  return (
+    <div aria-label="กำลังโหลดงบกำไรขาดทุน" className="space-y-4" role="status">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => <div className="h-24 animate-pulse rounded-xl border border-slate-200 bg-white shadow-sm" key={index} />)}
+      </div>
+      <div className="h-64 animate-pulse rounded-xl border border-slate-200 bg-white shadow-sm" />
+      <div className="h-72 animate-pulse rounded-xl border border-slate-200 bg-white shadow-sm" />
+      <span className="sr-only">กำลังโหลดข้อมูล</span>
+    </div>
+  )
 }
 
 function FilterPanel({ children }: { children: ReactNode }) {
@@ -1100,11 +1129,11 @@ function FilterPanel({ children }: { children: ReactNode }) {
 }
 
 function DateInput({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
-  return <label className="flex items-center gap-2 text-xs text-slate-600"><span>{label}</span><DatePickerInput className="w-[140px]" value={value} onChange={onChange} /></label>
+  return <label className="flex items-center gap-2 text-xs text-slate-600"><span>{label}</span><DatePickerInput ariaLabel={label} className="w-[140px]" value={value} onChange={onChange} /></label>
 }
 
 function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; onChange: (value: string) => void; value: string }) {
-  return <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none focus:outline-none focus:border-slate-400 transition cursor-pointer" value={value} onChange={(event) => onChange(event.target.value)}><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>
+  return <Select aria-label="สาขา" className="h-9 w-64 max-w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none transition focus:border-slate-400 focus:outline-none" value={value} onChange={(event) => onChange(event.target.value)}><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</Select>
 }
 
 function QuickButton({ active = false, children, onClick }: { active?: boolean; children: ReactNode; onClick: () => void }) {
@@ -1183,7 +1212,14 @@ function BreakdownDonut({
   const radius = 70
   const circumference = 2 * Math.PI * radius
   const total = centerTotal > 0 ? centerTotal : segments.reduce((sum, segment) => sum + Math.max(segment.value, 0), 0)
-  let offset = 0
+  const arcs = segments.reduce<{ offset: number; rows: Array<{ dash: number; offset: number; segment: (typeof segments)[number] }> }>((result, segment) => {
+    const safeValue = Math.max(segment.value, 0)
+    const dash = total > 0 ? (safeValue / total) * circumference : 0
+    return {
+      offset: result.offset + dash,
+      rows: [...result.rows, { dash, offset: result.offset, segment }],
+    }
+  }, { offset: 0, rows: [] }).rows
 
   return (
     <div className="flex flex-col gap-2">
@@ -1191,13 +1227,7 @@ function BreakdownDonut({
         <svg viewBox="0 0 200 200" className="mx-auto h-40 w-full max-w-[210px] sm:h-44 sm:max-w-[220px]">
         {total > 0 ? (
           <g transform="rotate(-90 100 100)">
-            {segments.map((segment) => {
-              const safeValue = Math.max(segment.value, 0)
-              const dash = total > 0 ? (safeValue / total) * circumference : 0
-              const currentOffset = offset
-              offset += dash
-
-              return (
+            {arcs.map(({ dash, offset, segment }) => (
                 <circle
                   key={`${segment.label}-${segment.value}`}
                   cx="100"
@@ -1206,11 +1236,10 @@ function BreakdownDonut({
                   r={radius}
                   stroke={segment.color}
                   strokeDasharray={`${dash} ${circumference}`}
-                  strokeDashoffset={-currentOffset}
+                  strokeDashoffset={-offset}
                   strokeWidth="30"
                 />
-              )
-            })}
+              ))}
           </g>
         ) : (
           <circle cx="100" cy="100" fill="none" r={radius} stroke="#e2e8f0" strokeWidth="30" />
@@ -1469,20 +1498,20 @@ function StatementInsightCard({ body, title, tone }: { body: string; title: stri
 
 function YearSelect({ onChange, value, years }: { onChange: (value: string) => void; value: string; years: string[] }) {
   return (
-    <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition focus:border-slate-400" value={value} onChange={(event) => onChange(event.target.value)}>
+    <Select aria-label="ปี" className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition focus:border-slate-400" value={value} onChange={(event) => onChange(event.target.value)}>
       {years.map((year) => <option key={year} value={year}>{year}</option>)}
-    </select>
+    </Select>
   )
 }
 
 function MonthSelect({ onChange, value }: { onChange: (value: string) => void; value: string }) {
   return (
-    <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition focus:border-slate-400" value={value} onChange={(event) => onChange(event.target.value)}>
+    <Select aria-label="เดือน" className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition focus:border-slate-400" value={value} onChange={(event) => onChange(event.target.value)}>
       {thaiMonthLabels.map((label, index) => {
         const month = String(index + 1).padStart(2, '0')
         return <option key={month} value={month}>{label}</option>
       })}
-    </select>
+    </Select>
   )
 }
 
@@ -1720,7 +1749,6 @@ function CashFlowRealityLines({
 
 function StatementTable({ isLoading, onDrill, rows, tableKey, title }: { isLoading: boolean; onDrill: (line: StatementLine) => void | undefined; rows: StatementLine[]; tableKey: string; title: string }) {
   const columnResize = useResizableColumns(`finance-accounting.financial-statements.${tableKey}.v1`, statementColumns)
-  const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<StatementLine, StatementColumnKey>(rows, getStatementSortValue)
 
   return (
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
@@ -1746,15 +1774,15 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title }: { isLoadi
           </colgroup>
           <thead className="sticky top-0 z-10 bg-slate-100">
             <tr>
-              <ResizableTableHead label="รายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="label" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('label', 'รายการ')} />
-              <ResizableTableHead align="right" label="หมวดรายงาน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="section" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('section', 'หมวดรายงาน')} />
-              <ResizableTableHead align="right" label="จำนวนเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวนเงิน')} />
-              <ResizableTableHead align="right" label="รายละเอียด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="drill" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('drill', 'รายละเอียด')} />
+              <ResizableTableHead label="รายการ" resizeProps={columnResize.getResizeHandleProps('label', 'รายการ')} />
+              <ResizableTableHead align="right" label="หมวดรายงาน" resizeProps={columnResize.getResizeHandleProps('section', 'หมวดรายงาน')} />
+              <ResizableTableHead align="right" label="จำนวนเงิน" resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวนเงิน')} />
+              <ResizableTableHead align="right" label="รายละเอียด" resizeProps={columnResize.getResizeHandleProps('drill', 'รายละเอียด')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             <LoadingOrEmpty colSpan={statementColumns.length} isLoading={isLoading} rows={rows.length} />
-            {sortedRows.map((line) => {
+            {rows.map((line) => {
               const isDrillable = Boolean(line.details?.length)
 
               return (
@@ -1772,7 +1800,7 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title }: { isLoadi
                 </td>
                 <td className="px-3 py-3 text-right">
                   {line.details?.length ? (
-                    <button className="font-semibold text-blue-600 hover:underline outline-none focus:ring-0" type="button" onClick={(event) => { event.stopPropagation(); onDrill(line) }}> {line.details.length}</button>
+                    <button aria-label={`ดูรายละเอียด ${line.label} ${line.details.length} รายการ`} className="font-semibold text-blue-600 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-blue-600" type="button" onClick={(event) => { event.stopPropagation(); onDrill(line) }}>{line.details.length}</button>
                   ) : (
                     <span className="text-slate-300">-</span>
                   )}
@@ -1785,7 +1813,7 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title }: { isLoadi
         {/* Mobile Card List View */}
         <div className="block lg:hidden divide-y divide-slate-100">
           <LoadingOrEmptyMobile isLoading={isLoading} rows={rows.length} />
-          {!isLoading && sortedRows.map((line) => {
+          {!isLoading && rows.map((line) => {
             const isDrillable = Boolean(line.details?.length)
 
             return (
@@ -1810,7 +1838,7 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title }: { isLoadi
                     {money(line.amount)}
                   </span>
                   {line.details?.length ? (
-                    <button className="text-xs font-semibold text-blue-600 hover:underline outline-none focus:ring-0" type="button" onClick={(event) => { event.stopPropagation(); onDrill(line) }}> ดูรายละเอียด ({line.details.length})</button>
+                    <button aria-label={`ดูรายละเอียด ${line.label} ${line.details.length} รายการ`} className="text-xs font-semibold text-blue-600 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-blue-600" type="button" onClick={(event) => { event.stopPropagation(); onDrill(line) }}>ดูรายละเอียด ({line.details.length})</button>
                   ) : null}
                 </div>
               </div>
@@ -1825,12 +1853,17 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title }: { isLoadi
 function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: DetailRow[]; title: string }) {
   const columnResize = useResizableColumns('finance-accounting.financial-statements.drill.v1', drillColumns)
   const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<DetailRow, DrillColumnKey>(rows, getDrillSortValue)
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => event.key === 'Escape' ? onClose() : undefined
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [onClose])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-xl">
+      <div aria-labelledby="financial-statement-drill-title" aria-modal="true" className="flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-xl" role="dialog">
         <div className="flex items-center justify-between bg-slate-900 px-4 py-3 text-white">
-          <h2 className="text-sm font-bold"> {title}</h2>
+          <h2 className="text-sm font-bold" id="financial-statement-drill-title">{title}</h2>
           <button className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-normal text-white outline-none hover:bg-red-700 focus:ring-0" type="button" onClick={onClose}>
             ปิด
           </button>
@@ -1866,7 +1899,9 @@ function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: Detai
               {sortedRows.map((row, index) => (
                 <tr key={`${row.refNo}-${index}`} className="transition-colors hover:bg-slate-50">
                   <td className="whitespace-nowrap px-3 py-3 text-slate-600">{row.date}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold text-blue-700">{row.refNo}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold text-blue-700">
+                    {row.href ? <a aria-label={`เปิดเอกสารต้นทาง ${row.refNo}`} className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" href={row.href}>{row.refNo}</a> : row.refNo}
+                  </td>
                   <td className="min-w-0 px-3 py-3 text-right text-slate-700"><div className="truncate">{row.description}</div></td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums"><span className={row.amount < 0 ? 'text-red-700' : 'text-slate-800'}>{money(row.amount)}</span></td>
                 </tr>
@@ -1880,7 +1915,7 @@ function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: Detai
               <div key={`${row.refNo}-${index}`} className="p-4 space-y-2 text-xs">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">{row.date}</span>
-                  <span className="font-mono text-blue-700 font-semibold">{row.refNo}</span>
+                  {row.href ? <a aria-label={`เปิดเอกสารต้นทาง ${row.refNo}`} className="font-mono font-semibold text-blue-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" href={row.href}>{row.refNo}</a> : <span className="font-mono font-semibold text-blue-700">{row.refNo}</span>}
                 </div>
                 <div className="text-slate-700 break-words">{row.description}</div>
                 <div className="flex justify-between items-center pt-1">
@@ -1911,5 +1946,5 @@ function LoadingOrEmpty({ colSpan, isLoading, rows }: { colSpan: number; isLoadi
 }
 
 function ErrorBox({ message }: { message: string }) {
-  return <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{message}</div>
+  return <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">{message}</div>
 }

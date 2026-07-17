@@ -4,9 +4,13 @@ import Image from 'next/image'
 import { Copy, EllipsisVertical, KeyRound, Mail, Pencil, Send } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { SearchCombobox } from '@/components/ui/SearchCombobox'
+import { Select } from '@/components/ui/Select'
+import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage, readJsonResponse } from '@/lib/api-client'
@@ -507,6 +511,45 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const employeeRoles = useMemo(() => (
     (data?.roles ?? []).filter((role) => role.active && role.isEmployeeRole)
   ), [data?.roles])
+  const roleFilterOptions = useMemo(() => [
+    { id: 'all', label: 'ทุกหน้าที่งาน' },
+    ...(data?.roles ?? []).map((role) => ({
+      id: role.id,
+      label: role.name,
+      searchText: [role.code, role.name, role.description].filter(Boolean).join(' '),
+    })),
+  ], [data?.roles])
+  const departmentFilterOptions = useMemo(() => [
+    { id: 'all', label: 'ทุกฝ่าย' },
+    ...(data?.departments ?? []).map((department) => ({
+      id: department.id,
+      label: department.name,
+      searchText: `${department.code} ${department.name}`,
+    })),
+  ], [data?.departments])
+  const departmentOptions = useMemo(() => (data?.departments ?? []).map((department) => ({
+    id: department.id,
+    label: department.name,
+    searchText: `${department.code} ${department.name}`,
+  })), [data?.departments])
+  const employeeRoleOptions = useMemo(() => employeeRoles.map((role) => ({
+    id: role.id,
+    label: role.name,
+    searchText: [role.code, role.name, role.description].filter(Boolean).join(' '),
+  })), [employeeRoles])
+  const permissionSubjectOptions = useMemo(() => permissionSubjectType === 'role'
+    ? (data?.roles ?? []).map((role) => ({
+        id: role.id,
+        label: role.name,
+        searchText: [role.code, role.name, role.description].filter(Boolean).join(' '),
+      }))
+    : (data?.users ?? [])
+        .filter((user) => user.active)
+        .map((user) => ({
+          id: user.id,
+          label: user.displayName || user.email || user.id,
+          searchText: [user.displayName, user.email, user.firstName, user.lastName, user.department?.name].filter(Boolean).join(' '),
+        })), [data?.roles, data?.users, permissionSubjectType])
 
   const permissionsByModule = useMemo(() => {
     const groups = new Map<string, AdminUsersPayload['permissions']>()
@@ -965,36 +1008,37 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
           />
           {isUsersPage ? (
             <>
-              <select
-                className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+              <SearchCombobox
+                hideLabel
+                inputClassName="h-9 w-[10rem]"
+                inputId="admin-users-role-filter-desktop"
+                label="หน้าที่งาน"
+                options={roleFilterOptions}
+                placeholder="ทุกหน้าที่งาน"
                 value={roleFilter}
-                onChange={(event) => setRoleFilter(event.target.value)}
-              >
-                <option value="all">ทุกหน้าที่งาน</option>
-                {data?.roles.map((role) => (
-                  <option key={role.id} value={role.id}>{role.name}</option>
-                ))}
-              </select>
-              <select
-                className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                onChange={setRoleFilter}
+              />
+              <SearchCombobox
+                hideLabel
+                inputClassName="h-9 w-[10rem]"
+                inputId="admin-users-department-filter-desktop"
+                label="ฝ่าย"
+                options={departmentFilterOptions}
+                placeholder="ทุกฝ่าย"
                 value={departmentFilter}
-                onChange={(event) => setDepartmentFilter(event.target.value)}
-              >
-                <option value="all">ทุกฝ่าย</option>
-                {data?.departments.map((department) => (
-                  <option key={department.id} value={department.id}>{department.name}</option>
-                ))}
-              </select>
-              <select
-                className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-                value={branchFilter}
-                onChange={(event) => setBranchFilter(event.target.value)}
-              >
-                <option value="all">ทุกสาขา</option>
-                {data?.branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>{branch.name}</option>
-                ))}
-              </select>
+                onChange={setDepartmentFilter}
+              />
+              <BranchSelectCombobox
+                branches={data?.branches ?? []}
+                className="w-[10rem]"
+                controlSize="filter"
+                includeAllOption
+                inputId="admin-users-branch-filter-desktop"
+                label=""
+                placeholder="ทุกสาขา"
+                value={branchFilter === 'all' ? null : branchFilter}
+                onChange={(branchId) => setBranchFilter(branchId ?? 'all')}
+              />
               {hasUserFilters ? (
                 <button className="h-9 rounded-md bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={resetUserFilters}>
                   ล้างตัวกรอง
@@ -1007,10 +1051,16 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
           {!isUsersPage ? (
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-bold text-slate-900">{pageTitle}</h2>
-            <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700" value={departmentFilter} onChange={(event) => setDepartmentFilter(event.target.value)}>
-              <option value="all">ทุกฝ่าย</option>
-              {data?.departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
-            </select>
+            <SearchCombobox
+              hideLabel
+              inputClassName="h-9 w-[10rem]"
+              inputId="admin-roles-department-filter-desktop"
+              label="ฝ่าย"
+              options={departmentFilterOptions}
+              placeholder="ทุกฝ่าย"
+              value={departmentFilter}
+              onChange={setDepartmentFilter}
+            />
           </div>
           ) : null}
           {isUsersPage ? (
@@ -1022,15 +1072,14 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                 { label: 'รอเปิดใช้งาน', value: 'pending' },
                 { label: 'ปิดใช้งาน', value: 'disabled' },
               ].map((option) => (
-                <button
+                <SegmentedFilterButton
+                  active={statusFilter === option.value}
                   key={option.value}
-                  aria-pressed={statusFilter === option.value}
-                  className={`rounded-md border px-3 py-1 text-xs font-medium transition-colors ${statusFilter === option.value ? 'border-blue-600 bg-blue-600 text-white shadow-sm dark:border-blue-400 dark:bg-blue-600 dark:text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'}`}
                   type="button"
                   onClick={() => setStatusFilter(option.value as UserStatusFilter)}
                 >
                   {option.label}
-                </button>
+                </SegmentedFilterButton>
               ))}
             </div>
           ) : null}
@@ -1080,39 +1129,40 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
             </button>
           )}
         </div>
-        {isUsersPage ? (
-          <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              <select
-                className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-700"
+          {isUsersPage ? (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+              <SearchCombobox
+                hideLabel
+                inputClassName="h-9 w-full"
+                inputId="admin-users-role-filter-mobile"
+                label="หน้าที่งาน"
+                options={roleFilterOptions}
+                placeholder="ทุกหน้าที่งาน"
                 value={roleFilter}
-                onChange={(event) => setRoleFilter(event.target.value)}
-              >
-                <option value="all">ทุกหน้าที่งาน</option>
-                {data?.roles.map((role) => (
-                  <option key={role.id} value={role.id}>{role.name}</option>
-                ))}
-              </select>
-              <select
-                className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-700"
+                onChange={setRoleFilter}
+              />
+              <SearchCombobox
+                hideLabel
+                inputClassName="h-9 w-full"
+                inputId="admin-users-department-filter-mobile"
+                label="ฝ่าย"
+                options={departmentFilterOptions}
+                placeholder="ทุกฝ่าย"
                 value={departmentFilter}
-                onChange={(event) => setDepartmentFilter(event.target.value)}
-              >
-                <option value="all">ทุกฝ่าย</option>
-                {data?.departments.map((department) => (
-                  <option key={department.id} value={department.id}>{department.name}</option>
-                ))}
-              </select>
-              <select
-                className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-700"
-                value={branchFilter}
-                onChange={(event) => setBranchFilter(event.target.value)}
-              >
-                <option value="all">ทุกสาขา</option>
-                {data?.branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>{branch.name}</option>
-                ))}
-              </select>
+                onChange={setDepartmentFilter}
+              />
+              <BranchSelectCombobox
+                branches={data?.branches ?? []}
+                className="w-full"
+                controlSize="filter"
+                includeAllOption
+                inputId="admin-users-branch-filter-mobile"
+                label=""
+                placeholder="ทุกสาขา"
+                value={branchFilter === 'all' ? null : branchFilter}
+                onChange={(branchId) => setBranchFilter(branchId ?? 'all')}
+              />
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-slate-500 dark:text-slate-300">สถานะ:</span>
@@ -1122,15 +1172,14 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                 { label: 'รอเปิดใช้งาน', value: 'pending' },
                 { label: 'ปิดใช้งาน', value: 'disabled' },
               ].map((option) => (
-                <button
+                <SegmentedFilterButton
+                  active={statusFilter === option.value}
                   key={option.value}
-                  aria-pressed={statusFilter === option.value}
-                  className={`rounded-md border px-3 py-1 text-xs font-medium transition-colors ${statusFilter === option.value ? 'border-blue-600 bg-blue-600 text-white shadow-sm dark:border-blue-400 dark:bg-blue-600 dark:text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'}`}
                   type="button"
                   onClick={() => setStatusFilter(option.value as UserStatusFilter)}
                 >
                   {option.label}
-                </button>
+                </SegmentedFilterButton>
               ))}
               {hasUserFilters ? (
                 <button className="rounded-md bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700" type="button" onClick={resetUserFilters}>
@@ -1251,27 +1300,28 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     Email *
                     <input className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} />
                   </label>
-                  <label className="md:col-span-2 text-sm font-medium text-slate-700">
-                    ฝ่าย *
-                    <select className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" required value={form.departmentId} onChange={(event) => setForm((current) => ({ ...current, departmentId: event.target.value }))}>
-                      <option value="" disabled>เลือกฝ่าย</option>
-                      {data?.departments.map((department) => (
-                        <option key={department.id} value={department.id}>{department.name}</option>
-                      ))}
-                    </select>
-                  </label>
+                  <div className="md:col-span-2">
+                    <SearchCombobox
+                      inputId="admin-user-form-department"
+                      label="ฝ่าย *"
+                      options={departmentOptions}
+                      placeholder="เลือกฝ่าย"
+                      value={form.departmentId}
+                      onChange={(departmentId) => setForm((current) => ({ ...current, departmentId }))}
+                    />
+                  </div>
                   <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูล Profile</div>
                     <div className="grid gap-3 md:grid-cols-[120px_1fr_1fr]">
                       <label className="text-sm font-medium text-slate-700">
                         คำนำหน้า
-                        <select className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" value={form.namePrefix} onChange={(event) => setForm((current) => ({ ...current, namePrefix: event.target.value }))}>
+                        <Select className="mt-1 h-10 w-full" value={form.namePrefix} onChange={(event) => setForm((current) => ({ ...current, namePrefix: event.target.value }))}>
                           <option value="">ไม่ระบุ</option>
                           <option value="นาย">นาย</option>
                           <option value="นาง">นาง</option>
                           <option value="นางสาว">นางสาว</option>
                           <option value="คุณ">คุณ</option>
-                        </select>
+                        </Select>
                       </label>
                       <label className="text-sm font-medium text-slate-700">
                         ชื่อจริง
@@ -1306,15 +1356,14 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                   </div>
 
                   <div className="rounded-xl border border-slate-100 bg-white p-4">
-                    <label className="block text-sm font-medium text-slate-700">
-                      หน้าที่งาน *
-                      <select className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" required value={form.roleIds[0] ?? ''} onChange={(event) => setForm((current) => ({ ...current, roleIds: event.target.value ? [event.target.value] : [] }))}>
-                        <option value="" disabled>เลือกหน้าที่งาน</option>
-                        {employeeRoles.map((role) => (
-                          <option key={role.id} value={role.id}>{role.name}</option>
-                        ))}
-                      </select>
-                    </label>
+                    <SearchCombobox
+                      inputId="admin-user-form-role"
+                      label="หน้าที่งาน *"
+                      options={employeeRoleOptions}
+                      placeholder="เลือกหน้าที่งาน"
+                      value={form.roleIds[0] ?? ''}
+                      onChange={(roleId) => setForm((current) => ({ ...current, roleIds: roleId ? [roleId] : [] }))}
+                    />
                   </div>
 
                   <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
@@ -1336,15 +1385,15 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                                     <div className="text-sm font-medium text-slate-800">{permission.description || permission.code}</div>
                                     <div className="truncate font-mono text-xs text-slate-400">{permission.code}</div>
                                   </div>
-                                  <select
-                                    className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-slate-500"
+                                  <Select
+                                    className="h-10 w-full"
                                     value={override?.effect ?? ''}
                                     onChange={(event) => setPermissionOverride(permission.id, event.target.value as '' | 'allow' | 'deny')}
                                   >
                                     <option value="">ตามหน้าที่งาน ({inherited ? 'อนุญาต' : 'ไม่อนุญาต'})</option>
                                     <option value="allow">อนุญาตเพิ่ม</option>
                                     <option value="deny">ปิดสิทธิ์</option>
-                                  </select>
+                                  </Select>
                                 </div>
                               )
                             })}
@@ -1402,11 +1451,11 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                   </label>
                   <label className="text-sm font-medium text-slate-700">
                     ขอบเขตสาขา
-                    <select className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-slate-500" value={roleForm.branchScope} onChange={(event) => setRoleForm((current) => ({ ...current, branchScope: event.target.value as RoleFormState['branchScope'] }))}>
+                    <Select className="mt-1 h-10 w-full" value={roleForm.branchScope} onChange={(event) => setRoleForm((current) => ({ ...current, branchScope: event.target.value as RoleFormState['branchScope'] }))}>
                       <option value="all">ทุกสาขา</option>
                       <option value="own">เฉพาะสาขาตัวเอง</option>
                       <option value="custom">กำหนดตามผู้ใช้</option>
-                    </select>
+                    </Select>
                   </label>
                   <label className="md:col-span-2 text-sm font-medium text-slate-700">
                     คำอธิบาย
@@ -1618,10 +1667,16 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                 <button className={`rounded px-3 py-1.5 text-sm ${permissionSubjectType === 'role' ? 'bg-slate-800 text-white' : 'text-slate-600'}`} type="button" onClick={() => selectPermissionSubject('role', '')}>Role</button>
                 <button className={`rounded px-3 py-1.5 text-sm ${permissionSubjectType === 'user' ? 'bg-slate-800 text-white' : 'text-slate-600'}`} type="button" onClick={() => selectPermissionSubject('user', '')}>ผู้ใช้รายบุคคล</button>
               </div>
-              <select className="h-9 min-w-[240px] rounded-md border border-slate-300 bg-white px-3 text-sm" value={permissionSubjectId} onChange={(event) => selectPermissionSubject(permissionSubjectType, event.target.value)}>
-                <option value="">เลือก{permissionSubjectType === 'role' ? ' Role' : 'ผู้ใช้'}</option>
-                {permissionSubjectType === 'role' ? data?.roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>) : data?.users.filter((user) => user.active).map((user) => <option key={user.id} value={user.id}>{user.displayName || user.email}</option>)}
-              </select>
+              <SearchCombobox
+                hideLabel
+                inputClassName="h-9 w-[15rem]"
+                inputId="admin-permission-subject"
+                label={permissionSubjectType === 'role' ? 'Role' : 'ผู้ใช้'}
+                options={permissionSubjectOptions}
+                placeholder={`เลือก${permissionSubjectType === 'role' ? ' Role' : 'ผู้ใช้'}`}
+                value={permissionSubjectId}
+                onChange={(subjectId) => selectPermissionSubject(permissionSubjectType, subjectId)}
+              />
               {selectedMatrixUser?.department ? <span className="text-xs text-slate-500">ฝ่าย: {selectedMatrixUser.department.name}</span> : null}
             </div>
             <div className="overflow-x-auto rounded-md border border-slate-200"><table className="ns-table min-w-full text-sm"><thead className="bg-slate-100"><tr><th className="p-3 text-left">หมวด / หน้า</th>{matrixActions.map((action) => <th key={action} className="p-3 text-center whitespace-nowrap">{action}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">

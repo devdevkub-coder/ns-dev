@@ -610,7 +610,7 @@ function buildFlexMessage(
       const chunk = decodedImages.slice(pageIdx * chunkSize, (pageIdx + 1) * chunkSize)
       const gridRows: any[] = []
       const rowCount = Math.ceil(chunk.length / 2)
-      const albumUrl = albumImageUrls[pageIdx] || pdfUrl
+      const albumUrl = albumImageUrls[pageIdx] || pdfUrl || detailUrl
 
       for (let r = 0; r < rowCount; r++) {
         const img1 = chunk[r * 2]

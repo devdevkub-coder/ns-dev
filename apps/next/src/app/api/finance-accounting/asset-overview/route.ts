@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { buildCashOthersSummary } from '@/lib/server/cash-others-anomaly'
+import { getFinanceBranchCodeIntersection } from '@/lib/server/finance-accounting-branch-scope'
 import { buildFinancialDashboard } from '@/lib/server/finance-accounting-dashboard'
+import { FinancialStatementInputError } from '@/lib/server/finance-accounting-statements'
 
 export const runtime = 'nodejs'
 
@@ -25,10 +27,15 @@ export async function GET(request: Request) {
     requirePermission(context, 'finance.financials.view')
     const { searchParams } = new URL(request.url)
     const asOf = searchParams.get('asOf')
-    const branchId = searchParams.get('branchId') || undefined
+    const branchParam = searchParams.get('branchId')?.trim().toUpperCase()
+    const branchId = branchParam && branchParam !== 'ALL' ? branchParam : undefined
+    const allowedBranchCodes = getFinanceBranchCodeIntersection(context)
+    if (branchId && getFinanceBranchCodeIntersection(context, branchId)?.length === 0) {
+      return apiErrorResponse(new Error('ไม่มีสิทธิ์ดูข้อมูลของสาขาที่ระบุ'), 'ไม่มีสิทธิ์ดูข้อมูลของสาขาที่ระบุ', 403)
+    }
     const [cashPayload, financialPayload] = await Promise.all([
-      buildCashOthersSummary(asOf),
-      buildFinancialDashboard({ asOf: parseDate(asOf), branchId }),
+      buildCashOthersSummary(asOf, branchId, allowedBranchCodes),
+      buildFinancialDashboard({ allowedBranchCodes, asOf: parseDate(asOf), branchId }),
     ])
     const debtComp = [
       { color: '#ef4444', name: 'เจ้าหนี้การค้า (AP)', val: financialPayload.summary.ap },
@@ -65,6 +72,7 @@ export async function GET(request: Request) {
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
+    if (caught instanceof FinancialStatementInputError) return apiErrorResponse(caught, caught.message, caught.status)
     return apiErrorResponse(caught, 'โหลด Net Worth / Track Asset ไม่ได้', 500)
   }
 }

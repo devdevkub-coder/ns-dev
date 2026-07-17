@@ -11,8 +11,8 @@ function activeStatus(status?: string | null) {
   return !['cancelled', 'void', 'reversed'].includes((status ?? '').toLowerCase())
 }
 
-function branchWhere(branchId?: bigint | null) {
-  return branchId ? { branch_id: branchId } : {}
+function branchWhere(branchIds: bigint[] | null) {
+  return branchIds === null ? {} : { branch_id: { in: branchIds } }
 }
 
 function daysBetween(from: Date, to: Date) {
@@ -33,32 +33,57 @@ function cachedMoney(value: string | null) {
   return value == null ? 0 : Number(value)
 }
 
-async function accountBalances(asOf: Date, branchId?: bigint | null) {
-  const accounts = (await listActiveAccounts())
-    .filter((account: AccountReferenceRecord) => branchId == null || account.branchId === branchId)
-    .sort((left: AccountReferenceRecord, right: AccountReferenceRecord) => {
+type CashAccountReference = Pick<AccountReferenceRecord, 'accountNo' | 'code' | 'currency' | 'id' | 'name' | 'openingBalance' | 'type'>
+
+async function loadCashAccounts(branchIds: bigint[] | null): Promise<CashAccountReference[]> {
+  if (branchIds === null) return listActiveAccounts()
+  const rows = await prisma.accounts.findMany({
+    orderBy: [{ type: 'asc' }, { name: 'asc' }, { account_no: 'asc' }],
+    select: { account_no: true, code: true, currency: true, id: true, name: true, opening_balance: true, type: true },
+    where: { active: { not: false }, ...branchWhere(branchIds) },
+  })
+  return rows.map((row) => ({
+    accountNo: row.account_no ?? null,
+    code: row.code,
+    currency: row.currency ?? null,
+    id: row.id,
+    name: row.name,
+    openingBalance: row.opening_balance?.toString() ?? null,
+    type: row.type,
+  }))
+}
+
+async function accountBalances(asOf: Date, branchIds: bigint[] | null) {
+  const accounts = [...await loadCashAccounts(branchIds)]
+    .sort((left: CashAccountReference, right: CashAccountReference) => {
       const typeOrder = left.type.localeCompare(right.type)
       if (typeOrder !== 0) return typeOrder
       const nameOrder = left.name.localeCompare(right.name)
       if (nameOrder !== 0) return nameOrder
       return (left.accountNo ?? '').localeCompare(right.accountNo ?? '')
     })
-  const accountIds = accounts.map((account: AccountReferenceRecord) => account.id)
-  const bankRows = accountIds.length === 0
-    ? []
-    : await prisma.bank_statement.findMany({
-      orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-      take: 60000,
-      where: { account_id: { in: accountIds }, date: { lte: endOfDay(asOf) } },
-    })
+  const accountIds = accounts.map((account: CashAccountReference) => account.id)
+  const bankRows = branchIds !== null
+    ? await prisma.bank_statement.findMany({
+        orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
+        take: 60000,
+        where: { accounts: { branch_id: { in: branchIds } }, date: { lte: endOfDay(asOf) } },
+      })
+    : accountIds.length > 0
+    ? await prisma.bank_statement.findMany({
+        orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
+        take: 60000,
+        where: { account_id: { in: accountIds }, date: { lte: endOfDay(asOf) } },
+      })
+      : []
   const balances = new Map<bigint, number>()
-  accounts.forEach((account: AccountReferenceRecord) => balances.set(account.id, cachedMoney(account.openingBalance)))
+  accounts.forEach((account: CashAccountReference) => balances.set(account.id, cachedMoney(account.openingBalance)))
   bankRows.forEach((row: (typeof bankRows)[number]) => {
     if (!row.account_id) return
     const previous = balances.get(row.account_id) ?? 0
     balances.set(row.account_id, row.balance === null || row.balance === undefined ? previous + toNumber(row.amount_in) - toNumber(row.amount_out) : toNumber(row.balance))
   })
-  return accounts.map((account: AccountReferenceRecord) => {
+  return accounts.map((account: CashAccountReference) => {
     const balance = balances.get(account.id) ?? 0
     const currency = account.currency ?? 'THB'
     return {
@@ -74,18 +99,46 @@ async function accountBalances(asOf: Date, branchId?: bigint | null) {
   })
 }
 
-export async function buildCashOthersSummary(asOfValue?: string | null, branchIdValue?: string | null) {
+async function resolveBranchIds(branchIdValue?: string | null, allowedBranchCodes?: string[] | null) {
+  const allowedCodes = allowedBranchCodes === undefined || allowedBranchCodes === null
+    ? null
+    : [...new Set(allowedBranchCodes.map((code) => code.trim().toUpperCase()).filter(Boolean))]
+  const selected = branchIdValue ? await findActiveBranchReferenceByCodeOrId(branchIdValue) : null
+  if (branchIdValue) {
+    if (!selected || (allowedCodes !== null && !allowedCodes.includes(selected.code.toUpperCase()))) return []
+    return [selected.id]
+  }
+  if (allowedCodes === null) return null
+  if (allowedCodes.length === 0) return []
+  const branches = await prisma.branches.findMany({
+    select: { id: true },
+    where: { active: true, code: { in: allowedCodes } },
+  })
+  return branches.map((branch) => branch.id)
+}
+
+export async function buildCashOthersSummary(
+  asOfValue?: string | null,
+  branchIdValue?: string | null,
+  allowedBranchCodes?: string[] | null,
+) {
   const asOf = asOfValue && /^\d{4}-\d{2}-\d{2}$/.test(asOfValue) ? new Date(`${asOfValue}T00:00:00.000Z`) : new Date()
-  const branchRef = branchIdValue ? await findActiveBranchReferenceByCodeOrId(branchIdValue) : null
-  const branchId = branchRef?.id ?? null
+  const branchIds = await resolveBranchIds(branchIdValue, allowedBranchCodes)
   const today = toDateOnly(asOf)
   const [cashAccounts, salesBills, purchaseBills, stockRows, expenses, tradingDeals] = await Promise.all([
-    accountBalances(asOf, branchId),
-    prisma.sales_bills.findMany({ include: { customers: true, sales_channels: true }, orderBy: [{ date: 'desc' }], take: 15000, where: { ...branchWhere(branchId), date: { lte: endOfDay(asOf) } } }),
-    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true }, orderBy: [{ date: 'desc' }], take: 15000, where: { ...branchWhere(branchId), date: { lte: endOfDay(asOf) } } }),
-    prisma.stock_ledger.findMany({ include: { products: true }, orderBy: [{ date: 'desc' }], take: 80000, where: { ...branchWhere(branchId), date: { lte: endOfDay(asOf) } } }),
-    prisma.expenses.findMany({ orderBy: [{ date: 'desc' }], take: 5000, where: { ...branchWhere(branchId), date: new Date(`${today}T00:00:00.000Z`) } }),
-    prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 10000, where: { date: { lte: endOfDay(asOf) } } }),
+    accountBalances(asOf, branchIds),
+    prisma.sales_bills.findMany({ include: { customers: true, sales_channels: true }, orderBy: [{ date: 'desc' }], take: 15000, where: { ...branchWhere(branchIds), date: { lte: endOfDay(asOf) } } }),
+    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true }, orderBy: [{ date: 'desc' }], take: 15000, where: { ...branchWhere(branchIds), date: { lte: endOfDay(asOf) } } }),
+    prisma.stock_ledger.findMany({ include: { products: true }, orderBy: [{ date: 'desc' }], take: 80000, where: { ...branchWhere(branchIds), date: { lte: endOfDay(asOf) } } }),
+    prisma.expenses.findMany({ orderBy: [{ date: 'desc' }], take: 5000, where: { ...branchWhere(branchIds), date: new Date(`${today}T00:00:00.000Z`) } }),
+    prisma.trading_deals.findMany({
+      orderBy: [{ date: 'desc' }],
+      take: 10000,
+      where: {
+        date: { lte: endOfDay(asOf) },
+        ...(branchIds !== null ? { purchase_bills: { branch_id: { in: branchIds } } } : {}),
+      },
+    }),
   ])
   type CashAccountRow = (typeof cashAccounts)[number]
   type SalesBillRow = (typeof salesBills)[number]

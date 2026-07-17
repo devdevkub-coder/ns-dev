@@ -7,6 +7,22 @@ export function toDateOnly(value: Date | null | undefined) {
   return value ? value.toISOString().slice(0, 10) : ''
 }
 
+export function toBangkokDateOnly(value: Date | null | undefined) {
+  if (!value) return ''
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+  }).formatToParts(value)
+  const valueByType = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${valueByType.year}-${valueByType.month}-${valueByType.day}`
+}
+
+export function toBangkokEndOfDay(value: Date) {
+  return new Date(`${toBangkokDateOnly(value)}T23:59:59.999+07:00`)
+}
+
 export function toNumber(value: { toNumber: () => number } | number | null | undefined) {
   if (value === null || value === undefined) return 0
   return typeof value === 'number' ? value : value.toNumber()

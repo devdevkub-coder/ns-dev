@@ -6,7 +6,7 @@ tags:
   - read-model
   - flow
 status: accepted-baseline
-updated: 2026-06-24
+updated: 2026-07-17
 ---
 
 # Finance Accounting Flow
@@ -31,7 +31,7 @@ updated: 2026-06-24
 | `/finance-accounting/stock-finance` | `GET /api/finance-accounting/stock-finance` | `asOf`, `branchId` | `buildStockFinance()` | read-only |
 | `/finance-accounting/profit-leak` | `GET /api/finance-accounting/profit-leak` | `from`, `to`, `branchId`, `targetMargin` | `buildProfitLeak()` | read-only |
 | `/finance-accounting/tax-vat-wht` | `GET /api/finance-accounting/tax-vat-wht` | `year`, `month`, `branchId` | `buildTaxVatWht()` | read-only tax baseline |
-| `/finance-accounting/pl-statement` | `GET /api/finance-accounting/pl-statement` | `from`, `to`, `branchId`, `transactionMode` | `buildPlStatement()` | read-only management P&L |
+| `/finance-accounting/pl-statement` | `GET /api/finance-accounting/pl-statement` | `from`, `to`, `branchId`, optional `format=xlsx`; partial Stock/Trading PBT is rejected | `buildPlStatement()` | read-only management P&L |
 | `/finance-accounting/balance-sheet` | `GET /api/finance-accounting/balance-sheet` | `asOf`, `branchId` | `buildBalanceSheet()` | read-only management balance sheet |
 | `/finance-accounting/cash-flow-statement` | `GET /api/finance-accounting/cash-flow-statement` | `from`, `to`, `branchId` | `buildCashFlowStatement()` | read-only management cash flow |
 | `/finance-accounting/asset-register` | `GET/POST/PATCH /api/finance-accounting/asset-register` | `q`, `category`, `status`, `format`, `template` | `assets`, `depreciations`, `branches`, `suppliers` | create/edit/import/export/deactivate enabled; GL acquisition posting deferred |
@@ -65,6 +65,22 @@ updated: 2026-06-24
 - Currency, FCD, OD and FX treatment must not be silently mixed into THB totals without a documented conversion rule.
 - Opening/historical/cutover data must be locked by a cutover approval policy before any write action is enabled.
 - Asset and loan write flows need idempotency, audit trail, reversal and bank/GL side-effect policy before moving beyond read baseline.
+
+## P&L and Cash Analysis Truth Contract 2026-07-17
+
+| Topic | Decision |
+|---|---|
+| Canonical profit calculation | `buildPlStatement()` owns the management Profit Before Tax calculation. Operational documents remain the fact sources; Cash Flow Analysis and Financial Dashboard consume the calculated PBT instead of rebuilding a second formula. |
+| Sales revenue | Use `sales_bills.total_amount - vat_amount` so the management revenue base is after header discount and before VAT. |
+| Expense / cash basis | P&L uses `expenses.amount`. OCF uses active PMT `payments.net_amount` once, classified by `payment_approvals.source_type`; an Expense PMT is not subtracted again from `expenses.paid_at`, and duplicated `fee` / `bank_fee` storage is not double-counted. VAT/WHT settlement must not be folded into the P&L expense base. |
+| Asset disposal | Approved, non-reversed `asset_disposals.gain_loss` is part of PBT and follows `disposal_date`; branch scope comes through the asset. |
+| THB / FCD | Cash liquidity and projections include THB only. FCD is grouped by currency, uses opening balance until a foreign-movement source is approved, and is never added to a THB scalar. |
+| OD | OD use is calculated per account before aggregation; available limit is `max(0, sum(limit) - sum(used))`. |
+| AP projection | Purchase Bill uses document date under the current conservative policy. Do not claim contractual due-date forecasting until a PB/supplier credit-term source is confirmed. |
+| Branch authorization | `ALL` means the effective authorized scope: Admin/Owner or a role explicitly marked `branch_scope=all` may see all branches; `own/custom` roles are intersected with `app_user_branch_access` and fail closed to an empty scope when no mapping exists. Report JSON, options, source queries, projection and XLSX use the same scope; forbidden requested branches return `403`. |
+| Segment PBT | Stock/Trading remains a revenue/COGS supporting split only. Do not expose a segment PBT filter until shared expenses, depreciation, finance cost, FX and other income have an approved allocation policy. |
+
+The two pages remain read-only management surfaces. They do not post GL, close periods, file tax, create receipts/payments, alter documents, or convert currencies.
 
 ## Open Gaps
 

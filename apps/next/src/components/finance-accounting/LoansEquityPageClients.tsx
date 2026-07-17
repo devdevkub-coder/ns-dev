@@ -5,6 +5,7 @@ import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
@@ -221,17 +222,17 @@ export function LoanContractsPageClient() {
       <div className="hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
         <div className="flex flex-wrap items-center gap-2">
           <input autoComplete="off" className="min-w-[260px] flex-1 h-9 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition" placeholder="ค้นหาเลขที่สัญญา / ผู้ให้กู้..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-        <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={type} onChange={(event) => setType(event.target.value)}>
+        <Select className="h-9 px-3 py-1.5 text-sm" value={type} onChange={(event) => setType(event.target.value)}>
           <option value="all">ทุกประเภท</option>
           {(data?.filters.types ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-        </select>
+        </Select>
           <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => { setSearch(''); setType('all'); setStatus('all') }}>ล้างตัวกรอง</button>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500">สถานะสัญญา:</span>
-          <button className={`rounded-md border px-3 py-1 text-xs font-medium ${status === 'all' ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`} type="button" onClick={() => setStatus('all')}>ทุกสถานะ</button>
+          <button aria-pressed={status === 'all'} className={`rounded-md border px-3 py-1 text-xs font-medium ${status === 'all' ? 'border-slate-500 bg-slate-600 text-white' : 'border-slate-300 bg-transparent text-slate-600 hover:bg-slate-200'}`} type="button" onClick={() => setStatus('all')}>ทุกสถานะ</button>
           {(data?.filters.statuses ?? []).map((item) => (
-            <button key={item} className={`rounded-md border px-3 py-1 text-xs font-medium ${status === item ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`} type="button" onClick={() => setStatus(item)}>{loanStatusLabel(item)}</button>
+            <button aria-pressed={status === item} key={item} className={`rounded-md border px-3 py-1 text-xs font-medium ${status === item ? 'border-slate-500 bg-slate-600 text-white' : 'border-slate-300 bg-transparent text-slate-600 hover:bg-slate-200'}`} type="button" onClick={() => setStatus(item)}>{loanStatusLabel(item)}</button>
           ))}
         </div>
       </div>
@@ -286,28 +287,40 @@ export function LoanContractsPageClient() {
         >
           <div>
             <label className="mb-1 block font-semibold text-slate-600 text-xs">ประเภทสัญญา</label>
-            <select
+            <Select
               aria-label="Type select"
-              className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+              className="h-9 w-full px-3 py-1 text-sm"
               value={type}
               onChange={(event) => setType(event.target.value)}
             >
               <option value="all">ทุกประเภท</option>
               {(data?.filters.types ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
+            </Select>
           </div>
 
           <div>
             <label className="mb-1 block font-semibold text-slate-600 text-xs">สถานะสัญญา</label>
-            <select
-              aria-label="Status select"
-              className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
-              value={status}
-              onChange={(event) => setStatus(event.target.value)}
-            >
-              <option value="all">ทุกสถานะ</option>
-              {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{loanStatusLabel(item)}</option>)}
-            </select>
+            <div aria-label="กรองสถานะสัญญา" className="flex flex-wrap gap-2" role="group">
+              <button
+                aria-pressed={status === 'all'}
+                className={`rounded-md border px-3 py-1 text-xs font-medium ${status === 'all' ? 'border-slate-500 bg-slate-600 text-white' : 'border-slate-300 bg-transparent text-slate-600 hover:bg-slate-200'}`}
+                onClick={() => setStatus('all')}
+                type="button"
+              >
+                ทุกสถานะ
+              </button>
+              {(data?.filters.statuses ?? []).map((item) => (
+                <button
+                  aria-pressed={status === item}
+                  className={`rounded-md border px-3 py-1 text-xs font-medium ${status === item ? 'border-slate-500 bg-slate-600 text-white' : 'border-slate-300 bg-transparent text-slate-600 hover:bg-slate-200'}`}
+                  key={item}
+                  onClick={() => setStatus(item)}
+                  type="button"
+                >
+                  {loanStatusLabel(item)}
+                </button>
+              ))}
+            </div>
           </div>
         </MobileFilterSheet>
       ) : null}

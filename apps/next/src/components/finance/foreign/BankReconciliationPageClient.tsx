@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
@@ -154,9 +155,9 @@ export function BankReconciliationPageClient() {
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         {/* Desktop View */}
         <div className="hidden lg:flex flex-wrap items-center gap-2">
-          <select className="w-72 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+          <Select className="h-9 w-72 text-sm" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
             {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.label}</option>)}
-          </select>
+          </Select>
           <span className="text-xs text-slate-500">วันที่:</span>
           <DatePickerInput ariaLabel="จากวันที่" className="w-[130px]" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
@@ -168,9 +169,9 @@ export function BankReconciliationPageClient() {
         {/* Mobile View (Collapsible Filters) */}
         <div className="block lg:hidden space-y-2.5">
           <div className="flex gap-2">
-            <select className="flex-1 min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+            <Select className="h-9 min-w-0 flex-1 text-sm" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
               {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.label}</option>)}
-            </select>
+            </Select>
             <button
               className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
                 showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'

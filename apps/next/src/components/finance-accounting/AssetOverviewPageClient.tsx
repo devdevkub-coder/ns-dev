@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 
@@ -57,9 +58,9 @@ function compareSortValues(left: string | number, right: string | number) {
   return String(left ?? '').localeCompare(String(right ?? ''), 'th', { numeric: true, sensitivity: 'base' })
 }
 
-export function AssetOverviewPageClient() {
-  const [asOf, setAsOf] = useState(today())
-  const [branchId, setBranchId] = useState('ALL')
+export function AssetOverviewPageClient({ initialFilters }: { initialFilters?: { asOf?: string; branchId?: string } } = {}) {
+  const [asOf, setAsOf] = useState(initialFilters?.asOf || today())
+  const [branchId, setBranchId] = useState(initialFilters?.branchId || 'ALL')
   const [data, setData] = useState<Payload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const latestLoadRequestRef = useRef(0)
@@ -91,14 +92,14 @@ export function AssetOverviewPageClient() {
           value={asOf}
           onChange={setAsOf}
         />
-        <select
+        <Select
           className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:ring-0 focus:border-slate-400 h-9 transition-colors"
           value={branchId}
           onChange={(event) => setBranchId(event.target.value)}
         >
           <option value="ALL">ทุกสาขา</option>
           {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-        </select>
+        </Select>
         <button
           className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50"
           type="button"

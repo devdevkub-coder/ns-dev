@@ -473,6 +473,7 @@ export function WeightTicketListPageClient() {
               allOptionLabel="ทุกสาขา"
               branches={branches.map((branch) => ({ id: branch.id, name: branch.label }))}
               className="w-[12rem]"
+              controlSize="filter"
               includeAllOption
               inputId="weight-ticket-branch-filter"
               label=""
@@ -591,6 +592,7 @@ export function WeightTicketListPageClient() {
               allOptionLabel="ทุกสาขา"
               branches={branches.map((branch) => ({ id: branch.id, name: branch.label }))}
               className="w-full"
+              controlSize="filter"
               includeAllOption
               inputId="weight-ticket-branch-filter-mobile"
               label=""

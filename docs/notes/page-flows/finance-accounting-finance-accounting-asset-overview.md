@@ -98,6 +98,12 @@ P2 proof completed against current Next page/API code. Remaining work is formula
 - แก้ loading state ของยอด `ภาระหนี้`: ก่อน API ตอบ component จะคำนวณยอดจาก `undefined + undefined` จนเห็น `NaN`; ตอนนี้ใช้ค่า 0 ระหว่างโหลด โดยไม่แตะสูตรจริงหลังข้อมูลตอบกลับ
 - เหตุผล: ผู้ใช้ต้องไม่เห็นค่าการเงินที่ไม่ใช่จำนวนเงินแม้เพียงช่วงโหลด และ filter/table ต้องอ่านเป็น design เดียวกันโดยไม่เปลี่ยน source หรือการคำนวณ business data
 
+## Branch Scope / URL Hydration Checkpoint 2026-07-17
+
+- What is what: หน้า server รับ outward `asOf` และ branch-code `branchId` จาก URL แล้วส่งเป็น initial filters ก่อน request แรก. API ใช้ effective finance branch intersection เดียวกันกับทั้ง Financial Dashboard source และ Cash & Others source รวมถึง account, bill, stock, expense และ trading rows.
+- Authorization: `own/custom` ที่ไม่มี mapping ได้ผลว่างแบบ fail-closed; branch ที่มีอยู่แต่นอก scope ได้ `403`; unknown/inactive branch ได้ client error และไม่ fallback เป็นทุกสาขา. `branch_scope=all` เท่านั้นที่อ่าน unrestricted aggregate ได้.
+- Why it has to be like this: Asset Overview รวมหลาย read models; ถ้าขอบเขตถูกบังคับเพียงครึ่งหนึ่ง cash/debt/net-worth จะผสมข้อมูลคนละสิทธิ์และไม่ reconcile กับ Dashboard ต้นทาง.
+
 ## Implementation Checklist
 
 - [x] Verify current API response shape and source tables

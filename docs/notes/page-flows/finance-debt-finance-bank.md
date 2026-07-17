@@ -125,6 +125,11 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - Admin correction/duplicate cleanup flow remains not designed.
 - Need reconcile row `balance` policy against derived opening + movement if source rows are edited/reversed.
 
+## Drilldown Scope Hydration 2026-07-17
+
+- What is what: `/finance/bank` hydrates only `from` and `to` from related-report URLs. Its current API has no `branchId` contract, so the page intentionally ignores that query instead of forwarding a filter the server cannot enforce.
+- Why it has to be like this: a visible branch filter that does not constrain Bank data would be false assurance. Cash Flow Analysis therefore omits Bank links whenever its result is branch-constrained; branch navigation can be enabled only after the Bank API gains an authorized branch filter.
+
 ## Implementation Checklist
 
 - [x] Verify current Next page/component against this page-flow

@@ -7,6 +7,8 @@ import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
+import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
+import { Select } from '@/components/ui/Select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 
@@ -485,14 +487,14 @@ export function AssetRegisterPageClient() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-          <select
-            className="h-9 w-auto min-w-[120px] rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition cursor-pointer focus:border-slate-400"
+          <Select
+            className="h-9 w-auto min-w-[120px]"
             value={category}
             onChange={(event) => setCategory(event.target.value)}
           >
             <option value="all">ทุกหมวด</option>
             {(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
+          </Select>
           <button
             className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50"
             onClick={() => { setSearch(''); setCategory('all'); setStatus('all') }}
@@ -502,19 +504,20 @@ export function AssetRegisterPageClient() {
           </button>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
+          <div aria-label="สถานะ" className="flex flex-wrap items-center gap-2" role="group">
             <span className="text-xs text-slate-500">สถานะ:</span>
             {['all', ...(data?.filters.statuses ?? [])].map((item) => {
               const active = status === item
               return (
-                <button
-                  className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+                <SegmentedFilterButton
+                  active={active}
+                  aria-pressed={active}
                   key={item}
                   onClick={() => setStatus(item)}
                   type="button"
                 >
                   {assetStatusLabel(item)}
-                </button>
+                </SegmentedFilterButton>
               )
             })}
           </div>
@@ -598,26 +601,31 @@ export function AssetRegisterPageClient() {
         >
           <div>
             <label className="mb-1 block font-semibold text-slate-600 text-xs">หมวดหมู่</label>
-            <select
-              className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+            <Select
+              className="h-9 w-full"
               value={category}
               onChange={(event) => setCategory(event.target.value)}
             >
               <option value="all">ทุกหมวด</option>
               {(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
+            </Select>
           </div>
 
           <div>
             <label className="mb-1 block font-semibold text-slate-600 text-xs">สถานะ</label>
-            <select
-              className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
-              value={status}
-              onChange={(event) => setStatus(event.target.value)}
-            >
-              <option value="all">ทุกสถานะ</option>
-              {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{assetStatusLabel(item)}</option>)}
-            </select>
+            <div aria-label="สถานะ" className="flex flex-wrap gap-2" role="group">
+              {['all', ...(data?.filters.statuses ?? [])].map((item) => (
+                <SegmentedFilterButton
+                  active={status === item}
+                  aria-pressed={status === item}
+                  key={item}
+                  onClick={() => setStatus(item)}
+                  type="button"
+                >
+                  {assetStatusLabel(item)}
+                </SegmentedFilterButton>
+              ))}
+            </div>
           </div>
 
           <div className="border-t border-slate-100 pt-3 space-y-2">
@@ -1056,21 +1064,21 @@ export function DepreciationPageClient() {
 
       {/* Desktop Filter Panel */}
       <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex">
-        <select aria-label="Depreciation month" className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={month} onChange={(event) => setMonth(event.target.value)}>
+        <Select aria-label="Depreciation month" className="h-9 w-auto min-w-[180px]" value={month} onChange={(event) => setMonth(event.target.value)}>
           <option value="all">ดูรายปี (ทุกเดือน)</option>
           {Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0')).map((item) => <option key={item} value={item}>เดือน {item}</option>)}
-        </select>
+        </Select>
         <input aria-label="Depreciation year" className="h-9 w-24 rounded-md border border-slate-300 px-3 py-1 text-center text-sm outline-none focus:border-slate-400 transition" value={year} onChange={(event) => setYear(event.target.value)} />
         <input aria-label="Depreciation period date" className="h-9 rounded-md border border-slate-300 bg-slate-50 px-3 py-1 text-sm outline-none cursor-default" readOnly value={periodDate} />
         
-        <select aria-label="Filter category" className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={filterCategory} onChange={(event) => setFilterCategory(event.target.value)}>
+        <Select aria-label="Filter category" className="h-9 w-auto min-w-[140px]" value={filterCategory} onChange={(event) => setFilterCategory(event.target.value)}>
           <option value="all">ทุกหมวด</option>
           {categoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-        </select>
-        <select aria-label="Filter department" className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={filterDepartment} onChange={(event) => setFilterDepartment(event.target.value)}>
+        </Select>
+        <Select aria-label="Filter department" className="h-9 w-auto min-w-[140px]" value={filterDepartment} onChange={(event) => setFilterDepartment(event.target.value)}>
           <option value="all">ทุกฝ่าย</option>
           {departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-        </select>
+        </Select>
 
         <Chip tone="blue">คิดค่าเสื่อม {filteredPendingAssets.length}</Chip>
         <Chip tone="emerald">Run แล้ว {data?.period.postedRuns ?? 0}</Chip>
@@ -1082,15 +1090,15 @@ export function DepreciationPageClient() {
       {/* Mobile Toolbar (Hidden on Desktop) */}
       <div className="space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex gap-2 items-center">
-          <select 
+          <Select
             aria-label="Depreciation month" 
-            className="h-9 flex-1 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+            className="h-9 flex-1"
             value={month} 
             onChange={(event) => setMonth(event.target.value)}
           >
             <option value="all">ดูรายปี (ทุกเดือน)</option>
             {Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0')).map((item) => <option key={item} value={item}>เดือน {item}</option>)}
-          </select>
+          </Select>
           <input 
             aria-label="Depreciation year" 
             className="h-9 w-20 rounded-md border border-slate-300 px-3 py-1 text-center text-sm outline-none focus:border-slate-400 transition"
@@ -1156,28 +1164,28 @@ export function DepreciationPageClient() {
         >
           <div>
             <label className="mb-1 block font-semibold text-slate-600 text-xs">หมวดหมู่ทรัพย์สิน</label>
-            <select
+            <Select
               aria-label="Filter category"
-              className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+              className="h-9 w-full"
               value={filterCategory}
               onChange={(event) => setFilterCategory(event.target.value)}
             >
               <option value="all">ทุกหมวด</option>
               {categoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
+            </Select>
           </div>
 
           <div>
             <label className="mb-1 block font-semibold text-slate-600 text-xs">ฝ่าย</label>
-            <select
+            <Select
               aria-label="Filter department"
-              className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+              className="h-9 w-full"
               value={filterDepartment}
               onChange={(event) => setFilterDepartment(event.target.value)}
             >
               <option value="all">ทุกฝ่าย</option>
               {departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
+            </Select>
           </div>
 
           <div>
@@ -1978,15 +1986,15 @@ function Field({ children, label }: { children: ReactNode; label: string }) {
 }
 
 function SelectControl({ onChange, options, value }: { onChange: (value: string) => void; options: string[]; value: string }) {
-  return <select className={fieldClass} value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option} value={option}>{assetOptionLabel(option)}</option>)}</select>
+  return <Select className="h-10 w-full" value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option} value={option}>{assetOptionLabel(option)}</option>)}</Select>
 }
 
 function OptionSelect({ blankLabel, onChange, options, value }: { blankLabel: string; onChange: (value: string) => void; options: { code: string; name: string }[]; value: string }) {
-  return <select className={fieldClass} value={value} onChange={(event) => onChange(event.target.value)}><option value="">{blankLabel}</option>{options.map((option) => <option key={option.code} value={option.code}>{option.code} - {option.name}</option>)}</select>
+  return <Select className="h-10 w-full" value={value} onChange={(event) => onChange(event.target.value)}><option value="">{blankLabel}</option>{options.map((option) => <option key={option.code} value={option.code}>{option.code} - {option.name}</option>)}</Select>
 }
 
 function IdOptionSelect({ blankLabel, onChange, options, value }: { blankLabel: string; onChange: (value: string) => void; options: { code: string; id: string; name: string }[]; value: string }) {
-  return <select className={fieldClass} value={value} onChange={(event) => onChange(event.target.value)}><option value="">{blankLabel}</option>{options.map((option) => <option key={option.id} value={option.id}>{option.code} - {option.name}</option>)}</select>
+  return <Select className="h-10 w-full" value={value} onChange={(event) => onChange(event.target.value)}><option value="">{blankLabel}</option>{options.map((option) => <option key={option.id} value={option.id}>{option.code} - {option.name}</option>)}</Select>
 }
 
 function MoneyField({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {

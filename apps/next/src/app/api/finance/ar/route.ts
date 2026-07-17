@@ -6,9 +6,15 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
-import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { normalizeDate, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
+import { getFinanceBranchCodeIntersection } from '@/lib/server/finance-accounting-branch-scope'
 import { prisma } from '@/lib/server/prisma'
-import { listActiveBranches, listActiveCustomerBranchOptions } from '@/lib/server/reference-master-cache'
+import {
+  listActiveBranches,
+  listActiveBranchesByCodes,
+  listActiveCustomerBranchOptions,
+  listActiveCustomerBranchOptionsByBranchCodes,
+} from '@/lib/server/reference-master-cache'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -37,13 +43,14 @@ function ageBucket(days: number) {
 }
 
 function parseQuery(url: URL): ArQuery {
+  const branchId = url.searchParams.get('branchId')?.trim()
   const page = Number(url.searchParams.get('page') ?? '1')
   const pageSize = Number(url.searchParams.get('pageSize') ?? '50')
   const sortKey = url.searchParams.get('sortKey')
   const sortDirection = url.searchParams.get('sortDirection')
 
   return {
-    branchId: url.searchParams.get('branchId') || null,
+    branchId: branchId && branchId.toUpperCase() !== 'ALL' ? branchId : null,
     bucket: url.searchParams.get('bucket') || null,
     channelId: url.searchParams.get('channelId') || null,
     customerId: url.searchParams.get('customerId') || null,
@@ -58,9 +65,13 @@ function parseQuery(url: URL): ArQuery {
   }
 }
 
-function billWhere(query: ArQuery, branchId: bigint | null, channelId: bigint | null, customerId: bigint | null): Prisma.sales_billsWhereInput {
+function billWhere(query: ArQuery, branchId: bigint | null, allowedBranchCodes: string[] | null, channelId: bigint | null, customerId: bigint | null): Prisma.sales_billsWhereInput {
   return {
-    ...(branchId !== null ? { branch_id: branchId } : {}),
+    ...(branchId !== null
+      ? { branch_id: branchId }
+      : allowedBranchCodes !== null
+        ? { branches: { is: { code: { in: allowedBranchCodes } } } }
+        : {}),
     ...(channelId != null ? { channel_id: channelId } : {}),
     ...(customerId != null ? { customer_id: customerId } : {}),
     ...(query.status ? { status: query.status } : { NOT: { status: 'cancelled' } }),
@@ -101,7 +112,14 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url)
     const query = parseQuery(url)
+    const allowedBranchCodes = getFinanceBranchCodeIntersection(context)
     const branch = query.branchId ? await findActiveBranchReferenceByCodeOrId(query.branchId) : null
+    if (query.branchId && !branch) {
+      return apiErrorResponse(new Error('ไม่พบสาขาที่เปิดใช้งานตามตัวกรองที่ระบุ'), 'ไม่พบสาขาที่เปิดใช้งานตามตัวกรองที่ระบุ', 404)
+    }
+    if (branch && getFinanceBranchCodeIntersection(context, branch.code)?.length === 0) {
+      return apiErrorResponse(new Error('ไม่มีสิทธิ์ดูข้อมูลของสาขาที่ระบุ'), 'ไม่มีสิทธิ์ดูข้อมูลของสาขาที่ระบุ', 403)
+    }
     const customer = query.customerId ? await findActiveCustomerReferenceByCodeOrId(query.customerId) : null
     const channel = query.channelId
       ? await prisma.sales_channels.findFirst({
@@ -119,10 +137,18 @@ export async function GET(request: Request) {
         },
         orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
         take: 10000,
-        where: billWhere(query, branch?.id ?? null, channel?.id ?? null, customer?.id ?? null),
+        where: billWhere(query, branch?.id ?? null, allowedBranchCodes, channel?.id ?? null, customer?.id ?? null),
       }),
-      listActiveCustomerBranchOptions(),
-      listActiveBranches(),
+      allowedBranchCodes === null
+        ? listActiveCustomerBranchOptions()
+        : allowedBranchCodes.length > 0
+          ? listActiveCustomerBranchOptionsByBranchCodes(allowedBranchCodes)
+          : Promise.resolve([]),
+      allowedBranchCodes === null
+        ? listActiveBranches()
+        : allowedBranchCodes.length > 0
+          ? listActiveBranchesByCodes(allowedBranchCodes)
+          : Promise.resolve([]),
       prisma.sales_channels.findMany({
         orderBy: [{ name: 'asc' }],
         select: { active: true, code: true, id: true, name: true },
@@ -136,7 +162,7 @@ export async function GET(request: Request) {
       name: branch.name,
     }))
 
-    const today = new Date()
+    const today = normalizeDate(toBangkokDateOnly(new Date()))
     const search = query.q?.trim().toLowerCase()
     const allRows = bills
       .map((bill) => {

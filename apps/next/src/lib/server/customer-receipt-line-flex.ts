@@ -88,42 +88,36 @@ function sectionTab(label: string) {
   }
 }
 
-function allocationRow(allocation: CustomerReceiptLineFlexData['allocations'][number]) {
+function allocationRow(allocation: CustomerReceiptLineFlexData['allocations'][number], showAmount: boolean) {
   return {
     type: 'box',
     layout: 'horizontal',
     spacing: 'sm',
     contents: [
       {
-        type: 'box',
-        layout: 'vertical',
+        type: 'text',
+        text: text(allocation.salesBillDocumentNo),
+        color: '#0f172a',
+        size: 'md',
         flex: 4,
-        spacing: 'xs',
-        contents: [
-          { type: 'text', text: text(allocation.salesBillDocumentNo), color: '#0f172a', size: 'md', weight: 'bold', wrap: true },
-          {
-            type: 'text',
-            text: `รับ ${money(allocation.receiptAmount)} · WHT ${money(allocation.withholdingTax)} · ลด ${money(allocation.discount)}`,
-            color: '#64748b',
-            size: 'sm',
-            wrap: true,
-          },
-        ],
+        weight: 'bold',
+        wrap: true,
       },
-      {
-        type: 'box',
-        layout: 'vertical',
+      ...(showAmount ? [{
+        type: 'text',
+        text: money(allocation.allocatedArAmount),
+        color: '#047857',
+        size: 'md',
         flex: 2,
-        contents: [
-          { type: 'text', text: 'ตัดลูกหนี้', color: '#64748b', size: 'sm', weight: 'bold', align: 'end' },
-          { type: 'text', text: money(allocation.allocatedArAmount), color: '#047857', size: 'md', weight: 'bold', align: 'end', wrap: true },
-        ],
-      },
+        weight: 'bold',
+        align: 'end',
+        wrap: true,
+      }] : []),
     ],
   }
 }
 
-function accountRow(account: CustomerReceiptLineFlexData['companyAccounts'][number]) {
+function accountRow(account: CustomerReceiptLineFlexData['companyAccounts'][number], showAmount: boolean) {
   return {
     type: 'box',
     layout: 'horizontal',
@@ -138,7 +132,16 @@ function accountRow(account: CustomerReceiptLineFlexData['companyAccounts'][numb
         weight: 'bold',
         wrap: true,
       },
-      { type: 'text', text: money(account.amount), color: '#047857', size: 'md', flex: 2, weight: 'bold', align: 'end', wrap: true },
+      ...(showAmount ? [{
+        type: 'text',
+        text: money(account.amount),
+        color: '#047857',
+        size: 'md',
+        flex: 2,
+        weight: 'bold',
+        align: 'end',
+        wrap: true,
+      }] : []),
     ],
   }
 }
@@ -163,14 +166,34 @@ function receiptStatus(value: string) {
   return text(value)
 }
 
+function hasMoney(value: number) {
+  return Math.abs(value) > 0.01
+}
+
+function sameMoney(left: number, right: number) {
+  return Math.abs(left - right) <= 0.01
+}
+
 export function buildCustomerReceiptLineFlexMessage(input: CustomerReceiptLineFlexData, detailUrl: string) {
   const shownAllocations = input.allocations.slice(0, MAX_ALLOCATIONS)
   const remainingAllocations = input.allocations.length - shownAllocations.length
   const shownAccounts = input.companyAccounts.slice(0, MAX_COMPANY_ACCOUNTS)
   const remainingAccounts = input.companyAccounts.length - shownAccounts.length
-  const allocationRows: Array<ReturnType<typeof allocationRow> | ReturnType<typeof remainingRow>> = shownAllocations.map(allocationRow)
-  const accountRows: Array<ReturnType<typeof accountRow> | ReturnType<typeof remainingRow>> = shownAccounts.map(accountRow)
+  const allocationRows: Array<ReturnType<typeof allocationRow> | ReturnType<typeof remainingRow>> = shownAllocations
+    .map((allocation) => allocationRow(allocation, input.allocations.length > 1))
+  const accountRows: Array<ReturnType<typeof accountRow> | ReturnType<typeof remainingRow>> = shownAccounts
+    .map((account) => accountRow(account, input.companyAccounts.length > 1))
   const allocatedArTotal = input.receivedAmount + input.discount + input.withholdingTax
+  const notes = text(input.notes, '')
+  const summaryRows = [
+    ...(!sameMoney(input.receivedAmount, input.netCashIn) ? [detailRow('ยอดรับ', money(input.receivedAmount), true)] : []),
+    ...(hasMoney(input.discount) ? [detailRow('ส่วนลด', money(input.discount))] : []),
+    ...(hasMoney(input.withholdingTax) ? [detailRow('ภาษีหัก ณ ที่จ่าย', money(input.withholdingTax))] : []),
+    ...(!sameMoney(allocatedArTotal, input.receivedAmount) ? [detailRow('ยอดตัดลูกหนี้', money(allocatedArTotal), true)] : []),
+    ...(hasMoney(input.fee) ? [detailRow('ค่าธรรมเนียม', money(input.fee))] : []),
+    detailRow('เงินเข้าสุทธิ', money(input.netCashIn), true),
+    ...(notes ? [detailRow('หมายเหตุ', notes)] : []),
+  ]
 
   if (remainingAllocations > 0) allocationRows.push(remainingRow(`+ อีก ${number(remainingAllocations)} บิลขาย`))
   if (remainingAccounts > 0) accountRows.push(remainingRow(`+ อีก ${number(remainingAccounts)} บัญชี`))
@@ -188,7 +211,7 @@ export function buildCustomerReceiptLineFlexMessage(input: CustomerReceiptLineFl
         paddingAll: '20px',
         spacing: 'sm',
         contents: [
-          { type: 'text', text: 'ใบรับเงิน Customer', color: '#34d399', size: 'md', weight: 'bold' },
+          { type: 'text', text: '💰 ใบรับเงิน Customer', color: '#34d399', size: 'md', weight: 'bold' },
           { type: 'text', text: text(input.documentNo), color: '#f8fafc', size: 'xl', weight: 'bold', wrap: true },
           { type: 'text', text: date(input.date), color: '#cbd5e1', size: 'sm', weight: 'bold' },
         ],
@@ -208,13 +231,7 @@ export function buildCustomerReceiptLineFlexMessage(input: CustomerReceiptLineFl
           sectionTab('บัญชีบริษัทที่รับเงิน'),
           ...(accountRows.length > 0 ? accountRows : [detailRow('รายการ', '-')]),
           sectionTab('สรุปยอดรับเงิน'),
-          detailRow('ยอดรับ', money(input.receivedAmount), true),
-          detailRow('ส่วนลด', money(input.discount)),
-          detailRow('ภาษีหัก ณ ที่จ่าย', money(input.withholdingTax)),
-          detailRow('ยอดตัดลูกหนี้', money(allocatedArTotal), true),
-          detailRow('ค่าธรรมเนียม', money(input.fee)),
-          detailRow('เงินเข้าสุทธิ', money(input.netCashIn), true),
-          detailRow('หมายเหตุ', text(input.notes)),
+          ...summaryRows,
         ],
       },
       footer: {

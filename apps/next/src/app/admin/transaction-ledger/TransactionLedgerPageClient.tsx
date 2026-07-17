@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { z } from 'zod'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage, readBlobResponse, readJsonResponse } from '@/lib/api-client'
 import { formatDateDisplay } from '@/lib/format'
@@ -349,14 +351,14 @@ export function TransactionLedgerPageClient() {
           <DatePickerInput className="w-[130px]" value={dateFrom} onChange={setDateFrom} />
           <span className="text-slate-400">→</span>
           <DatePickerInput className="w-[130px]" value={dateTo} onChange={setDateTo} />
-          <select className="rounded-md border border-slate-300 px-3 text-sm h-9 bg-white text-slate-800" value={filterAccount} onChange={(event) => setFilterAccount(event.target.value)}>
+          <Select className="h-9 w-auto min-w-40 text-sm" value={filterAccount} onChange={(event) => setFilterAccount(event.target.value)}>
             <option value="">💳 ทุกบัญชี</option>
             {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-          </select>
-          <select className="rounded-md border border-slate-300 px-3 text-sm h-9 bg-white text-slate-800" value={filterRefType} onChange={(event) => setFilterRefType(event.target.value)}>
+          </Select>
+          <Select className="h-9 w-auto min-w-40 text-sm" value={filterRefType} onChange={(event) => setFilterRefType(event.target.value)}>
             <option value="">📋 ทุกประเภท</option>
             {refTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
+          </Select>
           {columnResize.hasCustomWidths ? (
             <button className="hidden h-9 shrink-0 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 xl:inline-flex xl:items-center" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           ) : null}
@@ -431,18 +433,18 @@ export function TransactionLedgerPageClient() {
 
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">เลือกบัญชี</span>
-                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={filterAccount} onChange={(event) => setFilterAccount(event.target.value)}>
+                <Select className="h-9 text-sm" value={filterAccount} onChange={(event) => setFilterAccount(event.target.value)}>
                   <option value="">💳 ทุกบัญชี</option>
                   {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                </select>
+                </Select>
               </label>
 
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภทรายการ</span>
-                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={filterRefType} onChange={(event) => setFilterRefType(event.target.value)}>
+                <Select className="h-9 text-sm" value={filterRefType} onChange={(event) => setFilterRefType(event.target.value)}>
                   <option value="">📋 ทุกประเภท</option>
                   {refTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
+                </Select>
               </label>
         </MobileFilterSheet>
       ) : null}
@@ -483,17 +485,13 @@ export function TransactionLedgerPageClient() {
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            aria-label="จำนวนรายการต่อหน้า"
-            className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800"
+          <PageSizeDropdown
             value={pageSize}
-            onChange={(event) => {
-              setPageSize(Number(event.target.value))
+            onChange={(nextPageSize) => {
+              setPageSize(nextPageSize)
               setPage(1)
             }}
-          >
-            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-          </select>
+          />
           <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={currentPage <= 1} type="button" onClick={() => setPage(currentPage - 1)}>ก่อนหน้า</button>
           <span className="px-1 text-sm font-medium text-slate-700">หน้า {currentPage.toLocaleString('th-TH')} / {totalPages.toLocaleString('th-TH')}</span>
           <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={currentPage >= totalPages} type="button" onClick={() => setPage(currentPage + 1)}>ถัดไป</button>

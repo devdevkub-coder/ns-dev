@@ -9,6 +9,7 @@ import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage } from '@/lib/api-client'
@@ -410,9 +411,9 @@ export function ProductsPageClient() {
         <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-50 pt-2 text-xs">
           <div className="flex items-center gap-2">
             <span className="text-slate-500 font-medium">ประเภทสินค้า:</span>
-            <select
+            <Select
               aria-label="กรองประเภทสินค้า"
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="h-9 w-auto"
               value={productTypeFilter}
               onChange={(event) => {
                 setPage(1)
@@ -421,7 +422,7 @@ export function ProductsPageClient() {
             >
               <option value="">ทุกประเภท</option>
               {productTypeOptions.map((type) => <option key={type} value={type}>{type}</option>)}
-            </select>
+            </Select>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-slate-500 font-medium">สถานะ:</span>
@@ -520,9 +521,9 @@ export function ProductsPageClient() {
         >
               <label className="block">
                 <span className="mb-1.5 block text-xs font-semibold text-slate-600">ประเภทสินค้า</span>
-                <select
+                <Select
                   aria-label="กรองประเภทสินค้ามือถือ"
-                  className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white"
+                  className="h-9 w-full"
                   value={productTypeFilter}
                   onChange={(event) => {
                     setPage(1)
@@ -531,7 +532,7 @@ export function ProductsPageClient() {
                 >
                   <option value="">ทุกประเภท</option>
                   {productTypeOptions.map((type) => <option key={type} value={type}>{type}</option>)}
-                </select>
+                </Select>
               </label>
 
               <div>
@@ -945,13 +946,14 @@ function SelectField({ children, error, label, value, onChange }: SelectFieldPro
       <span className="mb-1.5 block text-xs font-semibold text-slate-600">
         {labelText}{hasInlineRequired ? <span className="ml-0.5 text-red-500">*</span> : null}
       </span>
-      <select
-        className={`w-full h-10 rounded-md border px-3 py-2 text-sm text-slate-900 outline-none transition-all duration-150 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white border-slate-300 hover:border-slate-400 ${error ? 'border-red-400 bg-red-50/50' : ''}`}
+      <Select
+        aria-invalid={Boolean(error)}
+        className="h-10"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >
         {children}
-      </select>
+      </Select>
       {error ? <span className="mt-1 block text-xs text-red-700">{error}</span> : null}
     </label>
   )

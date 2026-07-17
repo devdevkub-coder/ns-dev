@@ -10,6 +10,7 @@ import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import type { SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { Select } from '@/components/ui/Select'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -654,19 +655,20 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
           />
           {mode === 'convert' ? (
             <>
-              <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800" value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>
+              <Select className="h-9 w-auto" value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>
                 <option value="">ทุกวิธีจัดสรร</option>
                 {Object.entries(CONVERT_SOURCE_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
+              </Select>
             </>
           ) : mode === 'adjust' ? (
             <>
-              <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
+              <Select className="h-9 w-auto" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
                 <option value="">ทุกสาขา</option>
                 {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-              </select>
+              </Select>
               <div className="w-[200px]">
                 <SearchCombobox
+                  inputClassName="h-9 text-sm"
                   inputId="adjust-product-filter"
                   label="สินค้า"
                   hideLabel={true}
@@ -676,18 +678,18 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                   onChange={setAdjustProductFilter}
                 />
               </div>
-              <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none" value={adjustCategoryFilter} onChange={(event) => setAdjustCategoryFilter(event.target.value)}>
+              <Select className="h-9 w-auto" value={adjustCategoryFilter} onChange={(event) => setAdjustCategoryFilter(event.target.value)}>
                 <option value="">ทุกหมวด</option>
                 {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-              </select>
-              <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none" value={adjustWarehouseFilter} onChange={(event) => setAdjustWarehouseFilter(event.target.value)}>
+              </Select>
+              <Select className="h-9 w-auto" value={adjustWarehouseFilter} onChange={(event) => setAdjustWarehouseFilter(event.target.value)}>
                 <option value="">ทุกคลัง</option>
                 {warehouseOptions.map(wh => <option key={wh.code ?? ''} value={wh.code ?? ''}>{wh.name}</option>)}
-              </select>
-              <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none" value={adjustReasonFilter} onChange={(event) => setAdjustReasonFilter(event.target.value)}>
+              </Select>
+              <Select className="h-9 w-auto" value={adjustReasonFilter} onChange={(event) => setAdjustReasonFilter(event.target.value)}>
                 <option value="">ทุกเหตุผล</option>
                 {reasonOptions.map(r => <option key={r} value={r}>{stockAdjustReasonLabel(r)}</option>)}
-              </select>
+              </Select>
               <DatePickerInput className="w-[130px] h-9" title="จากวันที่" value={fromDateFilter} onChange={setFromDateFilter} />
               <DatePickerInput className="w-[130px] h-9" title="ถึงวันที่" value={toDateFilter} onChange={setToDateFilter} />
             </>
@@ -695,6 +697,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
             <>
               <div className="w-[200px]">
                 <SearchCombobox
+                  inputClassName="h-9 text-sm"
                   inputId="status-product-filter"
                   label="สินค้า"
                   hideLabel={true}
@@ -704,14 +707,14 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                   onChange={setStatusProductFilter}
                 />
               </div>
-              <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none" value={statusCategoryFilter} onChange={(event) => setStatusCategoryFilter(event.target.value)}>
+              <Select className="h-9 w-auto" value={statusCategoryFilter} onChange={(event) => setStatusCategoryFilter(event.target.value)}>
                 <option value="">ทุกหมวด</option>
                 {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-              </select>
-              <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none" value={statusWarehouseFilter} onChange={(event) => setStatusWarehouseFilter(event.target.value)}>
+              </Select>
+              <Select className="h-9 w-auto" value={statusWarehouseFilter} onChange={(event) => setStatusWarehouseFilter(event.target.value)}>
                 <option value="">ทุกคลัง</option>
                 {warehouseOptions.map(wh => <option key={wh.code ?? ''} value={wh.code ?? ''}>{wh.name}</option>)}
-              </select>
+              </Select>
               <DatePickerInput className="w-[130px] h-9" title="จากวันที่" value={statusFromDateFilter} onChange={setStatusFromDateFilter} />
               <DatePickerInput className="w-[130px] h-9" title="ถึงวันที่" value={statusToDateFilter} onChange={setStatusToDateFilter} />
             </>
@@ -837,10 +840,10 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                 <>
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">วิธีจัดสรร</span>
-                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800" value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>
+                    <Select className="h-9 w-full" value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>
                       <option value="">ทุกวิธีจัดสรร</option>
                       {Object.entries(CONVERT_SOURCE_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                    </select>
+                    </Select>
                   </label>
                   <div className="space-y-2">
                     <span className="block text-xs text-slate-500">สถานะต้นทุน:</span>
@@ -865,38 +868,47 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                 <>
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
-                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800 outline-none" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
+                    <Select className="h-9 w-full" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
                       <option value="">ทุกสาขา</option>
                       {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-                    </select>
+                    </Select>
                   </label>
-                  <label className="block">
+                  <div className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">สินค้า</span>
-                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800 outline-none" value={adjustProductFilter} onChange={(event) => setAdjustProductFilter(event.target.value)}>
-                      <option value="">ทุกสินค้า</option>
-                      {data.reference.products.filter(p => p.active !== false).map((p) => <option key={p.id} value={p.code || p.id}>{p.code ? `${p.code} - ${p.name}` : p.name}</option>)}
-                    </select>
-                  </label>
+                    <SearchCombobox
+                      hideLabel
+                      inputClassName="h-9 text-sm"
+                      inputId="stock-adjust-product-filter-mobile"
+                      label="สินค้า"
+                      options={[
+                        { id: '', label: 'ทุกสินค้า' },
+                        ...data.reference.products.filter((product) => product.active !== false).map((product) => ({ id: product.code || product.id, label: product.code ? `${product.code} - ${product.name}` : product.name })),
+                      ]}
+                      placeholder="ค้นหาสินค้า"
+                      value={adjustProductFilter}
+                      onChange={setAdjustProductFilter}
+                    />
+                  </div>
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">หมวดสินค้า</span>
-                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800 outline-none" value={adjustCategoryFilter} onChange={(event) => setAdjustCategoryFilter(event.target.value)}>
+                    <Select className="h-9 w-full" value={adjustCategoryFilter} onChange={(event) => setAdjustCategoryFilter(event.target.value)}>
                       <option value="">ทุกหมวด</option>
                       {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                    </select>
+                    </Select>
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">คลังสินค้า</span>
-                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800 outline-none" value={adjustWarehouseFilter} onChange={(event) => setAdjustWarehouseFilter(event.target.value)}>
+                    <Select className="h-9 w-full" value={adjustWarehouseFilter} onChange={(event) => setAdjustWarehouseFilter(event.target.value)}>
                       <option value="">ทุกคลัง</option>
                       {warehouseOptions.map(wh => <option key={wh.code ?? ''} value={wh.code ?? ''}>{wh.name}</option>)}
-                    </select>
+                    </Select>
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">เหตุผล</span>
-                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800 outline-none" value={adjustReasonFilter} onChange={(event) => setAdjustReasonFilter(event.target.value)}>
+                    <Select className="h-9 w-full" value={adjustReasonFilter} onChange={(event) => setAdjustReasonFilter(event.target.value)}>
                       <option value="">ทุกเหตุผล</option>
                       {reasonOptions.map(r => <option key={r} value={r}>{stockAdjustReasonLabel(r)}</option>)}
-                    </select>
+                    </Select>
                   </label>
                   <div>
                     <span className="mb-1 block text-xs font-semibold text-slate-600">ช่วงวันที่</span>
@@ -909,26 +921,35 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                 </>
               ) : mode === 'status-convert' ? (
                 <>
-                  <label className="block">
+                  <div className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">สินค้า</span>
-                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800 outline-none" value={statusProductFilter} onChange={(event) => setStatusProductFilter(event.target.value)}>
-                      <option value="">ทุกสินค้า</option>
-                      {data.reference.products.filter(p => p.active !== false).map((p) => <option key={p.id} value={p.code || p.id}>{p.code ? `${p.code} - ${p.name}` : p.name}</option>)}
-                    </select>
-                  </label>
+                    <SearchCombobox
+                      hideLabel
+                      inputClassName="h-9 text-sm"
+                      inputId="stock-status-product-filter-mobile"
+                      label="สินค้า"
+                      options={[
+                        { id: '', label: 'ทุกสินค้า' },
+                        ...data.reference.products.filter((product) => product.active !== false).map((product) => ({ id: product.code || product.id, label: product.code ? `${product.code} - ${product.name}` : product.name })),
+                      ]}
+                      placeholder="ค้นหาสินค้า"
+                      value={statusProductFilter}
+                      onChange={setStatusProductFilter}
+                    />
+                  </div>
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">หมวดสินค้า</span>
-                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800 outline-none" value={statusCategoryFilter} onChange={(event) => setStatusCategoryFilter(event.target.value)}>
+                    <Select className="h-9 w-full" value={statusCategoryFilter} onChange={(event) => setStatusCategoryFilter(event.target.value)}>
                       <option value="">ทุกหมวด</option>
                       {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                    </select>
+                    </Select>
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">คลังสินค้า</span>
-                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800 outline-none" value={statusWarehouseFilter} onChange={(event) => setStatusWarehouseFilter(event.target.value)}>
+                    <Select className="h-9 w-full" value={statusWarehouseFilter} onChange={(event) => setStatusWarehouseFilter(event.target.value)}>
                       <option value="">ทุกคลัง</option>
                       {warehouseOptions.map(wh => <option key={wh.code ?? ''} value={wh.code ?? ''}>{wh.name}</option>)}
-                    </select>
+                    </Select>
                   </label>
                   <div>
                     <span className="mb-1 block text-xs font-semibold text-slate-600">ช่วงวันที่</span>
@@ -2025,19 +2046,19 @@ function BaseDateDoc<T extends { date: string; docNo?: string | null }>({ setVal
   </>
 }
 
-function Select(props: { disabled?: boolean; label: string; onChange: (value: string) => void; options: StockOption[]; placeholder?: string; value: string }) {
+function StockSelectField(props: { disabled?: boolean; label: string; onChange: (value: string) => void; options: StockOption[]; placeholder?: string; value: string }) {
   return (
     <label className="block text-xs font-semibold text-slate-600">
       {props.label}
-      <select
-        className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+      <Select
+        className="mt-1 h-10 w-full"
         disabled={props.disabled}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
       >
         <option value="">{props.placeholder ?? 'เลือก'}</option>
         {props.options.filter((option) => option.active !== false).map((option) => <option key={option.id} value={option.id}>{option.code ? `${option.code} - ${option.name}` : option.name}</option>)}
-      </select>
+      </Select>
     </label>
   )
 }
@@ -2048,27 +2069,27 @@ function BranchWarehouseFields({ branchId, reference, setBranchId, setWarehouseI
   return <>
     <label className="block text-xs font-semibold text-slate-600">
       สาขา
-      <select
-        className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+      <Select
+        className="mt-1 h-10 w-full"
         disabled={!activeBranches.length}
         value={branchId}
         onChange={(event) => setBranchId(event.target.value)}
       >
         <option value="">{activeBranches.length ? 'เลือกสาขา' : 'กำลังโหลดสาขา...'}</option>
         {activeBranches.map((option) => <option key={option.id} value={option.id}>{option.code ? `${option.code} - ${option.name}` : option.name}</option>)}
-      </select>
+      </Select>
     </label>
     <label className="block text-xs font-semibold text-slate-600">
       คลัง
-      <select
-        className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+      <Select
+        className="mt-1 h-10 w-full"
         disabled={!branchId}
         value={warehouseId}
         onChange={(event) => setWarehouseId(event.target.value)}
       >
         <option value="">{branchId ? 'เลือกคลัง' : 'เลือกสาขาก่อน'}</option>
         {activeWarehouses.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
-      </select>
+      </Select>
     </label>
   </>
 }
@@ -2142,43 +2163,43 @@ function StatusConvertForm(props: { isSaving: boolean; error?: string | null; on
       {/* สาขา */}
       <label className="block text-xs font-semibold text-slate-600">
         สาขา
-        <select
-          className="mt-1.5 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+        <Select
+          className="mt-1.5 h-10 w-full"
           disabled={!activeBranches.length}
           value={values.branchId}
           onChange={(event) => setValues({ ...values, branchId: event.target.value, warehouseId: '', targetWarehouseId: '' })}
         >
           <option value="">{activeBranches.length ? 'เลือกสาขา' : 'กำลังโหลดสาขา...'}</option>
           {activeBranches.map((option) => <option key={option.id} value={option.id}>{option.code ? `${option.code} - ${option.name}` : option.name}</option>)}
-        </select>
+        </Select>
       </label>
 
       {/* คลังต้นทาง */}
       <label className="block text-xs font-semibold text-slate-600">
         คลังต้นทาง
-        <select
-          className="mt-1.5 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+        <Select
+          className="mt-1.5 h-10 w-full"
           disabled={!values.branchId}
           value={values.warehouseId}
           onChange={(event) => setValues({ ...values, warehouseId: event.target.value })}
         >
           <option value="">{values.branchId ? 'เลือกคลังต้นทาง' : 'เลือกสาขาก่อน'}</option>
           {activeWarehouses.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
-        </select>
+        </Select>
       </label>
 
       {/* คลังปลายทาง */}
       <label className="block text-xs font-semibold text-slate-600">
         คลังปลายทาง
-        <select
-          className="mt-1.5 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+        <Select
+          className="mt-1.5 h-10 w-full"
           disabled={!values.branchId}
           value={values.targetWarehouseId}
           onChange={(event) => setValues({ ...values, targetWarehouseId: event.target.value })}
         >
           <option value="">{values.branchId ? 'เลือกคลังปลายทาง' : 'เลือกสาขาก่อน'}</option>
           {activeWarehouses.filter((option) => option.id !== values.warehouseId).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
-        </select>
+        </Select>
       </label>
 
       <Field label="น้ำหนัก (กก.)" type="number" value={String(values.qty)} onChange={(qty) => setValues({ ...values, qty: Number(qty) })} />
@@ -2441,8 +2462,8 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
         {usesCostPool ? (
           <>
             <label className="block text-sm font-medium md:col-span-2">วิธีตัดต้นทุน
-              <select
-                className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2"
+              <Select
+                className="mt-1.5 h-10 w-full"
                 value={values.allocationMethod}
                 onChange={(event) => setValues({ ...values, allocationMethod: event.target.value as StockConvertFormValues['allocationMethod'], manualAllocations: [] })}
               >
@@ -2451,7 +2472,7 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
                 <option value="HIGHEST_COST">Highest Cost (ต้นทุนสูงก่อน)</option>
                 <option value="LOWEST_COST">Lowest Cost (ต้นทุนต่ำก่อน)</option>
                 <option value="MANUAL">Manual (เลือก lot เอง)</option>
-              </select>
+              </Select>
             </label>
             <div className="md:col-span-2">
               <CostPoolPreview
@@ -2493,14 +2514,14 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
         </div>
         <Field label="น้ำหนักปลายทาง (กก.)" type="number" value={String(values.targetQty)} onChange={(targetQty) => setValues({ ...values, targetQty: Number(targetQty) })} />
         <label className="block text-sm font-medium md:col-span-2">Target Cost Policy
-          <select
-            className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2"
+          <Select
+            className="mt-1.5 h-10 w-full"
             value={values.targetCostPolicy}
             onChange={(event) => setValues({ ...values, targetCostPolicy: event.target.value as StockConvertFormValues['targetCostPolicy'], targetUnitCost: null, targetUnitCostReason: null })}
           >
             <option value="SOURCE_MATCHED">Source matched cost (default)</option>
             <option value="CUSTOM_UNIT_COST">กำหนดต้นทุนต่อหน่วยเอง</option>
-          </select>
+          </Select>
         </label>
         {values.targetCostPolicy === 'CUSTOM_UNIT_COST' ? (
           <>
@@ -2624,9 +2645,9 @@ function AdjustForm(props: { isSaving: boolean; error?: string | null; onCancel:
       <div className="md:col-span-2">
         <label className="block text-xs font-semibold text-slate-600">
           เหตุผล <span className="text-red-600">*</span>
-          <select className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none focus:border-slate-900" value={values.reason} onChange={(event) => setValues({ ...values, reason: event.target.value as StockAdjustFormValues['reason'] })}>
+          <Select className="mt-1 h-10 w-full" value={values.reason} onChange={(event) => setValues({ ...values, reason: event.target.value as StockAdjustFormValues['reason'] })}>
             {reasonOptions.map((reason) => <option key={reason} value={reason}>{stockAdjustReasonLabel(reason)}</option>)}
-          </select>
+          </Select>
         </label>
       </div>
       <div className="md:col-span-2">

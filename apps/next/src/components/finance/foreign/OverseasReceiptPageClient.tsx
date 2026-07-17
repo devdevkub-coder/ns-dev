@@ -5,6 +5,7 @@ import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { formatDateDisplay } from '@/lib/format'
 
@@ -319,12 +320,12 @@ export function OverseasReceiptPageClient() {
                 </Field>
                 <Field label="ประเทศต้นทาง"><input className="w-full rounded-md border px-2 py-1.5" value={form.payerCountry} onChange={(event) => setForm({ ...form, payerCountry: event.target.value })} /></Field>
               </div>
-              <Field label="บัญชีรับเงิน *"><select className="w-full rounded-md border px-2 py-1.5" value={form.receivedAccountId} onChange={(event) => setForm({ ...form, receivedAccountId: event.target.value })}><option value="">--</option>{data?.filters.accounts.map((account) => <option key={account.id} value={account.id}>{account.label}</option>)}</select></Field>
-              <Field label="อ้างอิงบิลขาย (ถ้ามี)"><select className="w-full rounded-md border px-2 py-1.5" value={form.billId} onChange={(event) => setForm({ ...form, billId: event.target.value })}><option value="">--</option>{filteredBills.map((bill) => <option key={bill.id} value={bill.id}>{bill.docNo} - ค้าง {formatMoney(bill.receivableBalance)}</option>)}</select></Field>
+              <Field label="บัญชีรับเงิน *"><Select className="h-10 w-full px-2 py-1.5" value={form.receivedAccountId} onChange={(event) => setForm({ ...form, receivedAccountId: event.target.value })}><option value="">--</option>{data?.filters.accounts.map((account) => <option key={account.id} value={account.id}>{account.label}</option>)}</Select></Field>
+              <Field label="อ้างอิงบิลขาย (ถ้ามี)"><Select className="h-10 w-full px-2 py-1.5" value={form.billId} onChange={(event) => setForm({ ...form, billId: event.target.value })}><option value="">--</option>{filteredBills.map((bill) => <option key={bill.id} value={bill.id}>{bill.docNo} - ค้าง {formatMoney(bill.receivableBalance)}</option>)}</Select></Field>
               <div className="grid gap-3 md:grid-cols-3">
                 <Field label="สกุลที่รับ"><input className="w-full rounded-md border bg-slate-50 px-2 py-1.5" readOnly value={receivedCurrency} /></Field>
                 <Field label="FX Rate"><input className="w-full rounded-md border px-2 py-1.5 text-right" min="0" step="0.0001" type="number" value={form.fxRate} onChange={(event) => setForm({ ...form, fxRate: Number(event.target.value) })} /></Field>
-                <Field label="Charge Bearer"><select className="w-full rounded-md border px-2 py-1.5" value={form.chargeBearer} onChange={(event) => setForm({ ...form, chargeBearer: event.target.value as FormState['chargeBearer'] })}><option value="OUR">OUR</option><option value="SHA">SHA</option><option value="BEN">BEN</option></select></Field>
+                <Field label="Charge Bearer"><Select className="h-10 w-full px-2 py-1.5" value={form.chargeBearer} onChange={(event) => setForm({ ...form, chargeBearer: event.target.value as FormState['chargeBearer'] })}><option value="OUR">OUR</option><option value="SHA">SHA</option><option value="BEN">BEN</option></Select></Field>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <Field label="ยอดตาม Invoice (Foreign)"><input className="w-full rounded-md border px-2 py-1.5 text-right" min="0" step="0.01" type="number" value={form.invoiceAmountForeign} onChange={(event) => setForm({ ...form, invoiceAmountForeign: Number(event.target.value) })} /></Field>

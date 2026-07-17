@@ -388,7 +388,7 @@ Routes/components with high-confidence table mechanics drift:
 - Finance / Accounting:
   - None remaining in this static table-mechanics queue after the A2, A5, A6, and A7 design checkpoints. Browser QA remains pending.
 - Lower-priority playground:
-  - `/daily/design-mockup`
+  - None. `/daily/design-mockup` was removed from the active app on 2026-07-16 by user request.
 
 Notes:
 

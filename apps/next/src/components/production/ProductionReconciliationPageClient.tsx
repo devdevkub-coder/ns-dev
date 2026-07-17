@@ -7,6 +7,7 @@ import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 
 type ProductionReconciliationIssue = {
   actualQty: number
@@ -247,10 +248,10 @@ export function ProductionReconciliationPageClient() {
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
-          <select className="h-9 rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={issueFilter} onChange={(event) => setIssueFilter(event.target.value)}>
+          <Select className="h-9 w-auto text-sm" value={issueFilter} onChange={(event) => setIssueFilter(event.target.value)}>
             <option value="all">ทุกประเภท issue</option>
             {issueKeys.map((issue) => <option key={issue} value={issue}>{issueLabel(issue)}</option>)}
-          </select>
+          </Select>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
           {totalIssues === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}
@@ -323,10 +324,10 @@ export function ProductionReconciliationPageClient() {
         >
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภท Issue</span>
-                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={issueFilter} onChange={(event) => setIssueFilter(event.target.value)}>
+                <Select className="h-9 w-full text-sm" value={issueFilter} onChange={(event) => setIssueFilter(event.target.value)}>
                   <option value="all">ทุกประเภท issue</option>
                   {issueKeys.map((issue) => <option key={issue} value={issue}>{issueLabel(issue)}</option>)}
-                </select>
+                </Select>
               </label>
         </MobileFilterSheet>
       ) : null}

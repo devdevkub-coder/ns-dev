@@ -6,6 +6,7 @@ import { KpiCard as SharedKpiCard, type KpiCardDelta, type KpiCardTone } from '@
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -496,11 +497,11 @@ function DashboardView(props: {
           </div>
           <div>
             <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
-            <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-slate-200" value={dashboardBranchId} onChange={(event) => setDashboardBranchId(event.target.value)}><option value="">ทุกสาขา</option>{(data?.filterOptions.branches ?? []).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>
+            <Select className="h-9 w-full px-2 text-sm font-medium text-slate-900" value={dashboardBranchId} onChange={(event) => setDashboardBranchId(event.target.value)}><option value="">ทุกสาขา</option>{(data?.filterOptions.branches ?? []).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</Select>
           </div>
           <div>
             <span className="mb-1 block text-xs font-semibold text-slate-600">หมวดสินค้า</span>
-            <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-slate-200" value={dashboardGroup} onChange={(event) => setDashboardGroup(event.target.value)}><option value="">ทุกหมวด</option>{(data?.filterOptions.groups ?? []).map((group) => <option key={group} value={group}>{group}</option>)}</select>
+            <Select className="h-9 w-full px-2 text-sm font-medium text-slate-900" value={dashboardGroup} onChange={(event) => setDashboardGroup(event.target.value)}><option value="">ทุกหมวด</option>{(data?.filterOptions.groups ?? []).map((group) => <option key={group} value={group}>{group}</option>)}</Select>
           </div>
           <div>
             <span className="mb-1 block text-xs font-semibold text-slate-600">ผู้ขาย</span>
@@ -529,11 +530,11 @@ function DashboardView(props: {
             </div>
             <div className="space-y-1">
               <span className="block text-[11px] font-semibold text-slate-500">สาขา</span>
-              <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-slate-200" value={dashboardBranchId} onChange={(event) => setDashboardBranchId(event.target.value)}><option value="">ทุกสาขา</option>{(data?.filterOptions.branches ?? []).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>
+              <Select className="h-9 w-full px-2 text-sm font-medium text-slate-900" value={dashboardBranchId} onChange={(event) => setDashboardBranchId(event.target.value)}><option value="">ทุกสาขา</option>{(data?.filterOptions.branches ?? []).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</Select>
             </div>
             <div className="space-y-1">
               <span className="block text-[11px] font-semibold text-slate-500">หมวดสินค้า</span>
-              <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-slate-200" value={dashboardGroup} onChange={(event) => setDashboardGroup(event.target.value)}><option value="">ทุกหมวด</option>{(data?.filterOptions.groups ?? []).map((group) => <option key={group} value={group}>{group}</option>)}</select>
+              <Select className="h-9 w-full px-2 text-sm font-medium text-slate-900" value={dashboardGroup} onChange={(event) => setDashboardGroup(event.target.value)}><option value="">ทุกหมวด</option>{(data?.filterOptions.groups ?? []).map((group) => <option key={group} value={group}>{group}</option>)}</Select>
             </div>
             <div className="space-y-1">
               <span className="block text-[11px] font-semibold text-slate-500">ผู้ขาย</span>

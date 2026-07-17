@@ -46,7 +46,7 @@ const DialogContent = React.forwardRef<
         <DialogPrimitive.Title className="sr-only">{fallbackTitle}</DialogPrimitive.Title>
         {children}
         {!hideClose ? (
-          <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 text-slate-400 hover:text-slate-200">
+          <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm text-slate-500 opacity-70 transition-opacity hover:text-slate-700 hover:opacity-100 focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:text-slate-400 dark:hover:text-slate-200">
             <X className="h-4 w-4" />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
@@ -58,7 +58,14 @@ const DialogContent = React.forwardRef<
 DialogContent.displayName = DialogPrimitive.Content.displayName
 
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div data-ns-dialog-header className={cn('flex flex-col space-y-1.5 rounded-t-md bg-slate-900 p-5 text-white dark:bg-[#0f172a]', className)} {...props} />
+  <div
+    data-ns-dialog-header
+    className={cn(
+      'flex flex-col space-y-1.5 rounded-t-md border-b !border-slate-200 !bg-slate-100 p-5 !text-slate-700 dark:![background-color:var(--ns-dark-table-header)] dark:![border-color:var(--ns-dark-border-strong)] dark:![color:var(--ns-dark-muted)]',
+      className,
+    )}
+    {...props}
+  />
 )
 
 const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
@@ -69,7 +76,7 @@ const DialogTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Title ref={ref} className={cn('text-lg font-bold text-white', className)} {...props} />
+  <DialogPrimitive.Title ref={ref} className={cn('text-lg font-bold !text-slate-800 dark:![color:var(--ns-dark-text)]', className)} {...props} />
 ))
 DialogTitle.displayName = DialogPrimitive.Title.displayName
 
@@ -77,7 +84,7 @@ const DialogDescription = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Description ref={ref} className={cn('text-sm text-slate-300', className)} {...props} />
+  <DialogPrimitive.Description ref={ref} className={cn('text-sm !text-slate-600 dark:![color:var(--ns-dark-muted)]', className)} {...props} />
 ))
 DialogDescription.displayName = DialogPrimitive.Description.displayName
 

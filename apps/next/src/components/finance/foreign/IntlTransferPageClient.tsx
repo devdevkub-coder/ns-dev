@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
@@ -298,15 +299,15 @@ export function IntlTransferPageClient() {
               <div className="grid gap-3 md:grid-cols-3">
                 <Field label="เลขที่"><input className="w-full rounded-md border bg-slate-50 px-2 py-1.5 font-mono" readOnly value="ITF-DRAFT" /></Field>
                 <Field label="วันที่"><DatePickerInput className="w-full" value={form.date} onChange={(value) => setForm({ ...form, date: value })} /></Field>
-                <Field label="วัตถุประสงค์"><select className="w-full rounded-md border px-2 py-1.5" value={form.purposeId} onChange={(event) => setForm({ ...form, purposeId: event.target.value })}><option value="">--</option>{data?.filters.purposes.map((purpose) => <option key={purpose.id} value={purpose.id}>{purpose.label}</option>)}</select></Field>
+                <Field label="วัตถุประสงค์"><Select className="h-10 w-full px-2 py-1.5" value={form.purposeId} onChange={(event) => setForm({ ...form, purposeId: event.target.value })}><option value="">--</option>{data?.filters.purposes.map((purpose) => <option key={purpose.id} value={purpose.id}>{purpose.label}</option>)}</Select></Field>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
-                <Field label="ประเภท"><select className="w-full rounded-md border px-2 py-1.5" value={form.transferType} onChange={(event) => setForm({ ...form, transferType: event.target.value })}>{transferTypes.map((type) => <option key={type}>{type}</option>)}</select></Field>
-                <Field label="Charge Bearer"><select className="w-full rounded-md border px-2 py-1.5" value={form.chargeBearer} onChange={(event) => setForm({ ...form, chargeBearer: event.target.value as FormState['chargeBearer'] })}><option value="OUR">OUR - ผู้โอนจ่ายค่าธรรมเนียมทั้งหมด</option><option value="SHA">SHA - แบ่งค่าธรรมเนียม</option><option value="BEN">BEN - ผู้รับรับภาระค่าธรรมเนียม</option></select></Field>
+                <Field label="ประเภท"><Select className="h-10 w-full px-2 py-1.5" value={form.transferType} onChange={(event) => setForm({ ...form, transferType: event.target.value })}>{transferTypes.map((type) => <option key={type}>{type}</option>)}</Select></Field>
+                <Field label="Charge Bearer"><Select className="h-10 w-full px-2 py-1.5" value={form.chargeBearer} onChange={(event) => setForm({ ...form, chargeBearer: event.target.value as FormState['chargeBearer'] })}><option value="OUR">OUR - ผู้โอนจ่ายค่าธรรมเนียมทั้งหมด</option><option value="SHA">SHA - แบ่งค่าธรรมเนียม</option><option value="BEN">BEN - ผู้รับรับภาระค่าธรรมเนียม</option></Select></Field>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
-                <Field label="บัญชีต้นทาง *"><select className="w-full rounded-md border px-2 py-1.5" value={form.fromAccountId} onChange={(event) => setForm({ ...form, fromAccountId: event.target.value })}><option value="">--</option>{data?.filters.accounts.map((account) => <option key={account.id} value={account.id}>{account.label}</option>)}</select></Field>
-                <Field label="ผู้รับ (Beneficiary) *"><select className="w-full rounded-md border px-2 py-1.5" value={form.beneficiaryId} onChange={(event) => setForm({ ...form, beneficiaryId: event.target.value })}><option value="">--</option>{data?.filters.beneficiaries.map((beneficiary) => <option key={beneficiary.id} value={beneficiary.id}>{beneficiary.label}</option>)}</select></Field>
+                <Field label="บัญชีต้นทาง *"><Select className="h-10 w-full px-2 py-1.5" value={form.fromAccountId} onChange={(event) => setForm({ ...form, fromAccountId: event.target.value })}><option value="">--</option>{data?.filters.accounts.map((account) => <option key={account.id} value={account.id}>{account.label}</option>)}</Select></Field>
+                <Field label="ผู้รับ (Beneficiary) *"><Select className="h-10 w-full px-2 py-1.5" value={form.beneficiaryId} onChange={(event) => setForm({ ...form, beneficiaryId: event.target.value })}><option value="">--</option>{data?.filters.beneficiaries.map((beneficiary) => <option key={beneficiary.id} value={beneficiary.id}>{beneficiary.label}</option>)}</Select></Field>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
                 <Field label="สกุลต้นทาง"><input className="w-full rounded-md border bg-slate-50 px-2 py-1.5" readOnly value={sourceCurrency} /></Field>

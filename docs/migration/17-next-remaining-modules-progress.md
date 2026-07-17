@@ -1590,7 +1590,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
   - Missing for true accounting statements: no confirmed GL journal header/line table, chart of accounts mapping, closing period table, retained earnings roll-forward, tax filing state, or dedicated historical import staging tables.
 - Read/report baseline candidates:
   - A1 Financial Dashboard can be derived from existing AR/AP/cash/stock/assets/loans tables as a management dashboard, with clear source-state notes.
-  - A2 Cash Flow Analysis / Forecast can derive from `accounts`, `bank_statement`, `sales_bills.receivable_balance/due_date`, `purchase_bills.payable_balance/due_date`, `loan_schedules`, and known expense/payment rows.
+  - A2 Cash Flow Analysis / Forecast can derive from `accounts`, `bank_statement`, `sales_bills.receivable_balance/due_date`, `purchase_bills.payable_balance` using the Purchase Bill document date under the current conservative policy, `loan_schedules`, and known expense/payment rows. Current PB/supplier schema has no confirmed due-date or supplier credit-term source.
   - A3 Working Capital / Stock Finance can derive from AR/AP balances, stock value from `stock_ledger`, and cash/bank state.
   - A6 Asset Register / Depreciation / Disposal can start as read baselines from `assets` and `depreciations`; depreciation run/reversal/disposal writes need a separate accounting-side-effect design.
   - A7 Loan Contracts / Loan Dashboard can start as read baselines from `loans`, `loan_schedules`, and `loan_payments`.
@@ -1632,6 +1632,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - UI baseline: preserved legacy-first violet/purple hero, P&L 6-month chart, asset composition donut, cash need/inflow comparison, finance section cards, P&L summary, balance sheet summary, and Cash Health Insights.
 - Validation: passed `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`, and `git diff --check`. OpenAPI remains valid with the existing warning baseline.
 - Browser QA: unauth subagent confirmed the page redirects to login, API returns `401`, and login desktop/mobile has no horizontal overflow. Authenticated main Playwright smoke confirmed the API returns `200`, desktop/mobile widths have no horizontal overflow, expected legacy-colored dashboard markers render, and no console errors were reported.
+- Empty-month tooltip follow-up 2026-07-17: month groups with no finite non-zero Revenue/COGS/PBT bar have no tooltip hit area, click/focus handler or tab stop; entering blank plot space clears an already-open tooltip. Months with visible bars retain immediate mouse, keyboard and touch access. Regression suite `16/16`, focused finance `127/127`, targeted ESLint, type-check and the 307-page production build passed.
 - Push marker: committed and pushed as `01a6b5b` (`feat: add financial dashboard baseline`).
 
 ### A2: Cash Flow Analysis and Forecast Calendar
@@ -1658,6 +1659,15 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - UI changes: converted the Cash Flow Analysis detail table, Forecast Calendar Top AR/AP insight tables, and day-event detail modal to the active lined/resizable table baseline with Thai-first headers, persisted widths, reset-width controls, and safer numeric alignment. Existing charts, cards, filter layout, calendar grid, baseline notice, and mobile card views were preserved.
 - Boundary: UI/layout only; no forecast formula, AP/AR/payment schedule source, bank, stock, tax, loan, GL, statutory cash-flow statement, forecast write, payment/receipt creation, reclass, API, or business behavior changed.
 - Validation: targeted ESLint for `CashFlowPlanningPageClients.tsx`, full Next lint, full Next type-check, and full Next build passed. Browser QA remains pending because this was a local code/layout checkpoint only.
+
+#### A2 Formula / Scope Correction 2026-07-17
+
+- Cash Flow Analysis now consumes the canonical management PBT calculation from `buildPlStatement()` and no longer labels/rebuilds it as net profit. OCF uses active Customer Receipt `net_cash_in`, PMT `net_amount` classified by approval source and account-scoped loan-payment interest; Expense PMT and duplicated fee fields are counted once.
+- THB cash uses opening balances plus database account-grouped bank movement. OD use is measured per account. FCD stays separated by currency and uses opening balance only until a foreign-movement source exists.
+- The 7/30-day scenario includes AR, conservative Purchase Bill bill-date AP, unpaid expense due/document dates, transaction-derived tax calendar and, only for unrestricted scope, loan schedules. Branch-scoped results explicitly exclude loan schedules because the source has no branch/account dimension.
+- `ALL` and XLSX use the effective authorization scope: explicit `all` roles remain unrestricted, while `own/custom` roles intersect `app_user_branch_access` and fail closed when no mapping exists. Source rows, PBT, tax, cash and branch options cannot expand beyond that scope; a forbidden requested branch returns `403`.
+- UI now separates THB/FCD, states the projection basis, uses PBT wording, exposes related navigation and Excel, hydrates incoming drilldown filters before the first request, keeps mobile edits draft-until-apply, hides stale/error figures, and suppresses non-finite chart/OD/status output across Analysis and Forecast.
+- Final focused regression validation passed 127/127 across 17 files covering P&L, Cash Flow Analysis/Forecast, finance branch fail-closed scope, shared cash position, Asset Overview scope, AR/AP Bangkok aging, Financial Dashboard route/integration/UI and finance report UI. Workspace type-check passed; full lint has 0 errors and one existing warning; production build generated 307 pages; audit found 0 vulnerabilities; the navigation/login/RSC guard passed 213/213; browser QA passed 80/80 plus 37/37 narrow smoke. Full Vitest is 221/223 with only the two pre-existing shared-table contract failures outside this batch.
 
 ### A3: Working Capital and Stock Finance
 
@@ -1716,6 +1726,15 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - UI changes: converted the shared Statement tables and drilldown detail modal to the active lined/resizable table baseline with Thai-first headers, persisted widths, reset-width controls, and safer numeric alignment. Mobile card views were preserved.
 - Boundary: UI/layout only; no report formula, source table, query param, management-vs-statutory boundary, GL posting, period close, retained earnings, cash-flow category write, stock, bank, AP/AR, asset, loan, equity, or API behavior changed.
 - Validation: targeted ESLint for `FinancialStatementsPageClients.tsx`, full Next lint, full Next type-check, and full Next build passed. Browser QA remains pending because this was a local code/layout checkpoint only.
+
+#### A5 P&L Formula / Scope Correction 2026-07-17
+
+- Revenue now uses `total_amount - vat_amount` after header discount; operating expense uses `expenses.amount` rather than the VAT/WHT-adjusted cash settlement; depreciation is posted/non-reversed; loan interest follows account branch; approved non-reversed asset-disposal gain/loss is included by `disposal_date`.
+- PBT is the single shared management formula consumed by Cash Flow Analysis and Financial Dashboard. FX is excluded and disclosed whenever branch scope is constrained because `fx_gain_loss` has no branch dimension.
+- The misleading Stock/Trading partial-PBT filter is rejected; Stock/Trading remains a supporting revenue/COGS split only until shared-cost allocation exists.
+- JSON, branch options, source queries and XLSX use the same effective authorized scope, with `own/custom` roles failing closed when no branch mapping exists. Dates are strict, unknown branches do not fall back to all branches, source-document rows keep their owner links, and related-report navigation preserves incoming period/branch filters.
+- UI keeps the statement order fixed, adds loading/error/stale-request protection, mobile draft/apply filters, management/unit/source notices, real Excel export and accessible detail links. Missing/non-finite figures display `ไม่มีข้อมูล`.
+- Final focused regression validation passed 127/127 across 17 files covering P&L, Cash Flow Analysis/Forecast, finance branch fail-closed scope, shared cash position, Asset Overview scope, AR/AP Bangkok aging, Financial Dashboard route/integration/UI and finance report UI. Workspace type-check passed; full lint has 0 errors and one existing warning; production build generated 307 pages; audit found 0 vulnerabilities; the navigation/login/RSC guard passed 213/213. Full Vitest is 221/223 with only the two pre-existing shared-table contract failures outside this batch.
 
 ### A6: Fixed Assets
 

@@ -277,6 +277,7 @@ export function WeightTicketDashboardPageClient() {
               allOptionLabel="ทุกสาขา"
               branches={branches}
               className="w-[12rem]"
+              controlSize="filter"
               includeAllOption
               inputId="weight-ticket-dashboard-branch"
               label=""
@@ -396,6 +397,7 @@ export function WeightTicketDashboardPageClient() {
               allOptionLabel="ทุกสาขา"
               branches={branches}
               className="w-full"
+              controlSize="filter"
               includeAllOption
               inputId="weight-ticket-dashboard-branch-mobile"
               label="สาขา"

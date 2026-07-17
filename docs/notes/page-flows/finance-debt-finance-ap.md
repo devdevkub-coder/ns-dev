@@ -135,6 +135,13 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - Source links to PB/PMA/PMT/Supplier Advance are available in detail; export/source-link depth can still be expanded later.
 - Need created date in list/detail/export.
 
+## Drilldown Scope Hydration 2026-07-17
+
+- What is what: `/finance/ap` accepts outward `from`, `to`, and branch-code `branchId` from a related-report URL and initializes the AP client with them before its first request.
+- Why it has to be like this: period-based navigation preserves its source range, while the Financial Dashboard's as-of outstanding KPI intentionally sends an empty `from` plus `to=asOf`; the client must preserve that empty lower bound so older open bills are not dropped by a current-month default.
+- Authorization: bills, branch options, supplier options and returned supplier-branch mappings use the same effective finance branch intersection. Unknown/inactive explicit branches return `404`; existing branches outside scope return `403`; an empty mapped scope returns no branch data.
+- Aging cutoff: `today` is normalized to the Bangkok business date before comparison with the accepted Purchase Bill base date, preventing the 00:00–06:59 Bangkok window from reporting one day behind.
+
 ## Implementation Checklist
 
 - [x] Verify current Next page/component against this page-flow

@@ -6,6 +6,9 @@ const mocks = vi.hoisted(() => ({
   findMany: vi.fn(),
   getBranchCodeIntersection: vi.fn(),
   getCurrentAuthContext: vi.fn(),
+  listActiveBranches: vi.fn(),
+  listActiveBranchesByCodes: vi.fn(),
+  listWarehouseMasterRecords: vi.fn(),
   warehouseFindMany: vi.fn(),
 }))
 
@@ -31,6 +34,11 @@ vi.mock('@/lib/server/production-orders', () => ({
   createProductionOrderSchema: { parse: vi.fn() },
   ProductionOrderError: class ProductionOrderError extends Error {},
 }))
+vi.mock('@/lib/server/reference-master-cache', () => ({
+  listActiveBranches: mocks.listActiveBranches,
+  listActiveBranchesByCodes: mocks.listActiveBranchesByCodes,
+  listWarehouseMasterRecords: mocks.listWarehouseMasterRecords,
+}))
 vi.mock('@/lib/server/xlsx', () => ({
   applyWorksheetTableLayout: vi.fn(),
   XLSX: {
@@ -54,6 +62,9 @@ beforeEach(() => {
   mocks.findMany.mockResolvedValue([])
   mocks.warehouseFindMany.mockResolvedValue([])
   mocks.branchFindMany.mockResolvedValue([])
+  mocks.listActiveBranches.mockResolvedValue([])
+  mocks.listActiveBranchesByCodes.mockResolvedValue([])
+  mocks.listWarehouseMasterRecords.mockResolvedValue([])
 
   mocks.getBranchCodeIntersection.mockImplementation((_context, requested?: string | null) => {
     if (requested) return requested === 'B01' ? ['B01'] : []
@@ -67,7 +78,7 @@ describe('production orders branch authorization', () => {
 
     await GET(new Request('http://localhost/api/production/orders'))
     expect(mocks.findMany.mock.calls[0]?.[0].where).not.toHaveProperty('branches')
-    expect(mocks.branchFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { active: true } }))
+    expect(mocks.listActiveBranches).toHaveBeenCalledTimes(1)
 
     vi.clearAllMocks()
     mocks.getCurrentAuthContext.mockResolvedValue(context)
@@ -90,9 +101,7 @@ describe('production orders branch authorization', () => {
     expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ branches: { code: { in: ['B01'] } } }),
     }))
-    expect(mocks.branchFindMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { active: true, code: { in: ['B01'] } },
-    }))
+    expect(mocks.listActiveBranchesByCodes).toHaveBeenCalledWith(['B01'])
   })
 
   it('returns no rows when a restricted user requests a disallowed branch', async () => {
@@ -121,7 +130,8 @@ describe('production orders branch authorization', () => {
       where: expect.objectContaining({ branches: { code: { in: [] } } }),
     }))
     expect(mocks.count).not.toHaveBeenCalled()
-    expect(mocks.branchFindMany).not.toHaveBeenCalled()
+    expect(mocks.listActiveBranches).not.toHaveBeenCalled()
+    expect(mocks.listActiveBranchesByCodes).not.toHaveBeenCalled()
   })
 })
 

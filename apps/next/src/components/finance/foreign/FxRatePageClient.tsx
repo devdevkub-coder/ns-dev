@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
+import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
@@ -71,6 +73,11 @@ const fxRateColumns: Array<ResizableColumnDefinition<FxRateColumnKey>> = [
 ]
 
 const today = new Date().toISOString().slice(0, 10)
+const statusFilterOptions = [
+  { label: 'ทั้งหมด', value: 'all' },
+  { label: 'Active', value: 'true' },
+  { label: 'Inactive', value: 'false' },
+]
 
 function emptyForm(): FormState {
   return {
@@ -275,16 +282,25 @@ export function FxRatePageClient() {
           <span className="text-slate-400">→</span>
           <DatePickerInput ariaLabel="ถึงวันที่" className="w-[130px]" value={toDate} onChange={setToDate} />
           
-          <select aria-label="สกุลต้นทาง" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={fromCurrency} onChange={(event) => setFromCurrency(event.target.value)}>
+          <Select aria-label="สกุลต้นทาง" className="h-9 w-auto min-w-[120px]" value={fromCurrency} onChange={(event) => setFromCurrency(event.target.value)}>
             <option value="all">ทุกสกุล</option>
             {(data?.filters.fromCurrencies ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
-          
-          <select aria-label="สถานะ" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={active} onChange={(event) => setActive(event.target.value)}>
-            <option value="true">Active</option>
-            <option value="false">Inactive</option>
-            <option value="all">ทั้งหมด</option>
-          </select>
+          </Select>
+
+          <span className="text-xs text-slate-500">สถานะ:</span>
+          <div aria-label="สถานะ" className="flex flex-wrap items-center gap-2" role="group">
+            {statusFilterOptions.map((option) => (
+              <SegmentedFilterButton
+                active={active === option.value}
+                aria-pressed={active === option.value}
+                key={option.value}
+                type="button"
+                onClick={() => setActive(option.value)}
+              >
+                {option.label}
+              </SegmentedFilterButton>
+            ))}
+          </div>
 
           {hasFilters && (
             <button className="rounded-md bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors" type="button" onClick={() => { setFromDate(''); setToDate(''); setFromCurrency('all'); setActive('true') }}>✕ ล้าง</button>
@@ -322,22 +338,30 @@ export function FxRatePageClient() {
                   <DatePickerInput className="mt-1 w-full" value={toDate} onChange={setToDate} />
                 </label>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2">
                 <label className="text-xs text-slate-500">
                   สกุลต้นทาง
-                  <select aria-label="สกุลต้นทาง" className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" value={fromCurrency} onChange={(event) => setFromCurrency(event.target.value)}>
+                  <Select aria-label="สกุลต้นทาง" className="mt-1 h-9 w-full" value={fromCurrency} onChange={(event) => setFromCurrency(event.target.value)}>
                     <option value="all">ทุกสกุล</option>
                     {(data?.filters.fromCurrencies ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-                  </select>
+                  </Select>
                 </label>
-                <label className="text-xs text-slate-500">
-                  สถานะ
-                  <select aria-label="สถานะ" className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" value={active} onChange={(event) => setActive(event.target.value)}>
-                    <option value="true">Active</option>
-                    <option value="false">Inactive</option>
-                    <option value="all">ทั้งหมด</option>
-                  </select>
-                </label>
+                <div>
+                  <span className="text-xs text-slate-500">สถานะ:</span>
+                  <div aria-label="สถานะ" className="mt-1 flex flex-wrap gap-2" role="group">
+                    {statusFilterOptions.map((option) => (
+                      <SegmentedFilterButton
+                        active={active === option.value}
+                        aria-pressed={active === option.value}
+                        key={option.value}
+                        type="button"
+                        onClick={() => setActive(option.value)}
+                      >
+                        {option.label}
+                      </SegmentedFilterButton>
+                    ))}
+                  </div>
+                </div>
               </div>
               {hasFilters && (
                 <button className="w-full rounded-md bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={() => { setFromDate(''); setToDate(''); setFromCurrency('all'); setActive('true') }}>ล้างตัวกรอง</button>
@@ -448,12 +472,12 @@ export function FxRatePageClient() {
             </div>
             <div className="grid gap-3 bg-slate-50 p-5 text-sm md:grid-cols-2">
               <Field label="วันที่" error={fieldErrors.rateDate}><DatePickerInput className="w-full h-9 text-sm" value={form.rateDate} onChange={(value) => setForm({ ...form, rateDate: value })} /></Field>
-              <Field label="Rate Type" error={fieldErrors.rateType}><select className="w-full rounded-md border px-2 py-1.5 h-9 text-sm outline-none" value={form.rateType} onChange={(event) => setForm({ ...form, rateType: event.target.value })}>{rateTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></Field>
+              <Field label="Rate Type" error={fieldErrors.rateType}><Select className="h-10 w-full" value={form.rateType} onChange={(event) => setForm({ ...form, rateType: event.target.value })}>{rateTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}</Select></Field>
               <Field label="From" error={fieldErrors.fromCurrency}><CurrencySelect options={currencyOptions} value={form.fromCurrency} onChange={(value) => setForm({ ...form, fromCurrency: value })} /></Field>
               <Field label="To" error={fieldErrors.toCurrency}><CurrencySelect options={currencyOptions} value={form.toCurrency} onChange={(value) => setForm({ ...form, toCurrency: value })} /></Field>
               <Field label="Rate" error={fieldErrors.rate}><input className="w-full rounded-md border px-2 py-1.5 text-right font-bold h-9 text-sm outline-none" inputMode="decimal" value={form.rate} onChange={(event) => setForm({ ...form, rate: event.target.value })} /></Field>
               <Field label="Source"><input className="w-full rounded-md border px-2 py-1.5 h-9 text-sm outline-none" value={form.source} onChange={(event) => setForm({ ...form, source: event.target.value })} /></Field>
-              <Field label="สถานะ"><select className="w-full rounded-md border px-2 py-1.5 h-9 text-sm outline-none" value={String(form.active)} onChange={(event) => setForm({ ...form, active: event.target.value === 'true' })}><option value="true">Active</option><option value="false">Inactive</option></select></Field>
+              <Field label="สถานะ"><Select className="h-10 w-full" value={String(form.active)} onChange={(event) => setForm({ ...form, active: event.target.value === 'true' })}><option value="true">Active</option><option value="false">Inactive</option></Select></Field>
               <Field label="หมายเหตุ"><input className="w-full rounded-md border px-2 py-1.5 h-9 text-sm outline-none" value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} /></Field>
             </div>
           </div>
@@ -483,5 +507,5 @@ function Field({ children, error, label }: { children: ReactNode; error?: string
 }
 
 function CurrencySelect({ onChange, options, value }: { onChange: (value: string) => void; options: string[]; value: string }) {
-  return <select className="w-full rounded-md border px-2 py-1.5" value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select>
+  return <Select className="h-10 w-full" value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option} value={option}>{option}</option>)}</Select>
 }

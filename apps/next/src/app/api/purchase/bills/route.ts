@@ -3275,6 +3275,15 @@ export async function PATCH(request: Request) {
       return { ...bill, ...settlement }
     })
 
+    try {
+      await enqueueAndExecuteNotification(
+        { sourceType: 'purchase_bill', documentNo: updatedBill.doc_no },
+        { requestedBy: actor, force: true },
+      )
+    } catch (caught) {
+      console.error('[purchase_bill] LINE notification failed', caught)
+    }
+
     return NextResponse.json({
       docNo: updatedBill.doc_no,
       id: updatedBill.doc_no,

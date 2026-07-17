@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { SlidersHorizontal } from 'lucide-react'
 import { z } from 'zod'
@@ -314,12 +315,12 @@ export function AuditLogPageClient() {
         >
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">กลุ่ม</span>
-                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={group} onChange={(event) => {
+                <Select className="h-9 w-full text-sm" value={group} onChange={(event) => {
                   setGroup(event.target.value as EventGroup)
                   setPage(1)
                 }}>
                   {eventGroups.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                </select>
+                </Select>
               </label>
 
               <label className="block">
@@ -389,12 +390,12 @@ export function AuditLogPageClient() {
           </label>
           <label className="block text-sm font-medium">
             กลุ่ม
-            <select className="mt-1.5 h-9 w-full rounded-md border border-slate-300 bg-white px-3 outline-none focus:border-slate-700 text-sm" value={group} onChange={(event) => {
+            <Select className="mt-1.5 h-9 w-full text-sm" value={group} onChange={(event) => {
               setGroup(event.target.value as EventGroup)
               setPage(1)
             }}>
               {eventGroups.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </select>
+            </Select>
           </label>
           <label className="block text-sm font-medium">
             Event Type

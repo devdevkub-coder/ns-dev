@@ -23,6 +23,7 @@ import { FormSelectField } from '@/components/ui/FormSelectField'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage } from '@/lib/api-client'
@@ -531,9 +532,9 @@ export function SuppliersPageClient() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-slate-500 font-medium">ผู้ดูแล:</span>
-            <select
+            <Select
               aria-label="กรองผู้ดูแล"
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
               value={salespersonFilter}
               onChange={(event) => {
                 setPage(1)
@@ -544,7 +545,7 @@ export function SuppliersPageClient() {
               {salespersons.map((salesperson) => (
                 <option key={salesperson.id} value={salesperson.id}>{salesperson.name}</option>
               ))}
-            </select>
+            </Select>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-slate-500 font-medium">สถานะ:</span>
@@ -661,9 +662,9 @@ export function SuppliersPageClient() {
 
               <label className="block">
                 <span className="mb-1.5 block text-xs font-semibold text-slate-600">ผู้ดูแล</span>
-                <select
+                <Select
                   aria-label="กรองผู้ดูแลมือถือ"
-                  className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white"
+                  className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm bg-white"
                   value={salespersonFilter}
                   onChange={(event) => {
                     setPage(1)
@@ -674,7 +675,7 @@ export function SuppliersPageClient() {
                   {salespersons.map((salesperson) => (
                     <option key={salesperson.id} value={salesperson.id}>{salesperson.name}</option>
                   ))}
-                </select>
+                </Select>
               </label>
 
               <div>

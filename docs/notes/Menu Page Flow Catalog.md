@@ -68,8 +68,6 @@ Source:
 | `/daily/expense-dashboard` | Dashboard ค่าใช้จ่าย | [[Expense Dashboard Flow]] | accepted code baseline | legacy `expenseDashboard`: expense analysis by type/category/status/period | align with final expense category/type model |
 | `/purchase/po-buy` | PO Buy | [[PO Buy Page Flow]], [[Purchase Flow]] | accepted code baseline | target: PO Buy reservation/cost commitment, feeds WTI/PB and cost pool; PO has no stock/AP effect by itself | finish close-short, allocation logs, timeline, print/detail parity, and PO aging |
 | `/sales/po-sell` | PO Sell | [[PO Sell Flow]], [[Sales Flow]] | accepted code baseline | target: PO Sell reservation/customer commitment, feeds WTO/SB and cost allocator | finish line-level allocation and branch-aware numbering |
-| `/daily/design-mockup` | Design Mockup | [[Architecture Map]] | playground | internal UI/design playground, not a business transaction flow | keep out of production business flow and permissions if needed |
-
 ## Production
 
 | Route | Page | Detailed doc | Current Next | Flow baseline | Gap |

@@ -5,6 +5,7 @@ import { Activity, Building2, FileWarning, HandCoins, ReceiptText, RotateCcw, Sl
 import { KpiCard as SharedKpiCard, KpiCardGrid } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
@@ -84,20 +85,20 @@ export function TaxVatWhtPageClient() {
       <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex">
         <div className="flex items-center gap-2">
           <label className="text-sm text-slate-600 font-medium">งวด</label>
-          <select 
+          <Select
             className="rounded-md border border-slate-300 px-3 py-1 bg-white text-sm outline-none focus:ring-0 focus:border-slate-400 transition-colors h-9 cursor-pointer"
             value={month} 
             onChange={(event) => setMonth(event.target.value)}
           >
             {MONTHS.map((item) => <option key={item} value={item}>เดือน {item}</option>)}
-          </select>
-          <select 
+          </Select>
+          <Select
             className="rounded-md border border-slate-300 px-3 py-1 bg-white text-sm outline-none focus:ring-0 focus:border-slate-400 transition-colors h-9 cursor-pointer"
             value={year} 
             onChange={(event) => setYear(event.target.value)}
           >
             {YEARS.map((item) => <option key={item} value={String(item)}>ปี {item}</option>)}
-          </select>
+          </Select>
           <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
         </div>
         <div className="ml-auto flex items-center gap-3">
@@ -160,38 +161,38 @@ export function TaxVatWhtPageClient() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-600">เดือน</label>
-              <select
+              <Select
                 aria-label="เลือกเดือน"
-                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-slate-400"
+                className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-slate-400"
                 value={mobileMonth}
                 onChange={(event) => setMobileMonth(event.target.value)}
               >
                 {MONTHS.map((item) => <option key={item} value={item}>เดือน {item}</option>)}
-              </select>
+              </Select>
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-600">ปี</label>
-              <select
+              <Select
                 aria-label="เลือกปี"
-                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-slate-400"
+                className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-slate-400"
                 value={mobileYear}
                 onChange={(event) => setMobileYear(event.target.value)}
               >
                 {YEARS.map((item) => <option key={item} value={String(item)}>ปี {item}</option>)}
-              </select>
+              </Select>
             </div>
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
-            <select
+            <Select
               aria-label="สาขา"
-              className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-slate-400"
+              className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-slate-400"
               value={mobileBranchId}
               onChange={(event) => setMobileBranchId(event.target.value)}
             >
               <option value="">ทุกสาขา</option>
               {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
+            </Select>
           </div>
         </MobileFilterSheet>
       ) : null}
@@ -338,14 +339,14 @@ function BaselineNotice({ sourceState }: { sourceState?: SourceState }) {
 
 function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; onChange: (value: string) => void; value: string }) {
   return (
-    <select 
+    <Select
       className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:ring-0 focus:border-slate-400 transition-colors h-9"
       value={value} 
       onChange={(event) => onChange(event.target.value)}
     >
       <option value="">ทุกสาขา</option>
       {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-    </select>
+    </Select>
   )
 }
 
