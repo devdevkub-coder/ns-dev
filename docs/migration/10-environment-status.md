@@ -12,9 +12,9 @@ Important account boundary:
 - A future `new-prod` project has not been created yet.
 
 Git branch boundary:
-- `new-origin/uat` is only the default Git promotion branch in the main repo workflow.
-- The actual UAT environment must be identified from deployment env and database env (`NEXT_PUBLIC_SUPABASE_URL`, `DATABASE_URL`, Vercel project/domain, and target remote) before any promote/deploy/debug action.
-- Do not assume every environment called `uat` is backed by `new-origin/uat`; customer UAT may be served from a different remote/repo while still using the customer UAT env.
+- Customer UAT has one Git promotion target: `uat-origin/main` (`nserprich99-creator/ns-erp`).
+- `new-origin/uat` was retired on 2026-07-17 and must not be used or recreated.
+- The actual UAT environment must still be identified from deployment env and database env (`NEXT_PUBLIC_SUPABASE_URL`, `DATABASE_URL`, Vercel project/domain, and target remote) before any promote/deploy/debug action.
 - The old remote branch `new-origin/staging` was deleted on 2026-06-25 to avoid confusion and must not be recreated.
 - The `staging-uat` name in this document refers to a future Supabase environment/project, not a Git branch.
 
@@ -83,6 +83,15 @@ Status update on 2026-07-16:
   - let customer/user validate business flow
   - run reconciliation checks before any production cutover
 - Should be a separate Supabase project, not another database inside the same project
+
+Current Git policy as of 2026-07-17:
+- customer UAT code is promoted only from the approved SIT source into `uat-origin/main`
+- `new-origin/uat` is retired; a local branch named `uat` is not a deployment target
+
+Schema parity checkpoint on 2026-07-17:
+- Before the SIT-to-UAT promotion, direct schema dumps of `public`, `maintenance`, `auth`, and `supabase_migrations` found UAT missing Customer Advance allocation breakdown migration `20260716082726`, Supplier ADV monetary precision, `sales_plans` RLS, and two `app_users` lifecycle comments.
+- Existing migration `20260716082726_add_customer_advance_allocation_breakdown.sql` was applied and recorded in UAT. New migration `20260717093000_align_finance_precision_and_sales_plan_rls.sql` was applied and recorded in dev-target, SIT, and UAT after confirming no Supplier ADV value had more than two decimal places.
+- Postflight normalized schema dumps for SIT and UAT are identical. UAT retains two historical CADV migration-history rows (`20260715133000`, `20260715143000`) not present in SIT because SIT received the equivalent schema through its database refresh; this is history-only and not schema drift.
 
 Status update on 2026-07-14:
 - `apps/next/.env.uat.local` exists only as a local ignored reference file for customer UAT credentials and connection strings. It is not committed and is not loaded automatically by Vercel deployments.

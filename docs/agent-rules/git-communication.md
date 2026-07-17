@@ -5,9 +5,9 @@
 - Do not revert user changes unless explicitly requested.
 - Do not use destructive git commands unless explicitly requested.
 - Keep commits focused by phase or module.
-- Push only to `new-origin` / `https://github.com/terner/new-ns-scrap-erp.git`.
-- Use `new-origin/uat` as the Git UAT branch. The old remote branch `new-origin/staging` has been deleted to avoid confusion; do not recreate it or promote through it.
-- Treat the Git branch name `uat` as workflow metadata only. The real UAT target is whichever deployment/database env the user is referring to. Before any promote/deploy/debug step, verify the actual UAT target from env/deployment settings instead of assuming it maps 1:1 to `new-origin/uat`.
+- Push normal integration work only to `new-origin` / `https://github.com/terner/new-ns-scrap-erp.git`.
+- Customer UAT has one Git target only: `uat-origin/main` (`nserprich99-creator/ns-erp`). Do not create, use, or promote through `new-origin/uat`; that branch was retired on 2026-07-17.
+- Before any customer UAT promote/deploy/debug step, verify `uat-origin/main` together with the active UAT Vercel/database env. The local branch name `uat` is not a deployment target.
 - Treat `origin` / `https://github.com/sirimasth/ns-scrap-erp.git` as legacy read-only reference material only.
 - Never push, force-push, create branches, delete branches, open PRs, write tags, or otherwise mutate `origin` / `https://github.com/sirimasth/ns-scrap-erp.git`.
 - Use `origin` only for read operations such as fetch, log, diff, show, and checkout-to-inspect.

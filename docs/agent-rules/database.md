@@ -29,7 +29,7 @@ Environment naming:
 - `staging-uat`: not created yet
 - `new-prod`: not created yet
 
-Note: `staging-uat` is a future Supabase environment/project name. Git UAT promotion uses `new-origin/uat`; the old `new-origin/staging` branch has been deleted and must not be recreated.
+Note: `staging-uat` is a future Supabase environment/project name. Customer UAT promotion uses `uat-origin/main`; `new-origin/uat` was retired on 2026-07-17 and must not be recreated.
 
 Account boundary:
 - `dev-target`, `legacy-prod-source`, and future `staging-uat` should be separate Supabase account/project contexts where practical.
