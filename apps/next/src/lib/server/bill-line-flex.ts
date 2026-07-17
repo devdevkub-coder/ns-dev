@@ -45,8 +45,8 @@ function detailRow(label: string, value: string) {
     type: 'box',
     layout: 'horizontal',
     contents: [
-      { type: 'text', text: label, color: '#94a3b8', size: 'sm', flex: 2 },
-      { type: 'text', text: value, color: '#f8fafc', size: 'sm', flex: 4, align: 'end', wrap: true },
+      { type: 'text', text: label, color: '#475569', size: 'sm', flex: 2 },
+      { type: 'text', text: value, color: '#0f172a', size: 'sm', flex: 4, align: 'end', wrap: true },
     ],
   }
 }
@@ -60,12 +60,12 @@ function settlementStatus(input: BillLineFlexData) {
 
 export function buildBillLineFlexMessage(input: BillLineFlexData, detailUrl: string) {
   const isPurchase = input.sourceType === 'purchase_bill'
-  const title = isPurchase ? 'บิลซื้อใหม่' : 'บิลขายใหม่'
+  const title = isPurchase ? '🛒 บิลซื้อ' : '🧾 บิลขาย'
   const partyLabel = isPurchase ? 'Supplier' : 'Customer'
   const settledLabel = isPurchase ? 'จ่ายแล้ว' : 'รับแล้ว'
   const balanceLabel = isPurchase ? 'ค้างจ่าย' : 'ค้างรับ'
-  const shownItems = input.items.slice(0, 5)
-  const remainingItems = Math.max(0, input.items.length - shownItems.length)
+  const shownItems = input.items.slice(0, 3)
+  const remainingItemCount = input.items.length - shownItems.length
   const contextRows = [
     detailRow(partyLabel, text(input.partyName)),
     detailRow('สาขา', text(input.branchName)),
@@ -82,7 +82,7 @@ export function buildBillLineFlexMessage(input: BillLineFlexData, detailUrl: str
       {
         type: 'text',
         text: `• ${text(item.productName)}`,
-        color: '#e2e8f0',
+        color: '#0f172a',
         size: 'sm',
         flex: 4,
         wrap: true,
@@ -90,7 +90,7 @@ export function buildBillLineFlexMessage(input: BillLineFlexData, detailUrl: str
       {
         type: 'text',
         text: `${number(item.qty)} ${text(item.unit)}`,
-        color: '#cbd5e1',
+        color: '#475569',
         size: 'sm',
         flex: 2,
         align: 'end',
@@ -99,7 +99,7 @@ export function buildBillLineFlexMessage(input: BillLineFlexData, detailUrl: str
     ],
   }))
 
-  if (remainingItems > 0) {
+  if (remainingItemCount > 0) {
     itemRows.push({
       type: 'box',
       layout: 'horizontal',
@@ -107,19 +107,10 @@ export function buildBillLineFlexMessage(input: BillLineFlexData, detailUrl: str
       contents: [
         {
           type: 'text',
-          text: `+ อีก ${number(remainingItems)} รายการ`,
-          color: '#67e8f9',
+          text: `• และสินค้าอื่นๆ อีก ${number(remainingItemCount)} รายการ`,
+          color: '#0891b2',
           size: 'sm',
           flex: 4,
-          wrap: true,
-        },
-        {
-          type: 'text',
-          text: '',
-          color: '#cbd5e1',
-          size: 'sm',
-          flex: 2,
-          align: 'end',
           wrap: true,
         },
       ],
@@ -131,7 +122,7 @@ export function buildBillLineFlexMessage(input: BillLineFlexData, detailUrl: str
     altText: `${title} ${input.documentNo}`,
     contents: {
       type: 'bubble',
-      size: 'kilo',
+      size: 'mega',
       header: {
         type: 'box',
         layout: 'vertical',
@@ -147,15 +138,15 @@ export function buildBillLineFlexMessage(input: BillLineFlexData, detailUrl: str
       body: {
         type: 'box',
         layout: 'vertical',
-        backgroundColor: '#1e293b',
+        backgroundColor: '#ffffff',
         paddingAll: '20px',
         spacing: 'md',
         contents: [
           ...contextRows,
-          { type: 'separator', color: '#475569' },
-          { type: 'text', text: 'สินค้า', color: '#94a3b8', size: 'sm' },
+          { type: 'separator', color: '#e2e8f0' },
+          { type: 'text', text: 'สินค้า', color: '#475569', size: 'sm', weight: 'bold' },
           ...itemRows,
-          { type: 'separator', color: '#475569' },
+          { type: 'separator', color: '#e2e8f0' },
           detailRow('ยอดรวม', money(input.totalAmount)),
           detailRow(settledLabel, money(input.settledAmount)),
           detailRow(balanceLabel, money(input.balance)),

@@ -219,7 +219,7 @@ export function DealMarginPageClient() {
             <DatePickerInput id="deal-margin-from" value={fromDate} onChange={setFromDate} />
             <span className="text-slate-400">→</span>
             <DatePickerInput id="deal-margin-to" value={toDate} onChange={setToDate} />
-            <Select className="w-auto min-w-[180px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={channel} onChange={(event) => setChannel(event.target.value)}>
+            <Select className="w-auto min-w-[180px] h-9 border-slate-300" value={channel} onChange={(event) => setChannel(event.target.value)}>
               <option value="all">ทุกช่องทาง</option>
               {(data?.filters.channels ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
             </Select>
@@ -263,7 +263,7 @@ export function DealMarginPageClient() {
               </div>
               <label className="text-xs text-slate-500 font-semibold">
                 ช่องทาง
-                <Select className="mt-1 w-full h-9 border-slate-300 focus-visible:ring-emerald-100 text-sm" value={channel} onChange={(event) => setChannel(event.target.value)}>
+                <Select className="mt-1 w-full h-9 border-slate-300 text-sm" value={channel} onChange={(event) => setChannel(event.target.value)}>
                   <option value="all">ทุกช่องทาง</option>
                   {(data?.filters.channels ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
                 </Select>

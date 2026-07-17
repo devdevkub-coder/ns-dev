@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Select } from '@/components/ui/Select'
+import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
@@ -235,10 +236,14 @@ export function MatchLogPageClient() {
             <option value="all">ทุก PO Sell</option>
             {poSellOptions.map((target) => <option key={target} value={target}>{target}</option>)}
           </Select>
-          <Select className="w-auto min-w-[150px]" value={status} onChange={(event) => setStatus(event.target.value)}>
-            <option value="all">ทุกสถานะ</option>
-            {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{statusLabel(item)}</option>)}
-          </Select>
+          <div aria-label="กรองสถานะ Match Log" className="flex flex-wrap items-center gap-2" role="group">
+            <span className="text-xs text-slate-500">สถานะ:</span>
+            {['all', ...(data?.filters.statuses ?? [])].map((item) => (
+              <SegmentedFilterButton active={status === item} key={item} type="button" onClick={() => setStatus(item)}>
+                {item === 'all' ? 'ทุกสถานะ' : statusLabel(item)}
+              </SegmentedFilterButton>
+            ))}
+          </div>
           {hasActiveFilters ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
           <Button asChild size="sm" variant="export">
             <a href={exportHref}>ส่งออก Excel</a>

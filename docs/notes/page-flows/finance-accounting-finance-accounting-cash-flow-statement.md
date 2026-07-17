@@ -97,6 +97,13 @@ P2 proof completed against current Next page/API code. Remaining work is formula
 - ปุ่มคืนค่าความกว้างตารางและปุ่มปิด modal ใช้น้ำหนักตัวอักษรปกติตาม action baseline; ตารางยังรักษาคอลัมน์แรกชิดซ้ายและคอลัมน์ถัดไปชิดขวา
 - เหตุผล: คงรูปแบบรายงานที่อ่านได้สม่ำเสมอกับ list/table มาตรฐาน โดยไม่เปลี่ยนข้อมูลกระแสเงินสดหรือ drilldown
 
+## Drilldown Scope Hydration 2026-07-17
+
+- What is what: the server page reads outward `from`, `to`, and branch-code `branchId` query values and supplies them as the client's initial filters, so the first API request already matches the Cash Flow Analysis source scope.
+- Why it has to be like this: applying defaults first and changing scope after hydration briefly shows the wrong period/branch and can make related navigation look like formula drilldown evidence for a different dataset.
+- Authorization: `ALL` means the caller's effective allowed branch codes; an empty `own/custom` mapping remains an empty query, an existing branch outside scope returns `403`, and an unknown/inactive explicit branch is rejected instead of becoming an all-branch statement.
+- Date shortcut: mobile `ปีนี้` builds 1 January with the local date formatter instead of UTC `toISOString()`, so Bangkok midnight does not become 31 December of the prior year. This is a filter-boundary fix only; cash-flow facts and formulas are unchanged.
+
 ## Implementation Checklist
 
 - [x] Verify current API response shape and source tables

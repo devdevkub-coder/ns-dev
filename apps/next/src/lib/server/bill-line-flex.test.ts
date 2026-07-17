@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildBillLineFlexMessage, type BillLineFlexData } from './bill-line-flex'
 
 describe('buildBillLineFlexMessage', () => {
-  it('builds a dark bill card with five product rows and no sensitive financial fields', () => {
+  it('builds a wide bill card with a white body and unchanged dark header/footer', () => {
     const input: BillLineFlexData = {
       balance: 250,
       branchName: 'สำนักงานใหญ่',
@@ -25,10 +25,32 @@ describe('buildBillLineFlexMessage', () => {
     const message = buildBillLineFlexMessage(input, 'https://erp.example.com/purchase/bills/PB-260713-001')
     const serialized = JSON.stringify(message)
 
+    expect(message.contents.size).toBe('mega')
     expect(message.contents.header.backgroundColor).toBe('#0f172a')
-    expect(serialized).toContain('สินค้า 5')
+    expect(message.contents.header.contents[0]).toMatchObject({ text: '🛒 บิลซื้อ' })
+    expect(message.contents.body.backgroundColor).toBe('#ffffff')
+    expect(message.contents.footer.backgroundColor).toBe('#020617')
+    expect(message.contents.body.contents[0]).toMatchObject({
+      contents: [
+        { color: '#475569' },
+        { color: '#0f172a' },
+      ],
+    })
+    expect(serialized).toContain('สินค้า 1')
+    expect(serialized).toContain('สินค้า 2')
+    expect(serialized).toContain('สินค้า 3')
+    expect(serialized).not.toContain('สินค้า 4')
+    expect(serialized).not.toContain('สินค้า 5')
     expect(serialized).not.toContain('สินค้า 6')
-    expect(serialized).toContain('+ อีก 1 รายการ')
+    expect(serialized).toContain('และสินค้าอื่นๆ อีก 3 รายการ')
+    expect(serialized).not.toContain('+ อีก')
+    expect(serialized).not.toContain('"text":""')
+
+    const exactlyThreeItems = buildBillLineFlexMessage({ ...input, items: input.items.slice(0, 3) }, 'https://erp.example.com/purchase/bills/PB-260713-001')
+    expect(JSON.stringify(exactlyThreeItems)).not.toContain('และสินค้าอื่นๆ')
+
+    const fourItems = buildBillLineFlexMessage({ ...input, items: input.items.slice(0, 4) }, 'https://erp.example.com/purchase/bills/PB-260713-001')
+    expect(JSON.stringify(fourItems)).toContain('และสินค้าอื่นๆ อีก 1 รายการ')
     expect(serialized).toContain('ค้างจ่าย')
     expect(serialized).toContain('จ่ายบางส่วน')
     expect(serialized).toContain('https://erp.example.com/purchase/bills/PB-260713-001')
@@ -42,6 +64,7 @@ describe('buildBillLineFlexMessage', () => {
       settledAmount: 600,
       sourceType: 'sales_bill',
     }, 'https://erp.example.com/sales/bills/SB-260713-001')
+    expect(salesMessage.contents.header.contents[0]).toMatchObject({ text: '🧾 บิลขาย' })
     expect(JSON.stringify(salesMessage)).toContain('รับบางส่วน')
     expect(JSON.stringify(salesMessage)).toContain('เซลส์ A')
     expect(JSON.stringify(salesMessage)).toContain('ขายตรง')

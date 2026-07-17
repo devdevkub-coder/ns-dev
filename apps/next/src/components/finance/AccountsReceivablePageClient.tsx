@@ -5,6 +5,7 @@ import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Button } from '@/components/ui/Button'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
+import { Select } from '@/components/ui/Select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
@@ -105,7 +106,7 @@ function currentMonthStart() {
   return `${todayDateInput().slice(0, 8)}01`
 }
 
-export function AccountsReceivablePageClient() {
+export function AccountsReceivablePageClient({ initialFilters }: { initialFilters?: { branchId?: string; from?: string; to?: string } } = {}) {
   const latestLoadRequestRef = useRef(0)
   const [data, setData] = useState<ArPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -114,7 +115,7 @@ export function AccountsReceivablePageClient() {
   const [selectedRow, setSelectedRow] = useState<ArRow | null>(null)
   const [tab, setTab] = useState<'summary' | 'detail'>('summary')
   const [bucket, setBucket] = useState('')
-  const [branchId, setBranchId] = useState('')
+  const [branchId, setBranchId] = useState(initialFilters?.branchId || '')
   const [channelId, setChannelId] = useState('')
   const [customerId, setCustomerId] = useState('')
 
@@ -129,7 +130,7 @@ export function AccountsReceivablePageClient() {
       })),
     ]
   }, [branchId, data?.filters.customers])
-  const [from, setFrom] = useState(currentMonthStart())
+  const [from, setFrom] = useState(initialFilters?.from ?? currentMonthStart())
   const [page, setPage] = useState(1)
   const [summaryPage, setSummaryPage] = useState(1)
   const summaryPageSize = 50
@@ -139,7 +140,7 @@ export function AccountsReceivablePageClient() {
   const [summarySortDirection, setSummarySortDirection] = useState<'asc' | 'desc'>('desc')
   const [summarySortKey, setSummarySortKey] = useState<SummarySortKey>('total')
   const [status, setStatus] = useState('')
-  const [to, setTo] = useState(todayDateInput())
+  const [to, setTo] = useState(initialFilters?.to || todayDateInput())
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const hasFilters = Boolean(branchId || bucket || channelId || customerId || from || q.trim() || status || to)
 
@@ -391,27 +392,27 @@ export function AccountsReceivablePageClient() {
               />
             </div>
             
-            <select className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={channelId} onChange={(event) => { setPage(1); setChannelId(event.target.value) }}>
+            <Select className="h-9 px-3 py-2 text-sm" value={channelId} onChange={(event) => { setPage(1); setChannelId(event.target.value) }}>
               <option value="">ทุกช่องทาง</option>
               {(data?.filters.channels ?? []).map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
-            </select>
+            </Select>
             
-            <select className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
+            <Select className="h-9 px-3 py-2 text-sm" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
               <option value="">ทุกอายุหนี้</option>
               <option value="Current">ยังไม่ครบกำหนด</option>
               <option value="1-30">1-30</option>
               <option value="31-60">31-60</option>
               <option value="61-90">61-90</option>
               <option value=">90">&gt;90</option>
-            </select>
+            </Select>
             
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
-            <select className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
+            <Select className="h-9 px-3 py-2 text-sm" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
               <option value="">ทุกสาขา</option>
               {(data?.filters.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
+            </Select>
             
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-slate-500">สถานะ:</span>
@@ -419,7 +420,8 @@ export function AccountsReceivablePageClient() {
                 const active = status === item
                 return (
                   <button
-                    className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+                    aria-pressed={active}
+                    className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-500 bg-slate-600 text-white' : 'border-slate-300 bg-transparent text-slate-600 hover:bg-slate-200'}`}
                     key={item || 'all-statuses'}
                     onClick={() => { setPage(1); setStatus(item) }}
                     type="button"
@@ -493,26 +495,41 @@ export function AccountsReceivablePageClient() {
                   setCustomerId(value)
                 }}
               />
-              <select className="w-full rounded-md border px-3 py-2 text-sm" value={channelId} onChange={(event) => { setPage(1); setChannelId(event.target.value) }}>
+              <Select className="h-9 w-full px-3 py-2 text-sm" value={channelId} onChange={(event) => { setPage(1); setChannelId(event.target.value) }}>
                 <option value="">ทุกช่องทาง</option>
                 {(data?.filters.channels ?? []).map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
-              </select>
-              <select className="w-full rounded-md border px-3 py-2 text-sm" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
+              </Select>
+              <Select className="h-9 w-full px-3 py-2 text-sm" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
                 <option value="">ทุกอายุหนี้</option>
                 <option value="Current">ยังไม่ครบกำหนด</option>
                 <option value="1-30">1-30</option>
                 <option value="31-60">31-60</option>
                 <option value="61-90">61-90</option>
                 <option value=">90">&gt;90</option>
-              </select>
-              <select className="w-full rounded-md border px-3 py-2 text-sm" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
+              </Select>
+              <Select className="h-9 w-full px-3 py-2 text-sm" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
                 <option value="">ทุกสาขา</option>
                 {(data?.filters.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-              </select>
-              <select className="w-full rounded-md border px-3 py-2 text-sm" value={status} onChange={(event) => { setPage(1); setStatus(event.target.value) }}>
-                <option value="">ทุกสถานะ</option>
-                {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
+              </Select>
+              <div className="space-y-1">
+                <span className="block text-xs font-semibold text-slate-600">สถานะ</span>
+                <div aria-label="กรองสถานะลูกหนี้" className="flex flex-wrap gap-2" role="group">
+                  {['', ...(data?.filters.statuses ?? [])].map((item) => {
+                    const active = status === item
+                    return (
+                      <button
+                        aria-pressed={active}
+                        className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-500 bg-slate-600 text-white' : 'border-slate-300 bg-transparent text-slate-600 hover:bg-slate-200'}`}
+                        key={item || 'all-statuses-mobile'}
+                        onClick={() => { setPage(1); setStatus(item) }}
+                        type="button"
+                      >
+                        {item || 'ทุกสถานะ'}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-slate-500">
                   จากวันที่

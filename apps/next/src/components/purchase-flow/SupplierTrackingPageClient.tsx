@@ -13,6 +13,7 @@ import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
 import { TrackingPagination, trackingPageSizeOptions } from '@/components/tracking/TrackingPagination'
 import { trackingCurrentYear, trackingScopeYear, trackingYearEnd, trackingYearStart } from '@/components/tracking/trackingDateRange'
@@ -394,8 +395,8 @@ export function SupplierTrackingPageClient() {
             <DatePickerInput value={dateFrom} onChange={setDateFrom} />
             <span className="text-slate-400">→</span>
             <DatePickerInput value={dateTo} onChange={setDateTo} />
-            <select
-              className="h-9 w-[10rem] rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-100"
+            <Select
+              className="h-9 w-[10rem] rounded-md border border-slate-300 bg-white px-3 text-sm"
               value={productCategory}
               onChange={(event) => { setProductCategory(event.target.value); setProductId('') }}
             >
@@ -403,7 +404,7 @@ export function SupplierTrackingPageClient() {
               {(data?.filters?.productCategories ?? []).map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
-            </select>
+            </Select>
             <div className="min-w-[190px]">
               <SearchCombobox
                 hideLabel
@@ -489,8 +490,8 @@ export function SupplierTrackingPageClient() {
               </div>
               <label className="block text-xs font-semibold text-slate-500">
                 หมวดสินค้า
-                <select
-                  className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-100"
+                <Select
+                  className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
                   value={productCategory}
                   onChange={(event) => { setProductCategory(event.target.value); setProductId('') }}
                 >
@@ -498,7 +499,7 @@ export function SupplierTrackingPageClient() {
                   {(data?.filters?.productCategories ?? []).map((cat) => (
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
-                </select>
+                </Select>
               </label>
               <SearchCombobox inputClassName="h-9 text-sm" inputId="tracking-supplier-mobile-product" label="สินค้า" options={productSearchOptions} placeholder="เลือกสินค้า" value={productId} onChange={setProductId} />
               <SearchCombobox inputClassName="h-9 text-sm" inputId="tracking-supplier-mobile-supplier" label="ผู้ขาย" options={supplierSearchOptions} placeholder="เลือกผู้ขาย" value={supplierId} onChange={setSupplierId} />

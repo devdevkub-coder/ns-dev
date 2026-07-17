@@ -10,8 +10,8 @@ function activeStatus(status?: string | null) {
   return !['cancelled', 'void', 'reversed'].includes((status ?? '').toLowerCase())
 }
 
-function branchWhere(branchId?: bigint | null) {
-  return branchId ? { branch_id: branchId } : {}
+function branchWhere(branchIds: bigint[] | null) {
+  return branchIds === null ? {} : { branch_id: { in: branchIds } }
 }
 
 function daysBetween(from: Date, to: Date) {
@@ -28,13 +28,13 @@ function marketScope(value?: string | null) {
   return (value ?? '').includes('ต่าง') || (value ?? '').toLowerCase().includes('over') ? 'overseas' : 'domestic'
 }
 
-async function accountBalances(asOf: Date, branchId?: bigint | null) {
+async function accountBalances(asOf: Date, branchIds: bigint[] | null) {
   const [accounts, bankRows] = await Promise.all([
-    prisma.accounts.findMany({ orderBy: [{ type: 'asc' }, { name: 'asc' }, { account_no: 'asc' }], where: { active: { not: false }, ...branchWhere(branchId) } }),
+    prisma.accounts.findMany({ orderBy: [{ type: 'asc' }, { name: 'asc' }, { account_no: 'asc' }], where: { active: { not: false }, ...branchWhere(branchIds) } }),
     prisma.bank_statement.findMany({
       orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
       take: 60000,
-      where: { date: { lte: endOfDay(asOf) }, ...(branchId ? { accounts: { branch_id: branchId } } : {}) },
+      where: { date: { lte: endOfDay(asOf) }, ...(branchIds !== null ? { accounts: { branch_id: { in: branchIds } } } : {}) },
     }),
   ])
   const balances = new Map<bigint, number>()
@@ -60,18 +60,46 @@ async function accountBalances(asOf: Date, branchId?: bigint | null) {
   })
 }
 
-export async function buildCashOthersSummary(asOfValue?: string | null, branchIdValue?: string | null) {
+async function resolveBranchIds(branchIdValue?: string | null, allowedBranchCodes?: string[] | null) {
+  const allowedCodes = allowedBranchCodes === undefined || allowedBranchCodes === null
+    ? null
+    : [...new Set(allowedBranchCodes.map((code) => code.trim().toUpperCase()).filter(Boolean))]
+  const selected = branchIdValue ? await findActiveBranchReferenceByCodeOrId(branchIdValue) : null
+  if (branchIdValue) {
+    if (!selected || (allowedCodes !== null && !allowedCodes.includes(selected.code.toUpperCase()))) return []
+    return [selected.id]
+  }
+  if (allowedCodes === null) return null
+  if (allowedCodes.length === 0) return []
+  const branches = await prisma.branches.findMany({
+    select: { id: true },
+    where: { active: true, code: { in: allowedCodes } },
+  })
+  return branches.map((branch) => branch.id)
+}
+
+export async function buildCashOthersSummary(
+  asOfValue?: string | null,
+  branchIdValue?: string | null,
+  allowedBranchCodes?: string[] | null,
+) {
   const asOf = asOfValue && /^\d{4}-\d{2}-\d{2}$/.test(asOfValue) ? new Date(`${asOfValue}T00:00:00.000Z`) : new Date()
-  const branchRef = branchIdValue ? await findActiveBranchReferenceByCodeOrId(branchIdValue) : null
-  const branchId = branchRef?.id ?? null
+  const branchIds = await resolveBranchIds(branchIdValue, allowedBranchCodes)
   const today = toDateOnly(asOf)
   const [cashAccounts, salesBills, purchaseBills, stockRows, expenses, tradingDeals] = await Promise.all([
-    accountBalances(asOf, branchId),
-    prisma.sales_bills.findMany({ include: { customers: true, sales_channels: true }, orderBy: [{ date: 'desc' }], take: 15000, where: { ...branchWhere(branchId), date: { lte: endOfDay(asOf) } } }),
-    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true }, orderBy: [{ date: 'desc' }], take: 15000, where: { ...branchWhere(branchId), date: { lte: endOfDay(asOf) } } }),
-    prisma.stock_ledger.findMany({ include: { products: true }, orderBy: [{ date: 'desc' }], take: 80000, where: { ...branchWhere(branchId), date: { lte: endOfDay(asOf) } } }),
-    prisma.expenses.findMany({ orderBy: [{ date: 'desc' }], take: 5000, where: { ...branchWhere(branchId), date: new Date(`${today}T00:00:00.000Z`) } }),
-    prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 10000, where: { date: { lte: endOfDay(asOf) } } }),
+    accountBalances(asOf, branchIds),
+    prisma.sales_bills.findMany({ include: { customers: true, sales_channels: true }, orderBy: [{ date: 'desc' }], take: 15000, where: { ...branchWhere(branchIds), date: { lte: endOfDay(asOf) } } }),
+    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true }, orderBy: [{ date: 'desc' }], take: 15000, where: { ...branchWhere(branchIds), date: { lte: endOfDay(asOf) } } }),
+    prisma.stock_ledger.findMany({ include: { products: true }, orderBy: [{ date: 'desc' }], take: 80000, where: { ...branchWhere(branchIds), date: { lte: endOfDay(asOf) } } }),
+    prisma.expenses.findMany({ orderBy: [{ date: 'desc' }], take: 5000, where: { ...branchWhere(branchIds), date: new Date(`${today}T00:00:00.000Z`) } }),
+    prisma.trading_deals.findMany({
+      orderBy: [{ date: 'desc' }],
+      take: 10000,
+      where: {
+        date: { lte: endOfDay(asOf) },
+        ...(branchIds !== null ? { purchase_bills: { branch_id: { in: branchIds } } } : {}),
+      },
+    }),
   ])
 
   const activeSales = salesBills.filter((bill) => activeStatus(bill.status))

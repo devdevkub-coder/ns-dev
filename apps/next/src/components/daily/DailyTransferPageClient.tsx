@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney, todayDateInput, transferFormSchema, type DailyAccountOption, type TransferFormValues } from '@/lib/daily'
@@ -320,14 +321,14 @@ export function DailyTransferPageClient() {
               <DatePickerInput className="w-[130px]" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
               <span className="text-slate-400">→</span>
               <DatePickerInput className="w-[130px]" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
-              <select className="h-9 rounded-md border border-slate-300 px-2 py-2 text-sm bg-white" value={fromAccountId} onChange={(event) => setFromAccountId(event.target.value)}>
+              <Select className="h-9 w-auto" value={fromAccountId} onChange={(event) => setFromAccountId(event.target.value)}>
                 <option value="">ทุกบัญชีต้นทาง</option>
                 {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-              </select>
-              <select className="h-9 rounded-md border border-slate-300 px-2 py-2 text-sm bg-white" value={toAccountId} onChange={(event) => setToAccountId(event.target.value)}>
+              </Select>
+              <Select className="h-9 w-auto" value={toAccountId} onChange={(event) => setToAccountId(event.target.value)}>
                 <option value="">ทุกบัญชีปลายทาง</option>
                 {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-              </select>
+              </Select>
               {search || dateFrom || dateTo || fromAccountId || toAccountId ? <Button size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้างตัวกรอง</Button> : null}
             </div>
           </div>
@@ -436,28 +437,28 @@ export function DailyTransferPageClient() {
 
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">บัญชีต้นทาง</span>
-                <select
+                <Select
                   aria-label="บัญชีต้นทางมือถือ"
-                  className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white"
+                  className="h-9 w-full"
                   value={fromAccountId}
                   onChange={(event) => setFromAccountId(event.target.value)}
                 >
                   <option value="">ทุกบัญชีต้นทาง</option>
                   {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                </select>
+                </Select>
               </label>
 
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">บัญชีปลายทาง</span>
-                <select
+                <Select
                   aria-label="บัญชีปลายทางมือถือ"
-                  className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white"
+                  className="h-9 w-full"
                   value={toAccountId}
                   onChange={(event) => setToAccountId(event.target.value)}
                 >
                   <option value="">ทุกบัญชีปลายทาง</option>
                   {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                </select>
+                </Select>
               </label>
         </MobileFilterSheet>
       ) : null}
@@ -794,10 +795,10 @@ function SelectField(props: { error?: string; label: string; onChange: (value: s
   return (
     <label className="block text-xs font-medium text-slate-600" data-error-key={errorKey}>
       {props.label}{props.required ? <span className="text-red-600"> *</span> : null}
-      <select className={`mt-1.5 h-9 w-full rounded-md border px-3 py-2 text-sm outline-none ${props.error ? 'border-red-400 bg-red-50' : 'border-slate-300'}`} value={props.value} onChange={(event) => props.onChange(event.target.value)}>
+      <Select aria-invalid={Boolean(props.error)} className="mt-1.5 h-10 w-full" value={props.value} onChange={(event) => props.onChange(event.target.value)}>
         <option value="">เลือก{props.label}</option>
         {props.options.map((option) => <option key={option.id} value={option.id}>{accountOptionLabel(option)}</option>)}
-      </select>
+      </Select>
       {props.error ? <span className="mt-1 block text-xs text-red-700">{props.error}</span> : null}
     </label>
   )

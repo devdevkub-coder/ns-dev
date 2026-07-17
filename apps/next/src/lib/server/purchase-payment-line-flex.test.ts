@@ -49,6 +49,7 @@ describe('buildPurchasePaymentLineFlexMessage', () => {
       type: 'box',
     })
     expect(message.contents.header.backgroundColor).toBe('#0f172a')
+    expect(message.contents.header.contents[0]).toMatchObject({ text: '💸 ใบจ่ายเงิน Supplier' })
     expect(serialized).toContain('ใบจ่ายเงิน Supplier')
     expect(serialized).toContain('PMT012607-0001')
     expect(serialized).toContain('สำนักงานใหญ่')
@@ -63,6 +64,47 @@ describe('buildPurchasePaymentLineFlexMessage', () => {
     expect(serialized).toContain('ชำระตามรอบ')
     expect(serialized).toContain('เสร็จสิ้น')
     expect(serialized).toContain('https://erp.example.com/purchase/payments?tab=history&docNo=PMT012607-0001')
+  })
+
+  it('uses the same light green theme as the customer receipt card', () => {
+    const message = buildPurchasePaymentLineFlexMessage(
+      payment(),
+      'https://erp.example.com/purchase/payments',
+    )
+    const tabs = message.contents.body.contents.filter((item) => (
+      'backgroundColor' in item && item.backgroundColor === '#ecfdf5'
+    ))
+
+    expect(message.contents.body).toMatchObject({ backgroundColor: '#f8fafc' })
+    expect(message.contents.footer).toMatchObject({ backgroundColor: '#ffffff' })
+    expect(tabs).toHaveLength(3)
+    expect(message.contents.footer.contents[1]).toMatchObject({ color: '#047857' })
+  })
+
+  it('shows one repeated single-payment amount and hides empty adjustments', () => {
+    const message = buildPurchasePaymentLineFlexMessage(payment({
+      approvals: [{
+        amount: 53_500,
+        approvalNo: 'PMA012607-0001',
+        sourceDocumentNo: 'PB012607-0001',
+        sourceType: 'purchase_bill',
+      }],
+      companyAccounts: [{ accountCode: 'AC004', accountName: 'กสิกรไทย', amount: 53_500 }],
+      discount: 0,
+      fee: 0,
+      netCashOut: 53_500,
+      notes: '',
+      paidAmount: 53_500,
+      withholdingTax: 0,
+    }), 'https://erp.example.com/purchase/payments')
+    const serialized = JSON.stringify(message)
+
+    expect(serialized.match(/฿53,500/g)).toHaveLength(1)
+    expect(serialized).toContain('เงินออกสุทธิ')
+    expect(serialized).not.toContain('ส่วนลด')
+    expect(serialized).not.toContain('ภาษีหัก ณ ที่จ่าย')
+    expect(serialized).not.toContain('ค่าธรรมเนียม')
+    expect(serialized).not.toContain('หมายเหตุ')
   })
 
   it('caps PMA and company-account rows and reports each remaining count', () => {

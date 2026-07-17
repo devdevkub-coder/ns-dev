@@ -7,6 +7,7 @@ import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input } from '@/components/ui/Input'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Select } from '@/components/ui/Select'
+import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
@@ -399,8 +400,15 @@ function WaitingAllocationsView() {
         <div className="hidden lg:block">
           <div className="flex flex-wrap items-center gap-2">
             <Input className="min-w-[240px] flex-1 rounded-md border-slate-300 focus-visible:ring-emerald-100" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-            <Select className="w-auto min-w-[160px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">ทุกสถานะ</option>{(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{waitingStatusLabel(item)}</option>)}</Select>
-            <Select className="w-auto min-w-[160px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
+            <Select className="h-9 w-auto min-w-[160px] border-slate-300" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
+            <div aria-label="กรองสถานะรายการรอจัดสรร" className="flex flex-wrap items-center gap-2" role="group">
+              <span className="text-xs text-slate-500">สถานะ:</span>
+              {['all', ...(data?.filters.statuses ?? [])].map((item) => (
+                <SegmentedFilterButton active={status === item} key={item} type="button" onClick={() => setStatus(item)}>
+                  {item === 'all' ? 'ทุกสถานะ' : waitingStatusLabel(item)}
+                </SegmentedFilterButton>
+              ))}
+            </div>
             <Button
               className="ml-auto h-9 rounded-md px-3 text-sm font-normal focus-visible:ring-slate-100"
               size="sm"
@@ -430,13 +438,19 @@ function WaitingAllocationsView() {
 
           {showMobileFilters && (
             <div className="grid grid-cols-1 gap-2.5 pt-2 border-t border-slate-100 animate-in slide-in-from-top-2 duration-100">
-              <label className="text-xs text-slate-500 font-semibold">
-                สถานะ
-                <Select className="mt-1 w-full h-9 border-slate-300 focus-visible:ring-emerald-100 text-sm" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">ทุกสถานะ</option>{(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{waitingStatusLabel(item)}</option>)}</Select>
-              </label>
+              <div className="space-y-1">
+                <span className="text-xs font-semibold text-slate-500">สถานะ</span>
+                <div aria-label="กรองสถานะรายการรอจัดสรร" className="flex flex-wrap gap-2" role="group">
+                  {['all', ...(data?.filters.statuses ?? [])].map((item) => (
+                    <SegmentedFilterButton active={status === item} key={item} type="button" onClick={() => setStatus(item)}>
+                      {item === 'all' ? 'ทุกสถานะ' : waitingStatusLabel(item)}
+                    </SegmentedFilterButton>
+                  ))}
+                </div>
+              </div>
               <label className="text-xs text-slate-500 font-semibold">
                 หมวดสินค้า
-                <Select className="mt-1 w-full h-9 border-slate-300 focus-visible:ring-emerald-100 text-sm" value={category} onChange={(event) => setCategory(event.target.value)}>
+                <Select className="mt-1 h-9 w-full border-slate-300 text-sm" value={category} onChange={(event) => setCategory(event.target.value)}>
                   <option value="all">ทุกหมวด</option>
                   {(data?.filters.categories ?? []).map((item) => (
                     <option key={item} value={item}>{item}</option>
@@ -732,9 +746,14 @@ function AllocationLedgerView() {
             <DatePickerInput id="allocation-ledger-from" value={fromDate} onChange={setFromDate} />
             <span className="text-slate-400">→</span>
             <DatePickerInput id="allocation-ledger-to" value={toDate} onChange={setToDate} />
-            <Select className="w-auto min-w-[130px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={targetType} onChange={(event) => setTargetType(event.target.value)}><option value="all">ทุกประเภทเป้าหมาย</option>{(data?.filters.targetTypes ?? []).map((item) => <option key={item} value={item}>{targetTypeLabel(item)}</option>)}</Select>
-            <Select className="w-auto min-w-[130px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
-            <Select className="w-auto min-w-[130px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={status} onChange={(event) => setStatus(event.target.value)}><option value="approved">อนุมัติแล้ว</option><option value="reversed">ย้อนกลับแล้ว</option><option value="all">ทั้งหมด</option></Select>
+            <Select className="h-9 w-auto min-w-[130px] border-slate-300" value={targetType} onChange={(event) => setTargetType(event.target.value)}><option value="all">ทุกประเภทเป้าหมาย</option>{(data?.filters.targetTypes ?? []).map((item) => <option key={item} value={item}>{targetTypeLabel(item)}</option>)}</Select>
+            <Select className="h-9 w-auto min-w-[130px] border-slate-300" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
+            <div aria-label="กรองสถานะรายการจัดสรร" className="flex flex-wrap items-center gap-2" role="group">
+              <span className="text-xs text-slate-500">สถานะ:</span>
+              {[{ label: 'ทั้งหมด', value: 'all' }, { label: 'อนุมัติแล้ว', value: 'approved' }, { label: 'ย้อนกลับแล้ว', value: 'reversed' }].map((item) => (
+                <SegmentedFilterButton active={status === item.value} key={item.value} type="button" onClick={() => setStatus(item.value)}>{item.label}</SegmentedFilterButton>
+              ))}
+            </div>
             <Button
               className="ml-auto h-9 rounded-md px-3 text-sm font-normal focus-visible:ring-slate-100"
               disabled={isLoading || sortedRows.length === 0}
@@ -778,25 +797,25 @@ function AllocationLedgerView() {
               <div className="grid grid-cols-3 gap-2">
                 <label className="text-xs text-slate-500 font-semibold">
                   ประเภทเป้าหมาย
-                  <Select className="mt-1 w-full h-9 border-slate-300 focus-visible:ring-emerald-100 text-xs" value={targetType} onChange={(event) => setTargetType(event.target.value)}><option value="all">ทุกประเภทเป้าหมาย</option>{(data?.filters.targetTypes ?? []).map((item) => <option key={item} value={item}>{targetTypeLabel(item)}</option>)}</Select>
+                  <Select className="mt-1 h-9 w-full border-slate-300 text-xs" value={targetType} onChange={(event) => setTargetType(event.target.value)}><option value="all">ทุกประเภทเป้าหมาย</option>{(data?.filters.targetTypes ?? []).map((item) => <option key={item} value={item}>{targetTypeLabel(item)}</option>)}</Select>
                 </label>
                 <label className="text-xs text-slate-500 font-semibold">
                   หมวดหมู่
-                  <Select className="mt-1 w-full h-9 border-slate-300 focus-visible:ring-emerald-100 text-xs" value={category} onChange={(event) => setCategory(event.target.value)}>
+                  <Select className="mt-1 h-9 w-full border-slate-300 text-xs" value={category} onChange={(event) => setCategory(event.target.value)}>
                     <option value="all">ทุกหมวด</option>
                     {(data?.filters.categories ?? []).map((item) => (
                       <option key={item} value={item}>{item}</option>
                     ))}
                   </Select>
                 </label>
-                <label className="text-xs text-slate-500 font-semibold">
-                  สถานะ
-                  <Select className="mt-1 w-full h-9 border-slate-300 focus-visible:ring-emerald-100 text-xs" value={status} onChange={(event) => setStatus(event.target.value)}>
-                    <option value="approved">อนุมัติแล้ว</option>
-                    <option value="reversed">ย้อนกลับแล้ว</option>
-                    <option value="all">ทั้งหมด</option>
-                  </Select>
-                </label>
+                <div className="space-y-1">
+                  <span className="text-xs font-semibold text-slate-500">สถานะ</span>
+                  <div aria-label="กรองสถานะรายการจัดสรร" className="flex flex-wrap gap-2" role="group">
+                    {[{ label: 'ทั้งหมด', value: 'all' }, { label: 'อนุมัติแล้ว', value: 'approved' }, { label: 'ย้อนกลับแล้ว', value: 'reversed' }].map((item) => (
+                      <SegmentedFilterButton active={status === item.value} key={item.value} type="button" onClick={() => setStatus(item.value)}>{item.label}</SegmentedFilterButton>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div className="flex justify-end pt-1">
                 <Button

@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/Input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
-import { SearchCombobox } from '@/components/ui/SearchCombobox'
+import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { Select } from '@/components/ui/Select'
 import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { TableNumberCell } from '@/components/ui/TableNumberCell'
@@ -227,6 +228,26 @@ type Option = {
   unit?: string | null
   vatAmount?: number | null
   vatType?: string | null
+}
+
+function toPoSearchOptions(
+  options: Option[],
+  emptyLabel: string,
+  selectedFallback?: { id: string; label: string } | null,
+): SearchComboboxOption[] {
+  const fallback = selectedFallback && !options.some((option) => option.id === selectedFallback.id)
+    ? selectedFallback
+    : null
+
+  return [
+    { id: '', label: emptyLabel, searchText: emptyLabel },
+    ...(fallback ? [{ ...fallback, searchText: `${fallback.id} ${fallback.label}` }] : []),
+    ...options.map((option) => ({
+      id: option.id,
+      label: option.label ?? option.name,
+      searchText: `${option.id} ${option.label ?? ''} ${option.name}`,
+    })),
+  ]
 }
 
 type TradingPurchaseBillOption = {
@@ -2837,21 +2858,22 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       <div className="hidden space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
         <div className="flex flex-wrap items-center gap-2">
           <Input
-            className="min-w-[260px] flex-1 rounded-md"
+            className="h-9 min-w-[260px] flex-1 rounded-md"
             placeholder={mode === 'purchase' ? 'ค้นหาเลขบิล / เลขอ้างอิง / ชื่อ Supplier...' : 'ค้นหาเลขบิล / เลขอ้างอิง / ชื่อลูกค้า...'}
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
           <label className="text-xs text-slate-500">วันที่:</label>
-          <DatePickerInput id="purchase-bills-date-from" value={dateFrom} onChange={setDateFrom} />
+          <DatePickerInput className="h-9 w-[130px]" id="purchase-bills-date-from" value={dateFrom} onChange={setDateFrom} />
           <span className="text-slate-400">→</span>
-          <DatePickerInput id="purchase-bills-date-to" value={dateTo} onChange={setDateTo} />
+          <DatePickerInput className="h-9 w-[130px]" id="purchase-bills-date-to" value={dateTo} onChange={setDateTo} />
           {mode === 'purchase' ? (
             <BranchSelectCombobox
               allOptionLabel="ทุกสาขา"
               branches={activeBranches}
               className="w-[12rem]"
+              controlSize="filter"
               includeAllOption
               inputId="purchase-bills-branch-filter"
               label=""
@@ -2945,6 +2967,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     allOptionLabel="ทุกสาขา"
                     branches={activeBranches}
                     className="w-full"
+                    controlSize="filter"
                     includeAllOption
                     inputId="mobile-purchase-bills-branch-filter"
                     label=""
@@ -3493,10 +3516,15 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                   {supplierSwapMode ? (
                                     <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-xs font-semibold text-amber-800">Spot Buy เท่านั้น</div>
                                   ) : (
-                                    <select className="h-10 w-full rounded-md border bg-white px-2 py-2 text-sm" value={item.poBuyId ?? ''} onChange={(event) => updateItemPoBuy(index, event.target.value || null)}>
-                                      <option value="">Spot Buy</option>
-                                      {itemPoOptions.map((po) => <option key={`${po.id}-${po.product_id ?? 'all'}`} value={po.id}>{po.label ?? po.name}</option>)}
-                                    </select>
+                                    <SearchCombobox
+                                      hideLabel
+                                      inputClassName="h-10 px-2 py-2 text-sm"
+                                      inputId={`purchase-bill-receipt-po-buy-${index}`}
+                                      label="อ้างอิง PO"
+                                      options={toPoSearchOptions(itemPoOptions, 'Spot Buy')}
+                                      value={item.poBuyId ?? ''}
+                                      onChange={(value) => updateItemPoBuy(index, value || null)}
+                                    />
                                   )}
                                   {(() => {
                                     if (!item.poBuyId) return null
@@ -3592,12 +3620,18 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                               </td>
                               <td className="p-2" colSpan={2}>
                                 <div className="mb-1 text-xs font-semibold text-slate-600">อ้างอิง PO</div>
-                                <select className="w-full rounded-md border bg-white px-2 py-2 text-xs" value={item.poBuyId ?? ''} onChange={(event) => updateItemPoBuy(index, event.target.value || null)}>
-                                  <option value="">Spot Buy</option>
-                                  {activePoBuys
-                                    .filter((po) => item.productId && (!po.product_id || po.product_id === item.productId))
-                                    .map((po) => <option key={`${po.id}-${po.product_id ?? 'all'}`} value={po.id}>{po.label ?? po.name}</option>)}
-                                </select>
+                                <SearchCombobox
+                                  hideLabel
+                                  inputClassName="h-10 px-2 py-2 text-xs"
+                                  inputId={`purchase-bill-manual-po-buy-${index}`}
+                                  label="อ้างอิง PO"
+                                  options={toPoSearchOptions(
+                                    activePoBuys.filter((po) => item.productId && (!po.product_id || po.product_id === item.productId)),
+                                    'Spot Buy',
+                                  )}
+                                  value={item.poBuyId ?? ''}
+                                  onChange={(value) => updateItemPoBuy(index, value || null)}
+                                />
                                 {(() => {
                                   const remainingQty = poOptionForProduct(item.poBuyId, item.productId)?.remainingQty
                                   if (remainingQty === null || remainingQty === undefined) return null
@@ -3748,8 +3782,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="blue">5</StepBadge>ข้อมูลการชำระเงิน</h4>
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                     <Field className="col-span-2 md:col-span-1" label="วิธีชำระเงิน">
-                      <select
-                        className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-100"
+                      <Select
+                        className="h-10 w-full px-2 text-sm"
                         value={(() => {
                           const matched = selectedSupplier.bankAccounts?.find((account) => `${account.paymentMethod} บช.${account.accountNo}` === (form.note ?? ''))
                           return matched ? `${matched.paymentMethod} บช.${matched.accountNo}` : selectedSupplier.bankAccounts?.[0] ? `${selectedSupplier.bankAccounts[0].paymentMethod} บช.${selectedSupplier.bankAccounts[0].accountNo}` : ''
@@ -3765,7 +3799,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                             {account.paymentMethod}{account.bankName ? ` · ${account.bankName}` : ''}{account.accountNo ? ` · ${account.accountNo}` : ''}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </Field>
                     {(() => {
                       const current = selectedSupplier.bankAccounts.find((account) => `${account.paymentMethod} บช.${account.accountNo}` === (form.note ?? '')) ?? selectedSupplier.bankAccounts[0]
@@ -4015,6 +4049,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                            })
 	                            const selectedPoSell = poSellOptionForProduct(item.poSellId, item.productId)
 	                            const hasSelectedPoSell = Boolean(item.poSellId && selectedPoSell)
+	                            const selectedPoSellFallback = item.poSellId && selectedPoSell && !itemPoSellOptions.some((po) => po.id === item.poSellId)
+	                              ? { id: item.poSellId, label: selectedPoSell.name || selectedPoSell.id }
+	                              : null
 	                            const selectedPoSellDetail = hasSelectedPoSell ? poSellDetailText(selectedPoSell, index) : null
 	                            const poSellVariance = hasSelectedPoSell ? poSellVarianceForRow(item.poSellId, index) : null
 	                            const rowKey = `${item.deliverySummaryId ?? item.deliveryLineId ?? item.productId}-${index}`
@@ -4069,11 +4106,18 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                                  <div data-error-key={`items.${index}.qty`} className={`rounded-xl border px-2 py-2 text-right font-bold tabular-nums ${salesFieldErrors[`items.${index}.qty`] ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-900'}`}>{formatMoney(item.qty)}</div>
 	                                </td>
                                 <td className="p-2">
-                                  <select className="h-10 w-2/3 rounded-md border bg-white px-2 text-xs" value={hasSelectedPoSell ? item.poSellId ?? '' : ''} onChange={(event) => updateSalesItemPoSell(index, event.target.value || null)}>
-                                    <option value="">Spot Sale</option>
-                                    {hasSelectedPoSell && selectedPoSell ? <option hidden value={item.poSellId ?? ''}>{selectedPoSell.name || selectedPoSell.id}</option> : null}
-                                    {itemPoSellOptions.map((po) => <option key={`${po.id}-${po.line_id ?? po.product_id ?? 'all'}`} value={po.id}>{po.label ?? po.name}</option>)}
-                                  </select>
+                                  <div className="w-2/3">
+                                    <SearchCombobox
+                                      hideLabel
+                                      hideSelectedOptionFromList={Boolean(selectedPoSellFallback)}
+                                      inputClassName="h-10 px-2 text-xs"
+                                      inputId={`sales-bill-delivery-po-sell-${index}`}
+                                      label="อ้างอิง PO"
+                                      options={toPoSearchOptions(itemPoSellOptions, 'Spot Sale', selectedPoSellFallback)}
+                                      value={hasSelectedPoSell ? item.poSellId ?? '' : ''}
+                                      onChange={(value) => updateSalesItemPoSell(index, value || null)}
+                                    />
+                                  </div>
                                   {selectedPoSellDetail ? <div className="mt-1 max-w-[260px] text-xs font-semibold leading-snug text-slate-600">{selectedPoSellDetail}</div> : null}
                                   {poSellVariance ? <div className={`mt-1 text-xs font-semibold ${poSellVariance.className}`}>{poSellVariance.text}</div> : null}
                                 </td>
@@ -4184,6 +4228,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                           })
                           const selectedPoSell = poSellOptionForProduct(item.poSellId, item.productId)
                           const hasSelectedPoSell = Boolean(item.poSellId && selectedPoSell)
+                          const selectedPoSellFallback = item.poSellId && selectedPoSell && !itemPoSellOptions.some((po) => po.id === item.poSellId)
+                            ? { id: item.poSellId, label: selectedPoSell.name || selectedPoSell.id }
+                            : null
                           const selectedPoSellDetail = hasSelectedPoSell ? poSellDetailText(selectedPoSell, index) : null
                           const poSellVariance = hasSelectedPoSell ? poSellVarianceForRow(item.poSellId, index) : null
                           const selectedTradingCostSource = tradingCostSourceOptionForProduct(item.tradingCostSourceId, item.productId)
@@ -4228,11 +4275,16 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                 )}
                               </td>
                               <td className="p-2">
-                                <select className="h-10 w-full rounded-md border bg-white px-2 text-xs" value={hasSelectedPoSell ? item.poSellId ?? '' : ''} onChange={(event) => updateSalesItemPoSell(index, event.target.value || null)}>
-                                  <option value="">Spot Sale</option>
-                                  {hasSelectedPoSell && selectedPoSell ? <option hidden value={item.poSellId ?? ''}>{selectedPoSell.name || selectedPoSell.id}</option> : null}
-                                  {itemPoSellOptions.map((po) => <option key={`${po.id}-${po.line_id ?? po.product_id ?? 'all'}`} value={po.id}>{po.label ?? po.name}</option>)}
-                                </select>
+                                <SearchCombobox
+                                  hideLabel
+                                  hideSelectedOptionFromList={Boolean(selectedPoSellFallback)}
+                                  inputClassName="h-10 px-2 text-xs"
+                                  inputId={`sales-bill-manual-po-sell-${index}`}
+                                  label="อ้างอิง PO"
+                                  options={toPoSearchOptions(itemPoSellOptions, 'Spot Sale', selectedPoSellFallback)}
+                                  value={hasSelectedPoSell ? item.poSellId ?? '' : ''}
+                                  onChange={(value) => updateSalesItemPoSell(index, value || null)}
+                                />
                                 {selectedPoSellDetail ? <div className="mt-1 text-xs font-semibold leading-snug text-slate-600">{selectedPoSellDetail}</div> : null}
                                 {poSellVariance ? <div className={`mt-1 text-xs font-semibold ${poSellVariance.className}`}>{poSellVariance.text}</div> : null}
                               </td>

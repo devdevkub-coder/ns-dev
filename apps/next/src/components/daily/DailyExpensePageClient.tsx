@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { Select } from '@/components/ui/Select'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
@@ -887,8 +888,8 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                 />
               </div>
               <div className="block lg:hidden flex-1 max-w-[200px]">
-                <select
-                  className="h-9 w-full rounded-md border border-slate-200 bg-white px-2.5 text-xs text-slate-800 outline-none"
+                <Select
+                  className="h-9 w-full text-xs"
                   value={categoryId}
                   onChange={(e) => setCategoryId(e.target.value)}
                 >
@@ -898,7 +899,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       {cat.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               {/* Mobile Filter Button (visible only on mobile < md) */}
@@ -1357,8 +1358,8 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
               >
                     <div>
                       <span className="mb-1.5 block text-xs font-semibold text-slate-600">หมวดค่าใช้จ่าย</span>
-                      <select
-                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-800 outline-none"
+                      <Select
+                        className="h-9 w-full text-xs"
                         value={categoryId}
                         onChange={(e) => setCategoryId(e.target.value)}
                       >
@@ -1368,7 +1369,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                             {cat.name}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </div>
 
                     <div>
@@ -1435,14 +1436,14 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                 <DatePickerInput className="h-9 w-[130px]" title="จากวันที่" value={dateFrom} onChange={setDateFrom} />
                 <span className="text-slate-400">→</span>
                 <DatePickerInput className="h-9 w-[130px]" title="ถึงวันที่" value={dateTo} onChange={setDateTo} />
-                <select className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm bg-white" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+                <Select className="h-9 w-auto" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
                   <option value="">ทุกหมวด</option>
                   {categories.filter((category) => category.active !== false).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                </select>
-                <select className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm bg-white" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+                </Select>
+                <Select className="h-9 w-auto" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
                   <option value="">ทุกบัญชี</option>
                   {accounts.filter((account) => account.active).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                </select>
+                </Select>
               </div>
 
               {search || dateFrom || dateTo || categoryId || accountId || statusFilter.length > 0 ? (
@@ -1521,18 +1522,18 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
 
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">หมวดหมู่</span>
-                    <select className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+                    <Select className="h-9 w-full" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
                       <option value="">ทุกหมวด</option>
                       {categories.filter((category) => category.active !== false).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                    </select>
+                    </Select>
                   </label>
 
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">บัญชี</span>
-                    <select className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+                    <Select className="h-9 w-full" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
                       <option value="">ทุกบัญชี</option>
                       {accounts.filter((account) => account.active).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                    </select>
+                    </Select>
                   </label>
 
                   <div>
@@ -1642,15 +1643,15 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       {form.paymentAction === 'pay_now' ? (
                         <label className="block col-span-2 md:col-span-2" data-field="supplierPaymentDestinationId">
                           <span className="mb-1 block text-xs font-medium text-slate-600">ช่องทางรับเงินของ Supplier{renderRequiredMark(true)}</span>
-                          <select
+                          <Select
                             aria-invalid={Boolean(fieldErrors.supplierPaymentDestinationId)}
-                            className={`h-9 w-full rounded-md border px-3 text-sm outline-none ${fieldErrors.supplierPaymentDestinationId ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 bg-white text-slate-900'}`}
+                            className="h-10 w-full"
                             value={form.supplierPaymentDestinationId ?? ''}
                             onChange={(event) => setForm({ ...form, supplierPaymentDestinationId: event.target.value || null })}
                           >
                             <option value="">{form.supplierId ? 'เลือกช่องทางรับเงิน' : 'เลือก Supplier ก่อน'}</option>
                             {supplierPaymentDestinations.map((account) => <option key={account.code} value={account.code}>{supplierPaymentDestinationLabel(account)}</option>)}
-                          </select>
+                          </Select>
                           {fieldErrors.supplierPaymentDestinationId ? <span className="mt-1 block text-xs text-red-700">{fieldErrors.supplierPaymentDestinationId}</span> : null}
                         </label>
                       ) : null}
@@ -1693,26 +1694,26 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         <label className="block col-span-2 sm:col-span-1" data-field="paymentMethod">
                           <span className="mb-1 block text-xs font-medium text-slate-600">วิธีจ่าย{renderRequiredMark(true)}</span>
-                          <select
-                            className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none"
+                          <Select
+                            className="h-10 w-full"
                             value={paymentMethod}
                             onChange={(event) => updatePaymentMethod(event.target.value)}
                           >
                             {paymentMethods.length === 0 ? <option value="">ไม่มีวิธีจ่ายที่เปิดใช้งาน</option> : null}
                             {paymentMethods.map((method) => <option key={method.id} value={method.name}>{method.name}</option>)}
-                          </select>
+                          </Select>
                         </label>
                         <label className="block col-span-2 md:col-span-2" data-field="accountId">
                           <span className="mb-1 block text-xs font-medium text-slate-600">บัญชีที่จ่ายของบริษัท{renderRequiredMark(true)}</span>
-                          <select
+                          <Select
                             aria-invalid={Boolean(fieldErrors.accountId)}
-                            className={`h-9 w-full rounded-md border px-3 text-sm outline-none ${fieldErrors.accountId ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 bg-white text-slate-900'}`}
+                            className="h-10 w-full"
                             value={form.accountId ?? ''}
                             onChange={(event) => setForm({ ...form, accountId: event.target.value || null })}
                           >
                             <option value="">{paymentMethod ? 'เลือกบัญชีที่จ่าย' : 'เลือกวิธีจ่ายก่อน'}</option>
                             {paymentAccountOptions.map((account) => <option key={account.id} value={account.id}>{account.name} ({formatMoney(account.balance)})</option>)}
-                          </select>
+                          </Select>
                           {fieldErrors.accountId ? <span className="mt-1 block text-xs text-red-700">{fieldErrors.accountId}</span> : null}
                         </label>
                         <label className="block" data-field="discount">
@@ -2389,7 +2390,7 @@ function ExpenseLineTable(props: {
                       error={categoryError}
                       errorKey={`lines.${index}.categoryId`}
                       hideLabel
-                      inputClassName="h-8 px-2 py-1 text-xs"
+                      inputClassName="h-10 px-2 py-1 text-xs"
                       inputId={`expense-line-category-${index}`}
                       label="หมวดค่าใช้จ่าย"
                       options={props.categoryOptions}
@@ -2419,9 +2420,9 @@ function ExpenseLineTable(props: {
                     {line.hasVat ? formatMoney(line.vatAmount) : '-'}
                   </td>
                   <td className="bg-amber-50 p-1 align-top" data-field={`lines.${index}.whtPct`}>
-                    <select
+                    <Select
                       aria-invalid={Boolean(whtPctError)}
-                      className={`h-8 w-full rounded-md border bg-white px-2 py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-blue-100 ${whtPctError ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300'}`}
+                      className="h-10 w-full text-xs"
                       value={line.whtPct > 0 ? String(line.whtPct) : '0'}
                       onChange={(event) => props.onLineChange(index, { whtPct: Number(event.target.value) })}
                     >
@@ -2429,7 +2430,7 @@ function ExpenseLineTable(props: {
                       {showCurrentWhtRate ? <option value={props.whtRatePercent}>{props.whtRatePercent.toFixed(2)}% (อัตราปัจจุบัน)</option> : null}
                       {whtRateOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                       {hasSelectedCustomWht ? <option value={line.whtPct}>{line.whtPct.toFixed(2)}% (เดิม)</option> : null}
-                    </select>
+                    </Select>
                     {whtPctError ? <span className="mt-1 block text-xs text-red-700">{whtPctError}</span> : null}
                   </td>
                   <td className="bg-amber-50 p-1 align-top">
@@ -2472,16 +2473,16 @@ function SelectField(props: { error?: string; fieldName?: string; label: string;
   return (
     <label className="block" data-field={props.fieldName}>
       <span className="mb-1 block text-xs font-medium text-slate-600">{props.label}{renderRequiredMark(props.required)}</span>
-      <select
+      <Select
         aria-invalid={Boolean(props.error)}
-        className={`h-9 w-full rounded-md border bg-white px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300'} ${props.value ? 'text-slate-900' : 'text-slate-400'}`}
+        className="h-10 w-full"
         required={props.required}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
       >
         <option disabled={props.required} value="">{placeholder}</option>
         {props.options.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
-      </select>
+      </Select>
       {props.error ? <span className="mt-1 block text-xs text-red-700">{props.error}</span> : null}
     </label>
   )

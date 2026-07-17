@@ -7,6 +7,7 @@ import { RotateCcw } from 'lucide-react'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
@@ -196,9 +197,9 @@ export function WorkingCapitalPageClient() {
       {/* Desktop Filter Panel */}
       <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:flex">
         <span className="text-sm">ช่วงวิเคราะห์</span>
-        <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={periodDays} onChange={(event) => setPeriodDays(Number(event.target.value))}>
+        <Select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={periodDays} onChange={(event) => setPeriodDays(Number(event.target.value))}>
           {[30, 60, 90, 180, 365].map((days) => <option key={days} value={days}>{days} วันล่าสุด{days === 90 ? ' (แนะนำ)' : ''}</option>)}
-        </select>
+        </Select>
         <DateInput label="ถึง" value={asOf} onChange={setAsOf} />
         <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
         <span className="text-xs text-slate-500">ตั้งแต่ {data?.filters.from ?? '-'} ถึง {data?.filters.asOf ?? asOf}</span>
@@ -207,14 +208,14 @@ export function WorkingCapitalPageClient() {
       {/* Mobile Toolbar (Hidden on Desktop) */}
       <div className="mb-4 space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
         <div className="flex gap-2 items-center">
-          <select 
+          <Select
             aria-label="Period days select"
             className="flex-1 h-9 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs outline-none focus:border-slate-400 transition cursor-pointer"
             value={periodDays} 
             onChange={(event) => setPeriodDays(Number(event.target.value))}
           >
             {[30, 60, 90, 180, 365].map((days) => <option key={days} value={days}>{days} วัน</option>)}
-          </select>
+          </Select>
           <button
             type="button"
             className="h-9 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
@@ -257,15 +258,15 @@ export function WorkingCapitalPageClient() {
 
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
-            <select
+            <Select
               aria-label="Branch select"
-              className="h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
+              className="h-9 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
               value={branchId}
               onChange={(event) => setBranchId(event.target.value)}
             >
               <option value="">ทุกสาขา</option>
               {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
+            </Select>
           </div>
 
           <div className="border-t border-slate-100 pt-2 text-xs text-slate-500">
@@ -418,15 +419,15 @@ export function StockFinancePageClient() {
         >
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
-            <select
+            <Select
               aria-label="Branch select"
-              className="h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
+              className="h-9 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
               value={branchId}
               onChange={(event) => setBranchId(event.target.value)}
             >
               <option value="">ทุกสาขา</option>
               {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
+            </Select>
           </div>
         </MobileFilterSheet>
       ) : null}
@@ -612,15 +613,15 @@ export function ProfitLeakPageClient() {
 
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
-            <select
+            <Select
               aria-label="Branch select"
-              className="h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
+              className="h-9 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
               value={branchId}
               onChange={(event) => setBranchId(event.target.value)}
             >
               <option value="">ทุกสาขา</option>
               {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
+            </Select>
           </div>
 
           <div className="flex items-center justify-between border-t border-slate-100 pt-2">
@@ -695,7 +696,7 @@ function DateInput({ label, onChange, value }: { label: string; onChange: (value
 }
 
 function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; onChange: (value: string) => void; value: string }) {
-  return <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none focus:outline-none focus:border-slate-400 transition cursor-pointer" value={value} onChange={(event) => onChange(event.target.value)}><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>
+  return <Select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none focus:outline-none focus:border-slate-400 transition cursor-pointer" value={value} onChange={(event) => onChange(event.target.value)}><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</Select>
 }
 
 function Panel({ children, className = '', title }: { children: ReactNode; className?: string; title: string }) {
@@ -1065,7 +1066,7 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
-        <select
+        <Select
           aria-label="หมวดสินค้า Slow Moving"
           className="h-9 w-[180px] rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-500"
           value={groupFilter}
@@ -1073,7 +1074,7 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
         >
           <option value="all">ทุกหมวด</option>
           {groups.map((group) => <option key={group} value={group}>{group}</option>)}
-        </select>
+        </Select>
         <button
           className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 outline-none transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
           disabled={!hasFilters}
@@ -1154,27 +1155,27 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
-            <select
+            <Select
               aria-label="สาขา"
-              className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-500"
+              className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-500"
               value={branchId}
               onChange={(event) => onBranchIdChange(event.target.value)}
             >
               <option value="">ทุกสาขา</option>
               {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
+            </Select>
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">หมวดสินค้า</label>
-            <select
+            <Select
               aria-label="หมวดสินค้า Slow Moving"
-              className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-500"
+              className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-500"
               value={groupFilter}
               onChange={(event) => setGroupFilter(event.target.value)}
             >
               <option value="all">ทุกหมวด</option>
               {groups.map((group) => <option key={group} value={group}>{group}</option>)}
-            </select>
+            </Select>
           </div>
         </MobileFilterSheet>
       ) : null}
@@ -1341,7 +1342,7 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
         />
           <DateInput label="ณ วันที่" value={asOf} onChange={onAsOfChange} />
           <BranchSelect branches={branches} value={branchId} onChange={onBranchIdChange} />
-        <select
+        <Select
           aria-label="หมวดสินค้า"
           className="h-9 w-[150px] rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-500"
           value={groupFilter}
@@ -1349,7 +1350,7 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
         >
           <option value="all">ทุกหมวด</option>
           {groups.map((group) => <option key={group} value={group}>{group}</option>)}
-        </select>
+        </Select>
         <button
           className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-600 outline-none transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
           disabled={!hasFilters}
@@ -1453,33 +1454,33 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
-            <select
+            <Select
               aria-label="สาขา"
-              className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-500"
+              className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-500"
               value={branchId}
               onChange={(event) => onBranchIdChange(event.target.value)}
             >
               <option value="">ทุกสาขา</option>
               {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
+            </Select>
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">หมวดสินค้า</label>
-            <select
+            <Select
               aria-label="หมวดสินค้า"
-              className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-500"
+              className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-500"
               value={groupFilter}
               onChange={(event) => setGroupFilter(event.target.value)}
             >
               <option value="all">ทุกหมวด</option>
               {groups.map((group) => <option key={group} value={group}>{group}</option>)}
-            </select>
+            </Select>
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">อายุ Stock</label>
-            <select
+            <Select
               aria-label="อายุ Stock"
-              className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-500"
+              className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-500"
               value={ageFilter}
               onChange={(event) => setAgeFilter(event.target.value)}
             >
@@ -1488,7 +1489,7 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
               <option value="31-60">31-60 วัน</option>
               <option value="61-90">61-90 วัน</option>
               <option value="90+">90+ วัน</option>
-            </select>
+            </Select>
           </div>
         </MobileFilterSheet>
       ) : null}

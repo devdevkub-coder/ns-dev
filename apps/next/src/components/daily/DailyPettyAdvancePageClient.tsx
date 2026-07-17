@@ -8,6 +8,7 @@ import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ApiError } from '@/lib/api-client'
 import { dailyFetchJson, formatMoney, pettyAdvanceFormSchema, pettyAdvanceReturnFormSchema, todayDateInput, type DailyAccountOption, type PettyAdvanceFormValues } from '@/lib/daily'
@@ -532,10 +533,10 @@ export function DailyPettyAdvancePageClient() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <label className="block col-span-2 sm:col-span-1" data-field="type">
                     <span className="mb-1 block text-xs font-medium text-slate-600">ประเภท <span className="text-red-600">*</span></span>
-                    <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none" value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value as 'DIRECTOR_LOAN' | 'PETTY_CASH' })}>
+                    <Select className="h-10 w-full px-3 text-sm" value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value as 'DIRECTOR_LOAN' | 'PETTY_CASH' })}>
                       <option value="DIRECTOR_LOAN">กู้กรรมการ</option>
                       <option value="PETTY_CASH">เงินสำรองจ่าย</option>
-                    </select>
+                    </Select>
                   </label>
                   <div className="col-span-2 sm:col-span-1">
                     <TextField error={fieldErrors.date} fieldName="date" label="วันที่จ่าย" required type="date" value={form.date} onChange={(value) => setForm({ ...form, date: value })} />
@@ -925,16 +926,16 @@ function SelectField(props: { error?: string; fieldName?: string; label: string;
   return (
     <label className="block" data-field={props.fieldName}>
       <span className="mb-1 block text-xs font-medium text-slate-600">{props.label}{props.required ? <span className="ml-1 text-red-600">*</span> : null}</span>
-      <select
+      <Select
         aria-invalid={Boolean(props.error)}
-        className={`h-9 w-full rounded-md border bg-white px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300'} ${props.value ? 'text-slate-900' : 'text-slate-400'}`}
+        className={`h-10 w-full px-3 text-sm ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300'} ${props.value ? 'text-slate-900' : 'text-slate-400'}`}
         required={props.required}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
       >
         <option disabled={props.required} value="">{props.required ? `เลือก${props.label}` : 'ไม่ระบุ'}</option>
         {props.options.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
-      </select>
+      </Select>
       {props.error ? <span className="mt-1 block text-xs text-red-700">{props.error}</span> : null}
     </label>
   )

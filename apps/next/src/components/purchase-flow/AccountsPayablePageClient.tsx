@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
+import { Select } from '@/components/ui/Select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
@@ -118,7 +119,7 @@ function currentMonthStart() {
   return `${todayDateInput().slice(0, 8)}01`
 }
 
-export function AccountsPayablePageClient() {
+export function AccountsPayablePageClient({ initialFilters }: { initialFilters?: { branchId?: string; from?: string; to?: string } } = {}) {
   const latestLoadRequestRef = useRef(0)
   const [data, setData] = useState<ApPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -127,8 +128,8 @@ export function AccountsPayablePageClient() {
   const [selectedRow, setSelectedRow] = useState<ApRow | null>(null)
   const [tab, setTab] = useState<'summary' | 'detail'>('summary')
   const [bucket, setBucket] = useState('')
-  const [branchId, setBranchId] = useState('')
-  const [from, setFrom] = useState(currentMonthStart())
+  const [branchId, setBranchId] = useState(initialFilters?.branchId || '')
+  const [from, setFrom] = useState(initialFilters?.from ?? currentMonthStart())
   const [page, setPage] = useState(1)
   const [summaryPage, setSummaryPage] = useState(1)
   const summaryPageSize = 50
@@ -139,7 +140,7 @@ export function AccountsPayablePageClient() {
   const [sortKey, setSortKey] = useState<SortKey>('dueDate')
   const [status, setStatus] = useState('')
   const [supplierId, setSupplierId] = useState('')
-  const [to, setTo] = useState(todayDateInput())
+  const [to, setTo] = useState(initialFilters?.to || todayDateInput())
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const hasFilters = Boolean(branchId || bucket || from || q.trim() || status || supplierId || to)
 
@@ -360,22 +361,22 @@ export function AccountsPayablePageClient() {
               />
             </div>
             
-            <select className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
+            <Select className="h-9 px-3 py-2 text-sm" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
               <option value="">ทุกอายุหนี้</option>
               <option value="Current">วันนี้/อนาคต</option>
               <option value="1-30">1-30 วัน</option>
               <option value="31-60">31-60 วัน</option>
               <option value="61-90">61-90 วัน</option>
               <option value=">90">&gt;90 วัน</option>
-            </select>
+            </Select>
             
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
-            <select className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
+            <Select className="h-9 px-3 py-2 text-sm" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
               <option value="">ทุกสาขา</option>
               {(data?.filters.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
+            </Select>
             
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-slate-500">สถานะ:</span>
@@ -383,7 +384,8 @@ export function AccountsPayablePageClient() {
                 const active = status === item
                 return (
                   <button
-                    className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+                    aria-pressed={active}
+                    className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-500 bg-slate-600 text-white' : 'border-slate-300 bg-transparent text-slate-600 hover:bg-slate-200'}`}
                     key={item || 'all-statuses'}
                     onClick={() => { setPage(1); setStatus(item) }}
                     type="button"
@@ -457,22 +459,37 @@ export function AccountsPayablePageClient() {
                   setSupplierId(value)
                 }}
               />
-              <select className="w-full rounded-md border px-3 py-2 text-sm" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
+              <Select className="h-9 w-full px-3 py-2 text-sm" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
                 <option value="">ทุกอายุหนี้</option>
                 <option value="Current">วันนี้/อนาคต</option>
                 <option value="1-30">1-30 วัน</option>
                 <option value="31-60">31-60 วัน</option>
                 <option value="61-90">61-90 วัน</option>
                 <option value=">90">&gt;90 วัน</option>
-              </select>
-              <select className="w-full rounded-md border px-3 py-2 text-sm" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
+              </Select>
+              <Select className="h-9 w-full px-3 py-2 text-sm" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
                 <option value="">ทุกสาขา</option>
                 {(data?.filters.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-              </select>
-              <select className="w-full rounded-md border px-3 py-2 text-sm" value={status} onChange={(event) => { setPage(1); setStatus(event.target.value) }}>
-                <option value="">ทุกสถานะ</option>
-                {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
+              </Select>
+              <div className="space-y-1">
+                <span className="block text-xs font-semibold text-slate-600">สถานะ</span>
+                <div aria-label="กรองสถานะเจ้าหนี้" className="flex flex-wrap gap-2" role="group">
+                  {['', ...(data?.filters.statuses ?? [])].map((item) => {
+                    const active = status === item
+                    return (
+                      <button
+                        aria-pressed={active}
+                        className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-500 bg-slate-600 text-white' : 'border-slate-300 bg-transparent text-slate-600 hover:bg-slate-200'}`}
+                        key={item || 'all-statuses-mobile'}
+                        onClick={() => { setPage(1); setStatus(item) }}
+                        type="button"
+                      >
+                        {item || 'ทุกสถานะ'}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-slate-500">
                   วันที่บิลจาก

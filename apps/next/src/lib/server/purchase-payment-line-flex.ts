@@ -56,25 +56,56 @@ function date(value: string) {
   }).format(parsed)
 }
 
-function detailRow(label: string, value: string) {
+function detailRow(label: string, value: string, emphasized = false) {
   return {
     type: 'box',
     layout: 'horizontal',
     contents: [
-      { type: 'text', text: label, color: '#94a3b8', size: 'sm', flex: 3, wrap: true },
-      { type: 'text', text: value, color: '#f8fafc', size: 'sm', flex: 4, align: 'end', wrap: true },
+      { type: 'text', text: label, color: '#475569', size: 'sm', flex: 3, weight: 'bold', wrap: true },
+      {
+        type: 'text',
+        text: value,
+        color: '#0f172a',
+        size: emphasized ? 'md' : 'sm',
+        flex: 4,
+        ...(emphasized ? { weight: 'bold' } : {}),
+        align: 'end',
+        wrap: true,
+      },
     ],
   }
 }
 
-function listRow(label: string, amount: number) {
+function sectionTab(label: string) {
+  return {
+    type: 'box',
+    layout: 'horizontal',
+    backgroundColor: '#ecfdf5',
+    cornerRadius: 'md',
+    paddingAll: '10px',
+    contents: [
+      { type: 'text', text: label, color: '#065f46', size: 'sm', weight: 'bold', wrap: true },
+    ],
+  }
+}
+
+function listRow(label: string, amount: number, showAmount: boolean) {
   return {
     type: 'box',
     layout: 'horizontal',
     spacing: 'sm',
     contents: [
-      { type: 'text', text: label, color: '#e2e8f0', size: 'sm', flex: 4, wrap: true },
-      { type: 'text', text: money(amount), color: '#cbd5e1', size: 'sm', flex: 2, align: 'end', wrap: true },
+      { type: 'text', text: label, color: '#0f172a', size: 'md', flex: 4, weight: 'bold', wrap: true },
+      ...(showAmount ? [{
+        type: 'text',
+        text: money(amount),
+        color: '#047857',
+        size: 'md',
+        flex: 2,
+        weight: 'bold',
+        align: 'end',
+        wrap: true,
+      }] : []),
     ],
   }
 }
@@ -85,7 +116,7 @@ function remainingRow(label: string) {
     layout: 'horizontal',
     spacing: 'sm',
     contents: [
-      { type: 'text', text: label, color: '#6ee7b7', size: 'sm', flex: 1, wrap: true },
+      { type: 'text', text: label, color: '#047857', size: 'sm', flex: 1, weight: 'bold', wrap: true },
     ],
   }
 }
@@ -115,6 +146,14 @@ function paymentStatus(value: string) {
   return text(value)
 }
 
+function hasMoney(value: number) {
+  return Math.abs(value) > 0.01
+}
+
+function sameMoney(left: number, right: number) {
+  return Math.abs(left - right) <= 0.01
+}
+
 export function buildPurchasePaymentLineFlexMessage(input: PurchasePaymentLineFlexData, detailUrl: string) {
   const shownApprovals = input.approvals.slice(0, MAX_APPROVALS)
   const remainingApprovals = input.approvals.length - shownApprovals.length
@@ -123,11 +162,22 @@ export function buildPurchasePaymentLineFlexMessage(input: PurchasePaymentLineFl
   const approvalRows = shownApprovals.map((approval) => listRow(
     `${text(approval.approvalNo)} • ${sourceTypeLabel(approval.sourceType)} ${text(approval.sourceDocumentNo)}`,
     approval.amount,
+    input.approvals.length > 1,
   ))
   const accountRows = shownAccounts.map((account) => listRow(
     [text(account.accountCode, ''), text(account.accountName)].filter(Boolean).join(' - '),
     account.amount,
+    input.companyAccounts.length > 1,
   ))
+  const notes = text(input.notes, '')
+  const summaryRows = [
+    ...(!sameMoney(input.paidAmount, input.netCashOut) ? [detailRow('ยอดจ่าย', money(input.paidAmount), true)] : []),
+    ...(hasMoney(input.discount) ? [detailRow('ส่วนลด', money(input.discount))] : []),
+    ...(hasMoney(input.withholdingTax) ? [detailRow('ภาษีหัก ณ ที่จ่าย', money(input.withholdingTax))] : []),
+    ...(hasMoney(input.fee) ? [detailRow('ค่าธรรมเนียม', money(input.fee))] : []),
+    detailRow('เงินออกสุทธิ', money(input.netCashOut), true),
+    ...(notes ? [detailRow('หมายเหตุ', notes)] : []),
+  ]
   if (remainingApprovals > 0) approvalRows.push(remainingRow(`+ อีก ${number(remainingApprovals)} PMA`))
   if (remainingAccounts > 0) accountRows.push(remainingRow(`+ อีก ${number(remainingAccounts)} บัญชี`))
 
@@ -144,42 +194,35 @@ export function buildPurchasePaymentLineFlexMessage(input: PurchasePaymentLineFl
         paddingAll: '20px',
         spacing: 'sm',
         contents: [
-          { type: 'text', text: 'ใบจ่ายเงิน Supplier', color: '#34d399', size: 'sm', weight: 'bold' },
+          { type: 'text', text: '💸 ใบจ่ายเงิน Supplier', color: '#34d399', size: 'md', weight: 'bold' },
           { type: 'text', text: text(input.documentNo), color: '#f8fafc', size: 'xl', weight: 'bold', wrap: true },
-          { type: 'text', text: date(input.date), color: '#94a3b8', size: 'sm' },
+          { type: 'text', text: date(input.date), color: '#cbd5e1', size: 'sm', weight: 'bold' },
         ],
       },
       body: {
         type: 'box',
         layout: 'vertical',
-        backgroundColor: '#1e293b',
+        backgroundColor: '#f8fafc',
         paddingAll: '20px',
         spacing: 'md',
         contents: [
           detailRow('สาขา', text(input.branchName)),
-          detailRow('ผู้รับเงิน', text(input.payeeName)),
+          detailRow('ผู้รับเงิน', text(input.payeeName), true),
           detailRow('วิธีจ่าย', text(input.paymentMethod)),
           detailRow('ธนาคารปลายทาง', text(input.destinationBankName)),
           detailRow('บัญชีปลายทาง', maskedAccountNumber(input.destinationAccountNo)),
-          { type: 'separator', color: '#475569' },
-          { type: 'text', text: 'PMA / เอกสารต้นทาง', color: '#94a3b8', size: 'sm' },
+          sectionTab('PMA / เอกสารต้นทาง'),
           ...(approvalRows.length > 0 ? approvalRows : [detailRow('รายการ', '-')]),
-          { type: 'separator', color: '#475569' },
-          { type: 'text', text: 'บัญชีบริษัทที่ใช้จ่าย', color: '#94a3b8', size: 'sm' },
+          sectionTab('บัญชีบริษัทที่ใช้จ่าย'),
           ...(accountRows.length > 0 ? accountRows : [detailRow('รายการ', '-')]),
-          { type: 'separator', color: '#475569' },
-          detailRow('ยอดจ่าย', money(input.paidAmount)),
-          detailRow('ส่วนลด', money(input.discount)),
-          detailRow('ภาษีหัก ณ ที่จ่าย', money(input.withholdingTax)),
-          detailRow('ค่าธรรมเนียม', money(input.fee)),
-          detailRow('เงินออกสุทธิ', money(input.netCashOut)),
-          detailRow('หมายเหตุ', text(input.notes)),
+          sectionTab('สรุปยอดจ่ายเงิน'),
+          ...summaryRows,
         ],
       },
       footer: {
         type: 'box',
         layout: 'vertical',
-        backgroundColor: '#020617',
+        backgroundColor: '#ffffff',
         paddingAll: '16px',
         spacing: 'md',
         contents: [
@@ -187,12 +230,12 @@ export function buildPurchasePaymentLineFlexMessage(input: PurchasePaymentLineFl
             type: 'box',
             layout: 'horizontal',
             contents: [
-              { type: 'text', text: 'สถานะ', color: '#94a3b8', size: 'sm' },
+              { type: 'text', text: 'สถานะ', color: '#475569', size: 'sm', weight: 'bold' },
               {
                 type: 'text',
                 text: paymentStatus(input.status),
-                color: isCancelledStatus(input.status) ? '#f87171' : '#34d399',
-                size: 'sm',
+                color: isCancelledStatus(input.status) ? '#dc2626' : '#047857',
+                size: 'md',
                 weight: 'bold',
                 align: 'end',
                 wrap: true,
@@ -203,7 +246,7 @@ export function buildPurchasePaymentLineFlexMessage(input: PurchasePaymentLineFl
             type: 'button',
             style: 'primary',
             height: 'sm',
-            color: '#059669',
+            color: '#047857',
             action: {
               type: 'uri',
               label: 'เปิดในระบบ',

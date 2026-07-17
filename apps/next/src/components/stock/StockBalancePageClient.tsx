@@ -10,6 +10,7 @@ import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import type { StockOption } from '@/lib/stock'
 
@@ -708,10 +709,10 @@ export function StockBalancePageClient() {
             </div>
 
             <span className="ml-4 text-sm text-slate-500">สาขา:</span>
-            <select className="h-9 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
+            <Select className="h-9 w-auto px-2.5 text-sm" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
               <option value="">ทุกสาขา</option>
               {data?.reference.branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
+            </Select>
             <button className="ml-auto inline-flex h-9 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm text-white outline-none transition-colors hover:bg-emerald-700 focus:ring-0" type="button" onClick={exportXlsx}>
               <Download className="size-4" aria-hidden="true" />
               ส่งออก Excel
@@ -798,10 +799,10 @@ export function StockBalancePageClient() {
 
               <label className="block">
                 <span className="mb-1 block text-xs text-slate-500">สาขา</span>
-                <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
+                <Select className="h-9 w-full text-sm" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
                   <option value="">ทุกสาขา</option>
                   {data?.reference.branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                </select>
+                </Select>
               </label>
         </MobileFilterSheet>
       ) : null}

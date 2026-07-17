@@ -93,7 +93,6 @@ updated: 2026-06-11
 | `/daily/expense-dashboard` | Dashboard ค่าใช้จ่าย | [daily-transactions-daily-expense-dashboard.md](daily-transactions-daily-expense-dashboard.md) | [[Expense Dashboard Flow]] |
 | `/purchase/po-buy` | PO Buy | [daily-transactions-purchase-po-buy.md](daily-transactions-purchase-po-buy.md) | [[PO Buy Page Flow]], [[Purchase Flow]] |
 | `/sales/po-sell` | PO Sell | [daily-transactions-sales-po-sell.md](daily-transactions-sales-po-sell.md) | [[PO Sell Flow]], [[Sales Flow]] |
-| `/daily/design-mockup` | Design Mockup | [daily-transactions-daily-design-mockup.md](daily-transactions-daily-design-mockup.md) | [[Architecture Map]] |
 | `/production/orders` | ใบสั่งผลิต | [production-production-orders.md](production-production-orders.md) | [[Production Flow]] |
 | `/production/report` | รายงานการผลิต / Yield | [production-production-report.md](production-production-report.md) | [[Production Flow]] |
 | `/dual-costing/cost-pool` | Cost Pool | [dual-costing-dual-costing-cost-pool.md](dual-costing-dual-costing-cost-pool.md) | [[Dual Costing Flow]], [[Cost Pool]] |

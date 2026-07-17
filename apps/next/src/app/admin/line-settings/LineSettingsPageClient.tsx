@@ -9,6 +9,7 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader } from '@/components/ui/Dialog'
+import { Select } from '@/components/ui/Select'
 
 // Validation Schema for credentials and basic configs
 const credentialsSchema = z.object({
@@ -2481,15 +2482,15 @@ export function LineSettingsPageClient() {
 
               <div className="space-y-1">
                 <label className="block font-bold text-slate-700">ประเภทช่องทางแชท *</label>
-                <select
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
+                <Select
+                  className="h-10 w-full px-3 py-2 text-sm text-slate-900"
                   value={editingTarget.target_type}
                   onChange={(e) => setEditingTarget({ ...editingTarget, target_type: e.target.value as any })}
                 >
                   <option value="group">Group (กลุ่มไลน์)</option>
                   <option value="room">Room (ห้องไลน์แชท)</option>
                   <option value="user">User ID (รายบุคคล)</option>
-                </select>
+                </Select>
               </div>
 
               <div className="space-y-1">
@@ -2508,8 +2509,8 @@ export function LineSettingsPageClient() {
 
               <div className="space-y-1">
                 <label className="block font-bold text-slate-700">ผูกเชื่อมโยงรหัสสาขา (ระบุสาขา)</label>
-                <select
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
+                <Select
+                  className="h-10 w-full px-3 py-2 text-sm text-slate-900"
                   value={editingTarget.branch_code || ''}
                   onChange={(e) => setEditingTarget({ ...editingTarget, branch_code: e.target.value || null })}
                 >
@@ -2517,7 +2518,7 @@ export function LineSettingsPageClient() {
                   {branches.map(b => (
                     <option key={b.id} value={b.code || ''}>{b.name} ({b.code || '-'})</option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div className="flex flex-wrap gap-4 pt-2 select-none font-semibold text-slate-700">
@@ -2634,10 +2635,10 @@ export function LineSettingsPageClient() {
 
               <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
                 <label className="block font-bold text-slate-800" htmlFor="line-rule-target">2. เลือกกลุ่ม LINE ที่จะส่ง <span className="text-rose-600">*</span></label>
-                <select
+                <Select
                   id="line-rule-target"
                   aria-invalid={Boolean(ruleFieldErrors.targetId)}
-                  className={`h-10 w-full rounded-md border bg-white px-3 text-sm focus:outline-none ${ruleFieldErrors.targetId ? 'border-rose-500 bg-rose-50' : 'border-slate-300'}`}
+                  className={`h-10 w-full px-3 text-sm ${ruleFieldErrors.targetId ? 'border-rose-500 bg-rose-50' : 'border-slate-300'}`}
                   value={editingRule.target_id || ''}
                   onChange={(event) => {
                     setEditingRule({ ...editingRule, target_id: event.target.value })
@@ -2648,7 +2649,7 @@ export function LineSettingsPageClient() {
                   {targets.filter((target) => target.is_active && target.target_type === 'group').map((target) => (
                     <option key={target.id} value={target.target_id}>{target.display_name}</option>
                   ))}
-                </select>
+                </Select>
                 {ruleFieldErrors.targetId ? <p className="text-xs font-medium text-rose-600">{ruleFieldErrors.targetId}</p> : null}
               </section>
 

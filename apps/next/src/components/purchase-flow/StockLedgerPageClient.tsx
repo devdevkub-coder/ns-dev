@@ -9,6 +9,7 @@ import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
@@ -248,26 +249,26 @@ export function StockLedgerPageClient() {
 
         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
           <span className="text-xs text-slate-500 font-medium">สาขา:</span>
-          <select className="h-9 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
+          <Select className="h-9 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
             <option value="">ทุกสาขา</option>
             {(data?.reference.branches ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
+          </Select>
 
           <span className="text-xs text-slate-500 ml-4 font-medium">ประเภท:</span>
-          <select className="h-9 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={movementType} onChange={(event) => { setPage(1); setMovementType(event.target.value) }}>
+          <Select className="h-9 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={movementType} onChange={(event) => { setPage(1); setMovementType(event.target.value) }}>
             <option value="">ทุกประเภท</option>
             {movementTypeGroups.map((group) => (
               <optgroup key={group.label} label={group.label}>
                 {group.options.map((item) => <option key={item} value={item}>{stockMovementTypeLabel(item)}</option>)}
               </optgroup>
             ))}
-          </select>
+          </Select>
 
           <span className="text-xs text-slate-500 ml-4 font-medium">ประเภทคลัง:</span>
-          <select className="h-9 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={warehouseType} onChange={(event) => { setPage(1); setWarehouseType(event.target.value) }}>
+          <Select className="h-9 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={warehouseType} onChange={(event) => { setPage(1); setWarehouseType(event.target.value) }}>
             <option value="">ทุกประเภทคลัง</option>
             {warehouseTypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-          </select>
+          </Select>
 
           <span className="text-xs text-slate-500 ml-4 font-medium">ช่วงเวลา:</span>
           <DatePickerInput className="w-[130px] !h-9 rounded-md border-slate-300 text-xs outline-none" title="จากวันที่" value={fromDate} onChange={(value) => { setPage(1); setFromDate(value) }} />
@@ -361,30 +362,30 @@ export function StockLedgerPageClient() {
 
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
-                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
+                <Select className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
                   <option value="">ทุกสาขา</option>
                   {(data?.reference.branches ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                </select>
+                </Select>
               </label>
 
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภท</span>
-                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={movementType} onChange={(event) => { setPage(1); setMovementType(event.target.value) }}>
+                <Select className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={movementType} onChange={(event) => { setPage(1); setMovementType(event.target.value) }}>
                   <option value="">ทุกประเภท</option>
                   {movementTypeGroups.map((group) => (
                     <optgroup key={group.label} label={group.label}>
                       {group.options.map((item) => <option key={item} value={item}>{stockMovementTypeLabel(item)}</option>)}
                     </optgroup>
                   ))}
-                </select>
+                </Select>
               </label>
 
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภทคลัง</span>
-                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={warehouseType} onChange={(event) => { setPage(1); setWarehouseType(event.target.value) }}>
+                <Select className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={warehouseType} onChange={(event) => { setPage(1); setWarehouseType(event.target.value) }}>
                   <option value="">ทุกประเภทคลัง</option>
                   {warehouseTypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                </select>
+                </Select>
               </label>
 
               <div className="grid grid-cols-2 gap-2">

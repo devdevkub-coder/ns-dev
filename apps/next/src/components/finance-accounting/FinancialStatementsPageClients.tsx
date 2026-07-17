@@ -1,15 +1,17 @@
 'use client'
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { SlidersHorizontal } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 
 type BranchRow = { code: string; id: string; name: string }
-type DetailRow = { amount: number; date: string; description: string; refNo: string }
+type DetailRow = { amount: number; date: string; description: string; href?: string; refNo: string; sourceType?: string }
 type StatementLine = { amount: number; details?: DetailRow[]; label: string; level?: number; section: string; tone?: 'default' | 'good' | 'bad' | 'muted' | 'total' }
 type SourceState = { basis: string; limitations: string[]; writeActionsEnabled: false }
 type DrillColumnKey = 'amount' | 'date' | 'description' | 'refNo'
@@ -18,11 +20,11 @@ type SortDirection = 'asc' | 'desc'
 
 type PlPayload = {
   branches: BranchRow[]
-  filters: { branchId: string; from: string; to: string; transactionMode: string }
+  filters: { branchId: string; from: string; to: string; transactionMode?: string }
   sections: StatementLine[]
   sourceState: SourceState
   split: { stock: { cogs: number; revenue: number }; trading: { cogs: number; revenue: number } }
-  summary: { cogs: number; depreciation: number; expenses: number; fxNet: number; grossProfit: number; interest: number; netProfitBeforeTax: number; operatingProfit: number; revenue: number }
+  summary: { assetDisposalNet?: number; cogs?: number; depreciation?: number; expenses?: number; fxNet?: number; grossProfit?: number; interest?: number; netProfitBeforeTax?: number; operatingProfit?: number; revenue?: number }
 }
 
 type BalancePayload = {
@@ -71,11 +73,6 @@ function compareSortValues(left: string | number, right: string | number) {
     : String(left).localeCompare(String(right), 'th', { numeric: true })
 }
 
-function getStatementSortValue(line: StatementLine, key: StatementColumnKey) {
-  if (key === 'drill') return line.details?.length ?? 0
-  return line[key]
-}
-
 function getDrillSortValue(row: DetailRow, key: DrillColumnKey) {
   return row[key]
 }
@@ -121,95 +118,82 @@ function localDateInputValue(date: Date) {
   return `${year}-${month}-${day}`
 }
 
-export function PlStatementPageClient() {
-  const [from, setFrom] = useState(monthStart())
-  const [to, setTo] = useState(today())
-  const [branchId, setBranchId] = useState('')
-  const [mode, setMode] = useState('ALL')
-  const url = useMemo(() => `/api/finance-accounting/pl-statement?from=${from}&to=${to}${branchId ? `&branchId=${branchId}` : ''}&transactionMode=${mode}`, [branchId, from, mode, to])
-  const { data, error, isLoading } = useApi<PlPayload>(url)
+export function PlStatementPageClient({ initialFilters }: { initialFilters?: { branchId?: string; from?: string; to?: string } } = {}) {
+  const [from, setFrom] = useState(initialFilters?.from || monthStart())
+  const [to, setTo] = useState(initialFilters?.to || today())
+  const [branchId, setBranchId] = useState(initialFilters?.branchId || '')
+  const [mobileFrom, setMobileFrom] = useState(from)
+  const [mobileTo, setMobileTo] = useState(to)
+  const [mobileBranchId, setMobileBranchId] = useState(branchId)
+  const url = useMemo(() => `/api/finance-accounting/pl-statement?from=${from}&to=${to}${branchId ? `&branchId=${branchId}` : ''}`, [branchId, from, to])
+  const exportHref = `${url}&format=xlsx`
+  const { data, error, isLoading, resolvedUrl } = useApi<PlPayload>(url)
   const [drill, setDrill] = useState<{ rows: DetailRow[]; title: string } | null>(null)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const displayData = data && resolvedUrl === url && !isLoading && !error ? data : null
+  const defaultFrom = monthStart()
+  const defaultTo = today()
+  const hasActiveFilters = from !== defaultFrom || to !== defaultTo || Boolean(branchId)
+  const displayBranchId = displayData?.filters.branchId ?? branchId
+  const branchLabel = (displayData?.branches ?? data?.branches ?? []).find((branch) => branch.id === displayBranchId)?.name ?? 'ทุกสาขา'
+
+  function openMobileFilters() {
+    setMobileFrom(from)
+    setMobileTo(to)
+    setMobileBranchId(branchId)
+    setShowMobileFilters(true)
+  }
 
   return (
-    <section className="space-y-4">
+    <section aria-busy={isLoading} className="space-y-4">
       {error ? <ErrorBox message={error} /> : null}
-      {/* Desktop Filter Panel */}
       <div className="hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-end gap-3">
           <DateInput label="จาก" value={from} onChange={setFrom} /><DateInput label="ถึง" value={to} onChange={setTo} />
           <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
-          <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none transition focus:border-slate-400" value={mode} onChange={(event) => setMode(event.target.value)}>
-            <option value="ALL">ทั้งหมด (สต็อก + ซื้อขาย)</option><option value="STOCK">เฉพาะสต็อก</option><option value="TRADING">เฉพาะซื้อขาย</option>
-          </select>
-          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => { setFrom(monthStart()); setTo(today()); setBranchId(''); setMode('ALL') }}>ล้างตัวกรอง</button>
+          {hasActiveFilters ? <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => { setFrom(defaultFrom); setTo(defaultTo); setBranchId('') }}>ล้างตัวกรอง</button> : null}
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
           <span className="text-xs text-slate-500">ช่วงเวลา:</span>
-          <QuickButton onClick={() => { const now = new Date(); setFrom(new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)); setTo(today()) }}>ปีนี้</QuickButton>
-          <QuickButton onClick={() => { setFrom(monthStart()); setTo(today()) }}>เดือนนี้</QuickButton>
+          <QuickButton onClick={() => { const now = new Date(); setFrom(localDateInputValue(new Date(now.getFullYear(), 0, 1))); setTo(defaultTo) }}>ปีนี้</QuickButton>
+          <QuickButton onClick={() => { setFrom(defaultFrom); setTo(defaultTo) }}>เดือนนี้</QuickButton>
+          <a className="ml-auto inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-3 text-sm font-normal text-white transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600" href={exportHref}>ส่งออก Excel</a>
         </div>
       </div>
 
-      {/* Mobile Toolbar (Hidden on Desktop) */}
-      <div className="mb-4 space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
-        <div className="flex gap-2">
-          <button 
-            type="button" 
-            onClick={() => setFrom(monthStart())}
-            className="flex-1 h-9 rounded-md border border-slate-200 text-xs font-semibold hover:bg-slate-50 text-slate-700 outline-none"
-          >
-            เดือนนี้
-          </button>
-          <button 
-            type="button" 
-            onClick={() => { const now = new Date(); setFrom(new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)); setTo(today()) }}
-            className="flex-1 h-9 rounded-md border border-slate-200 text-xs font-semibold hover:bg-slate-50 text-slate-700 outline-none"
-          >
-            ปีนี้
-          </button>
-          <button
-            type="button"
-            className="flex-1 h-9 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
-            onClick={() => setShowMobileFilters(true)}
-          >
-            ตัวกรอง {(branchId || mode !== 'ALL') ? '(มี)' : ''}
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <span className="text-xs font-semibold text-slate-500 block">จาก</span>
-            <input
-              type="date"
-              className="w-full h-9 rounded-md border border-slate-300 px-3 text-xs outline-none bg-white"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-            />
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs font-semibold text-slate-500">ขอบเขตงบ</div>
+            <div className="truncate text-sm font-bold text-slate-800">{shortThaiDate(from)} – {shortThaiDate(to)}</div>
+            <div className="truncate text-xs text-slate-500">{branchLabel}</div>
           </div>
-          <div className="space-y-1">
-            <span className="text-xs font-semibold text-slate-500 block">ถึง</span>
-            <input
-              type="date"
-              className="w-full h-9 rounded-md border border-slate-300 px-3 text-xs outline-none bg-white"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-            />
+          <div className="flex shrink-0 items-center gap-2">
+            <a className="inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600" href={exportHref}>Excel</a>
+            <button
+              type="button"
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+              onClick={openMobileFilters}
+            >
+              <SlidersHorizontal aria-hidden="true" className="size-3.5" />
+              ตัวกรอง{hasActiveFilters ? ' (มี)' : ''}
+            </button>
           </div>
         </div>
       </div>
 
       {showMobileFilters ? (
         <MobileFilterSheet
-          title="ตัวกรองเพิ่มเติม"
+          title="ตัวกรองงบกำไรขาดทุน"
           onClose={() => setShowMobileFilters(false)}
           footer={
             <>
               <button
                 type="button"
                 onClick={() => {
-                  setBranchId('')
-                  setMode('ALL')
+                  setMobileFrom(defaultFrom)
+                  setMobileTo(defaultTo)
+                  setMobileBranchId('')
                 }}
                 className="h-10 rounded-md border border-slate-200 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
               >
@@ -217,57 +201,60 @@ export function PlStatementPageClient() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowMobileFilters(false)}
+                onClick={() => {
+                  setFrom(mobileFrom)
+                  setTo(mobileTo)
+                  setBranchId(mobileBranchId)
+                  setShowMobileFilters(false)
+                }}
                 className="h-10 rounded-md bg-blue-600 text-sm font-normal text-white transition hover:bg-blue-700"
               >
-                ตกลง
+                ใช้ตัวกรอง
               </button>
             </>
           }
         >
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-slate-600" htmlFor="pl-statement-from-mobile">จากวันที่</label>
+              <DatePickerInput ariaLabel="จากวันที่" className="w-full text-sm" id="pl-statement-from-mobile" value={mobileFrom} onChange={setMobileFrom} />
+            </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-slate-600" htmlFor="pl-statement-to-mobile">ถึงวันที่</label>
+              <DatePickerInput ariaLabel="ถึงวันที่" className="w-full text-sm" id="pl-statement-to-mobile" value={mobileTo} onChange={setMobileTo} />
+            </div>
+          </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
-            <select
-              aria-label="Branch select"
-              className="h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
-              value={branchId}
-              onChange={(event) => setBranchId(event.target.value)}
+            <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="pl-statement-branch-mobile">สาขา</label>
+            <Select
+              aria-label="สาขา"
+              className="h-9 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
+              id="pl-statement-branch-mobile"
+              value={mobileBranchId}
+              onChange={(event) => setMobileBranchId(event.target.value)}
             >
               <option value="">ทุกสาขา</option>
               {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-600">ประเภทรายการ</label>
-            <select
-              aria-label="Mode select"
-              className="h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
-              value={mode}
-              onChange={(event) => setMode(event.target.value)}
-            >
-              <option value="ALL">ทั้งหมด (Stock + Trading)</option>
-              <option value="STOCK">Stock เท่านั้น</option>
-              <option value="TRADING">Trading เท่านั้น</option>
-            </select>
+            </Select>
           </div>
         </MobileFilterSheet>
       ) : null}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <MegaCard footer={`กำไรขั้นต้น ${money(data?.summary.grossProfit)} · ค่าใช้จ่ายดำเนินงาน ${money((data?.summary.expenses ?? 0) + (data?.summary.depreciation ?? 0))}`} label="กำไรก่อนภาษี" tone="pl" value={money(data?.summary.netProfitBeforeTax)} />
-        <Panel title="สะพานกำไรขาดทุน"><Waterfall rows={[['รายได้', data?.summary.revenue ?? 0], ['ต้นทุนขาย', -(data?.summary.cogs ?? 0)], ['ค่าใช้จ่ายดำเนินงาน', -(data?.summary.expenses ?? 0)], ['ค่าเสื่อม', -(data?.summary.depreciation ?? 0)], ['ดอกเบี้ย', -(data?.summary.interest ?? 0)], ['กำไร/ขาดทุนอัตราแลกเปลี่ยน', data?.summary.fxNet ?? 0]]} /></Panel>
-      </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="รายได้" value={money(data?.summary.revenue)} tone="emerald" />
-        <StatCard label="ต้นทุนขาย" value={money(data?.summary.cogs)} tone="red" />
-        <StatCard label="กำไรจากการดำเนินงาน" value={money(data?.summary.operatingProfit)} tone="cyan" />
-        <StatCard label="กำไร/(ขาดทุน) อัตราแลกเปลี่ยน" value={money(data?.summary.fxNet)} tone={(data?.summary.fxNet ?? 0) > 0 ? 'emerald' : (data?.summary.fxNet ?? 0) < 0 ? 'red' : 'slate'} />
-      </div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <SplitCard label="สต็อก" revenue={data?.split.stock.revenue ?? 0} cogs={data?.split.stock.cogs ?? 0} tone="emerald" />
-        <SplitCard label="ซื้อขาย" revenue={data?.split.trading.revenue ?? 0} cogs={data?.split.trading.cogs ?? 0} tone="purple" />
-      </div>
-      <StatementTable isLoading={isLoading} rows={data?.sections ?? []} tableKey="pl-statement" title="งบกำไรขาดทุน" onDrill={(line) => line.details?.length ? setDrill({ rows: line.details, title: line.label }) : undefined} />
+      {displayData ? <SourceNotice sourceState={displayData.sourceState} /> : null}
+      {!displayData && !error ? <PlLoadingState /> : null}
+      {displayData ? (
+        <>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="รายได้" value={money(displayData.summary.revenue)} tone="slate" />
+            <StatCard label="กำไรขั้นต้น" value={money(displayData.summary.grossProfit)} tone={signedTone(displayData.summary.grossProfit)} />
+            <StatCard label="กำไรจากการดำเนินงาน" value={money(displayData.summary.operatingProfit)} tone={signedTone(displayData.summary.operatingProfit)} />
+            <StatCard label="กำไรก่อนภาษี" value={money(displayData.summary.netProfitBeforeTax)} tone={signedTone(displayData.summary.netProfitBeforeTax)} />
+          </div>
+          <Panel title="องค์ประกอบกำไรก่อนภาษี">
+            <Waterfall rows={[['รายได้', displayData.summary.revenue], ['ต้นทุนขาย', negate(displayData.summary.cogs)], ['ค่าใช้จ่ายดำเนินงาน', negate(displayData.summary.expenses)], ['ค่าเสื่อม', negate(displayData.summary.depreciation)], ['ดอกเบี้ย', negate(displayData.summary.interest)], ['กำไร/(ขาดทุน) อัตราแลกเปลี่ยน', displayData.summary.fxNet], ['กำไร/(ขาดทุน) จากจำหน่ายทรัพย์สิน', displayData.summary.assetDisposalNet]]} />
+          </Panel>
+          <StatementTable isLoading={false} rows={displayData.sections ?? []} tableKey="pl-statement" title="งบกำไรขาดทุน" onDrill={(line) => line.details?.length ? setDrill({ rows: line.details, title: line.label }) : undefined} />
+        </>
+      ) : null}
       {drill ? <DrillModal rows={drill.rows} title={drill.title} onClose={() => setDrill(null)} /> : null}
     </section>
   )
@@ -337,15 +324,15 @@ export function BalanceSheetPageClient() {
         >
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
-            <select
+            <Select
               aria-label="Branch select"
-              className="h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
+              className="h-9 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
               value={branchId}
               onChange={(event) => setBranchId(event.target.value)}
             >
               <option value="">ทุกสาขา</option>
               {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
+            </Select>
           </div>
 
           <div className="flex items-center justify-between pt-2">
@@ -375,10 +362,10 @@ export function BalanceSheetPageClient() {
   )
 }
 
-export function CashFlowStatementPageClient() {
-  const [from, setFrom] = useState(monthStart())
-  const [to, setTo] = useState(today())
-  const [branchId, setBranchId] = useState('')
+export function CashFlowStatementPageClient({ initialFilters }: { initialFilters?: { branchId?: string; from?: string; to?: string } } = {}) {
+  const [from, setFrom] = useState(initialFilters?.from || monthStart())
+  const [to, setTo] = useState(initialFilters?.to || today())
+  const [branchId, setBranchId] = useState(initialFilters?.branchId || '')
   const url = useMemo(() => `/api/finance-accounting/cash-flow-statement?from=${from}&to=${to}${branchId ? `&branchId=${branchId}` : ''}`, [branchId, from, to])
   const { data, error, isLoading } = useApi<CashPayload>(url)
   const [drill, setDrill] = useState<{ rows: DetailRow[]; title: string } | null>(null)
@@ -406,7 +393,7 @@ export function CashFlowStatementPageClient() {
           </button>
           <button 
             type="button" 
-            onClick={() => { const now = new Date(); setFrom(new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)); setTo(today()) }}
+            onClick={() => { const now = new Date(); setFrom(localDateInputValue(new Date(now.getFullYear(), 0, 1))); setTo(today()) }}
             className="flex-1 h-9 rounded-md border border-slate-200 text-xs font-semibold hover:bg-slate-50 text-slate-700 outline-none"
           >
             ปีนี้
@@ -470,15 +457,15 @@ export function CashFlowStatementPageClient() {
         >
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
-            <select
+            <Select
               aria-label="Branch select"
-              className="h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
+              className="h-9 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
               value={branchId}
               onChange={(event) => setBranchId(event.target.value)}
             >
               <option value="">ทุกสาขา</option>
               {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
+            </Select>
           </div>
         </MobileFilterSheet>
       ) : null}
@@ -503,19 +490,76 @@ function useApi<T>(url: string) {
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(null)
+  const latestRequestRef = useRef(0)
   useEffect(() => {
-    let mounted = true
+    const requestId = latestRequestRef.current + 1
+    latestRequestRef.current = requestId
     setIsLoading(true)
     setError(null)
-    dailyFetchJson<T>(url).then((payload) => mounted ? setData(payload) : undefined).catch((caught) => mounted ? setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลไม่ได้') : undefined).finally(() => mounted ? setIsLoading(false) : undefined)
-    return () => { mounted = false }
+    dailyFetchJson<T>(url)
+      .then((payload) => {
+        if (requestId !== latestRequestRef.current) return
+        setData(payload)
+        setResolvedUrl(url)
+      })
+      .catch((caught) => {
+        if (requestId !== latestRequestRef.current) return
+        setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลไม่ได้')
+      })
+      .finally(() => {
+        if (requestId !== latestRequestRef.current) return
+        setIsLoading(false)
+      })
   }, [url])
-  return { data, error, isLoading }
+  return { data, error, isLoading, resolvedUrl }
 }
 
 function money(value?: number) {
-  const amount = value ?? 0
+  if (value == null || !Number.isFinite(value)) return 'ไม่มีข้อมูล'
+  const amount = Object.is(value, -0) ? 0 : value
   return amount < 0 ? `(${formatMoney(Math.abs(amount))})` : formatMoney(amount)
+}
+
+function negate(value?: number) {
+  return value == null || !Number.isFinite(value) ? undefined : -value
+}
+
+function signedTone(value?: number): KpiCardTone {
+  return value != null && Number.isFinite(value) && value > 0 ? 'emerald' : value != null && Number.isFinite(value) && value < 0 ? 'red' : 'slate'
+}
+
+function shortThaiDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return value
+  return new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }).format(new Date(year, month - 1, day))
+}
+
+function SourceNotice({ sourceState }: { sourceState: SourceState }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs leading-relaxed text-slate-600" role="note">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="rounded-md bg-slate-200/70 px-2 py-1 font-semibold text-slate-700">ข้อมูลเพื่อการบริหาร · ยังไม่ใช่งบปิดบัญชี</span>
+        <span>หน่วย: บาท</span>
+        <span aria-hidden="true">·</span>
+        <span>เกณฑ์ข้อมูล: {sourceState.basis || 'ไม่มีข้อมูล'}</span>
+      </div>
+      {sourceState.limitations.length ? <p className="mt-2">ข้อจำกัด: {sourceState.limitations.join(' · ')}</p> : null}
+    </div>
+  )
+}
+
+function PlLoadingState() {
+  return (
+    <div aria-label="กำลังโหลดงบกำไรขาดทุน" className="space-y-4" role="status">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => <div className="h-24 animate-pulse rounded-xl border border-slate-200 bg-white shadow-sm" key={index} />)}
+      </div>
+      <div className="h-64 animate-pulse rounded-xl border border-slate-200 bg-white shadow-sm" />
+      <div className="h-72 animate-pulse rounded-xl border border-slate-200 bg-white shadow-sm" />
+      <span className="sr-only">กำลังโหลดข้อมูล</span>
+    </div>
+  )
 }
 
 function FilterPanel({ children }: { children: ReactNode }) {
@@ -523,11 +567,11 @@ function FilterPanel({ children }: { children: ReactNode }) {
 }
 
 function DateInput({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
-  return <label className="flex items-center gap-2 text-xs text-slate-600"><span>{label}</span><DatePickerInput className="w-[140px]" value={value} onChange={onChange} /></label>
+  return <label className="flex items-center gap-2 text-xs text-slate-600"><span>{label}</span><DatePickerInput ariaLabel={label} className="w-[140px]" value={value} onChange={onChange} /></label>
 }
 
 function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; onChange: (value: string) => void; value: string }) {
-  return <select className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none focus:outline-none focus:border-slate-400 transition cursor-pointer" value={value} onChange={(event) => onChange(event.target.value)}><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>
+  return <Select aria-label="สาขา" className="h-9 w-64 max-w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none transition focus:border-slate-400 focus:outline-none" value={value} onChange={(event) => onChange(event.target.value)}><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</Select>
 }
 
 function QuickButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
@@ -569,28 +613,31 @@ function SplitCard({ cogs, label, revenue, tone }: { cogs: number; label: string
   )
 }
 
-function Waterfall({ rows }: { rows: Array<[string, number]> }) {
-  const max = Math.max(...rows.map((row) => Math.abs(row[1])), 1)
+function Waterfall({ rows }: { rows: Array<[string, number | undefined]> }) {
+  const finiteValues = rows.map((row) => row[1]).filter((value): value is number => value != null && Number.isFinite(value))
+  const max = Math.max(...finiteValues.map(Math.abs), 1)
   return (
     <div className="space-y-2">
-      {rows.map(([label, value]) => (
-        <div key={label} className="text-xs">
-          <div className="mb-1 flex justify-between gap-2">
-            <span className="text-slate-600">{label}</span>
-            <b className={value < 0 ? 'text-red-700' : 'text-slate-800'}>{money(value)}</b>
+      {rows.map(([label, value]) => {
+        const hasValue = value != null && Number.isFinite(value)
+        return (
+          <div key={label} className="text-xs">
+            <div className="mb-1 flex justify-between gap-2">
+              <span className="text-slate-600">{label}</span>
+              <b className={hasValue && value < 0 ? 'text-red-700' : 'text-slate-800'}>{money(value)}</b>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+              {hasValue ? <div className={`h-full rounded-full ${value < 0 ? 'bg-red-400' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, Math.abs(value) / max * 100)}%` }} /> : null}
+            </div>
           </div>
-          <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-            <div className={`h-full rounded-full ${value < 0 ? 'bg-red-400' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, Math.abs(value) / max * 100)}%` }} />
-          </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
 
 function StatementTable({ isLoading, onDrill, rows, tableKey, title }: { isLoading: boolean; onDrill: (line: StatementLine) => void | undefined; rows: StatementLine[]; tableKey: string; title: string }) {
   const columnResize = useResizableColumns(`finance-accounting.financial-statements.${tableKey}.v1`, statementColumns)
-  const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<StatementLine, StatementColumnKey>(rows, getStatementSortValue)
 
   return (
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
@@ -616,15 +663,15 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title }: { isLoadi
           </colgroup>
           <thead className="sticky top-0 z-10 bg-slate-100">
             <tr>
-              <ResizableTableHead label="รายการ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="label" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('label', 'รายการ')} />
-              <ResizableTableHead align="right" label="หมวดรายงาน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="section" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('section', 'หมวดรายงาน')} />
-              <ResizableTableHead align="right" label="จำนวนเงิน" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวนเงิน')} />
-              <ResizableTableHead align="right" label="รายละเอียด" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="drill" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('drill', 'รายละเอียด')} />
+              <ResizableTableHead label="รายการ" resizeProps={columnResize.getResizeHandleProps('label', 'รายการ')} />
+              <ResizableTableHead align="right" label="หมวดรายงาน" resizeProps={columnResize.getResizeHandleProps('section', 'หมวดรายงาน')} />
+              <ResizableTableHead align="right" label="จำนวนเงิน" resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวนเงิน')} />
+              <ResizableTableHead align="right" label="รายละเอียด" resizeProps={columnResize.getResizeHandleProps('drill', 'รายละเอียด')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             <LoadingOrEmpty colSpan={statementColumns.length} isLoading={isLoading} rows={rows.length} />
-            {sortedRows.map((line) => (
+            {rows.map((line) => (
               <tr key={`${line.section}-${line.label}`} className={`transition-colors hover:bg-slate-50 ${line.tone === 'total' ? 'bg-slate-50/50 font-bold' : ''}`}>
                 <td className="px-3 py-3 text-slate-900"><span className={line.level ? 'pl-5' : ''}>{line.label}</span></td>
                 <td className="px-3 py-3 text-right"><span className="rounded-md bg-slate-100/80 px-2 py-0.5 text-xs font-medium text-slate-500">{line.section}</span></td>
@@ -635,7 +682,7 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title }: { isLoadi
                 </td>
                 <td className="px-3 py-3 text-right">
                   {line.details?.length ? (
-                    <button className="font-semibold text-blue-600 hover:underline outline-none focus:ring-0" type="button" onClick={() => onDrill(line)}> {line.details.length}</button>
+                    <button aria-label={`ดูรายละเอียด ${line.label} ${line.details.length} รายการ`} className="font-semibold text-blue-600 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-blue-600" type="button" onClick={() => onDrill(line)}>{line.details.length}</button>
                   ) : (
                     <span className="text-slate-300">-</span>
                   )}
@@ -648,7 +695,7 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title }: { isLoadi
         {/* Mobile Card List View */}
         <div className="block lg:hidden divide-y divide-slate-100">
           <LoadingOrEmptyMobile isLoading={isLoading} rows={rows.length} />
-          {!isLoading && sortedRows.map((line) => (
+          {!isLoading && rows.map((line) => (
             <div key={`${line.section}-${line.label}`} className={`p-4 transition ${line.tone === 'total' ? 'bg-slate-50/50 font-bold' : ''}`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="space-y-1">
@@ -666,7 +713,7 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title }: { isLoadi
                     {money(line.amount)}
                   </span>
                   {line.details?.length ? (
-                    <button className="text-xs font-semibold text-blue-600 hover:underline outline-none focus:ring-0" type="button" onClick={() => onDrill(line)}> ดูรายละเอียด ({line.details.length})</button>
+                    <button aria-label={`ดูรายละเอียด ${line.label} ${line.details.length} รายการ`} className="text-xs font-semibold text-blue-600 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-blue-600" type="button" onClick={() => onDrill(line)}>ดูรายละเอียด ({line.details.length})</button>
                   ) : null}
                 </div>
               </div>
@@ -681,12 +728,17 @@ function StatementTable({ isLoading, onDrill, rows, tableKey, title }: { isLoadi
 function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: DetailRow[]; title: string }) {
   const columnResize = useResizableColumns('finance-accounting.financial-statements.drill.v1', drillColumns)
   const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<DetailRow, DrillColumnKey>(rows, getDrillSortValue)
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => event.key === 'Escape' ? onClose() : undefined
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [onClose])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-xl">
+      <div aria-labelledby="financial-statement-drill-title" aria-modal="true" className="flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-xl" role="dialog">
         <div className="flex items-center justify-between bg-slate-900 px-4 py-3 text-white">
-          <h2 className="text-sm font-bold"> {title}</h2>
+          <h2 className="text-sm font-bold" id="financial-statement-drill-title">{title}</h2>
           <button className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-normal text-white outline-none hover:bg-red-700 focus:ring-0" type="button" onClick={onClose}>
             ปิด
           </button>
@@ -722,7 +774,9 @@ function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: Detai
               {sortedRows.map((row, index) => (
                 <tr key={`${row.refNo}-${index}`} className="transition-colors hover:bg-slate-50">
                   <td className="whitespace-nowrap px-3 py-3 text-slate-600">{row.date}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold text-blue-700">{row.refNo}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold text-blue-700">
+                    {row.href ? <a aria-label={`เปิดเอกสารต้นทาง ${row.refNo}`} className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" href={row.href}>{row.refNo}</a> : row.refNo}
+                  </td>
                   <td className="min-w-0 px-3 py-3 text-right text-slate-700"><div className="truncate">{row.description}</div></td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums"><span className={row.amount < 0 ? 'text-red-700' : 'text-slate-800'}>{money(row.amount)}</span></td>
                 </tr>
@@ -736,7 +790,7 @@ function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: Detai
               <div key={`${row.refNo}-${index}`} className="p-4 space-y-2 text-xs">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">{row.date}</span>
-                  <span className="font-mono text-blue-700 font-semibold">{row.refNo}</span>
+                  {row.href ? <a aria-label={`เปิดเอกสารต้นทาง ${row.refNo}`} className="font-mono font-semibold text-blue-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" href={row.href}>{row.refNo}</a> : <span className="font-mono font-semibold text-blue-700">{row.refNo}</span>}
                 </div>
                 <div className="text-slate-700 break-words">{row.description}</div>
                 <div className="flex justify-between items-center pt-1">
@@ -767,5 +821,5 @@ function LoadingOrEmpty({ colSpan, isLoading, rows }: { colSpan: number; isLoadi
 }
 
 function ErrorBox({ message }: { message: string }) {
-  return <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{message}</div>
+  return <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">{message}</div>
 }

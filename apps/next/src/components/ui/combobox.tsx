@@ -24,11 +24,13 @@ type NormalizedItem = {
 type ComboboxContextValue = {
   disabled: boolean
   filteredItems: NormalizedItem[]
+  highlightedIndex: number
   inputId?: string
   open: boolean
   query: string
   selectValue: (value: string) => void
   selectedValue?: string
+  setHighlightedIndex: React.Dispatch<React.SetStateAction<number>>
   setOpen: (open: boolean) => void
   setQuery: (query: string) => void
 }
@@ -81,6 +83,7 @@ export function Combobox({
   const selectedLabelQuery = selectedLabel.trim().toLowerCase()
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState(selectedLabel)
+  const [highlightedIndex, setHighlightedIndex] = React.useState(-1)
   const isSelectedValueQuery = Boolean(selectedItem) && query.trim().toLowerCase() === selectedLabelQuery
 
   React.useEffect(() => {
@@ -104,17 +107,29 @@ export function Combobox({
     setOpen(false)
   }, [normalizedItems, onValueChange])
 
+  React.useEffect(() => {
+    if (!open || filteredItems.length === 0) {
+      setHighlightedIndex(-1)
+      return
+    }
+
+    const selectedIndex = filteredItems.findIndex((item) => item.value === value)
+    setHighlightedIndex(selectedIndex >= 0 ? selectedIndex : 0)
+  }, [filteredItems, open, value])
+
   const contextValue = React.useMemo<ComboboxContextValue>(() => ({
     disabled,
     filteredItems,
+    highlightedIndex,
     inputId,
     open,
     query,
     selectValue,
     selectedValue: value,
+    setHighlightedIndex,
     setOpen,
     setQuery,
-  }), [disabled, filteredItems, inputId, open, query, selectValue, value])
+  }), [disabled, filteredItems, highlightedIndex, inputId, open, query, selectValue, value])
 
   return <ComboboxContext.Provider value={contextValue}>{children}</ComboboxContext.Provider>
 }
@@ -131,7 +146,7 @@ export function ComboboxInput({
   inputGroupClassName?: string
   withDropdownButton?: boolean
 }) {
-  const { disabled, filteredItems, inputId, open, query, selectValue, selectedValue, setOpen, setQuery } = useComboboxContext('ComboboxInput')
+  const { disabled, filteredItems, highlightedIndex, inputId, open, query, selectValue, selectedValue, setHighlightedIndex, setOpen, setQuery } = useComboboxContext('ComboboxInput')
   const inputRef = React.useRef<HTMLInputElement>(null)
   const selectedItem = React.useMemo(() => filteredItems.find((item) => item.value === selectedValue) ?? null, [filteredItems, selectedValue])
   const selectedLabel = selectedItem?.label ?? query
@@ -141,6 +156,7 @@ export function ComboboxInput({
     <Input
       ref={inputRef}
       aria-autocomplete="list"
+      aria-activedescendant={open && highlightedIndex >= 0 && inputId ? `${inputId}-option-${highlightedIndex}` : undefined}
       aria-controls={inputId ? `${inputId}-options` : undefined}
       aria-expanded={open}
       aria-haspopup="listbox"
@@ -180,12 +196,14 @@ export function ComboboxInput({
       onClick={() => {
         if (disabled) return
         setOpen(true)
+        if (props.readOnly) return
         if (!isSelectedValueQuery) return
         requestAnimationFrame(() => inputRef.current?.select())
       }}
       onFocus={() => {
         if (disabled) return
         setOpen(true)
+        if (props.readOnly) return
         if (!isSelectedValueQuery) return
         requestAnimationFrame(() => inputRef.current?.select())
       }}
@@ -195,9 +213,30 @@ export function ComboboxInput({
           setOpen(false)
           return
         }
-        if (event.key === 'Enter' && open && filteredItems[0]) {
+        if (event.key === 'ArrowDown') {
           event.preventDefault()
-          selectValue(filteredItems[0].value)
+          if (!open) {
+            setOpen(true)
+            return
+          }
+          if (filteredItems.length === 0) return
+          setHighlightedIndex((current) => current < 0 ? 0 : Math.min(current + 1, filteredItems.length - 1))
+          return
+        }
+        if (event.key === 'ArrowUp') {
+          event.preventDefault()
+          if (!open) {
+            setOpen(true)
+            return
+          }
+          if (filteredItems.length === 0) return
+          setHighlightedIndex((current) => current < 0 ? filteredItems.length - 1 : Math.max(current - 1, 0))
+          return
+        }
+        const highlightedItem = filteredItems[highlightedIndex >= 0 ? highlightedIndex : 0]
+        if (event.key === 'Enter' && open && highlightedItem) {
+          event.preventDefault()
+          selectValue(highlightedItem.value)
         }
       }}
     />
@@ -208,7 +247,7 @@ export function ComboboxInput({
   return (
     <div
       className={cn(
-        'group/input-group relative flex h-8 min-w-0 items-center overflow-hidden rounded-md border border-slate-300 bg-white transition-colors outline-none has-[[data-slot=input-group-control]:focus-visible]:border-blue-500 has-[[data-slot=input-group-control]:focus-visible]:ring-3 has-[[data-slot=input-group-control]:focus-visible]:ring-blue-100 dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dark-surface-soft)] dark:has-[[data-slot=input-group-control]:focus-visible]:[border-color:var(--ns-dark-border-strong)] dark:has-[[data-slot=input-group-control]:focus-visible]:ring-0',
+        'group/input-group relative flex h-8 min-w-0 items-center overflow-hidden rounded-md border border-slate-300 bg-white transition-colors outline-none has-[[data-slot=input-group-control]:focus-visible]:border-[#737373] has-[[data-slot=input-group-control]:focus-visible]:ring-[3px] has-[[data-slot=input-group-control]:focus-visible]:ring-neutral-500/20 dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dark-surface-soft)] dark:has-[[data-slot=input-group-control]:focus-visible]:border-[#737373] dark:has-[[data-slot=input-group-control]:focus-visible]:ring-neutral-500/20',
         inputGroupClassName,
       )}
       data-slot="input-group"
@@ -216,17 +255,19 @@ export function ComboboxInput({
     >
       {inputNode}
       <button
+        aria-controls={inputId ? `${inputId}-options` : undefined}
         aria-expanded={open}
         aria-haspopup="listbox"
+        aria-label="เปิดรายการตัวเลือก"
         className={cn(
-          'absolute right-2 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md border-0 p-0 text-slate-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:focus-visible:ring-0',
+          'absolute right-2 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md border-0 p-0 text-slate-500 transition-colors outline-none disabled:cursor-not-allowed disabled:opacity-50',
           buttonClassName,
         )}
         disabled={disabled}
         data-placeholder=""
         data-size="icon-xs"
         data-slot="input-group-button"
-        tabIndex={0}
+        tabIndex={-1}
         type="button"
         onMouseDown={(event) => {
           if (disabled) return
@@ -248,7 +289,7 @@ function onValueChangeFallback(selectValue: (value: string) => void) {
 export function ComboboxContent({ children, className }: { children: React.ReactNode; className?: string }) {
   const { inputId, open } = useComboboxContext('ComboboxContent')
   if (!open) return null
-  return <div className={className ?? 'absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-xl dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dark-surface)]'} data-slot="combobox-content" id={inputId ? `${inputId}-options` : undefined} role="listbox">{children}</div>
+  return <div className={className ?? 'absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-xl dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)]'} data-slot="combobox-content" id={inputId ? `${inputId}-options` : undefined} role="listbox">{children}</div>
 }
 
 export function ComboboxEmpty({ children }: { children: React.ReactNode }) {
@@ -270,19 +311,30 @@ export function ComboboxItem({
   children: React.ReactNode
   value: string
 }) {
-  const { filteredItems, selectValue, selectedValue } = useComboboxContext('ComboboxItem')
+  const { filteredItems, highlightedIndex, inputId, selectValue, selectedValue, setHighlightedIndex } = useComboboxContext('ComboboxItem')
+  const itemRef = React.useRef<HTMLButtonElement>(null)
   const item = filteredItems.find((entry) => entry.value === value)
+  const itemIndex = filteredItems.findIndex((entry) => entry.value === value)
   const active = selectedValue === value
+  const highlighted = highlightedIndex === itemIndex
+
+  React.useEffect(() => {
+    if (highlighted) itemRef.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [highlighted])
+
   return (
     <button
+      ref={itemRef}
       aria-selected={active}
-      className={`block w-full px-3 py-2 text-left text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:[background-color:var(--ns-dark-surface-hover)] ${active ? 'bg-slate-100 text-slate-900 dark:![background-color:var(--ns-dark-surface-hover)] dark:![color:var(--ns-dark-text)]' : ''}`}
+      className={`block w-full px-3 py-2 text-left text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:[background-color:var(--ns-dropdown-selected)] ${active || highlighted ? 'bg-slate-100 text-slate-900 dark:![background-color:var(--ns-dropdown-selected)] dark:![color:var(--ns-dark-text)]' : ''}`}
+      id={inputId && itemIndex >= 0 ? `${inputId}-option-${itemIndex}` : undefined}
       role="option"
       type="button"
       onMouseDown={(event) => {
         event.preventDefault()
         selectValue(value)
       }}
+      onMouseEnter={() => setHighlightedIndex(itemIndex)}
     >
       <span className="block font-medium">{children}</span>
       {item?.description ? <span className="block text-xs text-slate-500 dark:text-slate-400">{item.description}</span> : null}

@@ -9,6 +9,7 @@ import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
+import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney, stockTransferFormSchema, todayDateInput, type StockTransferFormValues } from '@/lib/daily'
@@ -961,16 +962,16 @@ function SelectField(props: {
 }) {
   return (
     <FormField error={props.error} errorKey={props.errorKey} label={props.label}>
-      <select
+      <Select
         data-error-key={props.errorKey}
-        className={`h-9 w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-0 transition-colors disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : `border-slate-300 bg-white ${props.value ? 'text-slate-900' : 'text-slate-400'}`}`}
+        className={`h-10 w-full px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-400 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : `border-slate-300 bg-white ${props.value ? 'text-slate-900' : 'text-slate-400'}`}`}
         disabled={props.disabled}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
       >
         <option disabled value="">{props.placeholder}</option>
         {props.options.map((option) => <option key={option.id} value={option.id}>{props.displayMode === 'name' ? option.name : optionLabel(option)}</option>)}
-      </select>
+      </Select>
     </FormField>
   )
 }

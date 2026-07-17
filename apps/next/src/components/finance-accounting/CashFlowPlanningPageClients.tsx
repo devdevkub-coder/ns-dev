@@ -7,6 +7,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   CheckCircle2,
+  ChevronDown,
   Gauge,
   Landmark,
   Package,
@@ -17,6 +18,7 @@ import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { KpiCard as SharedKpiCard, KpiCardGrid } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 
@@ -34,12 +36,14 @@ type AnalysisPayload = {
   branches: BranchRow[]
   charts: {
     profitVsCash: { amount: number; label: string; tone: string }[]
-    projection: { expectedIn: number; expectedOut: number; label: string; projected: number }[]
+    projection: { basis?: string; expectedIn: number; expectedOut: number; label: string; projected: number }[]
     trap: { ar: number; cash: number; stock: number }
   }
-  detailRows: { label: string; suffix?: string; tone?: string; value: number }[]
+  detailRows: { href?: string; label: string; suffix?: string; tone?: string; value: number }[]
+  fcdBalances?: { currency: string; value: number }[]
   filters: { branchId: string; from: string; to: string }
   insights: Insight[]
+  projectionBasis?: string
   sourceState: SourceState
   summary: {
     apNow: number
@@ -51,12 +55,13 @@ type AnalysisPayload = {
     cashOut7: number
     cashOut30: number
     daysToODMaxed: number
-    netProfit: number
+    netProfitBeforeTax?: number
     odLimit: number
     odUsed: number
     operatingCashFlow: number
     projected7: number
     projected30: number
+    profitBeforeTax?: number
     stockNow: number
   }
 }
@@ -72,6 +77,7 @@ type ForecastPayload = {
     topAP: { daysToDue: number; docNo: string; dueDate: string; id: string; payableBalance: number; supplierName: string }[]
     topAR: { customerName: string; daysOverdue: number; docNo: string; dueDate: string; id: string; receivableBalance: number }[]
   }
+  projectionBasis?: string
   sourceState: SourceState
   summary: { endCash: number; lowestBal: number; negCount: number; negDay: { closing: number; date: string } | null; startCash: number; totalIn: number; totalOut: number }
 }
@@ -138,14 +144,15 @@ function localDateInputValue(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-export function CashFlowAnalysisPageClient() {
-  const [from, setFrom] = useState(monthStart())
-  const [to, setTo] = useState(today())
-  const [branchId, setBranchId] = useState('')
+export function CashFlowAnalysisPageClient({ initialFilters }: { initialFilters?: { branchId?: string; from?: string; to?: string } } = {}) {
+  const [from, setFrom] = useState(initialFilters?.from || monthStart())
+  const [to, setTo] = useState(initialFilters?.to || today())
+  const [branchId, setBranchId] = useState(initialFilters?.branchId || '')
   const [mobileFrom, setMobileFrom] = useState(from)
   const [mobileTo, setMobileTo] = useState(to)
   const [mobileBranchId, setMobileBranchId] = useState(branchId)
   const url = useMemo(() => `/api/finance-accounting/cash-flow-analysis?from=${from}&to=${to}${branchId ? `&branchId=${branchId}` : ''}`, [branchId, from, to])
+  const exportHref = `${url}&format=xlsx`
   const { data, error, isLoading, resolvedUrl } = useApi<AnalysisPayload>(url)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const displayData = data && resolvedUrl === url && !isLoading && !error ? data : null
@@ -154,10 +161,11 @@ export function CashFlowAnalysisPageClient() {
   const displayBranchId = displayData?.filters.branchId ?? branchId
   const selectedBranch = (displayData?.branches ?? data?.branches ?? []).find((branch) => branch.id === displayBranchId)?.name ?? 'ทุกสาขา'
   const periodLabel = `${shortThaiDate(displayFrom)} – ${shortThaiDate(displayTo)}`
-  const netProfit = displayData?.charts.profitVsCash.find((row) => row.label.startsWith('Net Profit'))?.amount ?? displayData?.summary.netProfit ?? 0
-  const operatingCashFlow = displayData?.charts.profitVsCash.find((row) => row.label.startsWith('Operating Cash Flow'))?.amount ?? displayData?.summary.operatingCashFlow ?? 0
-  const maxProfit = Math.max(Math.abs(netProfit), Math.abs(operatingCashFlow), 1)
-  const netProfitCashDifference = netProfit - operatingCashFlow
+  const hasActiveFilters = from !== monthStart() || to !== today() || Boolean(branchId)
+  const profitBeforeTax = firstFinite(displayData?.summary.netProfitBeforeTax, displayData?.summary.profitBeforeTax)
+  const operatingCashFlow = finiteOrUndefined(displayData?.summary.operatingCashFlow)
+  const maxProfit = Math.max(...[profitBeforeTax, operatingCashFlow].filter((value): value is number => value != null).map(Math.abs), 1)
+  const profitCashDifference = profitBeforeTax != null && operatingCashFlow != null ? profitBeforeTax - operatingCashFlow : undefined
 
   function openMobileFilters() {
     setMobileFrom(from)
@@ -176,6 +184,7 @@ export function CashFlowAnalysisPageClient() {
         <DateInput label="จาก" value={from} onChange={setFrom} />
         <DateInput label="ถึง" value={to} onChange={setTo} />
         <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
+        <a className="ml-auto inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-3 text-sm font-normal text-white transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600" href={exportHref}>ส่งออก Excel</a>
       </div>
 
       {/* Mobile compact filter strip */}
@@ -186,14 +195,17 @@ export function CashFlowAnalysisPageClient() {
             <div className="truncate text-sm font-bold text-slate-800">{periodLabel}</div>
             <div className="truncate text-xs text-slate-500">{selectedBranch}</div>
           </div>
-          <button
-            type="button"
-            className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500/40"
-            onClick={openMobileFilters}
-          >
-            <SlidersHorizontal aria-hidden="true" className="size-3.5" />
-            ตัวกรอง{branchId ? ' (มี)' : ''}
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <a className="inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600" href={exportHref}>ส่งออก Excel</a>
+            <button
+              type="button"
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500/40"
+              onClick={openMobileFilters}
+            >
+              <SlidersHorizontal aria-hidden="true" className="size-3.5" />
+              ตัวกรอง{hasActiveFilters ? ' (มี)' : ''}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -232,24 +244,24 @@ export function CashFlowAnalysisPageClient() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="cash-flow-analysis-from-mobile">จากวันที่</label>
-              <DatePickerInput ariaLabel="จากวันที่" className="w-full text-sm" id="cash-flow-analysis-from-mobile" value={mobileFrom} onChange={setMobileFrom} />
+              <DatePickerInput ariaLabel="จากวันที่" className="h-9 w-full text-sm" id="cash-flow-analysis-from-mobile" value={mobileFrom} onChange={setMobileFrom} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="cash-flow-analysis-to-mobile">ถึงวันที่</label>
-              <DatePickerInput ariaLabel="ถึงวันที่" className="w-full text-sm" id="cash-flow-analysis-to-mobile" value={mobileTo} onChange={setMobileTo} />
+              <DatePickerInput ariaLabel="ถึงวันที่" className="h-9 w-full text-sm" id="cash-flow-analysis-to-mobile" value={mobileTo} onChange={setMobileTo} />
             </div>
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
-            <select
+            <Select
               aria-label="สาขา"
-              className="h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
+              className="h-9 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
               value={mobileBranchId}
               onChange={(event) => setMobileBranchId(event.target.value)}
             >
               <option value="">ทุกสาขา</option>
               {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
+            </Select>
           </div>
         </MobileFilterSheet>
       ) : null}
@@ -259,46 +271,50 @@ export function CashFlowAnalysisPageClient() {
       {displayData ? (
         <>
           <KpiCardGrid className="lg:grid-cols-4 xl:grid-cols-4">
-            <SharedKpiCard className={analysisKpiClassName} icon={<Wallet aria-hidden="true" className="size-5" />} label="เงินสดคงเหลือ" note={`ณ ${shortThaiDate(displayTo)}`} tone="blue" value={money(displayData.summary.cashNow)} />
+            <SharedKpiCard className={analysisKpiClassName} icon={<Wallet aria-hidden="true" className="size-5" />} label="เงินสดคงเหลือ (THB)" note={`ยอดเงินบาท ณ ${shortThaiDate(displayTo)}`} tone="blue" value={money(displayData.summary.cashNow)} />
             <SharedKpiCard className={analysisKpiClassName} icon={<ArrowDownLeft aria-hidden="true" className="size-5" />} label="ลูกหนี้การค้า (AR)" note="เงินที่คาดว่าจะได้รับ" tone="cyan" value={money(displayData.summary.arNow)} />
             <SharedKpiCard className={analysisKpiClassName} icon={<ArrowUpRight aria-hidden="true" className="size-5" />} label="เจ้าหนี้การค้า (AP)" note="เงินที่ต้องจ่าย" tone="orange" value={money(displayData.summary.apNow)} />
-            <SharedKpiCard className={analysisKpiClassName} icon={<Activity aria-hidden="true" className="size-5" />} label="กระแสเงินสดดำเนินงาน" note={periodLabel} tone={operatingCashFlow >= 0 ? 'emerald' : 'red'} value={money(operatingCashFlow)} />
+            <SharedKpiCard className={analysisKpiClassName} icon={<Activity aria-hidden="true" className="size-5" />} label="กระแสเงินสดดำเนินงาน" note={periodLabel} tone={signedCashTone(operatingCashFlow)} value={money(operatingCashFlow)} />
           </KpiCardGrid>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <AnalysisPanel
-              className="lg:col-span-2"
-              subtitle="เปรียบเทียบผลกำไรตามเกณฑ์คงค้างกับเงินสดที่เกิดขึ้นจริง · หน่วย: บาท"
-              title="กำไรสุทธิเทียบกระแสเงินสดจริง"
-            >
-              <CashComparisonChart
-                difference={netProfitCashDifference}
-                max={maxProfit}
-                netProfit={netProfit}
-                operatingCashFlow={operatingCashFlow}
-              />
-            </AnalysisPanel>
-            <AnalysisPanel subtitle="เทียบเงินสด ลูกหนี้ และสินค้าคงคลัง · หน่วย: บาท" title="โครงสร้างเงินสดและทุนหมุนเวียน">
-              <CapitalStructureChart ar={displayData.charts.trap.ar} cash={displayData.charts.trap.cash} stock={displayData.charts.trap.stock} />
-            </AnalysisPanel>
-          </div>
+          <AnalysisSourceNotice projectionBasis={displayData.projectionBasis} sourceState={displayData.sourceState} />
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <AnalysisPanel
-              className="lg:col-span-2"
-              subtitle="ยอดคาดการณ์หลังรวมเงินรับและเงินจ่ายที่ถึงกำหนด"
-              title="ประมาณการเงินสด: ปัจจุบัน / 7 วัน / 30 วัน"
-            >
-              <CashProjectionChart rows={displayData.charts.projection} />
-            </AnalysisPanel>
-            <AnalysisPanel subtitle="ประเมินความเร็วการใช้เงินและพื้นที่วงเงินคงเหลือ" title="อัตราใช้เงินสดและวงเงิน OD">
-              <LiquidityRiskPanel
-                burnRate={displayData.summary.burnRate}
-                daysToODMaxed={displayData.summary.daysToODMaxed}
-                odLimit={displayData.summary.odLimit}
-                odUsed={displayData.summary.odUsed}
-              />
-            </AnalysisPanel>
+          {displayData.fcdBalances?.length ? <FcdBalanceStrip rows={displayData.fcdBalances} /> : null}
+
+          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3" data-cash-analysis-columns>
+            <div className="grid min-w-0 gap-4 lg:col-span-2" data-cash-analysis-primary-column>
+              <AnalysisPanel
+                subtitle="เปรียบเทียบผลกำไรตามเกณฑ์คงค้างกับเงินสดที่เกิดขึ้นจริง · หน่วย: บาท"
+                title="กำไรก่อนภาษีเทียบกระแสเงินสดจริง"
+              >
+                <CashComparisonChart
+                  difference={profitCashDifference}
+                  max={maxProfit}
+                  profitBeforeTax={profitBeforeTax}
+                  operatingCashFlow={operatingCashFlow}
+                />
+              </AnalysisPanel>
+              <AnalysisPanel
+                subtitle={`เกณฑ์ประมาณการ: ${projectionBasis(displayData)}`}
+                title="ประมาณการเงินสด: ปัจจุบัน / 7 วัน / 30 วัน"
+              >
+                <CashProjectionChart rows={displayData.charts.projection} />
+              </AnalysisPanel>
+            </div>
+
+            <div className="grid min-w-0 gap-4" data-cash-analysis-supporting-column>
+              <AnalysisPanel subtitle="เทียบเงินสด ลูกหนี้ และสินค้าคงคลัง · หน่วย: บาท" title="โครงสร้างเงินสดและทุนหมุนเวียน">
+                <CapitalStructureChart ar={displayData.charts.trap.ar} cash={displayData.charts.trap.cash} stock={displayData.charts.trap.stock} />
+              </AnalysisPanel>
+              <AnalysisPanel subtitle="ประเมินความเร็วการใช้เงินและพื้นที่วงเงินคงเหลือ" title="อัตราใช้เงินสดและวงเงิน OD">
+                <LiquidityRiskPanel
+                  burnRate={displayData.summary.burnRate}
+                  daysToODMaxed={displayData.summary.daysToODMaxed}
+                  odLimit={displayData.summary.odLimit}
+                  odUsed={displayData.summary.odUsed}
+                />
+              </AnalysisPanel>
+            </div>
           </div>
 
           <AnalysisPanel subtitle="สัญญาณจากข้อมูลในช่วงวันที่และสาขาที่เลือก" title="ประเด็นที่ควรติดตาม">
@@ -314,10 +330,11 @@ export function CashFlowAnalysisPageClient() {
   )
 }
 
-export function CashFlowForecastCalendarPageClient() {
-  const [horizon, setHorizon] = useState(30)
-  const [startDate, setStartDate] = useState(today())
-  const [branchId, setBranchId] = useState('')
+export function CashFlowForecastCalendarPageClient({ initialFilters }: { initialFilters?: { branchId?: string; horizon?: number; startDate?: string } } = {}) {
+  const initialHorizon = initialFilters?.horizon && [7, 30, 90].includes(initialFilters.horizon) ? initialFilters.horizon : 30
+  const [horizon, setHorizon] = useState(initialHorizon)
+  const [startDate, setStartDate] = useState(initialFilters?.startDate || today())
+  const [branchId, setBranchId] = useState(initialFilters?.branchId || '')
   const [mobileStartDate, setMobileStartDate] = useState(startDate)
   const [mobileBranchId, setMobileBranchId] = useState(branchId)
   const [modal, setModal] = useState<ProjectionDay | null>(null)
@@ -416,15 +433,15 @@ export function CashFlowForecastCalendarPageClient() {
 
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
-            <select
+            <Select
               aria-label="สาขา"
-              className="h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
+              className="h-9 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-1 text-sm outline-none transition focus:border-slate-400"
               value={mobileBranchId}
               onChange={(event) => setMobileBranchId(event.target.value)}
             >
               <option value="">ทุกสาขา</option>
               {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
+            </Select>
           </div>
 
           <div className="border-t border-slate-100 pt-2 text-xs text-slate-500">
@@ -437,6 +454,7 @@ export function CashFlowForecastCalendarPageClient() {
 
       {displayData ? (
         <>
+          <AnalysisSourceNotice projectionBasis={displayData.projectionBasis} sourceState={displayData.sourceState} />
           <KpiCardGrid className="lg:grid-cols-3 xl:grid-cols-3">
             <SharedKpiCard className={analysisKpiClassName} icon={<Wallet aria-hidden="true" className="size-5" />} label="เงินสดเริ่มต้น" note={`ณ ${shortThaiDate(displayStartDate)}`} tone="blue" value={money(displayData.summary.startCash)} />
             <SharedKpiCard className={analysisKpiClassName} icon={<ArrowDownLeft aria-hidden="true" className="size-5" />} label="Expected In" note="เงินรับที่ถึงกำหนดในช่วง forecast" tone="cyan" value={`+${money(displayData.summary.totalIn)}`} />
@@ -500,8 +518,63 @@ function useApi<T>(url: string) {
 }
 
 function money(value?: number) {
-  const amount = value ?? 0
+  if (value == null || !Number.isFinite(value)) return 'ไม่มีข้อมูล'
+  const amount = Object.is(value, -0) ? 0 : value
   return amount < 0 ? `(${formatMoney(Math.abs(amount))})` : formatMoney(amount)
+}
+
+function finiteOrUndefined(value?: number) {
+  return value != null && Number.isFinite(value) ? value : undefined
+}
+
+function firstFinite(...values: Array<number | undefined>) {
+  return values.map(finiteOrUndefined).find((value) => value != null)
+}
+
+function signedCashTone(value?: number): 'emerald' | 'red' | 'slate' {
+  return value != null && value > 0 ? 'emerald' : value != null && value < 0 ? 'red' : 'slate'
+}
+
+function projectionBasis(data: AnalysisPayload) {
+  return data.projectionBasis?.trim() || data.charts.projection.find((row) => row.basis?.trim())?.basis || 'อิงตามรายการรับและจ่ายที่ API ส่งกลับ'
+}
+
+function AnalysisSourceNotice({ projectionBasis, sourceState }: { projectionBasis?: string; sourceState: SourceState }) {
+  return (
+    <details className="group rounded-xl border border-slate-200/60 bg-white shadow-sm">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-blue-600 [&::-webkit-details-marker]:hidden">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">ข้อมูลเพื่อการบริหาร</span>
+          <span className="text-xs text-slate-500">หน่วยหลัก: บาท (THB)</span>
+        </div>
+        <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-blue-700">
+          ดูเกณฑ์และข้อจำกัด
+          <ChevronDown aria-hidden="true" className="size-3.5 transition-transform group-open:rotate-180" />
+        </span>
+      </summary>
+      <div className="space-y-3 border-t border-slate-100 px-4 py-3 text-xs leading-relaxed text-slate-600">
+        <p><span className="font-semibold text-slate-700">เกณฑ์ข้อมูล:</span> {sourceState.basis || 'ไม่มีข้อมูล'}</p>
+        {projectionBasis ? <p><span className="font-semibold text-slate-700">เกณฑ์ประมาณการ:</span> {projectionBasis}</p> : null}
+        {sourceState.limitations.length ? (
+          <div>
+            <div className="font-semibold text-slate-700">ข้อจำกัดของข้อมูล</div>
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+              {sourceState.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+    </details>
+  )
+}
+
+function FcdBalanceStrip({ rows }: { rows: NonNullable<AnalysisPayload['fcdBalances']> }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs shadow-sm">
+      <span className="font-semibold text-slate-700">บัญชี FCD (แยกจากยอดเงินบาท)</span>
+      {rows.map((row) => <span className="font-mono font-semibold text-slate-800" key={row.currency}>{row.currency} {money(row.value)}</span>)}
+    </div>
+  )
 }
 
 function shortThaiDate(value: string) {
@@ -511,11 +584,11 @@ function shortThaiDate(value: string) {
 }
 
 function DateInput({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
-  return <label className="flex items-center gap-2 text-sm"><span>{label}</span><DatePickerInput className="w-[140px]" value={value} onChange={onChange} /></label>
+  return <label className="flex items-center gap-2 text-sm"><span>{label}</span><DatePickerInput ariaLabel={label} className="h-9 w-[140px]" value={value} onChange={onChange} /></label>
 }
 
 function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; onChange: (value: string) => void; value: string }) {
-  return <select aria-label="สาขา" className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400" value={value} onChange={(event) => onChange(event.target.value)}><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>
+  return <Select aria-label="สาขา" className="h-9 w-64 max-w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400" value={value} onChange={(event) => onChange(event.target.value)}><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</Select>
 }
 
 function AnalysisPanel({ children, className = '', subtitle, title }: { children: ReactNode; className?: string; subtitle?: string; title: string }) {
@@ -530,67 +603,138 @@ function AnalysisPanel({ children, className = '', subtitle, title }: { children
   )
 }
 
-function CashComparisonChart({ difference, max, netProfit, operatingCashFlow }: { difference: number; max: number; netProfit: number; operatingCashFlow: number }) {
+function CashComparisonChart({ difference, max, operatingCashFlow, profitBeforeTax }: { difference?: number; max: number; operatingCashFlow?: number; profitBeforeTax?: number }) {
+  const status = cashComparisonStatus(profitBeforeTax, operatingCashFlow)
+  const StatusIcon = status.icon
+  const absoluteDifference = difference == null || !Number.isFinite(difference) ? undefined : Math.abs(difference)
+
   return (
-    <div>
-      <div className="mb-2 flex justify-between px-1 text-[11px] font-medium text-slate-400" aria-hidden="true">
-        <span>ติดลบ</span>
-        <span>0</span>
-        <span>บวก</span>
-      </div>
-      <div className="space-y-5">
-        <DivergingBar label="กำไรสุทธิ (เกณฑ์คงค้าง)" max={max} tone="emerald" value={netProfit} />
-        <DivergingBar label="กระแสเงินสดจากการดำเนินงาน" max={max} tone="blue" value={operatingCashFlow} />
-      </div>
-      <div className="mt-5 flex flex-wrap items-end justify-between gap-2 border-t border-slate-100 pt-4">
-        <div>
-          <div className="text-xs font-semibold text-slate-500">ส่วนต่างกำไรสุทธิกับกระแสเงินสด</div>
-          <div className="mt-0.5 text-xs text-slate-400">ค่าบวกหมายถึงกำไรสูงกว่าเงินสดจากการดำเนินงาน</div>
+    <div className="space-y-5" data-cash-comparison>
+      <div className={`rounded-md border px-4 py-3 ${status.panelClass}`}>
+        <div className="flex items-start gap-2.5">
+          <StatusIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+          <div className="min-w-0">
+            <div className="text-sm font-bold leading-snug">{status.title}</div>
+            <p className="mt-1 text-xs leading-relaxed opacity-80">{status.description}</p>
+          </div>
         </div>
-        <div className={`font-mono text-lg font-bold tabular-nums ${difference === 0 ? 'text-slate-700' : 'text-amber-700'}`}>{money(difference)}</div>
+      </div>
+
+      <div className="space-y-4">
+        <ComparisonBar dataKey="profit" label="กำไรก่อนภาษี (เกณฑ์คงค้าง)" max={max} tone="emerald" value={profitBeforeTax} />
+        <ComparisonBar dataKey="cash" label="กระแสเงินสดจากการดำเนินงาน" max={max} tone="blue" value={operatingCashFlow} />
+      </div>
+
+      <div className="flex flex-wrap items-end justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+        <div>
+          <div className="text-xs font-semibold text-slate-700">ช่องว่างระหว่างกำไรกับเงินสด</div>
+          <div className="mt-0.5 text-xs text-slate-500">ระยะห่างของค่าทั้งสองบนสเกลเดียวกัน</div>
+        </div>
+        <div className="font-mono text-lg font-bold tabular-nums text-slate-900">{money(absoluteDifference)}</div>
       </div>
     </div>
   )
 }
 
-function DivergingBar({ label, max, tone, value }: { label: string; max: number; tone: 'blue' | 'emerald'; value: number }) {
-  const width = Math.min(50, Math.abs(value) / max * 50)
-  const left = value >= 0 ? 50 : 50 - width
-  const fill = value < 0 ? 'bg-rose-500' : tone === 'emerald' ? 'bg-emerald-500' : 'bg-blue-500'
-  const text = value < 0 ? 'text-rose-700' : tone === 'emerald' ? 'text-emerald-700' : 'text-blue-700'
+function cashComparisonStatus(profitBeforeTax?: number, operatingCashFlow?: number) {
+  const profit = finiteOrUndefined(profitBeforeTax)
+  const cash = finiteOrUndefined(operatingCashFlow)
+
+  if (profit == null || cash == null) {
+    return {
+      description: 'ต้องมีทั้งกำไรก่อนภาษีและกระแสเงินสดจึงจะเปรียบเทียบทิศทางได้',
+      icon: Gauge,
+      panelClass: 'border-slate-200 bg-slate-50 text-slate-700',
+      title: 'ข้อมูลสำหรับเปรียบเทียบยังไม่ครบ',
+    }
+  }
+  if (profit > 0 && cash < 0) {
+    return {
+      description: 'ผลกำไรตามเกณฑ์คงค้างและเงินสดจริงกำลังเคลื่อนไปคนละทิศทาง',
+      icon: AlertTriangle,
+      panelClass: 'border-amber-200 bg-amber-50/70 text-amber-800',
+      title: 'กำไรเป็นบวก แต่กระแสเงินสดจากการดำเนินงานติดลบ',
+    }
+  }
+  if (profit < 0 && cash > 0) {
+    return {
+      description: 'เงินสดจากการดำเนินงานเป็นบวก แม้ผลกำไรก่อนภาษียังติดลบ',
+      icon: Gauge,
+      panelClass: 'border-amber-200 bg-amber-50/70 text-amber-800',
+      title: 'กระแสเงินสดเป็นบวก แต่กำไรก่อนภาษีติดลบ',
+    }
+  }
+  if (profit < 0 && cash < 0) {
+    return {
+      description: 'ทั้งผลกำไรและเงินสดจากการดำเนินงานอยู่ฝั่งติดลบในช่วงที่เลือก',
+      icon: AlertTriangle,
+      panelClass: 'border-rose-200 bg-rose-50/70 text-rose-800',
+      title: 'กำไรและกระแสเงินสดจากการดำเนินงานติดลบ',
+    }
+  }
+  if (profit > 0 && cash > 0) {
+    return {
+      description: 'ทั้งผลกำไรและเงินสดจากการดำเนินงานอยู่ฝั่งบวกในช่วงที่เลือก',
+      icon: CheckCircle2,
+      panelClass: 'border-emerald-200 bg-emerald-50/70 text-emerald-800',
+      title: 'กำไรและกระแสเงินสดจากการดำเนินงานเป็นบวก',
+    }
+  }
+  return {
+    description: 'ค่าหนึ่งอยู่ที่ศูนย์ จึงควรอ่านขนาดและทิศทางจากแถวเปรียบเทียบด้านล่าง',
+    icon: Gauge,
+    panelClass: 'border-slate-200 bg-slate-50 text-slate-700',
+    title: 'กำไรและกระแสเงินสดอยู่คนละระดับ',
+  }
+}
+
+function ComparisonBar({ dataKey, label, max, tone, value }: { dataKey: 'cash' | 'profit'; label: string; max: number; tone: 'blue' | 'emerald'; value?: number }) {
+  const normalizedValue = finiteOrUndefined(value)
+  const width = normalizedValue == null ? 0 : Math.min(100, Math.abs(normalizedValue) / Math.max(max, 1) * 100)
+  const direction = normalizedValue == null ? 'ไม่มีข้อมูล' : normalizedValue < 0 ? 'ติดลบ' : normalizedValue > 0 ? 'เป็นบวก' : 'ศูนย์'
+  const fillClass = normalizedValue == null || normalizedValue === 0 ? 'bg-slate-300' : normalizedValue < 0 ? 'bg-rose-500' : tone === 'emerald' ? 'bg-emerald-500' : 'bg-blue-500'
+  const valueClass = normalizedValue == null || normalizedValue === 0 ? 'text-slate-700' : normalizedValue < 0 ? 'text-rose-700' : tone === 'emerald' ? 'text-emerald-700' : 'text-blue-700'
+  const badgeClass = normalizedValue == null || normalizedValue === 0 ? 'bg-slate-100 text-slate-600' : normalizedValue < 0 ? 'bg-rose-100 text-rose-700' : tone === 'emerald' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
 
   return (
     <div>
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2 text-sm">
-        <span className="font-medium text-slate-600">{label}</span>
-        <span className={`font-mono font-bold tabular-nums ${text}`}>{money(value)}</span>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-slate-700">{label}</span>
+          <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${badgeClass}`}>{direction}</span>
+        </div>
+        <span className={`shrink-0 font-mono text-base font-bold tabular-nums ${valueClass}`}>{money(normalizedValue)}</span>
       </div>
-      <div className="relative h-3 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`${label} ${money(value)} บาท`}>
-        <div className="absolute inset-y-0 left-1/2 z-10 w-px bg-slate-400/70" />
-        <div className={`absolute inset-y-0 rounded-full ${fill}`} style={{ left: `${left}%`, width: `${width}%` }} />
+      <div className="h-3 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`${label} ${money(normalizedValue)} บาท ขนาดเปรียบเทียบ ${width.toFixed(1)} เปอร์เซ็นต์ของค่าสูงสุด`}>
+        {normalizedValue != null ? <div className={`h-full rounded-full ${fillClass}`} data-cash-comparison-bar={dataKey} style={{ width: `${width}%` }} /> : null}
       </div>
     </div>
   )
 }
 
 function CapitalStructureChart({ ar, cash, stock }: { ar: number; cash: number; stock: number }) {
+  const normalizedAr = finiteOrUndefined(ar)
+  const normalizedCash = finiteOrUndefined(cash)
+  const normalizedStock = finiteOrUndefined(stock)
   const rows = [
-    { barClass: 'bg-blue-500', icon: Wallet, iconClass: 'bg-blue-100 text-blue-700', label: 'เงินสดและธนาคาร', value: cash },
-    { barClass: 'bg-cyan-500', icon: Landmark, iconClass: 'bg-cyan-100 text-cyan-700', label: 'ลูกหนี้การค้า (AR)', value: ar },
-    { barClass: 'bg-amber-500', icon: Package, iconClass: 'bg-amber-100 text-amber-700', label: 'สินค้าคงคลัง', value: stock },
+    { barClass: 'bg-blue-500', icon: Wallet, iconClass: 'bg-blue-100 text-blue-700', label: 'เงินสดและธนาคาร', value: normalizedCash },
+    { barClass: 'bg-cyan-500', icon: Landmark, iconClass: 'bg-cyan-100 text-cyan-700', label: 'ลูกหนี้การค้า (AR)', value: normalizedAr },
+    { barClass: 'bg-amber-500', icon: Package, iconClass: 'bg-amber-100 text-amber-700', label: 'สินค้าคงคลัง', value: normalizedStock },
   ]
-  const total = rows.reduce((sum, row) => sum + Math.abs(row.value), 0)
-  const max = Math.max(...rows.map((row) => Math.abs(row.value)), 1)
-  const stockRatioVsCash = cash > 0 ? stock / cash * 100 : 0
-  const arRatioVsCash = cash > 0 ? ar / cash * 100 : 0
-  const dominantLabel = stock > ar * 1.5 ? 'สินค้าคงคลังจมมากกว่าลูกหนี้' : ar > stock * 1.5 ? 'ลูกหนี้จมมากกว่าสินค้าคงคลัง' : 'ลูกหนี้และสินค้าคงคลังยังใกล้กัน'
-  const dominantTone = stock > ar * 1.5 ? 'text-amber-700' : ar > stock * 1.5 ? 'text-cyan-700' : 'text-slate-700'
+  const hasCompleteBase = rows.every((row) => row.value != null)
+  const total = hasCompleteBase ? rows.reduce((sum, row) => sum + Math.abs(row.value ?? 0), 0) : undefined
+  const max = Math.max(...rows.flatMap((row) => row.value == null ? [] : [Math.abs(row.value)]), 1)
+  const stockRatioVsCash = normalizedCash != null && normalizedCash > 0 && normalizedStock != null ? normalizedStock / normalizedCash * 100 : undefined
+  const arRatioVsCash = normalizedCash != null && normalizedCash > 0 && normalizedAr != null ? normalizedAr / normalizedCash * 100 : undefined
+  const hasWorkingCapitalValues = normalizedAr != null && normalizedStock != null
+  const dominantLabel = !hasWorkingCapitalValues ? 'ไม่มีข้อมูลเพียงพอสำหรับเปรียบเทียบ' : normalizedStock > normalizedAr * 1.5 ? 'สินค้าคงคลังจมมากกว่าลูกหนี้' : normalizedAr > normalizedStock * 1.5 ? 'ลูกหนี้จมมากกว่าสินค้าคงคลัง' : 'ลูกหนี้และสินค้าคงคลังยังใกล้กัน'
+  const dominantTone = !hasWorkingCapitalValues ? 'text-slate-600' : normalizedStock > normalizedAr * 1.5 ? 'text-amber-700' : normalizedAr > normalizedStock * 1.5 ? 'text-cyan-700' : 'text-slate-700'
 
   return (
     <div className="space-y-4">
       {rows.map((row) => {
         const Icon = row.icon
-        const percentage = total > 0 ? Math.abs(row.value) / total * 100 : 0
+        const percentage = row.value != null && total != null && total > 0 ? Math.abs(row.value) / total * 100 : undefined
         return (
           <div key={row.label}>
             <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
@@ -604,9 +748,9 @@ function CapitalStructureChart({ ar, cash, stock }: { ar: number; cash: number; 
             </div>
             <div className="flex items-center gap-2">
               <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-100">
-                <div className={`h-full rounded-full ${row.value < 0 ? 'bg-rose-500' : row.barClass}`} style={{ width: `${Math.abs(row.value) / max * 100}%` }} />
+                {row.value != null ? <div className={`h-full rounded-full ${row.value < 0 ? 'bg-rose-500' : row.barClass}`} style={{ width: `${Math.abs(row.value) / max * 100}%` }} /> : null}
               </div>
-              <span className="w-12 shrink-0 text-right text-[11px] font-semibold tabular-nums text-slate-500">{percentage.toFixed(1)}%</span>
+              <span className="w-16 shrink-0 text-right text-[11px] font-semibold tabular-nums text-slate-500">{percentage == null ? 'ไม่มีข้อมูล' : `${percentage.toFixed(1)}%`}</span>
             </div>
           </div>
         )
@@ -616,26 +760,15 @@ function CapitalStructureChart({ ar, cash, stock }: { ar: number; cash: number; 
         <span className="font-mono font-bold tabular-nums text-slate-700">{money(total)}</span>
       </div>
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-        <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-xs font-semibold text-slate-500">เงินจมที่ไหน</div>
             <div className={`mt-1 text-sm font-bold ${dominantTone}`}>{dominantLabel}</div>
+            <div className="mt-1 text-[11px] text-slate-500">AR {arRatioVsCash == null ? 'ไม่มีข้อมูล' : `${arRatioVsCash.toFixed(1)}%`} · สินค้าคงคลัง {stockRatioVsCash == null ? 'ไม่มีข้อมูล' : `${stockRatioVsCash.toFixed(1)}%`} ของเงินสด</div>
           </div>
           <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500 shadow-sm">
             เทียบกับเงินสด
           </span>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <div className="rounded-lg bg-white px-3 py-2">
-            <div className="text-[11px] font-semibold text-cyan-700">ลูกหนี้การค้า (AR)</div>
-            <div className="mt-1 font-mono text-sm font-bold tabular-nums text-slate-800">{money(ar)}</div>
-            <div className="mt-1 text-[11px] text-slate-500">{arRatioVsCash.toFixed(1)}% ของเงินสด</div>
-          </div>
-          <div className="rounded-lg bg-white px-3 py-2">
-            <div className="text-[11px] font-semibold text-amber-700">สินค้าคงคลัง</div>
-            <div className="mt-1 font-mono text-sm font-bold tabular-nums text-slate-800">{money(stock)}</div>
-            <div className="mt-1 text-[11px] text-slate-500">{stockRatioVsCash.toFixed(1)}% ของเงินสด</div>
-          </div>
         </div>
       </div>
       <p className="text-[11px] leading-relaxed text-slate-400">สัดส่วนคำนวณจากมูลค่าสัมบูรณ์เพื่อเปรียบเทียบขนาดของแต่ละรายการ</p>
@@ -643,98 +776,163 @@ function CapitalStructureChart({ ar, cash, stock }: { ar: number; cash: number; 
   )
 }
 
-function ProjectionChartSvg({ compact, rows }: { compact: boolean; rows: AnalysisPayload['charts']['projection'] }) {
-  const values = rows.map((row) => row.projected)
-  const rawMinimum = Math.min(...values, 0)
-  const rawMaximum = Math.max(...values, 0)
-  const crossesZero = values.some((value) => value < 0) && values.some((value) => value >= 0)
-  const visibleMinimum = values.length ? Math.min(...values) : 0
-  const visibleMaximum = values.length ? Math.max(...values) : 0
-  const padding = Math.max((visibleMaximum - visibleMinimum) * 0.16, Math.abs(visibleMaximum) * 0.02, 1)
-  const minimum = crossesZero ? rawMinimum : visibleMinimum - padding
-  const maximum = crossesZero ? rawMaximum : visibleMaximum + padding
+function CashProjectionChart({ rows }: { rows: AnalysisPayload['charts']['projection'] }) {
+  if (!rows.length) return <div className="py-12 text-center text-sm text-slate-400">ยังไม่มีข้อมูลประมาณการในช่วงที่เลือก</div>
+
+  const displayRows = rows.map((row) => {
+    const expectedIn = finiteOrUndefined(row.expectedIn)
+    const expectedOut = finiteOrUndefined(row.expectedOut)
+    return {
+      ...row,
+      expectedIn,
+      expectedOut,
+      netMovement: expectedIn == null || expectedOut == null ? undefined : expectedIn - expectedOut,
+      projected: finiteOrUndefined(row.projected),
+    }
+  })
+
+  const movementTone = (value?: number) => value == null || value === 0
+    ? 'text-slate-600'
+    : value > 0
+      ? 'text-emerald-700'
+      : 'text-rose-700'
+  const signedMoney = (value?: number) => value != null && value > 0 ? `+${money(value)}` : money(value)
+  type DisplayRow = (typeof displayRows)[number]
+  const finiteRows = displayRows.filter((row): row is DisplayRow & { projected: number } => row.projected != null)
+
+  if (!finiteRows.length) {
+    return <div data-cash-forecast className="py-12 text-center text-sm text-slate-400">ไม่มีข้อมูลเงินสดคาดการณ์ที่ใช้สร้างกราฟได้</div>
+  }
+
+  const values = finiteRows.map((row) => row.projected)
+  const visibleMinimum = Math.min(...values)
+  const visibleMaximum = Math.max(...values)
+  const padding = Math.max((visibleMaximum - visibleMinimum) * 0.18, Math.abs(visibleMaximum) * 0.001, 1)
+  const minimum = visibleMinimum - padding
+  const maximum = visibleMaximum + padding
   const range = Math.max(1, maximum - minimum)
-  const width = compact ? 360 : 720
-  const height = compact ? 210 : 180
-  const top = compact ? 24 : 20
-  const bottom = compact ? 164 : 140
-  const xStart = compact ? 56 : 80
-  const xEnd = compact ? 322 : 640
-  const zeroY = top + (maximum / range) * (bottom - top)
-  const showZeroLine = minimum <= 0 && maximum >= 0
-  const areaBaselineY = showZeroLine ? zeroY : values.every((value) => value >= 0) ? bottom : top
-  const timeOffsets = rows.map((row, index) => {
+  const width = 800
+  const height = 232
+  const plotLeft = 130
+  const plotRight = 770
+  const plotTop = 22
+  const plotBottom = 180
+  const timeOffsets = displayRows.map((row, index) => {
     const match = row.label.match(/\d+/)
     return match ? Number(match[0]) : index === 0 ? 0 : index
   })
   const maxOffset = Math.max(...timeOffsets, 1)
-  const points = rows.map((row, index) => ({
+  const points = displayRows.flatMap((row, index) => row.projected == null ? [] : [{
     ...row,
-    x: xStart + (timeOffsets[index] / maxOffset) * (xEnd - xStart),
-    y: top + ((maximum - row.projected) / range) * (bottom - top),
-  }))
-  const pointString = points.map((point) => `${point.x},${point.y}`).join(' ')
-  const areaPoints = points.length ? `${points[0].x},${areaBaselineY} ${pointString} ${points.at(-1)?.x},${areaBaselineY}` : ''
-  const gradientId = compact ? 'cashProjectionAreaMobile' : 'cashProjectionAreaDesktop'
+    projected: row.projected,
+    x: plotLeft + (timeOffsets[index] / maxOffset) * (plotRight - plotLeft),
+    y: plotTop + ((maximum - row.projected) / range) * (plotBottom - plotTop),
+  }])
+  const path = points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ')
+  const firstProjected = points[0]?.projected
+  const lastProjected = points.at(-1)?.projected
+  const projectedChange = firstProjected == null || lastProjected == null ? undefined : lastProjected - firstProjected
+  const lineDirection = projectedChange == null || projectedChange === 0 ? 'neutral' : projectedChange > 0 ? 'positive' : 'negative'
+  const lineTone = lineDirection === 'positive' ? 'stroke-emerald-600' : lineDirection === 'negative' ? 'stroke-rose-600' : 'stroke-slate-600'
+  const pointTone = lineDirection === 'positive' ? 'fill-emerald-600' : lineDirection === 'negative' ? 'fill-rose-600' : 'fill-slate-600'
+  const yTicks = Array.from({ length: 4 }, (_, index) => maximum - (range / 3) * index)
 
   return (
-    <svg
-      aria-label="กราฟประมาณการเงินสดปัจจุบัน 7 วัน และ 30 วัน"
-      className={compact ? 'h-auto w-full sm:hidden' : 'hidden h-auto w-full sm:block'}
-      role="img"
-      viewBox={`0 0 ${width} ${height}`}
-    >
-      <defs>
-        <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
-        </linearGradient>
-      </defs>
-      <line className="stroke-slate-100" strokeDasharray="3 5" x1={xStart} x2={xEnd} y1={top} y2={top} />
-      <line className="stroke-slate-100" strokeDasharray="3 5" x1={xStart} x2={xEnd} y1={bottom} y2={bottom} />
-      {showZeroLine ? <line className="stroke-slate-300" strokeDasharray="5 5" x1={xStart - 8} x2={xEnd + 8} y1={zeroY} y2={zeroY} /> : null}
-      {showZeroLine ? <text className="fill-slate-500" fontSize="10" textAnchor="end" x={xStart - 12} y={zeroY + 3}>0</text> : null}
-      {areaPoints ? <polygon fill={`url(#${gradientId})`} points={areaPoints} /> : null}
-      <polyline className="stroke-blue-500" fill="none" points={pointString} strokeLinecap="round" strokeLinejoin="round" strokeWidth={compact ? 3 : 4} />
-      {points.map((point) => (
-        <g key={point.label}>
-          <circle className={point.projected >= 0 ? 'fill-blue-600 stroke-white' : 'fill-rose-500 stroke-white'} cx={point.x} cy={point.y} r={compact ? 6 : 7} strokeWidth="3">
-            <title>{point.label}: {money(point.projected)} บาท</title>
-          </circle>
-          <text className="fill-slate-500" fontSize={compact ? 12 : 11} fontWeight="600" textAnchor="middle" x={point.x} y={height - 10}>{point.label}</text>
-        </g>
-      ))}
-    </svg>
-  )
-}
-
-function CashProjectionChart({ rows }: { rows: AnalysisPayload['charts']['projection'] }) {
-  if (!rows.length) return <div className="py-12 text-center text-sm text-slate-400">ยังไม่มีข้อมูลประมาณการในช่วงที่เลือก</div>
-
-  return (
-    <div>
-      <ProjectionChartSvg compact rows={rows} />
-      <ProjectionChartSvg compact={false} rows={rows} />
-      <div className="mt-1 divide-y divide-slate-100 border-t border-slate-100 sm:grid sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-        {rows.map((row) => (
-          <div className="py-3 sm:px-4 sm:first:pl-0 sm:last:pr-0" key={row.label}>
-            <div className="text-xs font-semibold text-slate-500 sm:text-sm">{row.label}</div>
-            <div className={`mt-1 font-mono text-xl font-bold tabular-nums sm:text-2xl ${row.projected >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{money(row.projected)}</div>
-            <div className="mt-2 flex flex-col gap-1 text-[11px] sm:text-xs">
-              {row.expectedIn > 0 ? <span className="font-semibold text-emerald-700">คาดว่าจะรับ +{money(row.expectedIn)}</span> : <span className="text-slate-400">ไม่มีเงินรับเพิ่ม</span>}
-              {row.expectedOut > 0 ? <span className="font-semibold text-rose-700">คาดว่าจะจ่าย -{money(row.expectedOut)}</span> : <span className="text-slate-400">ไม่มีเงินจ่ายเพิ่ม</span>}
-            </div>
+    <div data-cash-forecast>
+      <div
+        data-cash-forecast-line-chart
+        data-cash-forecast-line-direction={lineDirection}
+        role="figure"
+      >
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2 font-semibold text-slate-700">
+            <span className={`h-0.5 w-6 ${lineDirection === 'positive' ? 'bg-emerald-600' : lineDirection === 'negative' ? 'bg-rose-600' : 'bg-slate-600'}`} />
+            <span>เงินสดคาดการณ์</span>
           </div>
-        ))}
+          <span className={`font-mono font-bold tabular-nums ${movementTone(projectedChange)}`}>เทียบปัจจุบัน {signedMoney(projectedChange)}</span>
+        </div>
+
+        <div className="overflow-x-auto" tabIndex={0} aria-label="เลื่อนดูกราฟประมาณการเงินสดตามช่วงเวลา">
+          <svg
+            aria-label="กราฟเส้นเงินสดคาดการณ์ ปัจจุบัน 7 วัน และ 30 วัน"
+            className="h-auto min-w-[680px] w-full"
+            role="img"
+            viewBox={`0 0 ${width} ${height}`}
+          >
+            {yTicks.map((tick, index) => {
+              const y = plotTop + (index / 3) * (plotBottom - plotTop)
+              return (
+                <g key={`${tick}-${index}`}>
+                  <line className="stroke-slate-200" strokeDasharray="3 5" vectorEffect="non-scaling-stroke" x1={plotLeft} x2={plotRight} y1={y} y2={y} />
+                  <text className="fill-slate-500" fontSize="10" textAnchor="end" x={plotLeft - 12} y={y + 3}>{money(tick)}</text>
+                </g>
+              )
+            })}
+            {points.map((point) => (
+              <line className="stroke-slate-100" key={`grid-${point.label}`} strokeDasharray="2 6" vectorEffect="non-scaling-stroke" x1={point.x} x2={point.x} y1={plotTop} y2={plotBottom} />
+            ))}
+            <line className="stroke-slate-300" vectorEffect="non-scaling-stroke" x1={plotLeft} x2={plotRight} y1={plotBottom} y2={plotBottom} />
+            <path
+              className={lineTone}
+              d={path}
+              data-cash-forecast-line
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2.25"
+              vectorEffect="non-scaling-stroke"
+            />
+            {points.map((point) => (
+              <g key={point.label}>
+                <circle
+                  className={`${pointTone} stroke-white`}
+                  cx={point.x}
+                  cy={point.y}
+                  data-cash-forecast-point={point.label}
+                  r="3.5"
+                  strokeWidth="1.5"
+                  vectorEffect="non-scaling-stroke"
+                >
+                  <title>{point.label}: {money(point.projected)} บาท</title>
+                </circle>
+                <text className="fill-slate-600" fontSize="11" fontWeight="600" textAnchor="middle" x={point.x} y={plotBottom + 25}>{point.label}</text>
+              </g>
+            ))}
+          </svg>
+        </div>
+
+        <div className="mt-2 grid divide-y divide-slate-200 border-y border-slate-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          {displayRows.map((row) => (
+            <div className="px-3 py-3 sm:first:pl-0 sm:last:pr-0" data-cash-forecast-summary key={row.label}>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-[14px] font-semibold text-slate-600">{row.label}</span>
+                <span className="whitespace-nowrap font-mono text-[15px] font-bold tabular-nums text-slate-900" data-cash-forecast-summary-balance>{money(row.projected)}</span>
+              </div>
+              <div className="mt-2 space-y-1.5 text-[13px] leading-5" data-cash-forecast-summary-details>
+                <div className="flex justify-between gap-3 text-slate-500"><span>เงินรับคาดการณ์</span><strong className={`font-mono tabular-nums ${row.expectedIn != null && row.expectedIn > 0 ? 'text-emerald-700' : 'text-slate-600'}`}>{row.expectedIn != null && row.expectedIn > 0 ? `+${money(row.expectedIn)}` : money(row.expectedIn)}</strong></div>
+                <div className="flex justify-between gap-3 text-slate-500"><span>เงินจ่ายคาดการณ์</span><strong className={`font-mono tabular-nums ${row.expectedOut != null && row.expectedOut > 0 ? 'text-rose-700' : 'text-slate-600'}`}>{row.expectedOut != null && row.expectedOut > 0 ? `-${money(row.expectedOut)}` : money(row.expectedOut)}</strong></div>
+                <div className="flex justify-between gap-3 text-[13.5px] font-semibold text-slate-600" data-cash-forecast-summary-net><span>เปลี่ยนแปลงสุทธิ</span><strong className={`font-mono tabular-nums ${movementTone(row.netMovement)}`}>{signedMoney(row.netMovement)}</strong></div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-3 text-[11px] leading-relaxed text-slate-500">
+          แกน Y ปรับตามช่วงยอดเงินสดเพื่อให้เห็นการเปลี่ยนแปลงระยะสั้น · ตำแหน่งเวลาเป็นสัดส่วนปัจจุบัน / 7 วัน / 30 วัน
+        </div>
       </div>
     </div>
   )
 }
 
 function LiquidityRiskPanel({ burnRate, daysToODMaxed, odLimit, odUsed }: { burnRate: number; daysToODMaxed: number; odLimit: number; odUsed: number }) {
-  const utilization = odLimit > 0 ? Math.min(100, Math.max(0, odUsed / odLimit * 100)) : 0
-  const days = Math.max(0, Math.round(daysToODMaxed))
-  const risk = odLimit <= 0 ? 'unknown' : days < 30 ? 'danger' : days < 90 ? 'warn' : 'ok'
+  const normalizedBurnRate = finiteOrUndefined(burnRate)
+  const normalizedDays = finiteOrUndefined(daysToODMaxed)
+  const normalizedLimit = finiteOrUndefined(odLimit)
+  const normalizedUsed = finiteOrUndefined(odUsed)
+  const utilization = normalizedLimit != null && normalizedLimit > 0 && normalizedUsed != null ? Math.min(100, Math.max(0, normalizedUsed / normalizedLimit * 100)) : undefined
+  const days = normalizedDays == null ? undefined : Math.max(0, Math.round(normalizedDays))
+  const risk = normalizedLimit == null || normalizedUsed == null || normalizedLimit <= 0 || days == null ? 'unknown' : days < 30 ? 'danger' : days < 90 ? 'warn' : 'ok'
   const RiskIcon = risk === 'danger' ? AlertTriangle : risk === 'warn' ? Gauge : CheckCircle2
   const riskText = risk === 'unknown' ? 'ยังไม่มีวงเงิน OD สำหรับประเมิน' : risk === 'danger' ? 'ต้องติดตามใกล้ชิด' : risk === 'warn' ? 'ควรวางแผนล่วงหน้า' : 'สภาพคล่องยังอยู่ในเกณฑ์'
   const riskColor = risk === 'unknown' ? 'text-slate-600' : risk === 'danger' ? 'text-rose-700' : risk === 'warn' ? 'text-amber-700' : 'text-emerald-700'
@@ -748,21 +946,21 @@ function LiquidityRiskPanel({ burnRate, daysToODMaxed, odLimit, odUsed }: { burn
       <div>
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-xs font-semibold text-slate-500">อัตราใช้เงินสดเฉลี่ยต่อวัน</span>
-          <span className={`font-mono text-base font-bold tabular-nums ${burnRate > 0 ? 'text-rose-700' : 'text-slate-700'}`}>{money(burnRate)}</span>
+          <span className={`font-mono text-base font-bold tabular-nums ${normalizedBurnRate != null && normalizedBurnRate > 0 ? 'text-rose-700' : 'text-slate-700'}`}>{money(normalizedBurnRate)}</span>
         </div>
         <div className="mt-1 text-right text-[11px] text-slate-400">บาท/วัน</div>
       </div>
       <div className="border-t border-slate-100 pt-4">
         <div className="mb-2 flex items-baseline justify-between gap-3">
           <span className="text-xs font-semibold text-slate-500">วงเงิน OD ที่ใช้แล้ว</span>
-          <span className="font-mono text-sm font-bold tabular-nums text-slate-800">{money(odUsed)} / {money(odLimit)}</span>
+          <span className="font-mono text-sm font-bold tabular-nums text-slate-800">{money(normalizedUsed)} / {money(normalizedLimit)}</span>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`ใช้วงเงิน OD ${utilization.toFixed(1)} เปอร์เซ็นต์`}>
-          <div className={`h-full rounded-full ${utilization >= 90 ? 'bg-rose-500' : utilization >= 70 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${utilization}%` }} />
+        <div className="h-2 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={utilization == null ? 'ไม่มีข้อมูลสัดส่วนวงเงิน OD' : `ใช้วงเงิน OD ${utilization.toFixed(1)} เปอร์เซ็นต์`}>
+          {utilization != null ? <div className={`h-full rounded-full ${utilization >= 90 ? 'bg-rose-500' : utilization >= 70 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${utilization}%` }} /> : null}
         </div>
         <div className="mt-1 flex justify-between text-[11px] text-slate-400">
-          <span>{odLimit > 0 ? `ใช้แล้ว ${utilization.toFixed(1)}%` : 'ยังไม่ได้กำหนดวงเงิน OD'}</span>
-          <span>{odLimit > 0 ? `คงเหลือ ${money(Math.max(0, odLimit - odUsed))}` : null}</span>
+          <span>{normalizedLimit === 0 ? 'ยังไม่ได้กำหนดวงเงิน OD' : utilization == null ? 'ไม่มีข้อมูล' : `ใช้แล้ว ${utilization.toFixed(1)}%`}</span>
+          <span>{normalizedLimit != null && normalizedLimit > 0 && normalizedUsed != null ? `คงเหลือ ${money(Math.max(0, normalizedLimit - normalizedUsed))}` : null}</span>
         </div>
       </div>
       <div className="flex items-end justify-between gap-3 border-t border-slate-100 pt-4">
@@ -771,7 +969,7 @@ function LiquidityRiskPanel({ burnRate, daysToODMaxed, odLimit, odUsed }: { burn
           <div className="mt-1 text-[11px] text-slate-400">อิงจากอัตราใช้เงินสดเฉลี่ยปัจจุบัน</div>
         </div>
         <div className={`shrink-0 text-right font-mono text-2xl font-bold tabular-nums ${riskColor}`}>
-          {odLimit <= 0 ? '—' : days >= 999 ? <><span className="text-xs font-semibold">มากกว่า</span> 999 <span className="text-xs font-semibold">วัน</span></> : <>{days.toLocaleString('th-TH')} <span className="text-xs font-semibold">วัน</span></>}
+          {normalizedLimit === 0 ? '—' : days == null ? <span className="text-sm">ไม่มีข้อมูล</span> : days >= 999 ? <><span className="text-xs font-semibold">มากกว่า</span> 999 <span className="text-xs font-semibold">วัน</span></> : <>{days.toLocaleString('th-TH')} <span className="text-xs font-semibold">วัน</span></>}
         </div>
       </div>
     </div>
@@ -810,7 +1008,9 @@ function localizeFinancialText(value: string) {
 
 function formatInsightBody(value: string) {
   const localized = localizeFinancialText(value)
-    .replaceAll('Net Profit', 'กำไรสุทธิ')
+    .replaceAll('Net Profit', 'กำไรก่อนภาษี')
+    .replaceAll('Profit Before Tax', 'กำไรก่อนภาษี')
+    .replaceAll('PBT', 'กำไรก่อนภาษี')
     .replaceAll('OCF', 'กระแสเงินสดดำเนินงาน')
     .replaceAll('Receipts', 'เงินรับ')
     .replaceAll('Sales', 'ยอดขาย')
@@ -863,9 +1063,11 @@ function ForecastLoadingState() {
 }
 
 const detailLabelTranslations: Record<string, string> = {
-  'Net Profit ในงบ (Accrual)': 'กำไรสุทธิในงบ (เกณฑ์คงค้าง)',
+  'Net Profit ในงบ (Accrual)': 'กำไรก่อนภาษีในงบ (เกณฑ์คงค้าง)',
+  'Profit Before Tax ในงบ (Accrual)': 'กำไรก่อนภาษีในงบ (เกณฑ์คงค้าง)',
   'Operating Cash Flow จริง': 'กระแสเงินสดจากการดำเนินงาน',
-  'ส่วนต่าง (NP - OCF)': 'ส่วนต่างกำไรสุทธิกับกระแสเงินสด',
+  'ส่วนต่าง (NP - OCF)': 'ส่วนต่างกำไรก่อนภาษีกับกระแสเงินสด',
+  'ส่วนต่าง (PBT - OCF)': 'ส่วนต่างกำไรก่อนภาษีกับกระแสเงินสด',
   'Cash Collection Rate': 'อัตราการเก็บเงินจากลูกค้า',
   'Supplier Payment Rate': 'อัตราการจ่ายผู้ขาย',
   'Projected Cash 7 วัน': 'เงินสดคาดการณ์ใน 7 วัน',
@@ -880,9 +1082,11 @@ function detailLabel(value: string) {
 }
 
 function detailValue(row: AnalysisPayload['detailRows'][number]) {
-  if (row.suffix === '%') return `${row.value.toLocaleString('th-TH', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
-  if (row.suffix?.includes('วัน')) return row.value >= 999 ? 'มากกว่า 999 วัน' : `${Math.round(row.value).toLocaleString('th-TH')} วัน`
-  return money(row.value)
+  const value = finiteOrUndefined(row.value)
+  if (value == null) return 'ไม่มีข้อมูล'
+  if (row.suffix === '%') return `${value.toLocaleString('th-TH', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
+  if (row.suffix?.includes('วัน')) return value >= 999 ? 'มากกว่า 999 วัน' : `${Math.round(value).toLocaleString('th-TH')} วัน`
+  return money(value)
 }
 
 function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPayload['detailRows'] }) {
@@ -921,7 +1125,9 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPa
             {isLoading ? <tr><td className="py-8 text-center text-slate-400" colSpan={detailColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
             {!isLoading ? sortedRows.map((row) => (
               <tr key={row.label} className="transition-colors hover:bg-slate-50">
-                <td className="px-3 py-3 text-slate-700">{detailLabel(row.label)}</td>
+                <td className="px-3 py-3 text-slate-700">
+                  {row.href ? <a aria-label={`เปิดแหล่งข้อมูล ${detailLabel(row.label)}`} className="font-medium text-blue-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" href={row.href}>{detailLabel(row.label)}</a> : detailLabel(row.label)}
+                </td>
                 <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${row.tone === 'bad' ? 'text-red-700' : row.tone === 'good' ? 'text-emerald-700' : row.tone === 'warn' ? 'text-amber-700' : 'text-slate-900'}`}>
                   {detailValue(row)}
                 </td>
@@ -936,7 +1142,7 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPa
         {isLoading ? <div className="py-6 text-center text-xs text-slate-400">กำลังโหลดข้อมูล</div> : null}
         {!isLoading ? sortedRows.map((row) => (
           <div key={row.label} className="flex items-center justify-between gap-4 p-3 text-xs">
-            <span className="min-w-0 text-slate-700">{detailLabel(row.label)}</span>
+            {row.href ? <a aria-label={`เปิดแหล่งข้อมูล ${detailLabel(row.label)}`} className="min-w-0 font-medium text-blue-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" href={row.href}>{detailLabel(row.label)}</a> : <span className="min-w-0 text-slate-700">{detailLabel(row.label)}</span>}
             <span className={`shrink-0 whitespace-nowrap font-mono font-bold tabular-nums ${row.tone === 'bad' ? 'text-red-700' : row.tone === 'good' ? 'text-emerald-700' : row.tone === 'warn' ? 'text-amber-700' : 'text-slate-900'}`}>
               {detailValue(row)}
             </span>
@@ -949,20 +1155,25 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPa
 }
 
 function ForecastMega({ horizon, summary }: { horizon: number; summary?: ForecastPayload['summary'] }) {
-  const ok = (summary?.lowestBal ?? 0) >= 0
-  const tone = ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+  const lowestBalance = finiteOrUndefined(summary?.lowestBal)
+  const health = lowestBalance == null ? 'unknown' : lowestBalance >= 0 ? 'ok' : 'short'
+  const tone = health === 'ok' ? 'bg-emerald-50 text-emerald-700' : health === 'short' ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-600'
 
   return (
     <div className="space-y-4">
       <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${tone}`}>
-        {ok ? <CheckCircle2 aria-hidden="true" className="size-3.5" /> : <AlertTriangle aria-hidden="true" className="size-3.5" />}
-        {ok ? 'คาดการณ์: เงินพอ' : 'คาดการณ์: เงินขาด'}
+        {health === 'ok' ? <CheckCircle2 aria-hidden="true" className="size-3.5" /> : health === 'short' ? <AlertTriangle aria-hidden="true" className="size-3.5" /> : <Gauge aria-hidden="true" className="size-3.5" />}
+        {health === 'ok' ? 'คาดการณ์: เงินพอ' : health === 'short' ? 'คาดการณ์: เงินขาด' : 'คาดการณ์: ไม่มีข้อมูล'}
       </div>
       <div>
-        <div className={`break-words font-mono text-3xl font-bold leading-tight tabular-nums ${ok ? 'text-emerald-700' : 'text-rose-700'}`}>{money(summary?.endCash)}</div>
+        <div className={`break-words font-mono text-3xl font-bold leading-tight tabular-nums ${health === 'ok' ? 'text-emerald-700' : health === 'short' ? 'text-rose-700' : 'text-slate-700'}`}>{money(summary?.endCash)}</div>
         <div className="mt-1 text-sm font-medium text-slate-600">เงินสด ณ สิ้น {horizon} วัน</div>
       </div>
-      {summary?.negCount ? (
+      {health === 'unknown' ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          ยังสรุปวันที่เงินสดติดลบไม่ได้ เพราะไม่มีข้อมูลประมาณการที่คำนวณได้
+        </div>
+      ) : summary?.negCount ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
           เงินสดติดลบ {summary.negCount.toLocaleString('th-TH')} วัน
           {summary.negDay ? ` โดยเริ่มวันที่ ${shortThaiDate(summary.negDay.date)}` : ''}
@@ -977,9 +1188,10 @@ function ForecastMega({ horizon, summary }: { horizon: number; summary?: Forecas
 }
 
 function ProjectionSvg({ days }: { days: ProjectionDay[] }) {
-  if (!days.length) return <div className="py-12 text-center text-sm text-slate-400">ยังไม่มีข้อมูลพยากรณ์ในช่วงที่เลือก</div>
+  const finiteDays = days.filter((day) => Number.isFinite(day.closing))
+  if (!finiteDays.length) return <div className="py-12 text-center text-sm text-slate-400">ยังไม่มีข้อมูลพยากรณ์ที่คำนวณได้ในช่วงที่เลือก</div>
 
-  const values = days.map((day) => day.closing)
+  const values = finiteDays.map((day) => day.closing)
   const visibleMinimum = Math.min(...values)
   const visibleMaximum = Math.max(...values)
   const padding = Math.max((visibleMaximum - visibleMinimum) * 0.16, Math.abs(visibleMaximum) * 0.01, 1)
@@ -993,9 +1205,9 @@ function ProjectionSvg({ days }: { days: ProjectionDay[] }) {
   const xStart = 56
   const xEnd = 728
   const zeroY = top + ((maximum - 0) / range) * (bottom - top)
-  const points = days.map((day, index) => ({
+  const points = finiteDays.map((day, index) => ({
     ...day,
-    x: xStart + (index / Math.max(1, days.length - 1)) * (xEnd - xStart),
+    x: xStart + (index / Math.max(1, finiteDays.length - 1)) * (xEnd - xStart),
     y: top + ((maximum - day.closing) / range) * (bottom - top),
   }))
   const pointString = points.map((point) => `${point.x},${point.y}`).join(' ')
@@ -1003,6 +1215,8 @@ function ProjectionSvg({ days }: { days: ProjectionDay[] }) {
   const areaPoints = `${points[0]?.x ?? xStart},${areaBase} ${pointString} ${points.at(-1)?.x ?? xEnd},${areaBase}`
   const lowestDay = points.reduce((lowest, point) => point.closing < lowest.closing ? point : lowest, points[0])
   const highestDay = points.reduce((highest, point) => point.closing > highest.closing ? point : highest, points[0])
+  const endingDay = days.at(-1)
+  const endingBalance = finiteOrUndefined(endingDay?.closing)
 
   return (
     <div className="space-y-4">
@@ -1050,8 +1264,8 @@ function ProjectionSvg({ days }: { days: ProjectionDay[] }) {
         <ForecastChartNote label="จุดต่ำสุด" tone={lowestDay.closing < 0 ? 'red' : 'slate'} value={money(lowestDay.closing)}>
           {shortThaiDate(lowestDay.date)}
         </ForecastChartNote>
-        <ForecastChartNote label="ยอดสิ้นช่วง" tone={days.at(-1)?.closing ?? 0 >= 0 ? 'blue' : 'red'} value={money(days.at(-1)?.closing)}>
-          {shortThaiDate(days.at(-1)?.date ?? '')}
+        <ForecastChartNote label="ยอดสิ้นช่วง" tone={endingBalance == null ? 'slate' : endingBalance >= 0 ? 'blue' : 'red'} value={money(endingBalance)}>
+          {shortThaiDate(endingDay?.date ?? '')}
         </ForecastChartNote>
       </div>
     </div>

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { Select } from '@/components/ui/Select'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -333,8 +334,8 @@ export function CustomerTrackingPageClient() {
             <span className="text-slate-400">→</span>
             <DatePickerInput value={dateTo} onChange={setDateTo} />
 
-            <select
-              className="h-9 w-[10rem] rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100 outline-none"
+            <Select
+              className="h-9 w-[10rem] px-3 text-sm"
               value={productCategory}
               onChange={(event) => { setProductCategory(event.target.value); setProductId('') }}
             >
@@ -342,7 +343,7 @@ export function CustomerTrackingPageClient() {
               {(data?.filters?.productCategories ?? []).map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
-            </select>
+            </Select>
 
 
             <div className="min-w-[190px]">
@@ -420,8 +421,8 @@ export function CustomerTrackingPageClient() {
 
               <label className="text-xs text-slate-500 font-semibold">
                 หมวดสินค้า
-                <select
-                  className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
+                <Select
+                  className="mt-1 h-9 w-full px-3 text-sm"
                   value={productCategory}
                   onChange={(event) => { setProductCategory(event.target.value); setProductId('') }}
                 >
@@ -429,7 +430,7 @@ export function CustomerTrackingPageClient() {
                   {(data?.filters?.productCategories ?? []).map((cat) => (
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
-                </select>
+                </Select>
               </label>
               <SearchCombobox inputClassName="h-9 text-sm" inputId="tracking-customer-mobile-product" label="สินค้า" options={productSearchOptions} placeholder="เลือกสินค้า" value={productId} onChange={setProductId} />
             </MobileFilterSheet>
@@ -627,17 +628,23 @@ export function CustomerTrackingPageClient() {
               <DetailSection
                 title="บิลขาย"
                 headerActions={
-                  <select
-                    aria-label="กรองสถานะบิลขาย"
-                    className="h-8 rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-800 focus:outline-none"
-                    value={billStatus}
-                    onChange={(e) => setBillStatus(e.target.value)}
-                  >
-                    <option value="">ทุกสถานะ</option>
-                    {availableBillStatuses.map((status) => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
+                  <div aria-label="กรองสถานะบิลขาย" className="ml-3 flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2" role="group">
+                    <span className="text-xs font-medium text-slate-500">สถานะบิล:</span>
+                    {['', ...availableBillStatuses].map((status) => {
+                      const active = billStatus === status
+                      return (
+                        <button
+                          aria-pressed={active}
+                          className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-500 bg-slate-600 text-white' : 'border-slate-300 bg-transparent text-slate-600 hover:bg-slate-200'}`}
+                          key={status || 'all-bill-statuses'}
+                          onClick={() => setBillStatus(status)}
+                          type="button"
+                        >
+                          {status || 'ทุกสถานะ'}
+                        </button>
+                      )
+                    })}
+                  </div>
                 }
               >
                 <SimpleTable
@@ -668,17 +675,23 @@ export function CustomerTrackingPageClient() {
               <DetailSection
                 title="รับชำระเงิน"
                 headerActions={
-                  <select
-                    aria-label="กรองสถานะรับชำระเงิน"
-                    className="h-8 rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-800 focus:outline-none"
-                    value={receiptStatus}
-                    onChange={(e) => setReceiptStatus(e.target.value)}
-                  >
-                    <option value="">ทุกสถานะ</option>
-                    {availableReceiptStatuses.map((status) => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
+                  <div aria-label="กรองสถานะรับชำระเงิน" className="ml-3 flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2" role="group">
+                    <span className="text-xs font-medium text-slate-500">สถานะรับชำระ:</span>
+                    {['', ...availableReceiptStatuses].map((status) => {
+                      const active = receiptStatus === status
+                      return (
+                        <button
+                          aria-pressed={active}
+                          className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-500 bg-slate-600 text-white' : 'border-slate-300 bg-transparent text-slate-600 hover:bg-slate-200'}`}
+                          key={status || 'all-receipt-statuses'}
+                          onClick={() => setReceiptStatus(status)}
+                          type="button"
+                        >
+                          {status || 'ทุกสถานะ'}
+                        </button>
+                      )
+                    })}
+                  </div>
                 }
               >
                 <SimpleTable

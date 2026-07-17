@@ -3016,6 +3016,15 @@ export async function PATCH(request: Request) {
         })
       }, { timeout: 30000 })
 
+      try {
+        await enqueueAndExecuteNotification(
+          { sourceType: 'sales_bill', documentNo: bill.doc_no },
+          { requestedBy: actor, force: true },
+        )
+      } catch (caught) {
+        console.error('[sales_bill] LINE notification failed', caught)
+      }
+
       return NextResponse.json({ docNo: bill.doc_no, id: bill.doc_no, status: 'updated' })
     }
 

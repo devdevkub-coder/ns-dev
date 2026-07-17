@@ -5,8 +5,10 @@ import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 
 const CANCELLED_STATUSES = ['cancelled', 'void', 'ยกเลิก']
+const PL_EXCLUDED_STATUSES = ['cancelled', 'canceled', 'void', 'voided', 'reversed', 'ยกเลิก']
 
 export type PeriodFilter = {
+  allowedBranchCodes?: string[] | null
   branchId?: string
   from: Date
   to: Date
@@ -22,7 +24,9 @@ type DetailRow = {
   amount: number
   date: string
   description: string
+  href?: string
   refNo: string
+  sourceType?: string
 }
 
 type StatementLine = {
@@ -56,6 +60,10 @@ type PurchaseBillRow = Prisma.purchase_billsGetPayload<{
 
 type ExpenseRow = Prisma.expensesGetPayload<{
   include: { branches: { select: { code: true; name: true } }; expense_categories: { select: { name: true } } }
+}>
+
+type AssetDisposalRow = Prisma.asset_disposalsGetPayload<{
+  include: { assets: { select: { branch_id: true; code: true; name: true } } }
 }>
 
 type BankRow = Prisma.bank_statementGetPayload<{
@@ -94,6 +102,34 @@ function notCancelledWhere() {
   return { NOT: { status: { in: CANCELLED_STATUSES } } }
 }
 
+function plActiveNullableStatusWhere() {
+  return {
+    OR: [
+      { status: null },
+      { NOT: { status: { in: PL_EXCLUDED_STATUSES, mode: 'insensitive' as const } } },
+    ],
+  }
+}
+
+export class FinancialStatementInputError extends Error {
+  constructor(message: string, readonly status = 400) {
+    super(message)
+    this.name = 'FinancialStatementInputError'
+  }
+}
+
+function assertValidPeriodFilter(filter: PeriodFilter) {
+  if (Number.isNaN(filter.from.getTime()) || Number.isNaN(filter.to.getTime())) {
+    throw new FinancialStatementInputError('ช่วงวันที่ไม่ถูกต้อง')
+  }
+  if (filter.from > filter.to) {
+    throw new FinancialStatementInputError('วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด')
+  }
+  if (filter.transactionMode && filter.transactionMode !== 'ALL') {
+    throw new FinancialStatementInputError('งบกำไรขาดทุนรองรับเฉพาะข้อมูลรวมทุกประเภทรายการ (ALL)')
+  }
+}
+
 function sourceState(extra: string[] = []): SourceState {
   return {
     basis: 'Management/source from operational transactions. Not a statutory GL statement.',
@@ -104,11 +140,6 @@ function sourceState(extra: string[] = []): SourceState {
     ],
     writeActionsEnabled: false,
   }
-}
-
-function transactionModeWhere(mode?: string) {
-  if (!mode || mode === 'ALL') return {}
-  return { transaction_mode: mode }
 }
 
 function sumDetails(rows: DetailRow[]) {
@@ -140,93 +171,180 @@ function classifyCashFlow(row: BankRow): 'operating' | 'investing' | 'financing'
   return 'operating'
 }
 
-async function listBranches() {
+async function loadActiveBranchRefs(allowedBranchCodes: string[] | null = null) {
   const branches = await prisma.branches.findMany({
     orderBy: [{ code: 'asc' }, { name: 'asc' }],
     select: { code: true, id: true, name: true },
-    where: { active: true },
+    where: { active: true, ...(allowedBranchCodes !== null ? { code: { in: allowedBranchCodes } } : {}) },
   })
-  return branches.map(branchRow)
+  return branches
+}
+
+async function listBranches() {
+  return (await loadActiveBranchRefs()).map(branchRow)
+}
+
+function normalizeAllowedBranchCodes(codes: string[] | null | undefined) {
+  return codes === undefined || codes === null
+    ? null
+    : [...new Set(codes.map((code) => code.trim().toUpperCase()).filter(Boolean))]
+}
+
+async function resolveStatementBranchScope(filter: PeriodFilter) {
+  const allowedBranchCodes = normalizeAllowedBranchCodes(filter.allowedBranchCodes)
+  const requestedBranchId = filter.branchId?.trim().toUpperCase() === 'ALL' ? undefined : filter.branchId?.trim()
+  const selectedBranch = requestedBranchId ? await findActiveBranchReferenceByCodeOrId(requestedBranchId) : null
+  if (requestedBranchId && !selectedBranch) {
+    throw new FinancialStatementInputError('ไม่พบสาขาที่เปิดใช้งานตามตัวกรองที่ระบุ')
+  }
+  if (selectedBranch && allowedBranchCodes !== null && !allowedBranchCodes.includes(selectedBranch.code.toUpperCase())) {
+    throw new FinancialStatementInputError('ไม่มีสิทธิ์ดูข้อมูลของสาขาที่ระบุ', 403)
+  }
+  const visibleBranchRefs = await loadActiveBranchRefs(allowedBranchCodes)
+  const branchIds = selectedBranch
+    ? [selectedBranch.id]
+    : allowedBranchCodes === null
+      ? null
+      : visibleBranchRefs.map((branch) => branch.id)
+  return {
+    branchIds,
+    branches: visibleBranchRefs.map(branchRow),
+    constrained: branchIds !== null,
+    selectedBranchCode: selectedBranch?.code,
+  }
+}
+
+function directBranchWhere(branchIds: bigint[] | null) {
+  return branchIds === null ? {} : { branch_id: { in: branchIds } }
+}
+
+function relatedBranchWhere(relation: 'accounts' | 'assets', branchIds: bigint[] | null) {
+  return branchIds === null ? {} : { [relation]: { branch_id: { in: branchIds } } }
 }
 
 async function loadPlInputs(filter: PeriodFilter) {
   const dateWhere = { gte: filter.from, lte: filter.to }
-  const branch = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
-  const branchWhere = branch?.id != null ? { branch_id: branch.id } : {}
-  return Promise.all([
+  const scope = await resolveStatementBranchScope(filter)
+  if (scope.branchIds?.length === 0) {
+    return {
+      assetDisposals: [] as AssetDisposalRow[],
+      depreciations: [] as Array<Prisma.depreciationsGetPayload<{ include: { assets: { select: { branch_id: true; code: true; name: true } } } }>>,
+      expenses: [] as ExpenseRow[],
+      fxRows: [] as Array<Prisma.fx_gain_lossGetPayload<object>>,
+      loanPayments: [] as Array<Prisma.loan_paymentsGetPayload<{ include: { loans: { select: { contract_no: true; lender_name: true } } } }>>,
+      salesBills: [] as SalesBillRow[],
+      scope,
+    }
+  }
+  const branchWhere = directBranchWhere(scope.branchIds)
+  const [salesBills, expenses, depreciations, loanPayments, fxRows, assetDisposals] = await Promise.all([
     prisma.sales_bills.findMany({
       include: { branches: { select: { code: true, name: true } }, customers: { select: { name: true } } },
       orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
-      take: 20000,
-      where: { ...notCancelledWhere(), ...branchWhere, ...transactionModeWhere(filter.transactionMode), date: dateWhere },
+      where: { ...plActiveNullableStatusWhere(), ...branchWhere, cancelled_at: null, date: dateWhere },
     }),
     prisma.expenses.findMany({
       include: { branches: { select: { code: true, name: true } }, expense_categories: { select: { name: true } } },
       orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
-      take: 20000,
-      where: { ...notCancelledWhere(), ...branchWhere, date: dateWhere },
+      where: { ...branchWhere, date: dateWhere, status: { in: ['approved', 'paid'], mode: 'insensitive' } },
     }),
     prisma.depreciations.findMany({
       include: { assets: { select: { branch_id: true, code: true, name: true } } },
       orderBy: [{ date: 'asc' }],
-      take: 10000,
-      where: { date: dateWhere, ...(branch?.id != null ? { assets: { branch_id: branch.id } } : {}) },
+      where: {
+        date: dateWhere,
+        reversed_at: null,
+        status: { equals: 'posted', mode: 'insensitive' },
+        ...relatedBranchWhere('assets', scope.branchIds),
+      },
     }),
     prisma.loan_payments.findMany({
       include: { loans: { select: { contract_no: true, lender_name: true } } },
       orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
-      take: 10000,
-      where: { ...notCancelledWhere(), date: dateWhere },
+      where: {
+        ...plActiveNullableStatusWhere(),
+        date: dateWhere,
+        ...relatedBranchWhere('accounts', scope.branchIds),
+      },
     }),
-    prisma.fx_gain_loss.findMany({
-      orderBy: [{ date: 'asc' }],
-      take: 10000,
-      where: { date: dateWhere },
+    scope.constrained
+      ? Promise.resolve([])
+      : prisma.fx_gain_loss.findMany({
+          orderBy: [{ date: 'asc' }],
+          where: { date: dateWhere },
+        }),
+    prisma.asset_disposals.findMany({
+      include: { assets: { select: { branch_id: true, code: true, name: true } } },
+      orderBy: [{ disposal_date: 'asc' }, { disposal_no: 'asc' }],
+      where: {
+        disposal_date: dateWhere,
+        reversed_at: null,
+        status: { equals: 'approved', mode: 'insensitive' },
+        ...relatedBranchWhere('assets', scope.branchIds),
+      },
     }),
-    listBranches(),
   ])
+  return { assetDisposals, depreciations, expenses, fxRows, loanPayments, salesBills, scope }
 }
 
 export async function buildPlStatement(filter: PeriodFilter) {
-  const [salesBillsRaw, expensesRaw, depreciationsRaw, loanPayments, fxRows, branches] = await loadPlInputs(filter)
-  const salesBills = salesBillsRaw as SalesBillRow[]
-  const expenses = expensesRaw as ExpenseRow[]
-  const depreciations = depreciationsRaw as Array<Prisma.depreciationsGetPayload<{ include: { assets: { select: { branch_id: true; code: true; name: true } } } }>>
+  assertValidPeriodFilter(filter)
+  const { assetDisposals, depreciations, expenses, fxRows, loanPayments, salesBills, scope } = await loadPlInputs(filter)
   const salesDetails = salesBills.map((bill: SalesBillRow) => ({
-    amount: toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount),
+    amount: toNumber(bill.total_amount) - toNumber(bill.vat_amount),
     date: dateOnly(bill.date),
     description: bill.customers?.name ?? bill.branches?.name ?? '-',
+    href: `/sales/bills/${encodeURIComponent(bill.doc_no)}`,
     refNo: bill.doc_no,
+    sourceType: 'sales_bill',
   }))
   const cogsDetails = salesBills.map((bill: SalesBillRow) => ({
     amount: toNumber(bill.cogs_amount) || toNumber(bill.total_cost),
     date: dateOnly(bill.date),
     description: `${bill.transaction_mode ?? 'STOCK'} · ${bill.customers?.name ?? '-'}`,
+    href: `/sales/bills/${encodeURIComponent(bill.doc_no)}`,
     refNo: bill.doc_no,
+    sourceType: 'sales_bill',
   })).filter((row) => row.amount > 0)
   const expenseDetails = expenses.map((expense: ExpenseRow) => ({
-    amount: toNumber(expense.net_amount) || toNumber(expense.amount),
+    amount: toNumber(expense.amount),
     date: dateOnly(expense.date),
     description: expense.expense_categories?.name ?? expense.payee ?? '-',
+    href: `/daily/expense/${encodeURIComponent(expense.doc_no)}`,
     refNo: expense.doc_no,
+    sourceType: 'expense',
   }))
   const depreciationDetails = depreciations.map((dep) => ({
     amount: toNumber(dep.amount),
     date: dateOnly(dep.date),
     description: dep.assets?.name ?? '-',
+    href: '/finance-accounting/depreciation',
     refNo: dep.assets?.code ?? `DEP-${dateOnly(dep.date)}`,
+    sourceType: 'depreciation',
   }))
   const interestDetails = loanPayments.map((payment) => ({
     amount: toNumber(payment.interest_amount),
     date: dateOnly(payment.date),
     description: payment.loans?.lender_name ?? '-',
+    href: '/finance-accounting/loan-contracts',
     refNo: payment.doc_no || payment.loans?.contract_no || '-',
+    sourceType: 'loan_payment',
   })).filter((row) => row.amount > 0)
   const fxDetails = fxRows.map((row) => ({
     amount: toNumber(row.gain_loss),
     date: dateOnly(row.date),
     description: [row.currency, row.ref_type].filter(Boolean).join(' · ') || '-',
+    href: '/finance/foreign/fx-gain-loss-report',
     refNo: row.notes || `FX-${dateOnly(row.date)}`,
+    sourceType: 'fx_gain_loss',
+  }))
+  const assetDisposalDetails = assetDisposals.map((row: AssetDisposalRow) => ({
+    amount: toNumber(row.gain_loss),
+    date: dateOnly(row.disposal_date),
+    description: row.assets?.name ?? row.reason ?? '-',
+    href: '/finance-accounting/asset-disposal',
+    refNo: row.disposal_no,
+    sourceType: 'asset_disposal',
   }))
 
   const revenue = sumDetails(salesDetails)
@@ -235,39 +353,50 @@ export async function buildPlStatement(filter: PeriodFilter) {
   const depreciation = sumDetails(depreciationDetails)
   const interest = sumDetails(interestDetails)
   const fxNet = sumDetails(fxDetails)
+  const assetDisposalNet = sumDetails(assetDisposalDetails)
   const grossProfit = revenue - cogs
   const operatingExpenses = expensesTotal + depreciation
   const operatingProfit = grossProfit - operatingExpenses
-  const netProfitBeforeTax = operatingProfit - interest + fxNet
-  const stockRevenue = salesBills.filter((bill) => bill.transaction_mode !== 'TRADING').reduce((sum, bill) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
-  const tradingRevenue = salesBills.filter((bill) => bill.transaction_mode === 'TRADING').reduce((sum, bill) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
+  const netProfitBeforeTax = operatingProfit - interest + fxNet + assetDisposalNet
+  const stockRevenue = salesBills.filter((bill) => bill.transaction_mode !== 'TRADING').reduce((sum, bill) => sum + toNumber(bill.total_amount) - toNumber(bill.vat_amount), 0)
+  const tradingRevenue = salesBills.filter((bill) => bill.transaction_mode === 'TRADING').reduce((sum, bill) => sum + toNumber(bill.total_amount) - toNumber(bill.vat_amount), 0)
 
   return {
-    branches,
+    branches: scope.branches,
     filters: {
-      branchId: filter.branchId ?? 'ALL',
+      branchId: scope.selectedBranchCode ?? 'ALL',
       from: dateOnly(filter.from),
       to: dateOnly(filter.to),
-      transactionMode: filter.transactionMode ?? 'ALL',
+      transactionMode: 'ALL',
     },
     sections: [
-      moneyLine('revenue', 'Revenue / รายได้จาก Sales Bills', revenue, salesDetails, 'good'),
-      moneyLine('cogs', 'COGS (WAC) / ต้นทุนขาย', -cogs, cogsDetails, 'bad'),
-      moneyLine('grossProfit', 'Gross Profit / กำไรขั้นต้น', grossProfit, undefined, 'total'),
-      moneyLine('opex', 'Operating Expenses / ค่าใช้จ่ายดำเนินงาน', -expensesTotal, expenseDetails, 'bad'),
-      moneyLine('opex', 'Depreciation Expense / ค่าเสื่อมราคา', -depreciation, depreciationDetails, 'bad', 1),
-      moneyLine('opex', 'Total Operating Expenses', -operatingExpenses, undefined, 'total'),
-      moneyLine('operatingProfit', 'Operating Profit', operatingProfit, undefined, 'total'),
-      moneyLine('finance', 'Interest Expense / ดอกเบี้ยจ่าย', -interest, interestDetails, 'bad'),
-      moneyLine('finance', 'Realized FX Gain/(Loss)', fxNet, fxDetails, fxNet >= 0 ? 'good' : 'bad'),
-      moneyLine('net', 'Net Profit Before Tax / กำไรก่อนภาษี', netProfitBeforeTax, undefined, 'total'),
+      moneyLine('รายได้', 'รายได้จากการขาย (Revenue)', revenue, salesDetails, 'good'),
+      moneyLine('ต้นทุนขาย', 'ต้นทุนขาย WAC (COGS)', -cogs, cogsDetails, 'bad'),
+      moneyLine('กำไรขั้นต้น', 'กำไรขั้นต้น (Gross Profit)', grossProfit, undefined, 'total'),
+      moneyLine('ค่าใช้จ่ายดำเนินงาน', 'ค่าใช้จ่ายดำเนินงาน (Operating Expenses)', -expensesTotal, expenseDetails, 'bad'),
+      moneyLine('ค่าใช้จ่ายดำเนินงาน', 'ค่าเสื่อมราคา (Depreciation Expense)', -depreciation, depreciationDetails, 'bad', 1),
+      moneyLine('ค่าใช้จ่ายดำเนินงาน', 'รวมค่าใช้จ่ายดำเนินงาน', -operatingExpenses, undefined, 'total'),
+      moneyLine('กำไรจากการดำเนินงาน', 'กำไรจากการดำเนินงาน (Operating Profit)', operatingProfit, undefined, 'total'),
+      moneyLine('ต้นทุนทางการเงิน', 'ดอกเบี้ยจ่าย (Interest Expense)', -interest, interestDetails, 'bad'),
+      moneyLine('ต้นทุนทางการเงิน', 'กำไร/(ขาดทุน) อัตราแลกเปลี่ยนที่รับรู้แล้ว', fxNet, fxDetails, fxNet >= 0 ? 'good' : 'bad'),
+      moneyLine('รายได้และค่าใช้จ่ายอื่น', 'กำไร/(ขาดทุน) จากการจำหน่ายทรัพย์สิน', assetDisposalNet, assetDisposalDetails, assetDisposalNet >= 0 ? 'good' : 'bad'),
+      moneyLine('กำไรก่อนภาษี', 'กำไรก่อนภาษี (Profit Before Tax)', netProfitBeforeTax, undefined, 'total'),
     ],
-    sourceState: sourceState(['Revenue ใช้ subtotal ก่อน VAT เมื่อมีข้อมูล ไม่รวมการปิดงวดภาษี', 'Interest ใช้ loan payments cash-basis ในช่วงวันที่']),
+    sourceState: sourceState([
+      'รายได้ใช้ total_amount - vat_amount เพื่อสะท้อนยอดหลังส่วนลดหัวบิลและไม่รวม VAT',
+      'ค่าใช้จ่ายใช้ expenses.amount และนับเฉพาะรายการสถานะ approved/paid ตามเกณฑ์ actual/accrual ของรายงานบริหาร',
+      'ค่าเสื่อมราคานับเฉพาะรายการ posted ที่ยังไม่ถูก reverse',
+      'ดอกเบี้ยใช้ loan payments แบบ cash-basis ในช่วงวันที่',
+      'กำไร/ขาดทุนจากจำหน่ายทรัพย์สินนับเฉพาะรายการ approved ที่ยังไม่ถูก reverse ตาม disposal_date',
+      'Stock/Trading split เป็นข้อมูลประกอบเฉพาะรายได้และต้นทุนขายจากชุดข้อมูลเต็ม ไม่ใช่ตัวกรองกำไรก่อนภาษี',
+      ...(scope.constrained ? ['ไม่รวมกำไร/ขาดทุนอัตราแลกเปลี่ยนเมื่อจำกัดขอบเขตสาขา เพราะ fx_gain_loss ยังไม่มีมิติสาขา'] : []),
+    ]),
     split: {
       stock: { cogs: salesBills.filter((bill) => bill.transaction_mode !== 'TRADING').reduce((sum, bill) => sum + (toNumber(bill.cogs_amount) || toNumber(bill.total_cost)), 0), revenue: stockRevenue },
       trading: { cogs: salesBills.filter((bill) => bill.transaction_mode === 'TRADING').reduce((sum, bill) => sum + (toNumber(bill.cogs_amount) || toNumber(bill.total_cost)), 0), revenue: tradingRevenue },
     },
     summary: {
+      assetDisposalNet,
       cogs,
       depreciation,
       expenses: expensesTotal,
@@ -461,10 +590,10 @@ export async function buildBalanceSheet(filter: AsOfFilter) {
 export async function buildCashFlowStatement(filter: PeriodFilter) {
   const fromStart = filter.from
   const toEnd = endOfDay(filter.to)
-  const branch = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
-  const accountWhere = branch?.id != null ? { accounts: { branch_id: branch.id } } : {}
-  const [accountsRaw, beforeRowsRaw, periodRowsRaw, branches] = await Promise.all([
-    prisma.accounts.findMany({ include: { branches: { select: { code: true, name: true } } }, where: { active: true, ...(branch?.id != null ? { branch_id: branch.id } : {}) } }),
+  const scope = await resolveStatementBranchScope(filter)
+  const accountWhere = relatedBranchWhere('accounts', scope.branchIds)
+  const [accountsRaw, beforeRowsRaw, periodRowsRaw] = await Promise.all([
+    prisma.accounts.findMany({ include: { branches: { select: { code: true, name: true } } }, where: { active: true, ...directBranchWhere(scope.branchIds) } }),
     prisma.bank_statement.findMany({
       include: { accounts: { select: { account_no: true, bank_name: true, name: true, type: true } } },
       orderBy: [{ date: 'asc' }, { id: 'asc' }],
@@ -477,7 +606,6 @@ export async function buildCashFlowStatement(filter: PeriodFilter) {
       take: 30000,
       where: { ...accountWhere, date: { gte: fromStart, lte: toEnd } },
     }),
-    listBranches(),
   ])
   const accounts = accountsRaw as AccountRow[]
   const beforeRows = beforeRowsRaw as BankRow[]
@@ -514,8 +642,8 @@ export async function buildCashFlowStatement(filter: PeriodFilter) {
 
   return {
     activities: { financing, investing, operating },
-    branches,
-    filters: { branchId: filter.branchId ?? 'ALL', from: dateOnly(filter.from), method: 'direct', to: dateOnly(filter.to) },
+    branches: scope.branches,
+    filters: { branchId: scope.selectedBranchCode ?? 'ALL', from: dateOnly(filter.from), method: 'direct', to: dateOnly(filter.to) },
     rows: [
       moneyLine('operating', 'Operating Activities - Cash In', operating.inflow, operating.rows.filter((row) => row.inflow > 0), 'good'),
       moneyLine('operating', 'Operating Activities - Cash Out', -operating.outflow, operating.rows.filter((row) => row.outflow > 0), 'bad'),

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { Select } from '@/components/ui/Select'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -433,14 +434,14 @@ export function ProductTrackingPageClient({
                 onChange={setCustomerId}
               />
             </div>
-            <select
-              className="h-9 w-[10rem] rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-100"
+            <Select
+              className="h-9 w-[10rem] text-sm"
               value={metalGroup}
               onChange={(event) => { setMetalGroup(event.target.value); setProductId('') }}
             >
               <option value="">ทุกหมวด</option>
               {(data?.filters?.metalGroups ?? []).map((group) => <option key={group} value={group}>{group}</option>)}
-            </select>
+            </Select>
 
             <button className="h-9 rounded-md bg-slate-100 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-60" disabled={!hasActiveFilters} type="button" onClick={resetFilters}>ล้างตัวกรอง</button>
           </div>
@@ -512,14 +513,14 @@ export function ProductTrackingPageClient({
               </div>
               <label className="text-xs text-slate-500 font-semibold block">
                 หมวด
-                <select
-                  className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-100"
+                <Select
+                  className="mt-1 h-9 w-full text-sm"
                   value={metalGroup}
                   onChange={(event) => { setMetalGroup(event.target.value); setProductId('') }}
                 >
                   <option value="">ทุกหมวด</option>
                   {(data?.filters?.metalGroups ?? []).map((group) => <option key={group} value={group}>{group}</option>)}
-                </select>
+                </Select>
               </label>
               <SearchCombobox inputClassName="h-9 text-sm" inputId="tracking-product-mobile-product" label="สินค้า" options={productSearchOptions} placeholder="เลือกสินค้า" value={productId} onChange={setProductId} />
               <SearchCombobox inputClassName="h-9 text-sm" inputId="tracking-product-mobile-supplier" label="ผู้ขายฝั่งซื้อ" options={supplierSearchOptions} placeholder="เลือกผู้ขาย" value={supplierId} onChange={setSupplierId} />

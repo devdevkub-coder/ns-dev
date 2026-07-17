@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { Select } from '@/components/ui/Select'
 import { formatMoney } from '@/lib/daily'
 import { getErrorMessage } from '@/lib/api-client'
 
@@ -149,13 +150,13 @@ export function WeightTicketStockReturnDialog({
                       <div>
                         <label className="mb-1 block text-xs font-semibold text-slate-600">บิลขาย</label>
                         {option.salesBillDocNos.length > 1 ? (
-                          <select
-                            className="h-10 w-full rounded-md border border-slate-300 bg-white px-2"
+                          <Select
+                            className="h-10 w-full px-2"
                             value={salesBillByPendingOut[option.pendingOutKey] ?? ''}
                             onChange={(event) => setSalesBillByPendingOut((current) => ({ ...current, [option.pendingOutKey]: event.target.value }))}
                           >
                             {option.salesBillDocNos.map((docNo) => <option key={docNo} value={docNo}>{docNo}</option>)}
-                          </select>
+                          </Select>
                         ) : (
                           <div className="font-mono text-slate-700">{option.salesBillDocNos[0] ?? '-'}</div>
                         )}
@@ -247,13 +248,13 @@ export function WeightTicketStockReturnDialog({
                         <td className="px-3 py-2 text-slate-700">{option.warehouseName || '-'}</td>
                         <td className="px-3 py-2">
                           {option.salesBillDocNos.length > 1 ? (
-                            <select
-                              className="h-9 w-full rounded-md border border-slate-300 bg-white px-2"
+                            <Select
+                              className="h-10 w-full px-2"
                               value={salesBillByPendingOut[option.pendingOutKey] ?? ''}
                               onChange={(event) => setSalesBillByPendingOut((current) => ({ ...current, [option.pendingOutKey]: event.target.value }))}
                             >
                               {option.salesBillDocNos.map((docNo) => <option key={docNo} value={docNo}>{docNo}</option>)}
-                            </select>
+                            </Select>
                           ) : (
                             <span className="font-mono text-slate-700">{option.salesBillDocNos[0] ?? '-'}</span>
                           )}
