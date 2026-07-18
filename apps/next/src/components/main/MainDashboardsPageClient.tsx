@@ -213,7 +213,13 @@ export function MainDashboardsPageClient({ mode }: { mode: Mode }) {
   const [data, setData] = useState<MainPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const endpoint = mode === 'dashboard' ? '/api/dashboard' : mode === 'owner-daily' ? '/api/owner-daily' : '/api/daily-report'
+  const endpoint = mode === 'dashboard'
+    ? '/api/dashboard'
+    : mode === 'owner-daily'
+      ? '/api/owner-daily'
+      : mode === 'analytics-dashboard'
+        ? '/api/analytics-dashboard'
+        : '/api/daily-report'
   const latestLoadRequestRef = useRef(0)
 
   useEffect(() => {

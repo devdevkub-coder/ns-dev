@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { noStoreHeaders, parseReportDate } from '@/lib/server/dashboard-report-shared'
 import { buildMainDashboards } from '@/lib/server/main-dashboards'
 
 export const runtime = 'nodejs'
-
-function parseDate(value: string | null) {
-  const parsed = value ? new Date(value) : new Date()
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,13 +14,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(await buildMainDashboards({
       branchId: params.get('branchId') || undefined,
       customerId: params.get('customerId') || undefined,
-      date: parseDate(params.get('date')),
+      date: parseReportDate(params.get('date')),
       dateFrom: params.get('from') || undefined,
       dateTo: params.get('to') || undefined,
       group: params.get('group') || undefined,
       productId: params.get('productId') || undefined,
       supplierId: params.get('supplierId') || undefined,
-    }))
+    }), { headers: noStoreHeaders() })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลด Dashboard ไม่ได้', 500)
