@@ -104,7 +104,7 @@
   - Receipt modal now requires explicit `sourceType` (`SB` or `CADV`) and keeps source line collections separate; mixed-source payloads are rejected without fallback.
   - CADV RCP writes `customer_receipt_advance_allocations`, bank statement cash-in, CADV received/remaining/status snapshots, and reverses those facts on cancel/reissue.
   - GET `/api/sales/receipts` exposes pending CADV options and source-aware receipt history.
-  - Migration `20260718100000_add_customer_receipt_advance_allocations.sql` and dev-target application remain a deployment prerequisite; Supabase MCP permission currently blocks applying it from this session.
+  - Migration `20260718100000_add_customer_receipt_advance_allocations.sql` was applied to dev-target, SIT, and customer UAT with Supabase CLI; migration history `20260718100000` is present in all three environments.
 
 ## Active Follow-up: Reference Master Redis Cache
 
@@ -262,9 +262,10 @@
   - [x] ปรับ product/impurity product original และ thumbnail จาก `cacheControl: '3600'` เป็น `31536000` โดยใช้ versioned storage key
   - [x] ยืนยัน list/picker ใช้ thumbnail เท่านั้น และ product detail/edit preview โหลด original เมื่อมี key
   - [x] audit `next/image`, `loading`, `sizes`, stable dimensions และ no-preload สำหรับ persisted product/impurity/WTI/WTO surfaces; local upload previews ใช้ fixed dimensions และไม่ใช่ CDN list asset
-  - [ ] ตรวจ bucket/privacy และ signed/public URL policy ของ WTI/WTO attachments ให้ตรงกับข้อมูลที่มีความอ่อนไหว
+  - [ ] ตรวจ bucket/privacy และ signed/public URL policy ของ WTI/WTO attachments ให้ตรงกับข้อมูลที่มีความอ่อนไหว; ปัจจุบัน bucket ยังเป็น public เพราะ LINE ต้องใช้ URL ภายนอก จึงต้องออกแบบ signed URL สำหรับหน้า ERP แยกก่อนเปลี่ยน policy
   - [x] ล้างข้อมูลและ drop legacy `products.image_names` ผ่าน migrations `20260718140000_clear_legacy_product_image_names.sql` และ `20260718143000_drop_legacy_product_image_names.sql` หลัง Prisma/schema consumer audit ผ่าน
-  - [ ] วัด image request count, bytes, Storage/CDN latency และ broken-image rate แยกจาก Redis cache metrics
+  - [x] เพิ่ม `image_delivery` telemetry สำหรับ WTI/WTO attachment load/error โดยไม่ส่ง URL, document number หรือ scope และเอา placeholder รูป hardcode ออกจาก LINE path
+  - [ ] วัด image request count, bytes, Storage/CDN latency และ broken-image rate แยกจาก Redis cache metrics หลัง deploy
 
 **CACHE-M5 exit criteria:** มี runtime evidence จาก SIT/UAT, invalidation/scope isolation ผ่าน, key/TTL decision ถูกบันทึก, image delivery audit ผ่าน และ legacy image data ถูก cleanup หรือมี blocker ที่ระบุเจ้าของงานชัดเจน.
 
