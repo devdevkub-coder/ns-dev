@@ -34,7 +34,16 @@ export function AuthStatus({ compact = false, onMenuOpenChange, profile: profile
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<AuthStatusProfile>({ roles: [], userEmail: '' })
   const [isLoading, setIsLoading] = useState(true)
+  const [isMobileViewport, setIsMobileViewport] = useState(false)
   const supabase = getSupabaseClient()
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 1023px)')
+    const syncViewport = () => setIsMobileViewport(mediaQuery.matches)
+    syncViewport()
+    mediaQuery.addEventListener('change', syncViewport)
+    return () => mediaQuery.removeEventListener('change', syncViewport)
+  }, [])
 
   useEffect(() => {
     if (!supabase) {
@@ -153,7 +162,7 @@ export function AuthStatus({ compact = false, onMenuOpenChange, profile: profile
       <DropdownMenuContent
         align={isSidebar ? 'start' : 'end'}
         className="w-64 rounded-md border border-slate-700 bg-slate-900 p-1.5 text-slate-100 shadow-2xl shadow-black/30"
-        side={isSidebar ? 'right' : 'bottom'}
+        side={isSidebar && !isMobileViewport ? 'right' : isSidebar ? 'top' : 'bottom'}
         sideOffset={10}
       >
         <DropdownMenuItem asChild className="h-9 cursor-pointer text-slate-100 focus:bg-slate-800 focus:text-white">
