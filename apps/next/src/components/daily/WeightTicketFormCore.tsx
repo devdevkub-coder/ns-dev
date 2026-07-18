@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, ChevronDown, Clock, ImagePlus, Plus, Search, Trash2, Scale, Box, AlertTriangle, Check } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ChevronDown, Clock, ImagePlus, Plus, Search, Trash2, Scale, Box, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { Card } from '@/components/ui/Card'
@@ -559,6 +559,7 @@ export function WeightTicketFormCore({
   const [pendingFocusField, setPendingFocusField] = useState<string | null>(null)
   const [draftStartedAt] = useState(() => new Date().toISOString())
   const [timerNow, setTimerNow] = useState(() => Date.now())
+  const [isWeightTicketSummaryCollapsed, setIsWeightTicketSummaryCollapsed] = useState(false)
 
   useEffect(() => {
     onDirtyChange?.(hasEnteredTicketData(form))
@@ -612,6 +613,7 @@ export function WeightTicketFormCore({
   const timerStartMs = parseTime(timerStartAt)
   const timerStopMs = parseTime(timerStopAt)
   const timerElapsedMs = timerStartMs === null ? 0 : (timerStopMs ?? timerNow) - timerStartMs
+  const weightTicketItemCount = getMainParentLines(form.lines).length
   const activeLine = useMemo(
     () => {
       const parentLines = getMainParentLines(form.lines)
@@ -626,6 +628,10 @@ export function WeightTicketFormCore({
     const intervalId = window.setInterval(() => setTimerNow(Date.now()), 1000)
     return () => window.clearInterval(intervalId)
   }, [canShowWeightTicketTimer, isEmbeddedModal, isWeightTicketIn, timerStopMs])
+
+  useEffect(() => {
+    setIsWeightTicketSummaryCollapsed(false)
+  }, [editingTicketId, isEmbeddedModal])
 
   const loadProducts = useCallback(async (signal?: AbortSignal) => {
     setIsLoadingProducts(true)
@@ -1331,9 +1337,8 @@ export function WeightTicketFormCore({
               </DialogDescription>
             </div>
             <div className="flex max-w-[min(58vw,13rem)] shrink-0 justify-end gap-2 overflow-x-auto pb-0.5 sm:max-w-none sm:flex-wrap sm:overflow-visible sm:pb-0">
-              <Button className="h-10 w-10 shrink-0 gap-0 border-emerald-600 bg-emerald-600 px-0 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white disabled:opacity-60 sm:h-9 sm:w-auto sm:gap-2 sm:px-4" disabled={isLoadingTicket || isSaving} type="button" variant="outline" onClick={saveTicket}>
-                <Check className="size-4" />
-                <span className="sr-only sm:not-sr-only">{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</span>
+              <Button className="h-10 shrink-0 border-emerald-600 bg-emerald-600 px-4 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white disabled:opacity-60 sm:h-9" disabled={isLoadingTicket || isSaving} type="button" variant="outline" onClick={saveTicket}>
+                {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
               </Button>
               <Button className="h-10 shrink-0 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white sm:h-9" disabled={isLoadingTicket || isSaving} type="button" variant="outline" onClick={backToList}>
                 {editingTicketId ? 'ปิด' : 'ยกเลิก'}
@@ -1345,57 +1350,87 @@ export function WeightTicketFormCore({
       {isEmbeddedModal && canShowWeightTicketTimer ? (
         <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="grid gap-3 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-4">
-              <div className="flex min-w-0 items-start gap-3">
-                <div className={cn(
-                  'mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full border',
-                  timerStopMs === null ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700',
-                )}>
-                  <Clock className="size-4" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold text-slate-500">เวลาตั้งแต่เริ่มสร้างรายการ</div>
-                  <div className={cn(
-                    'mt-0.5 font-mono text-xl font-bold leading-tight sm:text-2xl',
+            {isWeightTicketSummaryCollapsed ? (
+              <div className="flex items-center justify-between gap-3 px-3 py-2.5 sm:px-4">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Clock className={cn(
+                    'size-4 shrink-0',
+                    timerStopMs === null ? 'text-rose-700' : 'text-emerald-700',
+                  )} />
+                  <span className="truncate text-xs font-semibold text-slate-500">เวลาตั้งแต่เริ่มสร้าง</span>
+                  <span className={cn(
+                    'shrink-0 font-mono text-lg font-bold leading-tight',
                     timerStopMs === null ? 'text-rose-700' : 'text-slate-900',
                   )}>
                     {formatElapsedTime(timerElapsedMs)}
-                  </div>
+                  </span>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="text-xs font-semibold text-slate-500">รายการ</div>
+                  <div className="text-sm font-bold text-slate-900">{weightTicketItemCount} รายการ</div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs sm:min-w-[18rem]">
-                <div className="rounded-md bg-white px-3 py-2">
-                  <div className="font-semibold text-slate-500">เริ่มสร้าง</div>
-                  <div className="mt-0.5 truncate font-medium text-slate-800">{formatTimerDateTime(timerStartAt)}</div>
-                </div>
-                <div className="rounded-md bg-white px-3 py-2">
-                  <div className="font-semibold text-slate-500">สถานะเวลา</div>
-                  <div className={cn('mt-0.5 truncate font-semibold', timerStopMs === null ? 'text-rose-700' : 'text-emerald-700')}>
-                    {timerStopMs === null ? 'รอยืนยันรับของ' : 'รับของแล้ว'}
+            ) : (
+              <>
+                <div className="grid gap-3 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-4">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className={cn(
+                      'mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full border',
+                      timerStopMs === null ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700',
+                    )}>
+                      <Clock className="size-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-slate-500">เวลาตั้งแต่เริ่มสร้างรายการ</div>
+                      <div className={cn(
+                        'mt-0.5 font-mono text-xl font-bold leading-tight sm:text-2xl',
+                        timerStopMs === null ? 'text-rose-700' : 'text-slate-900',
+                      )}>
+                        {formatElapsedTime(timerElapsedMs)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs sm:min-w-[18rem]">
+                    <div className="rounded-md bg-white px-3 py-2">
+                      <div className="font-semibold text-slate-500">เริ่มสร้าง</div>
+                      <div className="mt-0.5 truncate font-medium text-slate-800">{formatTimerDateTime(timerStartAt)}</div>
+                    </div>
+                    <div className="rounded-md bg-white px-3 py-2">
+                      <div className="font-semibold text-slate-500">สถานะเวลา</div>
+                      <div className={cn('mt-0.5 truncate font-semibold', timerStopMs === null ? 'text-rose-700' : 'text-emerald-700')}>
+                        {timerStopMs === null ? 'รอยืนยันรับของ' : 'รับของแล้ว'}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-            <div className="border-t border-slate-200 px-3 py-3 sm:px-4">
-              {savedTicket ? (
-                <div className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
-                  <CheckCircle2 className="size-4" />
-                  บันทึก {savedTicket.documentNo} แล้ว
+                <div className="border-t border-slate-200 px-3 py-3 sm:px-4">
+                  {savedTicket ? (
+                    <div className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
+                      <CheckCircle2 className="size-4" />
+                      บันทึก {savedTicket.documentNo} แล้ว
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-5">
+                      <MetricInline label="รายการ" value={`${weightTicketItemCount} รายการ`} />
+                      <MetricInline label="น้ำหนักรวม" value={`${formatWeight(totals.grossWeight)} กก.`} />
+                      <MetricInline label="หักภาชนะ" value={`${formatWeight(totals.containerDeductionWeight)} กก.`} />
+                      <MetricInline label="หักสิ่งเจือปน" value={`${formatWeight(totals.deductionWeight)} กก.`} />
+                      <MetricInline emphasis label="สุทธิ" value={`${formatWeight(totals.netWeight)} กก.`} />
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-5">
-                  <MetricInline label="รายการ" value={`${getMainParentLines(form.lines).length} รายการ`} />
-                  <MetricInline label="น้ำหนักรวม" value={`${formatWeight(totals.grossWeight)} กก.`} />
-                  <MetricInline label="หักภาชนะ" value={`${formatWeight(totals.containerDeductionWeight)} กก.`} />
-                  <MetricInline label="หักสิ่งเจือปน" value={`${formatWeight(totals.deductionWeight)} กก.`} />
-                  <MetricInline emphasis label="สุทธิ" value={`${formatWeight(totals.netWeight)} กก.`} />
-                </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
         </div>
       ) : null}
-      <div className={cn("min-w-0", isEmbeddedModal ? "flex-1 overflow-y-auto p-4 sm:p-5 space-y-5" : "space-y-5 pb-32")}>
+      <div
+        className={cn("min-w-0", isEmbeddedModal ? "flex-1 overflow-y-auto p-4 sm:p-5 space-y-5" : "space-y-5 pb-32")}
+        onScroll={(event) => {
+          if (!isEmbeddedModal || !isWeightTicketIn || !canShowWeightTicketTimer) return
+          setIsWeightTicketSummaryCollapsed(event.currentTarget.scrollTop > 0)
+        }}
+      >
         {!isEmbeddedModal && (
         <div>
           <Button type="button" variant="outline" onClick={backToList}>
