@@ -3,6 +3,7 @@ node_modules/
 dist/
 .vite/
 .next/
+apps/next/next-env.d.ts
 .playwright-mcp/
 *.tsbuildinfo
 supabase/.temp/
