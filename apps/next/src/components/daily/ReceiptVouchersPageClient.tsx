@@ -769,7 +769,7 @@ export function ReceiptVouchersPageClient() {
               <tr>
                 <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขที่ RV" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ RV')} sortKey="docNo" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="วันที่ออกเอกสาร" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่ออกเอกสาร')} sortKey="date" onSort={changeSort} />
-                <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ผู้รับเงิน" resizeProps={columnResize.getResizeHandleProps('sellerName', 'ผู้รับเงิน')} sortKey="sellerName" onSort={changeSort} />
+                <ResizableTableHead activeSortKey={sortKey} className="ns-table-textual-column" direction={sortDirection} label="ผู้รับเงิน" resizeProps={columnResize.getResizeHandleProps('sellerName', 'ผู้รับเงิน')} sortKey="sellerName" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขประจำตัวผู้เสียภาษี" resizeProps={columnResize.getResizeHandleProps('sellerTaxId', 'เลขประจำตัวผู้เสียภาษี')} sortKey="sellerTaxId" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="บิลซื้อ" resizeProps={columnResize.getResizeHandleProps('purchaseBillDocNo', 'บิลซื้อ')} sortKey="purchaseBillDocNo" onSort={changeSort} />
                 <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ทะเบียน" resizeProps={columnResize.getResizeHandleProps('licensePlate', 'ทะเบียน')} sortKey="licensePlate" onSort={changeSort} />
@@ -785,7 +785,7 @@ export function ReceiptVouchersPageClient() {
                 <TableRow key={row.id} className={`cursor-pointer ${row.status === 'cancelled' ? 'bg-red-100/60 hover:bg-red-200/60 text-slate-400' : 'hover:bg-slate-50'}`} onClick={() => setDetailRow(row)}>
                   <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700">{row.docNo}</td>
                   <td className="whitespace-nowrap p-2">{formatDateDisplay(row.date)}</td>
-                  <td className="p-2 font-medium text-slate-800">{row.sellerName || '-'}</td>
+                  <td className="ns-table-textual-column p-2 font-medium text-slate-800">{row.sellerName || '-'}</td>
                   <td className="p-2 text-xs text-slate-500">{row.sellerTaxId || '-'}</td>
                   <td className="p-2 text-xs text-slate-700">{row.purchaseBillDocNo || '-'}</td>
                   <td className="p-2 text-xs text-slate-600">{row.licensePlate || '-'}</td>

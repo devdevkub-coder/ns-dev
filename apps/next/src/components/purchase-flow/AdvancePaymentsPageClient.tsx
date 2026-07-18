@@ -1025,7 +1025,7 @@ export function AdvancePaymentsPageClient() {
                 <tr>
                   <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('advanceDate', 'วันที่')} sortKey="advanceDate" onSort={changeSort} />
-                  <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="ผู้ขาย" resizeProps={columnResize.getResizeHandleProps('supplierName', 'ผู้ขาย')} sortKey="supplierName" onSort={changeSort} />
+                  <AdvancePaymentSortHeader activeKey={sortKey} className="ns-table-textual-column" direction={sortDirection} label="ผู้ขาย" resizeProps={columnResize.getResizeHandleProps('supplierName', 'ผู้ขาย')} sortKey="supplierName" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="อ้างอิง" resizeProps={columnResize.getResizeHandleProps('largeScaleDocNo', 'อ้างอิง')} sortKey="largeScaleDocNo" onSort={changeSort} />
                   <ResizableTableHead label="ทะเบียนรถ" resizeProps={columnResize.getResizeHandleProps('plateNo', 'ทะเบียนรถ')} />
                   <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={changeSort} />
@@ -1044,7 +1044,7 @@ export function AdvancePaymentsPageClient() {
                   <tr key={row.id} className="cursor-pointer hover:bg-slate-50" onClick={() => void loadDetail(row.id)}>
                     <td className="p-3 whitespace-nowrap font-medium text-slate-700">{row.docNo}</td>
                     <td className="p-3 whitespace-nowrap font-medium text-slate-700">{row.advanceDate}</td>
-                    <td className="p-3 font-medium text-slate-700">{row.supplierName}</td>
+                    <td className="ns-table-textual-column p-3 font-medium text-slate-700">{row.supplierName}</td>
                     <td className="p-3 font-medium text-slate-700">{row.invoiceNo || row.largeScaleDocNo || '-'}</td>
                     <td className="p-3 whitespace-nowrap font-medium text-slate-700">{row.plateNo || '-'}</td>
                     <td className="p-3 font-medium text-slate-700">{row.productName || '-'}</td>
@@ -1351,6 +1351,7 @@ function ExportButton({ href }: { href: string }) {
 function AdvancePaymentSortHeader({
   activeKey,
   align = 'left',
+  className,
   direction,
   label,
   onSort,
@@ -1359,6 +1360,7 @@ function AdvancePaymentSortHeader({
 }: {
   activeKey: AdvancePaymentSortKey
   align?: 'left' | 'right'
+  className?: string
   direction: AdvancePaymentSortDirection
   label: string
   onSort: (key: AdvancePaymentSortKey) => void
@@ -1369,6 +1371,7 @@ function AdvancePaymentSortHeader({
     <ResizableTableHead
       activeSortKey={activeKey}
       align={align}
+      className={className}
       direction={direction}
       label={label}
       resizeProps={resizeProps}

@@ -477,6 +477,15 @@ table.ns-table > :is(thead, tbody) > tr > :is(th, td).ns-leading-business-column
   justify-content: flex-start !important;
 }
 
+/* Explicitly approved text/date exceptions outside the leading-column default. */
+table.ns-table > :is(thead, tbody) > tr > :is(th, td).ns-table-textual-column:not([colspan]) {
+  text-align: left !important;
+}
+
+table.ns-table > :is(thead, tbody) > tr > :is(th, td).ns-table-textual-column:not([colspan]) > :is(.flex, .inline-flex) {
+  justify-content: flex-start !important;
+}
+
 table.ns-table :where(tbody > tr) {
   border-top: 0 !important;
 }

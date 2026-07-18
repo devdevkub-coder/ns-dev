@@ -843,7 +843,7 @@ export function PoSellPageClient() {
             <ResizableTableHead label="เลขที่จองขาย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่จองขาย')} />
             <ResizableTableHead label="วันที่สร้าง" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="createdAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้าง')} />
             <ResizableTableHead label="วันที่ส่งมอบ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="expectedDelivery" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('expectedDelivery', 'วันที่ส่งมอบ')} />
-            <ResizableTableHead label="ลูกค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="customerName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} />
+            <ResizableTableHead className="ns-table-textual-column" label="ลูกค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="customerName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} />
             <ResizableTableHead label="สินค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="productName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} />
             <ResizableTableHead align="right" label="จำนวนรวม" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="qty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'จำนวนรวม')} />
             <ResizableTableHead align="right" label="รายได้รวม" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="totalAmount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('totalAmount', 'รายได้รวม')} />
@@ -865,7 +865,7 @@ export function PoSellPageClient() {
               <TableCell className="whitespace-nowrap font-mono">{row.docNo}</TableCell>
               <TableCell className="whitespace-nowrap">{formatDateDisplay(row.createdAt)}</TableCell>
               <TableCell className="whitespace-nowrap">{formatDateDisplay(row.expectedDelivery)}</TableCell>
-              <TableCell className="truncate">{row.customerName}</TableCell>
+              <TableCell className="ns-table-textual-column truncate">{row.customerName}</TableCell>
               <TableCell className="text-xs font-semibold text-slate-700">
                 <CollapsedList
                   inline

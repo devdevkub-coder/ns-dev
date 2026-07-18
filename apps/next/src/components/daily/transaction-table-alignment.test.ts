@@ -15,6 +15,9 @@ const poSellSource = readSource('../sales/PoSellPageClient.tsx')
 const advancePaymentsSource = readSource('../purchase-flow/AdvancePaymentsPageClient.tsx')
 const resizableTableHeadSource = readSource('../ui/ResizableTableHead.tsx')
 const salesBillsRouteSource = readSource('../../app/sales/bills/page.tsx')
+const globalsSource = readSource('../../app/globals.css')
+
+const TEXTUAL_COLUMN_CLASS = 'ns-table-textual-column'
 
 function openingTag(source: string, tagName: string, marker: string) {
   const markerIndex = source.indexOf(marker)
@@ -43,7 +46,10 @@ function expectLeftAlignedColumn({
 }) {
   const headerTag = openingTag(source, headerTagName, headerMarker)
   const bodyTag = openingTag(source, bodyTagName, bodyMarker)
+  const textualColumnClassPattern = new RegExp(`className="[^"]*\\b${TEXTUAL_COLUMN_CLASS}\\b[^"]*"`)
 
+  expect(headerTag).toMatch(textualColumnClassPattern)
+  expect(bodyTag).toMatch(textualColumnClassPattern)
   expect(headerTag).not.toMatch(/align="(?:center|right)"/)
   if (!headerTag.includes('align="left"')) {
     expect(defaultAlignmentSource).toContain("align = 'left'")
@@ -72,6 +78,20 @@ describe('transaction bill detail table', () => {
 })
 
 describe('accepted textual table alignment', () => {
+  it('uses an explicit opt-in override without changing the shared later-column default', () => {
+    const defaultSelector = 'table.ns-table > :is(thead, tbody) > tr > :is(th, td):not(:first-child):not([colspan])'
+    const textualSelector = `table.ns-table > :is(thead, tbody) > tr > :is(th, td).${TEXTUAL_COLUMN_CLASS}:not([colspan])`
+    const textualFlexSelector = `${textualSelector} > :is(.flex, .inline-flex)`
+    const defaultRuleIndex = globalsSource.indexOf(defaultSelector)
+    const textualRuleIndex = globalsSource.indexOf(textualSelector)
+
+    expect(defaultRuleIndex).toBeGreaterThan(-1)
+    expect(globalsSource.slice(defaultRuleIndex, globalsSource.indexOf('}', defaultRuleIndex))).toContain('text-align: right !important;')
+    expect(textualRuleIndex).toBeGreaterThan(defaultRuleIndex)
+    expect(globalsSource.slice(textualRuleIndex, globalsSource.indexOf('}', textualRuleIndex))).toContain('text-align: left !important;')
+    expect(globalsSource.slice(globalsSource.indexOf(textualFlexSelector), globalsSource.indexOf('}', globalsSource.indexOf(textualFlexSelector)))).toContain('justify-content: flex-start !important;')
+  })
+
   it('left-aligns the Supplier column on /purchase/bills', () => {
     expect(purchaseBillsSource).toContain('<TransactionBillsPageClient mode="purchase" />')
     expectLeftAlignedColumn({
@@ -96,7 +116,7 @@ describe('accepted textual table alignment', () => {
 
   it('left-aligns the payee column on /purchase/receipt-vouchers', () => {
     expectLeftAlignedColumn({
-      bodyMarker: 'className="p-2 font-medium text-slate-800">{row.sellerName',
+      bodyMarker: ">{row.sellerName || '-'}</td>",
       bodyTagName: 'td',
       defaultAlignmentSource: resizableTableHeadSource,
       headerMarker: "getResizeHandleProps('sellerName', 'ผู้รับเงิน')",
@@ -135,7 +155,7 @@ describe('accepted textual table alignment', () => {
 
   it('left-aligns the Customer column on /sales/po-sell', () => {
     expectLeftAlignedColumn({
-      bodyMarker: 'className="truncate">{row.customerName}',
+      bodyMarker: '>{row.customerName}</TableCell>',
       bodyTagName: 'TableCell',
       defaultAlignmentSource: resizableTableHeadSource,
       headerMarker: "getResizeHandleProps('customerName', 'ลูกค้า')",
@@ -146,7 +166,7 @@ describe('accepted textual table alignment', () => {
 
   it('left-aligns the Supplier column on /purchase/advance-payments', () => {
     expectLeftAlignedColumn({
-      bodyMarker: 'className="p-3 font-medium text-slate-700">{row.supplierName}',
+      bodyMarker: '>{row.supplierName}</td>',
       bodyTagName: 'td',
       defaultAlignmentSource: advancePaymentsSource,
       headerMarker: "getResizeHandleProps('supplierName', 'ผู้ขาย')",

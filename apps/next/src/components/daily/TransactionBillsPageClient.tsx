@@ -3243,7 +3243,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               {mode === 'purchase' ? <ResizableTableHead align="center" label="เลขที่ใบรับของ" resizeProps={columnResize.getResizeHandleProps('receiptDocs', 'เลขที่ใบรับของ')} /> : null}
               {mode === 'sales' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="เลขที่อ้างอิง" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่อ้างอิง')} sortKey="refNo" onSort={changeSort} /> : null}
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="วันที่สร้าง" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่สร้าง')} sortKey="date" onSort={changeSort} />
-              <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label={mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')} sortKey="name" onSort={changeSort} />
+              <SortHeader activeKey={sortKey} align="left" className="ns-table-textual-column" direction={sortDirection} label={mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')} sortKey="name" onSort={changeSort} />
               {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="สาขา / คลัง" resizeProps={columnResize.getResizeHandleProps('warehouse', 'สาขา / คลัง')} sortKey="warehouse" onSort={changeSort} /> : null}
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('transactionMode', 'ประเภท')} sortKey="transactionMode" onSort={changeSort} />
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'สถานะเอกสาร' : 'สถานะรับเงิน'} resizeProps={columnResize.getResizeHandleProps('status', mode === 'purchase' ? 'สถานะเอกสาร' : 'สถานะรับเงิน')} sortKey="status" onSort={changeSort} />
@@ -3270,7 +3270,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 ) : null}
                 {mode === 'sales' ? <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700">{row.refNo || '-'}</td> : null}
                 <td className="p-2 text-center text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</td>
-                <td className="p-2 text-xs font-semibold text-slate-700">{'supplierName' in row ? row.supplierName : row.customerName}</td>
+                <td className="ns-table-textual-column p-2 text-xs font-semibold text-slate-700">{'supplierName' in row ? row.supplierName : row.customerName}</td>
                 {mode !== 'purchase' ? <td className="p-2 text-xs font-semibold text-slate-700">{formatBranchWarehouse(row)}</td> : null}
                 <td className="p-2 text-center"><span className={`rounded-md-full px-2 py-0.5 text-xs font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>{transactionModeLabel(row.transactionMode)}</span></td>
                 <td className="p-2 text-center">
@@ -5423,11 +5423,12 @@ function formatDateTime(value?: string) {
   return date.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
 }
 
-function SortHeader({ activeKey, align, direction, label, onSort, resizeProps, sortKey }: { activeKey: SortKey; align: 'center' | 'left' | 'right'; direction: SortDirection; label: string; onSort: (key: SortKey) => void; resizeProps?: ButtonHTMLAttributes<HTMLButtonElement>; sortKey: SortKey }) {
+function SortHeader({ activeKey, align, className, direction, label, onSort, resizeProps, sortKey }: { activeKey: SortKey; align: 'center' | 'left' | 'right'; className?: string; direction: SortDirection; label: string; onSort: (key: SortKey) => void; resizeProps?: ButtonHTMLAttributes<HTMLButtonElement>; sortKey: SortKey }) {
   return (
     <ResizableTableHead
       activeSortKey={activeKey}
       align={align}
+      className={className}
       direction={direction}
       label={label}
       resizeProps={resizeProps}
