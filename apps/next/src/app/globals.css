@@ -883,7 +883,16 @@ aside a:visited {
 :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea):required:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]),
 :where([role="combobox"][aria-required="true"]):not(:disabled):not([aria-invalid="true"]):not([data-auto-filled="true"]),
 :where([data-slot="input-group"]):has(input:required:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"])),
-:where([data-manual-required="true"]):not([data-field-invalid="true"]) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea, [role="combobox"], [data-slot="input-group"]):not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]):not(:has([aria-invalid="true"])) {
+:where([data-manual-required="true"]) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea, [role="combobox"], [data-slot="input-group"]):not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]):not(:has([aria-invalid="true"])) {
+  background-color: var(--ns-manual-required-bg) !important;
+}
+
+/* Required manual fields must stay yellow while focused; focus changes only the blue border/ring. */
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea):required:focus:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]),
+:where([role="combobox"][aria-required="true"]):focus:not(:disabled):not([aria-invalid="true"]):not([data-auto-filled="true"]),
+:where([data-slot="input-group"]):has(input:required:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"])):focus-within,
+:where([data-manual-required="true"]) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea, [role="combobox"]):focus:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]),
+:where([data-manual-required="true"]) [data-slot="input-group"]:focus-within:not(:has([aria-invalid="true"])) {
   background-color: var(--ns-manual-required-bg) !important;
 }
 

@@ -14,6 +14,8 @@ describe('required manual-entry field highlighting contract', () => {
     expect(css).toContain(':required:not(:disabled):not([readonly])')
     expect(css).toContain(':not([aria-invalid="true"])')
     expect(css).toContain(':not([data-auto-filled="true"])')
+    expect(css).toContain('Required manual fields must stay yellow while focused')
+    expect(css).not.toContain(':where([data-manual-required="true"]):not([data-field-invalid="true"])')
   })
 
   it('marks the shared searchable, branch, and select field families from their required labels', () => {
