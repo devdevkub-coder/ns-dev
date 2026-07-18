@@ -1085,11 +1085,6 @@ aside a:visited {
 }
 
 @media (max-width: 639px) {
-  /* Keep mobile form controls at the browser's no-auto-zoom threshold. */
-  .weight-ticket-form-shell :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea, [role="combobox"]) {
-    font-size: 16px !important;
-  }
-
   [data-ns-dialog-content="app"] {
     inset: 0 auto auto 0 !important;
     width: 100vw !important;
