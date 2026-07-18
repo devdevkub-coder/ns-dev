@@ -335,6 +335,43 @@ Validation:
 - Phase 1 branch-scope priority is Purchase first (`/api/purchase/bills`, `/api/purchase/payments`, `/api/purchase/payment-history`, `/api/purchase/po-buy`), then Sales/Stock/Daily/Finance APIs with branch-bound records.
 - Should reset password be invite-only for new users, or should admins also set temporary passwords? Current recommendation: no admin-set password; use invite/reset email.
 
+## Approved Batch: Fail-Closed Branch Scope Resolver (2026-07-18)
+
+### Scope
+
+This batch corrects only the shared application branch-scope resolution. It does not change the role matrix, direct permission overrides, database schema, RLS, navigation mapping, or action-level permissions.
+
+### Decision
+
+| Topic | Decision |
+|---|---|
+| Source of truth | `app_roles.branch_scope` and `app_user_branch_access` remain the source of truth for runtime branch scope. |
+| All-branch access | A user is unrestricted only when at least one active assigned role has `branch_scope = 'all'` (or the retained legacy admin/owner compatibility flag is true). |
+| Scoped access | `own` and `custom` both resolve to the normalized, unique branch codes assigned through `app_user_branch_access` until their business meanings are intentionally separated. |
+| Missing mapping | A non-all-branch user with no assigned branch resolves to `[]`, never `null`; reads return no branch-bound rows and branch-bound writes are rejected by their existing scope guards. |
+| Requested branch | A requested branch is normalized to uppercase and returned only when it is in the effective scope; otherwise the result is `[]`. |
+| Shared policy | General APIs and finance APIs must call one pure resolver so they cannot disagree on unrestricted, scoped, or empty access. |
+| Compatibility | No data fallback, arbitrary requested-branch grant, or silent unrestricted behavior is permitted. Bad/missing access data must be repaired at its source. |
+
+### Design
+
+Create one pure resolver in the server auth module that accepts the minimal branch-relevant context and an optional requested code. It returns `null` only for confirmed all-branch access, otherwise a normalized array that may be empty. `getBranchCodeIntersection()` remains the public general API wrapper; the finance helper delegates to the same resolver rather than carrying duplicated logic. Existing query conventions already distinguish `null` (unrestricted) from `[]` (empty `IN []`), so no route contract or schema migration is needed in this batch.
+
+### Acceptance Criteria
+
+1. A `custom` or `own` user without branch assignments resolves to `[]` for both unfiltered and explicit branch requests.
+2. A role with `branch_scope = 'all'` resolves to `null` unfiltered and to its normalized explicit requested code when supplied.
+3. Scoped users receive only their assigned normalized branch codes; unassigned requested codes resolve to `[]`.
+4. General and finance wrappers return identical values for equivalent contexts.
+5. Focused Vitest coverage prevents a regression to arbitrary requested-branch access or empty-scope unrestricted access.
+
+### Out of Scope / Next Batches
+
+- Decide whether direct per-user `deny` overrides may restrict system administrators, then make proxy and server enforcement identical.
+- Replace module-wide path permissions with explicit `view/create/update/cancel/approve/export` guards per API action.
+- Decide whether role assignment remains one access profile per employee or supports multiple active profiles; separate job title from access role.
+- Apply RLS table by table only after the application-level policy and data mappings are verified in `dev-target`.
+
 ## Latest Validation
 
 | Date | Command / Check | Result | Notes |

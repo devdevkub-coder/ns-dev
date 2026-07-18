@@ -26,6 +26,7 @@ import { useResizableColumns, type ResizableColumnDefinition } from '@/component
 import { formatDecimalDisplay, formatDecimalDraft, formatPhoneDisplay, sanitizeAccountNoInput, sanitizeDecimalInput } from '@/lib/format'
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { invalidateClientReferenceRecords, listClientReferenceRecords } from '@/lib/client-reference-cache'
+import { invalidateSalesBillReferencesCache } from '@/lib/sales-bill-options-cache'
 
 const CLIENT_REFERENCE_MASTER_PATHS = [
   '/api/master-data/bank-names',
@@ -407,6 +408,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
     try {
       await saveMasterDataRecord(config.apiPath, values)
       invalidateClientReferenceRecords(CLIENT_REFERENCE_MASTER_PATHS)
+      invalidateSalesBillReferencesCache()
       setFormOpen(false)
       setSelectedRecord(null)
       await loadData()
@@ -422,6 +424,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
     try {
       await setMasterDataRecordActive(config.apiPath, record.id, !record.active)
       invalidateClientReferenceRecords(CLIENT_REFERENCE_MASTER_PATHS)
+      invalidateSalesBillReferencesCache()
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : `อัปเดตสถานะ${config.entityName}ไม่ได้`)

@@ -112,7 +112,7 @@ export const salesBillStockReturnSchema = z.object({
 })
 
 export const poSellFormSchema = z.object({
-  branchId: requiredSafeId('สาขา'),
+  branchId: optionalSafeId('สาขา'),
   channelId: optionalSafeId('ช่องทางขาย'),
   customerId: z.string().trim().min(1, 'เลือกลูกค้า').max(80, 'รหัสลูกค้ายาวเกินไป').regex(safeIdPattern, 'รหัสลูกค้ามีรูปแบบไม่ถูกต้อง'),
   expectedDelivery: requiredDate,
@@ -122,7 +122,12 @@ export const poSellFormSchema = z.object({
   salesPlanId: optionalSafeId('แผนขาย'),
 })
 
+export const poSellPageFormSchema = poSellFormSchema.extend({
+  branchId: requiredSafeId('สาขา'),
+})
+
 export type SalesBillFormValues = z.infer<typeof salesBillFormSchema>
 export type SalesBillCancelValues = z.infer<typeof salesBillCancelSchema>
 export type SalesBillStockReturnValues = z.infer<typeof salesBillStockReturnSchema>
 export type PoSellFormValues = z.infer<typeof poSellFormSchema>
+export type PoSellPageFormValues = z.infer<typeof poSellPageFormSchema>

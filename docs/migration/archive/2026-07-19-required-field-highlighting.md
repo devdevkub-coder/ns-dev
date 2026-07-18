@@ -21,13 +21,14 @@ The audit covered 289 TSX files, including 97 files containing form controls. Co
 
 ## Validation
 
-- Focused required-field regression: `8/8` passed after the final accessibility and PO Sell schema corrections.
+- Focused required-field regression: `8/8` passed after the final accessibility and PO Sell page-schema corrections; merged dashboard/cache regressions also passed `37/37`.
 - Full ESLint: passed with zero errors and the existing warning in `qa-thai-font.tsx`.
-- Production build: passed and generated `308/308` pages.
-- Full Vitest: `275/289` passed; the 14 remaining failures are pre-existing and confined to seven Finance/Branch Scope/shared-table test files outside this batch.
+- Type-check: passed with the project heap set to 4 GB.
+- Production build on the merged `new-origin/dev` result: passed and generated `311/311` pages.
+- A broader pre-merge Vitest run passed `275/289`; the 14 remaining failures were pre-existing and confined to seven Finance/Branch Scope/shared-table test files outside this batch.
 - `npm audit`: zero vulnerabilities.
 - PO Buy field-level browser evidence passed previously at `C:\tmp\po-buy-required-highlight-post-fix.png`.
 - Company Profile browser verification confirmed required fields yellow, optional fields neutral, and no overflow.
 - Daily Transfer and shared Master Data opened without console errors or overflow, but their create modals were not detected; no field-level browser claim is made for those two routes.
 
-PO Sell now enforces its already-documented required branch at the shared client/API schema boundary and maps nested item validation back to the exact row fields. No database schema, calculation, permission, or successful document-save behavior changed in this checkpoint.
+PO Sell now enforces its required branch in the page form while preserving the existing API contract for legacy branchless documents, and maps nested item validation back to the exact row fields. Read-only text inputs that act only as user-editable combobox triggers are marked explicitly so required dropdowns stay yellow without turning business read-only data yellow. No database schema, calculation, permission, or successful document-save behavior changed in this checkpoint.

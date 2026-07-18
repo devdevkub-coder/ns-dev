@@ -17,6 +17,7 @@ import { WeightTicketAttachmentGrid as AttachmentProfileGrid, type WeightTicketA
 import { WeightTicketWtiFormSection, WeightTicketWtoFormSection } from '@/components/daily/WeightTicketTypeFormSections'
 import { ApiError, getErrorMessage } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
+import { cachedWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
 import {
   calculateLineTotals,
   calculateTicketTotals,
@@ -633,40 +634,19 @@ export function WeightTicketFormCore({
     setIsWeightTicketSummaryCollapsed(true)
   }, [editingTicketId, isEmbeddedModal])
 
-  const loadProducts = useCallback(async (signal?: AbortSignal) => {
-    setIsLoadingProducts(true)
-    try {
-      const response = await fetch('/api/daily/weight-tickets/products', { cache: 'no-store', signal })
-      if (!response.ok) throw new Error('โหลดรายการสินค้าไม่ได้')
-      const data = await response.json() as WeightTicketProductsPayload
-      if (signal?.aborted) return
-      setProducts((data.rows ?? []).map((product) => ({
-        category: product.type ?? undefined,
-        code: product.code ?? undefined,
-        description: product.type || undefined,
-        id: product.id,
-        imageUrl: product.thumbnailUrl ?? undefined,
-        label: `${product.code ? `${product.code} - ` : ''}${product.name}${product.unit ? ` - ${product.unit}` : ''}`,
-        name: product.name,
-      })))
-    } catch (caught) {
-      if (!signal?.aborted) setLoadError(getErrorMessage(caught, 'โหลดรายการสินค้าไม่ได้'))
-    } finally {
-      if (!signal?.aborted) setIsLoadingProducts(false)
-    }
-  }, [])
-
   useEffect(() => {
     const controller = new AbortController()
     let cancelled = false
 
     async function loadOptionData() {
+      setIsLoadingProducts(true)
       try {
-        const response = await fetch('/api/daily/weight-tickets/options', { cache: 'no-store', signal: controller.signal })
-        if (!response.ok) throw new Error('โหลดข้อมูลอ้างอิงสำหรับใบรับ-ส่งของไม่ได้')
-        const data = await response.json() as WeightTicketOptionsPayload
+        const [data, productData] = await Promise.all([
+          cachedWeightTicketReferences<WeightTicketOptionsPayload>('/api/daily/weight-tickets/options'),
+          cachedWeightTicketReferences<WeightTicketProductsPayload>('/api/daily/weight-tickets/products'),
+        ])
 
-        if (!cancelled) {
+        if (!cancelled && !controller.signal.aborted) {
           setBranches((data.branches ?? []).map((branch) => ({
             code: branch.code ?? undefined,
             description: branch.code ? `รหัสสาขา ${branch.code}` : undefined,
@@ -696,10 +676,20 @@ export function WeightTicketFormCore({
             }
           }))
           setImpurities((data.impurities ?? []).filter((impurity) => !isOtherProductImpurityLabel(impurity.label)))
-          void loadProducts(controller.signal)
+          setProducts((productData.rows ?? []).map((product) => ({
+            category: product.type ?? undefined,
+            code: product.code ?? undefined,
+            description: product.type || undefined,
+            id: product.id,
+            imageUrl: product.thumbnailUrl ?? undefined,
+            label: `${product.code ? `${product.code} - ` : ''}${product.name}${product.unit ? ` - ${product.unit}` : ''}`,
+            name: product.name,
+          })))
         }
       } catch (caught) {
         if (!cancelled && !controller.signal.aborted) setLoadError(getErrorMessage(caught, 'โหลดข้อมูลอ้างอิงสำหรับใบรับ-ส่งของไม่ได้'))
+      } finally {
+        if (!cancelled && !controller.signal.aborted) setIsLoadingProducts(false)
       }
     }
 
@@ -709,7 +699,7 @@ export function WeightTicketFormCore({
       cancelled = true
       controller.abort()
     }
-  }, [loadProducts])
+  }, [])
 
   useEffect(() => {
     if (form.type !== 'WTO' || !form.branchId || wtoProductKeys.length === 0) {
@@ -2332,6 +2322,7 @@ function SimpleDropdown({
       >
         <ComboboxInput
           className="h-10 rounded-md py-2 pl-4 text-sm text-slate-900"
+          data-manual-entry-readonly="true"
           inputGroupClassName={cn("h-10 rounded-md border-slate-300 bg-white", disabled ? "opacity-60" : "")}
           placeholder=""
           readOnly
@@ -2458,7 +2449,13 @@ function ProductImagePicker({
           <div className="h-12 w-12 shrink-0 overflow-hidden rounded bg-slate-100 border border-slate-100">
             {selectedProduct.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={selectedProduct.imageUrl} alt={selectedProduct.name ?? selectedProduct.label} className="h-full w-full object-cover" />
+              <img
+                src={selectedProduct.imageUrl}
+                alt={selectedProduct.name ?? selectedProduct.label}
+                className="h-full w-full object-cover"
+                decoding="async"
+                loading="eager"
+              />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-slate-400">
                 <ImagePlus className="h-4 w-4" />
@@ -2546,7 +2543,13 @@ function ProductImagePicker({
                       <div className="aspect-square w-full bg-slate-50 overflow-hidden border-b border-slate-100 relative">
                         {product.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img alt={product.name ?? product.label} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" src={product.imageUrl} />
+                          <img
+                            alt={product.name ?? product.label}
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            decoding="async"
+                            loading="lazy"
+                            src={product.imageUrl}
+                          />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-slate-300 bg-slate-50">
                             <ImagePlus className="h-5 w-5" />

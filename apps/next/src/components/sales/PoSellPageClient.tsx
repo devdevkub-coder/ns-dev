@@ -14,7 +14,7 @@ import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/Searc
 import { Select as UiSelect } from '@/components/ui/Select'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
-import { poSellFormSchema, type PoSellFormValues } from '@/lib/sales'
+import { poSellPageFormSchema, type PoSellPageFormValues as PoSellFormValues } from '@/lib/sales'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { TableNumberCell } from '@/components/ui/TableNumberCell'
@@ -535,7 +535,7 @@ export function PoSellPageClient() {
   }
 
   async function savePoSell() {
-    const parsed = poSellFormSchema.safeParse(form)
+    const parsed = poSellPageFormSchema.safeParse(form)
     if (!parsed.success) {
       const nextErrors: Record<string, string> = {}
       for (const issue of parsed.error.issues) {

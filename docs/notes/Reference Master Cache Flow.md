@@ -8,6 +8,12 @@
 
 ลดการ query ซ้ำของ master data ที่เป็น option/reference ข้ามหลาย API และหลายหน้า โดยยังให้ฐานข้อมูลเป็น source of truth เสมอ พร้อมลดการแตะ Redis/DB ซ้ำใน request หรือ process เดียวกัน
 
+## Dashboard API Separation Checkpoint 2026-07-18
+
+`owner-daily`, `daily-report`, `dashboard` และ `analytics-dashboard` แยก route/service และ response contract แล้ว. Report payload ใช้ `private, no-store`; ไม่เก็บยอดเงิน, stock, permission, transaction status หรือ report fact ใน browser/Redis reference cache. เฉพาะ branch/customer/supplier/product reference ที่ผ่าน shared cache contract เท่านั้นที่ reuse ได้ และทุก key ต้องคง scope/permission dimension เดิม.
+
+What is what: report service อ่าน business facts สดจากฐานข้อมูล ส่วน reference cache เก็บเฉพาะ label/code สำหรับ selector และ filter. Why it has to be like this: การนำ report fact ไป cache จะทำให้หน้าเห็นยอด stale และทำให้ scope ของผู้ใช้/สาขาปะปนกัน.
+
 ## Scope
 
 ### Batch 1
@@ -80,7 +86,19 @@
   - `git diff --check` ของไฟล์ batch นี้ผ่าน
   - แต่ `purchase/bills/route.ts` ยังมี TypeScript debt เดิมจำนวนมากทั้งไฟล์ จึงยังปิด targeted typecheck ของ route นี้ไม่ได้ใน batch cache รอบนี้
 - consumer ชุดถัดไปของ customer branch-option cache คือ `sales/bills`
-- `sales/bills` ใช้ `listActiveCustomerBranchOptions()` สำหรับ customer selector/options payload และใช้ `listActiveBranchesByCodes()` สำหรับ branch scope แทน direct `customers.findMany(...customer_branches...)` และ `branches.findMany(...)`
+- `sales/bills` ใช้ `listActiveCustomerBranchOptionsByBranchCodes()` สำหรับ customer selector/options payload ตาม branch scope และใช้ `listActiveBranchesByCodes()` สำหรับ branch scope แทน direct `customers.findMany(...customer_branches...)` และ `branches.findMany(...)`; scope ว่างคืนรายการว่างตามสิทธิ์ ไม่เปิดข้อมูลทั้งหมด
+- `sales/bills` client payload split checkpoint: `/api/sales/bills` ส่งเฉพาะ rows/totals แล้ว; global product/sales-channel references ใช้ browser memory cache แบบ user-scoped TTL 5 นาทีผ่าน `scope=global-reference`, ส่วน branch/customer/warehouse references อ่านสดตาม permission scope และ API กรอง customer ตามสาขาตั้งแต่ server
+- WTO, PO Sell, Trading cost source, customer advance, VAT effective rate และคงเหลือทางธุรกิจไม่อยู่ใน browser cache; `/api/sales/bills/options` โหลดข้อมูลชุดนี้สดเมื่อเปิด create/edit modal และ response เป็น `private, no-store`
+- หลังสร้าง/แก้ไข/ยกเลิก Sales Bill ไม่ invalidate reference cache เพราะ transaction facts ไม่ถูกเก็บใน reference cache; source options ที่เปลี่ยนตามธุรกรรมจะถูกโหลดใหม่เมื่อเปิด modal
+- What is what: reference payload เป็นชื่อ/รหัส master สำหรับ render selector ส่วน full options เป็น business facts ที่มี remaining/available/usage ซึ่งต้องอ่าน DB ปัจจุบัน
+- Why it has to be like this: การ cache WTO/PO Sell/advance/cost อาจทำให้ผู้ใช้เห็นยอดคงเหลือเก่าและส่ง transaction ที่ไม่ตรง source of truth; browser cache จึงจำกัดเฉพาะ master reference ที่ไม่ sensitive และไม่ใช้ persistent storage
+- `daily/weight-tickets` client reference checkpoint: WTI/WTO form ใช้ browser memory cache แบบ user-scoped TTL 5 นาทีสำหรับ `/api/daily/weight-tickets/options` และ `/api/daily/weight-tickets/products`; หน้า list ใช้ cache เดียวกันสำหรับ `/api/branches`
+- WTI/WTO product cache เก็บเฉพาะ product reference และ thumbnail URL metadata; ไม่เก็บ binary image, stock, warehouse availability หรือ pending_out
+- Thumbnail URL ใช้ versioned storage key และ `Cache-Control: 31536000` จาก object storage; product grid ใช้ native browser HTTP cache พร้อม `loading="lazy"` ส่วนสินค้าที่เลือกใช้ `loading="eager"` เพื่อไม่โหลดรูปทุกสินค้าพร้อมกัน
+- `/api/daily/weight-tickets/stock-options`, `/api/daily/weight-tickets`, detail, save และ attachment upload ยังคง `no-store`/อ่าน source ปัจจุบัน เพราะเป็น stock, transaction หรือ private document fact
+- WTI/WTO attachment URL ยังใช้ versioned storage key และโหลด original เฉพาะ preview; thumbnail/original split และ signed URL สำหรับ bucket private ยังเป็นงาน image-delivery แยก ไม่รวมใน reference cache
+- What is what: options/products เป็น master reference สำหรับ selector ส่วน stock-options เป็นยอดคงเหลือจริงของ WTO และรูปแนบเป็นหลักฐานเอกสาร
+- Why it has to be like this: การ reuse master reference ลด request ตอนเปิดฟอร์มซ้ำ แต่การ reuse stock/เอกสาร/รูปหลักฐานอาจทำให้แสดงหรือบันทึกข้อมูลเก่าข้าม scope
 - targeted validation ของ batch `sales/bills` ปิดได้บางส่วน:
   - `git diff --check` ของไฟล์ batch นี้ผ่าน
   - แต่ `sales/bills/route.ts` ยังมี TypeScript debt เดิมจำนวนมากทั้งไฟล์ จึงยังปิด targeted typecheck ของ route นี้ไม่ได้ใน batch cache รอบนี้
@@ -320,6 +338,7 @@ Frontend
 - `reference_cache_read` คือ server-side cache evidence แยกตาม key family และ tier (`server`, `redis`, `database`) พร้อม `durationMs`; `reference_cache_error` ใช้บันทึก Redis read/write error โดยไม่เปิดเผย query, user id หรือ scope value
 - `client_reference_cache_read` คือ browser memory-cache evidence สำหรับ allowlisted reference API แยก `hit`, `miss` และ `deduped`; ไม่เก็บข้อมูลลง `localStorage`/`sessionStorage`
 - Product image source of truth คือ `products.image_storage_key` และ `products.image_thumbnail_storage_key`; binary อยู่ใน Storage bucket `product-images`, ไม่อยู่ใน Redis หรือ reference API payload
+- Product/impurity product upload รับไฟล์ภาพที่ browser อ่านได้ แต่ต้องไม่เกิน `20 MB` และ `25 MP` ก่อน resize; จากนั้นจึงสร้าง WebP รูปหลัก `1600px` และ thumbnail `320px`
 
 ### Why It Has To Be Like This
 

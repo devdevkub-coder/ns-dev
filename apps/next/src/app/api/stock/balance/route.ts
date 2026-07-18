@@ -6,6 +6,10 @@ import { stockQuerySchema } from '@/lib/stock'
 
 export const runtime = 'nodejs'
 
+function readyQtyCurrentFormula(qty: number, awaitingBillQty: number, onHoldQty: number) {
+  return qty + awaitingBillQty - onHoldQty
+}
+
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
@@ -33,9 +37,45 @@ export async function GET(request: Request) {
       stockBalanceSnapshot(query),
       stockReferenceData(),
     ])
+    const rows = snapshot.rows.map((row) => ({
+      ...row,
+      readyQty: readyQtyCurrentFormula(row.qty, row.awaitingBillQty, row.onHoldQty),
+    }))
+    const summary = rows.reduce((acc, row) => {
+      acc.availableQty += row.notAvailable ? 0 : row.qty
+      acc.availableValue += row.notAvailable ? 0 : row.value
+      acc.awaitingBillQty += row.awaitingBillQty
+      acc.count += 1
+      acc.notAvailableQty += row.notAvailable ? row.qty : 0
+      acc.notAvailableValue += row.notAvailable ? row.value : 0
+      acc.onHoldQty += row.onHoldQty
+      acc.qty += row.qty
+      acc.readyQty += row.readyQty
+      acc.value += row.value
+      if (row.qty < 0) acc.negativeRows += 1
+      if (row.qty > 0) acc.onHandRows += 1
+      if (row.awaitingBillQty > 0) acc.pendingInRows += 1
+      if (row.onHoldQty > 0) acc.pendingOutRows += 1
+      return acc
+    }, {
+      availableQty: 0,
+      availableValue: 0,
+      awaitingBillQty: 0,
+      count: 0,
+      negativeRows: 0,
+      notAvailableQty: 0,
+      notAvailableValue: 0,
+      onHandRows: 0,
+      onHoldQty: 0,
+      pendingInRows: 0,
+      pendingOutRows: 0,
+      qty: 0,
+      readyQty: 0,
+      value: 0,
+    })
 
     if (query.format === 'xlsx') {
-      const body = await buildStockWorkbook('Stock Balance', snapshot.rows.map((row) => ({
+      const body = await buildStockWorkbook('Stock Balance', rows.map((row) => ({
         สินค้า: `${row.productCode} ${row.productName}`.trim(),
         ประเภทคลัง: row.status,
         สถานะสินค้า: row.onHoldQty > 0
@@ -61,7 +101,7 @@ export async function GET(request: Request) {
       return xlsxResponse(body, `stock_balance_${new Date().toISOString().slice(0, 10)}.xlsx`)
     }
 
-    return NextResponse.json({ ...snapshot, reference })
+    return NextResponse.json({ ...snapshot, rows, summary, reference })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดสต๊อกคงเหลือไม่ได้', 500)

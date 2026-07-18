@@ -1936,6 +1936,7 @@ paths:
           $ref: "#/components/responses/Ok"
         "404":
           $ref: "#/components/responses/NotFound"
+
     put:
       tags: [Purchase]
       summary: Update mutable supplier advance payment / deposit document
@@ -1955,6 +1956,7 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+
     patch:
       tags: [Purchase]
       summary: Cancel mutable supplier advance payment / deposit document
@@ -1975,6 +1977,23 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/purchase/bills/options:
+    get:
+      tags: [Purchase]
+      summary: Read purchase bill form options
+      description: Returns branch-scoped options for the purchase bill form. Use `scope=reference` for the lightweight branch and warehouse payload; omit the scope for the full form option payload.
+      parameters:
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [reference, full]
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /api/purchase/payments:
     get:
       tags: [Purchase]

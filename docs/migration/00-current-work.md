@@ -1,5 +1,9 @@
 # 00 Current Work
 
+Dashboard API separation checkpoint 2026-07-18: `/api/owner-daily`, `/api/daily-report`, `/api/dashboard`, and `/api/analytics-dashboard` now have separate route/service boundaries and `private, no-store` report responses. Owner Daily no longer invokes finance dashboard, historical, sales line analytics, or production detail queries; Dashboard summary now disables payment/receipt, daily bank movement, loan, trading and production-detail reads while retaining dashboard KPI/aging/stock/historical plus dashboard-used analytics. Local warm Owner Daily requests measured about 0.2-0.4s application time and returned HTTP 200. Current validation after the query flags: workspace type-check still passes; rerun lint, production build, focused contract test, and scoped diff check before promotion. Next active task: compare representative report values and response sizes across all four APIs before SIT promotion.
+
+Purchase bills options performance checkpoint on 2026-07-18: `/api/purchase/bills` now returns list rows and totals without modal options; `/api/purchase/bills/options?scope=reference` serves branch/warehouse references separately, while the full options endpoint is loaded only when the purchase form is opened and cached per authenticated browser user for five minutes. What is what: list data follows table filters, reference options follow branch permission scope, and full form options follow the modal lifecycle. Why it has to be like this: the previous combined request took about 4.7 seconds and blocked the branch dropdown behind ADV, PO Buy, WTI and approval work. Validation target: type-check, lint, build, and a repeat SIT waterfall measurement. Remaining risk: the full modal options query still loads up to 500 ADV, 500 PO Buy and 300 WTI records and needs a second profiling batch after this split.
+
 ## Purpose
 
 ไฟล์นี้เป็น handoff สั้นสำหรับงานที่กำลัง active เท่านั้น ไม่ใช่ changelog
@@ -93,6 +97,20 @@ Advance payment modal checkpoint on 2026-07-15: Supplier `ADV` create/edit and C
 - consumer option/filter/read-only หลายชุดถูกย้ายแล้ว; รายละเอียดอยู่ใน cache flow เพื่อไม่ให้ซ้ำที่นี่
 
 ## Latest Completed Batch: CACHE-P1 Product Reference Contract
+
+## Latest Completed Batch: CACHE-P2 Sales Bill Payload Boundary
+
+- `/api/sales/bills` now returns only list rows/totals; reference options moved to `/api/sales/bills/options?scope=reference`.
+- Browser memory cache is user-scoped with 5-minute TTL for branch/customer/product/sales-channel/warehouse references only.
+- WTO, PO Sell, Trading cost, customer advance, VAT effective rate, usage and remaining balances load fresh from `/api/sales/bills/options` when create/edit opens; no persistent browser cache.
+- Validation: workspace type-check and lint passed; lint retains one unrelated warning in `scripts/qa-thai-font.tsx`.
+
+## Latest Completed Batch: CACHE-P3 Weight Ticket Reference Boundary
+
+- WTI/WTO form now deduplicates and caches branch/customer/supplier/impurity/product/thumbnail references in tab memory for 5 minutes, scoped by authenticated user.
+- Weight-ticket list branch filter uses the same client reference cache.
+- Stock options, WTI/WTO list/detail, transaction writes and attachment uploads remain fresh/no-store; no binary image is stored in browser cache or Redis.
+- Validation: workspace type-check and lint passed; lint retains one unrelated warning in `scripts/qa-thai-font.tsx`.
 
 Product option/search มี contract แยกชัดเจน:
 

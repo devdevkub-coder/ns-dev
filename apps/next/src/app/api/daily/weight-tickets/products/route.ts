@@ -31,7 +31,7 @@ export async function GET() {
           unit: product.unit,
         }
       }),
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดรายการสินค้าไม่ได้', 500)

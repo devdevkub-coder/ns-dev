@@ -12,6 +12,16 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 type MainPayload = {
+  analytics?: {
+    bySalesperson: { amount: number; bills: number; id: string; name: string; qty: number; suppliers: number }[]
+    dailyTrend: { label: string; purchase: number; sales: number }[]
+    groupSummary: { amount: number; group: string; qty: number }[]
+    rangeKpi: Record<string, number>
+    topCustomers: { amount: number; bills: number; gp: number; gpPct: number; id: string; name: string; qty: number }[]
+    topProductsIn: { amount: number; code: string; group: string; id: string; name: string; qty: number }[]
+    topProductsOut: { amount: number; code: string; group: string; id: string; name: string; qty: number }[]
+    topSuppliers: { amount: number; bills: number; id: string; name: string; qty: number }[]
+  }
   dashboard: {
     aging: { label: string; value: number }[]
     agingBuckets: {
@@ -213,7 +223,13 @@ export function MainDashboardsPageClient({ mode }: { mode: Mode }) {
   const [data, setData] = useState<MainPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const endpoint = mode === 'dashboard' ? '/api/dashboard' : mode === 'owner-daily' ? '/api/owner-daily' : '/api/daily-report'
+  const endpoint = mode === 'dashboard'
+    ? '/api/dashboard'
+    : mode === 'owner-daily'
+      ? '/api/owner-daily'
+      : mode === 'analytics-dashboard'
+        ? '/api/analytics-dashboard'
+        : '/api/daily-report'
   const latestLoadRequestRef = useRef(0)
 
   useEffect(() => {
@@ -313,7 +329,7 @@ function DashboardView(props: {
   const k = data?.dashboard.kpi ?? {}
   const kpiDelta = data?.dashboard.kpiDelta ?? {}
   const section = data?.dashboard.sections
-  const analytics = data?.dailyReport.analytics
+  const analytics = data?.analytics ?? data?.dailyReport.analytics
   const purchaseWeight = section?.purchase.qty ?? 0
   const purchaseAmount = section?.purchase.amount ?? 0
   const salesAmount = section?.sales.amount ?? 0
@@ -1035,7 +1051,7 @@ function DailyReportView({ data, date, setDate }: { data: MainPayload | null; da
 }
 
 function AnalyticsDashboardView({ data, rangeFrom, rangeMode, rangeTo, setRangeFrom, setRangeMode, setRangeTo }: { data: MainPayload | null; rangeFrom: string; rangeMode: string; rangeTo: string; setRangeFrom: (value: string) => void; setRangeMode: (value: string) => void; setRangeTo: (value: string) => void }) {
-  const analytics = data?.dailyReport.analytics
+  const analytics = data?.analytics ?? data?.dailyReport.analytics
   const [detailTab, setDetailTab] = useState<AnalyticsDetailTab>('partners')
   const trendMax = useMemo(() => Math.max(1, ...(analytics?.dailyTrend ?? []).flatMap((row) => [row.purchase, row.sales])), [analytics?.dailyTrend])
 

@@ -1643,12 +1643,9 @@ function supplierSnapshotFields(supplier: {
   }
 }
 
-async function optionsPayload(allowedBranchCodes?: string[] | null) {
-  const [branchRefs, supplierBranchOptions, supplierPaymentOptions, supplierRefs, warehouseRefs] = await Promise.all([
+export async function referenceOptionsPayload(allowedBranchCodes?: string[] | null) {
+  const [branchRefs, warehouseRefs] = await Promise.all([
     allowedBranchCodes ? listActiveBranchesByCodes(allowedBranchCodes) : listActiveBranches(),
-    listActiveSupplierBranchOptions(),
-    listActiveSupplierPaymentOptions(),
-    listActiveSuppliers(),
     listActiveWarehouses(),
   ])
   const branches = branchRefs.map((branch) => ({
@@ -1657,6 +1654,42 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
     id: branch.id,
     name: branch.name,
   }))
+  const allowedBranchCodeSet = allowedBranchCodes ? new Set(allowedBranchCodes) : null
+  const warehouses = warehouseRefs
+    .filter((warehouse) => !allowedBranchCodeSet || (warehouse.branchCode != null && allowedBranchCodeSet.has(warehouse.branchCode)))
+    .map((warehouse): PurchaseBillWarehouseRefRow => ({
+      active: true,
+      branch_id: warehouse.branchCode ? (branches.find((branch) => branch.code === warehouse.branchCode)?.id ?? null) : null,
+      code: warehouse.code,
+      id: warehouse.id,
+      name: warehouse.name,
+      type: warehouse.type ?? null,
+    }))
+
+  const branchCodeById = new Map(branches.map((branch) => [branch.id, branch.code]))
+  return {
+    branches: branches.map((branch) => ({
+      ...branch,
+      id: requireBusinessCode(branch.code, `สาขา ${branch.id}`),
+    })),
+    warehouses: (warehouses as PurchaseBillWarehouseRefRow[]).map((warehouse) => ({
+      ...warehouse,
+      branch_id: warehouse.branch_id ? (branchCodeById.get(warehouse.branch_id) ?? null) : null,
+      id: requireBusinessCode(warehouse.code, `คลัง ${warehouse.id}`),
+      type: warehouse.type ?? null,
+    })),
+  }
+}
+
+export async function optionsPayload(allowedBranchCodes?: string[] | null) {
+  const [branchRefs, supplierBranchOptions, supplierPaymentOptions, supplierRefs, warehouseRefs] = await Promise.all([
+    allowedBranchCodes ? listActiveBranchesByCodes(allowedBranchCodes) : listActiveBranches(),
+    listActiveSupplierBranchOptions(),
+    listActiveSupplierPaymentOptions(),
+    listActiveSuppliers(),
+    listActiveWarehouses(),
+  ])
+  const branches = branchRefs.map((branch) => ({ active: true, code: branch.code, id: branch.id, name: branch.name }))
   const allowedBranchIds = branches.map((branch) => branch.id)
   const allowedBranchCodeSet = allowedBranchCodes ? new Set(allowedBranchCodes) : null
   const warehouses = warehouseRefs
@@ -1669,6 +1702,7 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
       name: warehouse.name,
       type: warehouse.type ?? null,
     }))
+  const branchCodeById = new Map(branches.map((branch) => [branch.id, branch.code]))
 
   const [advancePayments, poBuys, products, salespersons, vatRatePercent, weightTickets] = await Promise.all([
     prisma.supplier_advance_payments.findMany({
@@ -1729,7 +1763,6 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
     }),
   ])
   const usageMap = await buildWeightTicketUsageMap(weightTickets)
-  const branchCodeById = new Map(branches.map((branch) => [branch.id, branch.code]))
   const productCodeById = new Map(products.map((product) => [product.id, requireBusinessCode(product.code, `สินค้า ${product.id}`)]))
   const productNameById = new Map(products.map((product) => [product.id, product.name]))
   const salespersonCodeById = new Map(salespersons.map((salesperson) => [salesperson.id, requireBusinessCode(salesperson.code, `พนักงานขาย ${salesperson.id}`)]))
@@ -2243,7 +2276,6 @@ export async function GET(request: Request) {
       rows: payload.rows,
       totalAmount: payload.totalAmount,
       totalRows: payload.totalRows,
-      ...await optionsPayload(allowedBranchCodes),
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

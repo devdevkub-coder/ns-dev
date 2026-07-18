@@ -47,7 +47,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลขายที่ต้องการ' }, { status: 404 })
     }
 
-    return NextResponse.json(detail)
+    return NextResponse.json(detail, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     if (caught instanceof Error && caught.message.includes('durable line facts')) {

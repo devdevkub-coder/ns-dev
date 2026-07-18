@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 
 export const PRODUCT_IMAGE_BUCKET = 'product-images'
+export const PRODUCT_IMAGE_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+export const PRODUCT_IMAGE_MAX_UPLOAD_PIXELS = 25_000_000
 const PRODUCT_IMAGE_ORIGINAL_MAX_SIZE = 1600
 const PRODUCT_IMAGE_THUMBNAIL_SIZE = 320
 const PRODUCT_IMAGE_ORIGINAL_QUALITY = 0.82
@@ -85,6 +87,28 @@ export function getProductImageDisplay(imageStorageKey: string | null | undefine
     imageThumbnailStorageKey: null,
     originalUrl: null,
     thumbnailUrl: null,
+  }
+}
+
+export async function validateProductImageUpload(file: File) {
+  if (!file.type.startsWith('image/')) {
+    return 'อัปโหลดได้เฉพาะไฟล์รูปภาพ'
+  }
+  if (file.size <= 0 || file.size > PRODUCT_IMAGE_MAX_UPLOAD_BYTES) {
+    return 'รูปสินค้าต้องมีขนาดไม่เกิน 20 MB'
+  }
+
+  const sourceUrl = window.URL.createObjectURL(file)
+  try {
+    const image = await loadImage(sourceUrl)
+    if (image.width * image.height > PRODUCT_IMAGE_MAX_UPLOAD_PIXELS) {
+      return 'รูปสินค้าต้องมีพื้นที่ภาพไม่เกิน 25 ล้านพิกเซล'
+    }
+    return null
+  } catch {
+    return 'ไม่สามารถอ่านไฟล์รูปสินค้าได้'
+  } finally {
+    window.URL.revokeObjectURL(sourceUrl)
   }
 }
 

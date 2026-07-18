@@ -253,6 +253,15 @@ export function StockBalancePageClient() {
       value: rows.reduce((sum, row) => sum + row.value, 0),
     }
   }), [filteredRows])
+  const matrixByStatus = useMemo(() => ['RM', 'WIP', 'FG'].map((itemStatus) => {
+    const rows = filteredRows.filter((row) => row.status === itemStatus)
+    return {
+      count: rows.length,
+      qty: rows.reduce((sum, row) => sum + matrixReadyQty(row), 0),
+      status: itemStatus,
+      value: rows.reduce((sum, row) => sum + row.value, 0),
+    }
+  }), [filteredRows])
 
   const matrixRows = useMemo(() => {
     const groups = new Map<string, MatrixRow>()
@@ -273,20 +282,22 @@ export function StockBalancePageClient() {
           wipVal: 0,
         }
         current.products.push(product)
-      }      if (row.status === 'FG') {
-        current.fgQty += row.qty
+      }
+      const readyQty = matrixReadyQty(row)
+      if (row.status === 'FG') {
+        current.fgQty += readyQty
         current.fgVal += row.value
-        product.fgQty += row.qty
+        product.fgQty += readyQty
         product.fgVal += row.value
       } else if (row.status === 'WIP') {
-        current.wipQty += row.qty
+        current.wipQty += readyQty
         current.wipVal += row.value
-        product.wipQty += row.qty
+        product.wipQty += readyQty
         product.wipVal += row.value
       } else {
-        current.rmQty += row.qty
+        current.rmQty += readyQty
         current.rmVal += row.value
-        product.rmQty += row.qty
+        product.rmQty += readyQty
         product.rmVal += row.value
       }
       groups.set(key, current)
@@ -298,6 +309,7 @@ export function StockBalancePageClient() {
       }))
       .sort((a, b) => matrixRowValue(b) - matrixRowValue(a))
   }, [filteredRows])
+  const matrixTotalQty = useMemo(() => matrixRows.reduce((sum, row) => sum + matrixRowQty(row), 0), [matrixRows])
 
   const sortedDisplayRows = useMemo(() => {
     if (!detailSortKey) return displayRows
@@ -813,7 +825,7 @@ export function StockBalancePageClient() {
 
       {viewMode === 'summary' ? (
         <>
-          <StockCharts byStatus={byStatus} matrixRows={matrixRows} totalValue={summary.value} />
+          <StockCharts byStatus={matrixByStatus} matrixRows={matrixRows} totalValue={summary.value} />
           <PaginationControls
             currentPage={matrixCurrentPage}
             label="หมวด"
@@ -826,7 +838,7 @@ export function StockBalancePageClient() {
               setMatrixPage(1)
             }}
           />
-          <MatrixTable byStatus={byStatus} isLoading={isLoading} matrixRows={pagedMatrixRows} sortDirection={matrixSortDirection} sortKey={matrixSortKey} totalMatrixRows={matrixRows.length} totalQty={summary.qty} totalValue={summary.value} onSort={handleMatrixSort} />
+          <MatrixTable byStatus={matrixByStatus} isLoading={isLoading} matrixRows={pagedMatrixRows} sortDirection={matrixSortDirection} sortKey={matrixSortKey} totalMatrixRows={matrixRows.length} totalQty={matrixTotalQty} totalValue={summary.value} onSort={handleMatrixSort} />
         </>
       ) : (
         <>
@@ -968,6 +980,10 @@ type StatusSummary = { count: number; qty: number; status: string; value: number
 type MatrixProductRow = { fgQty: number; fgVal: number; productCode: string; productId: string; productName: string; rmQty: number; rmVal: number; wipQty: number; wipVal: number }
 
 type MatrixRow = { fgQty: number; fgVal: number; group: string; products: MatrixProductRow[]; rmQty: number; rmVal: number; wipQty: number; wipVal: number }
+
+function matrixReadyQty(row: BalanceRow) {
+  return row.notAvailable ? 0 : row.readyQty
+}
 
 function matrixProductQty(row: MatrixProductRow) {
   return row.rmQty + row.wipQty + row.fgQty
@@ -1337,13 +1353,13 @@ function MatrixTable({
           <thead className="bg-slate-50 border-b border-slate-200/60 text-slate-600 font-medium">
             <tr>
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="หมวดสินค้า" resizeProps={columnResize.getResizeHandleProps('group', 'หมวดสินค้า')} sortKey="group" onSort={onSort} />
-              <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="📦 RM (กก.)" resizeProps={columnResize.getResizeHandleProps('rmQty', '📦 RM (กก.)')} sortKey="rmQty" onSort={onSort} />
+              <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="📦 RM พร้อมส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('rmQty', '📦 RM พร้อมส่ง (กก.)')} sortKey="rmQty" onSort={onSort} />
               <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="RM มูลค่า" resizeProps={columnResize.getResizeHandleProps('rmVal', 'RM มูลค่า')} sortKey="rmVal" onSort={onSort} />
               <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ต้นทุน RM เฉลี่ย" resizeProps={columnResize.getResizeHandleProps('rmAvgCost', 'ต้นทุน RM เฉลี่ย')} sortKey="rmAvgCost" onSort={onSort} />
-              <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="⚙️ WIP (กก.)" resizeProps={columnResize.getResizeHandleProps('wipQty', '⚙️ WIP (กก.)')} sortKey="wipQty" onSort={onSort} />
+              <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="⚙️ WIP พร้อมส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('wipQty', '⚙️ WIP พร้อมส่ง (กก.)')} sortKey="wipQty" onSort={onSort} />
               <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="WIP มูลค่า" resizeProps={columnResize.getResizeHandleProps('wipVal', 'WIP มูลค่า')} sortKey="wipVal" onSort={onSort} />
               <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ต้นทุน WIP เฉลี่ย" resizeProps={columnResize.getResizeHandleProps('wipAvgCost', 'ต้นทุน WIP เฉลี่ย')} sortKey="wipAvgCost" onSort={onSort} />
-              <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="✅ FG (กก.)" resizeProps={columnResize.getResizeHandleProps('fgQty', '✅ FG (กก.)')} sortKey="fgQty" onSort={onSort} />
+              <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="✅ FG พร้อมส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('fgQty', '✅ FG พร้อมส่ง (กก.)')} sortKey="fgQty" onSort={onSort} />
               <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="FG มูลค่า" resizeProps={columnResize.getResizeHandleProps('fgVal', 'FG มูลค่า')} sortKey="fgVal" onSort={onSort} />
               <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ต้นทุน FG เฉลี่ย" resizeProps={columnResize.getResizeHandleProps('fgAvgCost', 'ต้นทุน FG เฉลี่ย')} sortKey="fgAvgCost" onSort={onSort} />
               <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="รวม กก." resizeProps={columnResize.getResizeHandleProps('totalQty', 'รวม กก.')} sortKey="totalQty" onSort={onSort} />

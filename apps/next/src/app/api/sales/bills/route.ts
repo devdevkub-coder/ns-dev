@@ -29,6 +29,7 @@ import {
   listActiveBranches,
   listActiveBranchesByCodes,
   listActiveCustomerBranchOptions,
+  listActiveCustomerBranchOptionsByBranchCodes,
   listActiveSalesChannels,
   listActiveWarehouses,
   listProductReferences,
@@ -216,7 +217,7 @@ async function salesBillLineCountByBillId(billIds: bigint[]) {
   return new Map(rows.map((row) => [row.sales_bill_id, row._count.id] as const))
 }
 
-async function salesBranchScope(context: AppAuthContext, requestedBranchCode?: string | null) {
+export async function salesBranchScope(context: AppAuthContext, requestedBranchCode?: string | null) {
   const allowedCodes = getBranchCodeIntersection(context, requestedBranchCode)
   if (allowedCodes === null) return { codes: null, ids: null }
   if (allowedCodes.length === 0) return { codes: [], ids: [] as bigint[] }
@@ -1041,12 +1042,59 @@ async function validateStockDeliverySelection(
   return { deliverySummaryIdByItemIndex, deliverySummarySourceMap, stockIssueQtyByItemIndex, ticket }
 }
 
-async function salesOptionsPayload(scope: Awaited<ReturnType<typeof salesBranchScope>>) {
+export async function salesReferenceOptionsPayload(scope: Awaited<ReturnType<typeof salesBranchScope>>) {
+  const allowedBranchCodes = scope.codes
+  const allowedBranchCodeSet = allowedBranchCodes ? new Set(allowedBranchCodes) : null
+  const [branchRefs, customerBranchOptions, warehouseRefs, products, salesChannels] = await Promise.all([
+    allowedBranchCodes ? listActiveBranchesByCodes(allowedBranchCodes) : listActiveBranches(),
+    allowedBranchCodes ? listActiveCustomerBranchOptionsByBranchCodes(allowedBranchCodes) : listActiveCustomerBranchOptions(),
+    listActiveWarehouses(),
+    listProductReferences(),
+    listActiveSalesChannels(),
+  ])
+  const branches = branchRefs.map((branch) => ({ active: true, code: branch.code, id: branch.code, name: branch.name }))
+  const warehouses = warehouseRefs
+    .filter((warehouse) => !allowedBranchCodeSet || (warehouse.branchCode != null && allowedBranchCodeSet.has(warehouse.branchCode)))
+    .map((warehouse) => ({
+      active: true,
+      branch_id: warehouse.branchCode,
+      code: warehouse.code,
+      id: warehouse.code,
+      name: warehouse.name,
+    }))
+  return {
+    branches,
+    customers: customerBranchOptions.map((customer) => ({
+      id: customer.code,
+      active: true,
+      branchIds: customer.branchIds,
+      code: customer.code,
+      marketScope: customer.marketScope === 'ต่างประเทศ' ? 'ต่างประเทศ' : 'ในประเทศ',
+      name: customer.name,
+    })),
+    products: products.map((product) => ({ ...product, id: requireBusinessCode(product.code, `สินค้า ${product.id}`) })),
+    salesChannels: salesChannels.map((channel) => ({ ...channel, id: requireBusinessCode(channel.code, `ช่องทางขาย ${channel.id}`) })),
+    warehouses,
+  }
+}
+
+export async function salesGlobalReferenceOptionsPayload() {
+  const [products, salesChannels] = await Promise.all([
+    listProductReferences(),
+    listActiveSalesChannels(),
+  ])
+  return {
+    products: products.map((product) => ({ ...product, id: requireBusinessCode(product.code, `สินค้า ${product.id}`) })),
+    salesChannels: salesChannels.map((channel) => ({ ...channel, id: requireBusinessCode(channel.code, `ช่องทางขาย ${channel.id}`) })),
+  }
+}
+
+export async function salesOptionsPayload(scope: Awaited<ReturnType<typeof salesBranchScope>>) {
   const allowedBranchCodes = scope.codes
   const allowedBranchIds = scope.ids
   const [branchRefs, customerBranchOptions, warehouseRefs, products, salesChannels, vatRatePercent, deliveryTickets, poSellRows, tradingPurchaseBills, tradingManualCostSources, tradingAllocationFacts, customerAdvanceRows] = await Promise.all([
     allowedBranchCodes ? listActiveBranchesByCodes(allowedBranchCodes) : listActiveBranches(),
-    listActiveCustomerBranchOptions(),
+    allowedBranchCodes ? listActiveCustomerBranchOptionsByBranchCodes(allowedBranchCodes) : listActiveCustomerBranchOptions(),
     listActiveWarehouses(),
     listProductReferences(),
     listActiveSalesChannels(),
@@ -1466,18 +1514,14 @@ export async function GET(request: Request) {
 
       return new NextResponse(new Uint8Array(body), {
         headers: {
+          'Cache-Control': 'private, no-store',
           'Content-Disposition': `attachment; filename="${filename}"`,
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         },
       })
     }
 
-    return NextResponse.json({
-      rows: jsonRows,
-      totalAmount: toNumber(totals._sum.total_amount),
-      totalRows,
-      ...await salesOptionsPayload(branchScope),
-    })
+    return NextResponse.json({ rows: jsonRows, totalAmount: toNumber(totals._sum.total_amount), totalRows }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดบิลขายไม่ได้', 500)

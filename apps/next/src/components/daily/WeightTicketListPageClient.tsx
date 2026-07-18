@@ -19,6 +19,7 @@ import { useResizableColumns } from '@/components/ui/useResizableColumns'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { openWeightTicketLineShare } from '@/lib/weight-ticket-share'
 import { cn } from '@/lib/utils'
+import { cachedWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
 import { WeightTicketDetailModal } from './WeightTicketDetailModal'
 import { WeightTicketStockReturnDialog } from './WeightTicketStockReturnDialog'
 import { WeightTicketsPageClient } from './WeightTicketsPageClient'
@@ -237,9 +238,7 @@ export function WeightTicketListPageClient() {
 
     async function loadBranches() {
       try {
-        const response = await fetch('/api/branches', { cache: 'no-store' })
-        if (!response.ok) return
-        const data = await response.json() as { branches?: Array<{ code?: string | null; id: string; name: string }> }
+        const data = await cachedWeightTicketReferences<{ branches?: Array<{ code?: string | null; id: string; name: string }> }>('/api/branches')
         const nextBranches = (data.branches ?? []).map((branch) => ({
           code: branch.code ?? undefined,
           description: branch.code ? `รหัสสาขา ${branch.code}` : undefined,

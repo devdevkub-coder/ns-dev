@@ -1665,7 +1665,7 @@ export async function listActiveCustomerBranchOptions() {
 export async function listActiveCustomerBranchOptionsByBranchCodes(codes: string[]) {
   const normalizedCodes = [...new Set(codes.map(normalizeBranchCode).filter(Boolean))]
   const rows = await listActiveCustomerBranchOptions()
-  if (!normalizedCodes.length) return rows
+  if (!normalizedCodes.length) return []
   return rows.filter((row) => row.branchIds.some((branchCode) => normalizedCodes.includes(normalizeBranchCode(branchCode))))
 }
 

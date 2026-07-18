@@ -360,6 +360,24 @@ describe('reference-master-cache', () => {
     expect(customersFindMany).toHaveBeenCalledTimes(1)
   })
 
+  it('returns no customer branch options when the permitted branch scope is empty', async () => {
+    customersFindMany.mockResolvedValue([
+      {
+        code: 'CUS001',
+        customer_branches: [{ branches: { code: 'B01' } }],
+        id: 3n,
+        market_scope: 'ในประเทศ',
+        name: 'ลูกค้า A',
+      },
+    ])
+
+    const cache = await import('./reference-master-cache')
+    const result = await cache.listActiveCustomerBranchOptionsByBranchCodes([])
+
+    expect(result).toEqual([])
+    expect(customersFindMany).toHaveBeenCalledTimes(1)
+  })
+
   it('memoizes searched active customers in short-lived server cache using normalized query', async () => {
     customersFindMany.mockResolvedValue([
       { code: 'CUS001', credit_limit: 1000, credit_term: 30, id: 3n, market_scope: 'ในประเทศ', name: 'ลูกค้า A' },

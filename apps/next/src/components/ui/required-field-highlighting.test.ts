@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { poSellFormSchema } from '../../lib/sales'
+import { poSellFormSchema, poSellPageFormSchema } from '../../lib/sales'
 
 const source = (relativePath: string) => readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8')
 
@@ -42,11 +42,13 @@ describe('required manual-entry field highlighting contract', () => {
 
   it('checks the editable descendant for composite fields and supports required action groups', () => {
     const css = source('../../app/globals.css')
+    const weightTicketForm = source('../daily/WeightTicketFormCore.tsx')
 
     expect(css).toContain(':where([role="combobox"])[aria-required="true"]')
     expect(css).toContain(':where([data-manual-required="true"]) :where([data-slot="input-group"]):has(input:not(:disabled):not([readonly])')
     expect(css).toContain(':where([data-required-group="true"])[data-manual-required="true"]:not([data-field-invalid="true"])')
     expect(css).toContain('input[data-manual-entry-readonly="true"][readonly]:not(:disabled)')
+    expect(weightTicketForm).toMatch(/<ComboboxInput[\s\S]*?data-manual-entry-readonly="true"[\s\S]*?readOnly/)
   })
 
   it('marks every manual required input in the PO Buy form', () => {
@@ -72,7 +74,7 @@ describe('required manual-entry field highlighting contract', () => {
     expect(poSell).toMatch(/<DecimalPatternInput[\s\S]*?formatOnBlur[\s\S]*?required[\s\S]*?value=\{item\.price\}/)
     expect(poSell).toContain('<option disabled value="">เลือกสาขา/คลัง</option>')
     expect(poSell).toContain("issue.path.join('.')")
-    expect(salesSchema).toContain("branchId: requiredSafeId('สาขา')")
+    expect(salesSchema).toContain('export const poSellPageFormSchema')
   })
 
   it('rejects a PO Sell without the required document branch', () => {
@@ -87,8 +89,9 @@ describe('required manual-entry field highlighting contract', () => {
       salesPlanId: null,
     }
 
-    expect(poSellFormSchema.safeParse(validPoSell).success).toBe(true)
-    expect(poSellFormSchema.safeParse({ ...validPoSell, branchId: '' }).success).toBe(false)
+    expect(poSellFormSchema.safeParse({ ...validPoSell, branchId: '' }).success).toBe(true)
+    expect(poSellPageFormSchema.safeParse(validPoSell).success).toBe(true)
+    expect(poSellPageFormSchema.safeParse({ ...validPoSell, branchId: '' }).success).toBe(false)
   })
 
   it('covers the confirmed shared and conditional form gaps from the whole-app audit', () => {

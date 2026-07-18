@@ -17,7 +17,7 @@ export async function GET() {
         id: row.code,
         name: row.name,
       })),
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดข้อมูลสาขาไม่ได้', 500)

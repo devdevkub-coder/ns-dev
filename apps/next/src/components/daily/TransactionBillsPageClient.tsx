@@ -23,6 +23,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { SELECTED_BRANCH_KEY } from '@/lib/branch-selection'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { cachedPurchaseBillOptions, invalidatePurchaseBillOptionsCache } from '@/lib/purchase-bill-options-cache'
+import { cachedSalesBillReferences } from '@/lib/sales-bill-options-cache'
 import { firstErrorKeyFromZodIssues, focusFieldError, issueMapFromZodIssues } from '@/lib/form-errors'
 import { formatDateDisplay, formatDecimalDisplay, formatDecimalDraft, sanitizeDecimalInput } from '@/lib/format'
 import { purchaseBillCancelSchema, purchaseBillFormSchema, type PurchaseBillCancelValues, type PurchaseBillFormValues } from '@/lib/purchase-bill'
@@ -391,6 +393,9 @@ type SalesPayload = TransactionPayload & {
   vatRatePercent?: number
   warehouses: Option[]
 }
+
+type SalesScopedReferencePayload = Pick<SalesPayload, 'branches' | 'customers' | 'warehouses'>
+type SalesGlobalReferencePayload = Pick<SalesPayload, 'products' | 'salesChannels'>
 
 type TransactionBillsPageClientProps = {
   mode: 'purchase' | 'sales'
@@ -768,6 +773,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const latestLoadRequestRef = useRef(0)
   const latestDetailRequestRef = useRef(0)
   const handledAutoOpenRef = useRef<string | null>(null)
+  const purchaseOptionsRequestRef = useRef<Promise<PurchasePayload> | null>(null)
+  const salesOptionsRequestRef = useRef<Promise<SalesPayload> | null>(null)
   const tableColumns = useMemo(() => {
     if (mode === 'purchase') return purchaseBillColumns
     return salesBillColumns
@@ -816,41 +823,23 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         setRows(payload.rows)
         setTotalAmount(payload.totalAmount ?? 0)
         setTotalRows(payload.totalRows ?? payload.rows.length)
-        setVatRatePercent(payload.vatRatePercent ?? 7)
-        setOptions({
-          advancePayments: payload.advancePayments,
-          branches: payload.branches,
-          customers: [],
-          customerAdvancePayments: [],
-          deliveries: [],
-          poBuys: payload.poBuys,
-          poSells: [],
-          products: payload.products,
-          receipts: payload.receipts,
-          salesChannels: [],
-          salespersons: payload.salespersons,
-          suppliers: payload.suppliers,
-          tradingCostSources: [],
-          warehouses: payload.warehouses,
-        })
       } else if (mode === 'sales') {
-        const payload = await dailyFetchJson<SalesPayload>(requestPath)
+        const [payload, scopedReferences, globalReferences] = await Promise.all([
+          dailyFetchJson<TransactionPayload>(requestPath),
+          dailyFetchJson<SalesScopedReferencePayload>('/api/sales/bills/options?scope=reference'),
+          cachedSalesBillReferences<SalesGlobalReferencePayload>('/api/sales/bills/options?scope=global-reference'),
+        ])
         if (latestLoadRequestRef.current !== requestId) return
         setRows(payload.rows)
         setTotalAmount(payload.totalAmount ?? 0)
         setTotalRows(payload.totalRows ?? payload.rows.length)
-        setVatRatePercent(payload.vatRatePercent ?? 7)
         setOptions((current) => ({
           ...current,
-          branches: payload.branches,
-          customers: payload.customers,
-          customerAdvancePayments: payload.customerAdvancePayments ?? [],
-          deliveries: payload.deliveries ?? [],
-          poSells: payload.poSells ?? [],
-          products: payload.products,
-          salesChannels: payload.salesChannels,
-          tradingCostSources: payload.tradingCostSources ?? [],
-          warehouses: payload.warehouses,
+          branches: scopedReferences.branches,
+          customers: scopedReferences.customers,
+          products: globalReferences.products,
+          salesChannels: globalReferences.salesChannels,
+          warehouses: scopedReferences.warehouses,
         }))
       }
     } catch (caught) {
@@ -862,9 +851,58 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     }
   }, [mode, requestPath])
 
+  const loadSalesOptions = useCallback(async () => {
+    if (!salesOptionsRequestRef.current) {
+      salesOptionsRequestRef.current = dailyFetchJson<SalesPayload>('/api/sales/bills/options')
+        .finally(() => { salesOptionsRequestRef.current = null })
+    }
+    const payload = await salesOptionsRequestRef.current
+    setVatRatePercent(payload.vatRatePercent ?? 7)
+    setOptions((current) => ({
+      ...current,
+      branches: payload.branches,
+      customers: payload.customers,
+      customerAdvancePayments: payload.customerAdvancePayments ?? [],
+      deliveries: payload.deliveries ?? [],
+      poSells: payload.poSells ?? [],
+      products: payload.products,
+      salesChannels: payload.salesChannels,
+      tradingCostSources: payload.tradingCostSources ?? [],
+      warehouses: payload.warehouses,
+    }))
+    return payload
+  }, [])
+
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  const loadPurchaseOptions = useCallback(async () => {
+    if (mode !== 'purchase') return null
+    if (!purchaseOptionsRequestRef.current) {
+      purchaseOptionsRequestRef.current = cachedPurchaseBillOptions<PurchasePayload>('/api/purchase/bills/options')
+    }
+    const payload = await purchaseOptionsRequestRef.current
+    setVatRatePercent(payload.vatRatePercent ?? 7)
+    setOptions((current) => ({
+      ...current,
+      advancePayments: payload.advancePayments,
+      branches: payload.branches,
+      poBuys: payload.poBuys,
+      products: payload.products,
+      receipts: payload.receipts,
+      salespersons: payload.salespersons,
+      suppliers: payload.suppliers,
+      warehouses: payload.warehouses,
+    }))
+    return payload
+  }, [mode])
+
+  useEffect(() => {
+    if (mode !== 'purchase') return
+    void cachedPurchaseBillOptions<Pick<PurchasePayload, 'branches' | 'warehouses'>>('/api/purchase/bills/options?scope=reference')
+      .then((payload) => setOptions((current) => ({ ...current, branches: payload.branches, warehouses: payload.warehouses })))
+  }, [mode])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1282,7 +1320,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     router.replace(nextQuery ? `?${nextQuery}` : mode === 'purchase' ? '/purchase/bills' : '/sales/bills')
   }, [searchParams, router, mode])
 
-  const openPurchaseFormFromReceipt = useCallback((receipt: ReceiptOption) => {
+  const openPurchaseFormFromReceipt = useCallback(async (receipt: ReceiptOption) => {
+    await loadPurchaseOptions()
     const branchId = receipt.branchId ?? resolvedPreferredBranchId ?? ''
     const supplierId = receipt.supplierId ?? ''
     const supplier = options.suppliers.find((option) => option.id === supplierId) ?? null
@@ -1302,7 +1341,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setFieldErrors({})
     setError(null)
     setShowForm(true)
-  }, [resolvedPreferredBranchId, options.suppliers, defaultPurchaseWarehouseId])
+  }, [defaultPurchaseWarehouseId, loadPurchaseOptions, options.suppliers, resolvedPreferredBranchId])
 
   const openSalesFormFromDelivery = useCallback((delivery: DeliveryOption) => {
     const branchId = delivery.branchId ?? resolvedPreferredBranchId ?? ''
@@ -1336,9 +1375,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 
     const autoOpenKey = `${mode}:${targetDocNo}`
     if (handledAutoOpenRef.current === autoOpenKey) return
-    handledAutoOpenRef.current = autoOpenKey
 
     if (mode === 'purchase') {
+      handledAutoOpenRef.current = autoOpenKey
       const receipt = options.receipts.find((option) => option.id === targetDocNo || option.documentNo === targetDocNo)
       if (!receipt) {
         setError(`ไม่พบ WTI ${targetDocNo} หรือเอกสารถูกนำไปเปิดบิลแล้ว`)
@@ -1350,21 +1389,32 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       return
     }
 
-    const delivery = options.deliveries.find((option) => option.id === targetDocNo || option.documentNo === targetDocNo)
-    if (!delivery) {
-      setError(`ไม่พบ WTO ${targetDocNo} หรือเอกสารถูกนำไปเปิดบิลแล้ว`)
-      clearAutoOpenSearchParams()
-      return
-    }
-    openSalesFormFromDelivery(delivery)
-    clearAutoOpenSearchParams()
+    let cancelled = false
+    void loadSalesOptions()
+      .then((payload) => {
+        if (cancelled) return
+        handledAutoOpenRef.current = autoOpenKey
+        const delivery = payload.deliveries.find((option) => option.id === targetDocNo || option.documentNo === targetDocNo)
+        if (!delivery) {
+          setError(`ไม่พบ WTO ${targetDocNo} หรือเอกสารถูกนำไปเปิดบิลแล้ว`)
+          clearAutoOpenSearchParams()
+          return
+        }
+        openSalesFormFromDelivery(delivery)
+        clearAutoOpenSearchParams()
+      })
+      .catch((caught) => {
+        if (cancelled) return
+        setError(caught instanceof Error ? caught.message : 'โหลดตัวเลือกบิลขายไม่ได้')
+      })
+    return () => { cancelled = true }
   }, [
     clearAutoOpenSearchParams,
     isLoading,
+    loadSalesOptions,
     mode,
     openPurchaseFormFromReceipt,
     openSalesFormFromDelivery,
-    options.deliveries,
     options.receipts,
     searchParams,
   ])
@@ -1695,7 +1745,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     }
   }
 
-  function openPurchaseForm() {
+  async function openPurchaseForm() {
     setEditingBillId(null)
     setSupplierSwapMode(false)
     setSupplierSwapSupplierId('')
@@ -1704,9 +1754,10 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setFieldErrors({})
     setError(null)
     setShowForm(true)
+    void loadPurchaseOptions()
   }
 
-  function openSalesForm() {
+  async function openSalesForm() {
     setEditingSalesBillId(null)
     setLockedDeliverySnapshot(null)
     setLockedPoSellOptions([])
@@ -1715,7 +1766,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setTradingPurchaseSelectorIds([''])
     setSalesFieldErrors({})
     setError(null)
-    setShowSalesForm(true)
+    try {
+      await loadSalesOptions()
+      setShowSalesForm(true)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'โหลดตัวเลือกบิลขายไม่ได้')
+    }
   }
 
   function salesDeliverySnapshotFromDetail(detail: SalesBillDetail): DeliveryOption | null {
@@ -1892,7 +1948,10 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setIsDetailLoading(true)
     setError(null)
     try {
-      const detail = await dailyFetchJson<SalesBillDetail>(`/api/sales/bills/${encodeURIComponent(docNo)}`)
+      const [detail] = await Promise.all([
+        dailyFetchJson<SalesBillDetail>(`/api/sales/bills/${encodeURIComponent(docNo)}`),
+        loadSalesOptions(),
+      ])
       setEditingSalesBillId(docNo)
       setLockedDeliverySnapshot(salesDeliverySnapshotFromDetail(detail))
       setLockedPoSellOptions(salesPoSellOptionsFromDetail(detail))
@@ -2731,6 +2790,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         body: JSON.stringify(payload),
         method: editingBillId ? 'PATCH' : 'POST',
       })
+      invalidatePurchaseBillOptionsCache()
+      purchaseOptionsRequestRef.current = null
       setEditingBillId(null)
       setSupplierSwapMode(false)
       setSupplierSwapSupplierId('')

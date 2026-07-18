@@ -132,10 +132,17 @@ type SupplierReferenceRow = Awaited<ReturnType<typeof listActiveSuppliers>>[numb
 type CustomerReferenceRow = Awaited<ReturnType<typeof listActiveCustomers>>[number]
 
 async function runReadBatch<const T extends readonly (() => Promise<unknown>)[]>(tasks: T): Promise<{ [K in keyof T]: Awaited<ReturnType<T[K]>> }> {
-  const results: unknown[] = []
-  for (const task of tasks) {
-    results.push(await task())
+  const results = new Array<unknown>(tasks.length)
+  let nextIndex = 0
+  const worker = async () => {
+    while (nextIndex < tasks.length) {
+      const index = nextIndex
+      nextIndex += 1
+      results[index] = await tasks[index]()
+    }
   }
+  const workerCount = Math.min(4, tasks.length)
+  await Promise.all(Array.from({ length: workerCount }, () => worker()))
   return results as { [K in keyof T]: Awaited<ReturnType<T[K]>> }
 }
 
@@ -182,40 +189,50 @@ function salesLineRows(lines: SalesBillLineFactRow[] | undefined) {
   }))
 }
 
-async function cashBalances(asOf: Date) {
+type CashBalanceSnapshot = { bank: number; cash: number; fcd: number; odLimit: number; odUsed: number }
+
+async function cashBalancesForDates(asOfDates: readonly [Date, Date]) {
   const [accounts, bankRows] = await Promise.all([
     listActiveAccounts(),
     prisma.bank_statement.findMany({
       orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
       take: 30000,
-      where: { date: { lte: endOfDay(asOf) } },
+      where: { date: { lte: endOfDay(asOfDates[0] > asOfDates[1] ? asOfDates[0] : asOfDates[1]) } },
     }),
   ])
-  const balances = new Map<bigint, number>()
-  accounts.forEach((account: AccountReferenceRecord) => balances.set(account.id, cachedMoney(account.openingBalance)))
-  bankRows.forEach((row: Prisma.bank_statementGetPayload<Record<string, never>>) => {
-    if (!row.account_id) return
-    const previous = balances.get(row.account_id) ?? 0
-    balances.set(row.account_id, row.balance === null || row.balance === undefined ? previous + toNumber(row.amount_in) - toNumber(row.amount_out) : toNumber(row.balance))
-  })
-  return accounts.reduce((acc: { bank: number; cash: number; fcd: number; odLimit: number; odUsed: number }, account: AccountReferenceRecord) => {
-    const balance = balances.get(account.id) ?? 0
-    const type = [account.type, account.name, account.bankName, account.bank].filter(Boolean).join(' ').toLowerCase()
-    if (type.includes('od')) {
-      acc.odUsed += Math.max(0, -balance)
-      acc.odLimit += cachedMoney(account.odLimit)
-    } else if (type.includes('fcd') || type.includes('foreign') || type.includes('ต่างประเทศ')) {
-      acc.fcd += balance
-    } else if (type.includes('cash') || type.includes('เงินสด')) {
-      acc.cash += balance
-    } else {
-      acc.bank += balance
-    }
-    return acc
-  }, { bank: 0, cash: 0, fcd: 0, odLimit: 0, odUsed: 0 })
+
+  return asOfDates.map((asOf) => {
+    const balances = new Map<bigint, number>()
+    accounts.forEach((account: AccountReferenceRecord) => balances.set(account.id, cachedMoney(account.openingBalance)))
+    const cutoff = endOfDay(asOf)
+    bankRows.forEach((row: Prisma.bank_statementGetPayload<Record<string, never>>) => {
+      if (row.date > cutoff || !row.account_id) return
+      const previous = balances.get(row.account_id) ?? 0
+      balances.set(row.account_id, row.balance === null || row.balance === undefined ? previous + toNumber(row.amount_in) - toNumber(row.amount_out) : toNumber(row.balance))
+    })
+    return accounts.reduce((acc: { bank: number; cash: number; fcd: number; odLimit: number; odUsed: number }, account: AccountReferenceRecord) => {
+      const balance = balances.get(account.id) ?? 0
+      const type = [account.type, account.name, account.bankName, account.bank].filter(Boolean).join(' ').toLowerCase()
+      if (type.includes('od')) {
+        acc.odUsed += Math.max(0, -balance)
+        acc.odLimit += cachedMoney(account.odLimit)
+      } else if (type.includes('fcd') || type.includes('foreign') || type.includes('ต่างประเทศ')) {
+        acc.fcd += balance
+      } else if (type.includes('cash') || type.includes('เงินสด')) {
+        acc.cash += balance
+      } else {
+        acc.bank += balance
+      }
+      return acc
+    }, { bank: 0, cash: 0, fcd: 0, odLimit: 0, odUsed: 0 })
+  }) as [CashBalanceSnapshot, CashBalanceSnapshot]
 }
 
-export async function buildMainDashboards(filter: MainDashboardFilter) {
+export async function buildMainDashboards(filter: MainDashboardFilter, options: { includeAnalytics?: boolean; includeDaily?: boolean; includeOwner?: boolean } = {}) {
+  const includeAnalytics = options.includeAnalytics ?? true
+  const includeDaily = options.includeDaily ?? true
+  const includeOwner = options.includeOwner ?? true
+  const includeBankToday = includeDaily || includeOwner
   const customer = filter.customerId ? await findActiveCustomerReferenceByCodeOrId(filter.customerId) : null
   const branch = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
   const supplier = filter.supplierId ? await findActiveSupplierReferenceByCodeOrId(filter.supplierId) : null
@@ -227,7 +244,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   const todayStart = startOfDay(selectedDate)
   const todayEnd = endOfDay(selectedDate)
 
-  const [purchases, sales, expenses, previousSales, previousExpenses, payments, receipts, stockRows, deals, finance, previousFinance, productionRows, cash, previousCash, bankToday, bankRange, loanSchedules, products, salespersons, branches, suppliers, customers, historicalRows]: readonly [
+  const [purchases, sales, expenses, previousSales, previousExpenses, payments, receipts, stockRows, deals, finance, previousFinance, productionRows, cashBalanceSnapshots, bankToday, bankRange, loanSchedules, products, salespersons, branches, suppliers, customers, historicalRows]: readonly [
     PurchaseBillRow[],
     SalesBillRow[],
     ExpenseRow[],
@@ -240,8 +257,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
     Awaited<ReturnType<typeof buildFinancialDashboard>>,
     Awaited<ReturnType<typeof buildFinancialDashboard>>,
     Awaited<ReturnType<typeof loadProductionMetrics>>,
-    Awaited<ReturnType<typeof cashBalances>>,
-    Awaited<ReturnType<typeof cashBalances>>,
+    [CashBalanceSnapshot, CashBalanceSnapshot],
     BankStatementRow[],
     BankStatementRow[],
     LoanScheduleRow[],
@@ -257,18 +273,17 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
     () => prisma.expenses.findMany({ include: { expense_categories: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
     () => prisma.sales_bills.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, customer_id: customer?.id || undefined, date: { gte: new Date(`${previousRange.from}T00:00:00.000Z`), lte: new Date(`${previousRange.to}T23:59:59.999Z`) } } }),
     () => prisma.expenses.findMany({ include: { expense_categories: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 3000, where: { date: { gte: new Date(`${previousRange.from}T00:00:00.000Z`), lte: new Date(`${previousRange.to}T23:59:59.999Z`) } } }),
-    () => prisma.payments.findMany({ orderBy: [{ date: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
-    () => prisma.receipts.findMany({ orderBy: [{ date: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
+    () => includeDaily ? prisma.payments.findMany({ orderBy: [{ date: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }) : Promise.resolve([]),
+    () => includeDaily ? prisma.receipts.findMany({ orderBy: [{ date: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }) : Promise.resolve([]),
     () => prisma.stock_ledger.findMany({ include: { branches: true, products: true }, orderBy: [{ date: 'desc' }], take: 20000 }),
-    () => prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 3000 }),
+    () => includeOwner ? prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 3000 }) : Promise.resolve([]),
     () => buildFinancialDashboard({ asOf: selectedDate, branchId: filter.branchId }),
     () => buildFinancialDashboard({ asOf: previousRange.toDate, branchId: filter.branchId }),
-    () => loadProductionMetrics({ branchId: filter.branchId, dateFrom: from, dateTo: to }),
-    () => cashBalances(selectedDate),
-    () => cashBalances(previousRange.toDate),
-    () => prisma.bank_statement.findMany({ include: { accounts: true }, orderBy: [{ date: 'desc' }], where: { date: { gte: todayStart, lte: todayEnd } } }),
-    () => prisma.bank_statement.findMany({ include: { accounts: true }, orderBy: [{ date: 'asc' }], take: 10000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
-    () => prisma.loan_schedules.findMany({ include: { loans: true }, orderBy: [{ due_date: 'asc' }], take: 1000, where: { due_date: { lte: todayEnd }, payment_status: { notIn: ['Paid', 'paid', 'PAID', 'cancelled', 'Cancelled'] } } }),
+    () => includeOwner ? loadProductionMetrics({ branchId: filter.branchId, dateFrom: from, dateTo: to }) : Promise.resolve([]),
+    () => cashBalancesForDates([selectedDate, previousRange.toDate]),
+    () => includeBankToday ? prisma.bank_statement.findMany({ include: { accounts: true }, orderBy: [{ date: 'desc' }], where: { date: { gte: todayStart, lte: todayEnd } } }) : Promise.resolve([]),
+    () => includeAnalytics || includeDaily ? prisma.bank_statement.findMany({ include: { accounts: true }, orderBy: [{ date: 'asc' }], take: 10000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }) : Promise.resolve([]),
+    () => includeOwner ? prisma.loan_schedules.findMany({ include: { loans: true }, orderBy: [{ due_date: 'asc' }], take: 1000, where: { due_date: { lte: todayEnd }, payment_status: { notIn: ['Paid', 'paid', 'PAID', 'cancelled', 'Cancelled'] } } }) : Promise.resolve([]),
     async (): Promise<ProductRow[]> => (await listProductReferences())
       .filter((row) => row.active)
       .map((row) => ({ code: row.code, id: row.id, metal_group: row.metalGroup, name: row.name, unit: row.unit })),
@@ -279,6 +294,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
     () => prisma.historical_monthly.findMany({ orderBy: [{ year: 'asc' }, { month: 'asc' }], take: 5000 }),
   ] as const)
 
+  const [currentCash, previousCash] = cashBalanceSnapshots
   const productById = new Map(products.map((row) => [String(row.id), row]))
   const activeSalesLineFactsByBillId = await salesBillLineFactsByBillId([
     ...sales.filter((row) => activeStatus(row.status)).map((row) => row.id),
@@ -343,7 +359,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   const cogs = liveCogs + historicalCogs
   const grossProfit = (activeSales.reduce((sum, row) => sum + toNumber(row.gross_profit), 0) || liveSalesAmount - liveCogs) + historicalRevenue - historicalCogs
   const expenseAmount = expenses.filter((row) => activeStatus(row.status)).reduce((sum, row) => sum + toNumber(row.amount), 0) + historicalExpenses
-  const cashBalance = cash.cash + cash.bank + cash.fcd
+  const cashBalance = currentCash.cash + currentCash.bank + currentCash.fcd
   const kpiExpenses = expenseAmount + cogs
   const netProfit = salesAmount - cogs - expenseAmount
   const previousKpiExpenses = previousExpenseAmount + previousCogs
@@ -566,13 +582,13 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
       ],
       agingBuckets: { ap: apAgingBuckets, ar: arAgingBuckets },
       cashComposition: [
-        { label: '💵 เงินสด', value: cash.cash },
-        { label: '🏦 ธนาคาร', value: cash.bank },
-        { label: '💱 FCD', value: cash.fcd },
+        { label: '💵 เงินสด', value: currentCash.cash },
+        { label: '🏦 ธนาคาร', value: currentCash.bank },
+        { label: '💱 FCD', value: currentCash.fcd },
         { label: '📥 AR', value: finance.summary.ar },
         { label: '📤 AP', value: -finance.summary.ap },
-        { label: '⚠ OD Used', value: cash.odUsed },
-        { label: '💎 Net Cash', value: cash.cash + cash.bank + cash.fcd + finance.summary.ar - finance.summary.ap - cash.odUsed },
+        { label: '⚠ OD Used', value: currentCash.odUsed },
+        { label: '💎 Net Cash', value: currentCash.cash + currentCash.bank + currentCash.fcd + finance.summary.ar - finance.summary.ap - currentCash.odUsed },
       ].filter((row) => row.value !== 0),
       kpi: {
         ar: finance.summary.ar,
@@ -599,7 +615,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
       },
       monthlyTrend: Array.from(monthlyTrendMap.values()).sort((a, b) => a.label.localeCompare(b.label)).slice(-6),
       sections: {
-        cash: { ...cash, netCash: cash.cash + cash.bank + cash.fcd + finance.summary.ar - finance.summary.ap - cash.odUsed },
+        cash: { ...currentCash, netCash: currentCash.cash + currentCash.bank + currentCash.fcd + finance.summary.ar - finance.summary.ap - currentCash.odUsed },
         purchase: { amount: purchaseAmount, count: activePurchases.length, qty: activePurchases.reduce((sum, row) => sum + purchaseBillItemQty(row), 0), today: todayPurchases.reduce((sum, row) => sum + toNumber(row.total_amount), 0) },
         sales: { amount: salesAmount, count: activeSales.length, gp: grossProfit, qty: activeSales.reduce((sum, row) => sum + salesBillLineFactTotals(activeSalesLineFactsByBillId.get(row.id)).qty, 0), today: todaySales.reduce((sum, row) => sum + toNumber(row.total_amount), 0) },
         stock: { qty: stockQty, value: stockValue },
@@ -665,7 +681,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
     },
     ownerDaily: {
       actualActivity: { cashIn: todayBankCashIn || cashIn, cashOut: todayBankCashOut || cashOut, expenseOut: todayExpenses.reduce((sum, row) => sum + toNumber(row.amount), 0), fgQty, fgValue, paymentOut: bankToday.filter((row) => row.ref_type === 'PMT').reduce((sum, row) => sum + toNumber(row.amount_out), 0), net: (todayBankCashIn || cashIn) - (todayBankCashOut || cashOut) },
-      cashPlan: { available: cash.cash + cash.bank, expectedIn: arDueRows.reduce((sum, row) => sum + row.amount, 0), expectedOut: apDueRows.reduce((sum, row) => sum + row.amount, 0) + loanToday.reduce((sum, row) => sum + row.amount, 0) + todayExpenses.reduce((sum, row) => sum + toNumber(row.amount), 0), gap: cash.cash + cash.bank + arDueRows.reduce((sum, row) => sum + row.amount, 0) - apDueRows.reduce((sum, row) => sum + row.amount, 0) - loanToday.reduce((sum, row) => sum + row.amount, 0) - todayExpenses.reduce((sum, row) => sum + toNumber(row.amount), 0) },
+      cashPlan: { available: currentCash.cash + currentCash.bank, expectedIn: arDueRows.reduce((sum, row) => sum + row.amount, 0), expectedOut: apDueRows.reduce((sum, row) => sum + row.amount, 0) + loanToday.reduce((sum, row) => sum + row.amount, 0) + todayExpenses.reduce((sum, row) => sum + toNumber(row.amount), 0), gap: currentCash.cash + currentCash.bank + arDueRows.reduce((sum, row) => sum + row.amount, 0) - apDueRows.reduce((sum, row) => sum + row.amount, 0) - loanToday.reduce((sum, row) => sum + row.amount, 0) - todayExpenses.reduce((sum, row) => sum + toNumber(row.amount), 0) },
       due: {
         ap: apDueRows.slice(0, 10),
         ar: arDueRows.slice(0, 10),
