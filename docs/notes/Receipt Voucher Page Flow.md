@@ -421,6 +421,7 @@ Print document must include:
 - cash payment method text snapshot
 - attachment note for ID card where applicable
 - cancelled/draft watermark when status requires it
+- ใน panel `ผู้จ่ายเงิน / Company Payer` ช่อง `บริษัท` ต้องกว้างเต็มสองคอลัมน์เพื่อให้ชื่อบริษัทตามกฎหมายที่ยาวตัดบรรทัดอย่างเป็นธรรมชาติ; แถวถัดไปจับคู่เลขประจำตัวผู้เสียภาษีกับโทรศัพท์ ส่วนที่อยู่และผู้จ่ายเงินใช้เต็มแถว เพื่อไม่ให้เกิดช่องว่างหรือข้อมูลชนกันและยังคงอยู่ใน A4 portrait หน้าเดียว
 
 ## Implementation Gaps
 

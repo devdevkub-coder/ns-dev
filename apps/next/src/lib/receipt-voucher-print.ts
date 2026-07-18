@@ -326,7 +326,7 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
           <div class="panel-title">ผู้จ่ายเงิน / Company Payer</div>
           <div class="panel-body">
             <div class="two-col">
-              <div>
+              <div class="field-wide">
                 <div class="field-label">บริษัท</div>
                 <div class="field-value">${escapeHtml(companyName)}</div>
               </div>
@@ -334,15 +334,15 @@ function buildReceiptVoucherPrintHtml(row: ReceiptVoucherPrintDocument, profile:
                 <div class="field-label">เลขประจำตัวผู้เสียภาษี</div>
                 <div class="field-value">${escapeHtml(companyTaxId)}</div>
               </div>
-              <div class="field-wide">
-                <div class="field-label">ที่อยู่</div>
-                <div class="field-value">${escapeHtml(companyAddress)}</div>
-              </div>
               <div>
                 <div class="field-label">โทร</div>
                 <div class="field-value">${escapeHtml(companyPhone)}</div>
               </div>
-              <div>
+              <div class="field-wide">
+                <div class="field-label">ที่อยู่</div>
+                <div class="field-value">${escapeHtml(companyAddress)}</div>
+              </div>
+              <div class="field-wide">
                 <div class="field-label">ผู้จ่ายเงิน</div>
                 <div class="field-value">${escapeHtml(row.payerSignerName || row.createdBy || '')}</div>
               </div>
