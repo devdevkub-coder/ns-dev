@@ -1324,7 +1324,7 @@ export function WeightTicketFormCore({
   }
 
   return (
-    <div className={cn("min-w-0", isEmbeddedModal ? "flex h-full min-h-0 flex-col overflow-hidden bg-slate-50" : "overflow-x-hidden")}>
+    <div className={cn("weight-ticket-form-shell min-w-0", isEmbeddedModal ? "flex h-full min-h-0 flex-col overflow-hidden bg-slate-50" : "overflow-x-hidden")}>
       {isEmbeddedModal ? (
         <DialogHeader className="shrink-0 rounded-t-md bg-slate-900 px-5 py-4 text-white">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
