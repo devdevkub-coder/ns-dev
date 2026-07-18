@@ -86,6 +86,12 @@
 - หลังสร้าง/แก้ไข/ยกเลิก Sales Bill ไม่ invalidate reference cache เพราะ transaction facts ไม่ถูกเก็บใน reference cache; source options ที่เปลี่ยนตามธุรกรรมจะถูกโหลดใหม่เมื่อเปิด modal
 - What is what: reference payload เป็นชื่อ/รหัส master สำหรับ render selector ส่วน full options เป็น business facts ที่มี remaining/available/usage ซึ่งต้องอ่าน DB ปัจจุบัน
 - Why it has to be like this: การ cache WTO/PO Sell/advance/cost อาจทำให้ผู้ใช้เห็นยอดคงเหลือเก่าและส่ง transaction ที่ไม่ตรง source of truth; browser cache จึงจำกัดเฉพาะ master reference ที่ไม่ sensitive และไม่ใช้ persistent storage
+- `daily/weight-tickets` client reference checkpoint: WTI/WTO form ใช้ browser memory cache แบบ user-scoped TTL 5 นาทีสำหรับ `/api/daily/weight-tickets/options` และ `/api/daily/weight-tickets/products`; หน้า list ใช้ cache เดียวกันสำหรับ `/api/branches`
+- WTI/WTO product cache เก็บเฉพาะ product reference และ thumbnail URL metadata; ไม่เก็บ binary image, stock, warehouse availability หรือ pending_out
+- `/api/daily/weight-tickets/stock-options`, `/api/daily/weight-tickets`, detail, save และ attachment upload ยังคง `no-store`/อ่าน source ปัจจุบัน เพราะเป็น stock, transaction หรือ private document fact
+- WTI/WTO attachment URL ยังใช้ versioned storage key และโหลด original เฉพาะ preview; thumbnail/original split และ signed URL สำหรับ bucket private ยังเป็นงาน image-delivery แยก ไม่รวมใน reference cache
+- What is what: options/products เป็น master reference สำหรับ selector ส่วน stock-options เป็นยอดคงเหลือจริงของ WTO และรูปแนบเป็นหลักฐานเอกสาร
+- Why it has to be like this: การ reuse master reference ลด request ตอนเปิดฟอร์มซ้ำ แต่การ reuse stock/เอกสาร/รูปหลักฐานอาจทำให้แสดงหรือบันทึกข้อมูลเก่าข้าม scope
 - targeted validation ของ batch `sales/bills` ปิดได้บางส่วน:
   - `git diff --check` ของไฟล์ batch นี้ผ่าน
   - แต่ `sales/bills/route.ts` ยังมี TypeScript debt เดิมจำนวนมากทั้งไฟล์ จึงยังปิด targeted typecheck ของ route นี้ไม่ได้ใน batch cache รอบนี้

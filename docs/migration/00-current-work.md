@@ -103,6 +103,13 @@ Advance payment modal checkpoint on 2026-07-15: Supplier `ADV` create/edit and C
 - WTO, PO Sell, Trading cost, customer advance, VAT effective rate, usage and remaining balances load fresh from `/api/sales/bills/options` when create/edit opens; no persistent browser cache.
 - Validation: workspace type-check and lint passed; lint retains one unrelated warning in `scripts/qa-thai-font.tsx`.
 
+## Latest Completed Batch: CACHE-P3 Weight Ticket Reference Boundary
+
+- WTI/WTO form now deduplicates and caches branch/customer/supplier/impurity/product/thumbnail references in tab memory for 5 minutes, scoped by authenticated user.
+- Weight-ticket list branch filter uses the same client reference cache.
+- Stock options, WTI/WTO list/detail, transaction writes and attachment uploads remain fresh/no-store; no binary image is stored in browser cache or Redis.
+- Validation: workspace type-check and lint passed; lint retains one unrelated warning in `scripts/qa-thai-font.tsx`.
+
 Product option/search มี contract แยกชัดเจน:
 
 1. `ProductReferenceRecord` มีเฉพาะ `id`, `code`, `name`, `unit`, `type`, `metalGroup`, `active`
