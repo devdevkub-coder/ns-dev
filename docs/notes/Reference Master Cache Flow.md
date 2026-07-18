@@ -8,6 +8,12 @@
 
 ลดการ query ซ้ำของ master data ที่เป็น option/reference ข้ามหลาย API และหลายหน้า โดยยังให้ฐานข้อมูลเป็น source of truth เสมอ พร้อมลดการแตะ Redis/DB ซ้ำใน request หรือ process เดียวกัน
 
+## Dashboard API Separation Checkpoint 2026-07-18
+
+`owner-daily`, `daily-report`, `dashboard` และ `analytics-dashboard` แยก route/service และ response contract แล้ว. Report payload ใช้ `private, no-store`; ไม่เก็บยอดเงิน, stock, permission, transaction status หรือ report fact ใน browser/Redis reference cache. เฉพาะ branch/customer/supplier/product reference ที่ผ่าน shared cache contract เท่านั้นที่ reuse ได้ และทุก key ต้องคง scope/permission dimension เดิม.
+
+What is what: report service อ่าน business facts สดจากฐานข้อมูล ส่วน reference cache เก็บเฉพาะ label/code สำหรับ selector และ filter. Why it has to be like this: การนำ report fact ไป cache จะทำให้หน้าเห็นยอด stale และทำให้ scope ของผู้ใช้/สาขาปะปนกัน.
+
 ## Scope
 
 ### Batch 1

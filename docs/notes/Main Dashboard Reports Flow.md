@@ -6,7 +6,7 @@ tags:
   - read-model
   - flow
 status: accepted-baseline
-updated: 2026-07-06
+updated: 2026-07-18
 ---
 
 # Main Dashboard Reports Flow
@@ -19,9 +19,10 @@ updated: 2026-07-06
 
 | Route | Page | Current API | Permission | Source of truth |
 |---|---|---|---|---|
-| `/dashboard-overview` | Dashboard Overview | `GET /api/dashboard` | `reports.reports.view` | purchase bills, sales bills, expenses, payments, receipts, stock ledger, bank statement, production metrics, finance dashboard |
-| `/owner-daily` | Owner Daily Control | `GET /api/owner-daily` re-export dashboard handler | `reports.reports.view` | same payload as dashboard, using `ownerDaily` section |
-| `/daily-report` | Daily Report | `GET /api/daily-report` re-export dashboard handler | `reports.reports.view` | same payload as dashboard, using `dailyReport` section |
+| `/dashboard-overview` | Dashboard Overview | `GET /api/dashboard` | `reports.reports.view` | dashboard summary plus dashboard-used analytics, finance, stock, historical sources |
+| `/owner-daily` | Owner Daily Control | `GET /api/owner-daily` | `reports.reports.view` | daily cash, AR/AP due, expense, loan, pending, FG and WIP sources only |
+| `/daily-report` | Daily Report | `GET /api/daily-report` | `reports.reports.view` | range PB/SB/expense/cash and required line/reference sources only |
+| `/analytics-dashboard` | Analytics Dashboard | `GET /api/analytics-dashboard` | `reports.reports.view` | range trend, group, ranking and top entity sources only |
 | `/profit-cost-analysis` | Profit & Cost Analysis | `GET /api/profit-cost-analysis` | `reports.reports.view` | PB/SB items, stock ledger, branch/supplier/customer/channel/product masters |
 | `/sales-commission` | Sales Tracking Dashboard | `GET /api/sales-commission` | `reports.reports.view` | salesperson/supplier/sales control read model |
 | `/cash-flow-calendar` | Cash Flow Calendar | `GET /api/cash-flow-calendar` | `reports.reports.view` | accounts + bank statement by month |
@@ -40,15 +41,18 @@ updated: 2026-07-06
 - หน้า anomaly สามารถแนะนำ action/link ได้ แต่ไม่มี auto-fix/write action
 - รายเดือน/รายปีต้อง roll up จาก daily snapshot/facts ที่ตรวจแล้ว: movement metric ใช้ผลรวมรายวัน ส่วน balance metric ใช้ ending balance ณ วันสุดท้ายของช่วง
 - `/dashboard-overview` ต้องให้ผู้ใช้เห็น global filter scope ก่อน overview เสมอ: desktop ใช้ white/neutral filter card, mobile ใช้ compact strip + `MobileFilterSheet` เพื่อไม่ให้ filter stack ดัน KPI ลงล่าง และรายละเอียดที่เป็น table-heavy ต้องเปิดทีละบริบทผ่าน detail tabs แทนการกองหลายตารางยาวลงหน้าเดียว
-- `/api/dashboard` ต้องเคารพ low-pool Supabase runtime (`DATABASE_POOL_MAX=1` ได้) ห้ามกลับไปใช้ `Promise.all` ก้อนใหญ่กับ Prisma read หลายสิบคำสั่งพร้อมกัน เพราะจะทำให้ pg pool acquisition timeout และหน้า Dashboard ได้ 500 แม้สูตรรายงานถูกต้อง
+- `/api/dashboard` ต้องเคารพ low-pool Supabase runtime (`DATABASE_POOL_MAX=1` ได้): อ่านหลายชุดผ่าน bounded concurrency ไม่เกิน 4 งานพร้อมกัน ห้ามใช้ `Promise.all` ก้อนใหญ่กับ Prisma read หลายสิบคำสั่ง เพราะจะทำให้ pg pool acquisition timeout และหน้า Dashboard ได้ 500 แม้สูตรรายงานถูกต้อง
+- report API ต้องแยก payload ตาม consumer และตอบ `Cache-Control: private, no-store`; reference options เท่านั้นที่ใช้ shared reference cache ได้
+- `/api/owner-daily`, `/api/daily-report` และ `/api/analytics-dashboard` ห้ามเรียก dashboard finance/stock/historical service ที่หน้าไม่ได้ใช้
 
 ## Current Query Patterns
 
 | API | Query params currently used |
 |---|---|
 | `/api/dashboard` | `date`, `from`, `to`, `branchId`, `supplierId`, `customerId`, `productId`, `group` |
-| `/api/owner-daily` | same as dashboard handler |
-| `/api/daily-report` | same as dashboard handler |
+| `/api/owner-daily` | `date`, optional `from`, `to`, `branchId` |
+| `/api/daily-report` | `date`, `from`, `to`, `branchId`, `supplierId`, `customerId`, `productId`, `group` |
+| `/api/analytics-dashboard` | `date`, `from`, `to`, `branchId`, `supplierId`, `customerId` |
 | `/api/profit-cost-analysis` | `from`, `to`, `branchId`, `supplierId`, `customerId`, `salesChannelId`, repeated/comma `metalGroup` |
 | `/api/cash-flow-calendar` | `month=YYYY-MM` |
 | `/api/business-calendar` | `month=YYYY-MM` |
