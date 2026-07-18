@@ -127,9 +127,9 @@ Validation completed:
 
 สถานะปัจจุบัน: shared readers และ invalidation ของชุดหลักถูกเพิ่มแล้ว; direct reads ที่เหลือถูกแยกเป็น CRUD, import/export, write-time validation, historical inactive label, tax effective-date lookup หรือ transaction/business fact จึงยังคงอ่าน DB ตรงตาม contract.
 
-M5 checkpoint 2026-07-18: เพิ่ม server/client cache duration telemetry และ audit script `apps/next/scripts/audit-product-image-assets.mjs`. Dev/SIT/UAT ตรวจพบสินค้า 236 รายการ: 62 รายการมี original+thumbnail ครบ 124 objects, 174 รายการไม่มีรูปโดยตั้งใจ, และไม่มี missing/orphan asset. Migrations `20260718140000_clear_legacy_product_image_names.sql` และ `20260718143000_drop_legacy_product_image_names.sql` ล้างข้อมูลและ drop legacy column ในทั้งสาม environment หลัง Prisma/schema consumer audit ผ่าน.
+M5 checkpoint 2026-07-18: เพิ่ม server/client cache duration telemetry และ audit script `apps/next/scripts/audit-product-image-assets.mjs`. Dev/SIT/UAT ตรวจพบสินค้า 236 รายการ: 62 รายการมี original+thumbnail ครบ 124 objects, 174 รายการไม่มีรูปโดยตั้งใจ, และไม่มี missing/orphan asset. Migrations `20260718140000_clear_legacy_product_image_names.sql` และ `20260718143000_drop_legacy_product_image_names.sql` ล้างข้อมูลและ drop legacy column ในทั้งสาม environment หลัง Prisma/schema consumer audit ผ่าน. เพิ่ม `image_delivery` telemetry สำหรับ WTI/WTO attachment load/error โดยไม่ส่ง URL/เลขเอกสาร/scope และถอด placeholder รูป hardcode จาก LINE notification แล้ว.
 
-Validation checkpoint 2026-07-18: targeted cache tests ผ่าน `37/37`; full workspace type-check/lint/build baseline ก่อน M5 ยังผ่านตาม checkpoint เดิม. หลัง M5 ยังต้องรัน type-check/lint/build และเก็บ runtime logs จาก SIT/UAT; ยังไม่ได้ทำ browser/DOM UAT.
+Validation checkpoint 2026-07-18: targeted cache tests ผ่าน `37/37`; หลัง M5 lint และ workspace type-check ผ่าน. ยังต้องเก็บ runtime logs/telemetry จาก SIT/UAT และทำ browser/DOM UAT เมื่อผู้ใช้สั่ง.
 
 ### Explicitly Out Of Scope
 
@@ -148,11 +148,11 @@ git diff --check -- <batch-files>
 ## Immediate Next Steps
 
 1. เก็บ `CACHE-M5-A` runtime evidence จาก SIT/UAT โดยอ่าน structured logs และตรวจ scope/invalidation.
-2. ปิด privacy/bucket policy audit และเก็บ metrics ของ image delivery แยกจาก Redis.
-3. วัด image request/bytes/latency/broken-image แยกจาก Redis metrics แล้วอัปเดต flow note.
-4. รัน validation ของ M5 แล้วค่อยสรุป deploy/push; ยังไม่เปิด persistent browser cache.
+2. ตั้งค่า/ตรวจการรับ `image_delivery` telemetry จาก deployment และวัด request/bytes/latency/broken-image.
+3. ออกแบบ signed URL สำหรับ WTI/WTO attachments ก่อนเปลี่ยน bucket จาก public เป็น private; ต้องทดสอบ LINE URL lifecycle แยก.
+4. อัปเดต TTL/key decision จากหลักฐานจริง; ยังไม่เปิด persistent browser cache.
 
 ## Working Tree Boundary
 
-- current uncommitted work is the cache policy/task documentation for CACHE-M5; do not commit, push, or promote without an explicit user request.
+- current uncommitted work is the CACHE-M5 image telemetry and task documentation; push/promote only after validation and explicit user request.
 - current branch: `dev` against `new-origin/dev`; follow `docs/agent-rules/git-communication.md` before any mutation.

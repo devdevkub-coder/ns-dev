@@ -751,4 +751,11 @@ Cache ถูกทำเป็น shared infrastructure สำหรับหล
 3. ตรวจ product/account/beneficiary/remittance-purpose consumers ที่เหลือ โดยไม่รวมข้อมูลราคา ต้นทุน stock ยอดเงิน หรือ transaction fact.
 4. ตรวจ runtime hit/miss, Redis latency/error และ invalidation หลัง deploy; retire key ที่ไม่มี consumer หรือไม่มีประโยชน์.
 
+### CACHE-M5 Image Delivery Checkpoint (2026-07-18)
+
+- WTI/WTO attachment load/error now emits `image_delivery` telemetry with only `assetFamily`, outcome, duration, and browser resource byte metrics. It never sends the URL, document number, filename, user id, or branch scope.
+- The LINE notification path no longer substitutes a hardcoded placeholder image when upload/configuration fails; the attachment is omitted instead of presenting unrelated imagery.
+- Product/impurity product images remain public versioned assets with original/thumbnail separation. WTI/WTO attachments remain on the existing public bucket because LINE requires externally reachable URLs. Changing that bucket to private is a separate signed-URL migration and must cover ERP preview URLs, existing stored references, and LINE delivery expiry before implementation.
+- Runtime image metrics and cache telemetry still require deployed SIT/UAT traffic. No TTL or browser-cache expansion should be decided from local tests alone.
+
 ระบบถือว่าครบตามเป้าหมายเมื่อ reference consumers ที่เข้า contract ใช้ shared cache และ invalidate ครบ โดยไม่ cache runtime/business fact ทุกเมนู.

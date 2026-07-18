@@ -595,7 +595,7 @@ function buildFlexMessage(
       const asset = decodeStoredImageAsset(img)
       return {
         fileName: asset.fileName,
-        url: imagePublicUrls[idx] || asset.url || ''
+        url: imagePublicUrls[idx] || ''
       }
     })
     .filter(asset => asset.url && (asset.url.startsWith('http://') || asset.url.startsWith('https://')))
@@ -1061,12 +1061,10 @@ async function resolveImagePublicUrls(ticket: WeightTicketRecord, bucketName: st
     try {
       const imgData = imageFromDataUrl(asset.url)
       if (imgData) {
-        if (process.env.MOCK_PDF_UPLOAD === 'true') {
-          publicUrls.push('https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=400')
-        } else {
+        if (process.env.MOCK_PDF_UPLOAD !== 'true') {
           const supabase = getSupabaseAdminClient()
           if (!supabase) {
-            publicUrls.push('https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=400')
+            publicUrls.push('')
             continue
           }
           const storageKey = `${safeStorageSegment(ticket.documentNo)}/photos/${safeStorageSegment(asset.fileName)}`
@@ -1076,11 +1074,12 @@ async function resolveImagePublicUrls(ticket: WeightTicketRecord, bucketName: st
           })
           if (error) {
             console.error('Failed to upload ticket image to Supabase:', error.message)
-            publicUrls.push('https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=400')
           } else {
             const { data } = supabase.storage.from(bucketName).getPublicUrl(storageKey)
             publicUrls.push(data.publicUrl)
           }
+        } else {
+          publicUrls.push('')
         }
       } else {
         publicUrls.push('')

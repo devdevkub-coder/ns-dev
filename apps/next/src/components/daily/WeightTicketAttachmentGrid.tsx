@@ -1,13 +1,33 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { ImagePlus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { recordImageDelivery } from '@/lib/client-image-delivery-telemetry'
 
 export type WeightTicketAttachmentPreview = {
   fileName: string
   id: string
   rawValue: string
   url: string
+}
+
+function AttachmentImage({ file }: { file: WeightTicketAttachmentPreview }) {
+  const startedAt = useRef(0)
+  useEffect(() => {
+    startedAt.current = performance.now()
+  }, [])
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      alt={file.fileName}
+      className="h-full w-full object-cover"
+      src={file.url}
+      onError={() => recordImageDelivery({ outcome: 'error', startedAt: startedAt.current, url: file.url })}
+      onLoad={() => recordImageDelivery({ outcome: 'loaded', startedAt: startedAt.current, url: file.url })}
+    />
+  )
 }
 
 export function WeightTicketAttachmentGrid({
@@ -44,8 +64,7 @@ export function WeightTicketAttachmentGrid({
           >
             {file.url ? (
               <>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img alt={file.fileName} className="h-full w-full object-cover" src={file.url} />
+                <AttachmentImage file={file} />
                 <span className="absolute inset-x-0 bottom-0 bg-slate-950/70 px-2 py-1.5 text-center text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">
                   เปิดรูปภาพ
                 </span>
