@@ -327,7 +327,7 @@ export async function buildDualCostingManagement() {
           itemId: String(line.line_no),
           metalGroup: product?.metal_group ?? '-',
           productId: productCode,
-          productName: product ? `${product.code} - ${product.name}` : line.product_name_snapshot,
+          productName: product?.name ?? line.product_name_snapshot,
           qty,
           remainingQty,
           revenuePending: remainingQty * unitPrice,
@@ -368,7 +368,7 @@ export async function buildDualCostingManagement() {
         itemId: jsonString(item.id, item.lineId, `${index}`),
         metalGroup: product?.metal_group ?? '-',
         productId,
-        productName: product ? `${product.code} - ${product.name}` : itemProductName(item, productById),
+        productName: product?.name ?? itemProductName(item, productById),
         qty,
         remainingQty,
         revenuePending: remainingQty * unitPrice,
@@ -412,12 +412,12 @@ export async function buildDualCostingManagement() {
           }
 
           const product = productByCode.get(resolvedCode)
-          const name = jsonString(item.productName, item.displayName, item.name) || fallbackProduct?.name || '-'
+          const name = product?.name || jsonString(item.productName, item.displayName, item.name) || fallbackProduct?.name || '-'
 
           return {
             lineId: `${resolvedCode || 'line'}-${index}`,
             productId: resolvedCode,
-            productName: resolvedCode ? `${resolvedCode} - ${name}` : name,
+            productName: name,
             qty: jsonNumber(item.remainingQty ?? item.remaining_qty ?? item.qty),
             unitPrice: jsonNumber(item.unitPrice ?? po.unit_price),
             metalGroup: product?.metal_group ?? fallbackProduct?.metal_group ?? '',
@@ -427,7 +427,7 @@ export async function buildDualCostingManagement() {
       items = [{
         lineId: fallbackProduct?.code || 'header',
         productId: fallbackProduct?.code ?? '',
-        productName: fallbackProduct ? `${fallbackProduct.code} - ${fallbackProduct.name}` : '-',
+        productName: fallbackProduct?.name ?? '-',
         qty: jsonNumber(po.remaining_qty ?? po.qty),
         unitPrice: jsonNumber(po.unit_price),
         metalGroup: fallbackProduct?.metal_group ?? '',
@@ -498,7 +498,7 @@ export async function buildDualCostingManagement() {
       itemId: '0',
       metalGroup: product.metal_group ?? '-',
       productId: product.code,
-      productName: `${product.code} - ${product.name}`,
+      productName: product.name,
       qty,
       remainingQty,
       revenuePending: remainingQty * unitPrice,
@@ -549,7 +549,7 @@ export async function buildDualCostingManagement() {
       matchId,
       productCategory: product?.metal_group ?? '-',
       productId: product?.code ?? '',
-      productName: product ? `${product.code} - ${product.name}` : '-',
+      productName: product?.name ?? '-',
       saleDocNo,
       saleQty: qty,
       sourceNo,

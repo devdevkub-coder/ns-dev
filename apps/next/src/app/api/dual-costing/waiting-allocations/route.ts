@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const filterRow = (row: any) => {
       const matchStatus = !status || status === 'all' || row.allocationStatus === status
       const matchCategory = !category || category === 'all' || row.metalGroup === category
-      const matchSearch = !q || `${row.docNo} ${row.customerName} ${row.productName} ${row.metalGroup}`.toLowerCase().includes(q)
+      const matchSearch = !q || `${row.docNo} ${row.customerName} ${row.productId} ${row.productName} ${row.metalGroup}`.toLowerCase().includes(q)
       return matchStatus && matchCategory && matchSearch
     }
 

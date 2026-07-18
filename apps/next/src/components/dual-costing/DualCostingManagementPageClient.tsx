@@ -661,7 +661,7 @@ function AllocationLedgerView() {
     { key: 'targetType', label: 'ประเภท', defaultWidth: 88, minWidth: 78, align: 'right' },
     { key: 'saleDocNo', label: 'เอกสารขาย', defaultWidth: 130, minWidth: 120 },
     { key: 'productName', label: 'สินค้า', defaultWidth: 230, minWidth: 180 },
-    { key: 'productCategory', label: 'หมวด', defaultWidth: 110, minWidth: 95, align: 'right' },
+    { key: 'productCategory', label: 'หมวด', defaultWidth: 110, minWidth: 95 },
     { key: 'saleQty', label: 'จำนวนขาย', defaultWidth: 115, minWidth: 105, align: 'right' },
     { key: 'allocatedQty', label: 'จัดสรรแล้ว', defaultWidth: 115, minWidth: 105, align: 'right' },
     { key: 'costPoolNo', label: 'กลุ่มต้นทุน', defaultWidth: 145, minWidth: 130 },
@@ -886,12 +886,12 @@ function AllocationLedgerView() {
               <TableRow key={row.id} className={`hover:bg-indigo-50/30 ${row.status === 'reversed' ? 'opacity-50' : ''}`}>
                 <TableCell className="p-2 font-mono text-xs text-slate-700"><span className="block truncate" title={row.matchId}>{row.matchId}</span></TableCell>
                 <TableCell className="p-2 text-right"><TargetPill type={row.targetType} /></TableCell>
-                <TableCell className="p-2 font-mono text-xs text-slate-700"><span className="block truncate" title={row.saleDocNo}>{row.saleDocNo}</span></TableCell>
-                <TableCell className="p-2 text-sm text-slate-800"><span className="block truncate" title={row.productName}>{row.productName}</span></TableCell>
-                <TableCell className="p-2 text-right"><span className="whitespace-nowrap text-xs font-semibold text-slate-600">{row.productCategory}</span></TableCell>
+                <TableCell className="p-2 text-left font-mono text-xs text-slate-700"><span className="block truncate" title={row.saleDocNo}>{row.saleDocNo}</span></TableCell>
+                <TableCell className="p-2 text-left text-sm text-slate-800"><span className="block truncate" title={row.productName}>{row.productName}</span></TableCell>
+                <TableCell className="p-2 text-left"><span className="whitespace-nowrap text-xs font-semibold text-slate-600">{row.productCategory}</span></TableCell>
                 <TableCell className="p-2 text-right font-mono text-slate-700">{formatMoney(row.saleQty)}</TableCell>
                 <TableCell className="p-2 text-right font-mono font-medium text-blue-700">{formatMoney(row.allocatedQty)}</TableCell>
-                <TableCell className="p-2 font-mono text-xs text-slate-600"><span className="block truncate" title={row.costPoolNo}>{row.costPoolNo}</span></TableCell>
+                <TableCell className="p-2 text-left font-mono text-xs text-slate-600"><span className="block truncate" title={row.costPoolNo}>{row.costPoolNo}</span></TableCell>
                 <TableCell className="p-2 text-right font-mono text-slate-700">{formatMoney(row.costPerKg)}</TableCell>
                 <TableCell className="p-2 text-right font-mono text-red-700">{formatMoney(row.totalCost)}</TableCell>
                 <TableCell className="p-2 text-right font-mono text-emerald-700">{formatMoney(row.allocatedRevenue)}</TableCell>

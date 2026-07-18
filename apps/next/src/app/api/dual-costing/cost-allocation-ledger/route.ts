@@ -24,7 +24,7 @@ function filterLedgerRows(rows: LedgerExportRow[], filters: {
     .filter((row) => !status || status === 'all' || row.status === status)
     .filter((row) => !category || category === 'all' || row.productCategory === category)
     .filter((row) => !targetType || targetType === 'all' || row.targetType === targetType)
-    .filter((row) => !q || `${row.matchId} ${row.saleDocNo} ${row.sourceNo} ${row.productName}`.toLowerCase().includes(q))
+    .filter((row) => !q || `${row.matchId} ${row.saleDocNo} ${row.sourceNo} ${row.productId} ${row.productName}`.toLowerCase().includes(q))
 }
 
 async function buildWorkbook(rows: LedgerExportRow[]) {
