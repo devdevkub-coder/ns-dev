@@ -2020,7 +2020,7 @@ function Metric({
 function Field(props: { disabled?: boolean; label: string; onChange: (value: string) => void; type?: string; value: string }) {
   const isNumberField = props.type === 'number'
   return (
-    <label className="block text-xs font-semibold text-slate-600">
+    <label className="block text-xs font-semibold text-slate-600" data-manual-required={props.label.trim().endsWith('*') ? 'true' : undefined}>
       {props.label}
       {props.type === 'date' ? (
         <DatePickerInput className="mt-1 h-9 w-full font-normal" value={props.value} onChange={props.onChange} />

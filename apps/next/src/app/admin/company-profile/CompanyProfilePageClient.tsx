@@ -451,9 +451,9 @@ function TextField({
   value: string
 }) {
   return (
-    <label className={className}>
+    <label className={className} data-manual-required={label.trim().endsWith('*') ? 'true' : undefined}>
       <span className="mb-1 block text-xs font-bold text-slate-700">{label}</span>
-      <input className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-700 focus:outline-none focus:ring-0" inputMode={inputMode} placeholder={placeholder} type={type} value={value} onBlur={onBlur} onChange={(event) => onChange(event.target.value)} />
+      <input aria-invalid={Boolean(error)} className={`w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-700 focus:outline-none focus:ring-0 ${error ? 'border-red-400 bg-red-50' : ''}`} inputMode={inputMode} placeholder={placeholder} type={type} value={value} onBlur={onBlur} onChange={(event) => onChange(event.target.value)} />
       {error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}
     </label>
   )

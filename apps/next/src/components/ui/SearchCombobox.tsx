@@ -216,7 +216,7 @@ export function SearchCombobox({
   }
 
   return (
-    <div ref={containerRef} className="relative" data-error-key={errorKey}>
+    <div ref={containerRef} className="relative" data-error-key={errorKey} data-manual-required={hasInlineRequired ? 'true' : undefined}>
       {!hideLabel ? <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor={inputId}>{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}</label> : null}
       <Input
         ref={inputRef}

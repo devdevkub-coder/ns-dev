@@ -1295,7 +1295,7 @@ function Field({ children, error, label }: { children: React.ReactNode; error?: 
   const hasInlineRequired = label.trim().endsWith('*')
   const labelText = hasInlineRequired ? label.trim().slice(0, -1).trimEnd() : label
   return (
-    <div>
+    <div data-field-invalid={error ? 'true' : undefined} data-manual-required={hasInlineRequired ? 'true' : undefined}>
       <div className="mb-1 text-xs font-medium text-slate-600">{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}</div>
       {children}
       {error ? <div className="mt-1 text-xs text-red-600">{error}</div> : null}

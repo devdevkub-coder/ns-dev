@@ -365,5 +365,5 @@ function getIntlTransferSortValue(row: Row, key: IntlTransferColumnKey): string 
 }
 
 function Field({ children, label }: { children: React.ReactNode; label: string }) {
-  return <label className="block"><span className="mb-1 block text-xs">{label}</span>{children}</label>
+  return <label className="block" data-manual-required={label.trim().endsWith('*') ? 'true' : undefined}><span className="mb-1 block text-xs">{label}</span>{children}</label>
 }

@@ -45,6 +45,7 @@
   --ns-sort-active: #1677ff;
   --ns-field-focus: #3b82f6;
   --ns-field-focus-ring: rgb(59 130 246 / 0.25);
+  --ns-manual-required-bg: #fff7cc;
 }
 
 .dark {
@@ -54,6 +55,7 @@
   --ns-sort-active: #69b1ff;
   --ns-field-focus: #3b82f6;
   --ns-field-focus-ring: rgb(59 130 246 / 0.35);
+  --ns-manual-required-bg: rgb(234 179 8 / 0.18);
   
   /* Redefine Tailwind's base theme variables */
   --color-white: #1e293b;
@@ -875,6 +877,14 @@ aside a:visited {
 .dark :where([role="combobox"], [data-slot="input-group"]):focus-within {
   border-color: var(--ns-field-focus) !important;
   box-shadow: 0 0 0 3px var(--ns-field-focus-ring) !important;
+}
+
+/* Office/ERP data-entry convention: required manual-entry fields stay pale yellow even after they are filled. */
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea):required:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]),
+:where([role="combobox"][aria-required="true"]):not(:disabled):not([aria-invalid="true"]):not([data-auto-filled="true"]),
+:where([data-slot="input-group"]):has(input:required:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"])),
+:where([data-manual-required="true"]):not([data-field-invalid="true"]) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea, [role="combobox"], [data-slot="input-group"]):not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]):not(:has([aria-invalid="true"])) {
+  background-color: var(--ns-manual-required-bg) !important;
 }
 
 .dark input::placeholder,

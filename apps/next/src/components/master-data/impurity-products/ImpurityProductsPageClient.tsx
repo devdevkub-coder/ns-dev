@@ -913,7 +913,7 @@ function SelectField({ children, error, label, value, onChange }: SelectFieldPro
   const labelText = hasInlineRequired ? label.trim().slice(0, -1).trimEnd() : label
 
   return (
-    <label className="block">
+    <label className="block" data-manual-required={hasInlineRequired ? 'true' : undefined}>
       <span className="mb-1.5 block text-xs font-semibold text-slate-600">
         {labelText}{hasInlineRequired ? <span className="ml-0.5 text-red-500">*</span> : null}
       </span>
@@ -947,7 +947,7 @@ function TextField({ className = '', error, label, list, readOnly = false, type 
   const isNumberField = type === 'number'
 
   return (
-    <label className={`block ${className}`}>
+    <label className={`block ${className}`} data-manual-required={hasInlineRequired && !readOnly ? 'true' : undefined}>
       <span className="mb-1.5 block text-xs font-semibold text-slate-600">
         {labelText}{hasInlineRequired ? <span className="ml-0.5 text-red-500">*</span> : null}
       </span>

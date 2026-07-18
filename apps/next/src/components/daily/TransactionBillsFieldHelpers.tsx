@@ -38,8 +38,9 @@ function renderFieldLabel(label: string) {
 }
 
 export function Field({ children, className, error, label }: { children: ReactNode; className?: string; error?: string; label: string }) {
+  const hasInlineRequired = label.trim().endsWith('*')
   return (
-    <label className={className}>
+    <label className={className} data-field-invalid={error ? 'true' : undefined} data-manual-required={hasInlineRequired ? 'true' : undefined}>
       <span className="mb-1 block text-xs font-bold text-slate-700">{renderFieldLabel(label)}</span>
       {children}
       {error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}
@@ -74,7 +75,7 @@ export function InputField({
     <Field className={className} error={error} label={label}>
       {type === 'date' ? (
         <div data-error-key={errorKey}>
-          <DatePickerInput className={cn('w-full', error ? '[&_input]:border-red-400 [&_input]:bg-red-50 [&_input]:text-red-700 [&_[data-slot=\"input-group\"]]:border-red-400' : '', inputClassName)} required={required} value={value} onChange={onChange} />
+          <DatePickerInput ariaInvalid={Boolean(error)} className={cn('w-full', error ? '[&_input]:border-red-400 [&_input]:bg-red-50 [&_input]:text-red-700 [&_[data-slot=\"input-group\"]]:border-red-400' : '', inputClassName)} required={required} value={value} onChange={onChange} />
         </div>
       ) : (
         <Input data-error-key={errorKey} className={cn(error ? 'border-red-400 bg-red-50 text-red-700' : '', inputClassName)} placeholder={placeholder} required={required} type={type} value={value} onChange={(event) => onChange(event.target.value)} />

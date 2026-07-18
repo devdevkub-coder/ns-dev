@@ -917,8 +917,9 @@ function RowActionButton(props: { destructive?: boolean; disabled?: boolean; lab
 }
 
 function FormField(props: { children: React.ReactNode; className?: string; error?: string; errorKey?: string; label: string; hideLabel?: boolean }) {
+  const hasInlineRequired = props.label.trim().endsWith('*')
   return (
-    <label className={props.className}>
+    <label className={props.className} data-field-invalid={props.error ? 'true' : undefined} data-manual-required={hasInlineRequired ? 'true' : undefined}>
       {!props.hideLabel ? <span className="mb-1 block text-xs font-medium text-slate-600">{props.label}</span> : null}
       {props.errorKey ? <div data-error-key={props.errorKey}>{props.children}</div> : props.children}
       {props.error ? <span className="mt-1 block text-xs text-red-700">{props.error}</span> : null}

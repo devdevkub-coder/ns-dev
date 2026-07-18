@@ -48,7 +48,7 @@ export function BranchSelectCombobox({
   const controlHeight = controlSize === 'filter' ? 'h-9' : 'h-10'
 
   return (
-    <div className={`${className ?? ''} ${widthClassName ?? ''}`.trim() || undefined} data-error-key={errorKey}>
+    <div className={`${className ?? ''} ${widthClassName ?? ''}`.trim() || undefined} data-error-key={errorKey} data-manual-required={hasInlineRequired ? 'true' : undefined}>
       {safeLabel ? <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor={inputId}>{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}</label> : null}
       <div className="relative">
         <Combobox
@@ -72,6 +72,7 @@ export function BranchSelectCombobox({
             inputGroupClassName={error ? `${controlHeight} rounded-md border-red-400 ring-red-100 has-[[data-slot=input-group-control]:focus-visible]:border-red-500 has-[[data-slot=input-group-control]:focus-visible]:ring-red-500/20` : `${controlHeight} rounded-md border-slate-300`}
             placeholder={placeholder}
             readOnly
+            required={hasInlineRequired}
             withDropdownButton
           />
           <ComboboxContent>
