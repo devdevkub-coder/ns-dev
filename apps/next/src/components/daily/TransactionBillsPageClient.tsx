@@ -2464,14 +2464,22 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       ...current,
       items: current.items.map((item, itemIndex) => {
         if (itemIndex !== index) return item
+        const sourceSummaryId = item.deliverySummaryId ?? item.deliveryLineId ?? null
+        const sourceSummary = sourceSummaryId ? deliverySummaryById.get(sourceSummaryId) ?? null : null
+        const keepsDeliverySource = Boolean(sourceSummary && sourceSummary.productId === productId)
         const selectedPoSell = item.poSellId ? poSellOptionForProduct(item.poSellId, productId) : null
         const selectedTradingCostSource = item.tradingCostSourceId ? tradingCostSourceOptionForProduct(item.tradingCostSourceId, productId) : null
         return {
           ...item,
+          deliveryLineId: keepsDeliverySource ? item.deliveryLineId : null,
+          deliverySummaryId: keepsDeliverySource ? item.deliverySummaryId : null,
+          deliveryTicketDocNo: keepsDeliverySource ? item.deliveryTicketDocNo : null,
+          deliveryTicketId: keepsDeliverySource ? item.deliveryTicketId : null,
+          grossWeight: keepsDeliverySource ? item.grossWeight : item.netWeight,
           poSellId: selectedPoSell ? item.poSellId : null,
           price: selectedPoSell ? selectedPoSell.unitPrice ?? item.price : item.poSellId ? 0 : item.price,
           productId,
-          tradingCostSourceId: selectedTradingCostSource ? item.tradingCostSourceId : item.deliveryTicketId ? item.tradingCostSourceId : null,
+          tradingCostSourceId: selectedTradingCostSource ? item.tradingCostSourceId : null,
         }
       }),
     }))
@@ -4132,30 +4140,43 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                              : null
 	                            const selectedPoSellDetail = hasSelectedPoSell ? poSellDetailText(selectedPoSell, index) : null
 	                            const poSellVariance = hasSelectedPoSell ? poSellVarianceForRow(item.poSellId, index) : null
+	                            const manualCostSnapshot = !item.deliveryTicketId && item.salesBillLineNo != null
+	                              ? salesDetailBill?.items.find((detailItem) => detailItem.lineNo === item.salesBillLineNo)?.unitCostSnapshot ?? null
+	                              : null
+	                            const visibleCost = sourceSummary?.unitCostSnapshot ?? manualCostSnapshot
 	                            const rowKey = `${item.deliverySummaryId ?? item.deliveryLineId ?? item.productId}-${index}`
 	                            return (
 	                              <Fragment key={rowKey}>
 	                              <tr className={`${isFirstRowOfSummary ? 'border-t border-slate-200' : ''} align-top hover:bg-slate-50`}>
 	                                <td className="p-2" colSpan={isFirstRowOfSummary ? undefined : 2}>
-	                                  {isFirstRowOfSummary ? (
-	                                    <>
-	                                      <div className="font-medium text-slate-900">{sourceSummary?.productName ?? productName}</div>
-	                                      <div className="mt-1 text-xs text-slate-500">{sourceSummary?.productId ?? item.productId}</div>
-	                                      {sourceSummary ? <div className="mt-1 text-xs text-slate-500">รวม {sourceSummary.lineCount} เต๋า</div> : null}
-	                                    </>
-	                                  ) : (
-                                      <div className="min-w-[360px]">
-                                        <ProductSearchCombobox
-                                          error={salesFieldErrors[`items.${index}.productId`]}
-                                          errorKey={`items.${index}.productId`}
-                                          hideLabel
-                                          inputId={`sales-bill-split-product-search-${index}`}
-                                          options={activeProducts}
-                                          value={item.productId}
-                                          onChange={(value) => updateSalesSplitProduct(index, value)}
-                                        />
+                                  {summaryId == null ? (
+                                    <div className="min-w-[360px]">
+                                      <ProductSearchCombobox
+                                        error={salesFieldErrors[`items.${index}.productId`]}
+                                        errorKey={`items.${index}.productId`}
+                                        hideLabel
+                                        inputId={`sales-bill-stock-product-search-${index}`}
+                                        options={activeProducts}
+                                        value={item.productId}
+                                        onChange={(value) => updateSalesSplitProduct(index, value)}
+                                      />
+                                    </div>
+                                  ) : isFirstRowOfSummary ? (
+                                    <>
+                                      <div className="font-medium text-slate-900">{sourceSummary?.productName ?? productName}</div>
+                                      <div className="mt-1 text-xs text-slate-500">{sourceSummary?.productId ?? item.productId}</div>
+                                      {sourceSummary ? <div className="mt-1 text-xs text-slate-500">รวม {sourceSummary.lineCount} เต๋า</div> : null}
+                                    </>
+                                  ) : (
+                                    <div className="min-w-[360px]">
+                                      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                                        {sourceSummary?.productName ?? productName}
                                       </div>
-                                    )}
+                                      <div className="mt-1 text-xs text-slate-500">
+                                        split WTO ใช้สินค้าเดิมตามใบส่งของ
+                                      </div>
+                                    </div>
+                                  )}
 	                                </td>
 	                                {isFirstRowOfSummary ? (
 	                                  <td className="p-2 text-right tabular-nums text-slate-900">
@@ -4201,7 +4222,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                 </td>
                                 <td className="p-2">
                                   <div className="flex h-10 items-center justify-end rounded-md border border-slate-200 bg-slate-50 px-2 text-right font-semibold tabular-nums text-slate-700">
-                                    {sourceSummary?.unitCostSnapshot == null ? '-' : formatMoney(sourceSummary.unitCostSnapshot)}
+                                    {visibleCost == null ? '-' : formatMoney(visibleCost)}
                                   </div>
                                 </td>
                                 <td className="p-2">
