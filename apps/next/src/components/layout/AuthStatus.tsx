@@ -35,6 +35,7 @@ export function AuthStatus({ compact = false, onMenuOpenChange, profile: profile
   const [profile, setProfile] = useState<AuthStatusProfile>({ roles: [], userEmail: '' })
   const [isLoading, setIsLoading] = useState(true)
   const [isMobileViewport, setIsMobileViewport] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const supabase = getSupabaseClient()
 
   useEffect(() => {
@@ -113,6 +114,12 @@ export function AuthStatus({ compact = false, onMenuOpenChange, profile: profile
 
   const isSidebar = variant === 'sidebar'
 
+  function toggleMobileMenu() {
+    const nextOpen = !isMobileMenuOpen
+    setIsMobileMenuOpen(nextOpen)
+    onMenuOpenChange?.(nextOpen)
+  }
+
   if (isLoading) {
     return (
       <span className={isSidebar ? 'block truncate rounded-md px-3 py-2 text-xs text-slate-400' : 'rounded-md px-3 py-1.5 text-sm text-slate-400'}>
@@ -132,6 +139,54 @@ export function AuthStatus({ compact = false, onMenuOpenChange, profile: profile
         <UserRound className="size-4 shrink-0" />
         <span className={compact && isSidebar ? 'lg:hidden' : ''}>Login</span>
       </Link>
+    )
+  }
+
+  if (isSidebar && isMobileViewport) {
+    return (
+      <div className="w-full">
+        {isMobileMenuOpen ? (
+          <div className="mb-2 overflow-hidden rounded-md border border-slate-700 bg-slate-800 shadow-sm">
+            <Link
+              className="flex h-11 items-center gap-2 px-3 text-sm text-slate-100 hover:bg-slate-700 focus:bg-slate-700 focus:outline-none"
+              href="/profile"
+              onClick={() => {
+                setIsMobileMenuOpen(false)
+                onMenuOpenChange?.(false)
+              }}
+            >
+              <UserRound className="size-4 text-slate-300" />
+              <span>ตั้งค่าโปรไฟล์ & บัญชี</span>
+            </Link>
+            <div className="h-px bg-slate-700" />
+            <button
+              className="flex h-11 w-full items-center gap-2 px-3 text-left text-sm text-slate-100 hover:bg-slate-700 focus:bg-slate-700 focus:outline-none"
+              type="button"
+              onClick={logout}
+            >
+              <LogOut className="size-4 text-slate-300" />
+              <span>ออกจากระบบ</span>
+            </button>
+          </div>
+        ) : null}
+        <Button
+          aria-expanded={isMobileMenuOpen}
+          className="h-auto min-h-11 w-full justify-start gap-3 rounded-md px-3 py-2 text-left text-slate-300 hover:bg-slate-800 hover:text-white"
+          size="sm"
+          type="button"
+          variant="ghost"
+          onClick={toggleMobileMenu}
+        >
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-slate-800 text-slate-100">
+            <UserRound className="size-4 shrink-0" />
+          </span>
+          <span className="min-w-0 flex-1 text-left">
+            <span className="block truncate text-sm font-medium text-slate-100">{userEmail}</span>
+            <span className="block truncate text-xs text-slate-400">{roleNames || 'ยังไม่กำหนด role'}</span>
+          </span>
+          <ChevronDown className={`size-4 shrink-0 text-slate-400 transition-transform ${isMobileMenuOpen ? 'rotate-180' : ''}`} />
+        </Button>
+      </div>
     )
   }
 
@@ -172,8 +227,8 @@ export function AuthStatus({ compact = false, onMenuOpenChange, profile: profile
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator className="my-1 bg-slate-700" />
-        <DropdownMenuItem className="h-9 cursor-pointer text-red-300 focus:bg-red-950/45 focus:text-red-100" onClick={logout}>
-          <LogOut className="mr-2 size-4 text-red-300" />
+        <DropdownMenuItem className="h-9 cursor-pointer text-slate-100 focus:bg-slate-800 focus:text-white" onClick={logout}>
+          <LogOut className="mr-2 size-4 text-slate-300" />
           <span>ออกจากระบบ</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
