@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-24
+updated: 2026-07-19
 route: /purchase/po-buy
 ---
 
@@ -65,6 +65,7 @@ POB เป็น commitment/reservation ฝั่งซื้อ ไม่สร
 
 - UI ใช้ outward business document/code เป็นหลัก และให้ server resolve internal id
 - list/detail/print/export ต้องอ่าน source contract เดียวกันเพื่อลด drift
+- คอลัมน์ `รายการสินค้า` ใน list แสดงเฉพาะชื่อสินค้า ทั้งข้อความที่เห็นและ tooltip พร้อมคงข้อความจำนวนรายการที่ซ่อนไว้; `จำนวนรวม` และ `รอรับรวม` แสดงในคอลัมน์แยกเพื่อไม่ให้ข้อมูลซ้ำและสแกนชื่อสินค้าได้เร็ว ส่วน detail/print/export ยังคงจำนวนและหน่วยจริงตาม document contract
 - modal PO Buy ต้องบังคับเลือก `สาขา` ก่อน `ผู้ขาย`; Supplier selector ต้อง disabled จนกว่าจะเลือกสาขา
 - supplier options ต้องกรองตามสาขาเอกสารจาก active `supplier_branches`; ถ้าเปลี่ยนสาขาแล้วผู้ขายที่เลือกอยู่ไม่ผูกกับสาขาใหม่ ต้อง clear supplier และให้ผู้ใช้เลือกใหม่
 - VAT payload ใช้ `hasVat`, `vatType`, `vatRatePercent`, `vatAmount`, `subtotal`, `totalAmount`; `PB` ยังเป็น source สำหรับ AP/VAT จริง

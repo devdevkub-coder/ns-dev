@@ -1218,13 +1218,8 @@ function PoBuyNoteIndicator({ note, poNo }: { note: string; poNo: string }) {
 const poBuyVisibleItemLimit = 2
 const poBuyHiddenItemExactLimit = 10
 
-function poBuyItemSummaryText(item: PoBuyItem) {
-  const productName = item.productName || '-'
-  const unit = item.unit?.trim() || ''
-  const quantity = Number.isFinite(item.qty) && item.qty > 0
-    ? ` (${formatMoney(item.qty)}${unit ? ` ${unit}` : ''})`
-    : ''
-  return `${productName}${quantity}`
+export function poBuyItemSummaryText(item: PoBuyItem) {
+  return item.productName || '-'
 }
 
 function poBuyHiddenItemText(hiddenCount: number) {
