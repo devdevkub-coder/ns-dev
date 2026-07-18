@@ -264,10 +264,16 @@ export async function POST(request: Request) {
       })
       const warehouseByCode = await resolveWeightTicketWarehousesForWrite(tx, { branchId: branch.id, lines: values.lines, type: values.type })
       const lineRows = buildWeightTicketLineRows(createdTicket.id, values, productByCode, impurityById, warehouseByCode)
-      const createdLines = await Promise.all(lineRows.map((data) => tx.weight_ticket_lines.create({ data })))
+      const createdLines = [] as Array<Awaited<ReturnType<typeof tx.weight_ticket_lines.create>>>
+      for (const data of lineRows) {
+        createdLines.push(await tx.weight_ticket_lines.create({ data }))
+      }
       const imageCount = values.vehicleImageNames.length + createdLines.reduce((sum, line) => sum + (line.image_count ?? 0), 0)
       const { summaryRows } = buildWeightTicketProductSummaryRows(createdTicket.id, createdLines)
-      const createdSummaries = await Promise.all(summaryRows.map(({ lineIds, ...data }) => tx.weight_ticket_product_summaries.create({ data })))
+      const createdSummaries = [] as Array<Awaited<ReturnType<typeof tx.weight_ticket_product_summaries.create>>>
+      for (const { lineIds: _lineIds, ...data } of summaryRows) {
+        createdSummaries.push(await tx.weight_ticket_product_summaries.create({ data }))
+      }
       const summaryIdByProductId = new Map(createdSummaries.map((summary) => [String(summary.product_id), summary.id] as const))
       const bridgeRows = summaryRows.flatMap(({ lineIds, product_id }) => {
         const summaryId = summaryIdByProductId.get(String(product_id))

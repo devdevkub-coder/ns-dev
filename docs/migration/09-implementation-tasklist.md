@@ -177,6 +177,8 @@
 - [x] กำหนด browser policy: HTTP cache เฉพาะ L0, client memory cache สำหรับ L1 และ branch/warehouse ใน L2/L3 แบบ TTL สั้น; ไม่ใช้ `localStorage` สำหรับ auth, permission, financial, stock หรือ transaction
 - [x] กำหนด Redis/server policy, key scope, TTL ตั้งต้น และ invalidate rule ใน `Reference Master Cache Flow`
 - [x] เปิด client memory cache ของ branch/warehouse เป็นชุดแรกแบบ user-scoped และ TTL สั้น; runtime evidence หลัง deploy ยังเป็นงานติดตามผล
+- [x] ขยาย client memory cache ไปยัง L1 global lookup: currency, unit, product type, machine type, payment method, bank name และ expense type
+- [ ] ตรวจ request reduction และ invalidation behavior ของ L1 global lookup หลัง deploy
 
 **Exit criteria:** ทุก cache candidate ระบุระดับ, scope, TTL, source of truth และ invalidation ได้ก่อน implement; L5 ยังคง `no-store`.
 

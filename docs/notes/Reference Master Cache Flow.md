@@ -700,6 +700,6 @@ server cache ของ reference data จำกัดไว้ที่ 256 entr
 ### Rollout order
 
 1. ตรวจ runtime evidence ของ CACHE-M2 หลัง deploy: hit/miss, Redis latency, error rate และ invalidation behavior.
-2. branch/warehouse เปิด client memory cache เป็นชุดแรกแล้ว เพราะ payload เล็กและเปลี่ยนแปลงต่ำ; ต้องทดสอบการเปลี่ยน scope และ master write ต่อ.
-3. เปิด L1 และ L3 ที่มี consumer ซ้ำจริง แล้วตรวจข้อมูลหลัง master write.
+2. branch/warehouse และ L1 global lookup เปิด client memory cache แล้วแบบ user-scoped และ TTL สั้น; ต้องทดสอบการเปลี่ยน scope และ master write ต่อ.
+3. ยังไม่เปิด L3 search และ party/product/account option cache จนกว่าจะมี consumer-level evidence.
 4. พิจารณา customer/supplier/product/account เป็นรายหน้า; คง L4-L5 เป็น server/DB path ต่อไป.

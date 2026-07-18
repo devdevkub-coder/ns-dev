@@ -27,6 +27,18 @@ import { formatDecimalDisplay, formatDecimalDraft, formatPhoneDisplay, sanitizeA
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { invalidateClientReferenceRecords, listClientReferenceRecords } from '@/lib/client-reference-cache'
 
+const CLIENT_REFERENCE_MASTER_PATHS = [
+  '/api/master-data/bank-names',
+  '/api/master-data/branches',
+  '/api/master-data/currencies',
+  '/api/master-data/expense-types',
+  '/api/master-data/machine-types',
+  '/api/master-data/payment-methods',
+  '/api/master-data/product-types',
+  '/api/master-data/product-units',
+  '/api/master-data/warehouses',
+]
+
 type SortKey = keyof MasterDataRecord
 type TableColumnKey = SortKey | '__action'
 
@@ -394,7 +406,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
     setError(null)
     try {
       await saveMasterDataRecord(config.apiPath, values)
-      invalidateClientReferenceRecords(['/api/master-data/branches', '/api/master-data/warehouses'])
+      invalidateClientReferenceRecords(CLIENT_REFERENCE_MASTER_PATHS)
       setFormOpen(false)
       setSelectedRecord(null)
       await loadData()
@@ -409,7 +421,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
     setError(null)
     try {
       await setMasterDataRecordActive(config.apiPath, record.id, !record.active)
-      invalidateClientReferenceRecords(['/api/master-data/branches', '/api/master-data/warehouses'])
+      invalidateClientReferenceRecords(CLIENT_REFERENCE_MASTER_PATHS)
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : `อัปเดตสถานะ${config.entityName}ไม่ได้`)

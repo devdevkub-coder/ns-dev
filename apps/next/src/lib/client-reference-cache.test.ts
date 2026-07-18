@@ -13,7 +13,17 @@ describe('client-reference-cache', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getSessionSafely.mockResolvedValue({ user: { id: 'user-1' } })
-    invalidateClientReferenceRecords(['/api/master-data/branches', '/api/master-data/warehouses'])
+    invalidateClientReferenceRecords([
+      '/api/master-data/bank-names',
+      '/api/master-data/branches',
+      '/api/master-data/currencies',
+      '/api/master-data/expense-types',
+      '/api/master-data/machine-types',
+      '/api/master-data/payment-methods',
+      '/api/master-data/product-types',
+      '/api/master-data/product-units',
+      '/api/master-data/warehouses',
+    ])
   })
 
   it('memoizes branch records per authenticated user and deduplicates concurrent reads', async () => {
@@ -45,8 +55,8 @@ describe('client-reference-cache', () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify([{ id: 'X01', name: 'ข้อมูล', active: true }]), { status: 200 }))
     global.fetch = fetchMock as typeof fetch
 
-    await listClientReferenceRecords('/api/master-data/currencies')
-    await listClientReferenceRecords('/api/master-data/currencies')
+    await listClientReferenceRecords('/api/master-data/accounts')
+    await listClientReferenceRecords('/api/master-data/accounts')
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })

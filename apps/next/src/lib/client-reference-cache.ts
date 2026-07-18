@@ -5,7 +5,14 @@ import { masterDataRecordListSchema, type MasterDataRecord } from '@/lib/master-
 
 const CLIENT_REFERENCE_CACHE_TTL_MS = 5 * 60 * 1000
 const CACHEABLE_REFERENCE_PATHS = new Set([
+  '/api/master-data/bank-names',
   '/api/master-data/branches',
+  '/api/master-data/currencies',
+  '/api/master-data/expense-types',
+  '/api/master-data/machine-types',
+  '/api/master-data/payment-methods',
+  '/api/master-data/product-types',
+  '/api/master-data/product-units',
   '/api/master-data/warehouses',
 ])
 
