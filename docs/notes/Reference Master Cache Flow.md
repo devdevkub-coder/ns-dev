@@ -81,6 +81,11 @@
   - แต่ `purchase/bills/route.ts` ยังมี TypeScript debt เดิมจำนวนมากทั้งไฟล์ จึงยังปิด targeted typecheck ของ route นี้ไม่ได้ใน batch cache รอบนี้
 - consumer ชุดถัดไปของ customer branch-option cache คือ `sales/bills`
 - `sales/bills` ใช้ `listActiveCustomerBranchOptions()` สำหรับ customer selector/options payload และใช้ `listActiveBranchesByCodes()` สำหรับ branch scope แทน direct `customers.findMany(...customer_branches...)` และ `branches.findMany(...)`
+- `sales/bills` client payload split checkpoint: `/api/sales/bills` ส่งเฉพาะ rows/totals แล้ว; `/api/sales/bills/options?scope=reference` ใช้ browser memory cache แบบ user-scoped TTL 5 นาทีสำหรับ branch/customer/product/sales-channel/warehouse references
+- WTO, PO Sell, Trading cost source, customer advance, VAT effective rate และคงเหลือทางธุรกิจไม่อยู่ใน browser cache; `/api/sales/bills/options` โหลดข้อมูลชุดนี้สดเมื่อเปิด create/edit modal และ response เป็น `private, no-store`
+- หลังสร้าง/แก้ไข/ยกเลิก Sales Bill ไม่ invalidate reference cache เพราะ transaction facts ไม่ถูกเก็บใน reference cache; source options ที่เปลี่ยนตามธุรกรรมจะถูกโหลดใหม่เมื่อเปิด modal
+- What is what: reference payload เป็นชื่อ/รหัส master สำหรับ render selector ส่วน full options เป็น business facts ที่มี remaining/available/usage ซึ่งต้องอ่าน DB ปัจจุบัน
+- Why it has to be like this: การ cache WTO/PO Sell/advance/cost อาจทำให้ผู้ใช้เห็นยอดคงเหลือเก่าและส่ง transaction ที่ไม่ตรง source of truth; browser cache จึงจำกัดเฉพาะ master reference ที่ไม่ sensitive และไม่ใช้ persistent storage
 - targeted validation ของ batch `sales/bills` ปิดได้บางส่วน:
   - `git diff --check` ของไฟล์ batch นี้ผ่าน
   - แต่ `sales/bills/route.ts` ยังมี TypeScript debt เดิมจำนวนมากทั้งไฟล์ จึงยังปิด targeted typecheck ของ route นี้ไม่ได้ใน batch cache รอบนี้

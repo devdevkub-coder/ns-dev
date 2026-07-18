@@ -291,7 +291,9 @@
 - [ ] ย้าย route ชุดแรกมาใช้ service กลาง:
   - [x] `/api/branches`
   - [x] `/api/daily/weight-tickets/options`
-  - [x] `/api/sales/bills` options payload
+- [x] `/api/sales/bills` options payload
+- [x] `/api/sales/bills` แยก list rows/totals ออกจาก reference options และ full business options
+- [x] เพิ่ม user-scoped browser memory cache สำหรับ `/api/sales/bills/options?scope=reference`; ไม่ cache WTO/PO Sell/advance/Trading facts
   - [x] `/api/purchase/bills` options payload
   - [x] `/api/stock/transfer`
   - [x] `/api/purchase/po-buy`

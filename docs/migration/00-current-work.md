@@ -96,6 +96,13 @@ Advance payment modal checkpoint on 2026-07-15: Supplier `ADV` create/edit and C
 
 ## Latest Completed Batch: CACHE-P1 Product Reference Contract
 
+## Latest Completed Batch: CACHE-P2 Sales Bill Payload Boundary
+
+- `/api/sales/bills` now returns only list rows/totals; reference options moved to `/api/sales/bills/options?scope=reference`.
+- Browser memory cache is user-scoped with 5-minute TTL for branch/customer/product/sales-channel/warehouse references only.
+- WTO, PO Sell, Trading cost, customer advance, VAT effective rate, usage and remaining balances load fresh from `/api/sales/bills/options` when create/edit opens; no persistent browser cache.
+- Validation: workspace type-check and lint passed; lint retains one unrelated warning in `scripts/qa-thai-font.tsx`.
+
 Product option/search มี contract แยกชัดเจน:
 
 1. `ProductReferenceRecord` มีเฉพาะ `id`, `code`, `name`, `unit`, `type`, `metalGroup`, `active`
