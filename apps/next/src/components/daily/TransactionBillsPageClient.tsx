@@ -4483,11 +4483,15 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               </div>
             </DialogHeader>
             <div className="space-y-2 bg-slate-50 p-5 text-sm">
-              <label className="block text-xs font-medium text-slate-600" htmlFor={`${mode}-bill-cancel-note`}>หมายเหตุการยกเลิก *</label>
+              <label className="block text-xs font-medium text-slate-600" htmlFor={`${mode}-bill-cancel-note`}>
+                หมายเหตุการยกเลิก<span className="ml-1 text-red-600">*</span>
+              </label>
               <textarea
+                aria-invalid={Boolean(cancelNoteError)}
                 id={`${mode}-bill-cancel-note`}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:ring-0 outline-none transition-colors"
                 maxLength={500}
+                required
                 rows={3}
                 value={cancelNote}
                 onChange={(event) => {

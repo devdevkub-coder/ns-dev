@@ -1646,10 +1646,12 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                           <Select
                             aria-invalid={Boolean(fieldErrors.supplierPaymentDestinationId)}
                             className="h-10 w-full"
+                            disabled={!form.supplierId}
+                            required
                             value={form.supplierPaymentDestinationId ?? ''}
                             onChange={(event) => setForm({ ...form, supplierPaymentDestinationId: event.target.value || null })}
                           >
-                            <option value="">{form.supplierId ? 'เลือกช่องทางรับเงิน' : 'เลือก Supplier ก่อน'}</option>
+                            <option disabled value="">{form.supplierId ? 'เลือกช่องทางรับเงิน' : 'เลือก Supplier ก่อน'}</option>
                             {supplierPaymentDestinations.map((account) => <option key={account.code} value={account.code}>{supplierPaymentDestinationLabel(account)}</option>)}
                           </Select>
                           {fieldErrors.supplierPaymentDestinationId ? <span className="mt-1 block text-xs text-red-700">{fieldErrors.supplierPaymentDestinationId}</span> : null}
@@ -1693,7 +1695,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       <div className="mb-3 text-sm font-semibold text-slate-900">วิธีการจ่าย</div>
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         <label className="block col-span-2 sm:col-span-1" data-field="paymentMethod">
-                          <span className="mb-1 block text-xs font-medium text-slate-600">วิธีจ่าย{renderRequiredMark(true)}</span>
+                          <span className="mb-1 block text-xs font-medium text-slate-600">วิธีจ่าย</span>
                           <Select
                             className="h-10 w-full"
                             value={paymentMethod}
@@ -1708,10 +1710,12 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                           <Select
                             aria-invalid={Boolean(fieldErrors.accountId)}
                             className="h-10 w-full"
+                            disabled={!paymentMethod}
+                            required
                             value={form.accountId ?? ''}
                             onChange={(event) => setForm({ ...form, accountId: event.target.value || null })}
                           >
-                            <option value="">{paymentMethod ? 'เลือกบัญชีที่จ่าย' : 'เลือกวิธีจ่ายก่อน'}</option>
+                            <option disabled value="">{paymentMethod ? 'เลือกบัญชีที่จ่าย' : 'เลือกวิธีจ่ายก่อน'}</option>
                             {paymentAccountOptions.map((account) => <option key={account.id} value={account.id}>{account.name} ({formatMoney(account.balance)})</option>)}
                           </Select>
                           {fieldErrors.accountId ? <span className="mt-1 block text-xs text-red-700">{fieldErrors.accountId}</span> : null}
@@ -2291,7 +2295,7 @@ function TextField(props: { error?: string; fieldName?: string; label: string; o
   )
 }
 
-function MoneyInputControl(props: { className?: string; error?: string; onChange: (value: number) => void; value: number }) {
+function MoneyInputControl(props: { className?: string; error?: string; onChange: (value: number) => void; required?: boolean; value: number }) {
   const [draftValue, setDraftValue] = useState<string | null>(null)
 
   return (
@@ -2300,6 +2304,7 @@ function MoneyInputControl(props: { className?: string; error?: string; onChange
       className={`h-8 w-full rounded-md border bg-white px-2 py-1 text-right text-xs tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 text-slate-900'} ${props.className ?? ''}`}
       inputMode="decimal"
       placeholder="0.00"
+      required={props.required}
       type="text"
       value={draftValue ?? (props.value > 0 ? formatDecimalDisplay(props.value, 2) : '')}
       onBlur={(event) => {
@@ -2367,7 +2372,7 @@ function ExpenseLineTable(props: {
             <tr>
               <th className="w-48 p-2 text-left">หมวด</th>
               <th className="p-2 text-left">รายละเอียด</th>
-              <th className="w-28 p-2 text-right">จำนวน</th>
+              <th className="w-28 p-2 text-right">จำนวน <span className="text-red-600">*</span></th>
               <th className="w-14 p-2 text-center">VAT</th>
               <th className="w-24 p-2 text-right">VAT {props.vatRatePercent.toFixed(2)}%</th>
               <th className="w-28 bg-amber-50 p-2 text-center text-amber-800">WHT %</th>
@@ -2410,7 +2415,7 @@ function ExpenseLineTable(props: {
                     {descriptionError ? <span className="mt-1 block text-xs text-red-700">{descriptionError}</span> : null}
                   </td>
                   <td className="p-1 align-top" data-field={`lines.${index}.amount`}>
-                    <MoneyInputControl error={amountError} value={line.amount} onChange={(value) => props.onLineChange(index, { amount: value })} />
+                    <MoneyInputControl error={amountError} required value={line.amount} onChange={(value) => props.onLineChange(index, { amount: value })} />
                     {amountError ? <span className="mt-1 block text-right text-xs text-red-700">{amountError}</span> : null}
                   </td>
                   <td className="p-1 text-center align-middle" data-field={`lines.${index}.hasVat`}>

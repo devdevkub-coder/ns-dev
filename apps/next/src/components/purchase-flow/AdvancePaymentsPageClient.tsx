@@ -1271,13 +1271,20 @@ export function AdvancePaymentsPageClient() {
             <DialogDescription>ระบบจะเปลี่ยนสถานะเป็นยกเลิกและเก็บเหตุผลไว้ใน timeline</DialogDescription>
           </DialogHeader>
           <div className="bg-slate-50 p-4">
-            <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="advance-payment-cancel-note">เหตุผลการยกเลิก *</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="advance-payment-cancel-note">
+              เหตุผลการยกเลิก<span className="ml-1 text-red-600">*</span>
+            </label>
             <textarea
+              aria-invalid={Boolean(cancelNoteError)}
               id="advance-payment-cancel-note"
               className={`w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100 ${cancelNoteError ? 'border-red-400 bg-red-50' : ''}`.trim()}
+              required
               rows={4}
               value={cancelNote}
-              onChange={(event) => setCancelNote(event.target.value)}
+              onChange={(event) => {
+                setCancelNote(event.target.value)
+                if (cancelNoteError) setCancelNoteError('')
+              }}
             />
             {cancelNoteError ? <div className="mt-1 text-xs text-red-600">{cancelNoteError}</div> : null}
           </div>

@@ -1067,10 +1067,16 @@ export function WeightTicketListPageClient() {
                 เหตุผลการยกเลิก<span className="ml-1 text-red-600">*</span>
               </label>
               <textarea
+                aria-invalid={Boolean(cancelError && !cancelNote.trim())}
                 className="block min-h-[88px] w-full resize-none rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 transition-colors placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100 sm:text-sm"
                 placeholder="ระบุเหตุผลการยกเลิก"
+                maxLength={500}
+                required
                 value={cancelNote}
-                onChange={(event) => setCancelNote(event.target.value)}
+                onChange={(event) => {
+                  setCancelNote(event.target.value)
+                  if (cancelError && !cancelNote.trim()) setCancelError('')
+                }}
               />
               {cancelError ? <div className="mt-1 text-xs text-red-600">{cancelError}</div> : null}
             </div>

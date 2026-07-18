@@ -758,8 +758,10 @@ function MoneyField(props: {
     <label className="block text-xs font-medium text-slate-600" data-error-key={props.inputKey}>
       {props.label}{props.required ? <span className="text-red-600"> *</span> : null}
       <Input
+        aria-invalid={Boolean(props.error)}
         className={`mt-1.5 h-9 text-right tabular-nums ${props.error ? 'border-red-400 bg-red-50' : ''}`}
         inputMode="decimal"
+        required={props.required}
         type="text"
         value={props.valueText}
         onBlur={() => props.onFinishMoneyInput(props.inputKey)}
@@ -776,7 +778,9 @@ function TextAreaField(props: { className?: string; error?: string; label: strin
     <label className={`block text-xs font-medium text-slate-600 ${props.className ?? ''}`} data-error-key="notes">
       {props.label}{props.required ? <span className="text-red-600"> *</span> : null}
       <textarea
+        aria-invalid={Boolean(props.error)}
         className={`mt-1.5 min-h-20 w-full rounded-md border px-3 py-2 text-sm outline-none ${props.error ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+        required={props.required}
         rows={3}
         value={props.value}
         onChange={(event) => props.onChange?.(event.target.value)}
@@ -795,8 +799,8 @@ function SelectField(props: { error?: string; label: string; onChange: (value: s
   return (
     <label className="block text-xs font-medium text-slate-600" data-error-key={errorKey}>
       {props.label}{props.required ? <span className="text-red-600"> *</span> : null}
-      <Select aria-invalid={Boolean(props.error)} className="mt-1.5 h-10 w-full" value={props.value} onChange={(event) => props.onChange(event.target.value)}>
-        <option value="">เลือก{props.label}</option>
+      <Select aria-invalid={Boolean(props.error)} className="mt-1.5 h-10 w-full" required={props.required} value={props.value} onChange={(event) => props.onChange(event.target.value)}>
+        <option disabled value="">เลือก{props.label}</option>
         {props.options.map((option) => <option key={option.id} value={option.id}>{accountOptionLabel(option)}</option>)}
       </Select>
       {props.error ? <span className="mt-1 block text-xs text-red-700">{props.error}</span> : null}

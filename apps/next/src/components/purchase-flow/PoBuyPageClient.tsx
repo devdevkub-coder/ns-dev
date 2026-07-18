@@ -1293,11 +1293,13 @@ function PoBuyCancelModal({
           </div>
         </DialogHeader>
         <div className="space-y-2 bg-slate-50 p-5 text-sm">
-          <label className="block text-xs font-medium text-slate-700" htmlFor="po-buy-cancel-note">หมายเหตุการยกเลิก *</label>
+          <label className="block text-xs font-medium text-slate-700" htmlFor="po-buy-cancel-note">หมายเหตุการยกเลิก <span className="text-red-600">*</span></label>
           <textarea
+            aria-invalid={Boolean(error)}
             id="po-buy-cancel-note"
             className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
             maxLength={500}
+            required
             rows={3}
             value={note}
             onChange={(event) => onChangeNote(event.target.value)}
@@ -1342,11 +1344,13 @@ function PoBuyShortCloseModal({
           </div>
         </DialogHeader>
         <div className="space-y-2 bg-slate-50 p-5 text-sm">
-          <label className="block text-xs font-medium text-slate-700" htmlFor="po-buy-short-close-note">เหตุผลการปิดรับไม่ครบ *</label>
+          <label className="block text-xs font-medium text-slate-700" htmlFor="po-buy-short-close-note">เหตุผลการปิดรับไม่ครบ <span className="text-red-600">*</span></label>
           <textarea
+            aria-invalid={Boolean(error)}
             id="po-buy-short-close-note"
             className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
             maxLength={500}
+            required
             rows={3}
             value={note}
             onChange={(event) => onChangeNote(event.target.value)}
@@ -1502,9 +1506,13 @@ function ProductSearchCombobox({
 }
 
 function MoneyPatternInput({
+  error = false,
+  required = false,
   value,
   onChange,
 }: {
+  error?: boolean
+  required?: boolean
   value: number
   onChange: (value: number) => void
 }) {
@@ -1517,8 +1525,10 @@ function MoneyPatternInput({
 
   return (
     <UiInput
+      aria-invalid={error}
       className="!h-9 w-full px-2 py-1.5 text-right"
       inputMode="decimal"
+      required={required}
       type="text"
       value={isFocused ? rawValue : formatMoneyInput(value)}
       onBlur={() => {
@@ -1539,9 +1549,13 @@ function MoneyPatternInput({
 }
 
 function QuantityPatternInput({
+  error = false,
+  required = false,
   value,
   onChange,
 }: {
+  error?: boolean
+  required?: boolean
   value: number
   onChange: (value: number) => void
 }) {
@@ -1553,8 +1567,10 @@ function QuantityPatternInput({
 
   return (
     <UiInput
+      aria-invalid={error}
       className="!h-9 w-full px-2 py-1.5 text-right"
       inputMode="decimal"
+      required={required}
       type="text"
       value={rawValue}
       onChange={(event) => {
@@ -1624,9 +1640,9 @@ function PoBuyFormModal({
         </DialogHeader>
         <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-5 text-sm">
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-            <div className="col-span-2 sm:col-span-1">
+            <div className="col-span-2 sm:col-span-1" data-field-invalid={errors.branchId ? 'true' : undefined}>
               <label className="mb-1 block text-xs">สาขา <span className="text-red-600">*</span></label>
-              <UiSelect className={`!h-9 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'}`} value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
+              <UiSelect aria-invalid={Boolean(errors.branchId)} className={`!h-9 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'}`} required value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
                 <option disabled value="">เลือกสาขา</option>
                 {activeBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
               </UiSelect>
@@ -1645,7 +1661,7 @@ function PoBuyFormModal({
             </div>
             <div className="col-span-2 lg:col-span-1">
               <label className="mb-1 block text-xs">วันส่งมอบ <span className="text-red-600">*</span></label>
-              <DatePickerInput className="!h-9 w-full" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
+              <DatePickerInput ariaInvalid={Boolean(errors.expectedDelivery)} className="!h-9 w-full" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
               {fieldError('expectedDelivery')}
             </div>
           </div>
@@ -1658,7 +1674,7 @@ function PoBuyFormModal({
             <div className="overflow-x-auto rounded-md border border-slate-100">
               <Table className="min-w-[820px] border-0">
                 <TableHeader>
-                  <tr><TableHead>สินค้า</TableHead><TableHead className="w-36 text-right">จำนวน (กก.) *</TableHead><TableHead className="w-36 text-right">ราคา/หน่วย *</TableHead><TableHead className="w-36 text-right">มูลค่ารวม</TableHead><TableHead className="w-10" /></tr>
+                  <tr><TableHead>สินค้า <span className="text-red-600">*</span></TableHead><TableHead className="w-36 text-right">จำนวน (กก.) <span className="text-red-600">*</span></TableHead><TableHead className="w-36 text-right">ราคา/หน่วย <span className="text-red-600">*</span></TableHead><TableHead className="w-36 text-right">มูลค่ารวม</TableHead><TableHead className="w-10" /></tr>
                 </TableHeader>
                 <TableBody>
                   {form.items.map((item, index) => (
@@ -1674,11 +1690,11 @@ function PoBuyFormModal({
                         {fieldError(`items.${index}.productId`)}
                       </TableCell>
                       <TableCell className="p-1 align-top">
-                        <QuantityPatternInput value={item.qty} onChange={(value) => onUpdateItem(index, 'qty', value)} />
+                        <QuantityPatternInput error={Boolean(errors[`items.${index}.qty`])} required value={item.qty} onChange={(value) => onUpdateItem(index, 'qty', value)} />
                         {fieldError(`items.${index}.qty`)}
                       </TableCell>
                       <TableCell className="p-1 align-top">
-                        <MoneyPatternInput value={item.unitPrice} onChange={(value) => onUpdateItem(index, 'unitPrice', value)} />
+                        <MoneyPatternInput error={Boolean(errors[`items.${index}.unitPrice`])} required value={item.unitPrice} onChange={(value) => onUpdateItem(index, 'unitPrice', value)} />
                         {fieldError(`items.${index}.unitPrice`)}
                       </TableCell>
                       <TableCell className="bg-blue-50 p-1 px-2 text-right font-bold text-blue-700">{formatMoney(item.qty * item.unitPrice)}</TableCell>

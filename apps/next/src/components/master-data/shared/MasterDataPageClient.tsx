@@ -1024,6 +1024,7 @@ function FormField({ error, field, value, onChange }: FormFieldProps) {
           aria-required={field.required}
           className="w-full"
           error={Boolean(error)}
+          required={field.required}
           value={String(value ?? '')}
           onChange={onChange}
         />
@@ -1034,6 +1035,7 @@ function FormField({ error, field, value, onChange }: FormFieldProps) {
           className={`w-full h-10 rounded-md border px-3 py-2 text-sm outline-none transition-all duration-150 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${isMoneyField ? 'text-right' : ''} ${error ? 'border-red-400 bg-red-50/50' : 'bg-white text-slate-800 border-slate-300 hover:border-slate-400'}`}
           inputMode={isEmailField ? 'email' : isAccountNoField ? 'numeric' : isNumberField ? 'decimal' : undefined}
           placeholder={inputPlaceholder}
+          required={field.required}
           type={inputType}
           value={isMoneyField ? (draftValue ?? formatDecimalDisplay(typeof value === 'number' ? value : null, 2)) : String(value ?? '')}
           onBlur={(event) => {

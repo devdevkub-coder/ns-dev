@@ -845,7 +845,11 @@ export function ReceiptVouchersPageClient() {
             setCancelError(null)
           }}
           onConfirm={cancelReceiptVoucher}
-          onNoteChange={setCancelNote}
+          onNoteChange={(value) => {
+            const shouldClearFieldError = Boolean(cancelError && !cancelNote.trim())
+            setCancelNote(value)
+            if (shouldClearFieldError) setCancelError(null)
+          }}
         />
       ) : null}
 
@@ -1268,6 +1272,8 @@ function CancelReceiptVoucherDialog({
   onNoteChange: (value: string) => void
   row: ReceiptVoucherRow
 }) {
+  const noteInvalid = Boolean(error && !note.trim())
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-3 print:hidden">
       <div data-ns-modal-shell="dialog" className="w-full max-w-lg overflow-hidden rounded-md bg-slate-900 shadow-xl">
@@ -1280,9 +1286,14 @@ function CancelReceiptVoucherDialog({
             การยกเลิก RV จะ mark เอกสารเป็นยกเลิกและบันทึก timeline เท่านั้น ไม่ reverse payment หรือ stock
           </div>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-600">เหตุผลการยกเลิก *</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">
+              เหตุผลการยกเลิก<span className="ml-1 text-red-600">*</span>
+            </span>
             <textarea
-              className={`min-h-24 w-full rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100 ${error ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+              aria-invalid={noteInvalid}
+              className={`min-h-24 w-full rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100 ${noteInvalid ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+              maxLength={500}
+              required
               value={note}
               onChange={(event) => onNoteChange(event.target.value)}
             />

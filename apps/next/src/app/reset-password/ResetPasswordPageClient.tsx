@@ -111,7 +111,7 @@ export function ResetPasswordPageClient() {
         <form className="space-y-4" onSubmit={submit}>
           <input autoComplete="email" className="hidden" readOnly type="email" value={sessionEmail} />
           <label className="block text-sm font-medium text-slate-700">
-            Password ใหม่
+            Password ใหม่ <span className="text-red-600">*</span>
             <span className="relative mt-1 block">
               <input
                 autoComplete="new-password"
@@ -119,6 +119,7 @@ export function ResetPasswordPageClient() {
                 disabled={isLoading || !isSessionReady}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="อย่างน้อย 8 ตัวอักษร"
+                required
                 type={showPassword ? 'text' : 'password'}
                 value={password}
               />
@@ -135,13 +136,14 @@ export function ResetPasswordPageClient() {
           </label>
 
           <label className="block text-sm font-medium text-slate-700">
-            ยืนยัน Password ใหม่
+            ยืนยัน Password ใหม่ <span className="text-red-600">*</span>
             <input
               autoComplete="new-password"
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isLoading || !isSessionReady}
               onChange={(event) => setConfirmPassword(event.target.value)}
               placeholder="กรอกรหัสผ่านใหม่อีกครั้ง"
+              required
               type={showPassword ? 'text' : 'password'}
               value={confirmPassword}
             />

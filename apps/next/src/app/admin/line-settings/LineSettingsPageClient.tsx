@@ -1365,10 +1365,12 @@ export function LineSettingsPageClient() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Channel Access Token */}
               <div className="space-y-1.5">
-                <label className="block text-sm font-bold text-slate-700">LINE Channel Access Token *</label>
+                <label className="block text-sm font-bold text-slate-700" htmlFor="line-channel-access-token">LINE Channel Access Token</label>
                 <div className="relative">
                   <input
+                    id="line-channel-access-token"
                     type={showToken ? 'text' : 'password'}
+                    aria-invalid={Boolean(fieldErrors.lineChannelAccessToken)}
                     className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none pr-10 h-10"
                     placeholder="ป้อนรหัสสิทธิ์ส่งบอทไลน์ Channel Access Token"
                     value={form.lineChannelAccessToken || ''}
@@ -1389,10 +1391,12 @@ export function LineSettingsPageClient() {
 
               {/* Channel Secret */}
               <div className="space-y-1.5">
-                <label className="block text-sm font-bold text-slate-700">LINE Channel Secret *</label>
+                <label className="block text-sm font-bold text-slate-700" htmlFor="line-channel-secret">LINE Channel Secret</label>
                 <div className="relative">
                   <input
+                    id="line-channel-secret"
                     type={showSecret ? 'text' : 'password'}
+                    aria-invalid={Boolean(fieldErrors.lineChannelSecret)}
                     className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none pr-10 h-10"
                     placeholder="ป้อน Channel Secret สำหรับตรวจสอบลายเซ็น"
                     value={form.lineChannelSecret || ''}
@@ -1413,10 +1417,13 @@ export function LineSettingsPageClient() {
 
               {/* Storage Bucket */}
               <div className="space-y-1.5">
-                <label className="block text-sm font-bold text-slate-700">Storage Bucket เก็บเอกสาร PDF *</label>
+                <label className="block text-sm font-bold text-slate-700" htmlFor="line-pdf-bucket">Storage Bucket เก็บเอกสาร PDF <span className="text-red-600">*</span></label>
                 <input
+                  id="line-pdf-bucket"
                   type="text"
+                  aria-invalid={Boolean(fieldErrors.pdfBucket)}
                   className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none h-10"
+                  required
                   value={form.pdfBucket}
                   onChange={(e) => setForm({ ...form, pdfBucket: e.target.value })}
                 />
@@ -1427,9 +1434,11 @@ export function LineSettingsPageClient() {
 
               {/* Public App URL */}
               <div className="space-y-1.5">
-                <label className="block text-sm font-bold text-slate-700">Public App URL (ต้นทางระบบเว็บ) *</label>
+                <label className="block text-sm font-bold text-slate-700" htmlFor="line-public-app-url">Public App URL (ต้นทางระบบเว็บ)</label>
                 <input
+                  id="line-public-app-url"
                   type="text"
+                  aria-invalid={Boolean(fieldErrors.appUrl)}
                   className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none h-10"
                   placeholder="เช่น https://ns-dev.devkub.com"
                   value={form.appUrl}
@@ -2469,8 +2478,9 @@ export function LineSettingsPageClient() {
             {/* Modal Body */}
             <form id="line-target-form" onSubmit={handleSaveTarget} className="space-y-4 bg-slate-50 p-5 text-xs">
               <div className="space-y-1">
-                <label className="block font-bold text-slate-700">ชื่อเป้าหมาย / Display Name *</label>
+                <label className="block font-bold text-slate-700" htmlFor="line-target-display-name">ชื่อเป้าหมาย / Display Name <span className="text-red-600">*</span></label>
                 <input
+                  id="line-target-display-name"
                   type="text"
                   required
                   className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"
@@ -2481,8 +2491,9 @@ export function LineSettingsPageClient() {
               </div>
 
               <div className="space-y-1">
-                <label className="block font-bold text-slate-700">ประเภทช่องทางแชท *</label>
+                <label className="block font-bold text-slate-700" htmlFor="line-target-type">ประเภทช่องทางแชท</label>
                 <Select
+                  id="line-target-type"
                   className="h-10 w-full px-3 py-2 text-sm text-slate-900"
                   value={editingTarget.target_type}
                   onChange={(e) => setEditingTarget({ ...editingTarget, target_type: e.target.value as any })}
@@ -2494,8 +2505,9 @@ export function LineSettingsPageClient() {
               </div>
 
               <div className="space-y-1">
-                <label className="block font-bold text-slate-700">LINE ID ของเป้าหมาย *</label>
+                <label className="block font-bold text-slate-700" htmlFor="line-target-id">LINE ID ของเป้าหมาย <span className="text-red-600">*</span></label>
                 <input
+                  id="line-target-id"
                   type="text"
                   required
                   disabled={!!editingTarget.id}
@@ -2581,17 +2593,24 @@ export function LineSettingsPageClient() {
               <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50 p-4 text-sm">
               <section id="line-rule-document-types" tabIndex={-1} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 outline-none">
                 <div>
-                  <h4 className="font-bold text-slate-800">1. เลือกเอกสารที่ต้องการส่ง <span className="text-rose-600">*</span></h4>
+                  <h4 id="line-rule-document-types-label" className="font-bold text-slate-800">1. เลือกเอกสารที่ต้องการส่ง <span className="text-rose-600">*</span></h4>
                   <p className="mt-1 text-xs text-slate-500">เลือก WTI/WTO คู่กันได้ หรือเลือก PB/SB/PMT/RCP คู่กันได้ หากส่งเข้ากลุ่มเดียวกัน</p>
                 </div>
-                <div className={`grid grid-cols-2 gap-2 sm:grid-cols-3 ${ruleFieldErrors.documentTypes ? 'rounded-md bg-rose-50 p-2 ring-1 ring-rose-400' : ''}`}>
+                <div
+                  aria-labelledby="line-rule-document-types-label"
+                  className={`grid grid-cols-2 gap-2 rounded-md p-2 sm:grid-cols-3 ${ruleFieldErrors.documentTypes ? 'bg-rose-50 ring-1 ring-rose-400' : ''}`}
+                  data-field-invalid={ruleFieldErrors.documentTypes ? 'true' : undefined}
+                  data-manual-required="true"
+                  data-required-group="true"
+                  role="group"
+                >
                   {lineDocumentTypeOptions.map((option) => {
                     const selected = editingRule.conditions?.documentTypes?.includes(option.type) ?? false
                     return (
                       <button
                         key={option.type}
                         aria-pressed={selected}
-                        className={`min-h-12 rounded-md border px-3 py-2 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${selected
+                        className={`min-h-12 rounded-md border px-3 py-2 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${selected
                           ? 'border-emerald-600 bg-emerald-50 text-emerald-800 shadow-sm'
                           : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-50'
                           }`}
@@ -2639,6 +2658,7 @@ export function LineSettingsPageClient() {
                   id="line-rule-target"
                   aria-invalid={Boolean(ruleFieldErrors.targetId)}
                   className={`h-10 w-full px-3 text-sm ${ruleFieldErrors.targetId ? 'border-rose-500 bg-rose-50' : 'border-slate-300'}`}
+                  required
                   value={editingRule.target_id || ''}
                   onChange={(event) => {
                     setEditingRule({ ...editingRule, target_id: event.target.value })
@@ -2885,8 +2905,9 @@ export function LineSettingsPageClient() {
 
                 <form id="line-template-form" onSubmit={handleSaveTemplate} className="space-y-4 text-xs">
                 <div className="space-y-1">
-                  <label className="block font-bold text-slate-700">ชื่อเทมเพลต *</label>
+                  <label className="block font-bold text-slate-700" htmlFor="line-template-name">ชื่อเทมเพลต <span className="text-red-600">*</span></label>
                   <input
+                    id="line-template-name"
                     type="text"
                     required
                     className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none h-10"

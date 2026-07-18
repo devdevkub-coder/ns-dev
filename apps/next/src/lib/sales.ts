@@ -112,7 +112,7 @@ export const salesBillStockReturnSchema = z.object({
 })
 
 export const poSellFormSchema = z.object({
-  branchId: optionalSafeId('สาขา'),
+  branchId: requiredSafeId('สาขา'),
   channelId: optionalSafeId('ช่องทางขาย'),
   customerId: z.string().trim().min(1, 'เลือกลูกค้า').max(80, 'รหัสลูกค้ายาวเกินไป').regex(safeIdPattern, 'รหัสลูกค้ามีรูปแบบไม่ถูกต้อง'),
   expectedDelivery: requiredDate,
