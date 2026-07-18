@@ -46,7 +46,7 @@ function expectLeftAlignedColumn({
 }) {
   const headerTag = openingTag(source, headerTagName, headerMarker)
   const bodyTag = openingTag(source, bodyTagName, bodyMarker)
-  const textualColumnClassPattern = new RegExp(`className="[^"]*\\b${TEXTUAL_COLUMN_CLASS}\\b[^"]*"`)
+  const textualColumnClassPattern = new RegExp(`className=(?:"[^"]*\\b${TEXTUAL_COLUMN_CLASS}\\b[^"]*"|\\{[^}]*['"][^'"]*\\b${TEXTUAL_COLUMN_CLASS}\\b[^'"]*['"][^}]*\\})`)
 
   expect(headerTag).toMatch(textualColumnClassPattern)
   expect(bodyTag).toMatch(textualColumnClassPattern)
@@ -173,5 +173,27 @@ describe('accepted textual table alignment', () => {
       headerTagName: 'AdvancePaymentSortHeader',
       source: advancePaymentsSource,
     })
+  })
+
+  it('does not opt the WTI dashboard or WTO list into textual alignment', () => {
+    const wtiPanelTag = openingTag(weightTicketDashboardSource, 'FlowTablePanel', 'storageKey="daily.weight-ticket-dashboard.wti.v1"')
+    const wtoPanelTag = openingTag(weightTicketDashboardSource, 'FlowTablePanel', 'storageKey="daily.weight-ticket-dashboard.wto.v1"')
+    const dashboardHeaderTag = openingTag(weightTicketDashboardSource, 'ResizableTableHead', "getResizeHandleProps('party',")
+    const dashboardBodyTag = openingTag(weightTicketDashboardSource, 'td', 'title={row.partyName}>{row.partyName}</div>')
+    const listCreatedHeaderTag = openingTag(weightTicketListSource, 'SortHeader', 'sortKey="createdAt"')
+    const listPartyHeaderTag = openingTag(weightTicketListSource, 'SortHeader', 'sortKey="partyName"')
+    const listCreatedBodyTag = openingTag(weightTicketListSource, 'td', '{ticketDate}</div>')
+    const listPartyBodyTag = openingTag(weightTicketListSource, 'td', '>{ticket.partyName}</td>')
+    const dashboardConditionalClass = `leftAlignParty ? '${TEXTUAL_COLUMN_CLASS}`
+    const listConditionalClass = `typeFilter === 'WTI' ? '${TEXTUAL_COLUMN_CLASS}`
+
+    expect(wtiPanelTag).not.toContain('leftAlignParty')
+    expect(wtoPanelTag).toContain('leftAlignParty')
+    expect(dashboardHeaderTag).toContain(dashboardConditionalClass)
+    expect(dashboardBodyTag).toContain(dashboardConditionalClass)
+    for (const tag of [listCreatedHeaderTag, listPartyHeaderTag, listCreatedBodyTag, listPartyBodyTag]) {
+      expect(tag).toContain(listConditionalClass)
+      expect(tag).not.toContain(`className="${TEXTUAL_COLUMN_CLASS}"`)
+    }
   })
 })
