@@ -559,7 +559,7 @@ export function WeightTicketFormCore({
   const [pendingFocusField, setPendingFocusField] = useState<string | null>(null)
   const [draftStartedAt] = useState(() => new Date().toISOString())
   const [timerNow, setTimerNow] = useState(() => Date.now())
-  const [isWeightTicketSummaryCollapsed, setIsWeightTicketSummaryCollapsed] = useState(false)
+  const [isWeightTicketSummaryCollapsed, setIsWeightTicketSummaryCollapsed] = useState(true)
 
   useEffect(() => {
     onDirtyChange?.(hasEnteredTicketData(form))
@@ -630,7 +630,7 @@ export function WeightTicketFormCore({
   }, [canShowWeightTicketTimer, isEmbeddedModal, isWeightTicketIn, timerStopMs])
 
   useEffect(() => {
-    setIsWeightTicketSummaryCollapsed(false)
+    setIsWeightTicketSummaryCollapsed(true)
   }, [editingTicketId, isEmbeddedModal])
 
   const loadProducts = useCallback(async (signal?: AbortSignal) => {
@@ -1332,9 +1332,6 @@ export function WeightTicketFormCore({
               <DialogTitle id="weight-ticket-form-title" className="truncate text-base font-bold text-white">
                 {embeddedModalTitle}
               </DialogTitle>
-              <DialogDescription className="truncate text-xs text-slate-300">
-                เลือกข้อมูลหน้างาน สินค้า น้ำหนัก และรูปภาพสำหรับใบรับ-ส่งของ
-              </DialogDescription>
             </div>
             <div className="flex max-w-[min(58vw,13rem)] shrink-0 justify-end gap-2 overflow-x-auto pb-0.5 sm:max-w-none sm:flex-wrap sm:overflow-visible sm:pb-0">
               <Button className="h-10 shrink-0 border-emerald-600 bg-emerald-600 px-4 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white disabled:opacity-60 sm:h-9" disabled={isLoadingTicket || isSaving} type="button" variant="outline" onClick={saveTicket}>
@@ -1365,9 +1362,19 @@ export function WeightTicketFormCore({
                     {formatElapsedTime(timerElapsedMs)}
                   </span>
                 </div>
-                <div className="shrink-0 text-right">
-                  <div className="text-xs font-semibold text-slate-500">รายการ</div>
-                  <div className="text-sm font-bold text-slate-900">{weightTicketItemCount} รายการ</div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <div className="text-right">
+                    <div className="text-xs font-semibold text-slate-500">รายการ</div>
+                    <div className="text-sm font-bold text-slate-900">{weightTicketItemCount} รายการ</div>
+                  </div>
+                  <button
+                    className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                    type="button"
+                    onClick={() => setIsWeightTicketSummaryCollapsed(false)}
+                  >
+                    <ChevronDown className="size-4" />
+                    รายละเอียด
+                  </button>
                 </div>
               </div>
             ) : (
@@ -1403,34 +1410,26 @@ export function WeightTicketFormCore({
                     </div>
                   </div>
                 </div>
-                <div className="border-t border-slate-200 px-3 py-3 sm:px-4">
-                  {savedTicket ? (
-                    <div className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
-                      <CheckCircle2 className="size-4" />
-                      บันทึก {savedTicket.documentNo} แล้ว
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-5">
-                      <MetricInline label="รายการ" value={`${weightTicketItemCount} รายการ`} />
-                      <MetricInline label="น้ำหนักรวม" value={`${formatWeight(totals.grossWeight)} กก.`} />
-                      <MetricInline label="หักภาชนะ" value={`${formatWeight(totals.containerDeductionWeight)} กก.`} />
-                      <MetricInline label="หักสิ่งเจือปน" value={`${formatWeight(totals.deductionWeight)} กก.`} />
-                      <MetricInline emphasis label="สุทธิ" value={`${formatWeight(totals.netWeight)} กก.`} />
-                    </div>
-                  )}
+                <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-3 py-3 sm:px-4">
+                  <div className="text-sm">
+                    <div className="text-xs font-semibold text-slate-500">รายการ</div>
+                    <div className="font-bold text-slate-900">{weightTicketItemCount} รายการ</div>
+                  </div>
+                  <button
+                    className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                    type="button"
+                    onClick={() => setIsWeightTicketSummaryCollapsed(true)}
+                  >
+                    <ChevronDown className="size-4 rotate-180" />
+                    ซ่อนรายละเอียด
+                  </button>
                 </div>
               </>
             )}
           </div>
         </div>
       ) : null}
-      <div
-        className={cn("min-w-0", isEmbeddedModal ? "flex-1 overflow-y-auto p-4 sm:p-5 space-y-5" : "space-y-5 pb-32")}
-        onScroll={(event) => {
-          if (!isEmbeddedModal || !isWeightTicketIn || !canShowWeightTicketTimer) return
-          setIsWeightTicketSummaryCollapsed(event.currentTarget.scrollTop > 0)
-        }}
-      >
+      <div className={cn("min-w-0", isEmbeddedModal ? "flex-1 overflow-y-auto p-4 sm:p-5 space-y-5" : "space-y-5 pb-32")}>
         {!isEmbeddedModal && (
         <div>
           <Button type="button" variant="outline" onClick={backToList}>
