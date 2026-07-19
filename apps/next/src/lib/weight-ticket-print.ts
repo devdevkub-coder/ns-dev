@@ -485,11 +485,10 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
   }).join('')
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <title>${escapeHtml(docTitle)} ${escapeHtml(ticket.documentNo)}</title>
     <style>
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Regular.ttf') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }
+      @font-face { font-family: 'Noto Sans Thai'; src: url('/fonts/NotoSansThai-Bold.ttf') format('truetype'); font-style: normal; font-weight: 700; font-display: swap; }
       @page { size: A4 portrait; margin: 10mm; }
       * { box-sizing: border-box; }
       body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 11px; line-height: 1.25; background: #f8fafc; }
