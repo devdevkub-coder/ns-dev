@@ -108,4 +108,33 @@ describe('WeightTicketImageGallery', () => {
     expect(container.querySelectorAll('button[aria-label^="เปิดรูปภาพประกอบ"]')).toHaveLength(1)
     expect(container.textContent).toContain('มีรูปเดิม 1 รูปที่ยังไม่มี preview ในระบบปัจจุบัน')
   })
+
+  it('previews only valid web URLs and keeps every legacy data URL format unavailable', () => {
+    const onOpen = vi.fn()
+    const imageNames = [
+      encodeStoredImageReference('stored.jpg', 'https://storage.example.com/stored.jpg?token=signed', 'weight-ticket/stored.jpg'),
+      'data:image/png;base64,AAAA',
+      'legacy-pipe.jpg|data:image/jpeg;base64,BBBB',
+      JSON.stringify({ dataUrl: 'data:image/webp;base64,CCCC', fileName: 'legacy-json.webp' }),
+      JSON.stringify({ fileName: 'invalid-url.jpg', url: 'https://' }),
+      'legacy-filename-only.jpg',
+    ]
+
+    act(() => root.render(<WeightTicketImageGallery imageNames={imageNames} onOpen={onOpen} />))
+
+    const images = container.querySelectorAll<HTMLImageElement>('img')
+    const buttons = container.querySelectorAll<HTMLButtonElement>('button[aria-label^="เปิดรูปภาพประกอบ"]')
+    expect(images).toHaveLength(1)
+    expect(images[0]?.getAttribute('src')).toBe('https://storage.example.com/stored.jpg?token=signed')
+    expect(buttons).toHaveLength(1)
+    expect(container.textContent).toContain('มีรูปเดิม 5 รูปที่ยังไม่มี preview ในระบบปัจจุบัน')
+
+    act(() => buttons[0]?.click())
+
+    expect(onOpen).toHaveBeenCalledWith({
+      activeIndex: 0,
+      images: [{ fileName: 'stored.jpg', url: 'https://storage.example.com/stored.jpg?token=signed' }],
+      title: 'รูปภาพประกอบ',
+    })
+  })
 })

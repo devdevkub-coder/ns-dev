@@ -16,6 +16,17 @@ export type WeightTicketGalleryOpenPayload = {
   title: string
 }
 
+function isPreviewableImageUrl(value: string | null): value is string {
+  if (!value) return false
+
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 export function WeightTicketImageGallery({
   imageNames,
   onOpen,
@@ -25,7 +36,7 @@ export function WeightTicketImageGallery({
 }) {
   const decodedImages = imageNames.map(decodeStoredImageAsset)
   const images = decodedImages
-    .filter((image): image is typeof image & { url: string } => Boolean(image.url))
+    .filter((image): image is typeof image & { url: string } => isPreviewableImageUrl(image.url))
     .map(({ fileName, url }) => ({ fileName, url }))
   const legacyImageCount = decodedImages.length - images.length
 
