@@ -46,7 +46,7 @@ async function assertPermissionRefs(permissionIds: string[]) {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'system.roles.manage')
+    requirePermission(context, 'system.roles.create')
 
     const values = roleFormSchema.parse(await request.json())
     const permissionIds = await assertPermissionRefs(values.permissionIds)

@@ -24,13 +24,9 @@ const adminUserFormSchema = z.object({
   lastName: z.string().trim().max(120, 'นามสกุลยาวเกินไป').optional().default(''),
   mustChangePassword: z.boolean().default(false),
   namePrefix: z.enum(['', 'นาย', 'นาง', 'นางสาว', 'คุณ'], { message: 'คำนำหน้าชื่อไม่ถูกต้อง' }).optional().default(''),
-  permissionOverrides: z.array(z.object({
-    effect: z.enum(['allow', 'deny']),
-    permissionId: z.string().trim().regex(/^\d+$/, 'สิทธิ์ไม่ถูกต้อง'),
-  })).default([]),
   profileImageUrl: z.string().trim().max(500, 'URL รูป profile ยาวเกินไป').optional().default('')
     .refine((value) => !value || /^https?:\/\//i.test(value), 'URL รูป profile ต้องขึ้นต้นด้วย http:// หรือ https://'),
-  roleIds: z.array(z.string().trim().regex(/^\d+$/, 'หน้าที่งานไม่ถูกต้อง')).length(1, 'เลือกหน้าที่งาน 1 รายการ'),
+  roleIds: z.array(z.string().trim().regex(/^\d+$/, 'หน้าที่งานไม่ถูกต้อง')).min(1, 'เลือกหน้าที่งานอย่างน้อย 1 รายการ'),
 })
 
 type AdminUserRouteProps = {
@@ -60,7 +56,7 @@ function displayNameFromProfile(values: { email: string; firstName: string; last
 function parseRoleIds(roleIds: string[]) {
   const parsed = roleIds.map((roleId) => parseInternalBigIntId(roleId))
 
-  if (parsed.some((roleId) => roleId == null)) {
+  if (parsed.some((roleId) => roleId == null) || new Set(parsed.filter((roleId): roleId is bigint => roleId != null)).size !== parsed.length) {
     throw new Error('Role ที่เลือกไม่ถูกต้อง')
   }
 
@@ -75,29 +71,14 @@ function parseDepartmentId(value: string) {
   return parsed
 }
 
-function parsePermissionOverrides(overrides: Array<{ effect: 'allow' | 'deny'; permissionId: string }>) {
-  const seen = new Set<string>()
-  const parsed = overrides.map((override) => {
-    const permissionId = parseInternalBigIntId(override.permissionId)
-    if (permissionId == null || seen.has(override.permissionId)) {
-      throw new Error('สิทธิ์รายผู้ใช้ไม่ถูกต้อง')
-    }
-    seen.add(override.permissionId)
-    return { effect: override.effect, permissionId }
-  })
-  return parsed
-}
-
 async function assertUserRefs(
   roleIds: string[],
   branchIds: string[],
   departmentId: string,
-  permissionOverrides: Array<{ effect: 'allow' | 'deny'; permissionId: string }>,
 ) {
   const parsedRoleIds = parseRoleIds(roleIds)
   const parsedDepartmentId = parseDepartmentId(departmentId)
-  const parsedPermissionOverrides = parsePermissionOverrides(permissionOverrides)
-  const [roles, branches, department, permissions] = await Promise.all([
+  const [roles, branches, department] = await Promise.all([
     prisma.app_roles.findMany({
       select: { id: true },
       where: { id: { in: parsedRoleIds }, active: true, is_employee_role: true },
@@ -106,13 +87,6 @@ async function assertUserRefs(
     prisma.departments.findFirst({
       select: { id: true },
       where: { id: parsedDepartmentId, active: true },
-    }),
-    prisma.app_permissions.findMany({
-      select: { id: true },
-      where: {
-        active: true,
-        id: { in: parsedPermissionOverrides.map((override) => override.permissionId) },
-      },
     }),
   ])
 
@@ -128,14 +102,9 @@ async function assertUserRefs(
     throw new Error('ฝ่ายที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
-  if (permissions.length !== parsedPermissionOverrides.length) {
-    throw new Error('สิทธิ์รายผู้ใช้ไม่ถูกต้องหรือถูกปิดใช้งาน')
-  }
-
   return {
     branchRefs: branches,
     departmentId: parsedDepartmentId,
-    permissionOverrides: parsedPermissionOverrides,
     roleRefIds: parsedRoleIds,
   }
 }
@@ -143,12 +112,12 @@ async function assertUserRefs(
 export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'system.users.manage')
+    requirePermission(context, 'system.users.update')
 
     const { id: rawId } = routeParamsSchema.parse(await params)
     const id = parseAppUserId(rawId)
     const values = adminUserFormSchema.parse(await request.json())
-    const { branchRefs, departmentId, permissionOverrides, roleRefIds } = await assertUserRefs(values.roleIds, values.branchIds, values.departmentId, values.permissionOverrides)
+    const { branchRefs, departmentId, roleRefIds } = await assertUserRefs(values.roleIds, values.branchIds, values.departmentId)
     const displayName = displayNameFromProfile(values)
 
     const existing = await prisma.app_users.findFirst({
@@ -192,19 +161,6 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
         })),
       })
 
-      await tx.app_user_permission_overrides.deleteMany({ where: { user_id: id } })
-      if (permissionOverrides.length) {
-        await tx.app_user_permission_overrides.createMany({
-          data: permissionOverrides.map((override) => ({
-            created_by: actor,
-            effect: override.effect,
-            permission_id: override.permissionId,
-            updated_by: actor,
-            user_id: id,
-          })),
-        })
-      }
-
       await tx.app_user_branch_access.deleteMany({ where: { user_id: id } })
 
       if (values.branchIds.length) {
@@ -226,7 +182,7 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
         departmentId: departmentId.toString(),
         displayName,
         roleCount: values.roleIds.length,
-        permissionOverrideCount: values.permissionOverrides.length,
+        permissionOverrideCount: 0,
         email: values.email,
       },
       request,

@@ -50,7 +50,7 @@ async function assertPermissionRefs(permissionIds: string[]) {
 export async function PATCH(request: Request, { params }: RoleRouteProps) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'system.roles.manage')
+    requirePermission(context, 'system.roles.update')
 
     const { id: rawId } = routeParamsSchema.parse(await params)
     const id = parseRoleId(rawId)

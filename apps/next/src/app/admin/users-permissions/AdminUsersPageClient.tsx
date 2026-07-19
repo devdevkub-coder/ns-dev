@@ -532,11 +532,6 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     label: department.name,
     searchText: `${department.code} ${department.name}`,
   })), [data?.departments])
-  const employeeRoleOptions = useMemo(() => employeeRoles.map((role) => ({
-    id: role.id,
-    label: role.name,
-    searchText: [role.code, role.name, role.description].filter(Boolean).join(' '),
-  })), [employeeRoles])
   const permissionSubjectOptions = useMemo(() => permissionSubjectType === 'role'
     ? (data?.roles ?? []).map((role) => ({
         id: role.id,
@@ -762,7 +757,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       namePrefix: user.namePrefix ?? '',
       permissionOverrides: user.permissionOverrides,
       profileImageUrl: user.profileImageUrl ?? '',
-      roleIds: user.roles.slice(0, 1).map((role) => role.id),
+      roleIds: user.roles.map((role) => role.id),
     })
     setFormError(null)
     setFormOpen(true)
@@ -1356,17 +1351,32 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                   </div>
 
                   <div className="rounded-xl border border-slate-100 bg-white p-4">
-                    <SearchCombobox
-                      inputId="admin-user-form-role"
-                      label="หน้าที่งาน *"
-                      options={employeeRoleOptions}
-                      placeholder="เลือกหน้าที่งาน"
-                      value={form.roleIds[0] ?? ''}
-                      onChange={(roleId) => setForm((current) => ({ ...current, roleIds: roleId ? [roleId] : [] }))}
-                    />
+                    <div className="mb-2 text-sm font-medium text-slate-700">หน้าที่งาน *</div>
+                    <div className="space-y-2">
+                      {employeeRoles.map((role) => (
+                        <label key={role.id} className="flex items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                          <input
+                            checked={form.roleIds.includes(role.id)}
+                            className="mt-0.5 rounded border-slate-300"
+                            type="checkbox"
+                            onChange={() => setForm((current) => ({
+                              ...current,
+                              roleIds: current.roleIds.includes(role.id)
+                                ? current.roleIds.filter((id) => id !== role.id)
+                                : [...current.roleIds, role.id],
+                            }))}
+                          />
+                          <span className="min-w-0">
+                            <span className="block font-medium text-slate-800">{role.name}</span>
+                            <span className="block font-mono text-xs text-slate-400">{role.code}</span>
+                          </span>
+                        </label>
+                      ))}
+                      {employeeRoles.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มีหน้าที่งานที่ใช้งานได้</p> : null}
+                    </div>
                   </div>
 
-                  <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
+                  {!isUsersPage ? <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
                     <div className="flex items-baseline justify-between gap-3 border-b border-slate-100 pb-1">
                       <div className="text-xs font-bold uppercase tracking-wider text-slate-500">สิทธิ์รายหน้า</div>
                       <div className="text-xs text-slate-500">ตามหน้าที่งาน / อนุญาตเพิ่ม / ปิดสิทธิ์</div>
@@ -1401,7 +1411,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </div> : null}
 
                   <div className="rounded-xl border border-slate-100 bg-white p-4">
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">สาขาที่เข้าถึง</div>

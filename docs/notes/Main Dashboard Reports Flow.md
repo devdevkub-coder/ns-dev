@@ -43,6 +43,7 @@ updated: 2026-07-18
 - `/dashboard-overview` ต้องให้ผู้ใช้เห็น global filter scope ก่อน overview เสมอ: desktop ใช้ white/neutral filter card, mobile ใช้ compact strip + `MobileFilterSheet` เพื่อไม่ให้ filter stack ดัน KPI ลงล่าง และรายละเอียดที่เป็น table-heavy ต้องเปิดทีละบริบทผ่าน detail tabs แทนการกองหลายตารางยาวลงหน้าเดียว
 - `/api/dashboard` ต้องเคารพ low-pool Supabase runtime (`DATABASE_POOL_MAX=1` ได้): อ่านหลายชุดผ่าน bounded concurrency ไม่เกิน 4 งานพร้อมกัน ห้ามใช้ `Promise.all` ก้อนใหญ่กับ Prisma read หลายสิบคำสั่ง เพราะจะทำให้ pg pool acquisition timeout และหน้า Dashboard ได้ 500 แม้สูตรรายงานถูกต้อง
 - `/api/dashboard` ใช้ `buildMainDashboards(..., { includeAnalytics: true, includeDaily: false, includeOwner: false })`: คงเฉพาะ dashboard KPI/aging/stock/historical และ analytics ที่หน้า overview ใช้ ส่วน payment/receipt, bank movement รายวัน, loan, trading และ production detail ไม่ถูกอ่านในโหมดนี้
+- `/api/analytics-dashboard` ใช้ line reader แบบ lightweight ที่ select เฉพาะ `sales_bill_id`, `product_id`, `product_name_snapshot`, `qty` และ `line_amount` และสร้าง daily trend จาก PB/SB โดยตรง; ห้ามเรียก `salesBillLineFactsByBillId` หรืออ่าน `bank_statement` เพราะ analytics ใช้ COGS จาก bill header และไม่ต้องใช้ allocation/trading/stock-ledger cost detail
 - report API ต้องแยก payload ตาม consumer และตอบ `Cache-Control: private, no-store`; reference options เท่านั้นที่ใช้ shared reference cache ได้
 - `/api/owner-daily`, `/api/daily-report` และ `/api/analytics-dashboard` ห้ามเรียก dashboard finance/stock/historical service ที่หน้าไม่ได้ใช้
 

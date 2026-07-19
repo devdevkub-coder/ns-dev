@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import type { User } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { apiErrorResponse } from '@/lib/server/api-error'
+import { effectivePermissionCodes } from '@/lib/server/authorization'
 import { prisma } from '@/lib/server/prisma'
 
 export type AppRoleSummary = {
@@ -120,20 +121,16 @@ function buildAppUserContext(appUser: AppUserWithAuth | null, user: User): AppAu
   const roles = appUser.app_user_roles
     .map((userRole) => userRole.app_roles)
     .filter((role) => role.active)
-  const permissionCodes = new Set<string>(
-    roles.flatMap((role) => role.app_role_permissions
+  const rolePermissionCodes = roles.flatMap((role) => role.app_role_permissions
       .map((rolePermission) => rolePermission.app_permissions)
       .filter((permission) => permission.active)
-      .map((permission) => permission.code)),
-  )
-  for (const override of appUser.app_user_permission_overrides) {
-    if (!override.app_permissions.active) continue
-    if (override.effect === 'deny') {
-      permissionCodes.delete(override.app_permissions.code)
-    } else if (override.effect === 'allow') {
-      permissionCodes.add(override.app_permissions.code)
-    }
-  }
+      .map((permission) => permission.code))
+  const permissionCodes = effectivePermissionCodes({
+    overrides: appUser.app_user_permission_overrides
+      .filter((override) => override.app_permissions.active && (override.effect === 'allow' || override.effect === 'deny'))
+      .map((override) => ({ code: override.app_permissions.code, effect: override.effect as 'allow' | 'deny' })),
+    rolePermissionCodes,
+  })
   const roleSummaries = roles.map((role) => ({
     branchScope: role.branch_scope,
     code: role.code,

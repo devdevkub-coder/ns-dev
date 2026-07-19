@@ -31,7 +31,7 @@ function parseAppUserId(value: string) {
 export async function PATCH(request: Request, { params }: AdminUserStatusRouteProps) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'system.users.manage')
+    requirePermission(context, 'system.users.activate')
 
     const { id: rawId } = routeParamsSchema.parse(await params)
     const id = parseAppUserId(rawId)

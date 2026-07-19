@@ -979,6 +979,17 @@ export function WeightTicketFormCore({
     nextLine.productId = sourceLine.productId
     nextLine.warehouseId = sourceLine.warehouseId
     nextLine.parentId = sourceLine.id
+    const existingLotIds = form.lines
+      .filter((line) => (
+        line.id === sourceLine.id
+        || (line.parentId === sourceLine.id && !isImpurityPurchaseLine(line) && line.deductionMode === 'none')
+      ))
+      .map((line) => line.id)
+    setCollapsedLotIds((current) => ({
+      ...current,
+      ...Object.fromEntries(existingLotIds.map((lotId) => [lotId, true])),
+      [nextLine.id]: false,
+    }))
     setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
   }
 
@@ -1358,7 +1369,7 @@ export function WeightTicketFormCore({
           </div>
         </div>
       ) : null}
-      <div className={cn("min-w-0", isEmbeddedModal ? "flex-1 overflow-y-auto p-4 sm:p-5 space-y-5" : "space-y-5 pb-32")}>
+      <div className={cn("min-w-0", isEmbeddedModal ? "flex-1 overflow-y-auto p-4 sm:p-5 space-y-5" : "space-y-5 pb-44 sm:pb-32")}>
         {!isEmbeddedModal && (
         <div>
           <Button type="button" variant="outline" onClick={backToList}>
@@ -1414,7 +1425,8 @@ export function WeightTicketFormCore({
           <div className="space-y-5">
             <Card className={cn(isEmbeddedModal ? "border-0 bg-transparent shadow-none p-0" : "p-5")}>
             <SectionHeader title="ข้อมูลหัวเอกสาร" />
-            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-4 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
+              <div className="grid gap-4 md:grid-cols-2">
               <BranchSelectCombobox
                 branches={branchOptionsForForm(branches, form).map((branch) => ({
                   id: branch.id,
@@ -1484,6 +1496,7 @@ export function WeightTicketFormCore({
 	                  onChange={(event) => updateForm('godownName', event.target.value)}
 	                />
               </FieldBlock>
+              </div>
               <FieldBlock label="รูปภาพรถส่งของ">
                 <AttachmentProfileGrid
                   id="weight-vehicle-images"
@@ -1599,7 +1612,7 @@ export function WeightTicketFormCore({
                   picker: (
                     <ProductImagePicker
                       key={`${form.branchId}:${form.partyId}:${form.type}`}
-                      buttonClassName={cn("text-white font-semibold h-10 px-3 flex items-center justify-center gap-1.5 outline-none", ticketTheme.button)}
+                      buttonClassName="h-10 bg-blue-600 px-3 font-semibold text-white outline-none hover:bg-blue-700"
                       disabled={isLoadingProducts || isPurchaseOnlyLine}
                       hideSelectedCard
                       products={productOptions}
@@ -1643,17 +1656,18 @@ export function WeightTicketFormCore({
                     <div className="mb-3 flex items-center justify-between gap-3 sm:mb-4">
                       <div className="inline-flex rounded-md bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white">รายการ {index + 1}</div>
                       <div className="flex items-center gap-2">
-                        <Button
-                          disabled={parentLines.length === 1}
-                          size="xs"
-                          type="button"
-                          variant="outline"
-                          onClick={() => removeLine(line.id)}
-                          className="outline-none flex items-center gap-1"
-                        >
-                          <Trash2 className="size-3" />
-                          ลบ
-                        </Button>
+                        {parentLines.length > 1 ? (
+                          <Button
+                            size="xs"
+                            type="button"
+                            variant="outline"
+                            onClick={() => removeLine(line.id)}
+                            className="outline-none flex items-center gap-1"
+                          >
+                            <Trash2 className="size-3" />
+                            ลบ
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
 
@@ -1806,7 +1820,7 @@ export function WeightTicketFormCore({
                             size="sm"
                             disabled={!hasSelectedProduct}
                             onClick={() => addSameProductLot(line)}
-                            className="outline-none flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white disabled:bg-slate-100 disabled:text-slate-400 h-9 px-3 text-sm font-semibold"
+                            className="h-9 bg-blue-600 px-3 text-sm font-semibold text-white outline-none hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400"
                           >
                             <Plus className="size-4" />
                             เพิ่มเต๋า
@@ -2169,30 +2183,38 @@ export function WeightTicketFormCore({
       </div>
 
       {!isEmbeddedModal ? (
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur-sm lg:left-64">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0 w-full sm:w-auto flex justify-center sm:block">
+      <div className="fixed inset-x-0 bottom-16 z-20 border-t border-slate-100 bg-white/95 px-3 py-2 backdrop-blur-sm lg:bottom-0 lg:left-64 lg:px-4 lg:py-3">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <div className="flex min-w-0 w-full justify-center sm:w-auto sm:block">
             {savedTicket ? (
               <div className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-emerald-700 ring-1 ring-emerald-200">
                 <CheckCircle2 className="size-4" />
                 บันทึก {savedTicket.documentNo} แล้ว
               </div>
             ) : (
-              <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm sm:justify-start sm:gap-x-8">
-                <MetricInline label="รายการ" value={`${getMainParentLines(form.lines).length} รายการ`} />
-                <MetricInline label="น้ำหนักรวม" value={`${formatWeight(totals.grossWeight)} กก.`} />
-                <MetricInline label="หักภาชนะ" value={`${formatWeight(totals.containerDeductionWeight)} กก.`} />
-                <MetricInline label="หักสิ่งเจือปน" value={`${formatWeight(totals.deductionWeight)} กก.`} />
-                <MetricInline emphasis label="สุทธิ" value={`${formatWeight(totals.netWeight)} กก.`} />
-              </div>
+              <>
+                <div className="grid w-full grid-cols-3 gap-3 text-xs sm:hidden">
+                  <MetricInline label="รายการ" value={`${getMainParentLines(form.lines).length} รายการ`} />
+                  <MetricInline label="น้ำหนักรวม" value={`${formatWeight(totals.grossWeight)} กก.`} />
+                  <MetricInline emphasis label="สุทธิ" value={`${formatWeight(totals.netWeight)} กก.`} />
+                </div>
+                <div className="hidden flex-wrap items-center gap-x-8 gap-y-2 text-sm sm:flex">
+                  <MetricInline label="รายการ" value={`${getMainParentLines(form.lines).length} รายการ`} />
+                  <MetricInline label="น้ำหนักรวม" value={`${formatWeight(totals.grossWeight)} กก.`} />
+                  <MetricInline label="หักภาชนะ" value={`${formatWeight(totals.containerDeductionWeight)} กก.`} />
+                  <MetricInline label="หักสิ่งเจือปน" value={`${formatWeight(totals.deductionWeight)} กก.`} />
+                  <MetricInline emphasis label="สุทธิ" value={`${formatWeight(totals.netWeight)} กก.`} />
+                </div>
+              </>
             )}
           </div>
-          <div className="flex flex-wrap gap-2 justify-end sm:justify-end ml-auto">
-            <Button disabled={isLoadingTicket || isSaving} type="button" variant="outline" onClick={backToList}>
+          <div className="ml-auto grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:justify-end">
+            <Button className="h-9" disabled={isLoadingTicket || isSaving} type="button" variant="outline" onClick={backToList}>
               {!onClose && <ArrowLeft className="mr-1 h-4 w-4" />}
-              {onClose ? 'ปิด' : 'กลับไปหน้ารายการ'}
+              <span className="sm:hidden">กลับรายการ</span>
+              <span className="hidden sm:inline">{onClose ? 'ปิด' : 'กลับไปหน้ารายการ'}</span>
             </Button>
-            <Button className="bg-blue-600 font-normal hover:bg-blue-700 text-white" disabled={isLoadingTicket || isSaving} type="button" onClick={saveTicket}>
+            <Button className="h-9 bg-blue-600 font-normal text-white hover:bg-blue-700" disabled={isLoadingTicket || isSaving} type="button" onClick={saveTicket}>
               {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
             </Button>
           </div>
