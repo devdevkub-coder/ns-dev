@@ -1366,7 +1366,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     />
                   </div>
 
-                  <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
+                  {!isUsersPage ? <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
                     <div className="flex items-baseline justify-between gap-3 border-b border-slate-100 pb-1">
                       <div className="text-xs font-bold uppercase tracking-wider text-slate-500">สิทธิ์รายหน้า</div>
                       <div className="text-xs text-slate-500">ตามหน้าที่งาน / อนุญาตเพิ่ม / ปิดสิทธิ์</div>
@@ -1401,7 +1401,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </div> : null}
 
                   <div className="rounded-xl border border-slate-100 bg-white p-4">
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">สาขาที่เข้าถึง</div>

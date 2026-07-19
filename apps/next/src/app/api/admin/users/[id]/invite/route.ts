@@ -47,7 +47,7 @@ function resolveRedirectTo(request: Request, requestedRedirectTo: string | undef
 export async function POST(request: Request, { params }: AdminUserInviteRouteProps) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'system.users.manage')
+    requirePermission(context, 'system.users.credentials_manage')
 
     const { id: rawId } = routeParamsSchema.parse(await params)
     const id = parseAppUserId(rawId)

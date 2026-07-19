@@ -18,7 +18,7 @@ const bodySchema = z.object({
 export async function PUT(request: Request, { params }: { params: Promise<unknown> }) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'system.users.manage')
+    requirePermission(context, 'system.permissions.update')
     const { id: rawId } = paramsSchema.parse(await params)
     const userId = parseInternalBigIntId(rawId)
     if (userId == null) throw new Error('รหัสผู้ใช้ไม่ถูกต้อง')
