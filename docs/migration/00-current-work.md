@@ -2,11 +2,11 @@
 
 Objective: cut `/profit-cost-analysis` over from transaction-wide Node aggregation to strict PostgreSQL fact/daily read models with split APIs, applied filters, request cancellation, branch scope, and server pagination/sort.
 
-Active batch: implementation and dev-target migration/backfill/reconciliation are complete locally. Focused Vitest is 9/9, full lint and source type-check pass, `git diff --check` passes, reconciliation reports zero issues, and warm summary + products + rankings reader time averages 88.6 ms. Summary, rankings, and the active table now fail independently; alerts are evaluated directly from the full scoped daily read model rather than a capped product page. No browser/UAT run was requested.
+Active batch: implementation and dev-target migration/backfill/reconciliation are complete. Code is promoted to `new-origin/dev` at `6686e4f3` and `sit-origin/main` at `102ece78`; the SIT database migration/backfill is not applied yet. Focused Vitest is 16/16 after the Dev/SIT semantic merges, full lint and source type-check pass, `git diff --check` passes, reconciliation reports zero issues on dev-target, and warm summary + products + rankings reader time averages 88.6 ms. Summary, rankings, and the active table now fail independently; alerts are evaluated directly from the full scoped daily read model rather than a capped product page. No browser/UAT run was requested.
 
 Latest decisions: financial/report facts are L5 and remain `private, no-store`; no Redis/browser fact cache; daily rollup owns summary/product numeric aggregation; fact ledger remains the source for distinct document counts; AP/AR remain direct PB/SB balance reads; old aggregate endpoint is retired with `410 Gone`.
 
-Blocker: the full Next build reaches successful Webpack compilation but fails route-type validation on the pre-existing export `getCostPoolRowsData` in `dual-costing/cost-pool/route.ts`; this file is unchanged by the batch. Immediate next tasks: review/commit the implementation batches, then promote/migrate only when explicitly requested.
+Blocker: SIT must receive migration `20260719160000_create_profit_cost_reporting_read_model.sql` plus backfill/reconciliation before the new report and PB/SB source writes are considered ready there. The full Next build reaches successful Webpack compilation but fails route-type validation on the pre-existing export `getCostPoolRowsData` in `dual-costing/cost-pool/route.ts`; this file is unchanged by the batch. Immediate next task: back up SIT, apply the migration, run backfill/reconciliation, then perform deployed smoke verification when explicitly requested.
 
 ## Previous Active Access Control Batch
 
