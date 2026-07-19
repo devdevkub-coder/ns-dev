@@ -967,6 +967,7 @@ export function MoneyMovementPageClient({
   const [cancelPaymentReason, setCancelPaymentReason] = useState('')
   const [cancelPaymentTarget, setCancelPaymentTarget] = useState<MoneyRow | null>(null)
   const [isCancellingPayment, setIsCancellingPayment] = useState(false)
+  const [invalidCancelReason, setInvalidCancelReason] = useState<'approval' | 'payment' | 'receipt' | null>(null)
   const [receiptBillDetailBill, setReceiptBillDetailBill] = useState<Bill | null>(null)
   const [receiptBillDetailOpen, setReceiptBillDetailOpen] = useState(false)
   const [receiptDetailOpen, setReceiptDetailOpen] = useState(false)
@@ -2220,9 +2221,11 @@ export function MoneyMovementPageClient({
   async function cancelApprovedPaymentQueue() {
     if (!cancelApprovalTarget?.approvalId) return
     if (!cancelApprovalReason.trim()) {
+      setInvalidCancelReason('approval')
       setError('กรุณาระบุเหตุผลการยกเลิก')
       return
     }
+    setInvalidCancelReason(null)
     setIsCancellingApproval(true)
     setError(null)
     try {
@@ -2246,9 +2249,11 @@ export function MoneyMovementPageClient({
   async function cancelCustomerReceiptRow() {
     if (!cancelReceiptTarget) return
     if (!cancelReceiptReason.trim()) {
+      setInvalidCancelReason('receipt')
       setError('กรุณาระบุเหตุผลการยกเลิก')
       return
     }
+    setInvalidCancelReason(null)
     setIsCancellingReceipt(true)
     setError(null)
     try {
@@ -2273,9 +2278,11 @@ export function MoneyMovementPageClient({
   async function cancelPaymentRow() {
     if (!cancelPaymentTarget) return
     if (!cancelPaymentReason.trim()) {
+      setInvalidCancelReason('payment')
       setError('กรุณาระบุเหตุผลการยกเลิก')
       return
     }
+    setInvalidCancelReason(null)
     setIsCancellingPayment(true)
     setError(null)
     try {
@@ -2923,7 +2930,7 @@ export function MoneyMovementPageClient({
                         onChange={changeReceiptCustomer}
                       />
                       <label className="block">
-                        <span className="mb-1 block text-xs font-medium text-slate-600">ประเภทเอกสารรับเงิน *</span>
+                        <span className="mb-1 block text-xs font-medium text-slate-600">ประเภทเอกสารรับเงิน</span>
                         <UiSelect
                           className="h-9 w-full rounded-md border border-slate-300 px-2 text-sm"
                           disabled={Boolean(form.id)}
@@ -3778,7 +3785,10 @@ export function MoneyMovementPageClient({
 
       {cancelReceiptTarget ? (
         <Dialog open onOpenChange={(open) => {
-          if (!open && !isCancellingReceipt) setCancelReceiptTarget(null)
+          if (!open && !isCancellingReceipt) {
+            setCancelReceiptTarget(null)
+            setInvalidCancelReason(null)
+          }
         }}>
           <DialogContent className="max-w-md rounded-md !p-0 overflow-hidden bg-slate-900 border-0 shadow-2xl outline-none focus:outline-none" hideClose mobileAppShell={false}>
             <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-md">
@@ -3790,16 +3800,23 @@ export function MoneyMovementPageClient({
                 <div className="text-slate-600">{cancelReceiptTarget.partyName} · {formatMoney(cancelReceiptTarget.amount)}</div>
               </div>
               <label className="block">
-                <span className="mb-1 block text-xs text-slate-600">เหตุผลการยกเลิก</span>
+                <span className="mb-1 block text-xs text-slate-600">
+                  เหตุผลการยกเลิก<span className="ml-1 text-red-600">*</span>
+                </span>
                 <textarea
+                  aria-invalid={invalidCancelReason === 'receipt'}
                   className="min-h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  required
                   value={cancelReceiptReason}
-                  onChange={(event) => setCancelReceiptReason(event.target.value)}
+                  onChange={(event) => {
+                    setCancelReceiptReason(event.target.value)
+                    if (invalidCancelReason === 'receipt') setInvalidCancelReason(null)
+                  }}
                 />
               </label>
             </div>
             <DialogFooter className="border-t border-slate-200 bg-white px-5 py-4">
-              <UiButton className="font-normal" disabled={isCancellingReceipt} type="button" variant="outline" onClick={() => setCancelReceiptTarget(null)}>ปิด</UiButton>
+              <UiButton className="font-normal" disabled={isCancellingReceipt} type="button" variant="outline" onClick={() => { setCancelReceiptTarget(null); setInvalidCancelReason(null) }}>ปิด</UiButton>
               <UiButton className="bg-red-600 text-white hover:bg-red-700 font-normal px-5" disabled={isCancellingReceipt} type="button" variant="default" onClick={cancelCustomerReceiptRow}>ยืนยันยกเลิก</UiButton>
             </DialogFooter>
           </DialogContent>
@@ -3808,7 +3825,10 @@ export function MoneyMovementPageClient({
 
       {cancelPaymentTarget ? (
         <Dialog open onOpenChange={(open) => {
-          if (!open && !isCancellingPayment) setCancelPaymentTarget(null)
+          if (!open && !isCancellingPayment) {
+            setCancelPaymentTarget(null)
+            setInvalidCancelReason(null)
+          }
         }}>
           <DialogContent className="max-w-md rounded-md !p-0 overflow-hidden bg-slate-900 border-0 shadow-2xl outline-none focus:outline-none" hideClose mobileAppShell={false}>
             <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-md">
@@ -3820,16 +3840,23 @@ export function MoneyMovementPageClient({
                 <div className="text-slate-600">{cancelPaymentTarget.partyName} · {formatMoney(cancelPaymentTarget.amount)}</div>
               </div>
               <label className="block">
-                <span className="mb-1 block text-xs text-slate-600">เหตุผลการยกเลิก</span>
+                <span className="mb-1 block text-xs text-slate-600">
+                  เหตุผลการยกเลิก<span className="ml-1 text-red-600">*</span>
+                </span>
                 <textarea
+                  aria-invalid={invalidCancelReason === 'payment'}
                   className="min-h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  required
                   value={cancelPaymentReason}
-                  onChange={(event) => setCancelPaymentReason(event.target.value)}
+                  onChange={(event) => {
+                    setCancelPaymentReason(event.target.value)
+                    if (invalidCancelReason === 'payment') setInvalidCancelReason(null)
+                  }}
                 />
               </label>
             </div>
             <DialogFooter className="border-t border-slate-200 bg-white px-5 py-4">
-              <UiButton className="font-normal" disabled={isCancellingPayment} type="button" variant="outline" onClick={() => setCancelPaymentTarget(null)}>ปิด</UiButton>
+              <UiButton className="font-normal" disabled={isCancellingPayment} type="button" variant="outline" onClick={() => { setCancelPaymentTarget(null); setInvalidCancelReason(null) }}>ปิด</UiButton>
               <UiButton className="bg-red-600 text-white hover:bg-red-700 font-normal px-5" disabled={isCancellingPayment} type="button" variant="default" onClick={cancelPaymentRow}>ยืนยันยกเลิก</UiButton>
             </DialogFooter>
           </DialogContent>
@@ -3841,6 +3868,7 @@ export function MoneyMovementPageClient({
           if (!open && !isCancellingApproval) {
             setCancelApprovalTarget(null)
             setCancelApprovalReason('')
+            setInvalidCancelReason(null)
           }
         }}>
           <DialogContent className="max-w-lg rounded-md !p-0 overflow-hidden bg-slate-900 border-0 shadow-2xl outline-none focus:outline-none" hideClose mobileAppShell={false}>
@@ -3857,12 +3885,19 @@ export function MoneyMovementPageClient({
                 <div><span className="font-semibold">ยอดคงเหลือ:</span> {formatMoney(cancelApprovalTarget.payableBalance ?? 0)}</div>
               </div>
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">เหตุผลการยกเลิก</span>
+                <span className="mb-1 block text-xs font-medium text-slate-600">
+                  เหตุผลการยกเลิก<span className="ml-1 text-red-600">*</span>
+                </span>
                 <textarea
+                  aria-invalid={invalidCancelReason === 'approval'}
                   className="min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-400"
                   placeholder="ระบุเหตุผลการยกเลิกรายการรอจ่าย"
+                  required
                   value={cancelApprovalReason}
-                  onChange={(event) => setCancelApprovalReason(event.target.value)}
+                  onChange={(event) => {
+                    setCancelApprovalReason(event.target.value)
+                    if (invalidCancelReason === 'approval') setInvalidCancelReason(null)
+                  }}
                 />
               </label>
             </div>
@@ -3875,6 +3910,7 @@ export function MoneyMovementPageClient({
                 onClick={() => {
                   setCancelApprovalTarget(null)
                   setCancelApprovalReason('')
+                  setInvalidCancelReason(null)
                 }}
               >
                 ปิด

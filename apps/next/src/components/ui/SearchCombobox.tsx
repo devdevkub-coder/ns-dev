@@ -215,8 +215,10 @@ export function SearchCombobox({
     if (shouldAutoSelectText()) inputRef.current?.focus()
   }
 
+  const fieldInvalid = Boolean(error && !disabled)
+
   return (
-    <div ref={containerRef} className="relative" data-error-key={errorKey}>
+    <div ref={containerRef} className="relative" data-error-key={errorKey} data-manual-required={hasInlineRequired ? 'true' : undefined}>
       {!hideLabel ? <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor={inputId}>{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}</label> : null}
       <Input
         ref={inputRef}
@@ -225,10 +227,11 @@ export function SearchCombobox({
         aria-controls={`${inputId}-options`}
         aria-expanded={open}
         aria-haspopup="listbox"
-        aria-invalid={Boolean(error)}
+        aria-invalid={fieldInvalid}
+        aria-label={hideLabel ? labelText : undefined}
         className={cn(
-          'h-10 w-full rounded-md border px-3 py-2 text-base focus-visible:!border-[#737373] focus-visible:!ring-[3px] focus-visible:!ring-neutral-500/20 sm:text-sm',
-          error ? 'border-red-400 bg-red-50 focus-visible:!border-red-500 focus-visible:!ring-red-500/20 dark:border-red-500 dark:bg-red-950/20' : 'border-slate-300 dark:[border-color:var(--ns-dark-border-strong)]',
+          'h-10 w-full rounded-md border px-3 py-2 text-base focus-visible:!border-[var(--ns-field-focus)] focus-visible:!ring-[3px] focus-visible:!ring-[var(--ns-field-focus-ring)] sm:text-sm',
+          fieldInvalid ? 'border-red-400 bg-red-50 dark:border-red-500 dark:bg-red-950/20' : 'border-slate-300 dark:[border-color:var(--ns-dark-border-strong)]',
           inputClassName,
         )}
         disabled={disabled}

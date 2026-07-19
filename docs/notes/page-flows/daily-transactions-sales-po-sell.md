@@ -112,6 +112,11 @@ line-level allocation, close-short และ branch-aware numbering ยังต
 
 Branch-scope enforcement now exists for `/api/sales/po-sell`: list/export/options are limited to allowed branches and create into another branch is rejected for non-admin users. This is covered by `npm run qa:sales-bill-mixed-trading-browser --workspace @ns-scrap-erp/next` through a branch-scoped non-admin user fixture.
 
+## 2026-07-19 Desktop action-column containment checkpoint
+
+- What is what: คอลัมน์ `จัดการ` บน desktop ต้องสงวนความกว้างขั้นต่ำสำหรับ valid action set สูงสุด 4 ปุ่ม (`แก้ไข`, `พิมพ์`, `ปิดส่งไม่ครบ`, `ยกเลิก`) และคอลัมน์ `อัปเดตล่าสุด` ตัดข้อความทั้งชื่อผู้แก้ไขกับ timestamp ภายในความกว้างของ column พร้อม `title` สำหรับอ่านข้อความเต็ม
+- Why it has to be like this: ปุ่ม action ต้องคงบรรทัดเดียวและไม่ถูกข้อความ audit ที่ยาวล้ำมาทับ; ตารางยังใช้ internal horizontal scroll เมื่อผลรวมความกว้างเกิน viewport โดยไม่เปลี่ยน mobile cards, action eligibility, API, permission หรือ business lifecycle
+
 ## Implementation Checklist
 
 - [x] Verify current Next page/component against this page-flow

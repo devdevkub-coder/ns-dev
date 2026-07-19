@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { changePasswordSchema } from '@/lib/auth'
+import { acknowledgePasswordChanged, PASSWORD_UPDATE_ERROR } from '@/lib/auth-client-contract'
 import { getSupabaseClient } from '@/lib/supabase'
 
 type FieldErrors = Partial<Record<'confirmPassword' | 'currentPassword' | 'password', string>>
@@ -129,15 +130,15 @@ export function ChangePasswordPageClient() {
     setIsLoading(false)
 
     if (updateError) {
-      setError(`เปลี่ยน Password ไม่สำเร็จ: ${updateError.message}`)
+      setError(PASSWORD_UPDATE_ERROR)
       return
     }
 
-    await fetch('/api/auth/password-changed', {
-      cache: 'no-store',
-      credentials: 'include',
-      method: 'POST',
-    }).catch(() => undefined)
+    const acknowledgement = await acknowledgePasswordChanged({ fetchImpl: fetch })
+    if (!acknowledgement.ok) {
+      setError(acknowledgement.message)
+      return
+    }
 
     setCurrentPassword('')
     setPassword('')
@@ -283,8 +284,10 @@ function PasswordField(props: {
       {props.description ? <span className="ml-1 text-xs font-normal text-slate-500">({props.description})</span> : null}
       <Input
         autoComplete={props.autoComplete}
+        aria-invalid={Boolean(props.error)}
         className={`mt-1.5 h-9 focus:ring-blue-500 focus:border-blue-500 ${props.error ? 'border-red-400 bg-red-50 focus:border-red-400' : ''}`}
         disabled={props.disabled}
+        required
         type={props.showPassword ? 'text' : 'password'}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}

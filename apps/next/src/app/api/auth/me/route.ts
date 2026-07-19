@@ -1,13 +1,13 @@
-import { NextResponse } from 'next/server'
 import { authContextErrorResponse, getCurrentAuthContext, serializeAuthContext } from '@/lib/server/auth-context'
+import { authJson, withAuthNoStore } from '@/lib/server/auth-response'
 
 export const runtime = 'nodejs'
 
 export async function GET() {
   try {
     const context = await getCurrentAuthContext()
-    return NextResponse.json(serializeAuthContext(context))
+    return authJson(serializeAuthContext(context))
   } catch (caught) {
-    return authContextErrorResponse(caught)
+    return withAuthNoStore(authContextErrorResponse(caught))
   }
 }

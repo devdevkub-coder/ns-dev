@@ -3,6 +3,25 @@ import { z } from 'zod'
 const blankToNull = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? null : value)
 const docNoPattern = /^[A-Za-z0-9_-]+$/
 const generalTextPattern = /^[^\u0000-\u001F\u007F]+$/u
+const stockBalanceDisplayEpsilon = 0.0001
+
+export function isVisibleStockBalanceTotal(balances: ReadonlyArray<{
+  awaitingBillQty: number
+  onHoldQty: number
+  qty: number
+  value: number
+}>) {
+  const total = balances.reduce((acc, balance) => {
+    acc.awaitingBillQty += balance.awaitingBillQty
+    acc.onHoldQty += balance.onHoldQty
+    acc.qty += balance.qty
+    acc.value += balance.value
+    return acc
+  }, { awaitingBillQty: 0, onHoldQty: 0, qty: 0, value: 0 })
+
+  return [total.qty, total.value, total.awaitingBillQty, total.onHoldQty]
+    .some((value) => Number.isFinite(value) && Math.abs(value) > stockBalanceDisplayEpsilon)
+}
 
 const requiredDate = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'วันที่ต้องเป็นรูปแบบ YYYY-MM-DD')
 const optionalDocNo = z.preprocess(

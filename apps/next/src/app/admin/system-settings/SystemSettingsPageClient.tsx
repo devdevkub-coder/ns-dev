@@ -233,7 +233,7 @@ export function SystemSettingsPageClient() {
 
             <label className="block text-sm font-medium text-slate-700">
               อัตรา %
-              <div className="mt-1.5 flex max-w-xs items-center overflow-hidden rounded-md border border-slate-300 bg-white focus-within:border-slate-900 h-9">
+              <div className="mt-1.5 flex max-w-xs items-center overflow-hidden rounded-md border border-slate-300 bg-white h-9" data-slot="input-group">
                 <Input
                   className={percentInputClassName()}
                   inputMode="decimal"
@@ -315,7 +315,7 @@ export function SystemSettingsPageClient() {
                           {record.isDefault ? <div className="mt-0.5 text-xs text-emerald-700 font-bold">อัตราที่ใช้คำนวณปัจจุบัน</div> : null}
                         </TableCell>
                         <TableCell>
-                          <div className="ml-auto flex max-w-[130px] items-center overflow-hidden rounded-md border border-slate-300 bg-white focus-within:border-slate-900">
+                          <div className="ml-auto flex max-w-[130px] items-center overflow-hidden rounded-md border border-slate-300 bg-white" data-slot="input-group">
                             <Input
                               aria-label={`${record.name} อัตราเปอร์เซ็นต์`}
                               className={percentInputClassName()}
@@ -375,7 +375,7 @@ export function SystemSettingsPageClient() {
                     <div className="flex items-center gap-2 pt-1.5 border-t border-slate-100">
                       <div className="flex-1">
                         <span className="text-slate-400 block text-xs uppercase font-semibold mb-1">อัตรา %</span>
-                        <div className="flex max-w-[130px] items-center overflow-hidden rounded-md border border-slate-300 bg-white focus-within:border-slate-900 h-9">
+                        <div className="flex max-w-[130px] items-center overflow-hidden rounded-md border border-slate-300 bg-white h-9" data-slot="input-group">
                           <Input
                             aria-label={`${record.name} อัตราเปอร์เซ็นต์`}
                             className={percentInputClassName()}

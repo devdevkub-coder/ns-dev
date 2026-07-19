@@ -37,7 +37,7 @@ export async function normalizeSalesBillProfitCostSource(
 
   const costsByLineNo = new Map<number, string>()
   const stockSourceLineNumbers = new Set(sourceAllocations.map((allocation) => {
-    if (allocation.source_type !== 'WTO') {
+    if (allocation.source_type !== 'WTO' && allocation.source_type !== 'STOCK') {
       throw new Error(`Sales Bill ${input.salesBillDocNo} has unsupported stock source type ${allocation.source_type}`)
     }
     return allocation.sales_line_no

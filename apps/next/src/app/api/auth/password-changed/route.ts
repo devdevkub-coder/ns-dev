@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { authContextErrorResponse, getCurrentAuthContext, getSupabaseServerClient } from '@/lib/server/auth-context'
+import { authJson, withAuthNoStore } from '@/lib/server/auth-response'
 import { prisma } from '@/lib/server/prisma'
 
 export const runtime = 'nodejs'
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     const supabase = await getSupabaseServerClient()
     const { data, error } = await supabase.auth.getUser()
     if (error || !data.user) {
-      return NextResponse.json({ cleared: false })
+      return authJson({ cleared: false })
     }
 
     const appUser = await prisma.app_users.findUnique({
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       where: { auth_user_id: data.user.id },
     })
     if (!appUser) {
-      return NextResponse.json({ cleared: false })
+      return authJson({ cleared: false })
     }
 
     const changedAt = new Date()
@@ -52,8 +52,8 @@ export async function POST(request: Request) {
       targetAppUserId: appUser.id.toString(),
     })
 
-    return NextResponse.json({ activated: activatesInvitation, cleared: true })
+    return authJson({ activated: activatesInvitation, cleared: true })
   } catch (caught) {
-    return authContextErrorResponse(caught)
+    return withAuthNoStore(authContextErrorResponse(caught))
   }
 }

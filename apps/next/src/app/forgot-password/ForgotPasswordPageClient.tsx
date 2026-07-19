@@ -69,13 +69,14 @@ export function ForgotPasswordPageClient() {
 
         <form className="space-y-4" onSubmit={submit}>
           <label className="block text-sm font-medium text-slate-700">
-            Email
+            Email <span className="text-red-600">*</span>
             <input
               autoComplete="email"
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isLoading}
               onChange={(event) => setIdentifier(event.target.value)}
               placeholder="name@example.com"
+              required
               type="email"
               value={identifier}
             />

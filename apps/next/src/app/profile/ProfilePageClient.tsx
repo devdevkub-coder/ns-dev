@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { changePasswordSchema, userProfileSchema } from '@/lib/auth'
+import { acknowledgePasswordChanged, PASSWORD_UPDATE_ERROR } from '@/lib/auth-client-contract'
 import { getSupabaseClient } from '@/lib/supabase'
 
 type CurrentUser = {
@@ -191,15 +192,16 @@ export function ProfilePageClient() {
 
     if (updateError) {
       setIsSavingPassword(false)
-      setSecurityError(`เปลี่ยน Password ไม่สำเร็จ: ${updateError.message}`)
+      setSecurityError(PASSWORD_UPDATE_ERROR)
       return
     }
 
-    await fetch('/api/auth/password-changed', {
-      cache: 'no-store',
-      credentials: 'include',
-      method: 'POST',
-    }).catch(() => undefined)
+    const acknowledgement = await acknowledgePasswordChanged({ fetchImpl: fetch })
+    if (!acknowledgement.ok) {
+      setIsSavingPassword(false)
+      setSecurityError(acknowledgement.message)
+      return
+    }
 
     setIsSavingPassword(false)
     setCurrentPassword('')
@@ -246,9 +248,11 @@ export function ProfilePageClient() {
                 <label className="block text-sm font-semibold text-slate-700">
                   ชื่อแสดงในระบบ (Display Name) <span className="text-red-500">*</span>
                   <Input
+                    aria-invalid={Boolean(profileErrors.displayName)}
                     className={`mt-1.5 h-9 focus:ring-slate-400 focus:border-slate-400 outline-none ${profileErrors.displayName ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
                     disabled={isFetchingUser || isSavingProfile}
                     placeholder="กรอกชื่อ-นามสกุล หรือชื่อแสดงผลในระบบ"
+                    required
                     value={displayName}
                     onChange={(event) => setDisplayName(event.target.value)}
                   />
@@ -394,8 +398,10 @@ function PasswordField(props: {
       {props.description ? <span className="ml-1 text-xs font-normal text-slate-500">({props.description})</span> : null}
       <Input
         autoComplete={props.autoComplete}
+        aria-invalid={Boolean(props.error)}
         className={`mt-1.5 h-9 focus:ring-slate-400 focus:border-slate-400 outline-none ${props.error ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
         disabled={props.disabled}
+        required
         type={props.showPassword ? 'text' : 'password'}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}

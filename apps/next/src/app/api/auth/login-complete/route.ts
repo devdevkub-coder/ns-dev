@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { authContextErrorResponse, getCurrentAuthContext } from '@/lib/server/auth-context'
+import { authJson, withAuthNoStore } from '@/lib/server/auth-response'
 import { prisma } from '@/lib/server/prisma'
 
 export const runtime = 'nodejs'
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     const context = await getCurrentAuthContext()
 
     if (!context.appUser) {
-      return NextResponse.json({ error: 'ไม่พบข้อมูลผู้ใช้ในระบบ' }, { status: 403 })
+      return authJson({ error: 'ไม่พบข้อมูลผู้ใช้ในระบบ' }, { status: 403 })
     }
 
     const loggedInAt = new Date()
@@ -34,10 +34,10 @@ export async function POST(request: Request) {
       targetAppUserId: context.appUser.id.toString(),
     })
 
-    return NextResponse.json({
+    return authJson({
       lastLoginAt: loggedInAt.toISOString(),
     })
   } catch (caught) {
-    return authContextErrorResponse(caught)
+    return withAuthNoStore(authContextErrorResponse(caught))
   }
 }

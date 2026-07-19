@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { resetPasswordSchema } from '@/lib/auth'
+import { acknowledgePasswordChanged, PASSWORD_UPDATE_ERROR } from '@/lib/auth-client-contract'
 import { getSessionSafely, getSupabaseClient } from '@/lib/supabase'
 
 export function ResetPasswordPageClient() {
@@ -70,18 +71,19 @@ export function ResetPasswordPageClient() {
     setIsLoading(false)
 
     if (updateError) {
-      setError(`ตั้งรหัสผ่านใหม่ไม่สำเร็จ: ${updateError.message}`)
+      setError(PASSWORD_UPDATE_ERROR)
+      return
+    }
+
+    const acknowledgement = await acknowledgePasswordChanged({ fetchImpl: fetch })
+    if (!acknowledgement.ok) {
+      setError(acknowledgement.message)
       return
     }
 
     setPassword('')
     setConfirmPassword('')
     setMessage('ตั้งรหัสผ่านใหม่สำเร็จ กำลังพาไปหน้าเข้าสู่ระบบ')
-    await fetch('/api/auth/password-changed', {
-      cache: 'no-store',
-      credentials: 'include',
-      method: 'POST',
-    }).catch(() => undefined)
     await supabase.auth.signOut()
     setTimeout(() => router.push('/login'), 800)
   }
@@ -111,7 +113,7 @@ export function ResetPasswordPageClient() {
         <form className="space-y-4" onSubmit={submit}>
           <input autoComplete="email" className="hidden" readOnly type="email" value={sessionEmail} />
           <label className="block text-sm font-medium text-slate-700">
-            Password ใหม่
+            Password ใหม่ <span className="text-red-600">*</span>
             <span className="relative mt-1 block">
               <input
                 autoComplete="new-password"
@@ -119,6 +121,7 @@ export function ResetPasswordPageClient() {
                 disabled={isLoading || !isSessionReady}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="อย่างน้อย 8 ตัวอักษร"
+                required
                 type={showPassword ? 'text' : 'password'}
                 value={password}
               />
@@ -135,13 +138,14 @@ export function ResetPasswordPageClient() {
           </label>
 
           <label className="block text-sm font-medium text-slate-700">
-            ยืนยัน Password ใหม่
+            ยืนยัน Password ใหม่ <span className="text-red-600">*</span>
             <input
               autoComplete="new-password"
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isLoading || !isSessionReady}
               onChange={(event) => setConfirmPassword(event.target.value)}
               placeholder="กรอกรหัสผ่านใหม่อีกครั้ง"
+              required
               type={showPassword ? 'text' : 'password'}
               value={confirmPassword}
             />

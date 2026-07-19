@@ -122,7 +122,12 @@ export const poSellFormSchema = z.object({
   salesPlanId: optionalSafeId('แผนขาย'),
 })
 
+export const poSellPageFormSchema = poSellFormSchema.extend({
+  branchId: requiredSafeId('สาขา'),
+})
+
 export type SalesBillFormValues = z.infer<typeof salesBillFormSchema>
 export type SalesBillCancelValues = z.infer<typeof salesBillCancelSchema>
 export type SalesBillStockReturnValues = z.infer<typeof salesBillStockReturnSchema>
 export type PoSellFormValues = z.infer<typeof poSellFormSchema>
+export type PoSellPageFormValues = z.infer<typeof poSellPageFormSchema>

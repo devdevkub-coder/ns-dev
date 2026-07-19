@@ -16,6 +16,10 @@ import { TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Tab
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
+import {
+  formatPaymentApprovalDestinationLabel,
+  paymentApprovalSourcePresentation,
+} from '@/lib/payment-approval-presentation'
 import { openPmaBatchPrint } from '@/lib/payment-approval-print'
 
 type ApprovalDestinationOption = {
@@ -145,9 +149,9 @@ function isValidMoneyDraft(value: string) {
 }
 
 function destinationSummaryLabel(row: ApprovalApRow) {
-  if (row.approvalStatus !== 'pending') return row.destinationLabel || '-'
+  if (row.approvalStatus !== 'pending') return formatPaymentApprovalDestinationLabel(row.destinationLabel)
   if (row.bankAccounts.length === 0) return 'ยังไม่มีช่องทางจ่ายปลายทาง'
-  return row.bankAccounts.map((option) => option.label).join(', ')
+  return row.bankAccounts.map((option) => formatPaymentApprovalDestinationLabel(option.label)).join(', ')
 }
 
 function expenseDestinationSummaryLabel(row: ApprovalExpenseRow) {
@@ -638,7 +642,11 @@ export function PaymentApprovalPageClient() {
                   {row.sourceType === 'petty_advance_return' ? 'บัญชีรับคืนของบริษัท' : 'ช่องทางจ่าย / บัญชีปลายทาง'}
                   <Select className="mt-1 h-9" value={split.destinationId} onChange={(event) => updateSplit(split.id, { destinationId: event.target.value })}>
                     <option value="">เลือกช่องทางจ่าย</option>
-                    {destinationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                    {destinationOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {'bankAccounts' in row ? formatPaymentApprovalDestinationLabel(option.label) : option.label}
+                      </option>
+                    ))}
                   </Select>
                 </label>
               </div>
@@ -871,13 +879,13 @@ export function PaymentApprovalPageClient() {
                 <span className="text-slate-800">{row.supplierName}</span>
               </div>
               <div className="text-xs text-slate-500">
-                อ้างอิง: {row.sourceDocNo} ({row.sourceLabel})
+                อ้างอิง: {paymentApprovalSourcePresentation(row).mobileReference}
               </div>
               {row.sourceType === 'advance_payment' && advanceMetaLabel(row) ? (
                 <div className="text-xs text-slate-500">{advanceMetaLabel(row)}</div>
               ) : null}
               <div className="text-xs text-slate-500">
-                ช่องทางจ่าย: {row.approvalStatus === 'approved' ? row.destinationLabel : destinationSummaryLabel(row)}
+                ช่องทางจ่าย: {destinationSummaryLabel(row)}
               </div>
             </div>
 
@@ -1029,7 +1037,9 @@ export function PaymentApprovalPageClient() {
                       </TableCell>
                       <TableCell className="text-sm font-semibold text-slate-700">
                         <div className="whitespace-nowrap">{row.sourceDocNo}</div>
-                        <div className="text-xs text-slate-500">{row.sourceLabel}</div>
+                        {row.sourceType === 'advance_payment' ? null : (
+                          <div className="text-xs text-slate-500">{paymentApprovalSourcePresentation(row).desktopSublabel}</div>
+                        )}
                         {row.sourceType === 'advance_payment' && advanceMetaLabel(row) ? (
                           <div className="text-xs font-normal text-slate-500">{advanceMetaLabel(row)}</div>
                         ) : null}
@@ -1038,7 +1048,7 @@ export function PaymentApprovalPageClient() {
                       <TableCell className="text-sm font-semibold text-slate-700">{row.supplierName}</TableCell>
                       <TableCell className="text-sm font-semibold text-slate-700">
                         {row.approvalStatus === 'approved'
-                          ? <div className="whitespace-normal text-slate-700">{row.destinationLabel || '-'}</div>
+                          ? <div className="whitespace-normal text-slate-700">{destinationSummaryLabel(row)}</div>
                           : <div className="whitespace-normal text-slate-500">{destinationSummaryLabel(row)}</div>}
                       </TableCell>
                       <TableCell className="text-right pr-4 text-sm font-semibold text-slate-700 tabular-nums">{formatMoney(row.totalAmount)}</TableCell>
@@ -1230,7 +1240,7 @@ export function PaymentApprovalPageClient() {
                   <div className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">รายละเอียดการอนุมัติ</div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                     <DetailItem label="เลขที่อนุมัติ" value={detail.row.approvalDisplayDocNo ?? detail.row.docNo} />
-                    <DetailItem label="ช่องทางจ่าย / ปลายทาง" value={detail.row.destinationLabel || '-'} />
+                    <DetailItem label="ช่องทางจ่าย / ปลายทาง" value={formatPaymentApprovalDestinationLabel(detail.row.destinationLabel)} />
                     <DetailItem label="ยอดอนุมัติ" value={formatMoney(detail.row.approvedAmount)} />
                     <DetailItem label="สถานะ" value={approvalStatusLabel(detail.row.approvalStatus)} />
                     {detail.row.voidedAt ? <DetailItem label="วันที่ยกเลิก" value={formatDateDisplay(detail.row.voidedAt)} /> : null}

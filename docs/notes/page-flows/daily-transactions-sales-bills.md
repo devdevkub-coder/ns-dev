@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-30
+updated: 2026-07-19
 route: /sales/bills
 ---
 
@@ -187,3 +187,9 @@ SB ตั้งลูกหนี้, consume WTO `pending_out`, ตัด stock
 ## 2026-07-12 Table consistency checkpoint
 
 `/sales/bills` now right-aligns the `รายการ`, `ยอดรวม`, `GP / Margin`, `รับแล้ว`, `ค้างชำระ`, and `จัดการ` headers with their numeric/action body content. What is what: these remain existing Sales Bill list facts and actions. Why it stays this way: the table must read consistently from header to row without changing Sales Bill formulas, source allocation, receipt/refund flows, API behavior, permissions, database schema, or DB state.
+
+## 2026-07-19 Detail cost and party alignment checkpoint
+
+Sales Bill detail now shows `ต้นทุน/หน่วย` between `จำนวนสุทธิ` and `ราคาขาย/หน่วย`, using the existing read-only `unitCostSnapshot` from the detail contract and showing `-` when no snapshot exists. The wider table keeps horizontal overflow, while sale price, discount, and line total remain unchanged. What is what: this is the captured unit cost for the document line, not a recalculation from current WAC. Why it has to be like this: users need to compare captured cost with sale price without changing historical bill facts or adding a backend/database contract.
+
+The `/sales/bills` list also left-aligns the `ลูกค้า` header to match its left-aligned body. Numeric, status, and action columns retain their accepted alignment and behavior.

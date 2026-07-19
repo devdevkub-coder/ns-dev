@@ -247,7 +247,7 @@ export function ComboboxInput({
   return (
     <div
       className={cn(
-        'group/input-group relative flex h-8 min-w-0 items-center overflow-hidden rounded-md border border-slate-300 bg-white transition-colors outline-none has-[[data-slot=input-group-control]:focus-visible]:border-[#737373] has-[[data-slot=input-group-control]:focus-visible]:ring-[3px] has-[[data-slot=input-group-control]:focus-visible]:ring-neutral-500/20 dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dark-surface-soft)] dark:has-[[data-slot=input-group-control]:focus-visible]:border-[#737373] dark:has-[[data-slot=input-group-control]:focus-visible]:ring-neutral-500/20',
+        'group/input-group relative flex h-8 min-w-0 items-center overflow-hidden rounded-md border border-slate-300 bg-white transition-colors outline-none has-[[data-slot=input-group-control]:focus-visible]:border-[var(--ns-field-focus)] has-[[data-slot=input-group-control]:focus-visible]:ring-[3px] has-[[data-slot=input-group-control]:focus-visible]:ring-[var(--ns-field-focus-ring)] dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dark-surface-soft)]',
         inputGroupClassName,
       )}
       data-slot="input-group"

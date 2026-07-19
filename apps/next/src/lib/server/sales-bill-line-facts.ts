@@ -19,7 +19,7 @@ type SalesBillLineWithFacts = Prisma.sales_bill_linesGetPayload<{
 }>
 
 type TradingAllocationFact = Prisma.trading_allocation_factsGetPayload<Record<string, never>>
-type StockLedgerCostRow = Pick<Prisma.stock_ledgerGetPayload<Record<string, never>>, 'product_id' | 'ref_id' | 'ref_no' | 'value_out'>
+type StockLedgerCostRow = Pick<Prisma.stock_ledgerGetPayload<Record<string, never>>, 'product_id' | 'ref_id' | 'ref_no' | 'value_in' | 'value_out'>
 
 export type SalesBillLineFactRow = {
   allocationType: string
@@ -89,7 +89,7 @@ function activeSourceAllocations(line: SalesBillLineWithFacts) {
 }
 
 function activeDirectStockSources(line: SalesBillLineWithFacts) {
-  return activeSourceAllocations(line).filter((row) => row.source_type === 'WTO' && row.movement_owner === 'SALES_BILL')
+  return activeSourceAllocations(line).filter((row) => (row.source_type === 'WTO' || row.source_type === 'STOCK') && row.movement_owner === 'SALES_BILL')
 }
 
 function sumDirectStockLedgerByBillProduct(rows: StockLedgerCostRow[], salesDocNos: Set<string>) {
@@ -98,7 +98,7 @@ function sumDirectStockLedgerByBillProduct(rows: StockLedgerCostRow[], salesDocN
     const ref = [row.ref_no, row.ref_id].find((value) => value != null && salesDocNos.has(value))
     if (!ref) continue
     const key = billProductKey(ref, row.product_id)
-    totals.set(key, (totals.get(key) ?? 0) + toNumber(row.value_out))
+    totals.set(key, (totals.get(key) ?? 0) + toNumber(row.value_out) - toNumber(row.value_in))
   }
   return totals
 }
@@ -111,7 +111,7 @@ async function stockCogsByLine(lines: SalesBillLineWithFacts[]) {
 
   const directStockLedgerRows = salesDocNos.size
     ? await prisma.stock_ledger.findMany({
-      select: { product_id: true, ref_id: true, ref_no: true, value_out: true },
+      select: { product_id: true, ref_id: true, ref_no: true, value_in: true, value_out: true },
       where: {
         ref_type: 'SB',
         OR: [
