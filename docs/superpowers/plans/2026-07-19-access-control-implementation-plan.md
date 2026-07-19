@@ -49,7 +49,7 @@
 - Input: role permission codes, user allow/deny overrides, `isAdmin`, user branch codes, requested branch code
 - Produces: executable contracts for `effectivePermissionCodes`, `hasPermission`, and branch intersection behavior
 
-- [ ] **Step 1: Write failing tests for permission precedence**
+- [x] **Step 1: Write failing tests for permission precedence**
 
 ```ts
 it('uses deny override over role and allow override', () => {
@@ -65,7 +65,7 @@ it('uses deny override over role and allow override', () => {
 })
 ```
 
-- [ ] **Step 2: Add tests for multiple roles, inactive permissions, admin bypass, and branch intersection**
+- [x] **Step 2: Add tests for multiple roles, inactive permissions, admin bypass, and branch intersection**
 
 ```ts
 expect(effectivePermissionCodes({
@@ -75,13 +75,13 @@ expect(effectivePermissionCodes({
 expect(getBranchCodeIntersection(contextFor(['สมุทรสาคร']), 'นครสวรรค์')).toEqual([])
 ```
 
-- [ ] **Step 3: Run the focused test and confirm the new contract fails before implementation**
+- [x] **Step 3: Run the focused test and confirm the new contract fails before implementation**
 
 Run: `npx vitest run --config apps/next/vitest.config.ts apps/next/src/lib/server/authorization.test.ts`
 
 Expected: FAIL because `effectivePermissionCodes` is not yet extracted.
 
-- [ ] **Step 4: Extract the pure effective-permission helper without changing the current broad route behavior**
+- [x] **Step 4: Extract the pure effective-permission helper without changing the current broad route behavior**
 
 Create a pure function with this contract:
 
@@ -94,18 +94,20 @@ export function effectivePermissionCodes(params: {
 
 Use it from `buildAppUserContext`; keep `isAdmin` as an explicit admin bypass until action permissions are migrated.
 
-- [ ] **Step 5: Run focused and existing auth tests**
+- [x] **Step 5: Run focused and existing auth tests**
 
 Run: `npx vitest run --config apps/next/vitest.config.ts apps/next/src/lib/server/authorization.test.ts apps/next/src/lib/customer-advance.test.ts`
 
 Expected: all selected tests pass.
 
-- [ ] **Step 6: Commit the isolated authorization contract**
+- [x] **Step 6: Commit the isolated authorization contract**
 
 ```bash
 git add apps/next/src/lib/server/auth-context.ts apps/next/src/lib/server/authorization.test.ts
 git commit -m "refactor: centralize effective permission evaluation"
 ```
+
+Validation note: focused Vitest passed `17/17` and targeted ESLint passed. Workspace type-check remains blocked by three pre-existing errors in `apps/next/src/lib/server/analytics-dashboard.ts`.
 
 ---
 
