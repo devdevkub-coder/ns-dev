@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { resetPasswordSchema } from '@/lib/auth'
+import { acknowledgePasswordChanged, PASSWORD_UPDATE_ERROR } from '@/lib/auth-client-contract'
 import { getSessionSafely, getSupabaseClient } from '@/lib/supabase'
 
 export function ResetPasswordPageClient() {
@@ -70,18 +71,19 @@ export function ResetPasswordPageClient() {
     setIsLoading(false)
 
     if (updateError) {
-      setError(`ตั้งรหัสผ่านใหม่ไม่สำเร็จ: ${updateError.message}`)
+      setError(PASSWORD_UPDATE_ERROR)
+      return
+    }
+
+    const acknowledgement = await acknowledgePasswordChanged({ fetchImpl: fetch })
+    if (!acknowledgement.ok) {
+      setError(acknowledgement.message)
       return
     }
 
     setPassword('')
     setConfirmPassword('')
     setMessage('ตั้งรหัสผ่านใหม่สำเร็จ กำลังพาไปหน้าเข้าสู่ระบบ')
-    await fetch('/api/auth/password-changed', {
-      cache: 'no-store',
-      credentials: 'include',
-      method: 'POST',
-    }).catch(() => undefined)
     await supabase.auth.signOut()
     setTimeout(() => router.push('/login'), 800)
   }

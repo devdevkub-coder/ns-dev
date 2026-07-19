@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { changePasswordSchema, userProfileSchema } from '@/lib/auth'
+import { acknowledgePasswordChanged, PASSWORD_UPDATE_ERROR } from '@/lib/auth-client-contract'
 import { getSupabaseClient } from '@/lib/supabase'
 
 type CurrentUser = {
@@ -191,15 +192,16 @@ export function ProfilePageClient() {
 
     if (updateError) {
       setIsSavingPassword(false)
-      setSecurityError(`เปลี่ยน Password ไม่สำเร็จ: ${updateError.message}`)
+      setSecurityError(PASSWORD_UPDATE_ERROR)
       return
     }
 
-    await fetch('/api/auth/password-changed', {
-      cache: 'no-store',
-      credentials: 'include',
-      method: 'POST',
-    }).catch(() => undefined)
+    const acknowledgement = await acknowledgePasswordChanged({ fetchImpl: fetch })
+    if (!acknowledgement.ok) {
+      setIsSavingPassword(false)
+      setSecurityError(acknowledgement.message)
+      return
+    }
 
     setIsSavingPassword(false)
     setCurrentPassword('')
