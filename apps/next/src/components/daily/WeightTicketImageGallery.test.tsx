@@ -5,7 +5,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { encodeStoredImageReference } from '@/lib/weight-tickets'
+import { decodeStoredImageAsset, encodeStoredImageReference, isPreviewableStoredImageAsset } from '@/lib/weight-tickets'
 import { WeightTicketImageGallery } from './WeightTicketImageGallery'
 
 vi.mock('next/image', () => ({
@@ -22,6 +22,25 @@ beforeAll(() => {
 
 afterAll(() => {
   actEnvironment.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment
+})
+
+describe('stored weight ticket image URL contract', () => {
+  it('accepts only parseable HTTP(S) assets for previews', () => {
+    const assets = [
+      encodeStoredImageReference('http.jpg', 'http://storage.example.com/http.jpg', 'weight-ticket/http.jpg'),
+      encodeStoredImageReference('https.jpg', 'https://storage.example.com/https.jpg?token=signed', 'weight-ticket/https.jpg'),
+      'data:image/png;base64,AAAA',
+      'legacy-pipe.jpg|data:image/jpeg;base64,BBBB',
+      JSON.stringify({ dataUrl: 'data:image/webp;base64,CCCC', fileName: 'legacy-json.webp' }),
+      JSON.stringify({ fileName: 'invalid-url.jpg', url: 'https://' }),
+      'legacy-filename-only.jpg',
+    ].map(decodeStoredImageAsset)
+
+    expect(assets.filter(isPreviewableStoredImageAsset).map((asset) => asset.url)).toEqual([
+      'http://storage.example.com/http.jpg',
+      'https://storage.example.com/https.jpg?token=signed',
+    ])
+  })
 })
 
 describe('WeightTicketImageGallery', () => {

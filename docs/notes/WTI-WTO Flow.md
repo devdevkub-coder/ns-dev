@@ -485,7 +485,7 @@ WTI/WTO มีรูป 2 ระดับ:
 ### Contract รูปใน detail gallery
 
 - รูปหลักฐานเป็นข้อมูลเอกสารระดับ L5: Database เก็บ attachment metadata/storage key เป็น source of truth และ binary อยู่ใน object storage ตาม bucket/privacy policy
-- gallery สร้าง preview และ open payload เฉพาะ absolute `http://` หรือ `https://` URL ที่ parse ได้ รวม signed URL; `data:image` แบบ raw/pipe/JSON, URL ที่ผิดรูปแบบ และ filename-only เป็น legacy metadata ที่ unavailable จึงแสดงได้เพียงจำนวนแจ้งเตือนโดยไม่สร้าง `<img>` หรือ runtime fallback
+- ทุก entry point ของ detail gallery ทั้งรูปรถ รูปรายการสินค้า และอัลบั้มรวม สร้าง preview/open payload เฉพาะ absolute `http://` หรือ `https://` URL ที่ parse ได้ รวม signed URL; `data:image` แบบ raw/pipe/JSON, URL ที่ผิดรูปแบบ และ filename-only เป็น legacy metadata ที่ unavailable จึงแสดงได้เพียงจำนวนแจ้งเตือนโดยไม่สร้าง `<img>` หรือ runtime fallback
 - หน้า detail โหลด stored/original asset เมื่อผู้ใช้เปิดดู ส่วน list/picker ยังคงใช้ thumbnail; รอบนี้ไม่เพิ่ม browser/Redis cache และอายุ signed URL/cache headers เป็น contract ของ Storage
 - รูป legacy ต้องย้ายด้วย migration/backfill ไป object storage ไม่อ่าน base64 ย้อนกลับใน runtime; focused test ครอบ 0/1/many, signed HTTPS และ payload legacy ที่ unavailable
 

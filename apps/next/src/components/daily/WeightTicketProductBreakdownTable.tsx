@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment } from 'react'
-import { decodeStoredImageAsset, formatWeight, type WeightTicketRecord, weightTicketImpurityDisplayName } from '@/lib/weight-tickets'
+import { decodeStoredImageAsset, formatWeight, isPreviewableStoredImageAsset, type WeightTicketRecord, weightTicketImpurityDisplayName } from '@/lib/weight-tickets'
 
 type PreviewImage = { fileName: string; url: string }
 
@@ -64,7 +64,7 @@ function LineImagesButton({
 
   const previewableImages = line.imageNames
     .map(decodeStoredImageAsset)
-    .filter((image): image is { fileName: string; rawValue: string; url: string } => Boolean(image.url))
+    .filter(isPreviewableStoredImageAsset)
     .map((image) => ({
       fileName: image.fileName,
       url: image.url,

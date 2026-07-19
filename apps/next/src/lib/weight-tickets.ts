@@ -774,6 +774,19 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
   }
 }
 
+export function isPreviewableStoredImageAsset(
+  image: StoredImageAsset,
+): image is StoredImageAsset & { url: string } {
+  if (!image.url) return false
+
+  try {
+    const url = new URL(image.url)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 export function calculateLineTotals(line: Pick<WeightTicketLine, 'containerDeductionWeight' | 'deductionMode' | 'deductionValue' | 'grossWeight'>) {
   const grossWeight = roundWeight(Math.max(0, toNumber(line.grossWeight)))
   const containerDeductionWeight = roundWeight(Math.min(Math.max(0, toNumber(line.containerDeductionWeight)), grossWeight))

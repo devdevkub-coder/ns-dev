@@ -21,7 +21,7 @@ import { WeightTicketImageGallery } from '@/components/daily/WeightTicketImageGa
 import { WeightTicketStockReturnDialog, type StockReturnPayload } from '@/components/daily/WeightTicketStockReturnDialog'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
-import { cancelWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, type WeightTicketRecord, type WeightTicketStatus, typeLabels, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
+import { cancelWeightTicket, confirmWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, isPreviewableStoredImageAsset, type WeightTicketRecord, type WeightTicketStatus, typeLabels, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
 import { getErrorMessage } from '@/lib/api-client'
 
 function formatDateTime(value?: string | null) {
@@ -919,8 +919,8 @@ function ImageGrid({
     return <div className="text-sm text-slate-400">ยังไม่มีรูปภาพ</div>
   }
 
-  const previewable = images.filter((image) => image.url)
-  const filenameOnly = images.filter((image) => !image.url)
+  const previewable = images.filter(isPreviewableStoredImageAsset)
+  const unavailableCount = images.length - previewable.length
 
   return (
     <div className="space-y-3">
@@ -931,19 +931,19 @@ function ImageGrid({
               className="overflow-hidden rounded-md border border-slate-100 bg-slate-50 text-left transition hover:border-slate-300 hover:bg-slate-100"
               key={`${image.rawValue}-${index}`}
               type="button"
-              onClick={() => onOpen({ fileName: image.fileName, url: image.url ?? '' })}
+              onClick={() => onOpen({ fileName: image.fileName, url: image.url })}
             >
               <div className="relative aspect-[4/3] bg-slate-200">
-                <Image alt={image.fileName} className="object-cover" fill sizes="(max-width: 768px) 50vw, 20vw" src={image.url ?? ''} unoptimized />
+                <Image alt={image.fileName} className="object-cover" fill sizes="(max-width: 768px) 50vw, 20vw" src={image.url} unoptimized />
               </div>
               <div className="truncate px-3 py-2 text-xs text-slate-600">{image.fileName}</div>
             </button>
           ))}
         </div>
       ) : null}
-      {filenameOnly.length > 0 ? (
+      {unavailableCount > 0 ? (
         <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          มีรูปเดิม {filenameOnly.length} รูปที่ยังไม่มี preview ในระบบปัจจุบัน
+          มีรูปเดิม {unavailableCount} รูปที่ยังไม่มี preview ในระบบปัจจุบัน
         </div>
       ) : null}
     </div>

@@ -13,6 +13,15 @@ const productBreakdownSource = readFileSync(
   resolve(process.cwd(), 'src/components/daily/WeightTicketProductBreakdownTable.tsx'),
   'utf8',
 )
+const imageEntryPointSources = [
+  'src/components/daily/WeightTicketImageGallery.tsx',
+  'src/components/daily/WeightTicketProductBreakdownTable.tsx',
+  'src/components/daily/WeightTicketDetailModal.tsx',
+  'src/components/daily/WeightTicketDetailPageClient.tsx',
+].map((file) => ({
+  file,
+  source: readFileSync(resolve(process.cwd(), file), 'utf8').replaceAll('\r\n', '\n'),
+}))
 
 describe('WTI/WTO detail gallery contract', () => {
   it('places the combined ticket album after product/status details and before usage history on both detail surfaces', () => {
@@ -34,5 +43,14 @@ describe('WTI/WTO detail gallery contract', () => {
       expect(source, file).toContain('activeIndex: current.activeIndex === current.images.length - 1 ? 0 : current.activeIndex + 1')
     })
     expect(productBreakdownSource).toContain('ดูรูป')
+  })
+
+  it('routes every image preview entry point through the shared HTTP(S)-only predicate', () => {
+    imageEntryPointSources.forEach(({ file, source }) => {
+      expect(source, file).toContain('isPreviewableStoredImageAsset')
+      expect(source, file).toContain('.filter(isPreviewableStoredImageAsset)')
+      expect(source, file).not.toContain('Boolean(image.url)')
+      expect(source, file).not.toContain('.filter((image) => image.url)')
+    })
   })
 })
