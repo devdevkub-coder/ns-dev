@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { AlertTriangle, Calculator, Download, ExternalLink, LockKeyhole, Plus, RefreshCw, Save, Trash2 } from 'lucide-react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay, sanitizeDecimalInput } from '@/lib/format'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -204,8 +205,8 @@ const commissionSalesCardFilterOptions: Array<{ label: string; value: Commission
   { label: 'ได้คอม', value: 'eligible' },
 ]
 
-const salesPlanNumberInputClass = 'w-full rounded-xl border border-slate-300 bg-white px-3 text-right font-medium text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
-const salesPlanReadonlyNumberInputClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 text-right font-medium text-slate-700 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+const salesPlanNumberInputClass = 'w-full rounded-md border border-slate-300 bg-white px-3 text-right font-medium text-slate-700 outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-slate-300 dark:focus:ring-slate-700 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+const salesPlanReadonlyNumberInputClass = 'w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-right font-medium text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
 
 function money(value: unknown) {
   return formatMoney(typeof value === 'number' ? value : Number(value ?? 0))
@@ -273,8 +274,8 @@ function getPlanStatus(value: unknown): 'locked' | 'pending' | 'po_created' {
 
 function getPlanStatusLabel(value: unknown) {
   const status = getPlanStatus(value)
-  if (status === 'po_created') return 'PO Created'
-  return status === 'locked' ? 'Locked %' : 'Pending'
+  if (status === 'po_created') return 'เปิด PO ขายแล้ว'
+  return status === 'locked' ? 'ล็อกแผนแล้ว' : 'รอล็อกแผน'
 }
 
 function canOpenPoSell(value: unknown) {
@@ -533,6 +534,9 @@ export function SalesPlanPageClient() {
   const draftTotalKg = draftContainers * draftKgPerContainer
   const draftFx = lmeForm?.fxRate ?? 0
   const draftSellPrice = draftLmeCf > 0 ? (draftLmeCf / 1000) * draftFx * (draftSellPct / 100) : 0
+  const draftWac = selectedDraftProduct?.wac ?? 0
+  const draftProjectedProfit = draftSellPrice > 0 && draftWac > 0 ? draftTotalKg * (draftSellPrice - draftWac) : 0
+  const draftMarginPct = draftSellPrice > 0 && draftWac > 0 ? ((draftSellPrice - draftWac) / draftSellPrice) * 100 : 0
   const filteredServerPlanRows = useMemo(() => (data?.planRows ?? [])
     .filter((row) => !planFilterGroup || text(row.metalGroup).includes(planFilterGroup))
     .filter((row) => !planFilterChannel || text(row.channel).toLowerCase() === planFilterChannel.toLowerCase())
@@ -877,8 +881,8 @@ export function SalesPlanPageClient() {
           },
         }),
       message: cleaningSelected
-        ? `ต้องการเคลียร์สถานะ Pending ของรายการที่เลือก ${targetCount} รายการใช่หรือไม่?`
-        : `ต้องการเคลียร์สถานะ Pending ทั้งหมด ${targetCount} รายการตามตัวกรองปัจจุบันของเดือน ${activeMonth} ใช่หรือไม่?`,
+        ? `ต้องการยกเลิกแผนรอล็อกที่เลือก ${targetCount} รายการใช่หรือไม่?`
+        : `ต้องการยกเลิกแผนรอล็อกทั้งหมด ${targetCount} รายการตามตัวกรองปัจจุบันของเดือน ${activeMonth} ใช่หรือไม่?`,
     })
   }
 
@@ -903,7 +907,7 @@ export function SalesPlanPageClient() {
       setClearPendingPlansDialog(null)
       await loadSalesPlan()
     } catch (caught) {
-      setFormError(caught instanceof Error ? caught.message : 'เคลียร์สถานะ Pending ไม่ได้')
+      setFormError(caught instanceof Error ? caught.message : 'ยกเลิกแผนรอล็อกไม่ได้')
     } finally {
       setIsClearingPendingPlans(false)
     }
@@ -965,57 +969,71 @@ export function SalesPlanPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h2 className="text-2xl font-extrabold tracking-tight text-slate-700">📊 LME Reference Pricing <span className="text-lg font-semibold text-slate-400">(Real-time + Manual)</span></h2>
-            <div className="mt-1 text-sm font-medium text-slate-400">กด Fetch Live เพื่อดึงและบันทึกค่า LME/FX ทันที ส่วน กก./ตู้ และทองเหลืองยังกรอกเอง</div>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100"><Calculator className="size-5 text-slate-500" /> ราคาอ้างอิง LME และอัตราแลกเปลี่ยน</h2>
+            <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">ใช้เป็นฐานคำนวณแผนขายเท่านั้น การบันทึกค่าใหม่จะมีผลกับการคำนวณแผนที่สร้างหลังจากนั้น</div>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
-              className="h-11 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-4 text-sm font-bold text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-blue-600 px-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isFetchingLive || isSavingConfig}
               onClick={handleFetchLive}
               type="button"
             >
-              {isFetchingLive ? 'กำลัง Fetch...' : '↻ Fetch Live + Save (USD/THB + LME)'}
+              <RefreshCw className="size-4" />{isFetchingLive ? 'กำลังดึงข้อมูล...' : 'ดึงราคาล่าสุด'}
             </button>
             <button
-              className="h-11 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
               disabled={isLoading || isSavingConfig || !lmeForm}
               onClick={handleSaveConfig}
               type="button"
             >
-              {isSavingConfig ? 'กำลังบันทึก...' : '💾 บันทึก'}
+              <Save className="size-4" />{isSavingConfig ? 'กำลังบันทึก...' : 'บันทึกค่าอ้างอิง'}
             </button>
           </div>
         </div>
-        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <LmeEditableCard label="🥉 ทองแดง LME (USD/MT)" readOnly value={lmeForm?.lmeCopperUSD ?? 0} onChange={(value) => updateLmeField('lmeCopperUSD', value)} />
-          <LmeEditableCard label="💱 USD/THB" value={lmeForm?.fxRate ?? 0} onChange={(value) => updateLmeField('fxRate', value)} />
-          <LmeEditableCard label="📦 กก./ตู้" manualOnly value={lmeForm?.kgPerContainer ?? 0} onChange={(value) => updateLmeField('kgPerContainer', value)} />
+        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
+            <div className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">ราคาตลาด</div>
+            <LmeEditableCard label="ทองแดง LME (USD/MT)" readOnly value={lmeForm?.lmeCopperUSD ?? 0} onChange={(value) => updateLmeField('lmeCopperUSD', value)} />
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
+            <div className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">สมมติฐานการคำนวณ</div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <LmeEditableCard label="USD/THB" value={lmeForm?.fxRate ?? 0} onChange={(value) => updateLmeField('fxRate', value)} />
+              <LmeEditableCard label="น้ำหนักมาตรฐานต่อตู้ (กก.)" manualOnly value={lmeForm?.kgPerContainer ?? 0} onChange={(value) => updateLmeField('kgPerContainer', value)} />
+            </div>
+          </div>
         </div>
         <div className="mt-4 flex flex-col gap-2 text-sm md:flex-row md:items-center md:justify-between">
-          <div className="inline-flex items-center gap-2 rounded-2xl bg-blue-50 px-3 py-2 font-semibold text-blue-700">
-            <span>⏰ {dateTime(lmeForm?.updatedAt)}</span>
+          <div className="inline-flex items-center gap-2 rounded-md bg-slate-100 px-3 py-2 font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+            <span>อัปเดต {dateTime(lmeForm?.updatedAt)}</span>
             <span className="text-slate-400">โดย</span>
             <span>{text(lmeForm?.updatedBy)}</span>
           </div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">source: {text(lmeForm?.source || data?.lmeConfig.source)}</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">แหล่งข้อมูล: {text(lmeForm?.source || data?.lmeConfig.source)}</div>
         </div>
-        <div className="mt-3 text-sm text-slate-400">
+        <div className="mt-3 text-xs leading-5 text-slate-500 dark:text-slate-400">
           {text(lmeForm?.liveFetchNote || data?.lmeConfig.liveFetchNote || 'Live fetch: USD/THB จาก exchangerate-api · LME จาก fx678 — ถ้า fetch fail ให้กรอกเอง')}
         </div>
-        {formError ? <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">{formError}</div> : null}
+        {formError ? <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-600 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">{formError}</div> : null}
       </div>
-      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <PendingStatCard label="แผนทั้งหมด" sublabel="เดือนที่เลือก" value={count(data?.summary.plansCount)} />
+        <PendingStatCard label="รอล็อกแผน" sublabel="ยังไม่เปิด PO ขาย" value={count(data?.summary.pendingCount)} tone="danger" />
+        <PendingStatCard label="ล็อกแล้ว" sublabel="พร้อมเปิด PO ขาย" value={count(data?.summary.lockedCount)} tone="success" />
+        <PendingStatCard label="สต๊อกว่างขาย" sublabel="หลังหักแผนที่ล็อก" value={`${money(data?.summary.stockRemainingKg)} กก.`} />
+      </div>
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-wrap items-center gap-2">
-          <label className="text-xs text-slate-500" htmlFor="sales-plan-filter-month">เดือน:</label>
-          <input className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" id="sales-plan-filter-month" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
+          <label className="text-xs text-slate-500 dark:text-slate-400" htmlFor="sales-plan-filter-month">เดือน:</label>
+          <input className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-slate-300 dark:focus:ring-slate-700" id="sales-plan-filter-month" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
           <div className="min-w-[240px] flex-1 sm:max-w-sm">
             <SearchCombobox
               hideLabel
-              inputClassName="h-9 text-sm font-normal text-slate-700"
+              inputClassName="h-9 text-sm font-normal text-slate-700 dark:text-slate-100"
               inputId="sales-plan-filter-product"
               label="สินค้า"
               openOnFocus={false}
@@ -1026,19 +1044,19 @@ export function SalesPlanPageClient() {
             />
           </div>
           {planFilterProductCode ? (
-            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50" onClick={() => setPlanFilterProductCode('')} type="button">ล้างสินค้า</button>
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" onClick={() => setPlanFilterProductCode('')} type="button">ล้างสินค้า</button>
           ) : null}
-          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50" onClick={clearPlanFilters} type="button">ล้างตัวกรอง</button>
+          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" onClick={clearPlanFilters} type="button">ล้างตัวกรอง</button>
         </div>
         <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-            <label className="text-xs text-slate-500" htmlFor="sales-plan-filter-group">ประเภทโลหะ:</label>
+            <label className="text-xs text-slate-500 dark:text-slate-400" htmlFor="sales-plan-filter-group">ประเภทโลหะ:</label>
             <Select className="h-9 w-auto text-sm font-normal" id="sales-plan-filter-group" value={planFilterGroup} onChange={(event) => setPlanFilterGroup(event.target.value)}>
               <option value="">ทุกหมวด (ทองแดง+ทองเหลือง)</option>
               <option value="ทองแดง">ทองแดงเท่านั้น</option>
               <option value="ทองเหลือง">ทองเหลืองเท่านั้น</option>
             </Select>
-            <label className="ml-2 text-xs text-slate-500" htmlFor="sales-plan-filter-channel">ช่องทาง:</label>
+            <label className="ml-2 text-xs text-slate-500 dark:text-slate-400" htmlFor="sales-plan-filter-channel">ช่องทาง:</label>
             <Select className="h-9 w-auto text-sm font-normal" id="sales-plan-filter-channel" value={planFilterChannel} onChange={(event) => setPlanFilterChannel(event.target.value)}>
               <option value="">ทุกช่องทาง</option>
               {(data?.filters.channels ?? []).map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
@@ -1046,48 +1064,49 @@ export function SalesPlanPageClient() {
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <button
-              className="flex h-9 items-center justify-center rounded-md border border-rose-200 bg-rose-50 px-3 text-sm font-normal text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50"
               disabled={!pendingPlanCount || isClearingPendingPlans || isSavingPlan}
               onClick={() => handleClearPendingPlans()}
               type="button"
             >
               {isClearingPendingPlans
-                ? 'กำลังเคลียร์สถานะ...'
+                ? 'กำลังยกเลิกแผน...'
                 : selectedVisiblePendingPlanIds.length > 0
-                  ? `เคลียร์สถานะที่เลือก (${selectedVisiblePendingPlanIds.length})`
-                  : `เคลียร์สถานะ Pending (${pendingPlanCount})`}
+                  ? `ยกเลิกแผนที่เลือก (${selectedVisiblePendingPlanIds.length})`
+                  : `ยกเลิกแผนรอล็อก (${pendingPlanCount})`}
             </button>
-            <button className="flex h-9 items-center justify-center rounded-md bg-blue-600 px-3 text-sm font-normal text-white hover:bg-blue-700" onClick={openPlanForm} type="button">+ เพิ่มแผนใหม่</button>
-            <button className="flex h-9 items-center justify-center rounded-md bg-emerald-600 px-3 text-sm font-normal text-white hover:bg-emerald-700" onClick={exportPlan} type="button">ส่งออก Excel</button>
+            <button className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-blue-600 px-3 text-sm font-semibold text-white hover:bg-blue-700" onClick={openPlanForm} type="button"><Plus className="size-4" />สร้างแผนขาย</button>
+            <button className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700" onClick={exportPlan} type="button"><Download className="size-4" />ส่งออก Excel</button>
           </div>
         </div>
       </div>
       {/* 1. Sales Plan Section */}
-      <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-slate-700 dark:bg-slate-900">
         <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3 text-xs font-semibold text-slate-600">
-          📝 ตารางวางแผน — เพิ่มแผนแล้วเริ่มที่ `Pending` ก่อน จากนั้นค่อยกด `Lock %` เองเมื่อพร้อม และคอลัมน์ `PO ขาย` จะแยกต่างหาก
+          แผนขาย — สร้างแผนเป็น `รอล็อกแผน` ก่อน จากนั้นตรวจสอบราคาและกด `ล็อกแผน` เมื่อพร้อมเปิด PO ขาย
         </div>
         <Dialog open={Boolean(clearPendingPlansDialog)} onOpenChange={(open) => { if (!open && !isClearingPendingPlans) setClearPendingPlansDialog(null) }}>
-          <DialogContent className="max-w-lg rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 animate-fade-in" fallbackTitle="ยืนยันการเคลียร์สถานะ" hideClose>
-            <DialogHeader className="border-b border-slate-800 px-5 py-4">
-              <DialogTitle className="text-lg font-bold text-slate-100">Confirm เคลียร์สถานะ</DialogTitle>
-              <p className="text-sm text-slate-300">{clearPendingPlansDialog?.message}</p>
+          <DialogContent className="max-w-lg rounded-md !p-0 overflow-hidden flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 animate-fade-in" fallbackTitle="ยืนยันยกเลิกแผน" hideClose>
+            <DialogHeader className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800">
+              <DialogTitle className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100"><AlertTriangle className="size-5 text-rose-600" />ยืนยันยกเลิกแผนขาย</DialogTitle>
+              <p className="text-sm text-slate-600 dark:text-slate-300">{clearPendingPlansDialog?.message}</p>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">รายการนี้ยังไม่ถูกล็อกและยังไม่สร้าง PO ขาย ระบบจะลบรายการรอล็อกออกจากฐานข้อมูล</p>
             </DialogHeader>
             <DialogFooter className="shrink-0">
-              <button className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" disabled={isClearingPendingPlans} onClick={() => setClearPendingPlansDialog(null)} type="button">ยกเลิก</button>
-              <button className="h-10 rounded-md bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60" disabled={isClearingPendingPlans} onClick={confirmClearPendingPlans} type="button">{isClearingPendingPlans ? 'กำลังเคลียร์สถานะ...' : 'Confirm'}</button>
+              <button className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" disabled={isClearingPendingPlans} onClick={() => setClearPendingPlansDialog(null)} type="button">ยกเลิก</button>
+              <button className="inline-flex h-10 items-center gap-2 rounded-md bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60" disabled={isClearingPendingPlans} onClick={confirmClearPendingPlans} type="button"><Trash2 className="size-4" />{isClearingPendingPlans ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิกแผน'}</button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
         <Dialog open={isPlanFormOpen} onOpenChange={setIsPlanFormOpen}>
-          <DialogContent className="max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" fallbackTitle="เพิ่มแผนขาย" hideClose>
-            <DialogHeader className="border-b border-slate-800 px-5 py-4">
-              <DialogTitle className="text-lg font-bold text-slate-100">+ เพิ่มแผนขาย</DialogTitle>
-              <p className="text-xs text-slate-400">บันทึกเป็น draft บนหน้าจอก่อน เพื่อให้เริ่มวางแผนและเห็นตัวเลขในตารางได้ทันที</p>
+          <DialogContent className="max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 max-h-[90vh] animate-fade-in" fallbackTitle="สร้างแผนขาย" hideClose>
+            <DialogHeader className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800">
+              <DialogTitle className="text-lg font-bold text-slate-900 dark:text-slate-100">สร้างแผนขาย</DialogTitle>
+              <p className="text-xs text-slate-600 dark:text-slate-300">บันทึกเป็น `รอล็อกแผน` ก่อน ระบบยังไม่ตัดสต๊อกและยังไม่สร้าง AR</p>
             </DialogHeader>
-            <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4 text-sm sm:p-5">
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h4 className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">รายละเอียดแผนขาย</h4>
+            <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4 text-sm dark:bg-slate-950 sm:p-5">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <h4 className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800 dark:border-slate-700 dark:text-slate-100">ข้อมูลแผนขาย</h4>
                 <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
                   <SearchCombobox
                     hideLabel={false}
@@ -1117,9 +1136,9 @@ export function SalesPlanPageClient() {
                     value={planDraftForm.customerCode}
                     onChange={handleDraftCustomerChange}
                   />
-                  <label className="text-xs font-bold text-slate-600">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
                     <span className="mb-1 block">ช่องทางขาย</span>
-                    <input className="h-10 w-full rounded-md border border-slate-300 bg-slate-100 px-3 text-sm font-medium text-slate-700 outline-none" readOnly value={selectedDraftChannel?.name ?? (selectedDraftCustomer ? 'ไม่พบช่องทางจาก Master Customer' : 'เลือกลูกค้าก่อน')} />
+                    <input className="h-10 w-full rounded-md border border-slate-300 bg-slate-100 px-3 text-sm font-medium text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200" readOnly value={selectedDraftChannel?.name ?? (selectedDraftCustomer ? 'ไม่พบช่องทางจาก Master Customer' : 'เลือกลูกค้าก่อน')} />
                   </label>
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -1141,11 +1160,13 @@ export function SalesPlanPageClient() {
                   </label>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
                 <PendingStatCard label="หมวด" sublabel="อิงจากสินค้า" value={selectedDraftProduct?.metalGroup || '-'} />
                 <PendingStatCard label="รวม กก." sublabel="ตู้ x กก./ตู้" value={`${money(draftTotalKg)} กก.`} />
                 <PendingStatCard label="LME cf / FX" sublabel={`${money(draftLmeCf)} USD/MT`} value={money(draftFx)} />
                 <PendingStatCard label="ราคา THB/kg" sublabel={`ที่ ${money(draftSellPct)}% LME`} value={money(draftSellPrice)} />
+                <PendingStatCard label="ต้นทุน WAC" sublabel="จากข้อมูลสินค้า" value={draftWac > 0 ? `${money(draftWac)} บาท/กก.` : '-'} />
+                <PendingStatCard label="กำไร / Margin" sublabel="ประมาณการจาก WAC" tone={draftProjectedProfit < 0 ? 'danger' : 'success'} value={draftSellPrice > 0 && draftWac > 0 ? `${money(draftProjectedProfit)} บาท / ${money(draftMarginPct)}%` : '-'} />
               </div>
               {planDraftError ? <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-600">{planDraftError}</div> : null}
             </div>
@@ -1235,11 +1256,11 @@ export function SalesPlanPageClient() {
                   <td className="p-1.5 text-center">
                     <div className="flex flex-col items-center gap-1.5">
                       {getPlanStatus(row.status) !== 'pending' ? (
-                        <span className="inline-flex rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{getPlanStatusLabel(row.status)}</span>
+                        <span className="inline-flex rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">{getPlanStatusLabel(row.status)}</span>
                       ) : (
                         <>
-                          <span className="inline-flex rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">Pending</span>
-                          <button className="inline-flex h-8 items-center justify-center rounded-md bg-amber-500 px-3 text-xs font-semibold text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={isSavingPlan} onClick={() => handlePlanStatusChange(text(row.id), 'locked')} type="button">Lock %</button>
+                          <span className="inline-flex rounded-md bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">รอล็อกแผน</span>
+                          <button className="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-amber-600 px-3 text-xs font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60" disabled={isSavingPlan} onClick={() => handlePlanStatusChange(text(row.id), 'locked')} type="button"><LockKeyhole className="size-3.5" />ล็อกแผน</button>
                         </>
                       )}
                     </div>
@@ -1291,15 +1312,15 @@ export function SalesPlanPageClient() {
                   <span className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{getPlanStatusLabel(row.status)}</span>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">Pending</span>
-                    <button className="inline-flex h-8 items-center justify-center rounded-md bg-amber-500 px-3 text-xs font-semibold text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60" disabled={isSavingPlan} onClick={() => handlePlanStatusChange(text(row.id), 'locked')} type="button">Lock %</button>
+                          <span className="rounded-md bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">รอล็อกแผน</span>
+                          <button className="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-amber-600 px-3 text-xs font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60" disabled={isSavingPlan} onClick={() => handlePlanStatusChange(text(row.id), 'locked')} type="button"><LockKeyhole className="size-3.5" />ล็อกแผน</button>
                   </div>
                 )}
               </div>
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-xs text-slate-400 font-semibold">PO ขาย:</span>
                 {canOpenPoSell(row.status) ? (
-                  <button className="inline-flex h-8 items-center justify-center rounded-md bg-violet-600 px-3 text-xs font-semibold text-white hover:bg-violet-700" onClick={() => openPoSellForRow(text(row.id))} type="button">เปิด PO ขาย</button>
+                  <button className="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-violet-600 px-3 text-xs font-semibold text-white hover:bg-violet-700" onClick={() => openPoSellForRow(text(row.id))} type="button"><ExternalLink className="size-3.5" />เปิด PO ขาย</button>
                 ) : getPlanStatus(row.status) === 'po_created' ? (
                   <span className="text-xs font-semibold text-violet-600">{text(row.poSell) || 'เปิด PO แล้ว'}</span>
                 ) : (
@@ -1312,7 +1333,7 @@ export function SalesPlanPageClient() {
         </div>
       </div>
 
-      <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-slate-700 dark:bg-slate-900">
         <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3">
           <h3 className="font-bold text-slate-800 text-sm">📋 ตารางรอขาย — ทองแดง / ทองเหลือง ({money(pendingSaleRows.length)} รายการ)</h3>
           <p className="mt-1 text-xs text-slate-500">รอขายจริง = STOCK + PO ซื้อรอส่ง − ล็อกขายรอส่ง · ยอดติดลบหมายถึงของจริงและของกำลังเข้าไม่พอกับยอดขายที่ล็อกไว้</p>
@@ -1416,16 +1437,16 @@ export function SalesPlanPageClient() {
         <div className="overflow-x-auto">
           <TabsList
             aria-label="ตารางวิเคราะห์แผนขาย"
-            className="inline-flex w-full max-w-max flex-nowrap gap-2 bg-transparent p-0 shadow-none"
+            className="inline-flex w-full max-w-max flex-nowrap gap-2 border-b border-slate-200 bg-transparent p-0 shadow-none dark:border-slate-700"
           >
             <TabsTrigger
-              className="min-w-fit rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-500 data-[state=active]:border-slate-900 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none"
+              className="min-w-fit rounded-none border-b-2 border-transparent px-4 py-2.5 text-sm font-semibold text-slate-500 data-[state=active]:border-slate-900 data-[state=active]:bg-transparent data-[state=active]:text-slate-900 data-[state=active]:shadow-none dark:text-slate-400 dark:data-[state=active]:border-slate-100 dark:data-[state=active]:text-slate-100"
               value="analysis"
             >
               วิเคราะห์แผนขาย vs สต๊อกว่างขาย
             </TabsTrigger>
             <TabsTrigger
-              className="min-w-fit rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-500 data-[state=active]:border-slate-900 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none"
+              className="min-w-fit rounded-none border-b-2 border-transparent px-4 py-2.5 text-sm font-semibold text-slate-500 data-[state=active]:border-slate-900 data-[state=active]:bg-transparent data-[state=active]:text-slate-900 data-[state=active]:shadow-none dark:text-slate-400 dark:data-[state=active]:border-slate-100 dark:data-[state=active]:text-slate-100"
               value="remaining"
             >
               สต๊อกว่างขายคงเหลือ
@@ -1434,8 +1455,8 @@ export function SalesPlanPageClient() {
         </div>
       </Tabs>
 
-      <div className="rounded-md bg-white p-3 shadow">
-        <div className="mb-2 text-xs font-medium text-slate-500">ตัวกรองข้อมูลของตารางที่เลือก</div>
+      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div className="mb-3 text-xs font-semibold text-slate-500 dark:text-slate-400">ตัวกรองข้อมูลของตารางวิเคราะห์</div>
         <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-end">
           <label className="flex min-w-[200px] flex-col gap-1 text-xs font-medium text-slate-500">
             <span>หมวด</span>
@@ -1448,7 +1469,7 @@ export function SalesPlanPageClient() {
             <div className="mb-1 text-xs font-medium text-slate-500">สินค้า</div>
             <SearchCombobox
               hideLabel
-              inputClassName="h-9 text-sm font-medium text-slate-700"
+              inputClassName="h-9 text-sm font-medium text-slate-700 dark:text-slate-100"
               inputId="sales-plan-insight-filter-product"
               label="สินค้า"
               openOnFocus={false}
@@ -1460,7 +1481,7 @@ export function SalesPlanPageClient() {
           </div>
           {insightFilterGroup || insightFilterProductCode ? (
             <button
-              className="h-9 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 lg:ml-auto"
+              className="h-9 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 lg:ml-auto"
               onClick={() => {
                 setInsightFilterGroup('')
                 setInsightFilterProductCode('')
@@ -1478,7 +1499,7 @@ export function SalesPlanPageClient() {
       <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 p-4">
           <div>
-            <h3 className="font-bold text-slate-800 text-sm">📊 วิเคราะห์แผนขาย vs สต๊อกว่างขาย — ผู้บริหารตัดสินใจ</h3>
+          <h3 className="flex items-center gap-2 font-bold text-slate-800 text-sm dark:text-slate-100"><Calculator className="size-4 text-slate-500" />วิเคราะห์แผนขายและสต๊อกว่างขาย</h3>
           </div>
         </div>
 
@@ -1584,7 +1605,7 @@ export function SalesPlanPageClient() {
       /* 3. Containers Remaining Section */
       <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/50 p-4">
-          <h3 className="font-bold text-slate-800 text-sm">📦 สต๊อกว่างขาย คงเหลือหลังหักล็อกราคา — เดือน {(month || data?.filters.month) ?? ''}</h3>
+          <h3 className="flex items-center gap-2 font-bold text-slate-800 text-sm dark:text-slate-100"><Calculator className="size-4 text-slate-500" />สต๊อกว่างขายหลังหักแผนที่ล็อก — เดือน {(month || data?.filters.month) ?? ''}</h3>
           <div className="text-xs flex items-center gap-1.5">
             <span className="rounded-xl bg-slate-100 px-2.5 py-1 text-slate-700 font-bold">รวม {money(remainingKgTotal)} กก.</span>
             <span className="rounded-xl bg-emerald-50 px-2.5 py-1 text-emerald-700 font-bold border border-emerald-100">มูลค่า WAC {money(remainingValueTotal)}</span>
@@ -1690,13 +1711,13 @@ function Field({ children, label }: { children: ReactNode; label: string }) {
 
 function PendingStatCard({ label, sublabel, tone = 'neutral', value }: { label: string; sublabel: string; tone?: 'danger' | 'neutral' | 'success'; value: string }) {
   const toneClass = tone === 'danger'
-    ? 'bg-red-50 text-red-600 border-red-100'
+    ? 'bg-red-50 text-red-600 border-red-100 dark:bg-red-950/30 dark:text-red-300 dark:border-red-900/60'
     : tone === 'success'
-      ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-      : 'bg-white text-slate-700 border-slate-200'
+      ? 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900/60'
+      : 'bg-white text-slate-700 border-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700'
 
   return (
-    <div className={`rounded-xl border p-4 shadow-sm ${toneClass}`}>
+    <div className={`rounded-xl border p-3 shadow-sm ${toneClass}`}>
       <div className="text-xs font-semibold">{label}</div>
       <div className="mt-1 text-lg font-bold">{value}</div>
       <div className="mt-1 text-xs font-medium opacity-80">{sublabel}</div>
@@ -2758,10 +2779,10 @@ function CommissionMobileRows({ empty, rows }: { empty: string; rows: Commission
 function LmeEditableCard({ label, manualOnly = false, onChange, readOnly = false, value }: { label: string; manualOnly?: boolean; onChange: (value: string) => void; readOnly?: boolean; value: number }) {
   return (
     <label className="block">
-      <div className="mb-2 flex items-center justify-between gap-2 text-sm font-bold text-slate-500">
+      <div className="mb-2 flex items-center justify-between gap-2 text-sm font-bold text-slate-600 dark:text-slate-300">
         <span>{label}</span>
-        {readOnly ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-extrabold text-slate-600">API</span> : null}
-        {!readOnly && manualOnly ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-extrabold text-amber-700">กรอกเอง</span> : null}
+        {readOnly ? <span className="rounded-md bg-slate-200 px-2 py-0.5 text-[11px] font-extrabold text-slate-700 dark:bg-slate-700 dark:text-slate-200">ดึงจาก API</span> : null}
+        {!readOnly && manualOnly ? <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-extrabold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">กรอกเอง</span> : null}
       </div>
       <input
         className={`h-14 px-4 text-2xl font-extrabold ${(readOnly || manualOnly) ? salesPlanReadonlyNumberInputClass : salesPlanNumberInputClass}`}
