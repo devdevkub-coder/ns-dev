@@ -1,26 +1,25 @@
 import { NextResponse } from 'next/server'
 import { forgotPasswordSchema } from '@/lib/auth'
 import { requestIp } from '@/lib/server/app-logging'
+import { consumeForgotPasswordRateLimit } from '@/lib/server/auth-rate-limit'
 import { prisma } from '@/lib/server/prisma'
 import { getSupabasePublicServerClient } from '@/lib/server/supabase-admin'
 
 export const runtime = 'nodejs'
 
 function resolveRedirectTo(request: Request, requestedRedirectTo: unknown) {
-  const origin = request.headers.get('origin') ?? new URL(request.url).origin
-  const fallback = new URL('/reset-password', origin).toString()
-  if (typeof requestedRedirectTo !== 'string') return fallback
+  if (typeof requestedRedirectTo !== 'string') return null
 
   try {
     const parsed = new URL(requestedRedirectTo)
-    if (parsed.origin === origin && parsed.pathname === '/reset-password') {
+    if (parsed.origin === new URL(request.url).origin && parsed.pathname === '/reset-password') {
       return parsed.toString()
     }
   } catch {
-    return fallback
+    return null
   }
 
-  return fallback
+  return null
 }
 
 async function recordPublicResetRequest(request: Request, appUserId: bigint | null, metadata: Record<string, boolean | string | null>) {
@@ -77,12 +76,35 @@ async function recordPublicResetRequest(request: Request, appUserId: bigint | nu
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}))
   const parsed = forgotPasswordSchema.safeParse(body)
+  const redirectTo = resolveRedirectTo(request, body.redirectTo)
 
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'ข้อมูลไม่ถูกต้อง' }, { status: 400 })
   }
 
+  if (!redirectTo) {
+    return NextResponse.json({ error: 'ลิงก์สำหรับ reset password ไม่ถูกต้อง' }, { status: 400 })
+  }
+
   const email = parsed.data.email
+  const limiter = await consumeForgotPasswordRateLimit({
+    email,
+    ip: requestIp(request),
+  })
+
+  if (limiter.outcome === 'unavailable') {
+    return NextResponse.json({ error: 'ระบบป้องกันคำขอ reset password ยังไม่พร้อมใช้งาน' }, { status: 503 })
+  }
+
+  if (limiter.outcome === 'throttled') {
+    await recordPublicResetRequest(request, null, {
+      identifierType: 'email',
+      outcome: 'throttled',
+      source: 'self_service',
+    })
+    return NextResponse.json({ accepted: true }, { status: 202 })
+  }
+
   const appUser = await prisma.app_users.findFirst({
     select: {
       active: true,
@@ -93,28 +115,39 @@ export async function POST(request: Request) {
   })
 
   await recordPublicResetRequest(request, appUser?.id ?? null, {
-    foundActiveAppUser: appUser != null,
     identifierType: 'email',
     source: 'self_service',
-    email: appUser?.email ?? email,
+    outcome: appUser ? 'accepted' : 'suppressed',
   })
 
   if (!appUser?.email) {
-    return NextResponse.json({ sent: true })
+    return NextResponse.json({ accepted: true }, { status: 202 })
   }
 
   const supabase = getSupabasePublicServerClient()
   if (!supabase) {
-    return NextResponse.json({ error: 'Supabase public env ยังไม่พร้อมสำหรับส่ง reset password' }, { status: 503 })
+    await recordPublicResetRequest(request, appUser.id, {
+      identifierType: 'email',
+      outcome: 'delivery_failed',
+      source: 'self_service',
+    })
+    console.warn('Password reset delivery unavailable', { category: 'supabase_public_client_unavailable' })
+    return NextResponse.json({ accepted: true }, { status: 202 })
   }
 
   const { error } = await supabase.auth.resetPasswordForEmail(appUser.email, {
-    redirectTo: resolveRedirectTo(request, body.redirectTo),
+    redirectTo,
   })
 
   if (error) {
-    return NextResponse.json({ error: 'ส่งอีเมล reset password ไม่สำเร็จ' }, { status: 502 })
+    await recordPublicResetRequest(request, appUser.id, {
+      identifierType: 'email',
+      outcome: 'delivery_failed',
+      source: 'self_service',
+    })
+    console.warn('Password reset delivery failed', { category: 'supabase_reset_password_failed' })
+    return NextResponse.json({ accepted: true }, { status: 202 })
   }
 
-  return NextResponse.json({ sent: true })
+  return NextResponse.json({ accepted: true }, { status: 202 })
 }
