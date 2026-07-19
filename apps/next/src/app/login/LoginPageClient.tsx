@@ -1,9 +1,10 @@
 'use client'
 
-import { FormEvent, KeyboardEvent, useEffect, useState } from 'react'
+import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { loginSchema } from '@/lib/auth'
+import { completeBrowserLoginSession } from '@/lib/auth-client-contract'
 import { getSessionSafely, getSupabaseClient } from '@/lib/supabase'
 
 function safeRedirectPath(value: string | null) {
@@ -23,14 +24,6 @@ async function resolveDefaultLandingPath() {
   return '/'
 }
 
-function loginContractErrorMessage(status: number, payload: unknown) {
-  if (status === 403 && payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string') {
-    return payload.error
-  }
-  if (status === 401) return 'Session เข้าสู่ระบบไม่ถูกต้อง กรุณาลองใหม่'
-  return 'ตรวจสอบบัญชีผู้ใช้งานไม่สำเร็จ กรุณาลองใหม่'
-}
-
 export function LoginPageClient() {
   const searchParams = useSearchParams()
   const [identifier, setIdentifier] = useState('')
@@ -38,11 +31,13 @@ export function LoginPageClient() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const hasValidatedExistingSession = useRef(false)
   const supabase = getSupabaseClient()
   const isSupabaseReady = Boolean(supabase)
 
   useEffect(() => {
-    if (!supabase) return
+    if (!supabase || hasValidatedExistingSession.current) return
+    hasValidatedExistingSession.current = true
 
     let mounted = true
 
@@ -50,15 +45,20 @@ export function LoginPageClient() {
       const session = await getSessionSafely(supabase).catch(() => null)
       if (!mounted || !session) return
 
+      await supabase.auth.refreshSession().catch(() => undefined)
+      const completion = await completeBrowserLoginSession({
+        fetchImpl: fetch,
+        signOut: () => supabase.auth.signOut({ scope: 'local' }),
+      })
+      if (!mounted) return
+
+      if (!completion.ok) {
+        setError(completion.message)
+        return
+      }
+
       const redirectParam = searchParams.get('redirect')
       const redirectPath = redirectParam ? safeRedirectPath(redirectParam) : await resolveDefaultLandingPath()
-      const autoRedirectKey = 'ns-scrap-erp-login-auto-redirect'
-      const autoRedirectValue = `${window.location.origin}${redirectPath}`
-
-      if (window.sessionStorage.getItem(autoRedirectKey) === autoRedirectValue) return
-      window.sessionStorage.setItem(autoRedirectKey, autoRedirectValue)
-
-      await supabase.auth.refreshSession().catch(() => undefined)
       window.location.replace(redirectPath)
     })()
 
@@ -96,21 +96,17 @@ export function LoginPageClient() {
         return
       }
 
-      const loginCompleteResponse = await fetch('/api/auth/login-complete', {
-        cache: 'no-store',
-        credentials: 'include',
-        method: 'POST',
+      const completion = await completeBrowserLoginSession({
+        fetchImpl: fetch,
+        signOut: () => supabase.auth.signOut({ scope: 'local' }),
       })
-      const loginCompletePayload = await loginCompleteResponse.json().catch(() => null)
 
-      if (!loginCompleteResponse.ok) {
-        await supabase.auth.signOut({ scope: 'local' })
-        setError(loginContractErrorMessage(loginCompleteResponse.status, loginCompletePayload))
+      if (!completion.ok) {
+        setError(completion.message)
         return
       }
 
       await supabase.auth.getSession().catch(() => undefined)
-      window.sessionStorage.removeItem('ns-scrap-erp-login-auto-redirect')
       setPassword('')
       const redirectParam = searchParams.get('redirect')
       const redirectPath = redirectParam ? safeRedirectPath(redirectParam) : await resolveDefaultLandingPath()
