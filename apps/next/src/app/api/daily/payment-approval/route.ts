@@ -5,6 +5,7 @@ import { requireBusinessCode, requireDocumentNo } from '@/lib/business-code'
 import { supplierAdvanceTypeLabel, supplierAdvanceVatTypeLabel } from '@/lib/purchase-advance'
 import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
+import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { refreshAdvancePaymentWorkflowStatus } from '@/lib/server/advance-payments'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { listDailyAccounts, nextBankStatementDocNos, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
@@ -23,6 +24,10 @@ const approvalRequestSchema = z.object({
     destinationId: z.string().trim().min(1, 'เลือกช่องทางจ่ายปลายทาง'),
   })).min(1, 'เพิ่มอย่างน้อย 1 รายการอนุมัติ'),
 })
+
+function sameActor(left: string | null | undefined, right: string) {
+  return Boolean(left?.trim()) && left!.trim().toLowerCase() === right.trim().toLowerCase()
+}
 
 type ApprovalDestinationOption = {
   accountNo: string
@@ -567,6 +572,7 @@ export async function POST(request: Request) {
 
     const values = approvalRequestSchema.parse(await request.json())
     const actor = context.appUser?.email ?? context.authUser.email ?? context.authUser.id
+    let selfApproval = false
     const paymentMethods = await getActivePaymentMethods()
 
     const result = await prisma.$transaction(async (tx) => {
@@ -682,6 +688,7 @@ export async function POST(request: Request) {
       if (values.sourceType === 'purchase_bill') {
         const bill = billById.get(sourceInternalId.toString())
         if (!bill) throw new Error('ไม่พบบิลซื้อที่ต้องการอนุมัติ')
+        selfApproval = sameActor(bill.created_by, actor)
         const totalAmount = toNumber(bill.total_amount)
         const paidAmount = toNumber(bill.paid_amount)
         const payableBalance = Math.max(0, toNumber(bill.payable_balance) || totalAmount - paidAmount)
@@ -746,6 +753,7 @@ export async function POST(request: Request) {
       if (values.sourceType === 'advance_payment') {
         const advance = advanceById.get(sourceInternalId.toString())
         if (!advance) throw new Error('ไม่พบรายการ ADV ที่ต้องการอนุมัติ')
+        selfApproval = sameActor(advance.created_by, actor)
         const totalAmount = toNumber(advance.total_amount) || toNumber(advance.amount)
         const alreadyApproved = approvedOrPaidAmount
         const pendingAmount = Math.max(0, totalAmount - alreadyApproved)
@@ -816,6 +824,7 @@ export async function POST(request: Request) {
       if (values.sourceType === 'expense') {
         const expense = expenseById.get(sourceInternalId.toString())
         if (!expense) throw new Error('ไม่พบรายการค่าใช้จ่ายที่ต้องการอนุมัติ')
+        selfApproval = sameActor(expense.created_by, actor)
         const totalAmount = toNumber(expense.net_amount) || toNumber(expense.amount) + toNumber(expense.vat) - toNumber(expense.wht)
         const alreadyApproved = approvedOrPaidAmount
         const pendingAmount = Math.max(0, totalAmount - alreadyApproved)
@@ -893,6 +902,7 @@ export async function POST(request: Request) {
         }
         const advance = returnEntry.petty_advances
         if (!advance) throw new Error('ไม่พบรายการเงินสำรองจ่ายที่ต้องคืน')
+        selfApproval = sameActor(advance.created_by, actor) || sameActor(returnEntry.created_by, actor)
         const splitAccounts = await tx.accounts.findMany({
           where: {
             active: true,
@@ -1003,7 +1013,23 @@ export async function POST(request: Request) {
       }))
     })
 
-    return NextResponse.json({ items: result })
+    await recordAuthAuditEvent({
+      context,
+      eventType: 'payment_approval.approved',
+      metadata: {
+        approvalCount: result.length,
+        selfApproval,
+        sourceType: values.sourceType,
+        sourceDocNo: values.approvalId,
+      },
+      request,
+    })
+
+    return NextResponse.json({
+      items: result,
+      selfApproval,
+      warning: selfApproval ? 'รายการนี้ถูกอนุมัติโดยผู้สร้างรายการเดียวกัน' : null,
+    })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'อนุมัติจ่ายเงินไม่ได้', 400)

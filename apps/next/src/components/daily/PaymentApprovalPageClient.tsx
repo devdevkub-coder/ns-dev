@@ -296,6 +296,7 @@ export function PaymentApprovalPageClient() {
   const [data, setData] = useState<ApprovalPayload>({ apRows: [], expenseRows: [], pettyReturnRows: [] })
   const [detail, setDetail] = useState<ApprovalDetailState | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [inputDrafts, setInputDrafts] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false)
@@ -587,6 +588,7 @@ export function PaymentApprovalPageClient() {
 
     setIsSubmittingApproval(true)
     setError(null)
+    setNotice(null)
     try {
       const payload = {
         approvalId: currentSplitRow.approvalId ?? currentSplitRow.docNo,
@@ -597,10 +599,13 @@ export function PaymentApprovalPageClient() {
         })),
       }
 
-      await dailyFetchJson('/api/daily/payment-approval', {
+      const approvalResult = await dailyFetchJson<{ selfApproval?: boolean; warning?: string }>('/api/daily/payment-approval', {
         body: JSON.stringify(payload),
         method: 'POST',
       })
+      if (approvalResult.selfApproval) {
+        setNotice(approvalResult.warning ?? 'รายการนี้ถูกอนุมัติโดยผู้สร้างรายการเดียวกัน')
+      }
       closeDetail()
       await loadData()
     } catch (caught) {
@@ -679,6 +684,7 @@ export function PaymentApprovalPageClient() {
   return (
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
+      {notice ? <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{notice}</div> : null}
 
       <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4 text-sm">
         <SharedKpiCard icon={<Coins className="size-4 sm:size-5" />} label="ยอดเต็ม" tone="blue" value={formatMoney(summary.totalFull)} />

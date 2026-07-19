@@ -21,6 +21,16 @@
 - ห้าม commit secrets, `.env.local`, production dump หรือ raw sensitive export
 - หลังแต่ละ batch ต้องอัปเดต flow/design note ที่เกี่ยวข้องและรัน validation ตามความเสี่ยง
 
+## Execution Checkpoint 2026-07-19
+
+- Completed: effective permission evaluation with order-independent deny precedence and focused tests.
+- Completed: action catalog migrations `20260719005346_access_control_action_permissions`, `20260719005635_access_control_split_admin_permissions`, and `20260719010334_access_control_finance_action_grants`.
+- Completed: User Admin/Security Admin permission split, credential-only actions, multi-role assignment, and explicit action checks for petty advance, payment approval, WTI open-bill visibility, purchase/sales bills, supplier payment, and customer receipt.
+- Validation: targeted ESLint, workspace type-check, `git diff --check`, and focused Vitest all pass; selected Vitest result is `17/17`.
+- Pending: apply the three new migrations to dev-target through the controlled migration procedure because the repository documents pre-existing remote migration-history drift; then run DB catalog/role-assignment verification.
+- Completed: payment approval returns a self-approval warning, records `payment_approval.approved` audit metadata, and the Audit & Activity Log supports filtering self-approval events.
+- Pending: continue replacing remaining `finance.cash.view` checks in other finance, stock, trading, and advance routes, and apply the new migrations through the controlled dev-target procedure.
+
 ---
 
 ## File Map

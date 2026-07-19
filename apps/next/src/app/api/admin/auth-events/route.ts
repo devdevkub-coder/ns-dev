@@ -14,6 +14,7 @@ const listAuthEventsSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(10).max(200).default(50),
   q: z.string().trim().max(200).default(''),
+  selfApproval: z.enum(['all', 'yes', 'no']).default('all'),
   target: z.string().trim().max(120).default(''),
 })
 
@@ -57,6 +58,8 @@ function buildWhere(values: z.infer<typeof listAuthEventsSchema>) {
   if (values.eventType) clauses.push(Prisma.sql`e.event_type = ${values.eventType}`)
   if (values.actor) clauses.push(Prisma.sql`(e.actor_username ilike ${`%${values.actor}%`} or e.actor_display_name ilike ${`%${values.actor}%`})`)
   if (values.target) clauses.push(Prisma.sql`(e.target_username ilike ${`%${values.target}%`} or e.target_display_name ilike ${`%${values.target}%`})`)
+  if (values.selfApproval === 'yes') clauses.push(Prisma.sql`e.event_type = 'payment_approval.approved' and e.metadata->>'selfApproval' = 'true'`)
+  if (values.selfApproval === 'no') clauses.push(Prisma.sql`not (e.event_type = 'payment_approval.approved' and e.metadata->>'selfApproval' = 'true')`)
   if (values.q) {
     const q = `%${values.q}%`
     clauses.push(Prisma.sql`(
@@ -90,6 +93,7 @@ export async function GET(request: Request) {
       page: url.searchParams.get('page') ?? undefined,
       pageSize: url.searchParams.get('pageSize') ?? undefined,
       q: url.searchParams.get('q') ?? undefined,
+      selfApproval: url.searchParams.get('selfApproval') ?? undefined,
       target: url.searchParams.get('target') ?? undefined,
     })
     const where = buildWhere(values)

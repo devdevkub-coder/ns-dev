@@ -53,6 +53,7 @@ const auditPayloadSchema = z.object({
 })
 
 type EventGroup = 'all' | 'auth' | 'users' | 'permissions' | 'activity'
+type SelfApprovalFilter = 'all' | 'yes' | 'no'
 type AuditColumnKey = 'actor' | 'createdAt' | 'event' | 'group' | 'metadata' | 'target'
 type SortDirection = 'asc' | 'desc'
 
@@ -137,6 +138,7 @@ function eventTitle(eventType: string) {
     'app_user.reset_sent': 'ส่ง Reset Password',
     'app_user.status_updated': 'เปลี่ยนสถานะผู้ใช้',
     'app_user.updated': 'แก้ไขผู้ใช้/สิทธิ์',
+    'payment_approval.approved': 'อนุมัติการจ่ายเงิน',
   }
 
   return labels[eventType] ?? eventType
@@ -149,6 +151,7 @@ function buildQuery(filters: {
   page: number
   pageSize: number
   q: string
+  selfApproval: SelfApprovalFilter
   target: string
 }) {
   const params = new URLSearchParams()
@@ -158,6 +161,7 @@ function buildQuery(filters: {
   if (filters.eventType.trim()) params.set('eventType', filters.eventType.trim())
   if (filters.group !== 'all') params.set('group', filters.group)
   if (filters.q.trim()) params.set('q', filters.q.trim())
+  if (filters.selfApproval !== 'all') params.set('selfApproval', filters.selfApproval)
   if (filters.target.trim()) params.set('target', filters.target.trim())
   return params.toString()
 }
@@ -169,6 +173,7 @@ export function AuditLogPageClient() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
   const [query, setQuery] = useState('')
+  const [selfApproval, setSelfApproval] = useState<SelfApprovalFilter>('all')
   const [target, setTarget] = useState('')
   const [data, setData] = useState<AuditPayload>({ page: 1, pageSize: 50, rows: [], total: 0, totalPages: 1 })
   const [selectedRow, setSelectedRow] = useState<AuditEvent | null>(null)
@@ -184,7 +189,7 @@ export function AuditLogPageClient() {
     setError(null)
 
     try {
-      const search = buildQuery({ actor, eventType, group, page, pageSize, q: query, target })
+      const search = buildQuery({ actor, eventType, group, page, pageSize, q: query, selfApproval, target })
       const response = await fetch(`/api/admin/auth-events?${search}`, { cache: 'no-store' })
       const payload = await readJsonResponse(response, auditPayloadSchema, 'โหลด Audit & Activity Log ไม่สำเร็จ')
 
@@ -200,7 +205,7 @@ export function AuditLogPageClient() {
     } finally {
       setIsLoading(false)
     }
-  }, [actor, eventType, group, page, pageSize, query, target])
+  }, [actor, eventType, group, page, pageSize, query, selfApproval, target])
 
   useEffect(() => {
     void loadRows()
@@ -235,6 +240,7 @@ export function AuditLogPageClient() {
     setGroup('all')
     setPage(1)
     setQuery('')
+    setSelfApproval('all')
     setTarget('')
   }
 
@@ -281,7 +287,7 @@ export function AuditLogPageClient() {
             onClick={() => setShowMobileFilters(true)}
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            ตัวกรอง {(actor || eventType || group !== 'all' || target) ? '(มี)' : ''}
+            ตัวกรอง {(actor || eventType || group !== 'all' || selfApproval !== 'all' || target) ? '(มี)' : ''}
           </button>
         </div>
       </div>
@@ -332,6 +338,18 @@ export function AuditLogPageClient() {
                 <datalist id="audit-event-types-mobile">
                   {eventTypes.map((type) => <option key={type} value={type} />)}
                 </datalist>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">Self-approval</span>
+                <Select className="h-9 w-full text-sm" value={selfApproval} onChange={(event) => {
+                  setSelfApproval(event.target.value as SelfApprovalFilter)
+                  setPage(1)
+                }}>
+                  <option value="all">ทั้งหมด</option>
+                  <option value="yes">อนุมัติตัวเอง</option>
+                  <option value="no">ไม่ใช่อนุมัติตัวเอง</option>
+                </Select>
               </label>
 
               <label className="block">
@@ -413,6 +431,17 @@ export function AuditLogPageClient() {
               setPageSize(size)
               setPage(1)
             }} />
+          </label>
+          <label className="block text-sm font-medium">
+            Self-approval
+            <Select className="mt-1.5 h-9 w-full text-sm" value={selfApproval} onChange={(event) => {
+              setSelfApproval(event.target.value as SelfApprovalFilter)
+              setPage(1)
+            }}>
+              <option value="all">ทั้งหมด</option>
+              <option value="yes">อนุมัติตัวเอง</option>
+              <option value="no">ไม่ใช่อนุมัติตัวเอง</option>
+            </Select>
           </label>
           <label className="block text-sm font-medium">
             ผู้ทำรายการ
