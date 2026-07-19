@@ -884,21 +884,21 @@ function AllocationLedgerView() {
             {!isLoading && (data?.rows.length ?? 0) === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={ledgerColumns.length}>ยังไม่มีรายการ</TableCell></TableRow> : null}
             {visibleRows.map((row) => (
               <TableRow key={row.id} className={`hover:bg-indigo-50/30 ${row.status === 'reversed' ? 'opacity-50' : ''}`}>
-                <TableCell className="p-2 font-mono text-xs text-slate-700"><span className="block truncate" title={row.matchId}>{row.matchId}</span></TableCell>
-                <TableCell className="p-2 text-right"><TargetPill type={row.targetType} /></TableCell>
-                <TableCell className="p-2 text-left font-mono text-xs text-slate-700"><span className="block truncate" title={row.saleDocNo}>{row.saleDocNo}</span></TableCell>
-                <TableCell className="p-2 text-left text-sm text-slate-800"><span className="block truncate" title={row.productName}>{row.productName}</span></TableCell>
-                <TableCell className="p-2 text-left"><span className="whitespace-nowrap text-xs font-semibold text-slate-600">{row.productCategory}</span></TableCell>
-                <TableCell className="p-2 text-right font-mono text-slate-700">{formatMoney(row.saleQty)}</TableCell>
-                <TableCell className="p-2 text-right font-mono font-medium text-blue-700">{formatMoney(row.allocatedQty)}</TableCell>
-                <TableCell className="p-2 text-left font-mono text-xs text-slate-600"><span className="block truncate" title={row.costPoolNo}>{row.costPoolNo}</span></TableCell>
-                <TableCell className="p-2 text-right font-mono text-slate-700">{formatMoney(row.costPerKg)}</TableCell>
-                <TableCell className="p-2 text-right font-mono text-red-700">{formatMoney(row.totalCost)}</TableCell>
-                <TableCell className="p-2 text-right font-mono text-emerald-700">{formatMoney(row.allocatedRevenue)}</TableCell>
-                <TableCell className={`p-2 text-right font-mono font-bold ${row.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.grossProfit)}</TableCell>
-                <TableCell className="p-2 text-right font-mono text-xs text-slate-700">{row.gpPct.toFixed(2)}%</TableCell>
-                <TableCell className="p-2 text-xs text-slate-700"><span className="block truncate" title={row.allocatedBy}>{row.allocatedBy}</span></TableCell>
-                <TableCell className="p-2 text-right"><LedgerStatusText status={row.status} /></TableCell>
+                <TableCell className="p-3 font-mono text-xs text-slate-700"><span className="block truncate" title={row.matchId}>{row.matchId}</span></TableCell>
+                <TableCell className="p-3 text-right"><TargetPill type={row.targetType} /></TableCell>
+                <TableCell className="p-3 text-left font-mono text-xs text-slate-700"><span className="block truncate" title={row.saleDocNo}>{row.saleDocNo}</span></TableCell>
+                <TableCell className="p-3 text-left text-sm text-slate-800"><span className="block truncate" title={row.productName}>{row.productName}</span></TableCell>
+                <TableCell className="p-3 text-left"><span className="whitespace-nowrap text-xs font-semibold text-slate-600">{row.productCategory}</span></TableCell>
+                <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.saleQty)}</TableCell>
+                <TableCell className="p-3 text-right font-mono font-medium text-blue-700">{formatMoney(row.allocatedQty)}</TableCell>
+                <TableCell className="p-3 text-left font-mono text-xs text-slate-600"><span className="block truncate" title={row.costPoolNo}>{row.costPoolNo}</span></TableCell>
+                <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.costPerKg)}</TableCell>
+                <TableCell className="p-3 text-right font-mono text-red-700">{formatMoney(row.totalCost)}</TableCell>
+                <TableCell className="p-3 text-right font-mono text-emerald-700">{formatMoney(row.allocatedRevenue)}</TableCell>
+                <TableCell className={`p-3 text-right font-mono font-bold ${row.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.grossProfit)}</TableCell>
+                <TableCell className="p-3 text-right font-mono text-xs text-slate-700">{row.gpPct.toFixed(2)}%</TableCell>
+                <TableCell className="p-3 text-xs text-slate-700"><span className="block truncate" title={row.allocatedBy}>{row.allocatedBy}</span></TableCell>
+                <TableCell className="p-3 text-right"><LedgerStatusText status={row.status} /></TableCell>
               </TableRow>
             ))}
           </TableBody>

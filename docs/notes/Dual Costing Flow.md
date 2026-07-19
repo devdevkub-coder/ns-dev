@@ -86,6 +86,7 @@ flowchart TD
 - `productId` / รหัสสินค้าเป็น identity ภายในสำหรับ allocator link, การค้นหา และการจับคู่ต้นทุน จึงต้องคงอยู่ใน API/read model แม้ไม่แสดงบนจอ
 - Waiting Allocations ทุก source (`Sales Bill` ทั้ง normalized/legacy item, `PO Sell` ทั้ง item/header และ `Production`) แสดงเฉพาะชื่อสินค้า ไม่เติม `รหัส - ชื่อ` เพื่อให้ queue อ่านชื่อธุรกิจได้เร็วและไม่ซ้ำข้อมูลทางเทคนิค
 - Allocation Ledger แสดงและส่งออก Excel เฉพาะชื่อสินค้า โดยคอลัมน์ข้อความ `เอกสารขาย`, `สินค้า`, `หมวด`, `กลุ่มต้นทุน` ชิดซ้าย และคอลัมน์ตัวเลขชิดขวา
+- Allocation Ledger desktop ใช้ body cell `p-3` สำหรับแถวข้อมูลปกติตาม shared table density; loading/empty state คง `p-8`
 - การค้นหาด้วยรหัสสินค้ายังต้องได้ผลจาก `productId` โดยตรง เหตุผลคือการลดข้อความบนจอไม่ควรลดความสามารถของ operator ที่คุ้นกับการค้นหาด้วย SKU
 
 ## Full-Match Allocation Policy
