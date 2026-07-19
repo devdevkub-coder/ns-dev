@@ -35,9 +35,9 @@ sales plan/LME planning ก่อน PO Sell/stock issue
 - ช่องทางขายในฟอร์มต้องยึด `customers.market_scope` จาก Master Customer แล้ว resolve เป็น `sales_channels` ที่ active โดยอัตโนมัติ; ผู้ใช้ไม่สามารถเลือกช่องทางขัดกับลูกค้าได้
 - แสดง locked/approved plan state ถ้ามี
 - แสดง read model/report ตาม filter ของหน้า
-- ให้เลือกตารางวิเคราะห์ผู้บริหารหรือสต๊อกว่างขายคงเหลือผ่าน line tabs เพื่อแสดงทีละรายการ
+- ให้สลับมุมมองวิเคราะห์ผู้บริหารหรือสต๊อกว่างขายคงเหลือผ่าน line tabs เดิม โดยยังคงเป็นหน้าเดียว ไม่แยกเป็น 4 tabs ระดับหน้า
 - แสดงตารางรอขายตามผลิตภัณฑ์พร้อมต้นทุน Pool, ราคาเสนอ, % LME, กำไร/Margin, รอขายจริง, ล็อกขาย, PO ซื้อรอส่ง และ STOCK เพื่อใช้ตัดสินใจขาย
-- ราคาเสนอที่ดีสุด, % LME, กำไร และ Margin ในตารางรอขายต้องอิงรายการในตารางวางแผนการขายของสินค้าเดียวกันเท่านั้น; หากไม่มีแผน ให้แสดง `-` โดยไม่เติมจากราคา LME กลาง
+- ราคาเสนอที่ดีสุด, % LME, กำไร และ Margin ในตารางรอขายและตารางวิเคราะห์ต้องอิงรายการในตารางวางแผนการขายของสินค้าเดียวกันเท่านั้น; หากไม่มีแผน ให้แสดง `-` และไม่คำนวณกำไรจากราคา LME กลาง
 - ตารางรอขายต้องเรียงสินค้าที่มีราคาเสนอและ % LME จากแผนขายขึ้นก่อน แล้วจึงเรียงรายการที่ยังไม่มีแผนตามปริมาณรอขาย
 - รองรับ search/filter/date range/sort/export ตาม design baseline
 - drilldown ไป source document หรือ source report ที่เกี่ยวข้อง
@@ -77,7 +77,8 @@ sales plan/LME planning ก่อน PO Sell/stock issue
 ### Persistence Tables
 
 - `public.sales_plans` เก็บแผนขายรายเดือน, สินค้า, ลูกค้า, ช่องทาง, ตู้/กก., `LME cf`, `FX`, `% LME`, ราคา THB/kg, สถานะ, และ link กลับ `po_sells`
-- สถานะหลัก: `draft` -> `locked` -> `po_created`
+- สถานะฐานข้อมูลหลัก: `draft` -> `locked` -> `po_created`
+- สถานะที่แสดงใน UI: `รอล็อกแผน` -> `ล็อกแผนแล้ว` -> `เปิด PO ขายแล้ว`
 - `po_sell_id` ถูกเติมเมื่อสร้าง PO Sell จากแผนสำเร็จเท่านั้น
 
 ## LME Reference Pricing
@@ -172,7 +173,7 @@ sales plan/LME planning ก่อน PO Sell/stock issue
 
 ### Current Limitation
 
-- ยังไม่มี unlock/cancel UI สำหรับ Sales Plan
+- การยกเลิกแผนทำได้เฉพาะแผน `draft` ที่ยังไม่เปิด PO ขาย โดยเป็นการลบรายการออกจาก `sales_plans`; UI ต้องแสดงคำว่า `ยกเลิกแผน` และยืนยันผลกระทบก่อนลบ
 - ยังไม่มี approval workflow แยกจาก `Lock %`
 - stock reservation ยังเกิดจาก PO Sell/Sales Bill flow ไม่ใช่จาก Sales Plan draft
 
@@ -214,7 +215,7 @@ sales plan/LME planning ก่อน PO Sell/stock issue
 
 - ยังไม่มี unlock/cancel แผนขาย
 - ยังไม่มี approval workflow แยกจากปุ่ม `Lock %`
-- ยังไม่มี browser QA รอบนี้
+- ตารางวิเคราะห์ไม่เติมราคา LME กลางให้สินค้าที่ไม่มี Sales Plan; แสดง `-` ตาม source contract
 
 ## Implementation Checklist
 

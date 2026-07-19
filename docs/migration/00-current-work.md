@@ -2,6 +2,16 @@
 
 Objective: implement the approved Access Control Module design across User Admin, Security Admin, multiple roles, action permissions, and branch-scoped finance flows.
 
+## Active Sales Plan UX Batch 2026-07-19
+
+Objective: ปรับ `/sales-plan` ตาม UX audit โดยคงหน้าเดียวและ line-tab วิเคราะห์ 2 มุมมองเดิม ไม่แยกเป็น 4 tabs ระดับหน้า; แก้ wording/status, LME/assumption grouping, KPI, modal, filter, table, dark-mode classes และ no-fallback calculation contract.
+
+Write areas: `apps/next/src/components/main/MainSalesControlClients.tsx`, `apps/next/src/lib/server/main-sales-control.ts`, `docs/notes/page-flows/main-dashboard-reports-sales-plan.md`.
+
+Completed locally: UI restructuring and Thai status wording; server analysis now uses only same-product Sales Plan price/% LME and returns no projected price/profit when no plan exists.
+
+Validation pending: workspace lint, type-check, build, and diff-check.
+
 Completed locally: effective-permission helper/tests; action catalog and legacy-permission mapping migrations; User Admin/Security Admin split; multi-role user assignment; action checks for petty advance, payment approval, WTI open-bill buttons, purchase/sales bills, supplier payment, customer receipts, supplier ADV and daily expenses.
 
 Validation: targeted ESLint, workspace type-check, focused Vitest `17/17`, and scoped diff checks pass.

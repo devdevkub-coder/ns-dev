@@ -475,6 +475,15 @@ export async function buildSalesPlan() {
   const config = pending.lmeConfig
   const month = new Date().toISOString().slice(0, 7)
   const planRows = await listSalesPlans(month)
+  const bestPlanByProduct = new Map<string, { price: number; pct: number }>()
+  planRows.forEach((plan) => {
+    const key = String(plan.productCode ?? '').trim().toLowerCase()
+    const price = Number(plan.sellPrice ?? 0)
+    const pct = Number(plan.sellPctLme ?? 0)
+    if (!key || price <= 0 || pct <= 0) return
+    const current = bestPlanByProduct.get(key)
+    if (!current || price > current.price) bestPlanByProduct.set(key, { pct, price })
+  })
   const lockedKgByProduct = new Map<string, number>()
   planRows.forEach((plan: (typeof planRows)[number]) => {
     if (!['locked', 'po_created'].includes(String(plan.status))) return
@@ -484,12 +493,12 @@ export async function buildSalesPlan() {
   const remainRows = pending.reconciliation.map((row) => {
     const lockedKg = lockedKgByProduct.get(row.productCode.trim().toLowerCase()) ?? 0
     const remainingKg = Math.max(0, row.stockQty - lockedKg)
-    const base = lmeBaseFor(row.metalGroup, config)
-    const pct = lmeBuyPercentFor(row.metalGroup)
-    const bestPlanPrice = base > 0 && pct > 0 ? (base / 1000) * config.fxRate * (pct / 100) : 0
+    const plan = bestPlanByProduct.get(row.productCode.trim().toLowerCase())
+    const pct = plan?.pct ?? 0
+    const bestPlanPrice = plan?.price ?? 0
     const projectedRevenue = remainingKg * bestPlanPrice
     const value = remainingKg * row.stockWAC
-    const projectedProfit = projectedRevenue - value
+    const projectedProfit = bestPlanPrice > 0 ? projectedRevenue - value : 0
     const projectedMarginPct = projectedRevenue > 0 ? (projectedProfit / projectedRevenue) * 100 : 0
     return {
       bestPlanPct: pct,
@@ -518,24 +527,37 @@ export async function buildSalesPlan() {
     },
     lmeConfig: config,
     planProductOptions: pending.planProductOptions,
-    pendingSaleTable: pending.pendingSaleTable.map((row) => ({
-      avgPrice: row.avgPrice,
-      bestPlanPct: row.bestPlanPct,
-      bestPlanPrice: row.bestPlanPrice,
-      lockedBuy: row.lockedBuy,
-      lockedSell: row.lockedSell,
-      metalGroup: row.metalGroup,
-      pendingSaleQty: row.pendingSaleQty,
-      pendingSaleValue: row.pendingSaleValue,
-      productCode: row.productCode,
-      productId: String(row.productId),
-      productName: row.productName,
-      projectedMarginPct: row.projectedMarginPct,
-      projectedProfit: row.projectedProfit,
-      realPendingSale: row.realPendingSale,
-      stock: row.stock,
-      stockWAC: row.stockWAC,
-    })),
+    pendingSaleTable: pending.pendingSaleTable.map((row) => {
+      const plan = bestPlanByProduct.get(String(row.productCode).trim().toLowerCase())
+      const bestPlanPct = plan?.pct ?? 0
+      const bestPlanPrice = plan?.price ?? 0
+      const pendingSaleQty = Number(row.pendingSaleQty ?? 0)
+      const avgPrice = Number(row.avgPrice ?? 0)
+      const projectedProfit = pendingSaleQty > 0 && bestPlanPrice > 0
+        ? pendingSaleQty * (bestPlanPrice - avgPrice)
+        : 0
+      const projectedMarginPct = avgPrice > 0 && bestPlanPrice > 0
+        ? ((bestPlanPrice - avgPrice) / avgPrice) * 100
+        : 0
+      return {
+        avgPrice: row.avgPrice,
+        bestPlanPct,
+        bestPlanPrice,
+        lockedBuy: row.lockedBuy,
+        lockedSell: row.lockedSell,
+        metalGroup: row.metalGroup,
+        pendingSaleQty: row.pendingSaleQty,
+        pendingSaleValue: row.pendingSaleValue,
+        productCode: row.productCode,
+        productId: String(row.productId),
+        productName: row.productName,
+        projectedMarginPct,
+        projectedProfit,
+        realPendingSale: row.realPendingSale,
+        stock: row.stock,
+        stockWAC: row.stockWAC,
+      }
+    }),
     pendingSaleTotals: pending.pendingSaleTotals,
     planRows,
     productAnalysis: remainRows,
