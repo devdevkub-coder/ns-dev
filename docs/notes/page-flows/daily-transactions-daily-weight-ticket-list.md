@@ -250,6 +250,14 @@ User decision updated on 2026-07-11: WTO draft/save must not reserve stock. The 
 - WTO detail แสดงปุ่ม `รับของคืน` เฉพาะเมื่อ `GET /api/daily/weight-tickets/[id]/stock-returns` พบ active `pending_out` ที่ถูกนำไปออก `SB` แล้วบางส่วน; modal ให้กรอกน้ำหนักชั่งคืนจริง และถ้าคืนน้อยกว่ายอดค้างต้องระบุเหตุผลเพื่อให้ระบบบันทึก loss ledger ผ่าน Sales Bill stock-return API
 - WTI/WTO user-facing weight labels use Thai terms: `น้ำหนักรวม` for gross weight, `หักภาชนะ`, `หักสิ่งเจือปน`, and `น้ำหนักสุทธิ` for net weight. English Gross/Net remains only in internal field names or external/export contracts when required.
 
+## Form UI Behavior
+
+- ปุ่มเลือกสินค้าจากรูปและปุ่มเพิ่มเต๋าเป็น action ปกติ จึงใช้สีหลักของระบบ ไม่ใช้สีแดงซึ่งสงวนไว้สำหรับยกเลิกหรือลบ
+- บนจอใหญ่ ข้อมูลหัวเอกสารจัดเป็นฟิลด์ 2 คอลัมน์คู่กับหลักฐานรูปภาพรถ เพื่อลดพื้นที่ว่างและยังคงลำดับกรอกข้อมูลเดิม; บนจอเล็กให้เรียงลงตามลำดับเดิม
+- เมื่อเพิ่มเต๋าใหม่ ระบบยุบเต๋าเดิมของสินค้านั้นและเปิดเฉพาะเต๋าใหม่ เพื่อให้กรอกต่อเนื่องโดยไม่เปลี่ยนข้อมูลเต๋าเดิม
+- ปุ่มลบรายการสินค้าแสดงเฉพาะเมื่อเอกสารมีมากกว่า 1 รายการ เพราะเอกสารต้องคงรายการเริ่มต้นอย่างน้อยหนึ่งรายการ
+- footer ของฟอร์มบนมือถือแสดงเฉพาะจำนวนรายการ น้ำหนักรวม และน้ำหนักสุทธิ พร้อมปุ่มกลับ/บันทึกเหนือ bottom navigation; ค่าหักภาชนะและสิ่งเจือปนยังแสดงครบในจอใหญ่และใน summary ภายในฟอร์ม
+
 ## Current Code Baseline
 
 - Current `apps/next` page/API code is accepted as the P0 implementation baseline as of 2026-06-11.
