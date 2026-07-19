@@ -84,6 +84,13 @@ Status update on 2026-07-16:
 - Supabase CLI still reports pre-existing migration-history drift, so do not run a blanket `supabase db push` until remote-only migration versions are reconciled with the repository.
 - Verification on 2026-07-16 confirmed SIT still has migration-history row `20260716190000` plus the expected `public.customer_advances` VAT columns (`vat_type`, `vat_rate_percent`, `subtotal_amount`, `vat_amount`) and related tax-breakdown constraints. Current SIT `customer_advances` row count is `0`.
 
+Status update on 2026-07-19:
+- Before the Profit & Cost read-model migration, a custom-format backup of SIT schemas `public` and `supabase_migrations` plus a plain schema dump was written to `/tmp/ns-erp-profit-cost-sit-20260719-160926` with SHA-256 checksums.
+- Applied and recorded migration `20260719160000_create_profit_cost_reporting_read_model.sql` on SIT project `vbjlkxbytccklhqvxjuu` using one transaction after all preflight issue counts returned zero.
+- Backfill projected 31 Purchase Bills, 20 Sales Bills, 266 fact rows, and 135 daily-rollup rows. Postflight found zero reconciliation issues, zero unmapped Purchase Bill channels, and zero incomplete active Sales Bill COGS lines.
+- Fact and daily totals match exactly: purchase `5,542,883.85`, revenue `629,499.67`, and COGS `453,344.86`. The stock-ledger projection trigger and validated Sales Bill line-profit constraint are present.
+- No browser/deployed SIT smoke was run in this migration batch.
+
 ### Staging / UAT
 
 - Active project ref: `ekeomeumqjvbhgwyaqwe`
