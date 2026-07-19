@@ -114,3 +114,11 @@ Redis URL/token configuration remains the source of connectivity. The deployment
 - A stale browser session cannot skip the active app-user contract on the login page.
 - Password UI exposes no raw Supabase provider message.
 - Deferred P0 is visible in the auth batch tracker and release notes for this batch.
+
+## Implementation Checkpoint 2026-07-19
+
+- Implemented in commits `27a7795e` (Redis limiter and audit privacy), `bcc73466` (auth no-store response policy), `599134de` (existing-session contract), and `2a66879e` (password UI acknowledgement and stable error copy).
+- Deployment requires server-only `AUTH_RATE_LIMIT_SECRET` plus Redis `KV_REST_API_URL` and `KV_REST_API_TOKEN` in every environment that serves `/api/auth/forgot-password`.
+- No database migration was created or applied.
+- Validation is recorded with the implementation batch; browser/UAT verification remains required after deployment for login, recovery link, forced-password, and invitation flows.
+- The deferred P0 password-completion proof gap remains open and is not resolved by this implementation.
