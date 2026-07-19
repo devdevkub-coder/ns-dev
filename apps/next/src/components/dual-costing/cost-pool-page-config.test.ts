@@ -51,7 +51,7 @@ describe('Cost Pool page configuration', () => {
     expect(COST_POOL_GROUP_TABLE_COLUMN_COUNT).toBe(costPoolGroupColumns.length)
     expect(COST_POOL_LOT_TABLE_COLUMN_COUNT).toBe(costPoolLotColumns.length)
     expect(COST_POOL_GROUP_TABLE_COLUMN_COUNT).toBe(7)
-    expect(COST_POOL_LOT_TABLE_COLUMN_COUNT).toBe(11)
+    expect(COST_POOL_LOT_TABLE_COLUMN_COUNT).toBe(10)
 
     for (const columns of [costPoolGroupColumns, costPoolLotColumns]) {
       expect(new Set(columns.map((column) => column.key)).size).toBe(columns.length)

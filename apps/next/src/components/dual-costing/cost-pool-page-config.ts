@@ -61,7 +61,7 @@ export const costPoolGroupColumns: Array<ResizableColumnDefinition<CostPoolGroup
 
 export const COST_POOL_GROUP_TABLE_COLUMN_COUNT = costPoolGroupColumns.length
 
-export type CostPoolLotColumnKey = 'availableQty' | 'availableValue' | 'branchName' | 'counterparty' | 'date' | 'qty' | 'sourceNo' | 'sourceType' | 'status' | 'unitCost' | 'usedQty'
+export type CostPoolLotColumnKey = 'availableQty' | 'availableValue' | 'counterparty' | 'date' | 'qty' | 'sourceNo' | 'sourceType' | 'status' | 'unitCost' | 'usedQty'
 
 export const COST_POOL_LOT_COLUMN_STORAGE_KEY = 'dual-costing.cost-pool.lots.v1'
 
@@ -69,7 +69,6 @@ export const costPoolLotColumns: Array<ResizableColumnDefinition<CostPoolLotColu
   { key: 'sourceType', defaultWidth: 140, minWidth: 120 },
   { key: 'sourceNo', defaultWidth: 190, minWidth: 170 },
   { key: 'date', defaultWidth: 140, minWidth: 125 },
-  { key: 'branchName', defaultWidth: 150, minWidth: 130 },
   { key: 'counterparty', defaultWidth: 220, minWidth: 180 },
   { key: 'qty', defaultWidth: 150, minWidth: 130 },
   { key: 'usedQty', defaultWidth: 140, minWidth: 120 },

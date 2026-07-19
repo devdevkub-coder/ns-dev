@@ -630,7 +630,6 @@ export function CostPoolPageClient() {
                           <ResizableTableHead label="แหล่งต้นทุน" resizeProps={lotColumnResize.getResizeHandleProps('sourceType', 'แหล่งต้นทุน')} />
                           <ResizableTableHead label="เลขที่เอกสารต้นทุน" resizeProps={lotColumnResize.getResizeHandleProps('sourceNo', 'เลขที่เอกสารต้นทุน')} />
                           <ResizableTableHead label="วันที่เอกสาร" resizeProps={lotColumnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
-                          <ResizableTableHead label="สาขา" resizeProps={lotColumnResize.getResizeHandleProps('branchName', 'สาขา')} />
                           <ResizableTableHead label="คู่ค้า" resizeProps={lotColumnResize.getResizeHandleProps('counterparty', 'คู่ค้า')} />
                           <ResizableTableHead align="right" label="ปริมาณตั้งต้น" resizeProps={lotColumnResize.getResizeHandleProps('qty', 'ปริมาณตั้งต้น')} />
                           <ResizableTableHead align="right" label="จับคู่แล้ว" resizeProps={lotColumnResize.getResizeHandleProps('usedQty', 'จับคู่แล้ว')} />
@@ -646,7 +645,6 @@ export function CostPoolPageClient() {
                             <td className="p-3 whitespace-nowrap"><span className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{sourceLabel(row.sourceType)}</span></td>
                             <td className="p-3 whitespace-nowrap font-mono text-slate-900">{row.sourceNo}</td>
                             <td className="p-3 whitespace-nowrap text-slate-600">{formatDateDisplay(row.date)}</td>
-                            <td className="p-3 text-slate-700">{row.branchName || '-'}</td>
                             <td className="p-3 font-medium text-slate-900">{row.counterparty}</td>
                             <td className="p-3 whitespace-nowrap text-right font-mono tabular-nums text-slate-700">{formatMoney(row.qty)}</td>
                             <td className="p-3 whitespace-nowrap text-right font-mono tabular-nums text-slate-700">{formatMoney(row.usedQty)}</td>
@@ -668,7 +666,7 @@ export function CostPoolPageClient() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="font-mono text-sm font-bold text-slate-900">{row.sourceNo}</div>
-                          <div className="mt-0.5 text-xs text-slate-500">{formatDateDisplay(row.date)} · {row.branchName || '-'}</div>
+                          <div className="mt-0.5 text-xs text-slate-500">{formatDateDisplay(row.date)}</div>
                         </div>
                         <StatusIndicator status={row.status} />
                       </div>
