@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { changePasswordSchema } from '@/lib/auth'
+import { acknowledgePasswordChanged, PASSWORD_UPDATE_ERROR } from '@/lib/auth-client-contract'
 import { getSupabaseClient } from '@/lib/supabase'
 
 type FieldErrors = Partial<Record<'confirmPassword' | 'currentPassword' | 'password', string>>
@@ -129,15 +130,15 @@ export function ChangePasswordPageClient() {
     setIsLoading(false)
 
     if (updateError) {
-      setError(`เปลี่ยน Password ไม่สำเร็จ: ${updateError.message}`)
+      setError(PASSWORD_UPDATE_ERROR)
       return
     }
 
-    await fetch('/api/auth/password-changed', {
-      cache: 'no-store',
-      credentials: 'include',
-      method: 'POST',
-    }).catch(() => undefined)
+    const acknowledgement = await acknowledgePasswordChanged({ fetchImpl: fetch })
+    if (!acknowledgement.ok) {
+      setError(acknowledgement.message)
+      return
+    }
 
     setCurrentPassword('')
     setPassword('')

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { completeBrowserLoginSession } from './auth-client-contract'
+import {
+  acknowledgePasswordChanged,
+  completeBrowserLoginSession,
+  PASSWORD_CHANGE_ACKNOWLEDGEMENT_ERROR,
+} from './auth-client-contract'
 
 describe('browser login completion contract', () => {
   it('accepts only a successful response with the expected login contract', async () => {
@@ -38,5 +42,34 @@ describe('browser login completion contract', () => {
       signOut,
     })).resolves.toEqual({ ok: false, message: 'เชื่อมต่อระบบเข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่' })
     expect(signOut).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('password-changed acknowledgement contract', () => {
+  it('accepts only a successful cleared acknowledgement', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(Response.json({ cleared: true }))
+
+    await expect(acknowledgePasswordChanged({ fetchImpl })).resolves.toEqual({ ok: true })
+    expect(fetchImpl).toHaveBeenCalledWith('/api/auth/password-changed', {
+      cache: 'no-store',
+      credentials: 'include',
+      method: 'POST',
+    })
+  })
+
+  it.each([
+    new Response(JSON.stringify({ cleared: false }), { status: 200 }),
+    new Response(JSON.stringify({ error: 'provider detail' }), { status: 403 }),
+    Response.json({}),
+  ])('does not accept an invalid acknowledgement response', async (response) => {
+    await expect(acknowledgePasswordChanged({
+      fetchImpl: vi.fn().mockResolvedValue(response),
+    })).resolves.toEqual({ ok: false, message: PASSWORD_CHANGE_ACKNOWLEDGEMENT_ERROR })
+  })
+
+  it('returns stable copy on acknowledgement transport failure', async () => {
+    await expect(acknowledgePasswordChanged({
+      fetchImpl: vi.fn().mockRejectedValue(new Error('network down')),
+    })).resolves.toEqual({ ok: false, message: PASSWORD_CHANGE_ACKNOWLEDGEMENT_ERROR })
   })
 })
