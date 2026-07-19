@@ -12,6 +12,12 @@
 - ห้ามบันทึก password, token, service role key หรือข้อมูล credential จริงลงเอกสาร
 - ทุก schema migration ต้อง additive/non-destructive ก่อน UAT และห้ามลบข้อมูลเดิม
 
+## Deferred Security Debt 2026-07-19
+
+- **P0 still open:** `POST /api/auth/password-changed` can clear `app_users.must_change_password` based on an authenticated session without a server-verifiable password-update proof. The proxy currently permits this route while the flag is set.
+- The approved `Auth Edge Hardening` batch intentionally does **not** redesign this password-completion/invitation-activation lifecycle. It covers rate limiting, audit privacy, response cache policy, stale-session login handling, stable error copy, and tests only.
+- Canonical design: `docs/superpowers/specs/2026-07-19-auth-edge-hardening-design.md`.
+
 ## Login Flow Verification 2026-07-12
 
 - Local authenticated smoke test passed against the configured local Supabase environment: `/login` accepted the active email/password account, established the SSR cookie session, redirected to `/owner-daily`, and `GET /api/auth/me` returned HTTP 200 with the linked active `app_users` record, role `system_admin`, and 38 permission codes.
