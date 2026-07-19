@@ -2464,14 +2464,22 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       ...current,
       items: current.items.map((item, itemIndex) => {
         if (itemIndex !== index) return item
+        const sourceSummaryId = item.deliverySummaryId ?? item.deliveryLineId ?? null
+        const sourceSummary = sourceSummaryId ? deliverySummaryById.get(sourceSummaryId) ?? null : null
+        const keepsDeliverySource = Boolean(sourceSummary && sourceSummary.productId === productId)
         const selectedPoSell = item.poSellId ? poSellOptionForProduct(item.poSellId, productId) : null
         const selectedTradingCostSource = item.tradingCostSourceId ? tradingCostSourceOptionForProduct(item.tradingCostSourceId, productId) : null
         return {
           ...item,
+          deliveryLineId: keepsDeliverySource ? item.deliveryLineId : null,
+          deliverySummaryId: keepsDeliverySource ? item.deliverySummaryId : null,
+          deliveryTicketDocNo: keepsDeliverySource ? item.deliveryTicketDocNo : null,
+          deliveryTicketId: keepsDeliverySource ? item.deliveryTicketId : null,
+          grossWeight: keepsDeliverySource ? item.grossWeight : item.netWeight,
           poSellId: selectedPoSell ? item.poSellId : null,
           price: selectedPoSell ? selectedPoSell.unitPrice ?? item.price : item.poSellId ? 0 : item.price,
           productId,
-          tradingCostSourceId: selectedTradingCostSource ? item.tradingCostSourceId : item.deliveryTicketId ? item.tradingCostSourceId : null,
+          tradingCostSourceId: selectedTradingCostSource ? item.tradingCostSourceId : null,
         }
       }),
     }))
@@ -3235,7 +3243,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               {mode === 'purchase' ? <ResizableTableHead align="center" label="เลขที่ใบรับของ" resizeProps={columnResize.getResizeHandleProps('receiptDocs', 'เลขที่ใบรับของ')} /> : null}
               {mode === 'sales' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="เลขที่อ้างอิง" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่อ้างอิง')} sortKey="refNo" onSort={changeSort} /> : null}
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="วันที่สร้าง" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่สร้าง')} sortKey="date" onSort={changeSort} />
-              <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')} sortKey="name" onSort={changeSort} />
+              <SortHeader activeKey={sortKey} align="left" className="ns-table-textual-column" direction={sortDirection} label={mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')} sortKey="name" onSort={changeSort} />
               {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="สาขา / คลัง" resizeProps={columnResize.getResizeHandleProps('warehouse', 'สาขา / คลัง')} sortKey="warehouse" onSort={changeSort} /> : null}
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('transactionMode', 'ประเภท')} sortKey="transactionMode" onSort={changeSort} />
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'สถานะเอกสาร' : 'สถานะรับเงิน'} resizeProps={columnResize.getResizeHandleProps('status', mode === 'purchase' ? 'สถานะเอกสาร' : 'สถานะรับเงิน')} sortKey="status" onSort={changeSort} />
@@ -3262,7 +3270,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 ) : null}
                 {mode === 'sales' ? <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700">{row.refNo || '-'}</td> : null}
                 <td className="p-2 text-center text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</td>
-                <td className="p-2 text-xs font-semibold text-slate-700">{'supplierName' in row ? row.supplierName : row.customerName}</td>
+                <td className="ns-table-textual-column p-2 text-xs font-semibold text-slate-700">{'supplierName' in row ? row.supplierName : row.customerName}</td>
                 {mode !== 'purchase' ? <td className="p-2 text-xs font-semibold text-slate-700">{formatBranchWarehouse(row)}</td> : null}
                 <td className="p-2 text-center"><span className={`rounded-md-full px-2 py-0.5 text-xs font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>{transactionModeLabel(row.transactionMode)}</span></td>
                 <td className="p-2 text-center">
@@ -3801,7 +3809,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 ) : null}
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="flex flex-col gap-3">
-                    <label className={`flex cursor-pointer items-center gap-3 rounded-md border-2 px-3 py-2.5 ${form.hasVat ? 'border-amber-500 bg-amber-50' : 'border-slate-200 bg-white'}`}>
+                    <label className={`flex cursor-pointer items-center gap-3 rounded-md border-2 px-3 py-2.5 ${form.hasVat ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                       <input checked={form.hasVat} className="size-5" disabled={!stockReceiptSelected} type="checkbox" onChange={(event) => updateForm('hasVat', event.target.checked)} />
                       <span className="font-bold text-slate-700">มี {vatLabel}</span>
                     </label>
@@ -4132,30 +4140,43 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                              : null
 	                            const selectedPoSellDetail = hasSelectedPoSell ? poSellDetailText(selectedPoSell, index) : null
 	                            const poSellVariance = hasSelectedPoSell ? poSellVarianceForRow(item.poSellId, index) : null
+	                            const manualCostSnapshot = !item.deliveryTicketId && item.salesBillLineNo != null
+	                              ? salesDetailBill?.items.find((detailItem) => detailItem.lineNo === item.salesBillLineNo)?.unitCostSnapshot ?? null
+	                              : null
+	                            const visibleCost = sourceSummary?.unitCostSnapshot ?? manualCostSnapshot
 	                            const rowKey = `${item.deliverySummaryId ?? item.deliveryLineId ?? item.productId}-${index}`
 	                            return (
 	                              <Fragment key={rowKey}>
 	                              <tr className={`${isFirstRowOfSummary ? 'border-t border-slate-200' : ''} align-top hover:bg-slate-50`}>
 	                                <td className="p-2" colSpan={isFirstRowOfSummary ? undefined : 2}>
-	                                  {isFirstRowOfSummary ? (
-	                                    <>
-	                                      <div className="font-medium text-slate-900">{sourceSummary?.productName ?? productName}</div>
-	                                      <div className="mt-1 text-xs text-slate-500">{sourceSummary?.productId ?? item.productId}</div>
-	                                      {sourceSummary ? <div className="mt-1 text-xs text-slate-500">รวม {sourceSummary.lineCount} เต๋า</div> : null}
-	                                    </>
-	                                  ) : (
-                                      <div className="min-w-[360px]">
-                                        <ProductSearchCombobox
-                                          error={salesFieldErrors[`items.${index}.productId`]}
-                                          errorKey={`items.${index}.productId`}
-                                          hideLabel
-                                          inputId={`sales-bill-split-product-search-${index}`}
-                                          options={activeProducts}
-                                          value={item.productId}
-                                          onChange={(value) => updateSalesSplitProduct(index, value)}
-                                        />
+                                  {summaryId == null ? (
+                                    <div className="min-w-[360px]">
+                                      <ProductSearchCombobox
+                                        error={salesFieldErrors[`items.${index}.productId`]}
+                                        errorKey={`items.${index}.productId`}
+                                        hideLabel
+                                        inputId={`sales-bill-stock-product-search-${index}`}
+                                        options={activeProducts}
+                                        value={item.productId}
+                                        onChange={(value) => updateSalesSplitProduct(index, value)}
+                                      />
+                                    </div>
+                                  ) : isFirstRowOfSummary ? (
+                                    <>
+                                      <div className="font-medium text-slate-900">{sourceSummary?.productName ?? productName}</div>
+                                      <div className="mt-1 text-xs text-slate-500">{sourceSummary?.productId ?? item.productId}</div>
+                                      {sourceSummary ? <div className="mt-1 text-xs text-slate-500">รวม {sourceSummary.lineCount} เต๋า</div> : null}
+                                    </>
+                                  ) : (
+                                    <div className="min-w-[360px]">
+                                      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                                        {sourceSummary?.productName ?? productName}
                                       </div>
-                                    )}
+                                      <div className="mt-1 text-xs text-slate-500">
+                                        split WTO ใช้สินค้าเดิมตามใบส่งของ
+                                      </div>
+                                    </div>
+                                  )}
 	                                </td>
 	                                {isFirstRowOfSummary ? (
 	                                  <td className="p-2 text-right tabular-nums text-slate-900">
@@ -4201,7 +4222,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                 </td>
                                 <td className="p-2">
                                   <div className="flex h-10 items-center justify-end rounded-md border border-slate-200 bg-slate-50 px-2 text-right font-semibold tabular-nums text-slate-700">
-                                    {sourceSummary?.unitCostSnapshot == null ? '-' : formatMoney(sourceSummary.unitCostSnapshot)}
+                                    {visibleCost == null ? '-' : formatMoney(visibleCost)}
                                   </div>
                                 </td>
                                 <td className="p-2">
@@ -4423,7 +4444,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="purple">4</StepBadge>VAT & ยอดรวม</h4>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-3">
-                    <label className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 ${salesForm.hasVat ? 'border-amber-500 bg-amber-50' : 'border-slate-200 bg-white'}`}>
+                    <label className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 ${salesForm.hasVat ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                       <input checked={salesForm.hasVat} className="size-5" type="checkbox" onChange={(event) => updateSalesForm('hasVat', event.target.checked)} />
                       <span className="font-bold text-slate-700">มี {vatLabel}</span>
                     </label>
@@ -4544,11 +4565,15 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               </div>
             </DialogHeader>
             <div className="space-y-2 bg-slate-50 p-5 text-sm">
-              <label className="block text-xs font-medium text-slate-600" htmlFor={`${mode}-bill-cancel-note`}>หมายเหตุการยกเลิก *</label>
+              <label className="block text-xs font-medium text-slate-600" htmlFor={`${mode}-bill-cancel-note`}>
+                หมายเหตุการยกเลิก<span className="ml-1 text-red-600">*</span>
+              </label>
               <textarea
+                aria-invalid={Boolean(cancelNoteError)}
                 id={`${mode}-bill-cancel-note`}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:ring-0 outline-none transition-colors"
                 maxLength={500}
+                required
                 rows={3}
                 value={cancelNote}
                 onChange={(event) => {
@@ -5051,7 +5076,7 @@ function SalesBillDetailModal({
                 </div>
               ) : null}
               <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
-                <table className="ns-table w-full min-w-[1100px] text-sm">
+                <table className="ns-table w-full min-w-[1240px] text-sm">
                   <thead className="bg-slate-50 text-slate-600">
                     <tr>
                       <th className="px-3 py-2 text-left font-medium">สินค้า</th>
@@ -5060,6 +5085,7 @@ function SalesBillDetailModal({
                       <th className="px-3 py-2 text-right font-medium">Gross</th>
                       <th className="px-3 py-2 text-right font-medium">หัก</th>
                       <th className="px-3 py-2 text-right font-medium">จำนวนสุทธิ</th>
+                      <th className="px-3 py-2 text-right font-medium">ต้นทุน/หน่วย</th>
                       <th className="px-3 py-2 text-right font-medium">ราคาขาย/หน่วย</th>
                       <th className="px-3 py-2 text-right font-medium">ส่วนลด</th>
                       <th className="px-3 py-2 text-right font-medium">ยอดรวม</th>
@@ -5094,13 +5120,14 @@ function SalesBillDetailModal({
                           <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.grossWeight)}</td>
                           <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.deductWeight)}</td>
                           <td className="px-3 py-2 text-right font-medium tabular-nums">{formatMoney(item.qty || item.netWeight)} {item.unit}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{item.unitCostSnapshot == null ? '-' : formatMoney(item.unitCostSnapshot)}</td>
                           <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.price)}</td>
                           <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.discount)}</td>
                           <td className="px-3 py-2 text-right font-semibold text-blue-700 tabular-nums">{formatMoney(item.amount)}</td>
                         </tr>
                       )
                     })}
-                    {detail.items.length === 0 ? <tr><td className="px-6 py-6 text-center text-slate-500" colSpan={9}>ไม่มีรายการสินค้าในบิล</td></tr> : null}
+                    {detail.items.length === 0 ? <tr><td className="px-6 py-6 text-center text-slate-500" colSpan={10}>ไม่มีรายการสินค้าในบิล</td></tr> : null}
                   </tbody>
                 </table>
               </div>
@@ -5396,11 +5423,12 @@ function formatDateTime(value?: string) {
   return date.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
 }
 
-function SortHeader({ activeKey, align, direction, label, onSort, resizeProps, sortKey }: { activeKey: SortKey; align: 'center' | 'left' | 'right'; direction: SortDirection; label: string; onSort: (key: SortKey) => void; resizeProps?: ButtonHTMLAttributes<HTMLButtonElement>; sortKey: SortKey }) {
+function SortHeader({ activeKey, align, className, direction, label, onSort, resizeProps, sortKey }: { activeKey: SortKey; align: 'center' | 'left' | 'right'; className?: string; direction: SortDirection; label: string; onSort: (key: SortKey) => void; resizeProps?: ButtonHTMLAttributes<HTMLButtonElement>; sortKey: SortKey }) {
   return (
     <ResizableTableHead
       activeSortKey={activeKey}
       align={align}
+      className={className}
       direction={direction}
       label={label}
       resizeProps={resizeProps}

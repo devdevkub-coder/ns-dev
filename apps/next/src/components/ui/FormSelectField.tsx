@@ -32,7 +32,7 @@ export function FormSelectField({
   const labelText = hasInlineRequired ? label.trim().slice(0, -1).trimEnd() : label
 
   return (
-    <label className={`block ${className}`}>
+    <label className={`block ${className}`} data-manual-required={required || hasInlineRequired ? 'true' : undefined}>
       <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
         {labelText}{required || hasInlineRequired ? <span className="ml-0.5 text-red-500">*</span> : null}
       </span>

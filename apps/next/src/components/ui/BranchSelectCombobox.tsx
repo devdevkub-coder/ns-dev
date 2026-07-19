@@ -46,9 +46,10 @@ export function BranchSelectCombobox({
     : branches
   const selectedName = value ? branches.find((branch) => branch.id === value)?.name : includeAllOption ? allOptionLabel : undefined
   const controlHeight = controlSize === 'filter' ? 'h-9' : 'h-10'
+  const fieldInvalid = Boolean(error && !disabled)
 
   return (
-    <div className={`${className ?? ''} ${widthClassName ?? ''}`.trim() || undefined} data-error-key={errorKey}>
+    <div className={`${className ?? ''} ${widthClassName ?? ''}`.trim() || undefined} data-error-key={errorKey} data-manual-required={hasInlineRequired ? 'true' : undefined}>
       {safeLabel ? <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor={inputId}>{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}</label> : null}
       <div className="relative">
         <Combobox
@@ -66,12 +67,14 @@ export function BranchSelectCombobox({
           }}
         >
           <ComboboxInput
-            aria-invalid={Boolean(error)}
+            aria-invalid={fieldInvalid}
             aria-label={safeLabel || placeholder}
-            className={error ? `${controlHeight} rounded-md border-red-400 bg-red-50 px-3 py-2 text-sm` : `${controlHeight} rounded-md px-3 py-2 text-sm`}
-            inputGroupClassName={error ? `${controlHeight} rounded-md border-red-400 ring-red-100 has-[[data-slot=input-group-control]:focus-visible]:border-red-500 has-[[data-slot=input-group-control]:focus-visible]:ring-red-500/20` : `${controlHeight} rounded-md border-slate-300`}
+            className={fieldInvalid ? `${controlHeight} rounded-md border-red-400 bg-red-50 px-3 py-2 text-sm` : `${controlHeight} rounded-md px-3 py-2 text-sm`}
+            data-manual-entry-readonly="true"
+            inputGroupClassName={fieldInvalid ? `${controlHeight} rounded-md border-red-400 ring-red-100 has-[[data-slot=input-group-control]:focus-visible]:border-red-500 has-[[data-slot=input-group-control]:focus-visible]:ring-red-500/20` : `${controlHeight} rounded-md border-slate-300`}
             placeholder={placeholder}
             readOnly
+            required={hasInlineRequired}
             withDropdownButton
           />
           <ComboboxContent>
@@ -86,7 +89,7 @@ export function BranchSelectCombobox({
           </ComboboxContent>
         </Combobox>
       </div>
-      {error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}
+      {fieldInvalid ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}
     </div>
   )
 }

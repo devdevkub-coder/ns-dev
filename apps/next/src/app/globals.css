@@ -43,8 +43,11 @@
   color: #172033;
   background: #f3f6f9;
   --ns-sort-active: #1677ff;
-  --ns-field-focus: #737373;
-  --ns-field-focus-ring: rgb(115 115 115 / 0.25);
+  --ns-field-focus: #3b82f6;
+  --ns-field-focus-ring: rgb(59 130 246 / 0.25);
+  --ns-field-invalid-bg: #fef2f2;
+  --ns-field-invalid-border: #f87171;
+  --ns-manual-required-bg: #fff7cc;
 }
 
 .dark {
@@ -52,8 +55,11 @@
   color: #f8fafc;
   background: #0f172a;
   --ns-sort-active: #69b1ff;
-  --ns-field-focus: #737373;
-  --ns-field-focus-ring: rgb(115 115 115 / 0.35);
+  --ns-field-focus: #3b82f6;
+  --ns-field-focus-ring: rgb(59 130 246 / 0.35);
+  --ns-field-invalid-bg: rgb(127 29 29 / 0.28);
+  --ns-field-invalid-border: #ef4444;
+  --ns-manual-required-bg: rgb(234 179 8 / 0.18);
   
   /* Redefine Tailwind's base theme variables */
   --color-white: #1e293b;
@@ -471,6 +477,15 @@ table.ns-table > :is(thead, tbody) > tr > :is(th, td).ns-leading-business-column
   justify-content: flex-start !important;
 }
 
+/* Explicitly approved text/date exceptions outside the leading-column default. */
+table.ns-table > :is(thead, tbody) > tr > :is(th, td).ns-table-textual-column:not([colspan]) {
+  text-align: left !important;
+}
+
+table.ns-table > :is(thead, tbody) > tr > :is(th, td).ns-table-textual-column:not([colspan]) > :is(.flex, .inline-flex) {
+  justify-content: flex-start !important;
+}
+
 table.ns-table :where(tbody > tr) {
   border-top: 0 !important;
 }
@@ -864,15 +879,63 @@ aside a:visited {
   box-shadow: none;
 }
 
-/* TweakCN is used only for active-field emphasis, not for field surfaces. */
+/* Keep every editable control on one blue active-field treatment. */
 :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea):focus,
-:where([role="combobox"]):focus-within {
+:where([role="combobox"], [data-slot="input-group"]):focus-within {
   border-color: var(--ns-field-focus) !important;
   box-shadow: 0 0 0 3px var(--ns-field-focus-ring) !important;
 }
 
 .dark :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea):focus,
-.dark :where([role="combobox"]):focus-within {
+.dark :where([role="combobox"], [data-slot="input-group"]):focus-within {
+  border-color: var(--ns-field-focus) !important;
+  box-shadow: 0 0 0 3px var(--ns-field-focus-ring) !important;
+}
+
+/* Office/ERP data-entry convention: required manual-entry fields stay pale yellow even after they are filled. */
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea):required:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]),
+:where([role="combobox"])[aria-required="true"]:not(:disabled):not([aria-invalid="true"]):not([data-auto-filled="true"]),
+:where([data-slot="input-group"]):has(input:required:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"])),
+:where([data-manual-required="true"]) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea, [role="combobox"]):not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]),
+:where([data-manual-required="true"]) :where([data-slot="input-group"]):has(input:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"])):not(:has([aria-invalid="true"])) {
+  background-color: var(--ns-manual-required-bg) !important;
+}
+
+:where([data-manual-required="true"]) :where([data-slot="input-group"]):has(input[data-manual-entry-readonly="true"][readonly]:not(:disabled):not([aria-invalid="true"])) {
+  background-color: var(--ns-manual-required-bg) !important;
+}
+
+:where([data-required-group="true"])[data-manual-required="true"]:not([data-field-invalid="true"]) {
+  background-color: var(--ns-manual-required-bg) !important;
+}
+
+/* Required manual fields must stay yellow while focused; focus changes only the blue border/ring. */
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea):required:focus:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]),
+:where([role="combobox"])[aria-required="true"]:focus:not(:disabled):not([aria-invalid="true"]):not([data-auto-filled="true"]),
+:where([data-slot="input-group"]):has(input:required:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"])):focus-within,
+:where([data-manual-required="true"]) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea, [role="combobox"]):focus:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]),
+:where([data-manual-required="true"]) [data-slot="input-group"]:has(input:not(:disabled):not([readonly])):focus-within:not(:has([aria-invalid="true"])) {
+  background-color: var(--ns-manual-required-bg) !important;
+}
+
+:where([data-manual-required="true"]) [data-slot="input-group"]:has(input[data-manual-entry-readonly="true"][readonly]:not(:disabled):not([aria-invalid="true"])):focus-within {
+  background-color: var(--ns-manual-required-bg) !important;
+}
+
+/* Validation errors override required yellow with a red field surface. */
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea)[aria-invalid="true"]:not(:disabled):not([readonly]),
+:where([role="combobox"])[aria-invalid="true"]:not(:disabled):not([aria-readonly="true"]),
+:where([data-slot="input-group"]):has([aria-invalid="true"]:not(:disabled):not([readonly])),
+:where([data-field-invalid="true"]) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea, [role="combobox"], [data-slot="input-group"]):not(:disabled):not([readonly]) {
+  background-color: var(--ns-field-invalid-bg) !important;
+  border-color: var(--ns-field-invalid-border) !important;
+}
+
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea)[aria-invalid="true"]:not(:disabled):not([readonly]):focus,
+:where([role="combobox"])[aria-invalid="true"]:not(:disabled):not([aria-readonly="true"]):focus,
+:where([data-slot="input-group"]):has([aria-invalid="true"]:not(:disabled):not([readonly])):focus-within,
+:where([data-field-invalid="true"]) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea, [role="combobox"]):not(:disabled):not([readonly]):focus,
+:where([data-field-invalid="true"]) [data-slot="input-group"]:has(input:not(:disabled):not([readonly])):focus-within {
   border-color: var(--ns-field-focus) !important;
   box-shadow: 0 0 0 3px var(--ns-field-focus-ring) !important;
 }

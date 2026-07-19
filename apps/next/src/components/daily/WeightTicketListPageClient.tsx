@@ -102,6 +102,7 @@ function formatDateTimeSplit(value?: string | null) {
 function SortHeader({
   activeKey,
   align,
+  className,
   direction,
   label,
   onSort,
@@ -110,6 +111,7 @@ function SortHeader({
 }: {
   activeKey: WeightTicketSortBy
   align: 'center' | 'left' | 'right'
+  className?: string
   direction: WeightTicketSortDir
   label: string
   onSort: (key: WeightTicketSortBy) => void
@@ -120,6 +122,7 @@ function SortHeader({
     <ResizableTableHead
       activeSortKey={activeKey}
       align={align}
+      className={className}
       direction={direction}
       label={label}
       resizeProps={resizeProps}
@@ -807,8 +810,8 @@ export function WeightTicketListPageClient() {
             <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
               <tr>
                 <SortHeader activeKey={sortBy} align="left" direction={sortDir} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('documentNo', 'เลขที่')} onSort={toggleSort} sortKey="documentNo" />
-                <SortHeader activeKey={sortBy} align="left" direction={sortDir} label="วันที่สร้าง" resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้าง')} onSort={toggleSort} sortKey="createdAt" />
-                <SortHeader activeKey={sortBy} align="left" direction={sortDir} label={typeFilter === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', typeFilter === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า')} onSort={toggleSort} sortKey="partyName" />
+                <SortHeader activeKey={sortBy} align="left" className={typeFilter === 'WTI' ? 'ns-table-textual-column' : undefined} direction={sortDir} label="วันที่สร้าง" resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้าง')} onSort={toggleSort} sortKey="createdAt" />
+                <SortHeader activeKey={sortBy} align="left" className={typeFilter === 'WTI' ? 'ns-table-textual-column' : undefined} direction={sortDir} label={typeFilter === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', typeFilter === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า')} onSort={toggleSort} sortKey="partyName" />
                 <ResizableTableHead label="สาขา" resizeProps={columnResize.getResizeHandleProps('branch', 'สาขา')} />
                 <ResizableTableHead label="ทะเบียนรถ" resizeProps={columnResize.getResizeHandleProps('vehicleNo', 'ทะเบียนรถ')} />
                 <SortHeader activeKey={sortBy} align="right" direction={sortDir} label="น้ำหนักสุทธิ" resizeProps={columnResize.getResizeHandleProps('netWeight', 'น้ำหนักสุทธิ')} onSort={toggleSort} sortKey="netWeight" />
@@ -850,11 +853,11 @@ export function WeightTicketListPageClient() {
                       {isCancelled ? <span aria-hidden className="absolute inset-y-0 left-0 w-2 bg-red-600" /> : null}
                       <span className={isCancelled ? 'pl-2' : undefined}>{ticket.documentNo}</span>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-600">
+                    <td className={cn('whitespace-nowrap px-3 py-3 text-slate-600', typeFilter === 'WTI' ? 'ns-table-textual-column' : undefined)}>
                       <div>{ticketDate}</div>
                       {ticketTime ? <div className="text-xs text-slate-400 mt-0.5">{ticketTime}</div> : null}
                     </td>
-                    <td className="px-3 py-3 text-slate-900">{ticket.partyName}</td>
+                    <td className={cn('px-3 py-3 text-slate-900', typeFilter === 'WTI' ? 'ns-table-textual-column' : undefined)}>{ticket.partyName}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-slate-600">{ticket.branchName}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-slate-600">{ticket.vehicleNo}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatWeight(ticket.totals.netWeight)} กก.</td>
@@ -1066,10 +1069,16 @@ export function WeightTicketListPageClient() {
                 เหตุผลการยกเลิก<span className="ml-1 text-red-600">*</span>
               </label>
               <textarea
+                aria-invalid={Boolean(cancelError && !cancelNote.trim())}
                 className="block min-h-[88px] w-full resize-none rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 transition-colors placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100 sm:text-sm"
                 placeholder="ระบุเหตุผลการยกเลิก"
+                maxLength={500}
+                required
                 value={cancelNote}
-                onChange={(event) => setCancelNote(event.target.value)}
+                onChange={(event) => {
+                  setCancelNote(event.target.value)
+                  if (cancelError && !cancelNote.trim()) setCancelError('')
+                }}
               />
               {cancelError ? <div className="mt-1 text-xs text-red-600">{cancelError}</div> : null}
             </div>

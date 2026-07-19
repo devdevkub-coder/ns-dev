@@ -14,7 +14,7 @@ import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/Searc
 import { Select as UiSelect } from '@/components/ui/Select'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
-import { poSellFormSchema, type PoSellFormValues } from '@/lib/sales'
+import { poSellPageFormSchema, type PoSellPageFormValues as PoSellFormValues } from '@/lib/sales'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { TableNumberCell } from '@/components/ui/TableNumberCell'
@@ -138,7 +138,7 @@ const blankPoSellItem = (): PoSellFormValues['items'][number] => ({
 })
 
 const initialPoSellForm = (): PoSellFormValues => ({
-  branchId: null,
+  branchId: '',
   channelId: null,
   customerId: '',
   expectedDelivery: '',
@@ -165,7 +165,7 @@ const poSellColumns: ResizableColumnDefinition<string>[] = [
   { key: 'documentStatus', minWidth: 120, defaultWidth: 140 },
   { key: 'matchStatus', minWidth: 150, defaultWidth: 170 },
   { key: 'updatedAt', minWidth: 150, defaultWidth: 180 },
-  { key: 'action', minWidth: 180, defaultWidth: 200 },
+  { key: 'action', minWidth: 320, defaultWidth: 320 },
 ]
 
 export function PoSellPageClient() {
@@ -400,7 +400,7 @@ export function PoSellPageClient() {
     }
     setEditingDocNo(row.docNo)
     setForm({
-      branchId: row.branchId ?? null,
+      branchId: row.branchId ?? '',
       channelId: row.channelId ?? null,
       customerId: row.customerId ?? '',
       expectedDelivery: row.expectedDelivery,
@@ -446,7 +446,7 @@ export function PoSellPageClient() {
         handledSalesPlanQueryRef.current = salesPlanIdFromQuery
         setEditingDocNo(null)
         setForm({
-          branchId: salesPlanDefaultBranchId,
+          branchId: salesPlanDefaultBranchId ?? '',
           channelId: String(planRow.channelId ?? planRow.channel ?? '') || null,
           customerId: String(planRow.customerId ?? ''),
           expectedDelivery: today,
@@ -535,11 +535,15 @@ export function PoSellPageClient() {
   }
 
   async function savePoSell() {
-    const parsed = poSellFormSchema.safeParse(form)
+    const parsed = poSellPageFormSchema.safeParse(form)
     if (!parsed.success) {
-      const flattened = parsed.error.flatten()
-      setFieldErrors(Object.fromEntries(Object.entries(flattened.fieldErrors).map(([key, value]) => [key, value?.[0] ?? 'ข้อมูลไม่ถูกต้อง'])))
-      setError(flattened.formErrors[0] ?? 'กรุณาตรวจสอบข้อมูลในฟอร์ม')
+      const nextErrors: Record<string, string> = {}
+      for (const issue of parsed.error.issues) {
+        const key = issue.path.join('.')
+        if (key && !nextErrors[key]) nextErrors[key] = issue.message
+      }
+      setFieldErrors(nextErrors)
+      setError(parsed.error.issues.find((issue) => issue.path.length === 0)?.message ?? 'กรุณาตรวจสอบข้อมูลในฟอร์ม')
       return
     }
 
@@ -839,7 +843,7 @@ export function PoSellPageClient() {
             <ResizableTableHead label="เลขที่จองขาย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่จองขาย')} />
             <ResizableTableHead label="วันที่สร้าง" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="createdAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้าง')} />
             <ResizableTableHead label="วันที่ส่งมอบ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="expectedDelivery" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('expectedDelivery', 'วันที่ส่งมอบ')} />
-            <ResizableTableHead label="ลูกค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="customerName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} />
+            <ResizableTableHead className="ns-table-textual-column" label="ลูกค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="customerName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} />
             <ResizableTableHead label="สินค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="productName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} />
             <ResizableTableHead align="right" label="จำนวนรวม" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="qty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'จำนวนรวม')} />
             <ResizableTableHead align="right" label="รายได้รวม" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="totalAmount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('totalAmount', 'รายได้รวม')} />
@@ -861,7 +865,7 @@ export function PoSellPageClient() {
               <TableCell className="whitespace-nowrap font-mono">{row.docNo}</TableCell>
               <TableCell className="whitespace-nowrap">{formatDateDisplay(row.createdAt)}</TableCell>
               <TableCell className="whitespace-nowrap">{formatDateDisplay(row.expectedDelivery)}</TableCell>
-              <TableCell className="truncate">{row.customerName}</TableCell>
+              <TableCell className="ns-table-textual-column truncate">{row.customerName}</TableCell>
               <TableCell className="text-xs font-semibold text-slate-700">
                 <CollapsedList
                   inline
@@ -877,9 +881,9 @@ export function PoSellPageClient() {
               <TableCell className={`text-right pr-4 tabular-nums ${row.marginPct < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatPercent(row.marginPct)}</TableCell>
               <TableCell className="text-center"><StatusPill label={row.documentStatusLabel} tone={documentStatusPillTone(row.documentStatus)} /></TableCell>
               <TableCell className="text-center"><StatusPill label={row.matchStatusLabel} tone="match" /></TableCell>
-              <TableCell className="w-32 whitespace-nowrap text-xs text-slate-600">
-                <div className="truncate font-semibold text-slate-700">{row.updatedBy || '-'}</div>
-                <div className="font-mono text-xs text-slate-400">{formatTimestampDisplay(row.updatedAt)}</div>
+              <TableCell className="overflow-hidden whitespace-nowrap text-xs text-slate-600">
+                <div className="truncate font-semibold text-slate-700" title={row.updatedBy || '-'}>{row.updatedBy || '-'}</div>
+                <div className="truncate font-mono text-xs text-slate-400" title={formatTimestampDisplay(row.updatedAt)}>{formatTimestampDisplay(row.updatedAt)}</div>
               </TableCell>
               <TableCell className="whitespace-nowrap text-right">
                 <div className="flex justify-end gap-1">
@@ -1198,11 +1202,15 @@ function ProductSearchCombobox({
 }
 
 function DecimalPatternInput({
+  error = false,
   formatOnBlur = false,
+  required = false,
   value,
   onChange,
 }: {
+  error?: boolean
   formatOnBlur?: boolean
+  required?: boolean
   value: number
   onChange: (value: number) => void
 }) {
@@ -1215,8 +1223,10 @@ function DecimalPatternInput({
 
   return (
     <UiInput
+      aria-invalid={error}
       className="!h-9 w-full px-2 py-1.5 text-right"
       inputMode="decimal"
+      required={required}
       type="text"
       value={isFocused ? rawValue : formatOnBlur ? formatDecimalInput(value) : rawValue}
       onBlur={() => {
@@ -1304,10 +1314,10 @@ function PoSellFormModal({
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow">
             <div className="mb-3 text-sm font-bold text-slate-800">ข้อมูลเอกสาร</div>
             <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-              <div className="col-span-1">
+              <div className="col-span-1" data-field-invalid={errors.branchId ? 'true' : undefined}>
                 <label className="mb-1 block text-xs font-medium text-slate-600">สาขา/คลัง <span className="text-red-600">*</span></label>
-                <UiSelect className={`!h-9 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'} rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none`} value={form.branchId ?? ''} onChange={(event) => onUpdate('branchId', event.target.value || null)}>
-                  <option value="">เลือกสาขา/คลัง</option>
+                <UiSelect aria-invalid={Boolean(errors.branchId)} className={`!h-9 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'} rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none`} required value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
+                  <option disabled value="">เลือกสาขา/คลัง</option>
                   {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                 </UiSelect>
                 {fieldError('branchId')}
@@ -1325,7 +1335,7 @@ function PoSellFormModal({
               </div>
               <div className="col-span-1">
                 <label className="mb-1 block text-xs font-medium text-slate-600">วันส่งมอบ <span className="text-red-600">*</span></label>
-                <DatePickerInput className="!h-9 w-full rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
+                <DatePickerInput ariaInvalid={Boolean(errors.expectedDelivery)} className="!h-9 w-full rounded-md border-slate-300 focus:border-slate-400 focus:ring-0 outline-none" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
                 {fieldError('expectedDelivery')}
               </div>
               <div className="col-span-2">
@@ -1349,9 +1359,9 @@ function PoSellFormModal({
               <Table className="min-w-[820px] border-0">
                 <TableHeader>
                   <tr className="border-b border-slate-100 bg-slate-50/50">
-                    <TableHead className="text-slate-700">สินค้า / Grade *</TableHead>
-                    <TableHead className="w-36 text-right text-slate-700">จำนวน (กก.) *</TableHead>
-                    <TableHead className="w-36 text-right text-slate-700">ราคา/หน่วย *</TableHead>
+                    <TableHead className="text-slate-700">สินค้า / Grade <span className="text-red-600">*</span></TableHead>
+                    <TableHead className="w-36 text-right text-slate-700">จำนวน (กก.) <span className="text-red-600">*</span></TableHead>
+                    <TableHead className="w-36 text-right text-slate-700">ราคา/หน่วย <span className="text-red-600">*</span></TableHead>
                     <TableHead className="w-36 text-right text-slate-700">มูลค่ารวม</TableHead>
                     <TableHead className="w-10" />
                   </tr>
@@ -1370,11 +1380,11 @@ function PoSellFormModal({
                          {fieldError(`items.${index}.productId`)}
                        </TableCell>
                        <TableCell className="p-1.5 align-top">
-                         <DecimalPatternInput value={item.qty} onChange={(value) => onUpdateItem(index, 'qty', value)} />
+                         <DecimalPatternInput error={Boolean(errors[`items.${index}.qty`])} required value={item.qty} onChange={(value) => onUpdateItem(index, 'qty', value)} />
                          {fieldError(`items.${index}.qty`)}
                        </TableCell>
                        <TableCell className="p-1.5 align-top">
-                         <DecimalPatternInput formatOnBlur value={item.price} onChange={(value) => onUpdateItem(index, 'price', value)} />
+                         <DecimalPatternInput error={Boolean(errors[`items.${index}.price`])} formatOnBlur required value={item.price} onChange={(value) => onUpdateItem(index, 'price', value)} />
                          {fieldError(`items.${index}.price`)}
                        </TableCell>
                        <TableCell className="bg-blue-50/50 p-1.5 px-2 text-right font-bold text-blue-700">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</TableCell>
@@ -1450,11 +1460,13 @@ function PoSellCancelModal({
           </div>
         </DialogHeader>
         <div className="space-y-2 bg-slate-50 p-5 text-sm">
-          <label className="block text-xs font-medium text-slate-600" htmlFor="po-sell-cancel-note">หมายเหตุการยกเลิก *</label>
+          <label className="block text-xs font-medium text-slate-600" htmlFor="po-sell-cancel-note">หมายเหตุการยกเลิก <span className="text-red-600">*</span></label>
           <textarea
+            aria-invalid={Boolean(error)}
             id="po-sell-cancel-note"
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:ring-0 outline-none transition-colors"
             maxLength={500}
+            required
             rows={3}
             value={note}
             onChange={(event) => onChangeNote(event.target.value)}
@@ -1499,11 +1511,13 @@ function PoSellShortCloseModal({
           </div>
         </DialogHeader>
         <div className="space-y-2 bg-slate-50 p-5 text-sm">
-          <label className="block text-xs font-medium text-slate-600" htmlFor="po-sell-short-close-note">เหตุผลการปิดส่งไม่ครบ *</label>
+          <label className="block text-xs font-medium text-slate-600" htmlFor="po-sell-short-close-note">เหตุผลการปิดส่งไม่ครบ <span className="text-red-600">*</span></label>
           <textarea
+            aria-invalid={Boolean(error)}
             id="po-sell-short-close-note"
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:ring-0 outline-none transition-colors"
             maxLength={500}
+            required
             rows={3}
             value={note}
             onChange={(event) => onChangeNote(event.target.value)}

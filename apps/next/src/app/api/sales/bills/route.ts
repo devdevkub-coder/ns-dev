@@ -25,6 +25,8 @@ import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION } from '@/lib/server/weight-ticket-usage-history'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import { refreshCustomerAdvanceAllocation } from '@/lib/server/customer-advance-settlement'
+import { validateDeliveryItemProductMatch } from '@/lib/server/sales-bill-delivery-validation'
+import { averageCostForStock, quantityForStock } from '@/lib/server/stock'
 import {
   listActiveBranches,
   listActiveBranchesByCodes,
@@ -459,9 +461,163 @@ function salesItems(
 }
 
 type SalesItemSnapshot = ReturnType<typeof salesItems>[number]
+type ManualStockCostSnapshot = {
+  availableQty: number
+  lineCost: number
+  unitCost: number
+}
 
 function isDeliveryBackedSalesItem(item: Pick<SalesItemSnapshot, 'deliveryTicketId'>) {
   return Boolean(item.deliveryTicketId)
+}
+
+function isManualStockSalesItem(item: Pick<SalesItemSnapshot, 'deliveryTicketId'>) {
+  return !item.deliveryTicketId
+}
+
+function sourceAllocationMeta(meta: unknown) {
+  return meta && typeof meta === 'object' && !Array.isArray(meta)
+    ? meta as Record<string, unknown>
+    : {}
+}
+
+function sourceAllocationMetaNumber(meta: unknown, key: string) {
+  const value = sourceAllocationMeta(meta)[key]
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function manualStockSourceAllocationRows(input: {
+  actor: string
+  billId: bigint
+  createdAt: Date
+  items: SalesItemSnapshot[]
+  lineIdByLineNo: Map<number, bigint>
+  manualStockCostByItemIndex: Map<number, ManualStockCostSnapshot>
+  parsedProductIds: bigint[]
+  warehouse: WarehouseReferenceRecord
+}) {
+  return input.items.flatMap((item, index) => {
+    if (!isManualStockSalesItem(item)) return []
+    const stockCost = input.manualStockCostByItemIndex.get(index)
+    if (!stockCost || item.qty <= 0.0001) return []
+    return [{
+      allocated_deduct_weight: item.deductWeight,
+      allocated_gross_weight: item.grossWeight,
+      allocated_net_weight: item.qty,
+      allocated_qty: item.qty,
+      created_at: input.createdAt,
+      created_by: input.actor,
+      meta: {
+        lineCost: stockCost.lineCost,
+        source: 'sales_bill_create_from_stock',
+        unitCost: stockCost.unitCost,
+        warehouseType: input.warehouse.type,
+      },
+      movement_owner: 'SALES_BILL',
+      product_code_snapshot: item.productCode,
+      product_id: input.parsedProductIds[index] ?? null,
+      product_name_snapshot: item.productName,
+      sales_bill_id: input.billId,
+      sales_bill_line_id: input.lineIdByLineNo.get(item.lineNo) ?? null,
+      sales_line_no: item.lineNo,
+      source_doc_no: input.warehouse.code,
+      source_id: input.warehouse.id,
+      source_line_no: null,
+      source_type: 'STOCK',
+      status: 'active',
+      stock_issue_id: null,
+      stock_ledger_ref_type: 'SB',
+      updated_at: input.createdAt,
+      updated_by: input.actor,
+      weight_ticket_id: null,
+      weight_ticket_product_summary_id: null,
+    }]
+  })
+}
+
+function manualStockLedgerRows(input: {
+  actor: string
+  billDate: Date
+  branchId: bigint
+  createdAt: Date
+  items: SalesItemSnapshot[]
+  manualStockCostByItemIndex: Map<number, ManualStockCostSnapshot>
+  note?: string | null
+  parsedProductIds: bigint[]
+  refNo: string
+  salesChannelId?: bigint | null
+  warehouse: WarehouseReferenceRecord
+}) {
+  return input.items.flatMap((item, index) => {
+    if (!isManualStockSalesItem(item)) return []
+    const stockCost = input.manualStockCostByItemIndex.get(index)
+    if (!stockCost || item.qty <= 0.0001) return []
+    return [{
+      branch_id: input.branchId,
+      created_at: input.createdAt,
+      created_by: input.actor,
+      date: input.billDate,
+      lot_no: null,
+      movement_type: 'ขายออก',
+      note: input.note ?? `ขายออกจาก stock ตามบิล ${input.refNo}`,
+      notes: `manual stock sale line ${item.lineNo}`,
+      not_available_for_sale: false,
+      output_category: input.warehouse.type,
+      product_id: input.parsedProductIds[index] ?? null,
+      qty_in: 0,
+      qty_out: item.qty,
+      ref_id: input.refNo,
+      ref_no: input.refNo,
+      ref_type: 'SB',
+      sales_channel_id: input.salesChannelId ?? null,
+      unit_cost: stockCost.unitCost,
+      value_in: 0,
+      value_out: stockCost.lineCost,
+      warehouse_id: input.warehouse.id,
+    }]
+  })
+}
+
+function manualStockReverseLedgerRows(input: {
+  actor: string
+  branchId: bigint
+  billDate: Date
+  createdAt: Date
+  note?: string | null
+  rows: Prisma.sales_bill_source_allocationsGetPayload<Record<string, never>>[]
+  salesBillDocNo: string
+  salesChannelId?: bigint | null
+  warehouseType?: string | null
+}) {
+  return input.rows.flatMap((row) => {
+    const unitCost = sourceAllocationMetaNumber(row.meta, 'unitCost')
+    const lineCost = sourceAllocationMetaNumber(row.meta, 'lineCost') || roundMoney(toNumber(row.allocated_qty) * unitCost)
+    const outputCategory = (sourceAllocationMeta(row.meta).warehouseType as string | undefined) ?? input.warehouseType ?? null
+    if (toNumber(row.allocated_qty) <= 0.0001 || unitCost <= 0 || row.product_id == null || row.source_id == null) return []
+    return [{
+      branch_id: input.branchId,
+      created_at: input.createdAt,
+      created_by: input.actor,
+      date: input.billDate,
+      lot_no: null,
+      movement_type: 'แก้ไขบิลขายคืนสต๊อก',
+      note: input.note ?? `คืน stock จากการแก้ไขบิลขาย ${input.salesBillDocNo}`,
+      notes: `reverse manual stock line ${row.sales_line_no}`,
+      not_available_for_sale: false,
+      output_category: outputCategory,
+      product_id: row.product_id,
+      qty_in: toNumber(row.allocated_qty),
+      qty_out: 0,
+      ref_id: input.salesBillDocNo,
+      ref_no: input.salesBillDocNo,
+      ref_type: 'SB',
+      sales_channel_id: input.salesChannelId ?? null,
+      unit_cost: unitCost,
+      value_in: lineCost,
+      value_out: 0,
+      warehouse_id: row.source_id,
+    }]
+  })
 }
 
 function salesBillLineRows(input: {
@@ -1017,6 +1173,15 @@ async function validateStockDeliverySelection(
     if (!itemProduct) {
       return { error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' as const }
     }
+    const productMismatchError = validateDeliveryItemProductMatch({
+      itemProductId: itemProduct.id,
+      itemProductName: itemProduct.name,
+      summaryProductId: summarySource.product_id,
+      summaryProductName: summarySource.product_name,
+    })
+    if (productMismatchError) {
+      return { error: productMismatchError }
+    }
     const buyerAcceptedWeight = Math.max(0, item.netWeight)
     if (item.deductWeight > buyerAcceptedWeight + 0.0001) {
       return { error: `หักสิ่งเจือปนของ ${summarySource.product_name} เกินจำนวนที่ขายได้` as const }
@@ -1087,6 +1252,77 @@ export async function salesGlobalReferenceOptionsPayload() {
     products: products.map((product) => ({ ...product, id: requireBusinessCode(product.code, `สินค้า ${product.id}`) })),
     salesChannels: salesChannels.map((channel) => ({ ...channel, id: requireBusinessCode(channel.code, `ช่องทางขาย ${channel.id}`) })),
   }
+}
+async function validateManualStockSelection(
+  values: SalesBillFormValues,
+  branchId: bigint,
+  parsedProductIdsByLine: Array<bigint | null>,
+  warehouse: WarehouseReferenceRecord | null,
+  input?: { reusableQtyByProductId?: Map<bigint, number> },
+) {
+  const manualIndexes = values.items
+    .map((item, index) => (!item.deliveryTicketId ? index : -1))
+    .filter((index) => index >= 0)
+  const manualStockCostByItemIndex = new Map<number, ManualStockCostSnapshot>()
+  if (manualIndexes.length === 0) return { manualStockCostByItemIndex }
+  if (!warehouse) {
+    return { error: 'บิลขาย STOCK ที่มีสินค้าเพิ่มต้องเลือกคลังก่อนบันทึก' as const }
+  }
+
+  const requestedByProductId = new Map<bigint, number>()
+  const uniqueProductIds = [...new Set(manualIndexes
+    .map((index) => parsedProductIdsByLine[index])
+    .filter((productId): productId is bigint => productId != null)
+    .map((productId) => productId.toString()))].map((productId) => BigInt(productId))
+
+  const stockSnapshots = await Promise.all(uniqueProductIds.map(async (productId) => {
+    const [availableQty, unitCost] = await Promise.all([
+      quantityForStock({
+        branchId,
+        productId,
+        quantityType: 'ready',
+        status: warehouse.type,
+        warehouseId: warehouse.id,
+      }),
+      averageCostForStock({
+        branchId,
+        productId,
+        status: warehouse.type,
+        warehouseId: warehouse.id,
+      }),
+    ])
+    return [productId, { availableQty, unitCost }] as const
+  }))
+  const stockByProductId = new Map(stockSnapshots)
+
+  for (const itemIndex of manualIndexes) {
+    const item = values.items[itemIndex]
+    const productId = parsedProductIdsByLine[itemIndex]
+    if (productId == null) {
+      return { error: `รายการที่ ${itemIndex + 1}: สินค้าที่เลือกไม่ถูกต้อง` as const }
+    }
+    const stock = stockByProductId.get(productId)
+    if (!stock) {
+      return { error: `รายการที่ ${itemIndex + 1}: ไม่พบข้อมูล stock ของสินค้า` as const }
+    }
+    const requestedQty = Math.max(0, item.qty)
+    const reusableQty = input?.reusableQtyByProductId?.get(productId) ?? 0
+    const requestedBefore = requestedByProductId.get(productId) ?? 0
+    if (requestedBefore + requestedQty > stock.availableQty + reusableQty + 0.0001) {
+      return { error: `รายการที่ ${itemIndex + 1}: จำนวนเกิน stock พร้อมใช้ของสินค้า ${item.productId}` as const }
+    }
+    if (stock.unitCost <= 0) {
+      return { error: `รายการที่ ${itemIndex + 1}: สินค้า ${item.productId} ยังไม่มีต้นทุนเฉลี่ยพร้อมใช้ในระบบ` as const }
+    }
+    requestedByProductId.set(productId, requestedBefore + requestedQty)
+    manualStockCostByItemIndex.set(itemIndex, {
+      availableQty: stock.availableQty + reusableQty,
+      lineCost: roundMoney(requestedQty * stock.unitCost),
+      unitCost: stock.unitCost,
+    })
+  }
+
+  return { manualStockCostByItemIndex }
 }
 
 export async function salesOptionsPayload(scope: Awaited<ReturnType<typeof salesBranchScope>>) {
@@ -1653,6 +1889,7 @@ export async function POST(request: Request) {
     }
     const productById = new Map(products.map((product) => [product.id, product]))
     const productCodeById = new Map(products.map((product) => [product.id, requireBusinessCode(product.code, `สินค้า ${product.id}`)]))
+    const parsedProductIdsByLine = values.items.map((item) => productByCode.get(item.productId)?.id ?? null)
     let deliverySummaryIdByItemIndex = new Map<number, string>()
     let deliverySummarySourceMap = new Map<string, DeliverySummarySource>()
     let stockIssueQtyByItemIndex = new Map<number, number>()
@@ -1668,8 +1905,16 @@ export async function POST(request: Request) {
       stockDeliveryTicket = deliveryValidation.ticket
     }
 
+    const manualStockValidation = values.transactionMode === 'STOCK'
+      ? await validateManualStockSelection(values, branch.id, parsedProductIdsByLine, warehouse)
+      : { manualStockCostByItemIndex: new Map<number, ManualStockCostSnapshot>() }
+    if ('error' in manualStockValidation) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: manualStockValidation.error }, { status: 400 })
+    }
+    const manualStockCostByItemIndex = manualStockValidation.manualStockCostByItemIndex
+
     const docNo = await nextDailyDocNo('sales_bills', 'SB', billDate)
-    const items = salesItems(values, parsedProductIds as bigint[], productById, deliverySummarySourceMap, deliverySummaryIdByItemIndex, stockIssueQtyByItemIndex)
+    const items = salesItems(values, parsedProductIdsByLine as bigint[], productById, deliverySummarySourceMap, deliverySummaryIdByItemIndex, stockIssueQtyByItemIndex)
     const poSellAllocations = new Map<string, ReturnType<typeof allocatePoSellForSalesBill>>()
     for (const poSellDocNo of requestedPoSellDocNos) {
       const poSell = poSellByDocNo.get(poSellDocNo)
@@ -1929,7 +2174,7 @@ export async function POST(request: Request) {
           billId: createdBill.id,
           createdAt,
           items,
-          parsedProductIds: parsedProductIds as bigint[],
+          parsedProductIds: parsedProductIdsByLine as bigint[],
           totals: salesLineTotalsAfterCustomerAdvance(totals, settledTotals),
         }),
       })
@@ -1954,6 +2199,37 @@ export async function POST(request: Request) {
           await tx.sales_bill_source_allocations.createMany({ data: sourceRows })
         }
       }
+      if (values.transactionMode === 'STOCK' && warehouse) {
+        const manualSourceRows = manualStockSourceAllocationRows({
+          actor,
+          billId: createdBill.id,
+          createdAt,
+          items,
+          lineIdByLineNo,
+          manualStockCostByItemIndex,
+          parsedProductIds: parsedProductIdsByLine as bigint[],
+          warehouse,
+        })
+        if (manualSourceRows.length) {
+          await tx.sales_bill_source_allocations.createMany({ data: manualSourceRows })
+        }
+        const manualLedgerRows = manualStockLedgerRows({
+          actor,
+          billDate: normalizeDate(billDate),
+          branchId: branch.id,
+          createdAt,
+          items,
+          manualStockCostByItemIndex,
+          note: values.note,
+          parsedProductIds: parsedProductIdsByLine as bigint[],
+          refNo: createdBill.doc_no,
+          salesChannelId: channel.id,
+          warehouse,
+        })
+        if (manualLedgerRows.length) {
+          await tx.stock_ledger.createMany({ data: manualLedgerRows })
+        }
+      }
 
       const poSellRows = poSellAllocationRows({
         actor,
@@ -1962,7 +2238,7 @@ export async function POST(request: Request) {
         headerPoSellDocNo: values.poSellId?.trim() || undefined,
         items,
         lineIdByLineNo,
-        parsedProductIds: parsedProductIds as bigint[],
+        parsedProductIds: parsedProductIdsByLine as bigint[],
         poSellByDocNo,
       })
       if (poSellRows.length) {
@@ -2109,7 +2385,8 @@ export async function POST(request: Request) {
           weightTicketId: stockDeliveryTicket.id,
         })
         const stockCogs = roundMoney(consumedStockLines.reduce((sum, line) => sum + line.valueOut, 0))
-        const combinedCogs = roundMoney(totalCost + stockCogs)
+        const manualStockCogs = roundMoney([...manualStockCostByItemIndex.values()].reduce((sum, line) => sum + line.lineCost, 0))
+        const combinedCogs = roundMoney(totalCost + stockCogs + manualStockCogs)
         await tx.sales_bills.update({
           data: {
             cogs_amount: combinedCogs,
@@ -2200,6 +2477,18 @@ export async function POST(request: Request) {
           },
           toStatus: nextTicketStatus,
           weightTicketId: stockDeliveryTicket.id,
+        })
+      } else if (values.transactionMode === 'STOCK') {
+        const manualStockCogs = roundMoney([...manualStockCostByItemIndex.values()].reduce((sum, line) => sum + line.lineCost, 0))
+        await tx.sales_bills.update({
+          data: {
+            cogs_amount: manualStockCogs,
+            gross_profit: roundMoney(totals.grossProfitBase - manualStockCogs),
+            total_cost: manualStockCogs,
+            updated_at: createdAt,
+            updated_by: actor,
+          },
+          where: { id: createdBill.id },
         })
       }
 
@@ -2420,9 +2709,12 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะบิลขายนี้ยังไม่มี line facts สำหรับ correction' }, { status: 400 })
       }
 
-      const branch = await findActiveBranchReferenceByCodeOrId(values.branchId)
-      const customer = await findActiveCustomerReferenceByCodeOrId(values.customerId)
-      const channel = await findActiveSalesChannelReferenceByCode(values.channelId)
+      const [branch, customer, channel, warehouse] = await Promise.all([
+        findActiveBranchReferenceByCodeOrId(values.branchId),
+        findActiveCustomerReferenceByCodeOrId(values.customerId),
+        findActiveSalesChannelReferenceByCode(values.channelId),
+        values.warehouseId ? findActiveWarehouseReferenceByCodeOrId(values.warehouseId) : Promise.resolve(null),
+      ])
       if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
       if (!customer) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
       if (!channel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
@@ -2438,6 +2730,9 @@ export async function PATCH(request: Request) {
       }
       if (bill.branch_id !== branch.id || bill.customer_id !== customer.id) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะต้องคงสาขาและลูกค้าเดิมของบิลขาย' }, { status: 400 })
+      }
+      if (values.transactionMode === 'STOCK' && values.warehouseId && !warehouse) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: 'คลังไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
       }
 
       const requestedProductCodes = [...new Set(values.items.map((item) => item.productId).filter(Boolean))]
@@ -2512,6 +2807,22 @@ export async function PATCH(request: Request) {
         deliverySummarySourceMap = deliveryValidation.deliverySummarySourceMap
         stockIssueQtyByItemIndex = deliveryValidation.stockIssueQtyByItemIndex
       }
+      const activeManualSourceAllocations = bill.sales_bill_source_allocations.filter((allocation) => allocation.source_type === 'STOCK')
+      const reusableManualQtyByProductId = new Map<bigint, number>()
+      activeManualSourceAllocations.forEach((allocation) => {
+        if (allocation.product_id == null) return
+        reusableManualQtyByProductId.set(
+          allocation.product_id,
+          (reusableManualQtyByProductId.get(allocation.product_id) ?? 0) + toNumber(allocation.allocated_qty),
+        )
+      })
+      const manualStockValidation = String(bill.transaction_mode ?? 'STOCK') === 'STOCK'
+        ? await validateManualStockSelection(values, branch.id, parsedProductIdsByLine, warehouse, { reusableQtyByProductId: reusableManualQtyByProductId })
+        : { manualStockCostByItemIndex: new Map<number, ManualStockCostSnapshot>() }
+      if ('error' in manualStockValidation) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: manualStockValidation.error }, { status: 400 })
+      }
+      const manualStockCostByItemIndex = manualStockValidation.manualStockCostByItemIndex
 
       for (const [index, item] of values.items.entries()) {
         const lineNo = lineNoByItemIndex.get(index) ?? index + 1
@@ -2597,6 +2908,13 @@ export async function PATCH(request: Request) {
         const sourceAllocation = sourceAllocationByLineNo.get(item.lineNo)
         const activeLine = activeLineByOriginalLineNo.get(item.lineNo)
         if (!sourceAllocation || !activeLine) return item
+        if (sourceAllocation.source_type !== 'WTO') {
+          return {
+            ...item,
+            grossWeight: toNumber(activeLine.gross_weight),
+            stockIssueQty: 0,
+          }
+        }
         const sourceMeta = sourceAllocation.meta && typeof sourceAllocation.meta === 'object' && !Array.isArray(sourceAllocation.meta)
           ? sourceAllocation.meta as Record<string, unknown>
           : {}
@@ -2831,6 +3149,7 @@ export async function PATCH(request: Request) {
           })))
 
           for (const [lineNo, sourceAllocation] of sourceAllocationByLineNo.entries()) {
+            if (sourceAllocation.source_type !== 'WTO') continue
             const item = items.find((candidate) => candidate.lineNo === lineNo)
             if (!item) {
               await tx.sales_bill_source_allocations.update({
@@ -2930,6 +3249,73 @@ export async function PATCH(request: Request) {
           }
         }
 
+        const oldManualStockCost = roundMoney(activeManualSourceAllocations.reduce((sum, allocation) => (
+          sum + (
+            sourceAllocationMetaNumber(allocation.meta, 'lineCost')
+            || roundMoney(toNumber(allocation.allocated_qty) * sourceAllocationMetaNumber(allocation.meta, 'unitCost'))
+          )
+        ), 0))
+        if (activeManualSourceAllocations.length > 0) {
+          const reversedManualLedgerRows = manualStockReverseLedgerRows({
+            actor,
+            billDate: normalizeDate(billDate),
+            branchId: branch.id,
+            createdAt,
+            note: values.note,
+            rows: activeManualSourceAllocations,
+            salesBillDocNo: bill.doc_no,
+            salesChannelId: channel.id,
+            warehouseType: warehouse?.type ?? null,
+          })
+          if (reversedManualLedgerRows.length > 0) {
+            await tx.stock_ledger.createMany({ data: reversedManualLedgerRows })
+          }
+          await tx.sales_bill_source_allocations.updateMany({
+            data: {
+              notes: 'Reversed by Sales Bill edit',
+              status: 'reversed',
+              updated_at: createdAt,
+              updated_by: actor,
+              version: { increment: 1 },
+            },
+            where: {
+              id: { in: activeManualSourceAllocations.map((allocation) => allocation.id) },
+              status: 'active',
+            },
+          })
+        }
+        if (String(bill.transaction_mode ?? 'STOCK') === 'STOCK' && warehouse) {
+          const manualSourceRows = manualStockSourceAllocationRows({
+            actor,
+            billId: bill.id,
+            createdAt,
+            items,
+            lineIdByLineNo,
+            manualStockCostByItemIndex,
+            parsedProductIds: parsedProductIdsByLine as bigint[],
+            warehouse,
+          })
+          if (manualSourceRows.length > 0) {
+            await tx.sales_bill_source_allocations.createMany({ data: manualSourceRows })
+          }
+          const manualLedgerRows = manualStockLedgerRows({
+            actor,
+            billDate: normalizeDate(billDate),
+            branchId: branch.id,
+            createdAt,
+            items,
+            manualStockCostByItemIndex,
+            note: values.note,
+            parsedProductIds: parsedProductIdsByLine as bigint[],
+            refNo: bill.doc_no,
+            salesChannelId: channel.id,
+            warehouse,
+          })
+          if (manualLedgerRows.length > 0) {
+            await tx.stock_ledger.createMany({ data: manualLedgerRows })
+          }
+        }
+
         const activePoSellAllocations = bill.sales_bill_po_sell_allocations.filter((allocation) => allocation.status === 'active')
         await appendPoSellAllocationLogs(tx, activePoSellAllocations
           .filter((allocation) => allocation.allocation_type === 'PO_SELL' && allocation.po_sell_id != null)
@@ -3003,7 +3389,8 @@ export async function PATCH(request: Request) {
           }
         }
 
-        const updatedTotalCost = roundMoney(totalCost + stockCostDelta)
+        const newManualStockCost = roundMoney([...manualStockCostByItemIndex.values()].reduce((sum, line) => sum + line.lineCost, 0))
+        const updatedTotalCost = roundMoney(totalCost + stockCostDelta - oldManualStockCost + newManualStockCost)
         await tx.sales_bills.update({
           data: {
             discount: values.discountTotal,

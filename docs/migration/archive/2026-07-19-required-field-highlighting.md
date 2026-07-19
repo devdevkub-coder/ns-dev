@@ -1,0 +1,40 @@
+# Required Manual-Entry Field Highlighting — 2026-07-19
+
+## Completed checkpoint
+
+Active Next forms now use the customer-approved office/ERP convention for required manual entry:
+
+- editable fields that the user must complete stay pale yellow (`#FFF7CC`) before focus, while focused, and after entry;
+- focus keeps the yellow surface and adds the shared blue border/ring;
+- validation errors override yellow with the shared red error surface;
+- optional, disabled, read-only, calculated, and automatically populated fields remain neutral;
+- required select placeholders cannot be selected again after a real value is chosen;
+- visible required labels are connected to their controls or required control groups for accessibility.
+
+What is what: yellow identifies data that belongs to the user's required manual-entry workflow. It is not an empty-field warning and does not mean that a saved value is invalid.
+
+Why it has to be like this: office users scan mixed document forms containing manual, reference, calculated, and automatic values. Persistent highlighting makes the fields they own visible throughout the workflow without turning neutral system data into false action items.
+
+## Scope
+
+The audit covered 289 TSX files, including 97 files containing form controls. Confirmed gaps were corrected in PO Buy/PO Sell, shared Master Data, Company Profile, authentication/profile forms, Daily Transfer/Expense, Customer Advance, payment/receipt cancellation flows, LINE settings, Admin Users, Cost Allocator, and WTI/WTO forms. LINE Channel Token, LINE Channel Secret, and Public App URL remain optional because both client and API contracts allow blank values; the PDF Storage Bucket remains required.
+
+## Validation
+
+- Focused required-field regression: `8/8` passed after the final accessibility and PO Sell page-schema corrections; merged dashboard/cache regressions also passed `37/37`.
+- Full ESLint: passed with zero errors and the existing warning in `qa-thai-font.tsx`.
+- Type-check: passed with the project heap set to 4 GB.
+- Production build on the merged `new-origin/dev` result: passed and generated `311/311` pages.
+- A broader pre-merge Vitest run passed `275/289`; the 14 remaining failures were pre-existing and confined to seven Finance/Branch Scope/shared-table test files outside this batch.
+- `npm audit`: zero vulnerabilities.
+- PO Buy field-level browser evidence passed previously at `C:\tmp\po-buy-required-highlight-post-fix.png`.
+- Company Profile browser verification confirmed required fields yellow, optional fields neutral, and no overflow.
+- Daily Transfer and shared Master Data opened without console errors or overflow, but their create modals were not detected; no field-level browser claim is made for those two routes.
+
+PO Sell now enforces its required branch in the page form while preserving the existing API contract for legacy branchless documents, and maps nested item validation back to the exact row fields. Read-only text inputs that act only as user-editable combobox triggers are marked explicitly so required dropdowns stay yellow without turning business read-only data yellow. No database schema, calculation, permission, or successful document-save behavior changed in this checkpoint.
+
+## SIT merge checkpoint
+
+The validated promotion candidate combines development source `4e3d862a5` with SIT source `a58709102` before updating either integration remote. SIT's per-stock-item sales-bill cost logic and options payload are preserved together with the required-field/VAT UI batch. The only shared file, `TransactionBillsPageClient.tsx`, retains both source patches exactly by stable patch ID.
+
+Focused sales-bill, LINE bill-contract, and required-field regressions passed `13/13`; ESLint passed with zero errors and the existing `qa-thai-font.tsx` warning; type-check passed after removing an invalid variable-level `as const` from the incoming SIT route; and the production build generated `311/311` pages. The same merge commit is intended for `new-origin/dev` and `sit-origin/main` so a later development promotion cannot discard the SIT-only cost corrections.

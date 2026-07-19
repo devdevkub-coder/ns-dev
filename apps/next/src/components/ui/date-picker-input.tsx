@@ -30,6 +30,7 @@ function parseDate(value: string) {
 }
 
 export function DatePickerInput({
+  ariaInvalid = false,
   ariaLabel,
   className,
   disabled = false,
@@ -43,6 +44,7 @@ export function DatePickerInput({
   value,
   onChange,
 }: {
+  ariaInvalid?: boolean
   ariaLabel?: string
   className?: string
   disabled?: boolean
@@ -72,6 +74,7 @@ export function DatePickerInput({
   return (
     <InputGroup className={className ?? 'w-[130px]'}>
       <InputGroupInput
+        aria-invalid={ariaInvalid}
         aria-label={ariaLabel}
         className="tabular-nums"
         disabled={disabled}

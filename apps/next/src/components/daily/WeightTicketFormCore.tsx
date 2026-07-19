@@ -2322,6 +2322,7 @@ function SimpleDropdown({
       >
         <ComboboxInput
           className="h-10 rounded-md py-2 pl-4 text-sm text-slate-900"
+          data-manual-entry-readonly="true"
           inputGroupClassName={cn("h-10 rounded-md border-slate-300 bg-white", disabled ? "opacity-60" : "")}
           placeholder=""
           readOnly
@@ -2363,7 +2364,7 @@ function FieldBlock({
   const labelText = hasInlineRequired ? label.trim().slice(0, -1).trimEnd() : label
 
   return (
-    <div>
+    <div data-field-invalid={error ? 'true' : undefined} data-manual-required={hasInlineRequired ? 'true' : undefined}>
       <label className={cn("mb-1 block text-xs font-medium text-slate-600", labelClassName)}>
         {labelText}
         {hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}

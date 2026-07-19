@@ -150,6 +150,7 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
     const selectedOption = options.find((option) => option.value === selectedValue)
     const radixValue = selectedValue === '' && selectableEmptyOption ? EMPTY_OPTION_VALUE : selectedValue
     const placeholder = emptyOption?.label ?? ''
+    const fieldInvalid = !disabled && ariaInvalid !== undefined && ariaInvalid !== false && ariaInvalid !== 'false'
 
     React.useEffect(() => {
       if (controlled || hasInitializedOptions.current) return
@@ -200,10 +201,10 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
               if (typeof ref === 'function') ref(node)
               else if (ref) ref.current = node
             }}
-            aria-invalid={ariaInvalid}
+            aria-invalid={fieldInvalid}
             className={cn(
-              'flex h-10 w-full items-center justify-between gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-base text-slate-800 transition-colors focus-visible:!border-[#737373] focus-visible:outline-none focus-visible:!ring-[3px] focus-visible:!ring-neutral-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dark-surface-soft)] dark:text-slate-100',
-              ariaInvalid ? 'border-red-400 bg-red-50 text-red-700 focus-visible:!border-red-500 focus-visible:!ring-red-500/20 dark:border-red-500 dark:bg-red-950/20' : null,
+              'flex h-10 w-full items-center justify-between gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-base text-slate-800 transition-colors focus-visible:!border-[var(--ns-field-focus)] focus-visible:outline-none focus-visible:!ring-[3px] focus-visible:!ring-[var(--ns-field-focus-ring)] disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dark-surface-soft)] dark:text-slate-100',
+              fieldInvalid ? 'border-red-400 bg-red-50 text-red-700 dark:border-red-500 dark:bg-red-950/20' : null,
               className,
             )}
             form={form}

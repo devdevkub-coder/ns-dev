@@ -13,7 +13,7 @@ tags:
   - decision
 status: draft
 created: 2026-06-11
-updated: 2026-06-24
+updated: 2026-07-19
 ---
 
 # Stock Ledger and Stock Balance
@@ -512,6 +512,15 @@ SB-CANCEL คืน 50 kg @ 40
 - เหลือที่คลังไหน
 - เหลือเป็น RM / WIP / FG เท่าไร
 - ของที่ห้ามขายมีเท่าไร
+
+### Zero-balance display rule
+
+- Matrix สรุปสินค้าจะรวม source rows ของสินค้าแต่ละตัวก่อน แล้วซ่อน product row เฉพาะเมื่อ `คงเหลือจริง`, `มูลค่า`, `รอเข้า` และ `รอออก` รวมเป็นศูนย์ทั้งหมด เพื่อตัด ghost row เช่นยอดบวก/ลบที่หักล้างกันแล้ว
+- ใช้ tolerance `0.0001` ตอนตัดเศษจากการคำนวณทศนิยม และไม่ใช้ `พร้อมส่ง` เป็นเงื่อนไข visibility
+- สต๊อกติดลบสุทธิยังแสดง และสต๊อกคงเหลือจริงที่เป็นบวกแต่ถูก hold ทั้งหมดต้องยังแสดง แม้ `พร้อมส่ง` จะเป็นศูนย์
+- รายการที่จำนวนรวมเป็นศูนย์แต่ยังมีมูลค่า, `รอเข้า` หรือ `รอออก` ต้องยังแสดง เพราะเป็น operational anomaly/fact ที่ต้องติดตาม
+- Matrix body, ยอดรวมหมวด, footer, count และ pagination ใช้ visible product set เดียวกัน ส่วน detail list และ KPI ยังคงแสดง source facts ตามเดิม
+- กฎนี้ไม่แก้ API response, ไม่แก้หรือลบ fact ใน `stock_ledger` และไม่ทิ้ง negative bucket row ระหว่าง aggregate
 
 ## Implementation Direction
 

@@ -434,6 +434,7 @@ export function WeightTicketDashboardPageClient() {
           followUpLabel="WTO รอออกจากสต็อก"
           followUpTone="purple"
           isLoading={isLoading}
+          leftAlignParty
           rows={data?.wtoRows ?? []}
           storageKey="daily.weight-ticket-dashboard.wto.v1"
           title="WTO ส่งออก"
@@ -587,6 +588,7 @@ function FlowTablePanel({
   followUpLabel,
   followUpTone,
   isLoading,
+  leftAlignParty = false,
   rows,
   storageKey,
   title,
@@ -595,6 +597,7 @@ function FlowTablePanel({
   followUpLabel: string
   followUpTone: 'amber' | 'purple'
   isLoading: boolean
+  leftAlignParty?: boolean
   rows: DashboardTicketRow[]
   storageKey: string
   title: string
@@ -657,7 +660,7 @@ function FlowTablePanel({
             <tr>
               <ResizableTableHead label="เลขที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่เอกสาร')} />
               <ResizableTableHead label="วันที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
-              <ResizableTableHead label="คู่ค้า" resizeProps={columnResize.getResizeHandleProps('party', 'คู่ค้า')} />
+              <ResizableTableHead className={leftAlignParty ? 'ns-table-textual-column' : undefined} label="คู่ค้า" resizeProps={columnResize.getResizeHandleProps('party', 'คู่ค้า')} />
               <ResizableTableHead label="สาขา" resizeProps={columnResize.getResizeHandleProps('branch', 'สาขา')} />
               <ResizableTableHead align="right" label={followUpLabel} resizeProps={columnResize.getResizeHandleProps('followUp', followUpLabel)} />
               <ResizableTableHead align="right" label="น้ำหนักสุทธิ" resizeProps={columnResize.getResizeHandleProps('netWeight', 'น้ำหนักสุทธิ')} />
@@ -676,7 +679,7 @@ function FlowTablePanel({
                   </Link>
                 </td>
                 <td className="p-2.5 whitespace-nowrap">{formatDateDisplay(row.date)}</td>
-                <td className="min-w-0 p-2.5"><div className="truncate" title={row.partyName}>{row.partyName}</div></td>
+                <td className={leftAlignParty ? 'ns-table-textual-column min-w-0 p-2.5' : 'min-w-0 p-2.5'}><div className="truncate" title={row.partyName}>{row.partyName}</div></td>
                 <td className="min-w-0 p-2.5"><div className="truncate" title={row.branchName}>{row.branchName}</div></td>
                 <td className={`p-2.5 text-right font-mono font-bold tabular-nums ${followUpTextClass}`}>{weightText(row.followUpWeight)}</td>
                 <td className="p-2.5 text-right font-mono text-slate-700 tabular-nums">{weightText(row.netWeight)}</td>

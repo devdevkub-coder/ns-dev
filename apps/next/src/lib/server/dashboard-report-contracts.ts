@@ -72,4 +72,3 @@ function assertExactKeys(value: unknown, allowed: Set<string>): void {
   const keys = Object.keys(value)
   if (keys.some((key) => !allowed.has(key))) throw new Error('Invalid dashboard report payload')
 }
-

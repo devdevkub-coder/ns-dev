@@ -139,6 +139,7 @@ export function CostAllocatorPageClient() {
   const [sourceType, setSourceType] = useState(searchParams.get('sourceType') ?? 'spot-sell')
   const [targetCost, setTargetCost] = useState(0)
   const [targetCostInput, setTargetCostInput] = useState('0')
+  const [targetCostError, setTargetCostError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [collapsedSections, setCollapsedSections] = useState<Record<'step0' | 'step1' | 'step2' | 'step3' | 'step4', boolean>>({
     step0: false,
@@ -340,11 +341,15 @@ export function CostAllocatorPageClient() {
 
   const handleCalculateManualMatch = () => {
     const parsed = Number(targetCostInput)
-    if (Number.isFinite(parsed) && parsed >= 0) {
+    if (targetCostInput.trim().length > 0 && Number.isFinite(parsed) && parsed >= 0) {
+      setTargetCostError('')
+      setError(null)
       setTargetCost(parsed)
       setShowPreview(true)
     } else {
-      setError('กรุณากรอกราคาต้นทุนเป้าหมายที่ถูกต้อง')
+      const message = 'กรุณากรอกราคาต้นทุนเป้าหมายที่ถูกต้อง'
+      setTargetCostError(message)
+      setError(message)
     }
   }
 
@@ -418,16 +423,17 @@ export function CostAllocatorPageClient() {
           <>
           <div className="grid gap-3 md:grid-cols-3">
             <div className="md:col-span-2">
-              <label className="mb-1 block text-xs font-semibold text-slate-500">{sourceTypeLabel} *</label>
+              <label className="mb-1 block text-xs font-semibold text-slate-500">{sourceTypeLabel} <span className="text-red-600">*</span></label>
               <Select
                 className="border-slate-300"
+                required
                 value={selectedPoSellId}
                 onChange={(event) => {
                   setSelectedPoSellId(event.target.value)
                   setShowPreview(isManualMode ? false : Boolean(event.target.value))
                 }}
               >
-                <option value="">{sourceType === 'po-sell' ? '-- เลือก PO ขาย --' : sourceType === 'production' ? '-- เลือกใบสั่งผลิต --' : '-- เลือกบิลขายไม่มี PO --'}</option>
+                <option disabled value="">{sourceType === 'po-sell' ? '-- เลือก PO ขาย --' : sourceType === 'production' ? '-- เลือกใบสั่งผลิต --' : '-- เลือกบิลขายไม่มี PO --'}</option>
                 {(data?.poSells ?? []).map((po) => <option key={po.id} value={po.id}>{po.docNo} | {po.customerName === '-' ? 'ภายในโรงงาน' : po.customerName} | {sourceType === 'production' ? 'ผลิต' : 'ขาย'} {formatMoney(po.qty)} กก. · เหลือต้องจับคู่ {formatMoney(po.remainingQty)} กก. · ฿{formatMoney(po.unitPrice)}/กก.</option>)}
               </Select>
               {!isLoading && (data?.poSells.length ?? 0) === 0 ? <div className="mt-1.5 text-xs text-amber-700 font-medium">ไม่มี {sourceTypeLabel} ของสินค้านี้ที่ยังไม่จับคู่</div> : null}
@@ -459,11 +465,13 @@ export function CostAllocatorPageClient() {
               </p>
               <div className="flex flex-wrap items-end gap-2.5">
                 <div className="flex-1 min-w-[200px]">
-                  <label className="mb-1 block text-xs font-semibold text-slate-500">ราคาต้นทุนเป้าหมาย (บาท/กก.) *</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-500">ราคาต้นทุนเป้าหมาย (บาท/กก.) <span className="text-red-600">*</span></label>
                   <Input
+                    aria-invalid={Boolean(targetCostError)}
                     className="h-10 rounded-md border-slate-300 text-sm font-mono tabular-nums focus-visible:ring-emerald-100"
                     inputMode="decimal"
                     placeholder="0.00"
+                    required
                     type="text"
                     value={targetCostInput}
                     onChange={(event) => {
@@ -471,11 +479,16 @@ export function CostAllocatorPageClient() {
                         .replace(/[^\d.]/g, '')
                         .replace(/(\..*)\./g, '$1')
                       setTargetCostInput(sanitized)
+                      if (targetCostError) {
+                        setTargetCostError('')
+                        setError(null)
+                      }
                     }}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') handleCalculateManualMatch()
                     }}
                   />
+                  {targetCostError ? <div className="mt-1 text-xs text-red-600">{targetCostError}</div> : null}
                 </div>
                 <Button
                   className="rounded-md h-10 px-4 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white transition-colors focus-visible:outline-none"

@@ -1797,7 +1797,7 @@ function FormField({ children, error, label }: { children: React.ReactNode; erro
   const hasInlineRequired = label.trim().endsWith('*')
   const labelText = hasInlineRequired ? label.trim().slice(0, -1).trimEnd() : label
   return (
-    <label className="block">
+    <label className="block" data-field-invalid={error ? 'true' : undefined} data-manual-required={hasInlineRequired ? 'true' : undefined}>
       <span className="mb-1 block text-xs font-semibold text-slate-600">{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600 font-bold">*</span> : null}</span>
       {children}
       {error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}

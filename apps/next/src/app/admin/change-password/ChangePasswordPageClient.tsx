@@ -283,8 +283,10 @@ function PasswordField(props: {
       {props.description ? <span className="ml-1 text-xs font-normal text-slate-500">({props.description})</span> : null}
       <Input
         autoComplete={props.autoComplete}
+        aria-invalid={Boolean(props.error)}
         className={`mt-1.5 h-9 focus:ring-blue-500 focus:border-blue-500 ${props.error ? 'border-red-400 bg-red-50 focus:border-red-400' : ''}`}
         disabled={props.disabled}
+        required
         type={props.showPassword ? 'text' : 'password'}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}

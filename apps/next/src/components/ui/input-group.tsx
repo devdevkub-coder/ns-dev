@@ -8,7 +8,7 @@ import { Input, type InputProps } from '@/components/ui/Input'
 import { cn } from '@/lib/utils'
 
 const inputGroupVariants = cva(
-  'group/input-group relative flex min-w-0 items-center overflow-hidden rounded-md border border-slate-300 bg-white transition-colors outline-none has-[[data-slot=input-group-control]:focus-visible]:border-blue-500 has-[[data-slot=input-group-control]:focus-visible]:ring-2 has-[[data-slot=input-group-control]:focus-visible]:ring-blue-100 dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dark-surface-soft)] dark:has-[[data-slot=input-group-control]:focus-visible]:[border-color:var(--ns-dark-border-strong)] dark:has-[[data-slot=input-group-control]:focus-visible]:ring-0',
+  'group/input-group relative flex min-w-0 items-center overflow-hidden rounded-md border border-slate-300 bg-white transition-colors outline-none has-[[data-slot=input-group-control]:focus-visible]:border-[var(--ns-field-focus)] has-[[data-slot=input-group-control]:focus-visible]:ring-[3px] has-[[data-slot=input-group-control]:focus-visible]:ring-[var(--ns-field-focus-ring)] dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dark-surface-soft)]',
   {
     variants: {
       size: {

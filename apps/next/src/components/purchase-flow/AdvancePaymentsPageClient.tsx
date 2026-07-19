@@ -1025,7 +1025,7 @@ export function AdvancePaymentsPageClient() {
                 <tr>
                   <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('advanceDate', 'วันที่')} sortKey="advanceDate" onSort={changeSort} />
-                  <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="ผู้ขาย" resizeProps={columnResize.getResizeHandleProps('supplierName', 'ผู้ขาย')} sortKey="supplierName" onSort={changeSort} />
+                  <AdvancePaymentSortHeader activeKey={sortKey} className="ns-table-textual-column" direction={sortDirection} label="ผู้ขาย" resizeProps={columnResize.getResizeHandleProps('supplierName', 'ผู้ขาย')} sortKey="supplierName" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="อ้างอิง" resizeProps={columnResize.getResizeHandleProps('largeScaleDocNo', 'อ้างอิง')} sortKey="largeScaleDocNo" onSort={changeSort} />
                   <ResizableTableHead label="ทะเบียนรถ" resizeProps={columnResize.getResizeHandleProps('plateNo', 'ทะเบียนรถ')} />
                   <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={changeSort} />
@@ -1044,7 +1044,7 @@ export function AdvancePaymentsPageClient() {
                   <tr key={row.id} className="cursor-pointer hover:bg-slate-50" onClick={() => void loadDetail(row.id)}>
                     <td className="p-3 whitespace-nowrap font-medium text-slate-700">{row.docNo}</td>
                     <td className="p-3 whitespace-nowrap font-medium text-slate-700">{row.advanceDate}</td>
-                    <td className="p-3 font-medium text-slate-700">{row.supplierName}</td>
+                    <td className="ns-table-textual-column p-3 font-medium text-slate-700">{row.supplierName}</td>
                     <td className="p-3 font-medium text-slate-700">{row.invoiceNo || row.largeScaleDocNo || '-'}</td>
                     <td className="p-3 whitespace-nowrap font-medium text-slate-700">{row.plateNo || '-'}</td>
                     <td className="p-3 font-medium text-slate-700">{row.productName || '-'}</td>
@@ -1271,13 +1271,20 @@ export function AdvancePaymentsPageClient() {
             <DialogDescription>ระบบจะเปลี่ยนสถานะเป็นยกเลิกและเก็บเหตุผลไว้ใน timeline</DialogDescription>
           </DialogHeader>
           <div className="bg-slate-50 p-4">
-            <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="advance-payment-cancel-note">เหตุผลการยกเลิก *</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="advance-payment-cancel-note">
+              เหตุผลการยกเลิก<span className="ml-1 text-red-600">*</span>
+            </label>
             <textarea
+              aria-invalid={Boolean(cancelNoteError)}
               id="advance-payment-cancel-note"
               className={`w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100 ${cancelNoteError ? 'border-red-400 bg-red-50' : ''}`.trim()}
+              required
               rows={4}
               value={cancelNote}
-              onChange={(event) => setCancelNote(event.target.value)}
+              onChange={(event) => {
+                setCancelNote(event.target.value)
+                if (cancelNoteError) setCancelNoteError('')
+              }}
             />
             {cancelNoteError ? <div className="mt-1 text-xs text-red-600">{cancelNoteError}</div> : null}
           </div>
@@ -1295,7 +1302,7 @@ function Field({ children, error, label }: { children: React.ReactNode; error?: 
   const hasInlineRequired = label.trim().endsWith('*')
   const labelText = hasInlineRequired ? label.trim().slice(0, -1).trimEnd() : label
   return (
-    <div>
+    <div data-field-invalid={error ? 'true' : undefined} data-manual-required={hasInlineRequired ? 'true' : undefined}>
       <div className="mb-1 text-xs font-medium text-slate-600">{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}</div>
       {children}
       {error ? <div className="mt-1 text-xs text-red-600">{error}</div> : null}
@@ -1344,6 +1351,7 @@ function ExportButton({ href }: { href: string }) {
 function AdvancePaymentSortHeader({
   activeKey,
   align = 'left',
+  className,
   direction,
   label,
   onSort,
@@ -1352,6 +1360,7 @@ function AdvancePaymentSortHeader({
 }: {
   activeKey: AdvancePaymentSortKey
   align?: 'left' | 'right'
+  className?: string
   direction: AdvancePaymentSortDirection
   label: string
   onSort: (key: AdvancePaymentSortKey) => void
@@ -1362,6 +1371,7 @@ function AdvancePaymentSortHeader({
     <ResizableTableHead
       activeSortKey={activeKey}
       align={align}
+      className={className}
       direction={direction}
       label={label}
       resizeProps={resizeProps}

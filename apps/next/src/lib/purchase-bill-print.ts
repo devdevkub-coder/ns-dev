@@ -323,8 +323,6 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
           <div class="total-row"><div>${bill.hasVat ? 'ยอดที่ต้องจ่ายก่อน VAT' : 'ยอดที่ต้องจ่าย'}</div><div class="num">${money(postAdvanceTotals.taxableBaseAmount)}</div></div>
           ${bill.hasVat ? `<div class="total-row"><div>${escapeHtml(vatLabel)}</div><div class="num">${money(postAdvanceTotals.vatAmount)}</div></div>` : ''}
           <div class="total-row final"><div>${bill.hasVat ? 'ยอดสุทธิรวม VAT ที่ต้องจ่าย' : 'ยอดสุทธิที่ต้องจ่าย'}</div><div class="num">${money(postAdvanceTotals.totalAmount)}</div></div>
-          <div class="total-row advance"><div>ชำระแล้ว</div><div class="num">${money(bill.paidAmount)}</div></div>
-          <div class="total-row"><div>ค้างชำระ</div><div class="num strong">${money(bill.payableBalance)}</div></div>
         </div>
       </section>
 

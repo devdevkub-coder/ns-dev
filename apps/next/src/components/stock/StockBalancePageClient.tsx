@@ -12,7 +12,7 @@ import { useResizableColumns, type ResizableColumnDefinition } from '@/component
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Select } from '@/components/ui/Select'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
-import type { StockOption } from '@/lib/stock'
+import { isVisibleStockBalanceTotal, type StockOption } from '@/lib/stock'
 
 type BalanceRow = {
   avgCost: number
@@ -253,15 +253,6 @@ export function StockBalancePageClient() {
       value: rows.reduce((sum, row) => sum + row.value, 0),
     }
   }), [filteredRows])
-  const matrixByStatus = useMemo(() => ['RM', 'WIP', 'FG'].map((itemStatus) => {
-    const rows = filteredRows.filter((row) => row.status === itemStatus)
-    return {
-      count: rows.length,
-      qty: rows.reduce((sum, row) => sum + matrixReadyQty(row), 0),
-      status: itemStatus,
-      value: rows.reduce((sum, row) => sum + row.value, 0),
-    }
-  }), [filteredRows])
 
   const matrixRows = useMemo(() => {
     const groups = new Map<string, MatrixRow>()
@@ -278,38 +269,60 @@ export function StockBalancePageClient() {
           productName: row.productName,
           rmQty: 0,
           rmVal: 0,
+          sourceRows: [],
           wipQty: 0,
           wipVal: 0,
         }
         current.products.push(product)
       }
+      product.sourceRows.push(row)
       const readyQty = matrixReadyQty(row)
       if (row.status === 'FG') {
-        current.fgQty += readyQty
-        current.fgVal += row.value
         product.fgQty += readyQty
         product.fgVal += row.value
       } else if (row.status === 'WIP') {
-        current.wipQty += readyQty
-        current.wipVal += row.value
         product.wipQty += readyQty
         product.wipVal += row.value
       } else {
-        current.rmQty += readyQty
-        current.rmVal += row.value
         product.rmQty += readyQty
         product.rmVal += row.value
       }
       groups.set(key, current)
     }
     return Array.from(groups.values())
-      .map((row) => ({
-        ...row,
-        products: row.products.sort((a, b) => matrixProductValue(b) - matrixProductValue(a)),
-      }))
+      .map((row) => {
+        const products = row.products
+          .filter((product) => isVisibleStockBalanceTotal(product.sourceRows))
+          .sort((a, b) => matrixProductValue(b) - matrixProductValue(a))
+        return {
+          fgQty: products.reduce((sum, product) => sum + product.fgQty, 0),
+          fgVal: products.reduce((sum, product) => sum + product.fgVal, 0),
+          group: row.group,
+          products,
+          rmQty: products.reduce((sum, product) => sum + product.rmQty, 0),
+          rmVal: products.reduce((sum, product) => sum + product.rmVal, 0),
+          wipQty: products.reduce((sum, product) => sum + product.wipQty, 0),
+          wipVal: products.reduce((sum, product) => sum + product.wipVal, 0),
+        }
+      })
+      .filter((row) => row.products.length > 0)
       .sort((a, b) => matrixRowValue(b) - matrixRowValue(a))
   }, [filteredRows])
+  const matrixVisibleRows = useMemo(
+    () => matrixRows.flatMap((row) => row.products.flatMap((product) => product.sourceRows)),
+    [matrixRows],
+  )
+  const matrixByStatus = useMemo(() => ['RM', 'WIP', 'FG'].map((itemStatus) => {
+    const rows = matrixVisibleRows.filter((row) => row.status === itemStatus)
+    return {
+      count: rows.length,
+      qty: rows.reduce((sum, row) => sum + matrixReadyQty(row), 0),
+      status: itemStatus,
+      value: rows.reduce((sum, row) => sum + row.value, 0),
+    }
+  }), [matrixVisibleRows])
   const matrixTotalQty = useMemo(() => matrixRows.reduce((sum, row) => sum + matrixRowQty(row), 0), [matrixRows])
+  const matrixTotalValue = useMemo(() => matrixRows.reduce((sum, row) => sum + matrixRowValue(row), 0), [matrixRows])
 
   const sortedDisplayRows = useMemo(() => {
     if (!detailSortKey) return displayRows
@@ -825,7 +838,7 @@ export function StockBalancePageClient() {
 
       {viewMode === 'summary' ? (
         <>
-          <StockCharts byStatus={matrixByStatus} matrixRows={matrixRows} totalValue={summary.value} />
+          <StockCharts byStatus={matrixByStatus} matrixRows={matrixRows} totalValue={matrixTotalValue} />
           <PaginationControls
             currentPage={matrixCurrentPage}
             label="หมวด"
@@ -838,7 +851,7 @@ export function StockBalancePageClient() {
               setMatrixPage(1)
             }}
           />
-          <MatrixTable byStatus={matrixByStatus} isLoading={isLoading} matrixRows={pagedMatrixRows} sortDirection={matrixSortDirection} sortKey={matrixSortKey} totalMatrixRows={matrixRows.length} totalQty={matrixTotalQty} totalValue={summary.value} onSort={handleMatrixSort} />
+          <MatrixTable byStatus={matrixByStatus} isLoading={isLoading} matrixRows={pagedMatrixRows} sortDirection={matrixSortDirection} sortKey={matrixSortKey} totalMatrixRows={matrixRows.length} totalQty={matrixTotalQty} totalValue={matrixTotalValue} onSort={handleMatrixSort} />
         </>
       ) : (
         <>
@@ -977,7 +990,7 @@ function primarySourceRow(row: DisplayBalanceRow) {
 
 type StatusSummary = { count: number; qty: number; status: string; value: number }
 
-type MatrixProductRow = { fgQty: number; fgVal: number; productCode: string; productId: string; productName: string; rmQty: number; rmVal: number; wipQty: number; wipVal: number }
+type MatrixProductRow = { fgQty: number; fgVal: number; productCode: string; productId: string; productName: string; rmQty: number; rmVal: number; sourceRows: BalanceRow[]; wipQty: number; wipVal: number }
 
 type MatrixRow = { fgQty: number; fgVal: number; group: string; products: MatrixProductRow[]; rmQty: number; rmVal: number; wipQty: number; wipVal: number }
 

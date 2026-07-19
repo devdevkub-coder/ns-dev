@@ -380,14 +380,14 @@ export function CompanyProfilePageClient() {
           <TextField error={fieldErrors.name} label="ชื่อบริษัท (ไทย) *" value={form.name} onChange={(value) => update('name', value)} />
           <TextField error={fieldErrors.nameEn} label="ชื่อบริษัท (อังกฤษ)" value={form.nameEn ?? ''} onChange={(value) => update('nameEn', value || null)} />
           <TextField error={fieldErrors.taxId} inputMode="numeric" label="เลขประจำตัวผู้เสียภาษี (13 หลัก)" value={form.taxId ?? ''} onChange={(value) => update('taxId', value.replace(/\D/g, '').slice(0, 13) || null)} />
-          <label className="md:col-span-2">
-            <span className="mb-1 block text-xs font-bold text-slate-700">ที่อยู่ (ตามใบทะเบียนพาณิชย์) *</span>
-            <textarea className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-700 focus:outline-none focus:ring-0" rows={2} value={form.address} onChange={(event) => update('address', event.target.value)} />
+          <label className="md:col-span-2" data-field-invalid={fieldErrors.address ? 'true' : undefined}>
+            <span className="mb-1 block text-xs font-bold text-slate-700">ที่อยู่ (ตามใบทะเบียนพาณิชย์) <span className="text-red-600">*</span></span>
+            <textarea aria-invalid={Boolean(fieldErrors.address)} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-700 focus:outline-none focus:ring-0" required rows={2} value={form.address} onChange={(event) => update('address', event.target.value)} />
             {fieldErrors.address ? <span className="mt-1 block text-xs text-red-600">{fieldErrors.address}</span> : null}
           </label>
-          <label>
-            <span className="mb-1 block text-xs font-bold text-slate-700">โทรศัพท์ *</span>
-            <PhoneInput className="w-full" error={Boolean(fieldErrors.phone)} value={form.phone} onChange={(value) => update('phone', sanitizePhoneInput(value))} />
+          <label data-field-invalid={fieldErrors.phone ? 'true' : undefined}>
+            <span className="mb-1 block text-xs font-bold text-slate-700">โทรศัพท์ <span className="text-red-600">*</span></span>
+            <PhoneInput aria-invalid={Boolean(fieldErrors.phone)} className="w-full" error={Boolean(fieldErrors.phone)} required value={form.phone} onChange={(value) => update('phone', sanitizePhoneInput(value))} />
             {fieldErrors.phone ? <span className="mt-1 block text-xs text-red-600">{fieldErrors.phone}</span> : null}
           </label>
           <TextField error={fieldErrors.fax} inputMode="tel" label="แฟกซ์" value={form.fax ?? ''} onChange={(value) => update('fax', sanitizePhoneInput(value) || null)} />
@@ -450,10 +450,12 @@ function TextField({
   type?: string
   value: string
 }) {
+  const required = label.trim().endsWith('*')
+  const labelText = required ? label.trim().slice(0, -1).trimEnd() : label
   return (
-    <label className={className}>
-      <span className="mb-1 block text-xs font-bold text-slate-700">{label}</span>
-      <input className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-700 focus:outline-none focus:ring-0" inputMode={inputMode} placeholder={placeholder} type={type} value={value} onBlur={onBlur} onChange={(event) => onChange(event.target.value)} />
+    <label className={className} data-field-invalid={error ? 'true' : undefined} data-manual-required={required ? 'true' : undefined}>
+      <span className="mb-1 block text-xs font-bold text-slate-700">{labelText}{required ? <span className="ml-1 text-red-600">*</span> : null}</span>
+      <input aria-invalid={Boolean(error)} className={`w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-700 focus:outline-none focus:ring-0 ${error ? 'border-red-400 bg-red-50' : ''}`} inputMode={inputMode} placeholder={placeholder} required={required} type={type} value={value} onBlur={onBlur} onChange={(event) => onChange(event.target.value)} />
       {error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}
     </label>
   )

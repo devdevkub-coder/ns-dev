@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-11
+updated: 2026-07-19
 route: /daily/payment-approval
 ---
 
@@ -81,6 +81,13 @@ PMA approval document สำหรับ source payable ก่อน PMT
 - สร้าง `PMA`/payment approval snapshot และ status log
 - ไม่สร้าง PMT/BST
 - source lock เกิดเมื่อมี PMA approved อย่างน้อย 1 รายการ
+
+## Presentation Contract
+
+- ในแท็บ `ต้นทุน / ผู้ขาย` และ `จ่ายเงินล่วงหน้า / มัดจำ` ปลายทางแบบ `เงินโอน (Bank Transfer)` แสดงเฉพาะชื่อธนาคารและเลขบัญชีทั้ง desktop, mobile, detail และตัวเลือก split; เงินสดหรือวิธีจ่ายอื่นยังคง label ที่สื่อความหมาย
+- การตัด prefix เป็น formatter ฝั่ง presentation เท่านั้น; destination id, payment method, API payload และ PMA snapshot ไม่เปลี่ยน
+- สำหรับ source `ADV` เลขเอกสาร `ADV...` คือ identity ที่ผู้ใช้ต้องเห็นอยู่แล้ว จึงไม่แสดง `ADV` ซ้ำเป็น sublabel ใต้เลขเอกสารบน desktop หรือ `(ADV)` บน mobile; `sourceType` และข้อมูล ADV ใน API/approval/print/PMT flow ยังคงเดิม
+- เหตุผล: ลดข้อความซ้ำโดยไม่เปลี่ยนความหมายของเอกสารหรือปลายทางที่ใช้อนุมัติและทำจ่ายจริง
 
 ## Current Code Baseline
 
