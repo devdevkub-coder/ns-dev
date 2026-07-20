@@ -216,6 +216,21 @@ function count(value: unknown) {
   return num(value).toLocaleString('th-TH', { maximumFractionDigits: 0 })
 }
 
+function salesPlanExcelValue(row: AnyRow, key: string) {
+  if (key === 'name' || key === 'metalGroup' || key === 'recommendation') return String(row[key] ?? '')
+  if (key === 'lockedContainers') return 0
+  const value = Number(row[key] ?? 0)
+  return Number.isFinite(value) ? value : 0
+}
+
+async function downloadSalesPlanTable(filename: string, sheet: string, columns: Array<{ key: string; label: string }>, rows: AnyRow[]) {
+  const { default: writeXlsxFile } = await import('write-excel-file/browser')
+  await writeXlsxFile([
+    columns.map((column) => ({ fontWeight: 'bold' as const, value: column.label })),
+    ...rows.map((row) => columns.map((column) => salesPlanExcelValue(row, column.key))),
+  ], { sheet }).toFile(filename)
+}
+
 function commissionDateRange(range: CommissionQuickRange) {
   const end = new Date()
   const start = new Date(end)
@@ -412,6 +427,7 @@ export function SalesPlanPageClient() {
   const [error, setError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isExporting, setIsExporting] = useState(false)
   const [isFetchingLive, setIsFetchingLive] = useState(false)
   const [isSavingConfig, setIsSavingConfig] = useState(false)
   const [isSavingPlan, setIsSavingPlan] = useState(false)
@@ -456,11 +472,14 @@ export function SalesPlanPageClient() {
   const analysisResize = useResizableColumns('main.sales-plan.analysis.v1', salesPlanAnalysisColumns)
   const remainingResize = useResizableColumns('main.sales-plan.remaining.v2', salesPlanRemainingColumns)
 
-  const loadSalesPlan = async () => {
+  const loadSalesPlan = async (targetMonth?: string) => {
     setError(null)
     setIsLoading(true)
     try {
-      const payload = await dailyFetchJson<SalesPlanPayload>('/api/sales-plan')
+      const activeMonth = targetMonth?.trim() || month || data?.filters.month || new Date().toISOString().slice(0, 7)
+      const params = new URLSearchParams()
+      if (activeMonth) params.set('month', activeMonth)
+      const payload = await dailyFetchJson<SalesPlanPayload>(`/api/sales-plan${params.toString() ? `?${params.toString()}` : ''}`)
       setData(payload)
       setLmeForm(payload.lmeConfig)
       setMonth(payload.filters.month)
@@ -474,6 +493,12 @@ export function SalesPlanPageClient() {
   useEffect(() => {
     void loadSalesPlan()
   }, [])
+
+  useEffect(() => {
+    if (!month) return
+    if (month === data?.filters.month) return
+    void loadSalesPlan(month)
+  }, [data?.filters.month, month])
 
   const productOptions = useMemo(() => (data?.planProductOptions ?? [])
     .map((row) => ({
@@ -653,6 +678,30 @@ export function SalesPlanPageClient() {
   const remainingKgTotal = analysisRows.reduce((sum, row) => sum + num(row.remainingKg), 0)
   const remainingValueTotal = analysisRows.reduce((sum, row) => sum + num(row.value), 0)
   const projectedProfitTotal = analysisRows.reduce((sum, row) => sum + num(row.projectedProfit), 0)
+
+  const exportSalesPlanTable = async (table: 'analysis' | 'remaining') => {
+    const rows = table === 'analysis' ? sortedAnalysisRows : sortedRemainingRows
+    if (!rows.length) {
+      setError('ไม่มีข้อมูลสำหรับส่งออก Excel')
+      return
+    }
+    setIsExporting(true)
+    try {
+      const targetColumns = table === 'analysis' ? salesPlanAnalysisColumns : salesPlanRemainingColumns
+      const sheet = table === 'analysis' ? 'วิเคราะห์แผนขาย' : 'สต๊อกหลังหักแผนล็อก'
+      const suffix = month || data?.filters.month || 'all'
+      await downloadSalesPlanTable(
+        `sales-plan-${table}-${suffix}.xlsx`,
+        sheet,
+        targetColumns.map((column) => ({ key: column.key, label: column.label })),
+        rows,
+      )
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'ส่งออก Excel ไม่สำเร็จ')
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   useEffect(() => {
     setSelectedPendingPlanIds((current) => current.filter((id) => visiblePendingPlanIds.includes(id)))
@@ -1433,272 +1482,6 @@ export function SalesPlanPageClient() {
         </div>
       </div>
 
-      <Tabs className="gap-3" value={salesPlanInsightTab} onValueChange={(value) => setSalesPlanInsightTab(value as 'analysis' | 'remaining')}>
-        <div className="overflow-x-auto">
-          <TabsList
-            aria-label="ตารางวิเคราะห์แผนขาย"
-            className="inline-flex w-full max-w-max flex-nowrap gap-2 border-b border-slate-200 bg-transparent p-0 shadow-none dark:border-slate-700"
-          >
-            <TabsTrigger
-              className="min-w-fit rounded-none border-b-2 border-transparent px-4 py-2.5 text-sm font-semibold text-slate-500 data-[state=active]:border-slate-900 data-[state=active]:bg-transparent data-[state=active]:text-slate-900 data-[state=active]:shadow-none dark:text-slate-400 dark:data-[state=active]:border-slate-100 dark:data-[state=active]:text-slate-100"
-              value="analysis"
-            >
-              วิเคราะห์แผนขาย vs สต๊อกว่างขาย
-            </TabsTrigger>
-            <TabsTrigger
-              className="min-w-fit rounded-none border-b-2 border-transparent px-4 py-2.5 text-sm font-semibold text-slate-500 data-[state=active]:border-slate-900 data-[state=active]:bg-transparent data-[state=active]:text-slate-900 data-[state=active]:shadow-none dark:text-slate-400 dark:data-[state=active]:border-slate-100 dark:data-[state=active]:text-slate-100"
-              value="remaining"
-            >
-              สต๊อกว่างขายคงเหลือ
-            </TabsTrigger>
-          </TabsList>
-        </div>
-      </Tabs>
-
-      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <div className="mb-3 text-xs font-semibold text-slate-500 dark:text-slate-400">ตัวกรองข้อมูลของตารางวิเคราะห์</div>
-        <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-end">
-          <label className="flex min-w-[200px] flex-col gap-1 text-xs font-medium text-slate-500">
-            <span>หมวด</span>
-            <Select className="h-9 text-sm font-medium" value={insightFilterGroup} onChange={(event) => setInsightFilterGroup(event.target.value)}>
-              <option value="">ทุกหมวด</option>
-              {insightFilterGroupOptions.map((group) => <option key={group} value={group}>{group}</option>)}
-            </Select>
-          </label>
-          <div className="min-w-[260px] flex-1 lg:max-w-md">
-            <div className="mb-1 text-xs font-medium text-slate-500">สินค้า</div>
-            <SearchCombobox
-              hideLabel
-              inputClassName="h-9 text-sm font-medium text-slate-700 dark:text-slate-100"
-              inputId="sales-plan-insight-filter-product"
-              label="สินค้า"
-              openOnFocus={false}
-              options={filterProductOptions}
-              placeholder="ค้นหาสินค้าในตารางล่าง"
-              value={insightFilterProductCode}
-              onChange={setInsightFilterProductCode}
-            />
-          </div>
-          {insightFilterGroup || insightFilterProductCode ? (
-            <button
-              className="h-9 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 lg:ml-auto"
-              onClick={() => {
-                setInsightFilterGroup('')
-                setInsightFilterProductCode('')
-              }}
-              type="button"
-            >
-              ล้างตัวกรอง
-            </button>
-          ) : null}
-        </div>
-      </div>
-
-      {/* 2. Analysis Section */}
-      {salesPlanInsightTab === 'analysis' ? (
-      <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 p-4">
-          <div>
-          <h3 className="flex items-center gap-2 font-bold text-slate-800 text-sm dark:text-slate-100"><Calculator className="size-4 text-slate-500" />วิเคราะห์แผนขายและสต๊อกว่างขาย</h3>
-          </div>
-        </div>
-
-        <TablePaginationToolbar
-          page={analysisPage}
-          pageSize={analysisPageSize}
-          totalItems={sortedAnalysisRows.length}
-          totalPages={totalAnalysisPages}
-          onPageChange={setAnalysisPage}
-          onPageSizeChange={setAnalysisPageSize}
-          onResetWidths={analysisResize.hasCustomWidths ? analysisResize.resetColumnWidths : undefined}
-        />
-        {/* Desktop View Table */}
-        <div className="hidden overflow-x-auto lg:block">
-          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: analysisResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
-            <colgroup>
-              {salesPlanAnalysisColumns.map((column) => (
-                <col key={column.key} style={analysisResize.getColumnStyle(column.key)} />
-              ))}
-            </colgroup>
-            <thead className="bg-slate-100">
-              <tr>
-                {salesPlanAnalysisColumns.map((column) => (
-                  <ResizableTableHead
-                    key={column.key}
-                    activeSortKey={analysisSortKey ?? undefined}
-                    align={column.align}
-                    direction={analysisSortDirection}
-                    label={column.label}
-                    sortKey={column.key}
-                    onSort={changeAnalysisSort}
-                    resizeProps={analysisResize.getResizeHandleProps(column.key, column.label)}
-                  />
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {pagedAnalysisRows.map((row) => (
-                <tr className="hover:bg-slate-50/50 transition-colors" key={text(row.code)}>
-                  <td className="p-2.5 min-w-0 overflow-hidden"><div className="font-semibold text-slate-800 truncate" title={text(row.name)}>{text(row.name)}</div><div className="font-mono text-xs text-slate-400 font-semibold truncate" title={text(row.code)}>{text(row.code)}</div></td>
-                  <td className="p-2.5 text-xs text-slate-500 font-medium min-w-0 overflow-hidden"><div className="truncate" title={text(row.metalGroup)}>{text(row.metalGroup)}</div></td>
-                  <td className="p-2.5 text-right text-slate-700 font-medium whitespace-nowrap tabular-nums pl-4">{money(row.stock)}</td>
-                  <td className="p-2.5 text-right font-semibold text-emerald-600 whitespace-nowrap tabular-nums pl-4">{money(row.lockedKg)}</td>
-                  <td className={`bg-yellow-50/20 p-2.5 text-right font-bold whitespace-nowrap tabular-nums pl-4 ${num(row.remainingKg) > 0 ? 'text-yellow-600' : 'text-slate-400'}`}>{money(row.remainingKg)}</td>
-                  <td className="p-2.5 text-right text-slate-400 font-medium whitespace-nowrap tabular-nums pl-4">{money(row.wac)}</td>
-                  <td className="bg-amber-50/20 p-2.5 text-right font-bold text-amber-700 whitespace-nowrap tabular-nums pl-4">{num(row.bestPlanPrice) > 0 ? money(row.bestPlanPrice) : '-'}</td>
-                  <td className="p-2.5 text-right text-xs font-semibold text-slate-500 whitespace-nowrap tabular-nums pl-4">{num(row.bestPlanPct) > 0 ? `${money(row.bestPlanPct)}%` : '-'}</td>
-                  <td className={`bg-emerald-50/20 p-2.5 text-right font-bold whitespace-nowrap tabular-nums pl-4 ${num(row.projectedProfit) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{num(row.bestPlanPrice) > 0 ? money(row.projectedProfit) : '-'}</td>
-                  <td className={`bg-emerald-50/20 p-2.5 text-right text-xs font-bold whitespace-nowrap tabular-nums pl-4 ${num(row.projectedMarginPct) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{num(row.bestPlanPrice) > 0 ? `${money(row.projectedMarginPct)}%` : '-'}</td>
-                  <td className="p-2.5 text-center min-w-0 overflow-hidden"><div className={`rounded-xl px-2.5 py-1 text-xs font-bold truncate ${recommendationBadgeClass(row.recommendation)}`} title={text(row.recommendation)}>{text(row.recommendation)}</div></td>
-                </tr>
-              ))}
-              {!sortedAnalysisRows.length ? <tr><td className="py-8 text-center text-slate-400 font-semibold" colSpan={salesPlanAnalysisColumns.length}>ไม่มีสต๊อกทองแดง/ทองเหลืองให้วิเคราะห์</td></tr> : null}
-            </tbody>
-            {analysisRows.length ? <tfoot className="border-t border-slate-200 bg-slate-50/50 font-bold text-slate-700"><tr><td className="p-3 text-xs" colSpan={2}>รวม</td><td className="p-3 text-right text-slate-700 text-xs">{money(stockTotal)}</td><td className="p-3 text-right text-emerald-600 text-xs">{money(lockedTotal)}</td><td className="bg-yellow-50/20 p-3 text-right text-yellow-600 text-xs">{money(remainingKgTotal)}</td><td colSpan={3} /><td className={`p-3 text-right text-xs ${projectedProfitTotal >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{money(projectedProfitTotal)}</td><td colSpan={2} /></tr></tfoot> : null}
-          </table>
-        </div>
-
-        {/* Mobile View */}
-        <div className="block lg:hidden p-4 space-y-3 bg-slate-50/20 border-t border-slate-100">
-          {pagedAnalysisRows.map((row) => (
-            <div key={text(row.code)} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm space-y-3">
-              <div className="flex justify-between items-start border-b border-slate-100 pb-2">
-                <div>
-                  <div className="font-bold text-slate-800 text-sm">{text(row.name)}</div>
-                  <div className="font-mono text-xs text-slate-400 font-semibold">{text(row.code)}</div>
-                </div>
-                <span className="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{text(row.metalGroup)}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium">Stock รวม / 🔒 ล็อกแล้ว</span>
-                  <span className="text-slate-800 font-semibold">{money(row.stock)} / <span className="text-emerald-600 font-bold">{money(row.lockedKg)}</span> กก.</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium">⏳ ว่างให้ขาย</span>
-                  <span className={`font-bold ${num(row.remainingKg) > 0 ? 'text-yellow-600' : 'text-slate-400'}`}>{money(row.remainingKg)} กก.</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium font-semibold">WAC ต้นทุน</span>
-                  <span className="text-slate-500 font-bold">{money(row.wac)} ฿</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium">ราคาเสนอดีสุด (% LME)</span>
-                  <span className="text-amber-700 font-bold">{num(row.bestPlanPrice) > 0 ? `${money(row.bestPlanPrice)} ฿` : '-'} {num(row.bestPlanPct) > 0 ? `(${money(row.bestPlanPct)}%)` : ''}</span>
-                </div>
-                <div className="col-span-2 border-t border-slate-50 pt-2 flex justify-between items-center">
-                  <span className="text-slate-400 font-medium">กำไรคาดการณ์ / Margin:</span>
-                  <span className={`font-bold text-sm ${num(row.projectedProfit) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{num(row.bestPlanPrice) > 0 ? `${money(row.projectedProfit)} ฿` : '-'} {num(row.projectedMarginPct) > 0 ? `(${money(row.projectedMarginPct)}%)` : ''}</span>
-                </div>
-              </div>
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-xs text-slate-500 font-semibold">คำแนะนำ:</span>
-                <span className={`rounded-xl px-2.5 py-1 text-xs font-bold ${recommendationBadgeClass(row.recommendation)}`}>{text(row.recommendation)}</span>
-              </div>
-            </div>
-          ))}
-          {!sortedAnalysisRows.length ? <div className="text-center text-slate-400 py-4 font-semibold text-xs">ไม่มีสต๊อกทองแดง/ทองเหลืองให้วิเคราะห์</div> : null}
-        </div>
-      </div>
-
-      ) : (
-      /* 3. Containers Remaining Section */
-      <div className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/50 p-4">
-          <h3 className="flex items-center gap-2 font-bold text-slate-800 text-sm dark:text-slate-100"><Calculator className="size-4 text-slate-500" />สต๊อกว่างขายหลังหักแผนที่ล็อก — เดือน {(month || data?.filters.month) ?? ''}</h3>
-          <div className="text-xs flex items-center gap-1.5">
-            <span className="rounded-xl bg-slate-100 px-2.5 py-1 text-slate-700 font-bold">รวม {money(remainingKgTotal)} กก.</span>
-            <span className="rounded-xl bg-emerald-50 px-2.5 py-1 text-emerald-700 font-bold border border-emerald-100">มูลค่า WAC {money(remainingValueTotal)}</span>
-          </div>
-        </div>
-
-        <TablePaginationToolbar
-          page={remainingPage}
-          pageSize={remainingPageSize}
-          totalItems={sortedRemainingRows.length}
-          totalPages={totalRemainingPages}
-          onPageChange={setRemainingPage}
-          onPageSizeChange={setRemainingPageSize}
-          onResetWidths={remainingResize.hasCustomWidths ? remainingResize.resetColumnWidths : undefined}
-        />
-        {/* Desktop View Table */}
-        <div className="hidden overflow-x-auto lg:block">
-          <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: remainingResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
-            <colgroup>
-              {salesPlanRemainingColumns.map((column) => (
-                <col key={column.key} style={remainingResize.getColumnStyle(column.key)} />
-              ))}
-            </colgroup>
-            <thead className="bg-slate-100">
-              <tr>
-                {salesPlanRemainingColumns.map((column) => (
-                  <ResizableTableHead
-                    key={column.key}
-                    activeSortKey={remainingSortKey ?? undefined}
-                    align={column.align}
-                    direction={remainingSortDirection}
-                    label={column.label}
-                    sortKey={column.key}
-                    onSort={changeRemainingSort}
-                    resizeProps={remainingResize.getResizeHandleProps(column.key, column.label)}
-                  />
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {pagedRemainingRows.map((row) => (
-                <tr className={`hover:bg-slate-50/50 transition-colors ${num(row.remainingKg) > 0 ? '' : 'opacity-60'}`} key={`${text(row.code)}-remain`}>
-                  <td className="p-2.5 min-w-0 overflow-hidden">
-                    <div className="truncate text-slate-800 font-semibold" title={text(row.name)}>{text(row.name)}</div>
-                    <div className="truncate font-mono text-xs text-slate-400 font-semibold" title={text(row.code)}>{text(row.code)}</div>
-                  </td>
-                  <td className="p-2.5 text-xs text-slate-500 font-medium min-w-0 overflow-hidden"><div className="truncate" title={text(row.metalGroup)}>{text(row.metalGroup)}</div></td>
-                  <td className="p-2.5 text-right text-slate-700 font-medium whitespace-nowrap tabular-nums pl-4">{money(row.stock)}</td>
-                  <td className="p-2.5 text-right font-semibold text-emerald-600 whitespace-nowrap tabular-nums pl-4">{money(row.lockedKg)}</td>
-                  <td className="p-2.5 text-right text-emerald-600 font-semibold whitespace-nowrap tabular-nums pl-4">{money(0)}</td>
-                  <td className={`bg-yellow-50/20 p-2.5 text-right font-bold whitespace-nowrap tabular-nums pl-4 ${num(row.remainingKg) > 0 ? 'text-yellow-600' : 'text-slate-400'}`}>{money(row.remainingKg)}</td>
-                  <td className={`bg-yellow-50/20 p-2.5 text-right font-bold whitespace-nowrap tabular-nums pl-4 ${num(row.remainingContainers) > 0 ? 'text-yellow-600' : 'text-slate-400'}`}>{money(row.remainingContainers)}</td>
-                  <td className="p-2.5 text-right text-slate-400 font-medium whitespace-nowrap tabular-nums pl-4">{money(row.wac)}</td>
-                  <td className="p-2.5 text-right font-bold text-slate-700 whitespace-nowrap tabular-nums pl-4">{money(row.value)}</td>
-                </tr>
-              ))}
-              {!sortedRemainingRows.length ? <tr><td className="py-8 text-center text-slate-400 font-semibold" colSpan={salesPlanRemainingColumns.length}>ไม่มีสต๊อกทองแดง/ทองเหลือง</td></tr> : null}
-            </tbody>
-            {analysisRows.length ? <tfoot className="border-t border-slate-100 bg-slate-50/50 font-bold text-slate-700"><tr><td className="p-3 text-xs" colSpan={2}>รวม</td><td className="p-3 text-right text-slate-700 text-xs">{money(stockTotal)}</td><td className="p-3 text-right text-emerald-600 text-xs">{money(lockedTotal)}</td><td className="p-3 text-right text-emerald-600 text-xs">{money(0)}</td><td className="bg-yellow-50/20 p-3 text-right text-yellow-600 text-xs">{money(remainingKgTotal)}</td><td className="bg-yellow-50/20 p-3 text-right text-yellow-600 text-xs">{money(remainingContainers)}</td><td /><td className="p-3 text-right text-slate-700 text-xs">{money(remainingValueTotal)}</td></tr></tfoot> : null}
-          </table>
-        </div>
-
-        {/* Mobile View */}
-        <div className="block lg:hidden p-4 space-y-3 bg-slate-50/20 border-t border-slate-100">
-          {pagedRemainingRows.map((row) => (
-            <div key={`${text(row.code)}-remain`} className={`bg-white p-4 rounded-xl border border-slate-100 shadow-sm space-y-3 ${num(row.remainingKg) > 0 ? '' : 'opacity-65'}`}>
-              <div className="flex justify-between items-start border-b border-slate-100 pb-2">
-                <div>
-                  <div className="font-bold text-slate-800 text-sm">{text(row.name)}</div>
-                  <div className="font-mono text-xs text-slate-400 font-semibold">{text(row.code)}</div>
-                </div>
-                <span className="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{text(row.metalGroup)}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium">Stock ทั้งหมด / 🔒 ล็อกแล้ว (กก. / ตู้)</span>
-                  <span className="text-slate-700 font-semibold">{money(row.stock)} / <span className="text-emerald-600 font-bold">{money(row.lockedKg)}</span> (0 ตู้)</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium">⏳ รอล็อก (กก. / ตู้)</span>
-                  <span className={`font-bold ${num(row.remainingKg) > 0 ? 'text-yellow-600' : 'text-slate-400'}`}>{money(row.remainingKg)} กก. / {money(row.remainingContainers)} ตู้</span>
-                </div>
-                <div className="col-span-2 border-t border-slate-50 pt-2 flex justify-between items-center">
-                  <span className="text-slate-400 font-medium">WAC / มูลค่า WAC:</span>
-                  <span className="text-slate-800 font-bold">{money(row.wac)} ฿ / {money(row.value)} ฿</span>
-                </div>
-              </div>
-            </div>
-          ))}
-          {!sortedRemainingRows.length ? <div className="text-center text-slate-500 py-4 font-semibold text-xs">ไม่มีสต๊อกทองแดง/ทองเหลือง</div> : null}
-        </div>
-      </div>
-      )}
 
       {error ? <ErrorBox text={error} /> : null}
     </section>

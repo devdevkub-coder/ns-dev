@@ -201,6 +201,7 @@ async function buildSalesPlanningSnapshot() {
   const config = await getSalesPlanLmeConfigAutoRefresh()
   const { byKey, refs } = await productsContext()
   const salesPlanRefs = refs.filter((product: ProductRef) => isCostPoolEligibleMetalGroup(product.metalGroup))
+  const analysisRefs = refs
   const productById = new Map<bigint, ProductRef>(refs.map((product: ProductRef) => [product.id, product] as const))
   const [poSells, poBuys, stockRows, customers, salesChannels, tradingDeals, purchaseBills, samutSakhonWarehouses] = await Promise.all([
     prisma.po_sells.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
@@ -341,7 +342,7 @@ async function buildSalesPlanningSnapshot() {
     })
   })
 
-  const reconciliation = salesPlanRefs.map((product: ProductRef) => {
+  const reconciliation = analysisRefs.map((product: ProductRef) => {
     const stock = stockByProduct.get(product.id) ?? { qty: 0, value: 0 }
     const spotRaw = spotByProduct.get(product.id) ?? { amount: 0, qty: 0 }
     const matched = matchedByProduct.get(product.id) ?? 0
@@ -470,10 +471,10 @@ async function buildSalesPlanningSnapshot() {
   }
 }
 
-export async function buildSalesPlan() {
+export async function buildSalesPlan(selectedMonth?: string) {
   const pending = await buildSalesPlanningSnapshot()
   const config = pending.lmeConfig
-  const month = new Date().toISOString().slice(0, 7)
+  const month = /^\d{4}-\d{2}$/.test(selectedMonth ?? '') ? String(selectedMonth) : new Date().toISOString().slice(0, 7)
   const planRows = await listSalesPlans(month)
   const bestPlanByProduct = new Map<string, { price: number; pct: number }>()
   planRows.forEach((plan) => {

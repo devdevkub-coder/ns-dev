@@ -56,13 +56,17 @@ export async function GET(request: Request) {
     requirePermission(context, 'reports.reports.view')
     const { searchParams } = new URL(request.url)
     const planId = searchParams.get('planId')
+    const month = searchParams.get('month')?.trim() ?? ''
     if (planId) {
       if (!/^\d+$/.test(planId)) return NextResponse.json({ code: 'BAD_REQUEST', error: 'แผนขายไม่ถูกต้อง' }, { status: 400 })
       const planRow = await getSalesPlanRow(BigInt(planId))
       if (!planRow) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบแผนขาย' }, { status: 404 })
       return NextResponse.json({ planRow })
     }
-    return NextResponse.json(await buildSalesPlan())
+    if (month && !/^\d{4}-\d{2}$/.test(month)) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'เดือนต้องเป็นรูปแบบ YYYY-MM' }, { status: 400 })
+    }
+    return NextResponse.json(await buildSalesPlan(month || undefined))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดแผนการขายไม่ได้', 500)

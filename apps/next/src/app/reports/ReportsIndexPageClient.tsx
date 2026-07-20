@@ -122,6 +122,7 @@ const reports: ReportLink[] = [
   { category: 'main', href: '/daily-report', label: 'รายงานประจำวัน', owner: 'ภาพรวม' },
   { category: 'main', href: '/profit-cost-analysis', label: 'วิเคราะห์กำไรและต้นทุน', owner: 'ภาพรวม' },
   { category: 'main', href: '/sales-plan', label: 'แผนการขาย — ทองแดง / ทองเหลือง', owner: 'ภาพรวม' },
+  { category: 'main', href: '/sales-plan-analysis', label: 'วิเคราะห์แผนขาย', owner: 'ภาพรวม' },
   { category: 'main', href: '/sales-commission', label: 'แดชบอร์ดติดตามการขาย', owner: 'ภาพรวม' },
   { category: 'main', href: '/cash-flow-calendar', label: 'ปฏิทินกระแสเงินสด', owner: 'ภาพรวม' },
   { category: 'main', href: '/business-calendar', label: 'ปฏิทินธุรกิจ', owner: 'ภาพรวม' },
