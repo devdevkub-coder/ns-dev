@@ -159,7 +159,7 @@ export function CustomerAdvancePageClient() {
             </button>
           ) : null}
         </div>
-        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
+        <table className="ns-table w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
             {customerAdvanceColumns.map((col) => (
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />

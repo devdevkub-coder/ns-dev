@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 
 import { ResizableTableHead } from './ResizableTableHead'
 
-describe('ResizableTableHead numeric alignment', () => {
-  it('keeps a right-aligned label on the same edge as its body values', () => {
+describe('ResizableTableHead alignment', () => {
+  it('centers every label while retaining the body alignment metadata', () => {
     const html = renderToStaticMarkup(
       <table>
         <thead>
@@ -22,7 +22,8 @@ describe('ResizableTableHead numeric alignment', () => {
       </table>,
     )
 
-    expect(html.indexOf('<svg')).toBeLessThan(html.indexOf('ยอดรวม'))
-    expect(html).toContain('p-2 pr-3')
+    expect(html).toContain('data-column-align="right"')
+    expect(html).toContain('justify-center')
+    expect(html).toContain('text-center')
   })
 })

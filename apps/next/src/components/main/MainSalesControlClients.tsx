@@ -2443,7 +2443,7 @@ function SimpleTable({ empty = 'ไม่มีข้อมูล', headers, row
     <div>
       {/* Desktop View Table */}
       <div className="hidden overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-        <table className="w-full text-xs">
+        <table className="ns-table w-full text-xs">
           <thead className="bg-slate-50 border-b border-slate-100">
             <tr>
               {headers.map((h) => (

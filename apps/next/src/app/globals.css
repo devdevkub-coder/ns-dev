@@ -451,39 +451,26 @@ table.ns-table > tbody > tr + tr > :is(th, td) {
   border-top: 1px solid var(--color-scrap-line) !important;
 }
 
-/* Customer-approved data-table alignment: only the leading business column stays left. */
-table.ns-table > :is(thead, tbody) > tr > :is(th, td):first-child:not([colspan]):not(:has(input[type="checkbox"], input[type="radio"])) {
+/* Data-table alignment: headers center, text left, and explicitly numeric cells right. */
+table.ns-table > thead > tr > th:not([colspan]) {
+  text-align: center !important;
+}
+
+table.ns-table > thead > tr > th:not([colspan]) > :is(.flex, .inline-flex, button) {
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+table.ns-table > :is(tbody, tfoot) > tr > :is(th, td):not([colspan]) {
   text-align: left !important;
 }
 
-table.ns-table > :is(thead, tbody) > tr > :is(th, td):first-child:not([colspan]):not(:has(input[type="checkbox"], input[type="radio"])) > :is(.flex, .inline-flex) {
-  justify-content: flex-start !important;
-}
-
-table.ns-table > :is(thead, tbody) > tr > :is(th, td):not(:first-child):not([colspan]) {
+table.ns-table > :is(tbody, tfoot) > tr > :is(th, td):is(.text-right, .tabular-nums):not([colspan]) {
   text-align: right !important;
 }
 
-table.ns-table > :is(thead, tbody) > tr > :is(th, td):not(:first-child):not([colspan]) > :is(.flex, .inline-flex) {
-  justify-content: flex-end !important;
-}
-
-/* Checkbox/select controls do not count as the leading business-data column. */
-table.ns-table > :is(thead, tbody) > tr > :is(th, td).ns-leading-business-column:not([colspan]) {
-  text-align: left !important;
-}
-
-table.ns-table > :is(thead, tbody) > tr > :is(th, td).ns-leading-business-column:not([colspan]) > :is(.flex, .inline-flex) {
-  justify-content: flex-start !important;
-}
-
-/* Explicitly approved text/date exceptions outside the leading-column default. */
-table.ns-table > :is(thead, tbody) > tr > :is(th, td).ns-table-textual-column:not([colspan]) {
-  text-align: left !important;
-}
-
-table.ns-table > :is(thead, tbody) > tr > :is(th, td).ns-table-textual-column:not([colspan]) > :is(.flex, .inline-flex) {
-  justify-content: flex-start !important;
+table.ns-table > :is(tbody, tfoot) > tr > :is(th, td).text-center:not([colspan]) {
+  text-align: center !important;
 }
 
 table.ns-table :where(tbody > tr) {

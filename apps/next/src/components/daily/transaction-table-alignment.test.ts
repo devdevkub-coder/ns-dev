@@ -78,18 +78,14 @@ describe('transaction bill detail table', () => {
 })
 
 describe('accepted textual table alignment', () => {
-  it('uses an explicit opt-in override without changing the shared later-column default', () => {
-    const defaultSelector = 'table.ns-table > :is(thead, tbody) > tr > :is(th, td):not(:first-child):not([colspan])'
-    const textualSelector = `table.ns-table > :is(thead, tbody) > tr > :is(th, td).${TEXTUAL_COLUMN_CLASS}:not([colspan])`
-    const textualFlexSelector = `${textualSelector} > :is(.flex, .inline-flex)`
-    const defaultRuleIndex = globalsSource.indexOf(defaultSelector)
-    const textualRuleIndex = globalsSource.indexOf(textualSelector)
+  it('centers headers, left-aligns text, and right-aligns explicitly numeric cells', () => {
+    const headerSelector = 'table.ns-table > thead > tr > th:not([colspan])'
+    const bodySelector = 'table.ns-table > :is(tbody, tfoot) > tr > :is(th, td):not([colspan])'
+    const numericSelector = 'table.ns-table > :is(tbody, tfoot) > tr > :is(th, td):is(.text-right, .tabular-nums):not([colspan])'
 
-    expect(defaultRuleIndex).toBeGreaterThan(-1)
-    expect(globalsSource.slice(defaultRuleIndex, globalsSource.indexOf('}', defaultRuleIndex))).toContain('text-align: right !important;')
-    expect(textualRuleIndex).toBeGreaterThan(defaultRuleIndex)
-    expect(globalsSource.slice(textualRuleIndex, globalsSource.indexOf('}', textualRuleIndex))).toContain('text-align: left !important;')
-    expect(globalsSource.slice(globalsSource.indexOf(textualFlexSelector), globalsSource.indexOf('}', globalsSource.indexOf(textualFlexSelector)))).toContain('justify-content: flex-start !important;')
+    expect(globalsSource.slice(globalsSource.indexOf(headerSelector), globalsSource.indexOf('}', globalsSource.indexOf(headerSelector)))).toContain('text-align: center !important;')
+    expect(globalsSource.slice(globalsSource.indexOf(bodySelector), globalsSource.indexOf('}', globalsSource.indexOf(bodySelector)))).toContain('text-align: left !important;')
+    expect(globalsSource.slice(globalsSource.indexOf(numericSelector), globalsSource.indexOf('}', globalsSource.indexOf(numericSelector)))).toContain('text-align: right !important;')
   })
 
   it('left-aligns the Supplier column on /purchase/bills', () => {
