@@ -1246,6 +1246,21 @@ async function findActivePurchaseChannel(id: string) {
   })
 }
 
+async function findActivePurchaseChannelForBill(input: {
+  purchaseChannelId?: string | null
+  purchaseSource: PurchaseBillFormValues['purchaseSource']
+}) {
+  if (input.purchaseChannelId) {
+    return findActivePurchaseChannel(input.purchaseChannelId)
+  }
+
+  return prisma.purchase_channels.findFirst({
+    orderBy: [{ id: 'asc' }],
+    select: { id: true },
+    where: { active: true, code: input.purchaseSource },
+  })
+}
+
 async function projectProfitCostPurchaseBill(tx: Prisma.TransactionClient, purchaseBillId: bigint) {
   await tx.$executeRaw`select public.project_profit_cost_purchase_bill(${purchaseBillId})`
 }
@@ -2322,17 +2337,15 @@ export async function POST(request: Request) {
     const productRefs = [...new Set(values.items.map((item) => item.productId).filter(Boolean))]
     const poBuyRefs = [...new Set([values.poBuyId, ...values.items.map((item) => item.poBuyId)].filter(Boolean) as string[])]
     const branch = await findActiveBranchReferenceByCodeOrId(values.branchId)
-    const [supplier, poBuys, products, purchaseChannel, warehouse] = await Promise.all([
+    const [supplier, poBuys, products, warehouse] = await Promise.all([
       findActiveSupplierReferenceByCodeOrId(values.supplierId),
       resolvePoBuysByDocNo(poBuyRefs),
       resolveProductsByCodeOrId(productRefs),
-      findActivePurchaseChannel(values.purchaseChannelId),
       values.warehouseId ? findActiveWarehouseReferenceByCodeOrId(values.warehouseId) : Promise.resolve(null),
     ])
 
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (!purchaseChannel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางซื้อไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (!(await isSupplierEligibleForBranch({ branchId: branch.id, supplierId: supplier.id }))) {
       return NextResponse.json({
         code: 'BAD_REQUEST',
@@ -2377,13 +2390,15 @@ export async function POST(request: Request) {
     }
 
     const items = buildBillItems(values, productByRef, poBuyById, receiptSummarySourceMap)
+    const purchaseSource = derivePurchaseSource(items, values.purchaseSource)
+    const purchaseChannel = await findActivePurchaseChannelForBill({ purchaseChannelId: values.purchaseChannelId, purchaseSource })
+    if (!purchaseChannel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบช่องทางซื้อที่ผูกกับประเภทบิลนี้' }, { status: 400 })
     const poBuyIds = extractReferencedPoBuyIdsFromBuiltItems(items)
     if (poBuyIds.length > 0) {
       await prisma.$transaction(async (tx) => {
         await reconcilePoBuys(tx, poBuyIds)
       }, { timeout: 30000 })
     }
-    const purchaseSource = derivePurchaseSource(items, values.purchaseSource)
     const purchaseWarehouseId = values.transactionMode === 'STOCK' ? warehouse?.id ?? null : null
 
     let bill: { doc_no: string; id: bigint } | null = null
@@ -2704,7 +2719,7 @@ export async function PATCH(request: Request) {
       const productRefs = [...new Set(values.items.map((item) => item.productId).filter(Boolean))]
       const poBuyRefs = [...new Set([values.poBuyId, ...values.items.map((item) => item.poBuyId)].filter(Boolean) as string[])]
       const branch = await findActiveBranchReferenceByCodeOrId(values.branchId)
-      const [existingBill, supplier, poBuys, products, payments, existingBillItems, activeApprovalCount, purchaseChannel, warehouse] = await Promise.all([
+      const [existingBill, supplier, poBuys, products, payments, existingBillItems, activeApprovalCount, warehouse] = await Promise.all([
         prisma.purchase_bills.findUnique({ where: { id: existingBillRef.id } }),
         findActiveSupplierReferenceByCodeOrId(values.supplierId),
         resolvePoBuysByDocNo(poBuyRefs),
@@ -2728,7 +2743,6 @@ export async function PATCH(request: Request) {
             status: { in: [...LOCKED_PURCHASE_PAYMENT_APPROVAL_STATUSES] },
           },
         }),
-        findActivePurchaseChannel(values.purchaseChannelId),
         values.warehouseId ? findActiveWarehouseReferenceByCodeOrId(values.warehouseId) : Promise.resolve(null),
       ])
 
@@ -2745,7 +2759,6 @@ export async function PATCH(request: Request) {
       }
       if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายใหม่ไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
       if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-      if (!purchaseChannel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางซื้อไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
       if (!(await isSupplierEligibleForBranch({ branchId: branch.id, supplierId: supplier.id }))) {
         return NextResponse.json({
           code: 'BAD_REQUEST',
@@ -2829,6 +2842,8 @@ export async function PATCH(request: Request) {
       const totals = calculateTotals(values, vatRatePercent)
       const items = buildBillItems(values, productByRef, poBuyById, receiptSummarySourceMap)
       const purchaseSource = derivePurchaseSource(items, values.purchaseSource)
+      const purchaseChannel = await findActivePurchaseChannelForBill({ purchaseChannelId: values.purchaseChannelId, purchaseSource })
+      if (!purchaseChannel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบช่องทางซื้อที่ผูกกับประเภทบิลนี้' }, { status: 400 })
       const purchaseWarehouseId = values.transactionMode === 'STOCK' ? warehouse?.id ?? null : null
       const reason = `เปลี่ยน Supplier: void ${existingBill.doc_no} และสร้างบิลใหม่แทน`
 
@@ -3080,7 +3095,7 @@ export async function PATCH(request: Request) {
     const productRefs = [...new Set(values.items.map((item) => item.productId).filter(Boolean))]
     const poBuyRefs = [...new Set([values.poBuyId, ...values.items.map((item) => item.poBuyId)].filter(Boolean) as string[])]
     const branch = await findActiveBranchReferenceByCodeOrId(values.branchId)
-    const [existingBill, supplier, poBuys, products, payments, existingBillItems, activeApprovalCount, purchaseChannel, warehouse] = await Promise.all([
+    const [existingBill, supplier, poBuys, products, payments, existingBillItems, activeApprovalCount, warehouse] = await Promise.all([
       prisma.purchase_bills.findUnique({ where: { id: existingBillRef.id } }),
       findActiveSupplierReferenceByCodeOrId(values.supplierId),
       resolvePoBuysByDocNo(poBuyRefs),
@@ -3103,7 +3118,6 @@ export async function PATCH(request: Request) {
           status: { in: [...LOCKED_PURCHASE_PAYMENT_APPROVAL_STATUSES] },
         },
       }),
-      findActivePurchaseChannel(values.purchaseChannelId),
       values.warehouseId ? findActiveWarehouseReferenceByCodeOrId(values.warehouseId) : Promise.resolve(null),
     ])
 
@@ -3129,7 +3143,6 @@ export async function PATCH(request: Request) {
     const totals = calculateTotals(values, vatRatePercent)
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (!purchaseChannel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางซื้อไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (allowedBranchCodes && !allowedBranchCodes.includes(branch.code)) {
       return NextResponse.json({ code: 'FORBIDDEN', error: 'ไม่มีสิทธิ์ทำรายการในสาขาปลายทางที่เลือก' }, { status: 403 })
     }
@@ -3165,13 +3178,15 @@ export async function PATCH(request: Request) {
     }
 
     const items = buildBillItems(values, productByRef, poBuyById, receiptSummarySourceMap)
+    const purchaseSource = derivePurchaseSource(items, values.purchaseSource)
+    const purchaseChannel = await findActivePurchaseChannelForBill({ purchaseChannelId: values.purchaseChannelId, purchaseSource })
+    if (!purchaseChannel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบช่องทางซื้อที่ผูกกับประเภทบิลนี้' }, { status: 400 })
     const poBuyIds = extractReferencedPoBuyIdsFromBuiltItems(items)
     if (poBuyIds.length > 0) {
       await prisma.$transaction(async (tx) => {
         await reconcilePoBuys(tx, poBuyIds)
       }, { timeout: 30000 })
     }
-    const purchaseSource = derivePurchaseSource(items, values.purchaseSource)
     const purchaseWarehouseId = values.transactionMode === 'STOCK' ? warehouse?.id ?? null : null
 
     const updatedBill = await prisma.$transaction(async (tx) => {

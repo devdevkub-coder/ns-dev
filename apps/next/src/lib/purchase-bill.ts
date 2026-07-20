@@ -58,7 +58,7 @@ export const purchaseBillFormSchema = z.object({
   note: optionalGeneralText('หมายเหตุ', 500),
   notes: optionalGeneralText('หมายเหตุ', 500),
   poBuyId: optionalDocNo('Quick Load PO'),
-  purchaseChannelId: z.string().trim().regex(/^[1-9]\d*$/, 'เลือกช่องทางซื้อ'),
+  purchaseChannelId: optionalSafeId('ช่องทางซื้อ'),
   purchaseSource: z.enum(['SPOT_BUY', 'PO_RECEIPT', 'MIXED']).default('SPOT_BUY'),
   refNo: optionalDocNo('เลขที่อ้างอิง'),
   receiptTicketId: optionalSafeId('ใบรับของ'),
