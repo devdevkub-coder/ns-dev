@@ -1043,7 +1043,7 @@ export function PoBuyPageClient() {
                 <TableCell className="text-center"><input aria-label={`เลือก ${row.docNo}`} checked={selectedPoIds.includes(row.id)} type="checkbox" onChange={() => toggleRowSelection(row.id)} onClick={(event) => event.stopPropagation()} /></TableCell>
                 <TableCell className="ns-leading-business-column whitespace-nowrap font-mono">{row.docNo}</TableCell>
                 <TableCell className="whitespace-nowrap">{formatDateDisplay(row.date)}</TableCell>
-                <TableCell className="w-36">{row.supplierName}</TableCell>
+                <TableCell className="w-36 text-left">{row.supplierName}</TableCell>
                 <TableCell className="w-[280px] max-w-[280px]">
                   <PoBuyItemSummary fallbackText={row.productName} items={row.items} />
                 </TableCell>
