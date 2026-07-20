@@ -25,7 +25,6 @@ export function ResizableTableHead<TSortKey extends string>({
   resizeProps?: ButtonHTMLAttributes<HTMLButtonElement>
   sortKey?: TSortKey
 }) {
-  const alignClass = align === 'right' ? 'justify-end text-right' : align === 'center' ? 'justify-center text-center' : 'justify-start text-left'
   const active = Boolean(sortKey && activeSortKey === sortKey)
   const activeSortIconStyle = { color: 'var(--ns-sort-active)' }
   const content = (
@@ -39,20 +38,20 @@ export function ResizableTableHead<TSortKey extends string>({
       ) : null}
     </>
   )
-  const contentPaddingClass = align === 'right' ? 'p-2 pr-3' : 'p-2 pr-4'
 
   return (
     <th
       aria-sort={sortKey ? (active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none') : undefined}
+      data-column-align={align}
       data-resizable-table-head=""
-      className={`relative bg-inherit p-0 text-xs font-semibold text-slate-700 ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'} ${className}`}
+      className={`relative bg-inherit p-0 text-center text-xs font-semibold text-slate-700 ${className}`}
     >
       {sortKey && onSort ? (
-        <button className={`flex w-full min-w-0 items-center gap-1.5 hover:bg-slate-200 ${contentPaddingClass} ${alignClass}`} type="button" onClick={() => onSort(sortKey)}>
+        <button className="flex w-full min-w-0 items-center justify-center gap-1.5 p-2 pr-4 text-center hover:bg-slate-200" type="button" onClick={() => onSort(sortKey)}>
           {content}
         </button>
       ) : (
-        <div className={`flex min-w-0 items-center gap-1.5 ${contentPaddingClass} ${alignClass}`}>
+        <div className="flex min-w-0 items-center justify-center gap-1.5 p-2 pr-4 text-center">
           {content}
         </div>
       )}

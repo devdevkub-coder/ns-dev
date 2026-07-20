@@ -75,7 +75,7 @@ describe('Allocation Ledger table density', () => {
     expect(viewEnd).toBeGreaterThan(viewStart)
     expect(rowStart).toBeGreaterThan(-1)
     expect(rowEnd).toBeGreaterThan(rowStart)
-    expect(ordinaryCells).toHaveLength(15)
+    expect(ordinaryCells).toHaveLength(16)
     ordinaryCells.forEach((cell) => {
       expect(cell).toMatch(/\bp-3\b/)
       expect(cell).not.toMatch(/\bp-2\b/)
@@ -103,5 +103,18 @@ describe('Allocation Ledger table density', () => {
       expect(view).toMatch(new RegExp(`\\{ key: '${key}',[^\\n]*className: '${textualColumnClass}'`))
       expect(openingTableCell(view, bodyMarker)).toContain(textualColumnClass)
     })
+  })
+
+  it('opens matched-cost details from the allocated quantity without expanding the table row', () => {
+    const viewStart = source.indexOf('function AllocationLedgerView()')
+    const viewEnd = source.indexOf('\nfunction compareSortValues', viewStart)
+    const view = source.slice(viewStart, viewEnd)
+
+    expect(view).toContain('setSelectedDetailKey(row.targetGroupKey)')
+    expect(view).toContain('onClick={() => setSelectedDetailKey(row.targetGroupKey)}')
+    expect(view).toContain('onClick={(event) => event.stopPropagation()}')
+    expect(view).toContain('<Dialog open={selectedDetailRow != null}')
+    expect(view).toContain('<LedgerMatchedCostDetails rows={selectedDetailRows} />')
+    expect(view).not.toContain('colSpan={ledgerColumns.length}>\n                        <LedgerMatchedCostDetails')
   })
 })

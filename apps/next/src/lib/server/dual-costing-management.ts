@@ -34,6 +34,7 @@ export type CostAllocationLedgerRow = {
   costPerKg: number
   costPoolNo: string
   date: string
+  dealId: string
   gpPct: number
   grossProfit: number
   id: string
@@ -45,6 +46,8 @@ export type CostAllocationLedgerRow = {
   saleQty: number
   sourceNo: string
   status: 'approved' | 'reversed'
+  targetGroupKey: string
+  targetSourceType: 'po-sell' | 'spot-sell'
   targetType: 'PO_SELL' | 'SPOT_SELL'
   totalCost: number
 }
@@ -535,6 +538,9 @@ export async function buildDualCostingManagement() {
     const productCode = product?.code ?? '-'
     const allocatedAt = deal.created_at?.toISOString() ?? toDateOnly(deal.date)
     const matchId = matchIdByDealId.get(String(deal.id)) ?? deal.deal_no
+    const targetGroupKey = resolvedPoSellId
+      ? `PO_SELL:${resolvedPoSellId.toString()}:${productCode}`
+      : `SPOT_SELL:${deal.sales_bill_id?.toString() ?? saleDocNo}:${productCode}`
     return [{
       allocatedAt,
       allocatedBy: deal.created_by ?? '-',
@@ -543,6 +549,7 @@ export async function buildDualCostingManagement() {
       costPerKg: qty > 0 ? totalCost / qty : 0,
       costPoolNo: deal.purchase_bill_no ?? deal.purchase_bills?.doc_no ?? '-',
       date: toDateOnly(deal.date),
+      dealId: deal.id.toString(),
       gpPct: pct(grossProfit, allocatedRevenue),
       grossProfit,
       id: `${matchId}:${saleDocNo}:${sourceNo}:${productCode}:${allocatedAt}:${deal.status ?? '-'}:${index}`,
@@ -554,6 +561,8 @@ export async function buildDualCostingManagement() {
       saleQty: qty,
       sourceNo,
       status: isCancelled(deal.status) ? 'reversed' : 'approved',
+      targetGroupKey,
+      targetSourceType: resolvedPoSellId ? 'po-sell' : 'spot-sell',
       targetType,
       totalCost,
     }]
