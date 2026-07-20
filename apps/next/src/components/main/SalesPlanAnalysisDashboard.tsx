@@ -23,11 +23,6 @@ const analysisColumns: AnalysisColumn[] = [
   { key: 'lockedKg', label: 'ล็อกแล้ว (กก.)', numeric: true },
   { key: 'remainingKg', label: 'ว่างให้ขาย (กก.)', numeric: true },
   { key: 'wac', label: 'WAC ต้นทุน', numeric: true },
-  { key: 'bestPlanPrice', label: 'ราคาเสนอดีสุด', numeric: true },
-  { key: 'bestPlanPct', label: '% LME', numeric: true },
-  { key: 'projectedProfit', label: 'กำไรคาดการณ์', numeric: true },
-  { key: 'projectedMarginPct', label: 'Margin %', numeric: true },
-  { key: 'recommendation', label: 'คำแนะนำ' },
 ]
 
 const remainingColumns: AnalysisColumn[] = [
