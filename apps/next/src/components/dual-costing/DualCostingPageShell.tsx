@@ -1,11 +1,11 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import type { HTMLAttributes, ReactNode } from 'react'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { cn } from '@/lib/utils'
 
-export function DualCostingPageSection({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={cn('space-y-4', className)}>{children}</section>
+export function DualCostingPageSection({ children, className, ...props }: HTMLAttributes<HTMLElement>) {
+  return <section className={cn('space-y-4', className)} {...props}>{children}</section>
 }
 
 export function DualCostingFilterCard({ children, className }: { children: ReactNode; className?: string }) {

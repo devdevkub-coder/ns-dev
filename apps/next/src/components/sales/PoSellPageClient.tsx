@@ -166,7 +166,7 @@ const poSellColumns: ResizableColumnDefinition<string>[] = [
   { key: 'documentStatus', minWidth: 120, defaultWidth: 140 },
   { key: 'matchStatus', minWidth: 150, defaultWidth: 170 },
   { key: 'updatedAt', minWidth: 150, defaultWidth: 180 },
-  { key: 'action', minWidth: 320, defaultWidth: 320 },
+  { key: 'action', minWidth: 64, defaultWidth: 72, maxWidth: 88 },
 ]
 
 export function PoSellPageClient() {
@@ -817,6 +817,16 @@ export function PoSellPageClient() {
                   {formatMoney(row.qty)} กก. / <span className="text-emerald-700">{formatMoney(row.totalAmount)}</span>
                 </span>
               </div>
+            </div>
+            <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
+              <TableActionButton mobileLabel menu={(
+                <>
+                  {row.canEdit ? <TableActionMenuItem disabled={isSaving} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
+                  <TableActionMenuItem disabled={printingPoDocNo === row.docNo} onSelect={() => void printPoSell(row)}>พิมพ์</TableActionMenuItem>
+                  {canShortClosePoSell(row) ? <TableActionMenuItem disabled={isSaving} onSelect={() => openShortCloseDialog(row)}>ปิดส่งไม่ครบ</TableActionMenuItem> : null}
+                  {row.canCancel ? <TableActionMenuItem disabled={isSaving} onSelect={() => openCancelDialog(row)}>ยกเลิก</TableActionMenuItem> : null}
+                </>
+              )} />
             </div>
           </div>
         ))}

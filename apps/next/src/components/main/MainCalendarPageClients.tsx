@@ -680,7 +680,7 @@ function CashDayModal({ day, onClose }: { day: CashDay; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
       <div className="max-h-[85vh] w-full max-w-4xl overflow-hidden rounded-md bg-slate-900 shadow-2xl border-0">
-        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900 p-4 text-white">
+        <div data-ns-dialog-header className="flex items-center justify-between border-b border-slate-800 bg-slate-900 p-4 text-white">
           <h2 className="font-bold text-sm sm:text-base">รายการวันที่ {day.date}</h2>
           <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" type="button" onClick={onClose}>ปิด</button>
         </div>

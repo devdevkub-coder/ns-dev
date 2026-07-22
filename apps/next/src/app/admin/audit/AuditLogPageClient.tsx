@@ -569,7 +569,7 @@ export function AuditLogPageClient() {
       {selectedRow ? (
         <Dialog open={!!selectedRow} onOpenChange={() => setSelectedRow(null)}>
           <DialogContent className="max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" hideClose>
-            <div className="border-b border-slate-800 px-5 py-4 bg-slate-900 shrink-0 flex flex-wrap items-start justify-between gap-3">
+            <div data-ns-dialog-header className="border-b border-slate-800 px-5 py-4 bg-slate-900 shrink-0 flex flex-wrap items-start justify-between gap-3">
               <div>
                 <DialogTitle className="text-lg font-bold text-slate-100">{eventTitle(selectedRow.eventType)}</DialogTitle>
                 <p className="mt-0.5 text-xs text-slate-400">ID: {selectedRow.id}</p>

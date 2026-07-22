@@ -165,7 +165,7 @@ const receiptVoucherColumns: Array<ResizableColumnDefinition<ReceiptVoucherColum
   { key: 'status', defaultWidth: 96, minWidth: 80 },
   { key: 'totalQty', defaultWidth: 110, minWidth: 90 },
   { key: 'totalAmount', defaultWidth: 110, minWidth: 90 },
-  { key: 'action', defaultWidth: 210, minWidth: 180 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 function dateInputToday() {
@@ -752,6 +752,15 @@ export function ReceiptVouchersPageClient() {
                   <span className="font-bold text-slate-900 text-sm tabular-nums">{formatMoney(row.totalAmount)}</span>
                 </div>
               </div>
+              <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
+                <TableActionButton busy={printingDocNo === row.docNo} mobileLabel menu={(
+                  <>
+                    <TableActionMenuItem disabled={printingDocNo === row.docNo} onSelect={() => void printReceiptVoucher(row)}>พิมพ์</TableActionMenuItem>
+                    {row.status !== 'cancelled' ? <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
+                    {row.status !== 'cancelled' ? <TableActionMenuItem onSelect={() => { setCancelingRow(row); setCancelNote(''); setCancelError(null) }}>ยกเลิก</TableActionMenuItem> : null}
+                  </>
+                )} />
+              </div>
             </div>
           ))}
           {!isLoading && totalRows === 0 ? (
@@ -1277,7 +1286,7 @@ function CancelReceiptVoucherDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-3 print:hidden">
       <div data-ns-modal-shell="dialog" className="w-full max-w-lg overflow-hidden rounded-md bg-slate-900 shadow-xl">
-        <div className="bg-slate-900 px-5 py-3 text-white">
+        <div data-ns-dialog-header className="bg-slate-900 px-5 py-3 text-white">
           <h3 className="text-base font-bold text-white">ยกเลิกใบสำคัญรับเงิน {row.docNo}</h3>
           <p className="mt-1 text-xs text-slate-300">{row.sellerName || '-'}</p>
         </div>

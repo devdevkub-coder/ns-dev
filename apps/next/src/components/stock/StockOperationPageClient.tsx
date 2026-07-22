@@ -15,6 +15,7 @@ import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { isCostPoolEligibleMetalGroup, stockAdjustReasonLabel, stockAdjustReasonOptions, statusConvertFormSchema, stockConvertFormSchema, stockAdjustFormSchema } from '@/lib/stock'
 import type { StatusConvertFormValues, StockAdjustFormValues, StockConvertFormValues, StockCostPoolOption, StockOption } from '@/lib/stock'
 import { z } from 'zod'
@@ -175,7 +176,7 @@ const statusConvertColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'status', defaultWidth: 100, minWidth: 80 },
   { key: 'createdBy', defaultWidth: 120, minWidth: 90 },
   { key: 'createdAt', defaultWidth: 160, minWidth: 130 },
-  { key: 'action', defaultWidth: 100, minWidth: 80 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 const convertColumns: Array<ResizableColumnDefinition<string>> = [
@@ -192,7 +193,7 @@ const convertColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'lossQty', defaultWidth: 130, minWidth: 120 },
   { key: 'costStatus', defaultWidth: 175, minWidth: 160 },
   { key: 'status', defaultWidth: 155, minWidth: 145 },
-  { key: 'action', defaultWidth: 200, minWidth: 190 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 const adjustColumns: Array<ResizableColumnDefinition<string>> = [
@@ -212,7 +213,7 @@ const adjustColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'reason', defaultWidth: 140, minWidth: 110 },
   { key: 'createdAt', defaultWidth: 160, minWidth: 130 },
   { key: 'updatedBy', defaultWidth: 120, minWidth: 90 },
-  { key: 'action', defaultWidth: 90, minWidth: 70 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 const detailColumns: Array<ResizableColumnDefinition<string>> = [
@@ -1308,17 +1309,13 @@ function OperationTable({
                   </div>
                 </div>
                 <div className="mt-3 flex justify-end gap-2">
-                  <button
+                  <TableActionButton
                     disabled={!row.canEdit || !onAdjustCorrect}
-                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50 disabled:opacity-50"
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      onAdjustCorrect?.(row)
-                    }}
-                  >
-                    แก้ไข
-                  </button>
+                    mobileLabel
+                    menu={<TableActionMenuItem disabled={!row.canEdit || !onAdjustCorrect} onSelect={() => onAdjustCorrect?.(row)}>แก้ไข</TableActionMenuItem>}
+                    onClick={(event) => event.stopPropagation()}
+                    title={row.canEdit ? 'แก้ไขได้ภายใน 7 วัน' : 'หมดช่วงแก้ไข 7 วันแล้ว'}
+                  />
                 </div>
               </div>
             )
@@ -1365,22 +1362,12 @@ function OperationTable({
                   </div>
                 </div>
                 <div className="mt-3 flex justify-end gap-1">
-                  <button
-                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50 disabled:opacity-50"
-                    disabled={!onConvertDetail}
-                    type="button"
-                    onClick={() => onConvertDetail?.(refNo)}
-                  >
-                    รายละเอียด
-                  </button>
-                  <button
-                    className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
-                    disabled={status === 'reversed' || !onConvertReverse}
-                    type="button"
-                    onClick={() => onConvertReverse?.(refNo)}
-                  >
-                    ย้อนกลับ
-                  </button>
+                  <TableActionButton mobileLabel menu={(
+                    <>
+                      <TableActionMenuItem disabled={!onConvertDetail} onSelect={() => onConvertDetail?.(refNo)}>รายละเอียด</TableActionMenuItem>
+                      <TableActionMenuItem disabled={status === 'reversed' || !onConvertReverse} onSelect={() => onConvertReverse?.(refNo)}>ย้อนกลับ</TableActionMenuItem>
+                    </>
+                  )} />
                 </div>
               </div>
             )
@@ -1422,14 +1409,11 @@ function OperationTable({
                   </div>
                 </div>
                 <div className="mt-3 flex justify-end gap-2">
-                  <button
-                    className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  <TableActionButton
                     disabled={status === 'reversed' || !onStatusConvertReverse}
-                    type="button"
-                    onClick={() => onStatusConvertReverse?.(refNo)}
-                  >
-                    ย้อนกลับ
-                  </button>
+                    mobileLabel
+                    menu={<TableActionMenuItem disabled={status === 'reversed' || !onStatusConvertReverse} onSelect={() => onStatusConvertReverse?.(refNo)}>ย้อนกลับ</TableActionMenuItem>}
+                  />
                 </div>
               </div>
             )
@@ -1563,7 +1547,7 @@ function columnsFor(mode: Mode): OperationColumn[] {
     { key: 'reason', label: 'เหตุผล', sortable: true },
     { key: 'createdAt', label: 'วันที่สร้างรายการ', sortable: true },
     { key: 'updatedBy', label: 'แก้ไขโดย', sortable: true },
-    { key: 'action', label: 'แก้ไข', cellClassName: 'text-center', headerClassName: 'text-center' },
+    { key: 'action', label: 'จัดการ', cellClassName: 'text-center', headerClassName: 'text-center' },
   ]
   return []
 }
@@ -1653,42 +1637,25 @@ function formatOperationCell(mode: Mode, row: Record<string, string | number | b
     if (key === 'action') {
       const status = String(row.status ?? 'posted')
       const refNo = String(row.refNo ?? row.id ?? '')
-      return (
-        <button
-          className="rounded-md border border-red-200 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
-          disabled={status === 'reversed' || !onStatusConvertReverse}
-          type="button"
-          onClick={() => onStatusConvertReverse?.(refNo)}
-        >
-          ย้อนกลับ
-        </button>
-      )
+      return <TableActionButton
+        aria-label={`จัดการ ${refNo}`}
+        menu={<TableActionMenuItem disabled={status === 'reversed' || !onStatusConvertReverse} onSelect={() => onStatusConvertReverse?.(refNo)}>ย้อนกลับ</TableActionMenuItem>}
+      />
     }
   }
   if (mode === 'convert') {
     if (key === 'action') {
       const status = String(row.status ?? '')
       const refNo = String(row.refNo ?? row.id ?? '')
-      return (
-        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-          <button
-            className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            disabled={!onConvertDetail}
-            type="button"
-            onClick={() => onConvertDetail?.(refNo)}
-          >
-            รายละเอียด
-          </button>
-          <button
-            className="rounded-md border border-red-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
-            disabled={status === 'reversed' || !onConvertReverse}
-            type="button"
-            onClick={() => onConvertReverse?.(refNo)}
-          >
-            ย้อนกลับ
-          </button>
-        </div>
-      )
+      return <TableActionButton
+        aria-label={`จัดการ ${refNo}`}
+        menu={(
+          <>
+            <TableActionMenuItem disabled={!onConvertDetail} onSelect={() => onConvertDetail?.(refNo)}>รายละเอียด</TableActionMenuItem>
+            <TableActionMenuItem disabled={status === 'reversed' || !onConvertReverse} onSelect={() => onConvertReverse?.(refNo)}>ย้อนกลับ</TableActionMenuItem>
+          </>
+        )}
+      />
     }
     if (key === 'costStatus') {
       const value = String(row[key] ?? '')
@@ -1709,7 +1676,13 @@ function formatOperationCell(mode: Mode, row: Record<string, string | number | b
   }
   if (mode === 'adjust') {
     if (key === 'action') {
-      return <button className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={!row.canEdit || !onAdjustCorrect} title={row.canEdit ? 'แก้ไขได้ภายใน 7 วัน' : 'หมดช่วงแก้ไข 7 วันแล้ว'} type="button" onClick={(event) => { event.stopPropagation(); onAdjustCorrect?.(row) }}>แก้ไข</button>
+      return <TableActionButton
+        aria-label={`จัดการ ${String(row.docNo ?? row.id ?? '')}`}
+        disabled={!row.canEdit || !onAdjustCorrect}
+        menu={<TableActionMenuItem disabled={!row.canEdit || !onAdjustCorrect} onSelect={() => onAdjustCorrect?.(row)}>แก้ไข</TableActionMenuItem>}
+        onClick={(event) => event.stopPropagation()}
+        title={row.canEdit ? 'แก้ไขได้ภายใน 7 วัน' : 'หมดช่วงแก้ไข 7 วันแล้ว'}
+      />
     }
     if (key === 'createdAt') return formatDateTime(row.createdAt)
     if (key === 'adjustType') {
@@ -1765,10 +1738,10 @@ function AdjustDetailModal({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-10">
       <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl outline-none">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
+        <div data-ns-dialog-header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
           <div className="min-w-0">
             <h3 className="text-base font-bold text-white">รายละเอียดปรับสต๊อก · {formatCell(detail.docNo)}</h3>
-            <div className="mt-1 text-xs text-slate-400">{formatDateDisplay(String(detail.date ?? ''))} · {formatCell(detail.branchWarehouse)} · {formatCell(detail.status)}</div>
+            <p className="mt-1 text-xs">{formatDateDisplay(String(detail.date ?? ''))} · {formatCell(detail.branchWarehouse)} · {formatCell(detail.status)}</p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             <span className={`inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-xs font-semibold ${statusClass}`}>

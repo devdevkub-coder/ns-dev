@@ -19,12 +19,13 @@ function enclosingTableCell(source: string, marker: string) {
 describe('PO Sell desktop table layout', () => {
   it('reserves a non-collapsing action column for every valid row action', async () => {
     const source = await readFile(pageSourcePath, 'utf8')
-    const actionCell = enclosingTableCell(source, 'title={`แก้ไข ${row.docNo}`}')
+    const actionCell = enclosingTableCell(source, '<TableActionButton menu={(')
 
-    expect(source).toContain("{ key: 'action', minWidth: 320, defaultWidth: 320 }")
+    expect(source).toContain("{ key: 'action', minWidth: 64, defaultWidth: 72, maxWidth: 88 }")
     expect(source).toContain("style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}")
     expect(actionCell).toContain('className="whitespace-nowrap text-right"')
-    expect(actionCell).toContain('className="flex justify-end gap-1"')
+    expect(actionCell).toContain('<TableActionButton menu={(')
+    expect(actionCell).toContain('<TableActionMenuItem')
     expect(actionCell).toContain('แก้ไข')
     expect(actionCell).toContain('พิมพ์')
     expect(actionCell).toContain('ปิดส่งไม่ครบ')

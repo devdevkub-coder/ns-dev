@@ -67,7 +67,7 @@ const pettyAdvanceColumns: Array<ResizableColumnDefinition<PettyAdvanceColumnKey
   { key: 'returned', defaultWidth: 110, minWidth: 90 },
   { key: 'remaining', defaultWidth: 110, minWidth: 90 },
   { key: 'status', defaultWidth: 120, minWidth: 100 },
-  { key: 'action', defaultWidth: 210, minWidth: 180 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 const emptyForm: PettyAdvanceFormValues = {
@@ -521,7 +521,7 @@ export function DailyPettyAdvancePageClient() {
       {formOpen ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
           <form ref={formRef} noValidate className="w-full max-w-3xl overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onSubmit={saveForm}>
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
+            <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
               <h3 className="font-bold text-white">{form.id ? 'แก้ไขรายการยืมเงิน' : 'บันทึกรายการยืมเงิน'}</h3>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
                 <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" type="button" onClick={() => setFormOpen(false)}>ยกเลิก</button>
@@ -576,7 +576,7 @@ export function DailyPettyAdvancePageClient() {
       {returningRow ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
           <form noValidate className="w-full max-w-md overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onSubmit={saveReturn}>
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
+            <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
               <h3 className="font-bold text-white">คืนเงิน — {returningRow.docNo} / {returningRow.recipientName}</h3>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
                 <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" type="button" onClick={() => setReturningRow(null)}>ยกเลิก</button>
@@ -691,6 +691,15 @@ export function DailyPettyAdvancePageClient() {
                 </div>
               </div>
             </div>
+            <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
+              <TableActionButton mobileLabel menu={(
+                <>
+                  <TableActionMenuItem onSelect={() => setDetailRow(row)}>ดูรายละเอียด</TableActionMenuItem>
+                  {row.status === 'active' && row.remaining > 0 && row.pendingReturn <= 0 ? <TableActionMenuItem onSelect={() => openReturnForm(row)}>คืนเงิน</TableActionMenuItem> : null}
+                  {row.status === 'active' ? <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
+                </>
+              )} />
+            </div>
           </div>
         ))}
         {!isLoading && filteredRows.length === 0 ? (
@@ -761,10 +770,10 @@ function DetailModal({ onClose, onReturn, row }: { onClose: () => void; onReturn
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8" onClick={onClose}>
       <div className="w-full max-w-4xl overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onClick={(event) => event.stopPropagation()}>
-        <div className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
+        <div data-ns-dialog-header className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
           <div>
             <h3 className="text-lg font-bold text-white">รายละเอียด {row.docNo} — {row.recipientName}</h3>
-            <div className="mt-0.5 text-xs text-slate-300">{typeLabel(row.type)} · วันที่จ่าย {formatDateDisplay(row.date)} · จำนวน {formatMoney(row.amount)} บาท</div>
+            <p className="mt-0.5 text-xs">{typeLabel(row.type)} · วันที่จ่าย {formatDateDisplay(row.date)} · จำนวน {formatMoney(row.amount)} บาท</p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             {canReturn ? (

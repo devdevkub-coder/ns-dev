@@ -8,7 +8,7 @@ import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
-import { TableActionButton } from '@/components/ui/TableActionButton'
+import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { Select } from '@/components/ui/Select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -123,7 +123,7 @@ const productionOrderColumns: Array<ResizableColumnDefinition<ProductionOrderCol
   { key: 'outputQty', defaultWidth: 120, minWidth: 95 },
   { key: 'yield', defaultWidth: 120, minWidth: 105 },
   { key: 'status', defaultWidth: 110, minWidth: 104, maxWidth: 144 },
-  { key: 'action', defaultWidth: 72, minWidth: 72, maxWidth: 88 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 const productionMovementColumnCount = 10
 const productStockColumnCount = 5
@@ -713,17 +713,17 @@ export function ProductionOrdersPageClient() {
                         <StatusBadge compact status={row.status} />
                       </td>
                       <td className="p-3 text-right">
-                        <button
-                          className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            setSelectedRow(row)
-                            setModalMode('detail')
-                          }}
-                        >
-                          เปิด
-                        </button>
+                        <TableActionButton
+                          label="เปิด"
+                          menu={(
+                            <TableActionMenuItem onSelect={() => {
+                              setSelectedRow(row)
+                              setModalMode('detail')
+                            }}>
+                              เปิด
+                            </TableActionMenuItem>
+                          )}
+                        />
                       </td>
                     </tr>
                   )
@@ -818,9 +818,14 @@ export function OrderCard({ onOpen, row }: { onOpen: () => void; row: Production
         </div>
       ) : null}
       {row.status === 'Completed' ? <CountdownTimer closedAt={row.closedAt} /> : null}
-      <div className="mt-2.5 flex items-center justify-between border-t border-slate-200/70 pt-2.5">
+      <div className="mt-2.5 space-y-2 border-t border-slate-200/70 pt-2.5">
         <div className="text-xs"><span className="text-slate-500">ต้นทุนเบิก:</span><b className="ml-1 text-slate-800">{formatMoney(row.inputCost)}</b></div>
-        <span aria-hidden className="text-xs font-bold text-blue-700">ดูรายละเอียด →</span>
+        <div onClick={(event) => event.stopPropagation()}>
+          <TableActionButton
+            mobileLabel
+            menu={<TableActionMenuItem onSelect={onOpen}>เปิด</TableActionMenuItem>}
+          />
+        </div>
       </div>
     </article>
   )
@@ -1611,8 +1616,8 @@ function MovementPanel({
                   <td className="p-2 text-right">
                     {canWrite && isRowActive ? (
                       <TableActionButton
-                        onClick={() => onReverse(row.docNo)}
                         label="Reverse"
+                        menu={<TableActionMenuItem onSelect={() => onReverse(row.docNo)}>Reverse</TableActionMenuItem>}
                       />
                     ) : null}
                   </td>

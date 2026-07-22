@@ -1264,7 +1264,7 @@ export function WeightTicketFormCore({
   }
 
   return (
-    <div className={cn("min-w-0", isEmbeddedModal ? "flex h-full min-h-0 flex-col overflow-hidden bg-slate-50" : "overflow-x-hidden")}>
+    <div className={cn("min-w-0", isEmbeddedModal ? "flex h-full min-h-0 flex-col overflow-hidden bg-slate-50" : "overflow-x-hidden")} data-ns-field-scope="entry">
       {isEmbeddedModal ? (
         <DialogHeader className="shrink-0 rounded-t-md bg-slate-900 px-5 py-4 text-white">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
@@ -2448,7 +2448,7 @@ function ProductImagePicker({
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4 sm:p-5">
             {/* Search input */}
-            <div className="relative">
+            <div className="relative" data-ns-field-scope="filter">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 className="pl-9 h-10 w-full text-slate-800 border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500"

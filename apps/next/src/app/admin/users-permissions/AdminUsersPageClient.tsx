@@ -11,7 +11,7 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { Select } from '@/components/ui/Select'
 import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
-import { TableActionButton } from '@/components/ui/TableActionButton'
+import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage, readJsonResponse } from '@/lib/api-client'
@@ -255,7 +255,7 @@ const userColumns: Array<ResizableColumnDefinition<UserColumnKey>> = [
   { key: 'branches', defaultWidth: 155, minWidth: 130 },
   { key: 'active', defaultWidth: 115, minWidth: 105 },
   { key: 'lastLoginAt', defaultWidth: 145, minWidth: 125 },
-  { key: 'action', defaultWidth: 72, minWidth: 64 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 const roleColumns: Array<ResizableColumnDefinition<RoleColumnKey>> = [
@@ -701,7 +701,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     return 'ส่งลิงก์รีเซ็ตรหัสผ่าน'
   }
 
-  function renderUserActions(user: AdminUser) {
+  function renderUserActions(user: AdminUser, mobileLabel = false) {
     const passwordActionDisabled = !user.email || user.accountStatus === 'disabled' || actionUserId === user.id
 
     return (
@@ -711,6 +711,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
             aria-label={`จัดการ ${fullName(user)}`}
             disabled={actionUserId === user.id}
             label="จัดการ"
+            mobileLabel={mobileLabel}
             title="จัดการ"
           />
         </DropdownMenuTrigger>
@@ -1277,7 +1278,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         <Dialog open={formOpen} onOpenChange={setFormOpen}>
           <DialogContent className="max-w-2xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" hideClose>
             <form className="flex flex-col h-full overflow-hidden" onSubmit={saveUser}>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 px-5 py-4 text-white shrink-0 dark:border-slate-700 dark:bg-slate-950">
+              <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 px-5 py-4 text-white shrink-0 dark:border-slate-700 dark:bg-slate-950">
                 <DialogTitle className="text-lg font-bold text-white">{editingUser ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้'}</DialogTitle>
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                   <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700 disabled:opacity-50" disabled={isSaving} type="button" onClick={() => setFormOpen(false)}>ยกเลิก</button>
@@ -1443,10 +1444,10 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         <Dialog open={roleFormOpen} onOpenChange={setRoleFormOpen}>
           <DialogContent className="max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" hideClose>
             <form className="flex flex-col h-full overflow-hidden" onSubmit={saveRole}>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 px-5 py-4 shrink-0">
+              <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 px-5 py-4 shrink-0">
                 <DialogTitle className="text-lg font-bold text-slate-100">{editingRole ? 'แก้ไขหน้าที่งาน' : 'เพิ่มหน้าที่งาน'}</DialogTitle>
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                  <ActiveToggle checked={roleForm.active} onChange={(active) => setRoleForm((current) => ({ ...current, active }))} />
+                  <ActiveToggle checked={roleForm.active} labelClassName="text-sm font-medium text-current" onChange={(active) => setRoleForm((current) => ({ ...current, active }))} />
                   <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm text-white hover:bg-rose-700 disabled:opacity-50" disabled={isSavingRole} type="button" onClick={() => setRoleFormOpen(false)}>ยกเลิก</button>
                   <button className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50" disabled={isSavingRole} type="submit">{isSavingRole ? 'กำลังบันทึก...' : 'บันทึก'}</button>
                 </div>
@@ -1644,15 +1645,13 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                       <span className="text-slate-400 block text-xs uppercase font-semibold">สาขา</span>
                       <span className="text-slate-700 font-semibold">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</span>
                     </div>
-                    <div className="col-span-2 border-t border-slate-50 pt-2 flex items-center justify-between">
+                    <div className="col-span-2 border-t border-slate-50 pt-2">
                       <div>
                         <span className="text-slate-400 block text-xs uppercase">Login ล่าสุด</span>
                         <span className="text-slate-600 text-xs">{formatDate(user.lastLoginAt)}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {renderUserActions(user)}
-                      </div>
                     </div>
+                    <div className="col-span-2 w-full">{renderUserActions(user, true)}</div>
                   </div>
                 </div>
               ))}
@@ -1765,7 +1764,6 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                       <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${role.active ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-100 text-slate-500'}`}>
                         {role.active ? 'ใช้งาน' : 'ปิด'}
                       </span>
-                      <button className="ml-1 text-xs font-semibold text-blue-700 hover:underline" type="button" onClick={() => openEditRole(role)}>แก้ไข</button>
                     </div>
                   </div>
 
@@ -1785,6 +1783,10 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                       <span className="text-slate-700 font-bold">{role.permissionIds.length} รายการ</span>
                     </div>
                   </div>
+                  <TableActionButton
+                    mobileLabel
+                    menu={<TableActionMenuItem onSelect={() => openEditRole(role)}>แก้ไข</TableActionMenuItem>}
+                  />
                 </div>
               ))}
               {departmentRoles.length === 0 ? (

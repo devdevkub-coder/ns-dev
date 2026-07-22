@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
-import { TableActionButton } from '@/components/ui/TableActionButton'
+import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 
 type CustomerFilter = {
   active: boolean | null
@@ -73,7 +73,7 @@ const customerAdvanceColumns: Array<ResizableColumnDefinition<CustomerAdvanceCol
   { key: 'usedAmount', defaultWidth: 100, minWidth: 95 },
   { key: 'remainingAmount', defaultWidth: 100, minWidth: 95 },
   { key: 'status', defaultWidth: 110, minWidth: 95 },
-  { key: 'action', defaultWidth: 80, minWidth: 75 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 function compareSortValues(left: string | number, right: string | number) {
@@ -196,7 +196,9 @@ export function CustomerAdvancePageClient() {
                 <td className="truncate px-4 py-3.5 text-right text-slate-600">{formatMoney(row.usedAmount)}</td>
                 <td className="truncate px-4 py-3.5 text-right font-bold text-emerald-700">{formatMoney(row.remainingAmount)}</td>
                 <td className="truncate px-4 py-3.5 text-center"><StatusBadge status={row.status} /></td>
-                <td className="truncate px-4 py-3.5 text-right"><TableActionButton disabled label="ยกเลิก" /></td>
+                <td className="truncate px-4 py-3.5 text-right">
+                  <TableActionButton disabled label="ยกเลิก" menu={<TableActionMenuItem disabled>ยกเลิก</TableActionMenuItem>} />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -249,6 +251,13 @@ export function CustomerAdvancePageClient() {
                   <span className="text-sm font-bold tabular-nums text-emerald-700">{formatMoney(row.remainingAmount)}</span>
                 </div>
               </div>
+            </div>
+            <div className="border-t border-slate-100 pt-3">
+              <TableActionButton
+                disabled
+                mobileLabel
+                menu={<TableActionMenuItem disabled>ยกเลิก</TableActionMenuItem>}
+              />
             </div>
           </div>
         ))}

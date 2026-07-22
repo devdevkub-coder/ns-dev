@@ -92,12 +92,13 @@ export function MobileFilterSheet({
         aria-labelledby={titleId}
         aria-modal="true"
         className="flex max-h-[80dvh] w-full flex-col overflow-hidden rounded-t-md bg-slate-900 shadow-2xl"
+        data-ns-field-scope="filter"
         onClick={(event) => event.stopPropagation()}
         ref={sheetRef}
         role="dialog"
         tabIndex={-1}
       >
-        <div className="flex items-center rounded-t-md bg-slate-900 px-4 py-4 text-white">
+        <div data-ns-dialog-header className="flex items-center rounded-t-md bg-slate-900 px-4 py-4 text-white">
           <h4 className="text-sm font-bold text-white" id={titleId}>{title}</h4>
         </div>
 

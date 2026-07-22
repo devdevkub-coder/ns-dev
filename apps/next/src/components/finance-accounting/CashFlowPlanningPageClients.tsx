@@ -1461,7 +1461,7 @@ function DayModal({ day, onClose }: { day: ProjectionDay; onClose: () => void })
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
       <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-xl">
-        <div className="flex items-center justify-between bg-slate-900 px-4 py-3 text-white">
+        <div data-ns-dialog-header className="flex items-center justify-between bg-slate-900 px-4 py-3 text-white">
           <h2 className="text-sm font-bold"> {day.date} · ยอดปิดวัน {money(day.closing)}</h2>
           <button className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white outline-none hover:bg-red-700 focus:ring-0" type="button" onClick={onClose}>
             ปิด

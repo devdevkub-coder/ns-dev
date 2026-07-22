@@ -1,5 +1,9 @@
 # Active Profit & Cost Performance Batch 2026-07-19
 
+WTI/WTO gallery checkpoint 2026-07-22: detail row galleries now form one continuous sequence across image-bearing lots in table order. Opening a row starts at that lot, Next moves from the last image of one lot to the first image of the next, and the heading follows the active lot; the separate document-level album is unchanged. This batch intentionally excludes working-draft autosave, team visibility, recovery, APIs, and migrations from the SIT promotion.
+
+Shared row-action SIT checkpoint 2026-07-22: runtime `จัดการ` columns use the shared Desktop ellipsis and full-width Mobile button. The opened menu matches the Mobile trigger width, centers each label between a fixed left icon and equal trailing spacer, uses subtle row dividers, keeps destructive commands red, and stops portalled menu clicks from opening the parent row/modal. Existing permissions, disabled states, confirmations, and business handlers remain unchanged.
+
 Objective: cut `/profit-cost-analysis` over from transaction-wide Node aggregation to strict PostgreSQL fact/daily read models with split APIs, applied filters, request cancellation, branch scope, and server pagination/sort.
 
 Active batch: implementation is promoted to Dev and SIT, and migration `20260719160000_create_profit_cost_reporting_read_model.sql` is applied to both dev-target and SIT. SIT backfill produced 266 facts and 135 daily rows; reconciliation reports zero issues and exact purchase/revenue/COGS parity. Focused Vitest is 16/16 after the Dev/SIT semantic merges, full lint and source type-check pass, and `git diff --check` passes. Summary, rankings, and the active table fail independently; alerts are evaluated directly from the full scoped daily read model rather than a capped product page. No browser/UAT run was requested.

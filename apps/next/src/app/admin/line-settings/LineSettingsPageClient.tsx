@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { getErrorMessage } from '@/lib/api-client'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
-import { TableActionButton, TableActionMenuItem, tableActionButtonClassName } from '@/components/ui/TableActionButton'
+import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader } from '@/components/ui/Dialog'
@@ -214,7 +214,7 @@ const targetCols: Array<ResizableColumnDefinition<TargetColKey>> = [
   { key: 'notifyWti', defaultWidth: 90, minWidth: 80 },
   { key: 'notifyWto', defaultWidth: 90, minWidth: 80 },
   { key: 'status', defaultWidth: 110, minWidth: 90 },
-  { key: 'actions', defaultWidth: 230, minWidth: 180 },
+  { key: 'actions', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 const ruleCols: Array<ResizableColumnDefinition<RuleColKey>> = [
@@ -223,7 +223,7 @@ const ruleCols: Array<ResizableColumnDefinition<RuleColKey>> = [
   { key: 'target', defaultWidth: 180, minWidth: 130 },
   { key: 'stopAfter', defaultWidth: 110, minWidth: 90 },
   { key: 'isActive', defaultWidth: 90, minWidth: 80 },
-  { key: 'actions', defaultWidth: 150, minWidth: 120 },
+  { key: 'actions', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 const jobCols: Array<ResizableColumnDefinition<JobColKey>> = [
@@ -232,7 +232,7 @@ const jobCols: Array<ResizableColumnDefinition<JobColKey>> = [
   { key: 'target', defaultWidth: 180, minWidth: 130 },
   { key: 'status', defaultWidth: 100, minWidth: 95 },
   { key: 'attempts', defaultWidth: 90, minWidth: 80 },
-  { key: 'actions', defaultWidth: 200, minWidth: 160 },
+  { key: 'actions', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 function compareSortValues(left: SortValue, right: SortValue) {
@@ -1358,7 +1358,7 @@ export function LineSettingsPageClient() {
 
         {/* Tab 2: Channel Credentials */}
         {activeTab === 'credentials' && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-6 animate-fade-in">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-6 animate-fade-in" data-ns-field-scope="entry">
             <h3 className="text-base font-bold text-slate-900 pb-2 border-b border-slate-100 flex items-center gap-2">
               <span>🔑</span> การตั้งค่า LINE Messaging API & Credential Configuration
             </h3>
@@ -1689,7 +1689,7 @@ export function LineSettingsPageClient() {
                           <span className="text-slate-400">ส่ง WTO:</span> <span className="font-bold text-slate-800">{t.notify_wto ? 'เปิด' : 'ปิด'}</span>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between">
+                      <div className="space-y-2 border-t border-slate-100 pt-2">
                         {(() => {
                           const isLeft = !t.is_active && t.last_event_type === 'not_found'
                           const isDisabled = !t.is_active && !isLeft
@@ -1705,7 +1705,7 @@ export function LineSettingsPageClient() {
                             </span>
                           )
                         })()}
-                        <TableActionButton menu={(
+                        <TableActionButton mobileLabel menu={(
                           <>
                             <TableActionMenuItem onSelect={() => void handleTestTarget(t.target_id, t.id)}>ทดสอบ</TableActionMenuItem>
                             <TableActionMenuItem disabled={t.is_default} onSelect={() => void handleSetDefaultTarget(t.id)}>ตั้งดีฟอลต์</TableActionMenuItem>
@@ -1888,25 +1888,17 @@ export function LineSettingsPageClient() {
                             </span>
                           </div>
                         </div>
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            className={`${tableActionButtonClassName} text-sm`}
-                            onClick={() => {
-                              setRuleFieldErrors({})
-                              setEditingRule(r)
-                              setIsRuleModalOpen(true)
-                            }}
-                          >
-                            📝 แก้ไข
-                          </button>
-                          <button
-                            type="button"
-                            className={`${tableActionButtonClassName} text-sm text-red-600`}
-                            onClick={() => void handleDeleteRule(r.id)}
-                          >
-                            ❌ ลบ
-                          </button>
+                        <div className="pt-1.5">
+                          <TableActionButton mobileLabel menu={(
+                            <>
+                              <TableActionMenuItem onSelect={() => {
+                                setRuleFieldErrors({})
+                                setEditingRule(r)
+                                setIsRuleModalOpen(true)
+                              }}>แก้ไข</TableActionMenuItem>
+                              <TableActionMenuItem onSelect={() => void handleDeleteRule(r.id)}>ลบ</TableActionMenuItem>
+                            </>
+                          )} />
                         </div>
                       </div>
                     )
@@ -2200,31 +2192,14 @@ export function LineSettingsPageClient() {
                             ⚠️ {job.last_error_message}
                           </p>
                         )}
-                        <div className="flex justify-end gap-2 pt-1.5">
-                          <button
-                            type="button"
-                            className={`${tableActionButtonClassName} text-sm`}
-                            onClick={() => setSelectedJob(job)}
-                          >
-                            👁️ ดูประวัติยิง
-                          </button>
-                          <button
-                            type="button"
-                            className="px-2.5 py-1 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition focus:outline-none h-8 flex items-center"
-                            onClick={() => void handleRetryJob(job.id, job.document_no)}
-                            disabled={job.status === 'processing'}
-                          >
-                            🔄 ยิงใหม่
-                          </button>
-                          {job.status === 'pending' && (
-                            <button
-                              type="button"
-                              className={`${tableActionButtonClassName} text-sm text-rose-600`}
-                              onClick={() => void handleCancelJob(job.id)}
-                            >
-                              🚫 ยกเลิก
-                            </button>
-                          )}
+                        <div className="pt-1.5">
+                          <TableActionButton mobileLabel menu={(
+                            <>
+                              <TableActionMenuItem onSelect={() => setSelectedJob(job)}>ดูประวัติยิง</TableActionMenuItem>
+                              <TableActionMenuItem disabled={job.status === 'processing'} onSelect={() => void handleRetryJob(job.id, job.document_no)}>ยิงใหม่</TableActionMenuItem>
+                              {job.status === 'pending' ? <TableActionMenuItem onSelect={() => void handleCancelJob(job.id)}>ยกเลิก</TableActionMenuItem> : null}
+                            </>
+                          )} />
                         </div>
                       </div>
                     )
@@ -2366,7 +2341,7 @@ export function LineSettingsPageClient() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 animate-fade-in">
           <div className="relative w-full max-w-md overflow-hidden rounded-md bg-slate-900 shadow-2xl animate-zoom-in">
             {/* Modal Header */}
-            <div className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
+            <div data-ns-dialog-header className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
               <h3 className="text-base font-bold">
                 {editingTarget.id ? '📝 แก้ไขรายละเอียดผู้รับ' : '👥 เพิ่มเป้าหมายรับแจ้งเตือนใหม่'}
               </h3>
@@ -2789,7 +2764,7 @@ export function LineSettingsPageClient() {
       {isTemplateModalOpen && editingTemplate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 animate-fade-in">
           <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl animate-zoom-in">
-            <div className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
+            <div data-ns-dialog-header className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
               <h3 className="text-base font-bold">
                 {editingTemplate.id ? '📝 แก้ไขเทมเพลตและ Preview' : '➕ เพิ่มเทมเพลตการ์ดใหม่'}
               </h3>
@@ -3090,7 +3065,7 @@ export function LineSettingsPageClient() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 animate-fade-in">
           <div className="relative flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-md bg-slate-900 shadow-2xl animate-zoom-in">
             {/* Header */}
-            <div className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
+            <div data-ns-dialog-header className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
               <h3 className="text-base font-bold">📋 ประวัติการยิงและการส่งของบิล {selectedJob.document_no}</h3>
               <button
                 type="button"

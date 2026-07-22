@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
-import { TableActionButton } from '@/components/ui/TableActionButton'
+import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import {
@@ -57,7 +57,7 @@ const whtColumns: Array<ResizableColumnDefinition<WhtColumnKey>> = [
   { key: 'name', defaultWidth: 320, minWidth: 220 },
   { key: 'ratePercent', defaultWidth: 160, minWidth: 130 },
   { key: 'status', defaultWidth: 140, minWidth: 110 },
-  { key: 'action', defaultWidth: 120, minWidth: 100 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 function selectPrimaryRecord(rows: MasterDataRecord[]) {
@@ -205,7 +205,7 @@ export function SystemSettingsPageClient() {
   }
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-4" data-ns-field-scope="entry">
       <section className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
@@ -340,8 +340,8 @@ export function SystemSettingsPageClient() {
                           <TableActionButton
                             busy={savingKey === saveKey}
                             disabled={savingKey !== null}
-                            onClick={() => requestSave(whtSetting, record, value, saveKey)}
                             label="บันทึก"
+                            menu={<TableActionMenuItem onSelect={() => requestSave(whtSetting, record, value, saveKey)}>บันทึก</TableActionMenuItem>}
                           />
                         </TableCell>
                       </TableRow>
@@ -416,7 +416,7 @@ export function SystemSettingsPageClient() {
       {pendingSave ? (
         <Dialog open={!!pendingSave} onOpenChange={() => setPendingSave(null)}>
           <DialogContent className="max-w-md rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" hideClose>
-            <div className="border-b border-slate-800 px-5 py-4 bg-slate-900 shrink-0 flex items-center justify-between">
+            <div data-ns-dialog-header className="border-b border-slate-800 px-5 py-4 bg-slate-900 shrink-0 flex items-center justify-between">
               <div>
                 <DialogTitle className="text-lg font-bold text-slate-100">ยืนยันการเปลี่ยนค่าระบบ</DialogTitle>
                 <p className="mt-1 text-xs text-slate-400">{pendingSave.record.name}</p>

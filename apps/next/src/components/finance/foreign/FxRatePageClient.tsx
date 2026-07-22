@@ -5,7 +5,7 @@ import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
 import { Select } from '@/components/ui/Select'
-import { TableActionButton } from '@/components/ui/TableActionButton'
+import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
@@ -70,7 +70,7 @@ const fxRateColumns: Array<ResizableColumnDefinition<FxRateColumnKey>> = [
   { key: 'rate', defaultWidth: 130, minWidth: 110 },
   { key: 'source', defaultWidth: 130, minWidth: 105 },
   { key: 'active', defaultWidth: 105, minWidth: 90 },
-  { key: 'action', defaultWidth: 105, minWidth: 90 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 const today = new Date().toISOString().slice(0, 10)
@@ -396,7 +396,7 @@ export function FxRatePageClient() {
               <ResizableTableHead align="right" label="Rate" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="rate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('rate', 'Rate')} />
               <ResizableTableHead label="Source" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="source" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('source', 'Source')} />
               <ResizableTableHead align="center" label="Active" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="active" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('active', 'Active')} />
-              <ResizableTableHead align="right" label="" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+              <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -412,7 +412,7 @@ export function FxRatePageClient() {
                 <td className="min-w-0 truncate px-3 py-3 text-xs text-slate-700">{row.source || '-'}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-center text-xs text-slate-600">{row.active ? 'Yes' : 'No'}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right">
-                  <TableActionButton onClick={() => openEdit(row)} />
+                  <TableActionButton label="แก้ไข" menu={<TableActionMenuItem onSelect={() => openEdit(row)}>แก้ไข</TableActionMenuItem>} />
                 </td>
               </tr>
             ))}
@@ -449,15 +449,9 @@ export function FxRatePageClient() {
               <span className="text-lg font-bold text-blue-700 font-mono">{formatRate(row.rate)}</span>
             </div>
             
-            <div className="flex justify-between pt-1.5 border-t border-slate-100/60 mt-1 text-slate-500 text-xs items-center">
-              <span>Source: {row.source || '-'}</span>
-              <button
-                className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                type="button"
-                onClick={() => openEdit(row)}
-              >
-                จัดการ
-              </button>
+            <div className="mt-1 space-y-2 border-t border-slate-100/60 pt-1.5 text-xs text-slate-500">
+              <span className="block">Source: {row.source || '-'}</span>
+              <TableActionButton mobileLabel menu={<TableActionMenuItem onSelect={() => openEdit(row)}>แก้ไข</TableActionMenuItem>} />
             </div>
           </div>
         ))}
@@ -465,8 +459,8 @@ export function FxRatePageClient() {
 
       {showForm ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-10" onClick={() => setShowForm(false)}>
-          <div className="w-full max-w-lg overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onClick={(e) => e.stopPropagation()}>
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
+          <div className="w-full max-w-lg overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" data-ns-field-scope="entry" onClick={(e) => e.stopPropagation()}>
+            <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
               <h3 className="font-bold text-white">{form.id ? 'แก้ไข FX Rate' : 'เพิ่ม FX Rate'}</h3>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
                 <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" type="button" onClick={() => setShowForm(false)}>ยกเลิก</button>

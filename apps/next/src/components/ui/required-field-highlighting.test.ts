@@ -7,20 +7,76 @@ import { poSellFormSchema, poSellPageFormSchema } from '../../lib/sales'
 
 const source = (relativePath: string) => readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8')
 
-describe('required manual-entry field highlighting contract', () => {
-  it('keeps required manual fields yellow while excluding automatic, readonly, disabled, and invalid fields', () => {
+describe('manual-entry field highlighting contract', () => {
+  it('keeps every editable entry, search, filter, and date field yellow while excluding automatic, readonly, disabled, invalid, and non-data controls', () => {
     const css = source('../../app/globals.css')
 
-    expect(css).toContain('--ns-manual-required-bg: #fff7cc')
+    expect(css).toContain('--ns-manual-entry-bg: #fff7cc')
     expect(css).toContain('--ns-field-invalid-bg: #fef2f2')
-    expect(css).toContain('[data-manual-required="true"]')
-    expect(css).toContain(':required:not(:disabled):not([readonly])')
+    expect(css).toContain('Every field users type into or select stays pale yellow')
+    expect(css).toContain('Filter/search/date controls are also user-owned inputs')
+    expect(css).toContain(':where([data-ns-field-scope="filter"])')
+    expect(css).toContain('Global fallback: active pages without an explicit scope')
+    expect(css).toContain('form:not([data-ns-field-scope="filter"])')
+    expect(css).toContain('[data-ns-dialog-content]:not([data-ns-field-scope="filter"])')
+    expect(css).toContain('[data-ns-field-scope="entry"]')
+    expect(css).toContain(':not(:where([data-ns-field-scope="filter"] *))')
+    expect(css).toContain(':not(:where([data-field-invalid="true"] *))')
+    expect(css).toContain(':not([type="submit"])')
+    expect(css).toContain(':not([type="reset"])')
+    expect(css).toContain(':not([type="button"])')
+    expect(css).toContain(':not([type="image"])')
+    expect(css).toContain(':not(:disabled):not([readonly])')
+    expect(css).toContain(':not([aria-disabled="true"])')
+    expect(css).toContain(':not([aria-readonly="true"])')
     expect(css).toContain(':not([aria-invalid="true"])')
     expect(css).toContain(':not([data-auto-filled="true"])')
-    expect(css).toContain('Required manual fields must stay yellow while focused')
-    expect(css).toContain('Validation errors override required yellow with a red field surface')
+    expect(css).toContain('Manual-entry fields must stay yellow while focused')
+    expect(css).toContain('Validation errors override manual-entry yellow with a red field surface')
     expect(css).toContain('[aria-invalid="true"]:not(:disabled):not([readonly])')
-    expect(css).not.toContain(':where([data-manual-required="true"]):not([data-field-invalid="true"])')
+    expect(css).not.toContain('--ns-manual-required-bg')
+    expect(css.indexOf('Dark-mode implementation-only readonly comboboxes remain manual-entry fields')).toBeGreaterThan(
+      css.indexOf('.dark :where(input:disabled, select:disabled, textarea:disabled, input[readonly], textarea[readonly])'),
+    )
+  })
+
+  it('marks form-free business surfaces and filter scopes explicitly', () => {
+    const dialog = source('./Dialog.tsx')
+    const mobileFilterSheet = source('./MobileFilterSheet.tsx')
+    const weightTicketForm = source('../daily/WeightTicketFormCore.tsx')
+    const transactionBills = source('../daily/TransactionBillsPageClient.tsx')
+    const companyProfile = source('../../app/admin/company-profile/CompanyProfilePageClient.tsx')
+    const lineSettings = source('../../app/admin/line-settings/LineSettingsPageClient.tsx')
+    const systemSettings = source('../../app/admin/system-settings/SystemSettingsPageClient.tsx')
+    const transactionLedger = source('../../app/admin/transaction-ledger/TransactionLedgerPageClient.tsx')
+    const costAllocator = source('../dual-costing/CostAllocatorPageClient.tsx')
+    const fixedAssets = source('../finance-accounting/FixedAssetsPageClients.tsx')
+    const fxRate = source('../finance/foreign/FxRatePageClient.tsx')
+    const intlTransfer = source('../finance/foreign/IntlTransferPageClient.tsx')
+    const salesPlan = source('../main/MainSalesControlClients.tsx')
+    const overseasReceipt = source('../finance/foreign/OverseasReceiptPageClient.tsx')
+    const advancePayments = source('../purchase-flow/AdvancePaymentsPageClient.tsx')
+
+    expect(dialog).toContain('data-ns-dialog-content={shellMode}')
+    expect(mobileFilterSheet).toContain('data-ns-field-scope="filter"')
+    for (const businessSurface of [
+      weightTicketForm,
+      transactionBills,
+      companyProfile,
+      lineSettings,
+      systemSettings,
+      transactionLedger,
+      costAllocator,
+      fixedAssets,
+      fxRate,
+      intlTransfer,
+      salesPlan,
+      overseasReceipt,
+    ]) {
+      expect(businessSurface).toContain('data-ns-field-scope="entry"')
+    }
+    expect(advancePayments).toContain('data-ns-field-scope="filter"')
+    expect(weightTicketForm).toMatch(/<div className="relative" data-ns-field-scope="filter">[\s\S]*?<Search[\s\S]*?<Input/)
   })
 
   it('marks the shared searchable, branch, and select field families from their required labels', () => {
@@ -46,6 +102,7 @@ describe('required manual-entry field highlighting contract', () => {
 
     expect(css).toContain(':where([role="combobox"])[aria-required="true"]')
     expect(css).toContain(':where([data-manual-required="true"]) :where([data-slot="input-group"]):has(input:not(:disabled):not([readonly])')
+    expect(css).toContain('[data-slot="input-group"]:has(input:not(:disabled):not([readonly]):not([data-auto-filled="true"])):focus-within')
     expect(css).toContain(':where([data-required-group="true"])[data-manual-required="true"]:not([data-field-invalid="true"])')
     expect(css).toContain('input[data-manual-entry-readonly="true"][readonly]:not(:disabled)')
     expect(weightTicketForm).toMatch(/<ComboboxInput[\s\S]*?data-manual-entry-readonly="true"[\s\S]*?readOnly/)

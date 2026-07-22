@@ -152,7 +152,7 @@ const customerAdvanceColumns: Array<ResizableColumnDefinition<CustomerAdvanceCol
   { key: 'usableCreditAmount', defaultWidth: 140, minWidth: 120 },
   { key: 'availableAmount', defaultWidth: 140, minWidth: 120 },
   { key: 'status', defaultWidth: 150, minWidth: 125 },
-  { key: 'action', defaultWidth: 160, minWidth: 150 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 function decimalValue(value: string) {

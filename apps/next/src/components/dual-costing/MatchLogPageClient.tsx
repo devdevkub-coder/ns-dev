@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
-import { TableActionButton } from '@/components/ui/TableActionButton'
+import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { Select } from '@/components/ui/Select'
 import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -59,7 +59,7 @@ const matchLogColumns: Array<ResizableColumnDefinition<MatchLogColumnKey>> = [
   { key: 'totalCost', defaultWidth: 135, minWidth: 110 },
   { key: 'allocationMode', defaultWidth: 115, minWidth: 95 },
   { key: 'status', defaultWidth: 120, minWidth: 100 },
-  { key: 'action', defaultWidth: 110, minWidth: 95 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 export function MatchLogPageClient() {
@@ -300,7 +300,15 @@ export function MatchLogPageClient() {
               <td className="p-2 text-center text-xs">{row.allocationMode}</td>
               <td className="p-2 text-center"><span className={`rounded-md px-2 py-0.5 text-xs ${row.status === 'reversed' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{statusLabel(row.status)}</span></td>
               <td className="p-2 text-right">
-                {row.status !== 'reversed' ? <TableActionButton className="text-red-600" disabled title="Reverse ยังเป็น read-only shell" label="ย้อนกลับ" /> : null}
+                {row.status !== 'reversed' ? (
+                  <TableActionButton
+                    className="text-red-600"
+                    disabled
+                    label="ย้อนกลับ"
+                    menu={<TableActionMenuItem disabled>ย้อนกลับ</TableActionMenuItem>}
+                    title="Reverse ยังเป็น read-only shell"
+                  />
+                ) : null}
               </td>
             </tr>
           ))}

@@ -2,16 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Pencil, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input } from '@/components/ui/Input'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Select } from '@/components/ui/Select'
 import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
-import { TableActionButton } from '@/components/ui/TableActionButton'
+import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
@@ -218,7 +216,7 @@ function WaitingAllocationsView() {
     { key: 'unitPrice', label: 'ราคา/กก.', defaultWidth: 100, align: 'right' },
     { key: 'revenuePending', label: 'มูลค่ารอจัดสรร', defaultWidth: 120, align: 'right' },
     { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, className: 'ns-table-textual-column' },
-    { key: 'action', label: 'จัดการ', defaultWidth: 90, align: 'right' },
+    { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'right' },
   ], [])
 
   const billColumns = useMemo<Array<ResizableColumnDefinition<string> & { label: string; align?: 'left' | 'right' | 'center'; className?: string }>>(() => [
@@ -233,7 +231,7 @@ function WaitingAllocationsView() {
     { key: 'unitPrice', label: 'ราคา/กก.', defaultWidth: 100, align: 'right' },
     { key: 'revenuePending', label: 'มูลค่ารอจัดสรร', defaultWidth: 120, align: 'right' },
     { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, className: 'ns-table-textual-column' },
-    { key: 'action', label: 'จัดการ', defaultWidth: 90, align: 'right' },
+    { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'right' },
   ], [])
 
   const productionColumns = useMemo<Array<ResizableColumnDefinition<string> & { label: string; align?: 'left' | 'right' | 'center'; className?: string }>>(() => [
@@ -248,7 +246,7 @@ function WaitingAllocationsView() {
     { key: 'unitPrice', label: 'ต้นทุน/กก.', defaultWidth: 100, align: 'right' },
     { key: 'revenuePending', label: 'มูลค่ารอจัดสรร', defaultWidth: 120, align: 'right' },
     { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, className: 'ns-table-textual-column' },
-    { key: 'action', label: 'จัดการ', defaultWidth: 90, align: 'right' },
+    { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'right' },
   ], [])
 
   const poResize = useResizableColumns('dual-costing.waiting.po.v2', poColumns)
@@ -732,7 +730,7 @@ function AllocationLedgerView() {
     { key: 'gpPct', label: 'GP%', defaultWidth: 80, minWidth: 70, align: 'right' },
     { key: 'allocatedBy', label: 'ผู้จัดสรร', defaultWidth: 135, minWidth: 115, className: 'ns-table-textual-column' },
     { key: 'status', label: 'สถานะ', defaultWidth: 115, minWidth: 100, className: 'ns-table-textual-column' },
-    { key: 'action', label: 'การจัดการ', defaultWidth: 105, minWidth: 95, align: 'center' },
+    { key: 'action', label: 'จัดการ', defaultWidth: 72, minWidth: 64, maxWidth: 88, align: 'center' },
   ], [])
   const ledgerResize = useResizableColumns('dual-costing.allocation-ledger.v1', ledgerColumns)
 
@@ -1080,13 +1078,14 @@ function AllocationLedgerView() {
               <span>โดย {row.allocatedBy}</span>
               <span>{row.allocatedAt ? formatDateDisplay(row.allocatedAt) : ''}</span>
             </div>
-            <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3" onClick={(event) => event.stopPropagation()}>
-              <Button disabled={row.status !== 'approved' || actionTargetId === row.dealId} size="sm" type="button" variant="outline" onClick={() => void handleReverse(row, true)}>
-                <Pencil className="mr-1.5 size-3.5" />แก้ไขข้อมูล
-              </Button>
-              <Button className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800" disabled={row.status !== 'approved' || actionTargetId === row.dealId} size="sm" type="button" variant="outline" onClick={() => void handleReverse(row, false)}>
-                <XCircle className="mr-1.5 size-3.5" />ยกเลิก
-              </Button>
+            <div className="border-t border-slate-100 pt-3" onClick={(event) => event.stopPropagation()}>
+              <LedgerActionMenu
+                busy={actionTargetId === row.dealId}
+                disabled={row.status !== 'approved'}
+                mobileLabel
+                onCancel={() => void handleReverse(row, false)}
+                onEdit={() => void handleReverse(row, true)}
+              />
             </div>
           </div>
         ))}
@@ -1549,31 +1548,29 @@ function LedgerMatchedCostDetails({ rows }: { rows: LedgerRow[] }) {
 function LedgerActionMenu({
   busy,
   disabled,
+  mobileLabel = false,
   onCancel,
   onEdit,
 }: {
   busy: boolean
   disabled: boolean
+  mobileLabel?: boolean
   onCancel: () => void
   onEdit: () => void
 }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <TableActionButton aria-label="เปิดเมนูการจัดการ" busy={busy} disabled={disabled || busy} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-40">
-        <DropdownMenuItem onSelect={onEdit}>
-          <Pencil className="mr-2 size-4 text-slate-500" />
-          แก้ไขข้อมูล
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-red-700 focus:bg-red-50 focus:text-red-800" onSelect={onCancel}>
-          <XCircle className="mr-2 size-4" />
-          ยกเลิก
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <TableActionButton
+      aria-label="เปิดเมนูการจัดการ"
+      busy={busy}
+      disabled={disabled || busy}
+      mobileLabel={mobileLabel}
+      menu={(
+        <>
+          <TableActionMenuItem onSelect={onEdit}>แก้ไขข้อมูล</TableActionMenuItem>
+          <TableActionMenuItem onSelect={onCancel}>ยกเลิก</TableActionMenuItem>
+        </>
+      )}
+    />
   )
 }
 
