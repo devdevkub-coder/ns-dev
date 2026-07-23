@@ -48,6 +48,7 @@ export type ProductionOrderMetric = {
   wipValue: number
   yieldPct: number
   inputProducts: string
+  machineId?: string | null
 }
 
 export type ProductionOutputProductMetric = {
@@ -82,10 +83,13 @@ const emptyLedgerMetric = (): ProductionLedgerMetric => ({
 
 export function productionWhere(filters: ProductionReportFilters, branchId?: bigint | null, machineId?: bigint | null): Prisma.production_ordersWhereInput {
   const requestedBranchAllowed = branchId != null && (filters.allowedBranchIds === undefined || filters.allowedBranchIds === null || filters.allowedBranchIds.some((allowedBranchId) => allowedBranchId === branchId))
+  const scopedBranch = filters.allowedBranchIds === undefined || filters.allowedBranchIds === null
+    ? {}
+    : { branch_id: { in: filters.allowedBranchIds } }
   return {
     ...(branchId != null
       ? requestedBranchAllowed ? { branch_id: branchId } : { branch_id: { in: [] } }
-      : filters.allowedBranchIds === undefined || filters.allowedBranchIds === null ? {} : { OR: [{ branch_id: null }, { branch_id: { in: filters.allowedBranchIds } }] }),
+      : scopedBranch),
     ...(machineId != null ? { machine_id: machineId } : {}),
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.dateFrom || filters.dateTo ? {
@@ -145,7 +149,7 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
         where: { status: 'active' },
       },
       production_lines: { select: { name: true } },
-      production_machines: { select: { name: true } },
+      production_machines: { select: { id: true, name: true } },
       production_outputs: {
         select: {
           category_code: true,
@@ -303,17 +307,18 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
       rmCostPerKg,
       status: order.status ?? 'Open',
       totalCost,
-      variance: outputValue - totalCost || toNumber(order.variance),
+      variance: outputValue - totalCost,
       warehouseName: order.warehouses?.name ?? '-',
       wipQty,
       wipValue,
       yieldPct: inputQty > 0 ? outputQty / inputQty * 100 : 0,
       inputProducts: Array.from(new Set(order.production_inputs.map(input => input.products?.name).filter(Boolean))).join(', ') || '-',
+      machineId: order.production_machines?.id?.toString() ?? null,
     }
   })
 }
 
-export async function loadProductionTotalWipQty() {
+export async function loadProductionTotalWipQty(filters: Pick<ProductionReportFilters, 'allowedBranchIds'> = {}) {
   const orders = await prisma.production_orders.findMany({
     select: {
       id: true,
@@ -327,6 +332,7 @@ export async function loadProductionTotalWipQty() {
       },
     },
     where: {
+      ...(filters.allowedBranchIds === undefined || filters.allowedBranchIds === null ? {} : { branch_id: { in: filters.allowedBranchIds } }),
       OR: [
         { status: null },
         { status: { notIn: ['Closed', 'Completed', 'Cancelled'] } },

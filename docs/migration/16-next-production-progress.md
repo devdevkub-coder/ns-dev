@@ -339,6 +339,13 @@ Tasks:
 - Target dashboard formulas/meanings:
   - `ผลิตได้ = sum active non-loss output receipt qty`
   - `WIP คงเหลือ = WIP_IN - PRODUCTION_OUTPUT_WIP_OUT - PRODUCTION_LOSS`
+
+#### 2026-07-23 Production Dashboard Query Separation Design Checkpoint
+
+- Approved a focused refactor for `/production/dashboard` and `GET /api/production/dashboard` only; `/production/report` and `/api/production/machine-utilization` remain outside this batch.
+- Dashboard-specific service/query modules will replace direct dependence on the shared `production-reports.ts` orchestration while preserving the existing response contract.
+- Required corrections are branch-scoped authorization, scoped current-WIP query, output/loss/machine aggregation correctness, safe BigInt serialization, `private, no-store`, and focused contract tests.
+- Dashboard query separation batch completed for `DASH-01` through `DASH-12`; no schema migration was needed after dev-target `EXPLAIN ANALYZE` review. Focused production tests `19/19`, formula verification `ok: true` for 7 rows, workspace type-check, production build, and diff-check passed. The task list is maintained in `docs/notes/page-flows/production-production-dashboard.md` under `Dashboard Query Separation Task List 2026-07-23`.
   - `Yield % = Output Qty / Input Qty * 100`
   - `Loss % = Loss Qty / Input Qty * 100`
   - `Top 10 สินค้าที่ผลิตมากสุด` groups actual output stock-in products, excluding loss.
