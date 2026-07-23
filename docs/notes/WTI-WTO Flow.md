@@ -13,7 +13,7 @@ tags:
   - decision
 status: draft
 created: 2026-06-11
-updated: 2026-07-11
+updated: 2026-07-23
 ---
 
 # WTI/WTO Flow / Flow ใบรับ-ส่งของ
@@ -51,6 +51,154 @@ updated: 2026-07-11
 - รูปสินค้าที่ใช้เลือกในฟอร์มเป็นเพียง master-data thumbnail เพื่อช่วยเลือกสินค้า ไม่ใช่หลักฐานแทนรูปหน้างาน
 - PDF/LINE share ต้องให้หน้าแรกเป็นใบพิมพ์ A4 และต่อหน้า 2+ เป็นอัลบั้มรูปหลักฐานจากรูปรถและรูปสินค้า
 - history/timeline ของเอกสารต้องเป็น append-only ตาม [[Document Timeline Policy]]
+
+## WTI Concurrent Draft / Auto-save Design (2026-07-23)
+
+### ขอบเขต
+
+รอบนี้ออกแบบและทำเฉพาะ `WTI` ก่อน เพื่อรองรับหน้างานที่มี 2 ตราชั่งและผู้ใช้ 2 คนเปิดเอกสารใบเดียวกันพร้อมกัน ผู้ใช้ทั้งสองคนแก้ไขร่วมกันได้เฉพาะส่วนรายการหน้างาน:
+
+- เพิ่มสินค้าและเพิ่มเต๋า
+- แก้ไขหรือลบเต๋า
+- แก้ไขข้อมูลสินค้าและน้ำหนัก
+- เพิ่ม แก้ไข หรือลบรูปภาพ
+- เพิ่ม แก้ไข หรือลบสิ่งเจือปน
+
+ข้อมูลหัวเอกสารและข้อมูลอื่น เช่น ผู้ขาย รถ ทะเบียนรถ วันที่ และหมายเหตุ ยังคงใช้ปุ่ม `บันทึก` แบบเดิม รอบนี้ไม่ทำ auto-save ให้ข้อมูลกลุ่มดังกล่าว
+
+### หลักการบันทึก
+
+เมื่อมีการเพิ่มสินค้า/เต๋าครั้งแรก ระบบสร้างเอกสารเป็น `draft` อัตโนมัติ หลังจากนั้นการเปลี่ยนแปลงในส่วนรายการหน้างานต้องบันทึกเป็น operation รายรายการ ไม่ส่งฟอร์มทั้งเอกสารกลับไปเขียนทับ:
+
+```text
+add line -> update line -> delete line
+add impurity -> update impurity -> delete impurity
+add image -> delete image
+```
+
+แต่ละเต๋าต้องมี `line_id` เฉพาะของตัวเอง แม้เป็นสินค้าเดียวกันจากคนละตราชั่งก็ต้องเก็บเป็นคนละ line เพื่อไม่ให้การบันทึกของผู้ใช้คนหนึ่งทับของอีกคนหนึ่ง หน้าจอสามารถ group สรุปตามสินค้าได้ แต่ข้อมูลจริงต้องรักษารายการเต๋าแยกกัน
+
+การเปลี่ยนแปลงรายการหน้างานที่บันทึกแล้วถือว่าเป็นข้อมูลใน draft ทันที ดังนั้นปุ่ม `ยกเลิก` จะไม่ย้อนกลับรายการที่ auto-save ไปแล้ว แต่จะทิ้งเฉพาะข้อมูลหัวเอกสาร/ข้อมูลอื่นที่ผู้ใช้แก้ไขค้างไว้และยังไม่ได้กด `บันทึก` หากมีข้อมูลค้างกลุ่มนี้ต้องถามยืนยันก่อนออกจากฟอร์ม
+
+### Realtime และ concurrency
+
+เอกสาร draft ต้องมี realtime channel ตาม `weight_ticket_id` เมื่อ Server commit operation สำเร็จจึง broadcast event ไปยังผู้ใช้อื่น:
+
+```text
+ตราชั่ง A เพิ่มเต๋า
+-> Server commit line ใหม่
+-> Server คำนวณ summary ล่าสุด
+-> broadcast event ของ line และ summary
+-> ตราชั่ง B แสดงข้อมูลใหม่โดยไม่ต้อง refresh
+```
+
+กติกาการชนกัน:
+
+- เพิ่มเต๋าพร้อมกัน: อนุญาตทั้งสองรายการและสร้างคนละ `line_id`
+- แก้ไขคนละ line: อนุญาตพร้อมกัน
+- แก้ไข line เดียวกัน: ตรวจ `version`; ถ้าข้อมูลเก่าแล้วต้องแจ้ง conflict และห้ามเขียนทับเงียบ ๆ
+- ลบรูปหรือสิ่งเจือปนซ้ำกัน: Server ต้องตรวจสถานะล่าสุดและทำให้ operation retry ได้โดยไม่สร้างข้อมูลซ้ำ
+- เมื่อเอกสารถูก `received` หรือ `cancelled`: broadcast สถานะใหม่และเปลี่ยนอีกเครื่องเป็น read-only
+
+หน้าจอต้องแสดงสถานะ `กำลังบันทึก`, `บันทึกแล้ว`, `มีการเปลี่ยนแปลงจากตราชั่งอื่น` และ `บันทึกไม่สำเร็จ` รวมถึงต้อง reload ข้อมูลล่าสุดเมื่อ reconnect หลังหลุดการเชื่อมต่อ
+
+### Server ownership และ API boundary
+
+Server เป็นผู้สร้าง `line_id`, ตรวจสิทธิ์/สถานะเอกสาร, validate น้ำหนักและสิ่งเจือปน, คำนวณยอดรวม และ rebuild product summary จาก lines จริง ทุก operation ต้องทำใน transaction เดียวกับการบันทึก event ที่จำเป็น
+
+แนว API ที่ต้องเพิ่มหรือปรับสำหรับ WTI:
+
+| Operation | หน้าที่ |
+|---|---|
+| `POST /api/daily/weight-tickets` | สร้าง WTI draft จาก operation แรก |
+| `POST /api/daily/weight-tickets/{id}/lines` | เพิ่มสินค้า/เต๋าแบบ append |
+| `PATCH /api/daily/weight-tickets/{id}/lines/{lineId}` | แก้ไข line พร้อมตรวจ version |
+| `DELETE /api/daily/weight-tickets/{id}/lines/{lineId}` | ลบ line พร้อมตรวจสถานะล่าสุด |
+| line impurity/image operations | เพิ่ม/แก้/ลบสิ่งเจือปนและรูปแบบรายรายการ |
+| existing `PUT` | ปรับให้ใช้เฉพาะข้อมูลหัวเอกสารและข้อมูลอื่นที่กด `บันทึก`; ห้าม rebuild หรือเขียนทับ lines ที่ auto-save |
+
+การเปลี่ยนแปลงนี้ต้องแยกจาก flow `confirm` เดิม: WTI draft ยังไม่เขียน stock ledger และการยืนยันรับของยังเป็น action ที่ผู้ใช้กดเอง
+
+### Shared foundation สำหรับ WTO ในอนาคต
+
+ส่วนที่ควรออกแบบเป็น shared module ตั้งแต่ต้นคือ operation API shape, line version/conflict handling, realtime event envelope, reconnect/resync, audit event, summary recalculation และ client save-state handling ส่วน validation ธุรกิจยังแยกตาม type:
+
+- `WTI`: supplier, impurity และ receipt flow
+- `WTO`: customer, warehouse, pending-out และ stock validation
+
+ยังไม่รวมการเปิด concurrent edit ของ WTO ในรอบนี้ และยังไม่เปลี่ยนกติกา `WTO draft`/`WTO confirm`
+
+### ลำดับ implementation และ acceptance criteria
+
+1. ทำ shared operation/version/event contract โดยยังเปิดใช้เฉพาะ WTI
+2. ทำ WTI line write transaction และ server-side summary
+3. ทำ realtime broadcast, client merge และ reconnect resync
+4. แยก auto-save เฉพาะสินค้า/น้ำหนัก/รูป/สิ่งเจือปนออกจาก manual-save fields
+5. ทดสอบสองตราชั่งเพิ่ม line พร้อมกัน, แก้คนละ line, แก้ line เดียวกัน, ลบรูป/สิ่งเจือปนพร้อมกัน และ offline/reconnect
+6. ตรวจว่า confirm/cancel/downstream เดิมยังทำงานตาม contract
+
+เกณฑ์ผ่านหลักคือ เมื่อผู้ใช้สองคนเพิ่มเต๋าพร้อมกัน รายการทั้งสองต้องอยู่ครบ ยอดรวมต้องตรงกับ lines จริง และผู้ใช้ทั้งสองต้องเห็นข้อมูลเดียวกันหลัง Server commit โดยไม่มี full-document overwrite
+
+### WTI Implementation Task List
+
+ลำดับนี้เป็น task list สำหรับ WTI รอบแรก โดย task ที่ระบุว่า shared ต้องออกแบบให้ WTO นำไปใช้ต่อได้ แต่ยังไม่เปิดใช้ concurrent update ใน WTO
+
+#### Phase 0: Contract และ baseline
+
+- [ ] `WTI-00` สรุป field ownership ของฟอร์ม: auto-save เฉพาะสินค้า/เต๋า/น้ำหนัก/รูป/สิ่งเจือปน; manual-save สำหรับข้อมูลหัวเอกสารและข้อมูลอื่น
+- [ ] `WTI-01` เก็บ baseline ของ POST/PUT/PATCH เดิม, payload, status transition, summary, audit และ downstream usage เพื่อกัน regression
+- [ ] `WTI-02` ระบุ operation contract กลาง: `add`, `update`, `delete`, `image`, `impurity`, `resync` พร้อม actor, client operation id และ document/line id
+
+#### Phase 1: Database และ server write foundation (shared)
+
+- [ ] `WTI-10` ตรวจ schema ปัจจุบันของ `weight_tickets`, `weight_ticket_lines`, impurity/image metadata และ summary bridge ว่ารองรับ line identity, ordering และ retry ได้หรือไม่
+- [ ] `WTI-11` เพิ่ม migration เฉพาะที่จำเป็นสำหรับ line/document version, idempotency และ append-only operation/audit event โดยไม่เปลี่ยนข้อมูลธุรกิจเดิม
+- [ ] `WTI-12` แยก service สำหรับสร้าง/แก้/ลบ WTI line และ rebuild summary จาก lines จริงใน transaction เดียว
+- [ ] `WTI-13` ปรับ `PUT` เดิมให้บันทึกเฉพาะ manual fields; ห้าม delete/recreate lines หรือ summaries ที่ถูก auto-save
+- [ ] `WTI-14` เพิ่ม optimistic concurrency check สำหรับการแก้ line เดียวกัน และ error contract สำหรับ `conflict`, `stale`, `document_locked` และ `retryable_failure`
+- [ ] `WTI-15` ทำ operation idempotency เพื่อให้ request ที่ retry หลัง network timeout ไม่สร้าง line, รูป หรือสิ่งเจือปนซ้ำ
+
+#### Phase 2: WTI line APIs
+
+- [ ] `WTI-20` เพิ่ม endpoint สร้าง WTI draft จาก operation แรกเมื่อผู้ใช้เพิ่มสินค้า/เต๋า
+- [ ] `WTI-21` เพิ่ม endpoint append line สำหรับ `เพิ่มสินค้า` และ `เพิ่มเต๋า`
+- [ ] `WTI-22` เพิ่ม endpoint update/delete line สำหรับสินค้าและน้ำหนัก
+- [ ] `WTI-23` เพิ่ม endpoint เพิ่ม/แก้/ลบสิ่งเจือปนแบบผูกกับ line
+- [ ] `WTI-24` ปรับ attachment flow ให้เพิ่ม/ลบรูปแบบผูกกับ line และ retry ได้โดยไม่เกิด duplicate metadata
+- [ ] `WTI-25` ให้ทุก response ส่ง line ที่เปลี่ยน, summary ล่าสุด, document version และ event sequence ที่ใช้ resync
+
+#### Phase 3: Realtime และ recovery (shared)
+
+- [ ] `WTI-30` กำหนด realtime channel ต่อ `weight_ticket_id` และ event envelope กลางสำหรับ WTO
+- [ ] `WTI-31` broadcast หลัง transaction สำเร็จเท่านั้น; ห้าม broadcast ข้อมูลที่ยัง rollback ได้
+- [ ] `WTI-32` ทำ client merge รายการตาม `line_id` โดยไม่ replace state ทั้งเอกสารจาก event ที่มาช้ากว่า
+- [ ] `WTI-33` ทำ reconnect/resync จาก Server เมื่อหลุด connection, event sequence ขาด หรือ client reload
+- [ ] `WTI-34` แสดงผู้ใช้งาน/ตราชั่งที่กำลังแก้ไขเอกสาร และสถานะ `กำลังบันทึก`, `บันทึกแล้ว`, `มีการเปลี่ยนแปลงจากตราชั่งอื่น`, `บันทึกไม่สำเร็จ`
+
+#### Phase 4: WTI form behavior
+
+- [ ] `WTI-40` เมื่อเพิ่มสินค้า/เต๋าครั้งแรก ให้สร้าง draft และเก็บ `document_id` ไว้ใช้ต่อโดยไม่ออก draft ซ้ำ
+- [ ] `WTI-41` auto-save การเพิ่ม/แก้/ลบสินค้า เต๋า น้ำหนัก รูป และสิ่งเจือปนตาม operation API
+- [ ] `WTI-42` ป้องกันการส่ง request ซ้ำจากการกดเร็ว, debounce เฉพาะ field น้ำหนักที่กำลังพิมพ์ และคง stable row/line identity
+- [ ] `WTI-43` เมื่อ event จากตราชั่งอื่นเข้ามา ให้ merge รายการและ summary โดยไม่ล้างข้อมูลที่ผู้ใช้กำลังกรอก
+- [ ] `WTI-44` แยก dirty state ของ manual fields ออกจาก auto-save state; ถ้ากดยกเลิกขณะ manual fields ยังไม่บันทึก ให้ถามยืนยัน
+- [ ] `WTI-45` หลัง WTI ถูก `received` หรือ `cancelled` ให้เปลี่ยนทั้งสองเครื่องเป็น read-only และหยุด auto-save
+
+#### Phase 5: Validation และ rollout
+
+- [ ] `WTI-50` เพิ่ม unit/contract tests สำหรับ operation validation, summary, version conflict และ idempotency
+- [ ] `WTI-51` เพิ่ม integration tests สำหรับผู้ใช้สองคนเพิ่ม line พร้อมกัน, แก้คนละ line, แก้ line เดียวกัน และลบข้อมูลเดียวกัน
+- [ ] `WTI-52` ทดสอบรูป/สิ่งเจือปน, network timeout, retry, reconnect และ event sequence gap
+- [ ] `WTI-53` ตรวจ confirm/cancel, Purchase Bill downstream, timeline, print, LINE และ permission ว่ายังอ่านข้อมูลครบจาก line จริง
+- [ ] `WTI-54` รัน lint, type-check, build และ focused test suite; browser/UAT ทำเมื่อผู้ใช้ร้องขอโดยตรง
+- [ ] `WTI-55` บันทึก flow summary หลัง validation และกำหนด checklist สำหรับเปิดใช้จริงทีละสาขาหรือทีละ environment
+
+#### Out of scope รอบ WTI
+
+- ไม่เปิด concurrent edit สำหรับ WTO ในรอบนี้
+- ไม่เปลี่ยนกติกา WTO draft, pending-out หรือ stock reservation
+- ไม่ทำ multi-user editing สำหรับข้อมูลหัวเอกสารที่ยังใช้ manual save
+- ไม่เปลี่ยนกติกาการยืนยันรับของและ downstream stock flow
 
 ## ขอบเขตของ WTI กับ WTO
 
