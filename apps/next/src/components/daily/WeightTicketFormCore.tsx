@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils'
 import { cachedWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
 import {
   calculateWeightTicketLineTotals,
+  createWeightTicketDraft,
   createWeightTicketLine,
   decodeStoredImageAsset,
   encodeStoredImageReference,
@@ -981,35 +982,22 @@ export function WeightTicketFormCore({
       || loadedTicket
       || isLoadingTicket
       || createDraftInFlightRef.current
-      || Object.keys(errors).length > 0
+      || ['branchId', 'partyId', 'vehicleNo', 'godownName'].some((key) => errors[key])
       || !form.lines.some((line) => line.productId)
     ) return
 
     const timerId = window.setTimeout(() => {
       createDraftInFlightRef.current = true
-      void saveWeightTicket({
+      const firstProductLine = form.lines.find((line) => line.productId)
+      if (!firstProductLine) return
+      void createWeightTicketDraft({
         branchId: form.branchId,
-        lines: form.lines.map((line) => ({
-          containerDeductionWeight: Number(line.containerDeductionWeight || 0),
-          deductionMode: line.deductionMode,
-          deductionValue: Number(line.deductionValue || 0),
-          grossWeight: Number(line.grossWeight || 0),
-          id: line.id,
-          imageNames: getLineEvidenceImages(line).map((file) => file.rawValue),
-          impurityId: getLineImpurityId(line),
-          impurityProductId: line.impurityProductId ?? '',
-          impuritySourceLineId: line.impuritySourceLineId ?? undefined,
-          note: line.note,
-          productId: line.productId,
-          warehouseId: line.warehouseId,
-          parentId: line.parentId,
-        })),
+        godownName: form.godownName.trim(),
         partyId: form.partyId,
+        productId: firstProductLine.productId,
         remark: form.remark.trim(),
-        type: WEIGHT_TICKET_TYPE.WTI,
         vehicleImageNames: form.vehicleImageFiles.map((file) => file.rawValue),
         vehicleNo: form.vehicleNo.trim(),
-        godownName: form.godownName.trim(),
       }).then((ticket) => {
         const nextForm = ticketToFormState(ticket)
         setLoadedTicket(ticket)

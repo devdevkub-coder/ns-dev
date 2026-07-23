@@ -56,7 +56,7 @@ Branch: `codex/wti-concurrent-autosave`; target SIT branch: `sit-origin/codex/wt
 
 Write areas: WTI draft operation schema/migration, `/api/daily/weight-tickets/[id]/lines`, WTI form client queue/realtime merge, canonical WTI/WTO flow note.
 
-Validation: workspace type-check, lint, and production build pass; browser/UAT not run. Pending: migration preflight/apply to SIT, commit, push branch, and focused review of concurrent add/update/delete behavior.
+Validation: workspace type-check and production build pass after partial-draft creation; browser/UAT not run. Dev-target and SIT migration `20260723120000` applied. Pending: commit/push correction and local two-user verification.
 
 Dashboard report query-slimming checkpoint 2026-07-19: Dashboard Overview และ Daily Report ใช้ lightweight sales-line reader เฉพาะ amount/product/qty และไม่เรียก allocation/trading/stock-cost pipeline ที่ไม่ใช่ consumer ของหน้านี้; สี่ report API เพิ่ม `Server-Timing` (`auth`, `service`, `total`) เพื่อแยกคอขวดจาก SIT. Type-check, lint (มี warning เดิมที่ `qa-thai-font.tsx`), production build `312/312` และ diff-check ผ่าน. Local re-measurement หลังแก้ยังติด `P1000` จาก database credential ใน env ปัจจุบัน; ต้องแก้ connection แล้ววัด parity/performance ซ้ำก่อน promotion. Browser/UAT ยังไม่ได้รันใน coding batch นี้.
 

@@ -1075,6 +1075,23 @@ export async function saveWeightTicket(values: WeightTicketFormValues) {
   return readJsonResponse(response, weightTicketRecordSchema, parsed.id ? 'แก้ไขใบรับ-ส่งของไม่ได้' : 'บันทึกใบรับ-ส่งของไม่ได้')
 }
 
+export async function createWeightTicketDraft(values: {
+  branchId: string
+  godownName: string
+  partyId: string
+  productId: string
+  remark: string
+  vehicleImageNames: string[]
+  vehicleNo: string
+}) {
+  const response = await fetch('/api/daily/weight-tickets/drafts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(values),
+  })
+  return readJsonResponse(response, weightTicketRecordSchema, 'สร้าง draft ใบรับของไม่ได้')
+}
+
 export type WeightTicketLineDraftAction = 'add' | 'update' | 'delete'
 
 export async function saveWeightTicketLineDraft(input: {
