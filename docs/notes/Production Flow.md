@@ -159,7 +159,15 @@ Dashboard source-of-truth ต้องใช้ production facts ที่ recon
   * ตามคำสั่งผู้ใช้ ให้ทำการซ่อนหน้าแดชบอร์ดการผลิตชั่วคราวเพื่อเก็บไว้ก่อน
   * ดำเนินการโดยถอดเส้นทางเข้าถึงออกจากโครงสร้างเมนูหลัก [navigation.ts](file:///c:/new-ns-scrap-erp/apps/next/src/lib/navigation.ts) และหน้ารวมรายงาน [ReportsIndexPageClient.tsx](file:///c:/new-ns-scrap-erp/apps/next/src/app/reports/ReportsIndexPageClient.tsx) เรียบร้อยแล้ว
   * Route และ API ยังเก็บไว้เป็น hidden baseline ไม่ใช่ active navigation/report surface
-  * Direct route บน mobile ไม่แสดง header card/heading ซ้ำด้านบน เหลือ tabs และเนื้อหา dashboard ตามเดิม
+  * Direct route ทั้ง desktop และ mobile ไม่แสดง header card/heading ซ้ำด้านบน เหลือ tabs และเนื้อหา dashboard ตามเดิม
+  * Dashboard breakdown headers ใช้ neutral table header (`bg-slate-100`, `text-slate-700`); คอลัมน์ตัวเลข align ขวาให้ตรงกับค่าข้อมูล และไม่ใช้สี semantic กับชื่อ section โดยไม่จำเป็น
+  * Dashboard overview วางกราฟรายวันและตารางการใช้เครื่องจักรเป็นคนละแถวเต็มความกว้างบน desktop เพื่อให้ตารางอ่านแนวนอนได้เต็มพื้นที่และไม่เกิดพื้นที่ว่างจากการยืดความสูงตามกราฟ
+  * KPI สถานะ `เสร็จบางส่วน`, `กำลังผลิต`, และ `เสร็จสิ้น` รวมเป็น card เดียวชื่อ `สถานะการผลิต`; KPI ใบสั่งผลิต, WIP คงเหลือ และอัตราผลได้ยังแยกเป็นค่าหลักคนละ card
+  * Dashboard date presets และช่วงวันที่ใช้แถวเดียวกันบน desktop เพื่อลดพื้นที่ filter; mobile ยัง wrap ตามขนาดหน้าจอ
+  * Filter ของกราฟเป็น control group ภายใน header ของ chart โดยไม่สร้าง card ซ้อน card เพื่อรักษาลำดับ visual hierarchy และลดพื้นที่ว่างที่ไม่จำเป็น
+  * กราฟผลิตรายวันรักษา SVG aspect ratio เพื่อไม่ให้เส้นและตัวหนังสือถูกยืดผิดสัดส่วน; พื้นที่แคบใช้ horizontal scroll แทนการบีบกราฟ
+  * Dashboard status KPI ใช้สี semantic แยก `เสร็จบางส่วน`, `กำลังผลิต`, และ `เสร็จสิ้น`; Top 10 ระบุหน่วยในหัวคอลัมน์ และจำกัดความสูงของรายการเพื่อไม่ให้ dashboard ยาวเกินไป
+  * Chart plot ใช้ความกว้างของ container เป็นฐานในการคำนวณ SVG viewBox จึงเต็มพื้นที่ใน desktop โดยคงขนาดตัวอักษรและ aspect ratio เดิม
 
 
 Status target สำหรับ MVP:

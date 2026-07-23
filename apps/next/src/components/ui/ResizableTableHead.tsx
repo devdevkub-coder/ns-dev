@@ -6,6 +6,12 @@ import { Triangle } from 'lucide-react'
 type Align = 'center' | 'left' | 'right'
 type SortDirection = 'asc' | 'desc'
 
+const alignmentClasses: Record<Align, { justify: string; text: string }> = {
+  center: { justify: 'justify-center', text: 'text-center' },
+  left: { justify: 'justify-start', text: 'text-left' },
+  right: { justify: 'justify-end', text: 'text-right' },
+}
+
 export function ResizableTableHead<TSortKey extends string>({
   activeSortKey,
   align = 'left',
@@ -26,6 +32,8 @@ export function ResizableTableHead<TSortKey extends string>({
   sortKey?: TSortKey
 }) {
   const active = Boolean(sortKey && activeSortKey === sortKey)
+  const alignment = alignmentClasses[align]
+  const contentPadding = align === 'right' ? 'p-2 pr-3' : 'p-2 pr-4'
   const activeSortIconStyle = { color: 'var(--ns-sort-active)' }
   const content = (
     <>
@@ -44,14 +52,14 @@ export function ResizableTableHead<TSortKey extends string>({
       aria-sort={sortKey ? (active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none') : undefined}
       data-column-align={align}
       data-resizable-table-head=""
-      className={`relative bg-inherit p-0 text-center text-xs font-semibold text-slate-700 ${className}`}
+      className={`relative bg-inherit p-0 text-xs font-semibold text-slate-700 ${alignment.text} ${className}`}
     >
       {sortKey && onSort ? (
-        <button className="flex w-full min-w-0 items-center justify-center gap-1.5 p-2 pr-4 text-center hover:bg-slate-200" type="button" onClick={() => onSort(sortKey)}>
+        <button className={`flex w-full min-w-0 items-center ${alignment.justify} gap-1.5 ${contentPadding} ${alignment.text} hover:bg-slate-200`} type="button" onClick={() => onSort(sortKey)}>
           {content}
         </button>
       ) : (
-        <div className="flex min-w-0 items-center justify-center gap-1.5 p-2 pr-4 text-center">
+        <div className={`flex min-w-0 items-center ${alignment.justify} gap-1.5 ${contentPadding} ${alignment.text}`}>
           {content}
         </div>
       )}

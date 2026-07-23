@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { ResizableTableHead } from './ResizableTableHead'
 
 describe('ResizableTableHead alignment', () => {
-  it('centers every label while retaining the body alignment metadata', () => {
+  it('aligns the header label and sort control with the column data', () => {
     const html = renderToStaticMarkup(
       <table>
         <thead>
@@ -23,7 +23,8 @@ describe('ResizableTableHead alignment', () => {
     )
 
     expect(html).toContain('data-column-align="right"')
-    expect(html).toContain('justify-center')
-    expect(html).toContain('text-center')
+    expect(html).toContain('justify-end')
+    expect(html).toContain('text-right')
+    expect(html).toContain('p-2 pr-3')
   })
 })

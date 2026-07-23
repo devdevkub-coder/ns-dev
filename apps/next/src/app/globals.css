@@ -499,6 +499,24 @@ table.ns-table > thead > tr > th:not([colspan]) > :is(.flex, .inline-flex, butto
   text-align: center !important;
 }
 
+table.ns-table > thead > tr > th[data-column-align="left"]:not([colspan]) {
+  text-align: left !important;
+}
+
+table.ns-table > thead > tr > th[data-column-align="left"]:not([colspan]) > :is(.flex, .inline-flex, button) {
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+
+table.ns-table > thead > tr > th[data-column-align="right"]:not([colspan]) {
+  text-align: right !important;
+}
+
+table.ns-table > thead > tr > th[data-column-align="right"]:not([colspan]) > :is(.flex, .inline-flex, button) {
+  justify-content: flex-end !important;
+  text-align: right !important;
+}
+
 table.ns-table > :is(tbody, tfoot) > tr > :is(th, td):not([colspan]) {
   text-align: left !important;
 }
