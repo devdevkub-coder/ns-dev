@@ -651,7 +651,7 @@ function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: St
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent className="flex max-h-[90vh] max-w-5xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 dark:bg-[#0f172a] !p-0 animate-fade-in" hideClose>
-        <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-t-md border-b border-slate-800 bg-slate-900 px-5 py-4 text-white dark:border-slate-200 dark:bg-[#0f172a]">
+        <div data-ns-dialog-header className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-t-md border-b border-slate-800 bg-slate-900 px-5 py-4 text-white dark:border-slate-200 dark:bg-[#0f172a]">
           <div>
             <DialogTitle className="text-lg font-bold text-white">รายละเอียด {row.refNo || 'รายการเคลื่อนไหวสต๊อก'}</DialogTitle>
             <DialogDescription className="mt-0.5 text-xs text-slate-400">

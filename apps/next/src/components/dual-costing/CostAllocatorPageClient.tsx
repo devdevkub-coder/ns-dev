@@ -354,7 +354,7 @@ export function CostAllocatorPageClient() {
   }
 
   return (
-    <DualCostingPageSection>
+    <DualCostingPageSection data-ns-field-scope="entry">
       <DualCostingErrorBox error={error} />
 
       <DualCostingPanel title="⓪ เลือกประเภทปลายทางที่จะจับคู่ต้นทุน" titleAction={<PanelToggleButton collapsed={collapsedSections.step0} onClick={() => toggleSection('step0')} />}>

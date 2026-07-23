@@ -144,7 +144,7 @@ const expenseColumns: Array<ResizableColumnDefinition<ExpenseColumnKey>> = [
   { key: 'status', defaultWidth: 130, minWidth: 110 },
   { key: 'netAmount', defaultWidth: 110, minWidth: 90 },
   { key: 'amountSummary', defaultWidth: 120, minWidth: 95 },
-  { key: 'action', defaultWidth: 180, minWidth: 150 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 function expenseStatusLabel(status: ExpenseFormValues['status']) {
@@ -1582,7 +1582,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
           {formOpen ? (
             <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
               <form ref={formRef} noValidate className="w-full max-w-6xl overflow-hidden rounded-md bg-slate-900 shadow-xl" onSubmit={saveForm}>
-                <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900 px-5 py-4 text-white rounded-t-md shrink-0">
+                <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 bg-slate-900 px-5 py-4 text-white rounded-t-md shrink-0">
                   <h3 className="font-bold text-white text-base">{form.id ? 'แก้ไขค่าใช้จ่าย' : 'เพิ่มค่าใช้จ่าย'}</h3>
                   <div className="flex shrink-0 flex-wrap justify-end gap-2">
                     <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={() => setFormOpen(false)}>ยกเลิก</Button>
@@ -1885,6 +1885,16 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       </span>
                     </div>
                   </div>
+                  {canMutateExpense(row.status) ? (
+                    <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
+                      <TableActionButton mobileLabel menu={(
+                        <>
+                          <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>
+                          <TableActionMenuItem onSelect={() => void cancelExpense(row)}>ยกเลิก</TableActionMenuItem>
+                        </>
+                      )} />
+                    </div>
+                  ) : null}
                 </div>
               )
             })}
@@ -1993,7 +2003,7 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <DialogTitle id="expense-detail-title" className="truncate text-lg font-bold text-white">รายละเอียด {row.docNo}</DialogTitle>
-              <span className="inline-flex items-center gap-1.5 rounded bg-white/10 px-2 py-0.5 text-xs font-semibold text-white">
+              <span className="inline-flex items-center gap-1.5 rounded bg-slate-200/70 px-2 py-0.5 text-xs font-semibold text-current dark:bg-slate-700/70">
                 <span className={`size-1.5 rounded-full ${expenseStatusDotClass(row.status)}`} />
                 {expenseStatusLabel(row.status)}
               </span>

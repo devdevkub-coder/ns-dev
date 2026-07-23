@@ -443,7 +443,7 @@ const purchaseBillColumns: Array<ResizableColumnDefinition<TransactionBillColumn
   { key: 'totalAmount', defaultWidth: 110, minWidth: 90 },
   { key: 'outstanding', defaultWidth: 110, minWidth: 90 },
   { key: 'updatedBy', defaultWidth: 170, minWidth: 130 },
-  { key: 'action', defaultWidth: 240, minWidth: 210 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 const salesBillColumns: Array<ResizableColumnDefinition<TransactionBillColumnKey>> = [
@@ -461,7 +461,7 @@ const salesBillColumns: Array<ResizableColumnDefinition<TransactionBillColumnKey
   { key: 'outstanding', defaultWidth: 110, minWidth: 90 },
   { key: 'vat', defaultWidth: 110, minWidth: 90 },
   { key: 'updatedBy', defaultWidth: 170, minWidth: 130 },
-  { key: 'action', defaultWidth: 180, minWidth: 150 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 function formatPercent(value: number) {
@@ -3158,7 +3158,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               </div>
 
               <div className="flex justify-end mt-3 pt-2 border-t border-slate-100/60" onClick={(e) => e.stopPropagation()}>
-                <TableActionButton menu={(
+                <TableActionButton mobileLabel menu={(
                   <>
                     {mode === 'purchase' ? <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onSelect={() => void printPurchaseBill(row)}>พิมพ์</TableActionMenuItem> : null}
                     {mode === 'purchase' && row.canEdit !== false ? <TableActionMenuItem onSelect={() => openEditPurchaseForm(row)}>แก้ไข</TableActionMenuItem> : null}
@@ -3288,8 +3288,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 
       {showForm && mode === 'purchase' ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4">
-          <div className="mx-auto my-4 flex max-h-[94vh] w-full max-w-[1280px] flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl outline-none focus:outline-none">
-            <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
+          <div className="mx-auto my-4 flex max-h-[94vh] w-full max-w-[1280px] flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl outline-none focus:outline-none" data-ns-field-scope="entry">
+            <div data-ns-dialog-header className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
               <div className="min-w-0">
                 <h3 className="text-xl font-bold">📥 {editingBillId ? 'แก้ไขบิลรับซื้อ' : 'สร้างบิลรับซื้อใหม่'}</h3>
               </div>
@@ -3824,8 +3824,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       ) : null}
       {showSalesForm && mode === 'sales' ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4">
-          <div className="relative mx-auto my-4 flex max-h-[94vh] w-full max-w-[1480px] flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl outline-none focus:outline-none" data-combobox-portal-root="true">
-            <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
+          <div className="relative mx-auto my-4 flex max-h-[94vh] w-full max-w-[1480px] flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl outline-none focus:outline-none" data-combobox-portal-root="true" data-ns-field-scope="entry">
+            <div data-ns-dialog-header className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
               <div className="min-w-0">
                 <h3 className="text-xl font-bold">{editingSalesBillId ? `แก้ไขบิลขาย ${editingSalesBillId}` : 'สร้างบิลขายใหม่'}</h3>
               </div>
@@ -4156,7 +4156,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                                  <div className="rounded-md border border-slate-200 bg-white px-2 py-2 text-right font-bold tabular-nums text-slate-900">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</div>
 	                                </td>
 	                                <td className="p-2">
-                                  <TableActionButton disabled={!summaryState || summaryState.rowIndices.length <= 1} onClick={() => removeSalesStockAllocationRow(index)} />
+                                  <TableActionButton
+                                    disabled={!summaryState || summaryState.rowIndices.length <= 1}
+                                    label="ลบรายการ"
+                                    menu={<TableActionMenuItem onSelect={() => removeSalesStockAllocationRow(index)}>ลบรายการ</TableActionMenuItem>}
+                                  />
 	                                </td>
 	                              </tr>
 	                              {isLastRowOfSummary ? (

@@ -56,7 +56,7 @@ export const costPoolGroupColumns: Array<ResizableColumnDefinition<CostPoolGroup
   { key: 'availableQty', defaultWidth: 190, minWidth: 170 },
   { key: 'avgUnitCost', defaultWidth: 150, minWidth: 140 },
   { key: 'availableValue', defaultWidth: 190, minWidth: 170 },
-  { key: 'action', defaultWidth: 130, minWidth: 130 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 export const COST_POOL_GROUP_TABLE_COLUMN_COUNT = costPoolGroupColumns.length

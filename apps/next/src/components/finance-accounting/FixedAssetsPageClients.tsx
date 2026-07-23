@@ -178,7 +178,7 @@ const assetRegisterColumns: Array<ResizableColumnDefinition<AssetRegisterColumnK
   { key: 'nbv', defaultWidth: 175, minWidth: 145 },
   { key: 'monthlyDep', defaultWidth: 155, minWidth: 130 },
   { key: 'status', defaultWidth: 165, minWidth: 130 },
-  { key: 'actions', defaultWidth: 155, minWidth: 130 },
+  { key: 'actions', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 const depreciationColumns: Array<ResizableColumnDefinition<DepreciationColumnKey>> = [
@@ -191,7 +191,7 @@ const depreciationColumns: Array<ResizableColumnDefinition<DepreciationColumnKey
   { key: 'nbvBefore', defaultWidth: 145, minWidth: 120 },
   { key: 'nbvAfter', defaultWidth: 140, minWidth: 115 },
   { key: 'status', defaultWidth: 165, minWidth: 130 },
-  { key: 'actions', defaultWidth: 145, minWidth: 120 },
+  { key: 'actions', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 const disposalColumns: Array<ResizableColumnDefinition<DisposalColumnKey>> = [
@@ -204,7 +204,7 @@ const disposalColumns: Array<ResizableColumnDefinition<DisposalColumnKey>> = [
   { key: 'gainLoss', defaultWidth: 155, minWidth: 130 },
   { key: 'reason', defaultWidth: 210, minWidth: 150 },
   { key: 'status', defaultWidth: 155, minWidth: 125 },
-  { key: 'actions', defaultWidth: 135, minWidth: 115 },
+  { key: 'actions', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 const pendingAssetColumns: Array<ResizableColumnDefinition<PendingAssetColumnKey>> = [
@@ -782,7 +782,7 @@ export function AssetRegisterPageClient() {
                 <div><span className="text-slate-400 block text-xs">ค่าเสื่อม/เดือน</span><span className={`font-bold block ${row.monthlyDep > 0 ? 'text-amber-700' : 'text-slate-700'}`}>{formatMoney(row.monthlyDep)}</span></div>
               </div>
               <div className="border-t border-slate-100 pt-2 flex justify-end gap-2">
-                <TableActionButton menu={(
+                <TableActionButton mobileLabel menu={(
                   <>
                     <TableActionMenuItem disabled={isSaving} onSelect={() => openEdit(row)}>แก้ไข</TableActionMenuItem>
                     {!['Inactive', 'Sold', 'Disposed', 'Lost'].includes(row.assetStatus) ? <TableActionMenuItem disabled={isSaving} onSelect={() => deactivateAsset(row)}>ปิดใช้งาน</TableActionMenuItem> : null}
@@ -1293,7 +1293,7 @@ export function DepreciationPageClient() {
                     {row.status === 'reversed' ? (
                       <span className="text-xs text-slate-400 font-medium">{row.reversalReason || '-'}</span>
                     ) : (
-                      <TableActionButton disabled={isSaving} label="ย้อนกลับ" onClick={() => setReverseRow(row)} />
+                      <TableActionButton disabled={isSaving} label="ย้อนกลับ" menu={<TableActionMenuItem onSelect={() => setReverseRow(row)}>ย้อนกลับ</TableActionMenuItem>} />
                     )}
                   </td>
                 </tr>
@@ -1675,7 +1675,7 @@ export function AssetDisposalPageClient() {
                     {row.status === 'reversed' ? (
                       <span className="text-xs text-slate-400 font-medium">{row.reversalReason || '-'}</span>
                     ) : (
-                      <TableActionButton disabled={isSaving} label="ย้อนกลับ" onClick={() => openReverse(row)} />
+                      <TableActionButton disabled={isSaving} label="ย้อนกลับ" menu={<TableActionMenuItem onSelect={() => openReverse(row)}>ย้อนกลับ</TableActionMenuItem>} />
                     )}
                   </td>
                 </tr>
@@ -1953,8 +1953,8 @@ function Modal({ children, title }: { children: ReactNode; title: string }) {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-0 sm:p-4">
-      <div className="flex h-[100dvh] max-h-[100dvh] w-full max-w-none flex-col overflow-hidden rounded-none border-0 bg-slate-900 shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:max-w-6xl sm:rounded-md">
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 bg-slate-900 px-4 py-3 text-white dark:bg-[#0f172a] sm:px-6 sm:py-4">
+      <div className="flex h-[100dvh] max-h-[100dvh] w-full max-w-none flex-col overflow-hidden rounded-none border-0 bg-slate-900 shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:max-w-6xl sm:rounded-md" data-ns-field-scope="entry">
+        <div data-ns-dialog-header className="flex shrink-0 flex-wrap items-center justify-between gap-3 bg-slate-900 px-4 py-3 text-white dark:bg-[#0f172a] sm:px-6 sm:py-4">
           <h2 className="min-w-0 truncate text-sm font-semibold text-white">{title}</h2>
           {actions ? <div className="flex shrink-0 flex-wrap justify-end gap-2">{actions}</div> : null}
         </div>

@@ -323,7 +323,7 @@ export function CompanyProfilePageClient() {
   }
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-3" data-ns-field-scope="entry">
       {/* Desktop Toolbar (Hidden on Mobile) */}
       <div className="hidden rounded-xl border border-slate-200/60 bg-white p-4 text-slate-900 shadow-sm lg:block">
         <h1 className="text-xl font-bold">🏢 ข้อมูลบริษัทตามสาขา</h1>

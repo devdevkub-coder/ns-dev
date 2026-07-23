@@ -18,10 +18,10 @@ describe('weight ticket table layout', () => {
       ['containerDeductionWeight', 150],
       ['status', 130],
       ['updatedAt', 145],
-      ['action', 390],
+      ['action', 72],
     ])
-    expect(weightTicketColumns.reduce((sum, column) => sum + column.defaultWidth, 0)).toBe(1660)
-    expect(weightTicketColumns.find((column) => column.key === 'action')).toMatchObject({ defaultWidth: 390, minWidth: 390 })
+    expect(weightTicketColumns.reduce((sum, column) => sum + column.defaultWidth, 0)).toBe(1342)
+    expect(weightTicketColumns.find((column) => column.key === 'action')).toMatchObject({ defaultWidth: 72, maxWidth: 88, minWidth: 64 })
     expect(weightTicketColumns.every((column) => column.defaultWidth >= (column.minWidth ?? 80))).toBe(true)
   })
 

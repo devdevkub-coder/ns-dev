@@ -112,7 +112,7 @@ export function WeightTicketDetailModal({
   const [isPrinting, setIsPrinting] = useState(false)
   const [lineGallery, setLineGallery] = useState<{
     activeIndex: number
-    images: Array<{ fileName: string; url: string }>
+    images: Array<{ contextTitle?: string; fileName: string; url: string }>
     title: string
   } | null>(null)
   const [showShareDialog, setShowShareDialog] = useState(false)
@@ -284,7 +284,7 @@ export function WeightTicketDetailModal({
                 <>
                   {ticket.status === 'draft' ? (
                     <div className="flex items-center gap-3">
-                      {ticket.type === 'WTO' ? <span className="text-xs text-slate-300">ยังไม่จอง stock</span> : null}
+                      {ticket.type === 'WTO' ? <span className="text-xs text-current">ยังไม่จอง stock</span> : null}
                       <Button disabled={isConfirming} type="button" className="h-10 shrink-0 bg-emerald-600 text-white hover:bg-emerald-700 sm:h-9" onClick={() => void handleConfirmTicket()}>
                         <CheckCircle2 className="size-4" />
                         <span>{isConfirming ? 'กำลังยืนยัน...' : ticket.type === 'WTI' ? 'ยืนยันรับของ' : 'ยืนยันส่งของ'}</span>
@@ -429,7 +429,7 @@ export function WeightTicketDetailModal({
                     </div>
                     <WeightTicketProductBreakdownTable
                       ticket={ticket}
-                      onOpenLineGallery={({ images, title }) => setLineGallery({ activeIndex: 0, images, title })}
+                      onOpenLineGallery={setLineGallery}
                     />
                   </Card>
                   </div>
@@ -739,7 +739,7 @@ export function WeightTicketDetailModal({
               <DialogHeader className="rounded-t-md">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <DialogTitle>{lineGallery.title}</DialogTitle>
+                    <DialogTitle>{activeGalleryImage.contextTitle ?? lineGallery.title}</DialogTitle>
                     <DialogDescription className="truncate">
                       {activeGalleryImage.fileName} · รูป {lineGallery.activeIndex + 1} / {lineGallery.images.length}
                     </DialogDescription>

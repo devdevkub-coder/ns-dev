@@ -39,8 +39,8 @@ const salesPlanLmeRequestSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('save-config'),
     config: z.object({
-      fxRate: z.coerce.number().finite().min(0),
-      kgPerContainer: z.coerce.number().finite().min(0),
+      fxRate: z.coerce.number().finite().gt(0, 'USD/THB ต้องมากกว่า 0'),
+      kgPerContainer: z.coerce.number().finite().gt(0, 'กก./ตู้ ต้องมากกว่า 0'),
       lmeAluminumUSD: z.coerce.number().finite().min(0),
       lmeBrassUSD: z.coerce.number().finite().min(0),
       lmeCopperUSD: z.coerce.number().finite().min(0),

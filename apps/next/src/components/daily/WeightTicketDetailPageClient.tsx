@@ -120,7 +120,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
   const [expandedTimelineIds, setExpandedTimelineIds] = useState<Record<string, boolean>>({})
   const [lineGallery, setLineGallery] = useState<{
     activeIndex: number
-    images: Array<{ fileName: string; url: string }>
+    images: Array<{ contextTitle?: string; fileName: string; url: string }>
     title: string
   } | null>(null)
   const [showStockReturnDialog, setShowStockReturnDialog] = useState(false)
@@ -403,7 +403,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                   showBillingColumns
                   summaryTargetDocNos={summaryTargetDocNos}
                   ticket={ticket}
-                  onOpenLineGallery={({ images, title }) => setLineGallery({ activeIndex: 0, images, title })}
+                  onOpenLineGallery={setLineGallery}
                 />
               </Card>
             </div>
@@ -806,7 +806,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
               <DialogHeader className="rounded-t-md">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <DialogTitle>{lineGallery.title}</DialogTitle>
+                    <DialogTitle>{activeGalleryImage.contextTitle ?? lineGallery.title}</DialogTitle>
                     <DialogDescription className="truncate">
                       {activeGalleryImage.fileName} · รูป {lineGallery.activeIndex + 1} / {lineGallery.images.length}
                     </DialogDescription>

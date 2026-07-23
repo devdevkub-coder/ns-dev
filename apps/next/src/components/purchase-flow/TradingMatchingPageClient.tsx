@@ -12,7 +12,7 @@ import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
-import { TableActionButton } from '@/components/ui/TableActionButton'
+import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 
 type TradingPayload = {
   deals: Array<{ customerName: string; date: string; dealNo: string; grossProfit: number; grossProfitPct: number; id: string; matchedPurchaseAmount: number; matchedQty: number; matchedSalesAmount: number; productName: string; purchaseBillNo: string; salesBillNo: string; status: string; supplierName: string }>
@@ -50,7 +50,7 @@ const allocationColumns: Array<ResizableColumnDefinition<AllocationColumnKey>> =
   { key: 'matchedSalesAmount', defaultWidth: 90 },
   { key: 'grossProfit', defaultWidth: 90 },
   { key: 'grossProfitPct', defaultWidth: 70 },
-  { key: 'action', defaultWidth: 80 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 function compareSortValues(left: string | number, right: string | number) {
@@ -278,19 +278,25 @@ export function TradingMatchingPageClient() {
             <div className="block space-y-3 p-3 lg:hidden">
               {isLoading ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">กำลังโหลดข้อมูล</div> : null}
               {!isLoading && pagedFilteredDeals.map((row) => (
-                <button key={row.id} className="block w-full rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:bg-slate-50/50 active:bg-slate-100/50 transition-all outline-none focus:outline-none focus:ring-0 cursor-pointer" type="button" onClick={() => setSelectedDeal(row)}>
-                  <div className="flex justify-between gap-3 border-b border-slate-100 pb-2 mb-2">
-                    <span className="font-bold text-slate-800 text-sm">{row.salesBillNo || '-'}</span>
-                    <span className="text-xs text-slate-400 font-semibold">{formatDateDisplay(row.date)}</span>
-                  </div>
-                  <div className="text-xs text-slate-400 font-semibold">ต้นทุนจาก: <span className="font-mono text-slate-600 font-bold">{row.purchaseBillNo || '-'}</span></div>
-                  <div className="mt-1 text-xs text-slate-605 font-semibold">{row.supplierName} &rarr; {row.customerName}</div>
-                  <div className="mt-3.5 grid grid-cols-3 gap-2 border-t border-slate-100 pt-2 text-xs">
-                    <Amount label="ต้นทุน" tone="red" value={row.matchedPurchaseAmount} />
-                    <Amount label="ยอดขาย" tone="emerald" value={row.matchedSalesAmount} />
-                    <Amount label="GP" tone={row.grossProfit >= 0 ? 'purple' : 'red'} value={row.grossProfit} />
-                  </div>
-                </button>
+                <article key={row.id} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <button className="block w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" type="button" onClick={() => setSelectedDeal(row)}>
+                    <div className="flex justify-between gap-3 border-b border-slate-100 pb-2 mb-2">
+                      <span className="font-bold text-slate-800 text-sm">{row.salesBillNo || '-'}</span>
+                      <span className="text-xs text-slate-400 font-semibold">{formatDateDisplay(row.date)}</span>
+                    </div>
+                    <div className="text-xs text-slate-400 font-semibold">ต้นทุนจาก: <span className="font-mono text-slate-600 font-bold">{row.purchaseBillNo || '-'}</span></div>
+                    <div className="mt-1 text-xs text-slate-605 font-semibold">{row.supplierName} &rarr; {row.customerName}</div>
+                    <div className="mt-3.5 grid grid-cols-3 gap-2 border-t border-slate-100 pt-2 text-xs">
+                      <Amount label="ต้นทุน" tone="red" value={row.matchedPurchaseAmount} />
+                      <Amount label="ยอดขาย" tone="emerald" value={row.matchedSalesAmount} />
+                      <Amount label="GP" tone={row.grossProfit >= 0 ? 'purple' : 'red'} value={row.grossProfit} />
+                    </div>
+                  </button>
+                  <TableActionButton
+                    mobileLabel
+                    menu={<TableActionMenuItem onSelect={() => setSelectedDeal(row)}>รายละเอียด</TableActionMenuItem>}
+                  />
+                </article>
               ))}
               {!isLoading && filteredDeals.length === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">ยังไม่มีรายการจัดสรรตามเงื่อนไขที่ค้นหา</div> : null}
             </div>
@@ -342,7 +348,7 @@ export function TradingMatchingPageClient() {
                       <td className={`p-2.5 text-right font-bold overflow-hidden truncate ${row.grossProfit >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(row.grossProfit)}</td>
                       <td className="p-2.5 text-right font-medium text-slate-505 overflow-hidden truncate">{row.grossProfitPct.toFixed(2)}%</td>
                       <td className="whitespace-nowrap p-2.5 text-center overflow-hidden truncate">
-                        <TableActionButton label="รายละเอียด" onClick={() => setSelectedDeal(row)} />
+                        <TableActionButton label="รายละเอียด" menu={<TableActionMenuItem onSelect={() => setSelectedDeal(row)}>รายละเอียด</TableActionMenuItem>} />
                       </td>
                     </tr>
                   ))}

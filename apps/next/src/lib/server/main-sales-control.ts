@@ -570,8 +570,9 @@ export async function buildSalesPlan(selectedMonth?: string) {
     summary: {
       avgPctLme: remainRows.length ? remainRows.reduce((sum: number, row) => sum + row.bestPlanPct, 0) / remainRows.length : 0,
       lockedContainers: planRows.filter((row: (typeof planRows)[number]) => ['locked', 'po_created'].includes(String(row.status))).reduce((sum: number, row: (typeof planRows)[number]) => sum + Number(row.containers ?? 0), 0),
-      lockedCount: planRows.filter((row: (typeof planRows)[number]) => ['locked', 'po_created'].includes(String(row.status))).length,
+      lockedCount: planRows.filter((row: (typeof planRows)[number]) => String(row.status) === 'locked').length,
       pendingCount: planRows.filter((row: (typeof planRows)[number]) => String(row.status) === 'draft').length,
+      poCreatedCount: planRows.filter((row: (typeof planRows)[number]) => String(row.status) === 'po_created').length,
       plansCount: planRows.length,
       stockRemainingKg: remainRows.reduce((sum: number, row) => sum + row.remainingKg, 0),
       stockRemainingValue: remainRows.reduce((sum: number, row) => sum + row.value, 0),

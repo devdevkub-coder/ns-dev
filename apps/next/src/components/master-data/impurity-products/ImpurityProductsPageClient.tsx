@@ -9,7 +9,7 @@ import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
-import { TableActionButton } from '@/components/ui/TableActionButton'
+import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -44,7 +44,7 @@ const productColumns: Array<ResizableColumnDefinition<ProductColumnKey>> = [
   { key: 'type', defaultWidth: 140, minWidth: 100 },
   { key: 'unit', defaultWidth: 90, minWidth: 70 },
   { key: 'active', defaultWidth: 110, minWidth: 90 },
-  { key: 'action', defaultWidth: 110, minWidth: 90 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 
@@ -623,7 +623,7 @@ export function ImpurityProductsPageClient() {
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="หน่วย" resizeProps={columnResize.getResizeHandleProps('unit', 'หน่วย')} sortKey="unit" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('active', 'สถานะ')} sortKey="active" onSort={setSort} />
-                    <ResizableTableHead align="center" label="แก้ไข" resizeProps={columnResize.getResizeHandleProps('action', 'แก้ไข')} />
+                    <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
                   </tr>
                 </TableHeader>
                 <TableBody className="divide-y divide-slate-100">
@@ -654,7 +654,7 @@ export function ImpurityProductsPageClient() {
                         />
                       </TableCell>
                       <TableCell className="text-center text-xs font-semibold text-slate-700">
-                        <TableActionButton label="แก้ไข" onClick={(event) => { event.stopPropagation(); openEditForm(product) }} />
+                        <TableActionButton label="แก้ไข" menu={<TableActionMenuItem onSelect={() => openEditForm(product)}>แก้ไข</TableActionMenuItem>} />
                       </TableCell>
                     </TableRow>
                   ))}
@@ -726,7 +726,9 @@ export function ImpurityProductsPageClient() {
                     </div>
                   </div>
                 </div>
-
+                <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
+                  <TableActionButton mobileLabel menu={<TableActionMenuItem onSelect={() => openEditForm(product)}>แก้ไข</TableActionMenuItem>} />
+                </div>
               </div>
             ))}
             {paginatedProducts.length === 0 ? (
@@ -814,10 +816,10 @@ function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, 
 
   return (
     <form className="overflow-hidden rounded-md bg-slate-900 dark:bg-[#0f172a] shadow-xl flex flex-col w-full max-h-[90vh]" onSubmit={handleSubmit}>
-      <div className="flex flex-col gap-3 bg-slate-900 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
+      <div data-ns-dialog-header className="flex flex-col gap-3 bg-slate-900 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
         <h3 className="text-lg font-bold text-white">{form.id ? 'แก้ไขสินค้าสิ่งเจือปน' : 'เพิ่มสินค้าสิ่งเจือปน'}</h3>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-slate-200 dark:text-slate-800" onChange={(checked) => update('active', checked)} />
+          <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-current" onChange={(checked) => update('active', checked)} />
           <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white transition-colors hover:border-rose-700 hover:bg-rose-700 focus:outline-none" type="button" onClick={onCancel}>
             ยกเลิก
           </button>

@@ -185,7 +185,7 @@ const paymentQueueColumns: Array<ResizableColumnDefinition<PaymentQueueColumnKey
   { key: 'totalAmount', defaultWidth: 125, minWidth: 105 },
   { key: 'balance', defaultWidth: 135, minWidth: 115 },
   { key: 'age', defaultWidth: 145, minWidth: 135 },
-  { key: 'action', defaultWidth: 150, minWidth: 140 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 const receiptQueueColumns: Array<ResizableColumnDefinition<PaymentQueueColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
@@ -195,7 +195,7 @@ const receiptQueueColumns: Array<ResizableColumnDefinition<PaymentQueueColumnKey
   { key: 'totalAmount', defaultWidth: 120, minWidth: 100 },
   { key: 'paidAmount', defaultWidth: 110, minWidth: 90 },
   { key: 'balance', defaultWidth: 110, minWidth: 90 },
-  { key: 'action', defaultWidth: 150, minWidth: 145 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 const paymentHistoryColumns: Array<ResizableColumnDefinition<MoneyHistoryColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
@@ -209,7 +209,7 @@ const paymentHistoryColumns: Array<ResizableColumnDefinition<MoneyHistoryColumnK
   { key: 'netAmount', defaultWidth: 110, minWidth: 90 },
   { key: 'status', defaultWidth: 130, minWidth: 110 },
   { key: 'notes', defaultWidth: 180, minWidth: 130 },
-  { key: 'action', defaultWidth: 150, minWidth: 135 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 const receiptHistoryColumns: Array<ResizableColumnDefinition<MoneyHistoryColumnKey>> = [
   { key: 'docNo', defaultWidth: 140, minWidth: 120 },
@@ -223,7 +223,7 @@ const receiptHistoryColumns: Array<ResizableColumnDefinition<MoneyHistoryColumnK
   { key: 'netAmount', defaultWidth: 100, minWidth: 90 },
   { key: 'status', defaultWidth: 110, minWidth: 100 },
   { key: 'notes', defaultWidth: 140, minWidth: 120 },
-  { key: 'action', defaultWidth: 210, minWidth: 190 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 function newPaymentLine(): PaymentLine {
@@ -2437,34 +2437,12 @@ export function MoneyMovementPageClient({
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
-                    <UiButton
-                      className="font-normal"
-                      size="xs"
-                      type="button"
-                      variant="outline"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        openFormForBill(bill)
-                      }}
-                    >
-                      รับเงิน
-                    </UiButton>
-                    {cancelableReceipt ? (
-                      <UiButton
-                        className="font-normal border-red-200 text-red-700"
-                        size="xs"
-                        title={`ยกเลิกใบรับเงิน ${cancelableReceipt.docNo}`}
-                        type="button"
-                        variant="outline"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          setCancelReceiptTarget(cancelableReceipt)
-                          setCancelReceiptReason('')
-                        }}
-                      >
-                        ยกเลิก
-                      </UiButton>
-                    ) : null}
+                    <TableActionButton mobileLabel menu={(
+                      <>
+                        <TableActionMenuItem onSelect={() => openFormForBill(bill)}>รับเงิน</TableActionMenuItem>
+                        {cancelableReceipt ? <TableActionMenuItem onSelect={() => { setCancelReceiptTarget(cancelableReceipt); setCancelReceiptReason('') }}>ยกเลิก</TableActionMenuItem> : null}
+                      </>
+                    )} onClick={(event) => event.stopPropagation()} />
                   </div>
                 </div>
               )
@@ -2661,34 +2639,12 @@ export function MoneyMovementPageClient({
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
-                    <UiButton
-                      className="font-normal"
-                      size="xs"
-                      type="button"
-                      variant="default"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        openFormForBill(bill)
-                      }}
-                    >
-                      ทำจ่าย
-                    </UiButton>
-                    {canCancelApproval ? (
-                      <UiButton
-                        className="border-red-200 font-normal text-red-700"
-                        size="xs"
-                        type="button"
-                        variant="outline"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          setCancelApprovalTarget(bill)
-                          setCancelApprovalReason('')
-                          setError(null)
-                        }}
-                      >
-                        ยกเลิก
-                      </UiButton>
-                    ) : null}
+                    <TableActionButton mobileLabel menu={(
+                      <>
+                        <TableActionMenuItem onSelect={() => openFormForBill(bill)}>ทำจ่าย</TableActionMenuItem>
+                        {canCancelApproval ? <TableActionMenuItem onSelect={() => { setCancelApprovalTarget(bill); setCancelApprovalReason(''); setError(null) }}>ยกเลิก</TableActionMenuItem> : null}
+                      </>
+                    )} />
                   </div>
                 </div>
               )
@@ -3448,59 +3404,25 @@ export function MoneyMovementPageClient({
                           </div>
                         ) : null}
                       </div>
-                      <div className="flex justify-between items-end pt-2 border-t border-slate-100">
-                        <div className="flex flex-wrap items-center gap-2">
+                      <div className="space-y-2 border-t border-slate-100 pt-2">
+                        <div className="flex items-end justify-between gap-2">
                           <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${paymentHistoryStatusTone(row.status)}`}>
                             <span className={`size-1.5 rounded-full ${paymentHistoryStatusDot(row.status)}`} />
                             {paymentHistoryStatusLabel(row.status, mode)}
                           </span>
-                          <div className="ml-1 flex flex-wrap items-center gap-1 bg-transparent">
-                            <button
-                              className="cursor-pointer rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900"
-                              type="button"
-                              onClick={() => {
-                                if (mode === 'payment') void openPaymentHistoryRow(row)
-                                else openReceiptDetail(row)
-                              }}
-                            >
-                              ดูรายละเอียด
-                            </button>
-                            {row.status !== 'cancelled' && mode === 'receipt' ? (
-                              <>
-                                <button
-                                  type="button"
-                                  className="text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-50 font-semibold px-2 py-0.5 rounded border border-slate-200 bg-white cursor-pointer"
-                                  onClick={() => openFormForReceipt(row)}
-                                >
-                                  แก้ไข
-                                </button>
-                                <button
-                                  type="button"
-                                  className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 font-semibold px-2 py-0.5 rounded border border-red-200 bg-white cursor-pointer"
-                                  onClick={() => {
-                                    setCancelReceiptTarget(row)
-                                    setCancelReceiptReason('')
-                                  }}
-                                >
-                                  ยกเลิก
-                                </button>
-                              </>
-                            ) : null}
-                            {row.status !== 'cancelled' && mode !== 'receipt' ? (
-                              <button
-                                type="button"
-                                className="cursor-pointer rounded-md border border-red-200 bg-white px-2 py-0.5 text-xs font-semibold text-red-600 hover:bg-red-50 hover:text-red-700"
-                                onClick={() => setCancelPaymentTarget(row)}
-                              >
-                                ยกเลิก
-                              </button>
-                            ) : null}
+                          <div className="text-right">
+                            <span className="text-xs text-slate-400 block">ยอดสุทธิ</span>
+                            <span className={`font-bold text-sm tabular-nums ${theme.strong}`}>{formatMoney(row.netAmount)}</span>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <span className="text-xs text-slate-400 block">ยอดสุทธิ</span>
-                          <span className={`font-bold text-sm tabular-nums ${theme.strong}`}>{formatMoney(row.netAmount)}</span>
-                        </div>
+                        <TableActionButton mobileLabel menu={(
+                          <>
+                            <TableActionMenuItem onSelect={() => { if (mode === 'payment') void openPaymentHistoryRow(row); else openReceiptDetail(row) }}>ดูรายละเอียด</TableActionMenuItem>
+                            {row.status !== 'cancelled' && mode === 'receipt' ? <TableActionMenuItem onSelect={() => openFormForReceipt(row)}>แก้ไข</TableActionMenuItem> : null}
+                            {row.status !== 'cancelled' && mode === 'receipt' ? <TableActionMenuItem onSelect={() => { setCancelReceiptTarget(row); setCancelReceiptReason('') }}>ยกเลิก</TableActionMenuItem> : null}
+                            {row.status !== 'cancelled' && mode !== 'receipt' ? <TableActionMenuItem onSelect={() => setCancelPaymentTarget(row)}>ยกเลิก</TableActionMenuItem> : null}
+                          </>
+                        )} />
                       </div>
                     </div>
                   </div>
@@ -3889,7 +3811,7 @@ function PaymentHistoryDetailDialog({
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
           <div className="min-w-0">
             <DialogTitle className="truncate text-base font-bold text-white">รายละเอียด {detailDocNo}</DialogTitle>
-            <div className="mt-1 truncate text-xs text-slate-300">{detailPartyName}</div>
+            <p className="mt-1 truncate text-xs">{detailPartyName}</p>
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
             {row && row.status !== 'cancelled' ? (

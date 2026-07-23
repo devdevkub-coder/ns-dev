@@ -781,7 +781,7 @@ function ProductModal({ onClose, product }: { onClose: () => void; product: Prod
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
       <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-md bg-slate-900 shadow-2xl border-0">
-        <div className="flex items-start justify-between gap-3 border-b border-slate-800 bg-slate-900 p-4 text-white">
+        <div data-ns-dialog-header className="flex items-start justify-between gap-3 border-b border-slate-800 bg-slate-900 p-4 text-white">
           <div>
             <h2 className="text-xl font-bold">{product.name}</h2>
             <p className="text-sm text-slate-300 mt-1">{product.code || '-'} · {product.metalGroup || '-'}</p>

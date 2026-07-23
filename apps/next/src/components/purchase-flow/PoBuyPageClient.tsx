@@ -291,7 +291,7 @@ const poBuyColumns: Array<ResizableColumnDefinition<PoBuyColumnKey>> = [
   { key: 'note', defaultWidth: 85, minWidth: 70 },
   { key: 'status', defaultWidth: 110, minWidth: 90 },
   { key: 'updatedAt', defaultWidth: 180, minWidth: 150 },
-  { key: 'action', defaultWidth: 240, minWidth: 210 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 function poBuyAllocationActionLabel(action: string) {
@@ -996,6 +996,16 @@ export function PoBuyPageClient() {
                   {formatMoney(row.qty)} / <span className="text-amber-600">{formatMoney(row.remainingQty)}</span> กก.
                 </span>
               </div>
+            </div>
+            <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
+              <TableActionButton mobileLabel menu={(
+                <>
+                  {row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
+                  {row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openCancelDialog(row)}>ยกเลิก</TableActionMenuItem> : null}
+                  <TableActionMenuItem disabled={printingPoDocNo === row.docNo} onSelect={() => void printPoBuy(row)}>พิมพ์</TableActionMenuItem>
+                  {shouldShowShortCloseButton(row) ? <TableActionMenuItem disabled={!canShortClosePoBuy(row)} onSelect={() => openShortCloseDialog(row)}>ปิดรับไม่ครบ</TableActionMenuItem> : null}
+                </>
+              )} />
             </div>
           </div>
         ))}

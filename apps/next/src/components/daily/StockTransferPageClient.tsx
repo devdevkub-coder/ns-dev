@@ -69,7 +69,7 @@ const stockTransferColumns: Array<ResizableColumnDefinition<StockTransferColumnK
   { key: 'totalValue', defaultWidth: 140, minWidth: 110 },
   { key: 'updated', defaultWidth: 180, minWidth: 150 },
   { key: 'status', defaultWidth: 110, minWidth: 95 },
-  { key: 'action', defaultWidth: 200, minWidth: 170 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 function compareSortValues(left: string | number, right: string | number) {
@@ -485,7 +485,7 @@ export function StockTransferPageClient() {
       {formOpen ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8 animate-fade-in">
           <form noValidate data-combobox-portal-root="true" className="relative w-full max-w-5xl overflow-hidden rounded-md border-0 bg-slate-900 shadow-xl outline-none focus:outline-none flex flex-col max-h-[90vh]" onSubmit={(event) => event.preventDefault()}>
-            <div className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white shrink-0">
+            <div data-ns-dialog-header className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white shrink-0">
               <div>
                 <h3 className="font-bold text-slate-100 text-lg">{editingDocNo ? 'แก้ไขรายการโอนสินค้า' : 'โอนสินค้าระหว่างสาขา'}</h3>
               </div>
@@ -597,7 +597,11 @@ export function StockTransferPageClient() {
                             </td>
                             <td className="p-2 pt-4 text-right tabular-nums font-medium text-emerald-700">{formatMoney(lineValue)}</td>
                             <td className="p-2 text-right">
-                              <TableActionButton disabled={form.items.length <= 1} onClick={() => setForm((current) => ({ ...current, items: current.items.filter((_entry, entryIndex) => entryIndex !== index) }))} />
+                              <TableActionButton
+                                disabled={form.items.length <= 1}
+                                label="ลบรายการ"
+                                menu={<TableActionMenuItem onSelect={() => setForm((current) => ({ ...current, items: current.items.filter((_entry, entryIndex) => entryIndex !== index) }))}>ลบรายการ</TableActionMenuItem>}
+                              />
                             </td>
                           </tr>
                         )
@@ -791,9 +795,13 @@ export function StockTransferPageClient() {
               <SummaryCell label="วันที่สร้างรายการ" value={row.updatedBy ? `${row.updatedBy} · ${formatDateTime(row.updatedAt)}` : formatDateTime(row.updatedAt)} />
             </div>
             <div className="mt-3 flex justify-end gap-2">
-              <Button disabled={!row.canEdit || isSaving} size="xs" type="button" variant="outline" onClick={() => openEditForm(row)}><Edit3 className="mr-1 h-3.5 w-3.5" />แก้ไข</Button>
-              <Button disabled={!row.canPost || isSaving} size="xs" type="button" onClick={() => postDraft(row)}><Send className="mr-1 h-3.5 w-3.5" />ส่ง</Button>
-              <Button disabled={!row.canCancel || isSaving} size="xs" type="button" variant="outline" onClick={() => cancelDraft(row)}><XCircle className="mr-1 h-3.5 w-3.5" />ยกเลิก</Button>
+              <TableActionButton mobileLabel menu={(
+                <>
+                  <TableActionMenuItem disabled={!row.canEdit || isSaving} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>
+                  <TableActionMenuItem disabled={!row.canPost || isSaving} onSelect={() => postDraft(row)}>ส่ง</TableActionMenuItem>
+                  <TableActionMenuItem disabled={!row.canCancel || isSaving} onSelect={() => cancelDraft(row)}>ยกเลิก</TableActionMenuItem>
+                </>
+              )} />
             </div>
           </div>
         ))}

@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/Input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
-import { tableActionButtonClassName } from '@/components/ui/TableActionButton'
+import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns } from '@/components/ui/useResizableColumns'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
@@ -67,9 +67,6 @@ const statusOptionsByType: Record<WeightTicketType, Array<{ label: string; value
     { label: 'ยกเลิก', values: ['cancelled'] },
   ],
 }
-
-const rowActionButtonClass = tableActionButtonClassName
-const rowDestructiveActionButtonClass = `${tableActionButtonClassName} border-red-200 text-red-700`
 
 function formatDateTime(value?: string | null) {
   if (!value) return '-'
@@ -718,84 +715,31 @@ export function WeightTicketListPageClient() {
                 'mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-2.5',
                 isCancelled ? 'border-red-200' : 'border-slate-100/50',
               )} onClick={(e) => e.stopPropagation()}>
-                {canOpenPurchaseBillFromTicket(ticket, canOpenPurchaseBill) ? (
-                  <button
-                    className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-50"
-                    type="button"
-                    onClick={() => openBillFromTicket(ticket)}
-                  >
-                    เปิดบิลซื้อ
-                  </button>
-                ) : null}
-                {canOpenSalesBillFromTicket(ticket, canOpenSalesBill) ? (
-                  <button
-                    className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-50"
-                    type="button"
-                    onClick={() => openBillFromTicket(ticket)}
-                  >
-                    เปิดบิลขาย
-                  </button>
-                ) : null}
-                {canConfirmTicket(ticket) ? (
-                  <button
-                    className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-3 py-1.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
-                    disabled={confirmingTicketId === ticket.id}
-                    type="button"
-                    onClick={() => void handleConfirmTicket(ticket)}
-                  >
-                    {confirmingTicketId === ticket.id ? 'ยืนยัน...' : confirmTicketLabel(ticket)}
-                  </button>
-                ) : null}
-                {canReturnWtoStock(ticket) ? (
-                  <button
-                    className="inline-flex items-center gap-1 rounded-md border border-amber-200 px-3 py-1.5 text-sm font-semibold text-amber-700 hover:bg-amber-50"
-                    type="button"
-                    onClick={() => setStockReturnTicket(ticket)}
-                  >
-                    <RotateCcw className="size-3.5" />
-                    รับของคืน
-                  </button>
-                ) : null}
-                <button
-                  className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-3 py-1.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
-                  type="button"
-                  onClick={() => void handlePrintTicket(ticket)}
-                >
-                  <Printer className="size-3.5" />
-                  {printingTicketId === ticket.id ? 'เตรียม...' : 'พิมพ์'}
-                </button>
-                <button
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                  type="button"
-                  onClick={() => openShareDialog(ticket)}
-                >
-                  <Share2 className="size-3.5" />
-                  แชร์
-                </button>
-                {ticket.canEdit ? (
-                  <button
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                    onClick={() => setActiveForm({ id: ticket.id, type: ticket.type })}
-                    type="button"
-                  >
-                    <SquarePen className="size-3.5" />
-                    แก้ไข
-                  </button>
-                ) : null}
-                {ticket.canCancel ? (
-                  <button
-                    className="inline-flex items-center gap-1 rounded-md border border-red-200 px-3 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-50"
-                    type="button"
-                    onClick={() => {
-                      setCancelTicket(ticket)
-                      setCancelError('')
-                      setCancelNote(ticket.cancelNote ?? '')
-                    }}
-                  >
-                    <XCircle className="size-3.5" />
-                    ยกเลิก
-                  </button>
-                ) : null}
+                <TableActionButton
+                  aria-label={`จัดการ ${ticket.documentNo}`}
+                  busy={confirmingTicketId === ticket.id || printingTicketId === ticket.id}
+                  mobileLabel
+                  menu={(
+                    <>
+                      {canOpenPurchaseBillFromTicket(ticket, canOpenPurchaseBill) ? <TableActionMenuItem onSelect={() => openBillFromTicket(ticket)}>เปิดบิลซื้อ</TableActionMenuItem> : null}
+                      {canOpenSalesBillFromTicket(ticket, canOpenSalesBill) ? <TableActionMenuItem onSelect={() => openBillFromTicket(ticket)}>เปิดบิลขาย</TableActionMenuItem> : null}
+                      {canConfirmTicket(ticket) ? <TableActionMenuItem disabled={confirmingTicketId === ticket.id} onSelect={() => void handleConfirmTicket(ticket)}>{confirmingTicketId === ticket.id ? 'กำลังยืนยัน...' : confirmTicketLabel(ticket)}</TableActionMenuItem> : null}
+                      {canReturnWtoStock(ticket) ? <TableActionMenuItem onSelect={() => setStockReturnTicket(ticket)}>รับของคืน</TableActionMenuItem> : null}
+                      <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem>
+                      <TableActionMenuItem onSelect={() => openShareDialog(ticket)}>แชร์</TableActionMenuItem>
+                      {ticket.canEdit ? <TableActionMenuItem onSelect={() => setActiveForm({ id: ticket.id, type: ticket.type })}>แก้ไข</TableActionMenuItem> : null}
+                      {ticket.canCancel ? (
+                        <TableActionMenuItem onSelect={() => {
+                          setCancelTicket(ticket)
+                          setCancelError('')
+                          setCancelNote(ticket.cancelNote ?? '')
+                        }}>
+                          ยกเลิก
+                        </TableActionMenuItem>
+                      ) : null}
+                    </>
+                  )}
+                />
               </div>
             </div>
           )
@@ -886,108 +830,31 @@ export function WeightTicketListPageClient() {
                       <div className="text-xs text-slate-400">{formatDateTime(ticket.updatedAt || ticket.createdAt)}</div>
                     </td>
                     <td className="whitespace-nowrap px-3 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {canOpenPurchaseBillFromTicket(ticket, canOpenPurchaseBill) ? (
-                          <button
-                            className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              openBillFromTicket(ticket)
-                            }}
-                          >
-                            เปิดบิลซื้อ
-                          </button>
-                        ) : null}
-                        {canOpenSalesBillFromTicket(ticket, canOpenSalesBill) ? (
-                          <button
-                            className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              openBillFromTicket(ticket)
-                            }}
-                          >
-                            เปิดบิลขาย
-                          </button>
-                        ) : null}
-                        {canConfirmTicket(ticket) ? (
-                          <button
-                            className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
-                            disabled={confirmingTicketId === ticket.id}
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void handleConfirmTicket(ticket)
-                            }}
-                          >
-                            {confirmingTicketId === ticket.id ? 'ยืนยัน...' : confirmTicketLabel(ticket)}
-                          </button>
-                        ) : null}
-                        {canReturnWtoStock(ticket) ? (
-                          <button
-                            className="inline-flex items-center gap-1 rounded-md border border-amber-200 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50"
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              setStockReturnTicket(ticket)
-                            }}
-                          >
-                            <RotateCcw className="size-3" />
-                            รับของคืน
-                          </button>
-                        ) : null}
-                        <button
-                          className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            void handlePrintTicket(ticket)
-                          }}
-                        >
-                          <Printer className="size-3" />
-                          {printingTicketId === ticket.id ? 'เตรียม...' : 'พิมพ์'}
-                        </button>
-                        <button
-                          className={rowActionButtonClass}
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            openShareDialog(ticket)
-                          }}
-                        >
-                          <Share2 className="size-3" />
-                          แชร์
-                        </button>
-                        {ticket.canEdit ? (
-                          <button
-                            className={rowActionButtonClass}
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              setActiveForm({ id: ticket.id, type: ticket.type })
-                            }}
-                            type="button"
-                          >
-                            <SquarePen className="size-3" />
-                            แก้ไข
-                          </button>
-                        ) : null}
-                        {ticket.canCancel ? (
-                          <button
-                            className={rowDestructiveActionButtonClass}
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              setCancelTicket(ticket)
-                              setCancelError('')
-                              setCancelNote(ticket.cancelNote ?? '')
-                            }}
-                          >
-                            <XCircle className="size-3" />
-                            ยกเลิก
-                          </button>
-                        ) : null}
-                      </div>
+                      <TableActionButton
+                        aria-label={`จัดการ ${ticket.documentNo}`}
+                        busy={confirmingTicketId === ticket.id || printingTicketId === ticket.id}
+                        menu={(
+                          <>
+                            {canOpenPurchaseBillFromTicket(ticket, canOpenPurchaseBill) ? <TableActionMenuItem onSelect={() => openBillFromTicket(ticket)}>เปิดบิลซื้อ</TableActionMenuItem> : null}
+                            {canOpenSalesBillFromTicket(ticket, canOpenSalesBill) ? <TableActionMenuItem onSelect={() => openBillFromTicket(ticket)}>เปิดบิลขาย</TableActionMenuItem> : null}
+                            {canConfirmTicket(ticket) ? <TableActionMenuItem disabled={confirmingTicketId === ticket.id} onSelect={() => void handleConfirmTicket(ticket)}>{confirmingTicketId === ticket.id ? 'กำลังยืนยัน...' : confirmTicketLabel(ticket)}</TableActionMenuItem> : null}
+                            {canReturnWtoStock(ticket) ? <TableActionMenuItem onSelect={() => setStockReturnTicket(ticket)}>รับของคืน</TableActionMenuItem> : null}
+                            <TableActionMenuItem disabled={printingTicketId === ticket.id} onSelect={() => void handlePrintTicket(ticket)}>{printingTicketId === ticket.id ? 'กำลังเตรียมพิมพ์...' : 'พิมพ์'}</TableActionMenuItem>
+                            <TableActionMenuItem onSelect={() => openShareDialog(ticket)}>แชร์</TableActionMenuItem>
+                            {ticket.canEdit ? <TableActionMenuItem onSelect={() => setActiveForm({ id: ticket.id, type: ticket.type })}>แก้ไข</TableActionMenuItem> : null}
+                            {ticket.canCancel ? (
+                              <TableActionMenuItem onSelect={() => {
+                                setCancelTicket(ticket)
+                                setCancelError('')
+                                setCancelNote(ticket.cancelNote ?? '')
+                              }}>
+                                ยกเลิก
+                              </TableActionMenuItem>
+                            ) : null}
+                          </>
+                        )}
+                        onClick={(event) => event.stopPropagation()}
+                      />
                     </td>
                   </tr>
                 )

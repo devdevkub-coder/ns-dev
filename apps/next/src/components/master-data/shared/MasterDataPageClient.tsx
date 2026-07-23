@@ -21,7 +21,7 @@ import { FormSelectField } from '@/components/ui/FormSelectField'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
-import { TableActionButton } from '@/components/ui/TableActionButton'
+import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { formatDecimalDisplay, formatDecimalDraft, formatPhoneDisplay, sanitizeAccountNoInput, sanitizeDecimalInput } from '@/lib/format'
@@ -313,7 +313,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
       maxWidth: column.maxWidth,
       minWidth: column.minWidth ?? 96,
     })),
-    { defaultWidth: 76, key: '__action', minWidth: 72 },
+    { defaultWidth: 72, key: '__action', minWidth: 64, maxWidth: 88 },
   ]), [config.columns])
   const columnResize = useResizableColumns<TableColumnKey>(`master-data.${config.apiPath}`, resizableColumns)
 
@@ -636,7 +636,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
                         onSort={setSort}
                       />
                     ))}
-                    <ResizableTableHead align="center" label="แก้ไข" resizeProps={columnResize.getResizeHandleProps('__action', 'แก้ไข')} />
+                    <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('__action', 'จัดการ')} />
                   </tr>
                 </TableHeader>
                 <TableBody className="divide-y divide-slate-100">
@@ -677,7 +677,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
                       </TableCell>
                     ))}
                     <TableCell className="p-3 text-center">
-                      <TableActionButton label="แก้ไข" onClick={(event) => { event.stopPropagation(); openEditForm(record) }} />
+                      <TableActionButton label="แก้ไข" menu={<TableActionMenuItem onSelect={() => openEditForm(record)}>แก้ไข</TableActionMenuItem>} />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -736,7 +736,9 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
                       </div>
                     ))}
                 </div>
-
+                <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
+                  <TableActionButton mobileLabel menu={<TableActionMenuItem onSelect={() => openEditForm(record)}>แก้ไข</TableActionMenuItem>} />
+                </div>
               </div>
             ))}
             {filteredRecords.length === 0 ? (
@@ -873,10 +875,10 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
 
   return (
     <form noValidate className="overflow-hidden rounded-md bg-slate-900 dark:bg-[#0f172a] shadow-xl flex flex-col w-full" onSubmit={handleSubmit}>
-      <div className="flex flex-col gap-3 bg-slate-900 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
+      <div data-ns-dialog-header className="flex flex-col gap-3 bg-slate-900 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
         <h3 className="text-lg font-bold text-white">{form.id ? `แก้ไข${config.entityName}` : config.createLabel}</h3>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          {supportsActive ? <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-slate-200 dark:text-slate-800" onChange={(checked) => update('active', checked)} /> : null}
+          {supportsActive ? <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-current" onChange={(checked) => update('active', checked)} /> : null}
           <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white transition-colors hover:border-rose-700 hover:bg-rose-700 focus:outline-none" type="button" onClick={onCancel}>
             ยกเลิก
           </button>

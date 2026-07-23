@@ -292,7 +292,7 @@ export function TransactionLedgerPageClient() {
                   <div className="text-slate-500">📊 ในระบบ</div>
                   <div className={`font-mono text-base font-bold ${account.balance < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatMoney(account.balance)}</div>
                 </div>
-                <label>
+                <label data-ns-field-scope="entry">
                   <span className="text-slate-500">นับจริง</span>
                   <input className="w-full rounded-md border border-slate-300 bg-white px-1 py-0.5 text-right font-mono font-bold" placeholder="กรอกยอด..." step="0.01" type="number" value={account.actual ?? ''} onChange={(event) => setActualBalances((current) => ({ ...current, [account.id]: Number(event.target.value || 0) }))} />
                 </label>

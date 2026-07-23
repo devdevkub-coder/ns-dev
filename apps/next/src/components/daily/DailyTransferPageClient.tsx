@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/Input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
-import { TableActionButton } from '@/components/ui/TableActionButton'
+import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -44,7 +44,7 @@ const transferColumns: Array<ResizableColumnDefinition<TransferColumnKey>> = [
   { key: 'fee', defaultWidth: 130, minWidth: 110 },
   { key: 'byPerson', defaultWidth: 180, minWidth: 140 },
   { key: 'notes', defaultWidth: 240, minWidth: 160 },
-  { key: 'action', defaultWidth: 180, minWidth: 150 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 const emptyForm: TransferFormValues = {
@@ -481,7 +481,7 @@ export function DailyTransferPageClient() {
       {formOpen ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4">
           <form noValidate className="mx-auto my-4 w-full max-w-3xl overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onSubmit={saveForm}>
-            <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
+            <div data-ns-dialog-header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
               <h3 className="font-bold text-white">{form.id ? 'แก้ไขรายการโอนเงิน' : 'โอนเงินระหว่างบัญชี'}</h3>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
                 <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" size="sm" type="button" variant="outline" onClick={() => setFormOpen(false)}>ยกเลิก</Button>
@@ -630,6 +630,9 @@ export function DailyTransferPageClient() {
                 <span className="font-bold text-slate-900 text-sm tabular-nums">{formatMoney(row.amount)}</span>
               </div>
             </div>
+            <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
+              <TableActionButton mobileLabel menu={<TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>} />
+            </div>
           </div>
         ))}
         {!isLoading && pagedRows.length === 0 ? (
@@ -683,7 +686,7 @@ export function DailyTransferPageClient() {
                 <TableCell className="text-xs font-semibold text-slate-700">{row.byPerson || '-'}</TableCell>
                 <TableCell className="text-xs font-semibold text-slate-700 truncate max-w-[200px]" title={row.notes ?? ''}>{row.notes || '-'}</TableCell>
                 <TableCell className="whitespace-nowrap text-right">
-                  <TableActionButton label="แก้ไข" onClick={(event) => { event.stopPropagation(); openEditForm(row) }} />
+                  <TableActionButton label="แก้ไข" menu={<TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>} />
                 </TableCell>
               </TableRow>
             ))}

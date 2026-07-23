@@ -3,7 +3,19 @@
 import { Fragment } from 'react'
 import { decodeStoredImageAsset, formatWeight, isPreviewableStoredImageAsset, type WeightTicketRecord, weightTicketImpurityDisplayName } from '@/lib/weight-tickets'
 
-type PreviewImage = { fileName: string; url: string }
+type PreviewImage = { contextTitle?: string; fileName: string; url: string }
+
+type LineGallerySource = {
+  id: string
+  imageNames: string[]
+  title: string
+}
+
+type LineGalleryPayload = {
+  activeIndex: number
+  images: PreviewImage[]
+  title: string
+}
 
 type ProductBreakdownGroup = {
   impurityLines: WeightTicketRecord['lines']
@@ -53,12 +65,40 @@ function groupByProduct(ticket: WeightTicketRecord): ProductBreakdownGroup[] {
   })
 }
 
+export function buildWeightTicketLineGallery(
+  sources: LineGallerySource[],
+  selectedSourceId: string,
+): LineGalleryPayload | null {
+  const images: PreviewImage[] = []
+  let activeIndex = -1
+
+  sources.forEach((source) => {
+    const sourceImages = source.imageNames
+      .map(decodeStoredImageAsset)
+      .filter(isPreviewableStoredImageAsset)
+      .map((image) => ({
+        contextTitle: source.title,
+        fileName: image.fileName,
+        url: image.url,
+      }))
+
+    if (source.id === selectedSourceId && sourceImages.length > 0) activeIndex = images.length
+    images.push(...sourceImages)
+  })
+
+  return activeIndex >= 0
+    ? { activeIndex, images, title: 'รูปสินค้าและเต๋า' }
+    : null
+}
+
 function LineImagesButton({
+  gallerySources,
   line,
   onOpenLineGallery,
 }: {
+  gallerySources: LineGallerySource[]
   line: WeightTicketRecord['lines'][number]
-  onOpenLineGallery: (payload: { images: PreviewImage[]; title: string }) => void
+  onOpenLineGallery: (payload: LineGalleryPayload) => void
 }) {
   if (line.imageCount <= 0) return <span className="text-slate-400">-</span>
 
@@ -77,7 +117,10 @@ function LineImagesButton({
         <button
           className="text-sm font-medium text-blue-700 hover:underline"
           type="button"
-          onClick={() => onOpenLineGallery({ images: previewableImages, title: line.productName })}
+          onClick={() => {
+            const gallery = buildWeightTicketLineGallery(gallerySources, line.id)
+            if (gallery) onOpenLineGallery(gallery)
+          }}
         >
           ดูรูป
         </button>
@@ -471,13 +514,20 @@ export function WeightTicketProductBreakdownTable({
   summaryTargetDocNos,
   ticket,
 }: {
-  onOpenLineGallery: (payload: { images: PreviewImage[]; title: string }) => void
+  onOpenLineGallery: (payload: LineGalleryPayload) => void
   showBillingColumns?: boolean
   summaryTargetDocNos?: Map<string, string[]>
   ticket: WeightTicketRecord
 }) {
   const groups = groupByProduct(ticket)
   const costByLine = activePendingOutCostByLine(ticket)
+  const lotGallerySources = groups.flatMap((group) =>
+    group.realLotLines.map((line, index) => ({
+      id: line.id,
+      imageNames: line.imageNames,
+      title: `${group.summary.productName} · เต๋าที่ ${index + 1}`,
+    })),
+  )
 
   return (
     <div className="overflow-x-auto">
@@ -574,7 +624,7 @@ export function WeightTicketProductBreakdownTable({
                     {ticket.type === 'WTO' ? <LineCostSnapshotCells cost={linePendingOutCost(costByLine, line.lineNo)} /> : null}
                     {showBillingColumns ? <td colSpan={3} className="px-3 py-3" /> : null}
                     <td className="px-3 py-3 text-right">
-                      <LineImagesButton line={line} onOpenLineGallery={onOpenLineGallery} />
+                      <LineImagesButton gallerySources={lotGallerySources} line={line} onOpenLineGallery={onOpenLineGallery} />
                     </td>
                   </tr>
                 ))}
@@ -629,7 +679,11 @@ export function WeightTicketProductBreakdownTable({
                     {ticket.type === 'WTO' ? <td colSpan={2} className="px-3 py-3" /> : null}
                     {showBillingColumns ? <td colSpan={3} className="px-3 py-3" /> : null}
                     <td className="px-3 py-3 text-right">
-                      <LineImagesButton line={line} onOpenLineGallery={onOpenLineGallery} />
+                      <LineImagesButton
+                        gallerySources={[{ id: line.id, imageNames: line.imageNames, title: line.productName }]}
+                        line={line}
+                        onOpenLineGallery={onOpenLineGallery}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -749,7 +803,7 @@ export function WeightTicketProductBreakdownTable({
                         ) : null}
                         <div className="flex justify-between items-center text-sm font-medium text-slate-500 pt-2 border-t border-slate-100/60 mt-1.5">
                           <span>น้ำหนักรวม: {formatWeight(line.grossWeightValue)} | หักภาชนะ: {formatWeight(line.containerDeductionWeightValue)}</span>
-                          <LineImagesButton line={line} onOpenLineGallery={onOpenLineGallery} />
+                          <LineImagesButton gallerySources={lotGallerySources} line={line} onOpenLineGallery={onOpenLineGallery} />
                         </div>
                       </div>
                     ))}
@@ -789,7 +843,11 @@ export function WeightTicketProductBreakdownTable({
                         {line.note && <div className="text-sm text-slate-600 bg-slate-50 p-2.5 rounded mt-1">หมายเหตุ: {line.note}</div>}
                         <div className="flex justify-between items-center text-sm font-medium text-slate-500 pt-2 border-t border-slate-100/60 mt-1.5">
                           <span>น้ำหนักรวม: {formatWeight(line.grossWeightValue)} | หักภาชนะ: {formatWeight(line.containerDeductionWeightValue)}</span>
-                          <LineImagesButton line={line} onOpenLineGallery={onOpenLineGallery} />
+                          <LineImagesButton
+                            gallerySources={[{ id: line.id, imageNames: line.imageNames, title: line.productName }]}
+                            line={line}
+                            onOpenLineGallery={onOpenLineGallery}
+                          />
                         </div>
                       </div>
                     ))}

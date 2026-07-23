@@ -165,7 +165,7 @@ const advancePaymentColumns: Array<ResizableColumnDefinition<AdvancePaymentColum
   { key: 'subtotalAmount', defaultWidth: 110, minWidth: 90 },
   { key: 'remainingAmount', defaultWidth: 110, minWidth: 90 },
   { key: 'status', defaultWidth: 140, minWidth: 120 },
-  { key: 'action', defaultWidth: 180, minWidth: 150 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 const emptyForm = (): FormState => ({
@@ -628,7 +628,7 @@ export function AdvancePaymentsPageClient() {
               <DialogTitle>{editingAdvanceId ? `แก้ไขรายการ ADV ${editingAdvanceNo ?? ''}` : 'สร้างรายการจ่ายเงินล่วงหน้า / มัดจำ'}</DialogTitle>
               <DialogDescription>{editingAdvanceId ? 'แก้ไขได้เฉพาะรายการที่ยังไม่อนุมัติ และยังไม่ถูกใช้หักบิล' : 'บันทึกเอกสาร ADV ใหม่จากประเภทมัดจำ ข้อมูลผู้ขาย และยอดการจ่ายเงิน'}</DialogDescription>
             </div>
-            <Button className="bg-white/10 text-white hover:bg-white/20 hover:text-white" disabled={isSaving} size="sm" type="button" variant="ghost" onClick={closeForm}>ปิด</Button>
+            <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" disabled={isSaving} size="sm" type="button" variant="outline" onClick={closeForm}>ปิด</Button>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -821,7 +821,7 @@ export function AdvancePaymentsPageClient() {
             </div>
           </div>
 
-          <div className="space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
+          <div className="space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm" data-ns-field-scope="filter">
             <div className="flex flex-wrap items-center gap-2">
               <Input className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหา ADV / ใบชั่งใหญ่ / ผู้ขาย / ทะเบียน..." type="search" value={q} onChange={(event) => { setQ(event.target.value); setPage(1) }} />
 
@@ -1005,6 +1005,15 @@ export function AdvancePaymentsPageClient() {
                     <span className="text-xs text-slate-500 block">ฐานคงเหลือใช้หักบิล</span>
                     <span className="font-bold text-amber-700 text-sm tabular-nums">{formatMoney(row.remainingAmount)}</span>
                   </div>
+                </div>
+                <div className="mt-3 flex justify-end border-t border-slate-100 pt-2" onClick={(event) => event.stopPropagation()}>
+                  <TableActionButton mobileLabel menu={(
+                    <>
+                      <TableActionMenuItem onSelect={() => handlePrint(row)}>พิมพ์</TableActionMenuItem>
+                      <TableActionMenuItem disabled={!row.canEdit} onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem>
+                      <TableActionMenuItem disabled={!row.canCancel} onSelect={() => void openCancelFromRow(row.id)}>ยกเลิก</TableActionMenuItem>
+                    </>
+                  )} />
                 </div>
               </div>
             ))}

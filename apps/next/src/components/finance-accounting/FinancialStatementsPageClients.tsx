@@ -1862,7 +1862,7 @@ function DrillModal({ onClose, rows, title }: { onClose: () => void; rows: Detai
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
       <div aria-labelledby="financial-statement-drill-title" aria-modal="true" className="flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-xl" role="dialog">
-        <div className="flex items-center justify-between bg-slate-900 px-4 py-3 text-white">
+        <div data-ns-dialog-header className="flex items-center justify-between bg-slate-900 px-4 py-3 text-white">
           <h2 className="text-sm font-bold" id="financial-statement-drill-title">{title}</h2>
           <button className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-normal text-white outline-none hover:bg-red-700 focus:ring-0" type="button" onClick={onClose}>
             ปิด

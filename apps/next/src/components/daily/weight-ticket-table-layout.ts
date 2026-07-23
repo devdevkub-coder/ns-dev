@@ -14,7 +14,7 @@ export const weightTicketColumns: Array<ResizableColumnDefinition<WeightTicketCo
   { key: 'containerDeductionWeight', defaultWidth: 150, minWidth: 130 },
   { key: 'status', defaultWidth: 130, minWidth: 130 },
   { key: 'updatedAt', defaultWidth: 145, minWidth: 130 },
-  { key: 'action', defaultWidth: 390, minWidth: 390 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 export const WEIGHT_TICKET_TABLE_COLUMN_COUNT = weightTicketColumns.length

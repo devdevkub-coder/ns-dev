@@ -47,7 +47,7 @@
   --ns-field-focus-ring: rgb(59 130 246 / 0.25);
   --ns-field-invalid-bg: #fef2f2;
   --ns-field-invalid-border: #f87171;
-  --ns-manual-required-bg: #fff7cc;
+  --ns-manual-entry-bg: #fff7cc;
 }
 
 .dark {
@@ -59,7 +59,7 @@
   --ns-field-focus-ring: rgb(59 130 246 / 0.35);
   --ns-field-invalid-bg: rgb(127 29 29 / 0.28);
   --ns-field-invalid-border: #ef4444;
-  --ns-manual-required-bg: rgb(234 179 8 / 0.18);
+  --ns-manual-entry-bg: rgb(234 179 8 / 0.18);
   
   /* Redefine Tailwind's base theme variables */
   --color-white: #1e293b;
@@ -370,6 +370,44 @@ code {
 
 .dark .profit-top-list-header {
   background-color: var(--ns-dark-table-header) !important;
+}
+
+/* Modal headers share the same visual hierarchy as table headers. */
+[data-ns-dialog-header] {
+  background-color: var(--color-slate-100) !important;
+  border-bottom: 1px solid var(--color-slate-200) !important;
+  color: var(--color-slate-700) !important;
+}
+
+[data-ns-dialog-header] :where(h1, h2, h3, h4, h5, h6) {
+  color: var(--color-slate-800) !important;
+}
+
+[data-ns-dialog-header] :where(p) {
+  color: var(--color-slate-600) !important;
+}
+
+.dark [data-ns-dialog-header] {
+  background-color: var(--ns-dark-table-header) !important;
+  border-bottom-color: var(--ns-dark-border-strong) !important;
+  color: var(--ns-dark-muted) !important;
+}
+
+/* Beat the higher-specificity legacy dark utility remap on older modal headers. */
+.dark [data-ns-dialog-header].bg-slate-800.text-white,
+.dark [data-ns-dialog-header].bg-slate-900.text-white,
+.dark [data-ns-dialog-header].bg-slate-950.text-white {
+  background-color: var(--ns-dark-table-header) !important;
+  border-bottom-color: var(--ns-dark-border-strong) !important;
+  color: var(--ns-dark-muted) !important;
+}
+
+.dark [data-ns-dialog-header] :where(h1, h2, h3, h4, h5, h6) {
+  color: var(--ns-dark-text) !important;
+}
+
+.dark [data-ns-dialog-header] :where(p) {
+  color: var(--ns-dark-muted) !important;
 }
 
 /* Legacy form baseline: plain Tailwind `border` controls should render light slate, and text color should match theme. */
@@ -879,37 +917,101 @@ aside a:visited {
   box-shadow: 0 0 0 3px var(--ns-field-focus-ring) !important;
 }
 
-/* Office/ERP data-entry convention: required manual-entry fields stay pale yellow even after they are filled. */
-:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea):required:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]),
-:where([role="combobox"])[aria-required="true"]:not(:disabled):not([aria-invalid="true"]):not([data-auto-filled="true"]),
-:where([data-slot="input-group"]):has(input:required:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"])),
-:where([data-manual-required="true"]) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea, [role="combobox"]):not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]),
-:where([data-manual-required="true"]) :where([data-slot="input-group"]):has(input:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"])):not(:has([aria-invalid="true"])) {
-  background-color: var(--ns-manual-required-bg) !important;
+/* Office/ERP data-entry convention: Every field users type into or select stays pale yellow, including optional fields and filters. */
+:where(
+  form:not([data-ns-field-scope="filter"]),
+  [data-ns-dialog-content]:not([data-ns-field-scope="filter"]),
+  [data-ns-field-scope="entry"]
+) :where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="submit"]):not([type="reset"]):not([type="button"]):not([type="image"]),
+  select,
+  textarea,
+  [role="combobox"]
+):not(:disabled):not([aria-disabled="true"]):not([readonly]):not([aria-readonly="true"]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]):not(:where([data-ns-field-scope="filter"] *)):not(:where([data-field-invalid="true"] *)),
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="submit"]):not([type="reset"]):not([type="button"]):not([type="image"]), select, textarea):required:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]):not(:where([data-ns-field-scope="filter"] *)):not(:where([data-field-invalid="true"] *)),
+:where([role="combobox"])[aria-required="true"]:not(:disabled):not([aria-disabled="true"]):not([aria-readonly="true"]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not(:where([data-ns-field-scope="filter"] *)):not(:where([data-field-invalid="true"] *)),
+:where([data-slot="input-group"]):has(input:required:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"])):not(:where([data-ns-field-scope="filter"] *)):not(:where([data-field-invalid="true"] *)),
+:where([data-manual-required="true"]) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="submit"]):not([type="reset"]):not([type="button"]):not([type="image"]), select, textarea, [role="combobox"]):not(:disabled):not([readonly]):not([aria-readonly="true"]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]):not(:where([data-ns-field-scope="filter"] *)):not(:where([data-field-invalid="true"] *)),
+:where([data-manual-required="true"]) :where([data-slot="input-group"]):has(input:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"])):not(:has([aria-invalid="true"])):not(:where([data-ns-field-scope="filter"] *)):not(:where([data-field-invalid="true"] *)),
+:where(
+  form:not([data-ns-field-scope="filter"]),
+  [data-ns-dialog-content]:not([data-ns-field-scope="filter"]),
+  [data-ns-field-scope="entry"]
+) :where([data-slot="input-group"]):has(input:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"])):not(:has([aria-invalid="true"])):not(:where([data-ns-field-scope="filter"] *)):not(:where([data-field-invalid="true"] *)) {
+  background-color: var(--ns-manual-entry-bg) !important;
 }
 
-:where([data-manual-required="true"]) :where([data-slot="input-group"]):has(input[data-manual-entry-readonly="true"][readonly]:not(:disabled):not([aria-invalid="true"])) {
-  background-color: var(--ns-manual-required-bg) !important;
+:where(
+  form:not([data-ns-field-scope="filter"]),
+  [data-ns-dialog-content]:not([data-ns-field-scope="filter"]),
+  [data-ns-field-scope="entry"],
+  [data-manual-required="true"]
+) :where(input[data-manual-entry-readonly="true"][readonly]:not(:disabled):not([aria-invalid="true"]), [data-slot="input-group"]:has(input[data-manual-entry-readonly="true"][readonly]:not(:disabled):not([aria-invalid="true"]))):not(:has([aria-invalid="true"])):not(:where([data-ns-field-scope="filter"] *)):not(:where([data-field-invalid="true"] *)) {
+  background-color: var(--ns-manual-entry-bg) !important;
 }
 
-:where([data-required-group="true"])[data-manual-required="true"]:not([data-field-invalid="true"]) {
-  background-color: var(--ns-manual-required-bg) !important;
+:where([data-required-group="true"])[data-manual-required="true"]:not([data-field-invalid="true"]):not(:where([data-ns-field-scope="filter"] *)) {
+  background-color: var(--ns-manual-entry-bg) !important;
 }
 
-/* Required manual fields must stay yellow while focused; focus changes only the blue border/ring. */
-:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea):required:focus:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]),
-:where([role="combobox"])[aria-required="true"]:focus:not(:disabled):not([aria-invalid="true"]):not([data-auto-filled="true"]),
-:where([data-slot="input-group"]):has(input:required:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"])):focus-within,
-:where([data-manual-required="true"]) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea, [role="combobox"]):focus:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]),
-:where([data-manual-required="true"]) [data-slot="input-group"]:has(input:not(:disabled):not([readonly])):focus-within:not(:has([aria-invalid="true"])) {
-  background-color: var(--ns-manual-required-bg) !important;
+/* Manual-entry fields must stay yellow while focused; focus changes only the blue border/ring. */
+:where(
+  form:not([data-ns-field-scope="filter"]),
+  [data-ns-dialog-content]:not([data-ns-field-scope="filter"]),
+  [data-ns-field-scope="entry"]
+) :where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="submit"]):not([type="reset"]):not([type="button"]):not([type="image"]),
+  select,
+  textarea,
+  [role="combobox"]
+):focus:not(:disabled):not([aria-disabled="true"]):not([readonly]):not([aria-readonly="true"]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]):not(:where([data-ns-field-scope="filter"] *)):not(:where([data-field-invalid="true"] *)),
+:where(
+  form:not([data-ns-field-scope="filter"]),
+  [data-ns-dialog-content]:not([data-ns-field-scope="filter"]),
+  [data-ns-field-scope="entry"]
+) [data-slot="input-group"]:has(input:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"])):focus-within:not(:has([aria-invalid="true"])):not(:where([data-ns-field-scope="filter"] *)):not(:where([data-field-invalid="true"] *)),
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea):required:focus:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]):not(:where([data-ns-field-scope="filter"] *)):not(:where([data-field-invalid="true"] *)),
+:where([role="combobox"])[aria-required="true"]:focus:not(:disabled):not([aria-disabled="true"]):not([aria-readonly="true"]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not(:where([data-ns-field-scope="filter"] *)):not(:where([data-field-invalid="true"] *)),
+:where([data-slot="input-group"]):has(input:required:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"])):focus-within:not(:where([data-ns-field-scope="filter"] *)):not(:where([data-field-invalid="true"] *)),
+:where([data-manual-required="true"]) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea, [role="combobox"]):focus:not(:disabled):not([readonly]):not([aria-readonly="true"]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]):not(:where([data-ns-field-scope="filter"] *)):not(:where([data-field-invalid="true"] *)),
+:where([data-manual-required="true"]) [data-slot="input-group"]:has(input:not(:disabled):not([readonly]):not([data-auto-filled="true"])):focus-within:not(:has([aria-invalid="true"])):not(:where([data-ns-field-scope="filter"] *)):not(:where([data-field-invalid="true"] *)) {
+  background-color: var(--ns-manual-entry-bg) !important;
 }
 
-:where([data-manual-required="true"]) [data-slot="input-group"]:has(input[data-manual-entry-readonly="true"][readonly]:not(:disabled):not([aria-invalid="true"])):focus-within {
-  background-color: var(--ns-manual-required-bg) !important;
+:where(
+  form:not([data-ns-field-scope="filter"]),
+  [data-ns-dialog-content]:not([data-ns-field-scope="filter"]),
+  [data-ns-field-scope="entry"],
+  [data-manual-required="true"]
+) [data-slot="input-group"]:has(input[data-manual-entry-readonly="true"][readonly]:not(:disabled):not([aria-invalid="true"])):focus-within:not(:where([data-ns-field-scope="filter"] *)):not(:where([data-field-invalid="true"] *)) {
+  background-color: var(--ns-manual-entry-bg) !important;
 }
 
-/* Validation errors override required yellow with a red field surface. */
+/* Filter/search/date controls are also user-owned inputs; keep them yellow while preserving disabled, auto, readonly, and error semantics. */
+:where([data-ns-field-scope="filter"]) :where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="submit"]):not([type="reset"]):not([type="button"]):not([type="image"]),
+  select,
+  textarea,
+  [role="combobox"]
+):not(:disabled):not([aria-disabled="true"]):not([readonly]):not([aria-readonly="true"]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]):not(:where([data-field-invalid="true"] *)),
+:where([data-ns-field-scope="filter"]) :where(input[data-manual-entry-readonly="true"][readonly]:not(:disabled):not([aria-invalid="true"]), [data-slot="input-group"]:has(input[data-manual-entry-readonly="true"][readonly]:not(:disabled):not([aria-invalid="true"]))):not(:has([aria-invalid="true"])):not(:where([data-field-invalid="true"] *)),
+:where([data-ns-field-scope="filter"]) :where([data-slot="input-group"]):has(input:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"])):not(:has([aria-invalid="true"])):not(:where([data-field-invalid="true"] *)) {
+  background-color: var(--ns-manual-entry-bg) !important;
+}
+
+/* Global fallback: active pages without an explicit scope still follow the same editable-field contract. */
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="submit"]):not([type="reset"]):not([type="button"]):not([type="image"]),
+  select,
+  textarea,
+  [role="combobox"]
+):not(:disabled):not([aria-disabled="true"]):not([readonly]):not([aria-readonly="true"]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]):not(:where([data-field-invalid="true"] *)),
+:where(input[data-manual-entry-readonly="true"][readonly]:not(:disabled):not([aria-invalid="true"]), [data-slot="input-group"]:has(input[data-manual-entry-readonly="true"][readonly]:not(:disabled):not([aria-invalid="true"]))):not(:has([aria-invalid="true"])):not(:where([data-field-invalid="true"] *)),
+:where([data-slot="input-group"]):has(input:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"])):not(:has([aria-invalid="true"])):not(:where([data-field-invalid="true"] *)) {
+  background-color: var(--ns-manual-entry-bg) !important;
+}
+
+/* Validation errors override manual-entry yellow with a red field surface. */
 :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea)[aria-invalid="true"]:not(:disabled):not([readonly]),
 :where([role="combobox"])[aria-invalid="true"]:not(:disabled):not([aria-readonly="true"]),
 :where([data-slot="input-group"]):has([aria-invalid="true"]:not(:disabled):not([readonly])),
@@ -940,6 +1042,17 @@ aside a:visited {
   opacity: 1;
 }
 
+/* Dark-mode implementation-only readonly comboboxes remain manual-entry fields. */
+.dark :where(
+  form:not([data-ns-field-scope="filter"]),
+  [data-ns-dialog-content]:not([data-ns-field-scope="filter"]),
+  [data-ns-field-scope="entry"],
+  [data-manual-required="true"]
+) input[data-manual-entry-readonly="true"][readonly]:not(:disabled):not([aria-invalid="true"]):not(:where([data-ns-field-scope="filter"] *)):not(:where([data-field-invalid="true"] *)) {
+  background-color: var(--ns-manual-entry-bg) !important;
+  color: var(--ns-dark-text) !important;
+}
+
 .dark :where(option, optgroup) {
   background-color: var(--ns-dark-surface-soft) !important;
   color: var(--ns-dark-text) !important;
@@ -949,6 +1062,31 @@ aside a:visited {
   background-color: var(--ns-dark-surface-soft) !important;
   color: var(--ns-dark-text) !important;
   color-scheme: dark;
+}
+
+/* Dark-mode filter/search/date controls keep the shared yellow manual-entry token too. */
+.dark :where([data-ns-field-scope="filter"]) :where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="submit"]):not([type="reset"]):not([type="button"]):not([type="image"]),
+  select,
+  textarea,
+  [role="combobox"]
+):not(:disabled):not([aria-disabled="true"]):not([readonly]):not([aria-readonly="true"]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]):not(:where([data-field-invalid="true"] *)),
+.dark :where([data-ns-field-scope="filter"]) :where(input[data-manual-entry-readonly="true"][readonly]:not(:disabled):not([aria-invalid="true"]), [data-slot="input-group"]:has(input[data-manual-entry-readonly="true"][readonly]:not(:disabled):not([aria-invalid="true"]))):not(:has([aria-invalid="true"])):not(:where([data-field-invalid="true"] *)),
+.dark :where([data-ns-field-scope="filter"]) :where([data-slot="input-group"]):has(input:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"])):not(:has([aria-invalid="true"])):not(:where([data-field-invalid="true"] *)) {
+  background-color: var(--ns-manual-entry-bg) !important;
+  color: var(--ns-dark-text) !important;
+}
+
+.dark :where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="submit"]):not([type="reset"]):not([type="button"]):not([type="image"]),
+  select,
+  textarea,
+  [role="combobox"]
+):not(:disabled):not([aria-disabled="true"]):not([readonly]):not([aria-readonly="true"]):not([aria-invalid="true"]):not([data-auto-filled="true"]):not([class*="bg-red-"]):not(:where([data-field-invalid="true"] *)),
+.dark :where(input[data-manual-entry-readonly="true"][readonly]:not(:disabled):not([aria-invalid="true"]), [data-slot="input-group"]:has(input[data-manual-entry-readonly="true"][readonly]:not(:disabled):not([aria-invalid="true"]))):not(:has([aria-invalid="true"])):not(:where([data-field-invalid="true"] *)),
+.dark :where([data-slot="input-group"]):has(input:not(:disabled):not([readonly]):not([aria-invalid="true"]):not([data-auto-filled="true"])):not(:has([aria-invalid="true"])):not(:where([data-field-invalid="true"] *)) {
+  background-color: var(--ns-manual-entry-bg) !important;
+  color: var(--ns-dark-text) !important;
 }
 
 .dark :where(thead, thead tr, thead th) {

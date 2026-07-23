@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, Search } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/Input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
-import { TableActionButton } from '@/components/ui/TableActionButton'
+import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Select } from '@/components/ui/Select'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
@@ -273,12 +273,6 @@ export function CostPoolPageClient() {
     setActiveProductKey(group.key)
   }
 
-  function handleCardKeyDown(event: KeyboardEvent<HTMLElement>, group: ProductGroup) {
-    if (event.key !== 'Enter' && event.key !== ' ') return
-    event.preventDefault()
-    openGroupDetail(group)
-  }
-
   return (
     <DualCostingPageSection className="space-y-5">
       <DualCostingErrorBox error={error} />
@@ -535,10 +529,8 @@ export function CostPoolPageClient() {
                   <td className="p-3 text-right font-mono font-semibold tabular-nums text-slate-900">{formatMoney(group.availableValue)}</td>
                   <td className="p-3 text-right">
                     <TableActionButton
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        openGroupDetail(group)
-                      }}
+                      label="ดูรายละเอียด"
+                      menu={<TableActionMenuItem onSelect={() => openGroupDetail(group)}>ดูรายละเอียด</TableActionMenuItem>}
                     />
                   </td>
                 </tr>
@@ -553,31 +545,37 @@ export function CostPoolPageClient() {
         {!isLoading && !error && totalGroups === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-400 shadow-sm">Cost Pool ว่างตามตัวกรองปัจจุบัน</div> : null}
         {!isLoading && pagedGroups.map((group) => (
           <article
-            aria-label={`ดูรายละเอียด Cost Pool ${group.productName}`}
-            className="cursor-pointer space-y-3 rounded-md border border-slate-200 bg-white p-4 shadow-sm transition-colors active:bg-slate-50"
+            className="space-y-3 rounded-md border border-slate-200 bg-white p-4 shadow-sm"
             key={group.key}
-            role="button"
-            tabIndex={0}
-            onClick={() => openGroupDetail(group)}
-            onKeyDown={(event) => handleCardKeyDown(event, group)}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-base font-bold text-slate-900">{group.productName}</div>
-                <div className="mt-0.5 text-xs text-slate-500">{group.rows.length.toLocaleString('th-TH')} ล็อตต้นทุน</div>
+            <button
+              aria-label={`ดูรายละเอียด Cost Pool ${group.productName}`}
+              className="block w-full space-y-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              type="button"
+              onClick={() => openGroupDetail(group)}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-base font-bold text-slate-900">{group.productName}</div>
+                  <div className="mt-0.5 text-xs text-slate-500">{group.rows.length.toLocaleString('th-TH')} ล็อตต้นทุน</div>
+                </div>
+                <span className="shrink-0 text-xs font-semibold text-blue-700">ดูรายละเอียด</span>
               </div>
-              <span className="shrink-0 text-xs font-semibold text-blue-700">ดูรายละเอียด</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3 rounded-md border border-slate-100 bg-slate-50 p-3 text-sm">
-              <MobileMetric label="ปริมาณตั้งต้นรวม" value={`${formatMoney(group.originalQty)} กก.`} />
-              <MobileMetric align="right" label="จับคู่แล้วรวม" value={`${formatMoney(group.usedQty)} กก.`} />
-              <MobileMetric label="ต้นทุนเฉลี่ย" value={formatMoney(group.avgUnitCost)} />
-              <MobileMetric align="right" label="คงเหลือพร้อมใช้รวม" value={`${formatMoney(group.availableQty)} กก.`} />
-            </div>
-            <div className="flex items-end justify-between gap-3 border-t border-slate-100 pt-3">
-              <span className="text-xs text-slate-500">มูลค่าคงเหลือรวม</span>
-              <span className="font-mono text-base font-bold tabular-nums text-slate-900">{formatMoney(group.availableValue)} บาท</span>
-            </div>
+              <div className="grid grid-cols-2 gap-3 rounded-md border border-slate-100 bg-slate-50 p-3 text-sm">
+                <MobileMetric label="ปริมาณตั้งต้นรวม" value={`${formatMoney(group.originalQty)} กก.`} />
+                <MobileMetric align="right" label="จับคู่แล้วรวม" value={`${formatMoney(group.usedQty)} กก.`} />
+                <MobileMetric label="ต้นทุนเฉลี่ย" value={formatMoney(group.avgUnitCost)} />
+                <MobileMetric align="right" label="คงเหลือพร้อมใช้รวม" value={`${formatMoney(group.availableQty)} กก.`} />
+              </div>
+              <div className="flex items-end justify-between gap-3 border-t border-slate-100 pt-3">
+                <span className="text-xs text-slate-500">มูลค่าคงเหลือรวม</span>
+                <span className="font-mono text-base font-bold tabular-nums text-slate-900">{formatMoney(group.availableValue)} บาท</span>
+              </div>
+            </button>
+            <TableActionButton
+              mobileLabel
+              menu={<TableActionMenuItem onSelect={() => openGroupDetail(group)}>ดูรายละเอียด</TableActionMenuItem>}
+            />
           </article>
         ))}
       </div>

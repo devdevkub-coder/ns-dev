@@ -873,7 +873,7 @@ export function StockBalancePageClient() {
 
       <Dialog open={!!detailRow} onOpenChange={(open) => { if (!open) setDetailRow(null) }}>
         <DialogContent className="max-h-[90vh] w-[calc(100vw-1rem)] max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 dark:bg-[#0f172a] border-0 animate-fade-in sm:w-[calc(100vw-2rem)] lg:min-w-[900px]" hideClose>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 bg-slate-900 dark:bg-[#0f172a] text-white px-5 py-3 shrink-0 border-b border-slate-800 dark:border-slate-200">
+          <div data-ns-dialog-header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 bg-slate-900 dark:bg-[#0f172a] text-white px-5 py-3 shrink-0 border-b border-slate-800 dark:border-slate-200">
             <h3 className="truncate font-bold text-white text-[16px]">รายละเอียดสต๊อกคงเหลือ</h3>
             <button
               className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700"
