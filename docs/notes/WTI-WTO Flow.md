@@ -54,6 +54,12 @@ updated: 2026-07-23
 
 ## WTI Concurrent Draft / Auto-save Design (2026-07-23)
 
+### Implementation checkpoint (2026-07-23)
+
+เริ่มเปิดใช้เฉพาะ WTI แล้ว: schema เพิ่ม `draft_version` ระดับเอกสาร/รายการและตาราง idempotency ของ operation, server ใช้ transaction + row version conflict, และ client ใช้ `/lines` operation route สำหรับ add/update/delete รายการรวมรูปและสิ่งเจือปนใน payload เดียวกัน. หลัง commit จะ broadcast event ที่มีเฉพาะ document/line version และให้ client ดึงเอกสารล่าสุดจาก API; Database เป็น source of truth และ realtime เป็นเพียงสัญญาณแจ้งเตือน.
+
+ปุ่ม `บันทึก` เดิมยังเป็นเจ้าของ header fields และ WTO ทั้งหมด. ปุ่ม `ยกเลิก` จะยืนยันเมื่อ header ที่ยังไม่ได้บันทึกค้างอยู่; รายการ WTI ที่ auto-save สำเร็จแล้วไม่ถูกถามซ้ำ. Route runtime รวม operation ไว้ที่ `POST /api/daily/weight-tickets/{id}/lines` เพื่อใช้ idempotency และ version contract เดียวกันก่อนค่อยแยก verb ตามความจำเป็นของ WTO.
+
 ### ขอบเขต
 
 รอบนี้ออกแบบและทำเฉพาะ `WTI` ก่อน เพื่อรองรับหน้างานที่มี 2 ตราชั่งและผู้ใช้ 2 คนเปิดเอกสารใบเดียวกันพร้อมกัน ผู้ใช้ทั้งสองคนแก้ไขร่วมกันได้เฉพาะส่วนรายการหน้างาน:

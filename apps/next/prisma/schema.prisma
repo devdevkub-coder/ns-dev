@@ -2296,9 +2296,9 @@ model purchase_bill_po_allocations {
 
 model purchase_channels {
   name           String
-  active         Boolean?        @default(true)
-  code           String          @unique
-  id             BigInt          @id @default(autoincrement())
+  active         Boolean?         @default(true)
+  code           String           @unique
+  id             BigInt           @id @default(autoincrement())
   purchase_bills purchase_bills[]
 
   @@schema("public")
@@ -2419,41 +2419,41 @@ model customer_advance_statuses {
 }
 
 model customer_advances {
-  id                           BigInt                         @id @default(autoincrement())
-  doc_no                       String                         @unique
-  document_date                DateTime                       @db.Date
-  branch_id                    BigInt
-  customer_id                  BigInt
-  customer_code_snapshot       String
-  customer_name_snapshot       String
-  invoice_no                   String?
-  contract_no                  String?
-  currency_code                String
-  vat_type                     String                         @default("NONE")
-  vat_rate_percent             Decimal                        @default(0) @db.Decimal(5, 2)
-  subtotal_amount              Decimal                        @db.Decimal(18, 2)
-  vat_amount                   Decimal                        @default(0) @db.Decimal(18, 2)
-  target_amount                Decimal                        @db.Decimal(18, 2)
-  received_amount              Decimal                        @default(0) @db.Decimal(18, 2)
-  available_amount             Decimal                        @default(0) @db.Decimal(18, 2)
-  allocated_amount             Decimal                        @default(0) @db.Decimal(18, 2)
-  status_id                    BigInt
-  remark                       String?
-  created_at                   DateTime                       @default(now()) @db.Timestamptz(6)
-  created_by                   String
-  updated_at                   DateTime                       @default(now()) @db.Timestamptz(6)
-  updated_by                   String
-  version                      Int                            @default(1)
-  cancelled_at                 DateTime?                      @db.Timestamptz(6)
-  cancelled_by                 String?
-  cancel_reason                String?
-  branches                     branches                       @relation(fields: [branch_id], references: [id], onUpdate: NoAction)
-  customers                    customers                      @relation(fields: [customer_id], references: [id], onUpdate: NoAction)
-  currencies                   currencies                     @relation(fields: [currency_code], references: [code], onUpdate: NoAction)
-  customer_advance_statuses    customer_advance_statuses      @relation(fields: [status_id], references: [id], onUpdate: NoAction)
-  customer_advance_items       customer_advance_items[]
+  id                                   BigInt                                 @id @default(autoincrement())
+  doc_no                               String                                 @unique
+  document_date                        DateTime                               @db.Date
+  branch_id                            BigInt
+  customer_id                          BigInt
+  customer_code_snapshot               String
+  customer_name_snapshot               String
+  invoice_no                           String?
+  contract_no                          String?
+  currency_code                        String
+  vat_type                             String                                 @default("NONE")
+  vat_rate_percent                     Decimal                                @default(0) @db.Decimal(5, 2)
+  subtotal_amount                      Decimal                                @db.Decimal(18, 2)
+  vat_amount                           Decimal                                @default(0) @db.Decimal(18, 2)
+  target_amount                        Decimal                                @db.Decimal(18, 2)
+  received_amount                      Decimal                                @default(0) @db.Decimal(18, 2)
+  available_amount                     Decimal                                @default(0) @db.Decimal(18, 2)
+  allocated_amount                     Decimal                                @default(0) @db.Decimal(18, 2)
+  status_id                            BigInt
+  remark                               String?
+  created_at                           DateTime                               @default(now()) @db.Timestamptz(6)
+  created_by                           String
+  updated_at                           DateTime                               @default(now()) @db.Timestamptz(6)
+  updated_by                           String
+  version                              Int                                    @default(1)
+  cancelled_at                         DateTime?                              @db.Timestamptz(6)
+  cancelled_by                         String?
+  cancel_reason                        String?
+  branches                             branches                               @relation(fields: [branch_id], references: [id], onUpdate: NoAction)
+  customers                            customers                              @relation(fields: [customer_id], references: [id], onUpdate: NoAction)
+  currencies                           currencies                             @relation(fields: [currency_code], references: [code], onUpdate: NoAction)
+  customer_advance_statuses            customer_advance_statuses              @relation(fields: [status_id], references: [id], onUpdate: NoAction)
+  customer_advance_items               customer_advance_items[]
   customer_receipt_advance_allocations customer_receipt_advance_allocations[]
-  customer_advance_status_logs customer_advance_status_logs[]
+  customer_advance_status_logs         customer_advance_status_logs[]
 
   @@index([document_date(sort: Desc), doc_no(sort: Desc)], map: "idx_customer_advances_document_date")
   @@index([branch_id, document_date(sort: Desc), doc_no(sort: Desc)], map: "idx_customer_advances_branch_date")
@@ -2512,46 +2512,46 @@ model customer_advance_status_logs {
 }
 
 model customer_receipts {
-  id                           BigInt                         @id @default(autoincrement())
-  doc_no                       String                         @unique
-  date                         DateTime                       @db.Date
-  gross_amount                 Decimal                        @default(0) @db.Decimal
-  discount_total               Decimal                        @default(0) @db.Decimal
-  bank_fee_total               Decimal                        @default(0) @db.Decimal
-  withholding_tax_total        Decimal                        @default(0) @db.Decimal
-  net_cash_in                  Decimal                        @default(0) @db.Decimal
-  status                       String                         @default("active")
-  payment_method_code_snapshot String
-  payment_method_name_snapshot String
-  customer_code_snapshot       String
-  customer_name_snapshot       String
-  account_code_snapshot        String
-  account_name_snapshot        String
-  bank_statement_doc_no        String?
-  notes                        String?
-  source_type                  String                         @default("SB")
-  cancel_reason                String?
-  cancelled_at                 DateTime?                      @db.Timestamptz(6)
-  cancelled_by                 String?
-  created_at                   DateTime                       @default(now()) @db.Timestamptz(6)
-  created_by                   String?
-  updated_at                   DateTime                       @default(now()) @db.Timestamptz(6)
-  updated_by                   String?
-  version                      Int                            @default(1)
-  customer_id                  BigInt
-  account_id                   BigInt
-  branch_id                    BigInt?
-  payment_method_id            BigInt
-  bank_statement_id            BigInt?                        @unique
-  asset_disposals              asset_disposals[]
-  customer_receipt_allocations customer_receipt_allocations[]
+  id                                   BigInt                                 @id @default(autoincrement())
+  doc_no                               String                                 @unique
+  date                                 DateTime                               @db.Date
+  gross_amount                         Decimal                                @default(0) @db.Decimal
+  discount_total                       Decimal                                @default(0) @db.Decimal
+  bank_fee_total                       Decimal                                @default(0) @db.Decimal
+  withholding_tax_total                Decimal                                @default(0) @db.Decimal
+  net_cash_in                          Decimal                                @default(0) @db.Decimal
+  status                               String                                 @default("active")
+  payment_method_code_snapshot         String
+  payment_method_name_snapshot         String
+  customer_code_snapshot               String
+  customer_name_snapshot               String
+  account_code_snapshot                String
+  account_name_snapshot                String
+  bank_statement_doc_no                String?
+  notes                                String?
+  source_type                          String                                 @default("SB")
+  cancel_reason                        String?
+  cancelled_at                         DateTime?                              @db.Timestamptz(6)
+  cancelled_by                         String?
+  created_at                           DateTime                               @default(now()) @db.Timestamptz(6)
+  created_by                           String?
+  updated_at                           DateTime                               @default(now()) @db.Timestamptz(6)
+  updated_by                           String?
+  version                              Int                                    @default(1)
+  customer_id                          BigInt
+  account_id                           BigInt
+  branch_id                            BigInt?
+  payment_method_id                    BigInt
+  bank_statement_id                    BigInt?                                @unique
+  asset_disposals                      asset_disposals[]
+  customer_receipt_allocations         customer_receipt_allocations[]
   customer_receipt_advance_allocations customer_receipt_advance_allocations[]
-  customer_receipt_status_logs customer_receipt_status_logs[]
-  accounts                     accounts                       @relation(fields: [account_id], references: [id], onUpdate: NoAction)
-  bank_statement               bank_statement?                @relation(fields: [bank_statement_id], references: [id], onUpdate: NoAction)
-  branches                     branches?                      @relation(fields: [branch_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  customers                    customers                      @relation(fields: [customer_id], references: [id], onUpdate: NoAction)
-  payment_methods              payment_methods                @relation(fields: [payment_method_id], references: [id], onUpdate: NoAction)
+  customer_receipt_status_logs         customer_receipt_status_logs[]
+  accounts                             accounts                               @relation(fields: [account_id], references: [id], onUpdate: NoAction)
+  bank_statement                       bank_statement?                        @relation(fields: [bank_statement_id], references: [id], onUpdate: NoAction)
+  branches                             branches?                              @relation(fields: [branch_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  customers                            customers                              @relation(fields: [customer_id], references: [id], onUpdate: NoAction)
+  payment_methods                      payment_methods                        @relation(fields: [payment_method_id], references: [id], onUpdate: NoAction)
 
   @@index([date(sort: Desc)], map: "idx_customer_receipts_date")
   @@index([customer_id, date(sort: Desc)], map: "idx_customer_receipts_customer_date")
@@ -2598,25 +2598,25 @@ model customer_receipt_allocations {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model customer_receipt_advance_allocations {
-  id                              BigInt            @id @default(autoincrement())
-  receipt_id                      BigInt
-  customer_advance_id             BigInt
-  line_no                         Int
+  id                               BigInt            @id @default(autoincrement())
+  receipt_id                       BigInt
+  customer_advance_id              BigInt
+  line_no                          Int
   customer_advance_doc_no_snapshot String
-  customer_code_snapshot          String
-  receipt_amount                  Decimal           @default(0) @db.Decimal(18, 2)
-  received_before                 Decimal           @default(0) @db.Decimal(18, 2)
-  received_after                  Decimal           @default(0) @db.Decimal(18, 2)
-  available_before                Decimal           @default(0) @db.Decimal(18, 2)
-  available_after                 Decimal           @default(0) @db.Decimal(18, 2)
-  status                          String            @default("active")
-  created_at                      DateTime          @default(now()) @db.Timestamptz(6)
-  created_by                      String?
-  updated_at                      DateTime          @default(now()) @db.Timestamptz(6)
-  updated_by                      String?
-  version                         Int               @default(1)
-  customer_advances               customer_advances @relation(fields: [customer_advance_id], references: [id], onUpdate: NoAction)
-  customer_receipts               customer_receipts @relation(fields: [receipt_id], references: [id], onUpdate: NoAction)
+  customer_code_snapshot           String
+  receipt_amount                   Decimal           @default(0) @db.Decimal(18, 2)
+  received_before                  Decimal           @default(0) @db.Decimal(18, 2)
+  received_after                   Decimal           @default(0) @db.Decimal(18, 2)
+  available_before                 Decimal           @default(0) @db.Decimal(18, 2)
+  available_after                  Decimal           @default(0) @db.Decimal(18, 2)
+  status                           String            @default("active")
+  created_at                       DateTime          @default(now()) @db.Timestamptz(6)
+  created_by                       String?
+  updated_at                       DateTime          @default(now()) @db.Timestamptz(6)
+  updated_by                       String?
+  version                          Int               @default(1)
+  customer_advances                customer_advances @relation(fields: [customer_advance_id], references: [id], onUpdate: NoAction)
+  customer_receipts                customer_receipts @relation(fields: [receipt_id], references: [id], onUpdate: NoAction)
 
   @@unique([receipt_id, line_no], map: "customer_receipt_advance_allocations_line_key")
   @@index([receipt_id, line_no], map: "idx_customer_receipt_advance_allocations_receipt")
@@ -3019,11 +3019,13 @@ model weight_tickets {
   customer_id                       BigInt?
   id                                BigInt                              @id @default(autoincrement())
   container_deduction_weight        Decimal                             @default(0) @db.Decimal(18, 2)
+  draft_version                     Int                                 @default(0)
   godown_name                       String
   purchase_bill_receipt_allocations purchase_bill_receipt_allocations[]
   sales_bill_source_allocations     sales_bill_source_allocations[]
   stock_holds                       stock_holds[]
   weight_ticket_lines               weight_ticket_lines[]
+  weight_ticket_draft_operations    weight_ticket_draft_operations[]
   weight_ticket_notification_logs   weight_ticket_notification_logs[]
   weight_ticket_product_summaries   weight_ticket_product_summaries[]
   weight_ticket_status_logs         weight_ticket_status_logs[]
@@ -3063,6 +3065,7 @@ model weight_ticket_lines {
   weight_ticket_id                    BigInt
   warehouse_id                        BigInt?
   container_deduction_weight          Decimal                              @default(0) @db.Decimal(18, 2)
+  draft_version                       Int                                  @default(0)
   parent_line_no                      Int?
   impurity_source_line_no             Int?
   stock_holds                         stock_holds[]
@@ -3071,6 +3074,7 @@ model weight_ticket_lines {
   warehouses                          warehouses?                          @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   weight_tickets                      weight_tickets                       @relation(fields: [weight_ticket_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   weight_ticket_product_summary_lines weight_ticket_product_summary_lines?
+  weight_ticket_draft_operations      weight_ticket_draft_operations[]
 
   @@unique([weight_ticket_id, line_no], map: "uq_weight_ticket_lines_ticket_line")
   @@index([weight_ticket_id, impurity_source_line_no], map: "idx_weight_ticket_lines_impurity_source_line")
@@ -3079,6 +3083,28 @@ model weight_ticket_lines {
   @@index([product_id], map: "idx_weight_ticket_lines_product")
   @@index([warehouse_id], map: "idx_weight_ticket_lines_warehouse")
   @@index([weight_ticket_id], map: "idx_weight_ticket_lines_ticket")
+  @@schema("public")
+}
+
+model weight_ticket_draft_operations {
+  id                      BigInt               @id @default(autoincrement())
+  weight_ticket_id        BigInt
+  weight_ticket_line_id   BigInt?
+  operation_id            String
+  actor                   String
+  action                  String
+  document_version_before Int
+  document_version_after  Int
+  line_version_before     Int?
+  line_version_after      Int?
+  result                  Json                 @default("{}")
+  created_at              DateTime             @default(now()) @db.Timestamptz(6)
+  weight_ticket_lines     weight_ticket_lines? @relation(fields: [weight_ticket_line_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  weight_tickets          weight_tickets       @relation(fields: [weight_ticket_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([weight_ticket_id, operation_id], map: "uq_weight_ticket_draft_operations_ticket_operation")
+  @@index([weight_ticket_id, created_at], map: "idx_weight_ticket_draft_operations_ticket_created")
+  @@index([weight_ticket_line_id], map: "idx_weight_ticket_draft_operations_line")
   @@schema("public")
 }
 
@@ -4266,27 +4292,27 @@ model trading_cost_sources {
 }
 
 model report_profit_cost_facts {
-  id                     BigInt   @id @default(autoincrement())
-  source_type            String
-  source_doc_no          String
-  source_line_no         Int
-  source_event_key       String
-  event_date             DateTime @db.Date
-  branch_id              BigInt
-  product_id             BigInt
-  supplier_id            BigInt?
-  customer_id            BigInt?
-  purchase_channel_id    BigInt?
-  sales_channel_id       BigInt?
-  fact_type              String
-  quantity               Decimal  @default(0) @db.Decimal(18, 3)
-  purchase_amount        Decimal  @default(0) @db.Decimal(18, 2)
-  revenue_amount         Decimal  @default(0) @db.Decimal(18, 2)
-  cogs_amount            Decimal  @default(0) @db.Decimal(18, 2)
-  stock_quantity_delta   Decimal  @default(0) @db.Decimal(18, 3)
-  stock_value_delta      Decimal  @default(0) @db.Decimal(18, 2)
-  projected_at           DateTime @default(now()) @db.Timestamptz(6)
-  source_updated_at      DateTime @db.Timestamptz(6)
+  id                   BigInt   @id @default(autoincrement())
+  source_type          String
+  source_doc_no        String
+  source_line_no       Int
+  source_event_key     String
+  event_date           DateTime @db.Date
+  branch_id            BigInt
+  product_id           BigInt
+  supplier_id          BigInt?
+  customer_id          BigInt?
+  purchase_channel_id  BigInt?
+  sales_channel_id     BigInt?
+  fact_type            String
+  quantity             Decimal  @default(0) @db.Decimal(18, 3)
+  purchase_amount      Decimal  @default(0) @db.Decimal(18, 2)
+  revenue_amount       Decimal  @default(0) @db.Decimal(18, 2)
+  cogs_amount          Decimal  @default(0) @db.Decimal(18, 2)
+  stock_quantity_delta Decimal  @default(0) @db.Decimal(18, 3)
+  stock_value_delta    Decimal  @default(0) @db.Decimal(18, 2)
+  projected_at         DateTime @default(now()) @db.Timestamptz(6)
+  source_updated_at    DateTime @db.Timestamptz(6)
 
   @@unique([source_type, source_doc_no, source_line_no, source_event_key, fact_type], map: "report_profit_cost_facts_source_key_unique")
   @@index([event_date, branch_id, product_id], map: "idx_report_profit_cost_facts_date_branch_product")
@@ -4295,21 +4321,21 @@ model report_profit_cost_facts {
 }
 
 model report_profit_cost_daily {
-  id                     BigInt   @id @default(autoincrement())
-  event_date             DateTime @db.Date
-  branch_id              BigInt
-  product_id             BigInt
-  supplier_id            BigInt?
-  customer_id            BigInt?
-  purchase_channel_id    BigInt?
-  sales_channel_id       BigInt?
-  quantity               Decimal  @default(0) @db.Decimal(18, 3)
-  purchase_amount        Decimal  @default(0) @db.Decimal(18, 2)
-  revenue_amount         Decimal  @default(0) @db.Decimal(18, 2)
-  cogs_amount            Decimal  @default(0) @db.Decimal(18, 2)
-  stock_quantity_delta   Decimal  @default(0) @db.Decimal(18, 3)
-  stock_value_delta      Decimal  @default(0) @db.Decimal(18, 2)
-  refreshed_at           DateTime @default(now()) @db.Timestamptz(6)
+  id                   BigInt   @id @default(autoincrement())
+  event_date           DateTime @db.Date
+  branch_id            BigInt
+  product_id           BigInt
+  supplier_id          BigInt?
+  customer_id          BigInt?
+  purchase_channel_id  BigInt?
+  sales_channel_id     BigInt?
+  quantity             Decimal  @default(0) @db.Decimal(18, 3)
+  purchase_amount      Decimal  @default(0) @db.Decimal(18, 2)
+  revenue_amount       Decimal  @default(0) @db.Decimal(18, 2)
+  cogs_amount          Decimal  @default(0) @db.Decimal(18, 2)
+  stock_quantity_delta Decimal  @default(0) @db.Decimal(18, 3)
+  stock_value_delta    Decimal  @default(0) @db.Decimal(18, 2)
+  refreshed_at         DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([event_date, branch_id], map: "idx_report_profit_cost_daily_date_branch")
   @@index([product_id, event_date], map: "idx_report_profit_cost_daily_product_date")

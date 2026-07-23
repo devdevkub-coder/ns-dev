@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -32,6 +32,7 @@ import {
   OTHER_PRODUCT_IMPURITY_ID,
   OTHER_PRODUCT_IMPURITY_LABEL,
   saveWeightTicket,
+  saveWeightTicketLineDraft,
   WEIGHT_TICKET_STATUS,
   WEIGHT_TICKET_TYPE,
   type DeductionMode,
@@ -40,6 +41,7 @@ import {
   type WeightTicketLine,
   type WeightTicketType,
 } from '@/lib/weight-tickets'
+import { subscribeToWtiDraft } from '@/lib/weight-ticket-realtime'
 
 type FormWeightTicketLine = WeightTicketLine & {
   imageFiles: AttachmentPreview[]
@@ -47,7 +49,7 @@ type FormWeightTicketLine = WeightTicketLine & {
   impurityPurchaseAction?: 'none' | 'buy'
   impurityProductId?: string
   impurityProductName?: string
-  impuritySourceLineId?: string
+  impuritySourceLineId?: string | null
   productName?: string
   warehouseName?: string
   warehouseType?: string
@@ -159,6 +161,22 @@ function isImpurityPurchaseLine(line: FormWeightTicketLine) {
 
 function getMainParentLines(lines: FormWeightTicketLine[]) {
   return lines.filter((line) => !line.parentId)
+}
+
+function lineDraftFingerprint(line: FormWeightTicketLine) {
+  return JSON.stringify({
+    containerDeductionWeight: line.containerDeductionWeight,
+    deductionMode: line.deductionMode,
+    deductionValue: line.deductionValue,
+    grossWeight: line.grossWeight,
+    imageNames: line.imageFiles.map((file) => file.rawValue),
+    impurityId: line.impurityId,
+    impurityProductId: line.impurityProductId ?? '',
+    impuritySourceLineId: line.impuritySourceLineId ?? null,
+    note: line.note,
+    parentId: line.parentId ?? null,
+    productId: line.productId,
+  })
 }
 
 function getBoughtImpurityEntriesForLine(line: FormWeightTicketLine, allLines: FormWeightTicketLine[]) {
@@ -286,6 +304,7 @@ function ticketToFormState(ticket: WeightTicketRecord): FormState {
       containerDeductionWeight: line.containerDeductionWeight,
       deductionMode: line.deductionMode,
       deductionValue: line.deductionValue,
+      draftVersion: line.draftVersion,
       grossWeight: line.grossWeight,
       id: line.id,
       imageNames: line.imageNames,
@@ -502,6 +521,9 @@ export function WeightTicketFormCore({
   const [draftStartedAt] = useState(() => new Date().toISOString())
   const [timerNow, setTimerNow] = useState(() => Date.now())
   const [isWeightTicketSummaryCollapsed, setIsWeightTicketSummaryCollapsed] = useState(true)
+  const persistedLinesRef = useRef<FormWeightTicketLine[]>([])
+  const autosaveInFlightRef = useRef(false)
+  const createDraftInFlightRef = useRef(false)
 
   useEffect(() => {
     onDirtyChange?.(hasEnteredTicketData(form))
@@ -690,6 +712,7 @@ export function WeightTicketFormCore({
     if (!editingTicketId) {
       setIsLoadingTicket(false)
       setLoadedTicket(null)
+      persistedLinesRef.current = []
       return
     }
 
@@ -701,8 +724,10 @@ export function WeightTicketFormCore({
       try {
         const ticket = await getWeightTicket(editingTicketId)
         if (cancelled) return
+        const nextForm = ticketToFormState(ticket)
         setLoadedTicket(ticket)
-        setForm(ticketToFormState(ticket))
+        setForm(nextForm)
+        persistedLinesRef.current = nextForm.lines
         setSavedTicket(null)
         setActiveLineId('')
         setTouched({})
@@ -869,6 +894,154 @@ export function WeightTicketFormCore({
     return next
   }, [form, impurityOptions, lineCalculation])
 
+  const getLineEvidenceImages = useCallback((line: FormWeightTicketLine) => {
+    if (!isImpurityPurchaseLine(line)) return getLineImages(line)
+    const sourceLine = form.lines.find((entry) => entry.id === line.impuritySourceLineId)
+    const sourceParentLine = sourceLine?.parentId
+      ? form.lines.find((entry) => entry.id === sourceLine.parentId)
+      : null
+    return getLineImages(sourceParentLine ?? sourceLine ?? line)
+  }, [form.lines])
+
+  const activeDocumentNo = loadedTicket?.documentNo ?? editingTicketId
+
+  useEffect(() => {
+    if (
+      form.type !== WEIGHT_TICKET_TYPE.WTI
+      || !activeDocumentNo
+      || !loadedTicket
+      || isLoadingTicket
+      || autosaveInFlightRef.current
+    ) return
+
+    const persisted = persistedLinesRef.current
+    if (persisted.length === 0) return
+    const persistedById = new Map(persisted.map((line) => [line.id, line] as const))
+    const currentById = new Map(form.lines.map((line) => [line.id, line] as const))
+    const removed = persisted.find((line) => !currentById.has(line.id))
+    const added = form.lines.find((line) => (
+      !persistedById.has(line.id)
+      && Boolean(line.productId)
+      && (!line.parentId || persistedById.has(line.parentId))
+      && (!line.impuritySourceLineId || persistedById.has(line.impuritySourceLineId))
+    ))
+    const changed = persisted.find((line) => {
+      const current = currentById.get(line.id)
+      return current && lineDraftFingerprint(line) !== lineDraftFingerprint(current)
+    })
+    const action = removed
+      ? { action: 'delete' as const, line: removed, lineId: removed.id }
+      : added
+        ? { action: 'add' as const, line: added, lineId: added.id }
+        : changed
+          ? { action: 'update' as const, line: currentById.get(changed.id)!, lineId: changed.id }
+          : null
+    if (!action) return
+
+    autosaveInFlightRef.current = true
+    const persistedIds = new Set(persisted.map((line) => line.id))
+    const localLineId = action.lineId
+    void saveWeightTicketLineDraft({
+      action: action.action,
+      documentNo: activeDocumentNo,
+      expectedLineVersion: action.action === 'add' ? null : action.line.draftVersion ?? 0,
+      line: action.action === 'delete' ? undefined : action.line,
+      lineId: action.action === 'add' ? null : action.lineId,
+    }).then((ticket) => {
+      const serverState = ticketToFormState(ticket)
+      const serverAdded = action.action === 'add'
+        ? serverState.lines.find((line) => !persistedIds.has(line.id))
+        : null
+      setForm((current) => {
+        const preservedLocalLines = current.lines
+          .filter((line) => !persistedIds.has(line.id) && line.id !== localLineId)
+          .map((line) => {
+            if (!serverAdded) return line
+            if (line.parentId === localLineId) return { ...line, parentId: serverAdded.id }
+            if (line.impuritySourceLineId === localLineId) return { ...line, impuritySourceLineId: serverAdded.id }
+            return line
+          })
+        return { ...current, lines: [...serverState.lines, ...preservedLocalLines] }
+      })
+      setLoadedTicket(ticket)
+      setSavedTicket(ticket)
+      persistedLinesRef.current = serverState.lines
+      setLoadError('')
+    }).catch((caught) => {
+      setMergeNotice(getErrorMessage(caught, 'รายการถูกแก้ไขจากตราชั่งอื่น กรุณาตรวจสอบข้อมูลล่าสุด'))
+    }).finally(() => {
+      autosaveInFlightRef.current = false
+    })
+  }, [activeDocumentNo, form.lines, form.type, isLoadingTicket, loadedTicket])
+
+  useEffect(() => {
+    if (
+      form.type !== WEIGHT_TICKET_TYPE.WTI
+      || editingTicketId
+      || loadedTicket
+      || isLoadingTicket
+      || createDraftInFlightRef.current
+      || Object.keys(errors).length > 0
+      || !form.lines.some((line) => line.productId)
+    ) return
+
+    const timerId = window.setTimeout(() => {
+      createDraftInFlightRef.current = true
+      void saveWeightTicket({
+        branchId: form.branchId,
+        lines: form.lines.map((line) => ({
+          containerDeductionWeight: Number(line.containerDeductionWeight || 0),
+          deductionMode: line.deductionMode,
+          deductionValue: Number(line.deductionValue || 0),
+          grossWeight: Number(line.grossWeight || 0),
+          id: line.id,
+          imageNames: getLineEvidenceImages(line).map((file) => file.rawValue),
+          impurityId: getLineImpurityId(line),
+          impurityProductId: line.impurityProductId ?? '',
+          impuritySourceLineId: line.impuritySourceLineId ?? undefined,
+          note: line.note,
+          productId: line.productId,
+          warehouseId: line.warehouseId,
+          parentId: line.parentId,
+        })),
+        partyId: form.partyId,
+        remark: form.remark.trim(),
+        type: WEIGHT_TICKET_TYPE.WTI,
+        vehicleImageNames: form.vehicleImageFiles.map((file) => file.rawValue),
+        vehicleNo: form.vehicleNo.trim(),
+        godownName: form.godownName.trim(),
+      }).then((ticket) => {
+        const nextForm = ticketToFormState(ticket)
+        setLoadedTicket(ticket)
+        setSavedTicket(ticket)
+        setForm(nextForm)
+        persistedLinesRef.current = nextForm.lines
+        setLoadError('')
+      }).catch((caught) => {
+        setLoadError(getErrorMessage(caught, 'สร้าง draft ใบรับของไม่ได้'))
+      }).finally(() => {
+        createDraftInFlightRef.current = false
+      })
+    }, 500)
+
+    return () => window.clearTimeout(timerId)
+  }, [editingTicketId, errors, form, getLineEvidenceImages, isLoadingTicket, loadedTicket])
+
+  useEffect(() => {
+    if (form.type !== WEIGHT_TICKET_TYPE.WTI || !activeDocumentNo || !loadedTicket) return
+    return subscribeToWtiDraft(activeDocumentNo, (payload) => {
+      if (payload.documentVersion <= (loadedTicket.draftVersion ?? 0)) return
+      void getWeightTicket(activeDocumentNo).then((ticket) => {
+        const nextForm = ticketToFormState(ticket)
+        setLoadedTicket(ticket)
+        setSavedTicket(ticket)
+        persistedLinesRef.current = nextForm.lines
+        setForm((current) => ({ ...current, lines: nextForm.lines }))
+        setMergeNotice('มีการอัปเดตรายการจากตราชั่งอีกจุดแล้ว')
+      }).catch(() => undefined)
+    })
+  }, [activeDocumentNo, form.type, loadedTicket])
+
   const ticketTheme = form.type === 'WTI'
     ? {
         badge: 'bg-emerald-100 text-emerald-800',
@@ -887,15 +1060,6 @@ export function WeightTicketFormCore({
 
   function showError(key: string) {
     return touched[key] ? errors[key] : undefined
-  }
-
-  function getLineEvidenceImages(line: FormWeightTicketLine) {
-    if (!isImpurityPurchaseLine(line)) return getLineImages(line)
-    const sourceLine = form.lines.find((entry) => entry.id === line.impuritySourceLineId)
-    const sourceParentLine = sourceLine?.parentId
-      ? form.lines.find((entry) => entry.id === sourceLine.parentId)
-      : null
-    return getLineImages(sourceParentLine ?? sourceLine ?? line)
   }
 
   function markTouched(key: string) {
@@ -1176,6 +1340,29 @@ export function WeightTicketFormCore({
   }
 
   function backToList() {
+    const currentHeader = JSON.stringify({
+      branchId: form.branchId,
+      godownName: form.godownName.trim(),
+      partyId: form.partyId,
+      remark: form.remark.trim(),
+      vehicleImageNames: form.vehicleImageFiles.map((file) => file.rawValue),
+      vehicleNo: form.vehicleNo.trim(),
+    })
+    const savedHeader = loadedTicket ? JSON.stringify({
+      branchId: loadedTicket.branchId,
+      godownName: loadedTicket.godownName.trim(),
+      partyId: loadedTicket.partyId,
+      remark: loadedTicket.remark.trim(),
+      vehicleImageNames: loadedTicket.vehicleImageNames,
+      vehicleNo: loadedTicket.vehicleNo.trim(),
+    }) : null
+    const hasUnsavedManualChanges = loadedTicket
+      ? currentHeader !== savedHeader || (
+        form.type === WEIGHT_TICKET_TYPE.WTO
+        && JSON.stringify(form.lines.map(lineDraftFingerprint)) !== JSON.stringify(ticketToFormState(loadedTicket).lines.map(lineDraftFingerprint))
+      )
+      : hasEnteredTicketData(form)
+    if (hasUnsavedManualChanges && !window.confirm('มีข้อมูลที่ยังไม่ได้บันทึก ต้องการยกเลิกและออกจากหน้านี้หรือไม่?')) return
     if (onClose) {
       onClose()
     } else {
@@ -1221,7 +1408,7 @@ export function WeightTicketFormCore({
     try {
       const ticket = await saveWeightTicket({
         branchId: form.branchId,
-        id: editingTicketId || undefined,
+        id: activeDocumentNo || undefined,
         lines: form.lines.map((line) => ({
           containerDeductionWeight: Number(line.containerDeductionWeight || 0),
           deductionMode: line.deductionMode,
@@ -1231,7 +1418,7 @@ export function WeightTicketFormCore({
           imageNames: getLineEvidenceImages(line).map((file) => file.rawValue),
           impurityId: getLineImpurityId(line),
           impurityProductId: line.impurityProductId ?? '',
-          impuritySourceLineId: line.impuritySourceLineId,
+          impuritySourceLineId: line.impuritySourceLineId ?? undefined,
           note: line.note,
           productId: line.productId,
           warehouseId: line.warehouseId,
@@ -1247,7 +1434,9 @@ export function WeightTicketFormCore({
       setLoadError('')
       setLoadedTicket(ticket)
       setSavedTicket(ticket)
-      setForm(ticketToFormState(ticket))
+      const nextForm = ticketToFormState(ticket)
+      setForm(nextForm)
+      persistedLinesRef.current = nextForm.lines
       if (onSaveSuccess) {
         onSaveSuccess(ticket)
       } else {
@@ -1257,7 +1446,7 @@ export function WeightTicketFormCore({
       if (caught instanceof ApiError && Object.keys(caught.fieldErrors).length > 0) {
         setTouched((current) => ({ ...current, ...nextTouched }))
       }
-      setLoadError(getErrorMessage(caught, editingTicketId ? 'แก้ไขใบรับ-ส่งของไม่ได้' : 'บันทึกใบรับ-ส่งของไม่ได้'))
+      setLoadError(getErrorMessage(caught, activeDocumentNo ? 'แก้ไขใบรับ-ส่งของไม่ได้' : 'บันทึกใบรับ-ส่งของไม่ได้'))
     } finally {
       setIsSaving(false)
     }

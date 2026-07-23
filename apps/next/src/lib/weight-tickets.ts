@@ -23,12 +23,14 @@ export type WeightTicketLine = {
   containerDeductionWeight: string
   deductionMode: DeductionMode
   deductionValue: string
+  draftVersion?: number
   grossWeight: string
   id: string
   imageNames: string[]
   impurityId: string
   impurityProductId?: string
   impurityProductName?: string
+  impuritySourceLineId?: string | null
   impuritySourceLineNo?: number | null
   lineNo?: number
   note: string
@@ -123,6 +125,7 @@ export type WeightTicketRecord = {
   createdAt: string
   documentDate: string
   documentNo: string
+  draftVersion?: number
   enteredBy: string
   id: string
   imageCount: number
@@ -435,6 +438,7 @@ const weightTicketRecordLineSchema = z.object({
   deductionMode: deductionModeEnum,
   deductionValue: z.string(),
   deductionWeight: z.number(),
+  draftVersion: z.number().int().nonnegative().default(0),
   grossWeight: z.string(),
   grossWeightValue: z.number(),
   id: z.string(),
@@ -557,6 +561,7 @@ export const weightTicketRecordSchema = z.object({
   createdAt: z.string(),
   documentDate: z.string(),
   documentNo: z.string(),
+  draftVersion: z.number().int().nonnegative().default(0),
   enteredBy: z.string(),
   id: z.string(),
   imageCount: z.number().int().nonnegative(),
@@ -816,7 +821,7 @@ type WeightTicketCalculationLine = Pick<WeightTicketLine, 'deductionMode' | 'id'
   deductionValue: number | string
   grossWeight: number | string
   impurityId?: string
-  impuritySourceLineId?: string
+  impuritySourceLineId?: string | null
   parentId?: string
 }
 
@@ -1068,6 +1073,42 @@ export async function saveWeightTicket(values: WeightTicketFormValues) {
     body: JSON.stringify(payloadFromForm(parsed)),
   })
   return readJsonResponse(response, weightTicketRecordSchema, parsed.id ? 'แก้ไขใบรับ-ส่งของไม่ได้' : 'บันทึกใบรับ-ส่งของไม่ได้')
+}
+
+export type WeightTicketLineDraftAction = 'add' | 'update' | 'delete'
+
+export async function saveWeightTicketLineDraft(input: {
+  action: WeightTicketLineDraftAction
+  documentNo: string
+  expectedLineVersion?: number | null
+  line?: WeightTicketLine
+  lineId?: string | null
+}) {
+  if (!input.documentNo) throw new Error('ยังไม่มีเลขที่เอกสารสำหรับบันทึกรายการ')
+  const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(input.documentNo)}/lines`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: input.action,
+      expectedLineVersion: input.expectedLineVersion ?? null,
+      line: input.line ? {
+        containerDeductionWeight: Number(input.line.containerDeductionWeight),
+        deductionMode: input.line.deductionMode,
+        deductionValue: input.line.deductionMode === 'none' ? 0 : Number(input.line.deductionValue),
+        grossWeight: Number(input.line.grossWeight),
+        imageNames: input.line.imageNames,
+        impurityId: input.line.impurityId,
+        impurityProductId: input.line.impurityProductId,
+        impuritySourceLineId: input.line.impuritySourceLineId == null ? null : input.line.impuritySourceLineId,
+        note: input.line.note,
+        parentId: input.line.parentId ?? null,
+        productId: input.line.productId,
+      } : undefined,
+      lineId: input.lineId ?? null,
+      operationId: createClientUuid(),
+    }),
+  })
+  return readJsonResponse(response, weightTicketRecordSchema, 'บันทึกรายการ WTI ไม่ได้')
 }
 
 export async function cancelWeightTicket(id: string, note: string) {

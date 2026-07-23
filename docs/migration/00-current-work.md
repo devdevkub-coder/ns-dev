@@ -48,6 +48,15 @@ Blocker/next: continue the remaining broad finance-route audit documented in `do
 # 00 Current Work
 
 WTI concurrent draft design checkpoint 2026-07-23: ออกแบบให้ WTI รองรับผู้ใช้ 2 คนจาก 2 ตราชั่งเพิ่ม/แก้/ลบสินค้า เต๋า น้ำหนัก รูป และสิ่งเจือปนใน draft เดียวกันด้วย line-level operations + server-side summary + realtime event ต่อเอกสาร; ข้อมูลหัวเอกสารและข้อมูลอื่นยังใช้ปุ่มบันทึกแบบเดิม และปุ่มยกเลิกถามยืนยันเฉพาะ manual changes ที่ยังไม่ถูกบันทึก. Task list อยู่ใน `docs/notes/WTI-WTO Flow.md` ตั้งแต่ `WTI-00` ถึง `WTI-55`; รอบแรกเปิดใช้เฉพาะ WTI แต่ operation/version/event/reconnect contract ต้องออกแบบให้ WTO นำไปใช้ต่อได้. ยังไม่แก้โค้ดหรือ schema; รอผู้ใช้ review/อนุมัติ task list ก่อนทำ implementation plan.
+## Active WTI Concurrent Draft Batch 2026-07-23
+
+Objective: เปิด auto-save เฉพาะรายการ WTI (สินค้า/เต๋า น้ำหนัก รูป และสิ่งเจือปน) รองรับผู้ใช้สองตราชั่งในเอกสารเดียวกัน; header fields และ WTO ยังใช้ปุ่มบันทึกเดิม.
+
+Branch: `codex/wti-concurrent-autosave`; target SIT branch: `sit-origin/codex/wti-concurrent-autosave`.
+
+Write areas: WTI draft operation schema/migration, `/api/daily/weight-tickets/[id]/lines`, WTI form client queue/realtime merge, canonical WTI/WTO flow note.
+
+Validation: workspace type-check, lint, and production build pass; browser/UAT not run. Pending: migration preflight/apply to SIT, commit, push branch, and focused review of concurrent add/update/delete behavior.
 
 Dashboard report query-slimming checkpoint 2026-07-19: Dashboard Overview และ Daily Report ใช้ lightweight sales-line reader เฉพาะ amount/product/qty และไม่เรียก allocation/trading/stock-cost pipeline ที่ไม่ใช่ consumer ของหน้านี้; สี่ report API เพิ่ม `Server-Timing` (`auth`, `service`, `total`) เพื่อแยกคอขวดจาก SIT. Type-check, lint (มี warning เดิมที่ `qa-thai-font.tsx`), production build `312/312` และ diff-check ผ่าน. Local re-measurement หลังแก้ยังติด `P1000` จาก database credential ใน env ปัจจุบัน; ต้องแก้ connection แล้ววัด parity/performance ซ้ำก่อน promotion. Browser/UAT ยังไม่ได้รันใน coding batch นี้.
 
