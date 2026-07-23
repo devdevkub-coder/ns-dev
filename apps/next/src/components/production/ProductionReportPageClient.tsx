@@ -875,11 +875,6 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           </div>
         </div>
 
-        {/* Mobile Header */}
-        <div className="flex flex-col gap-3 lg:hidden">
-          <h1 className="text-xl font-bold text-slate-900">แดชบอร์ดการผลิต</h1>
-        </div>
-
         <Tabs className="min-w-0 lg:hidden" value={activeTab} onValueChange={(value) => setActiveTab(value as 'overview' | 'products')}>
           <TabsList className="w-full min-w-0 overflow-x-auto" variant="line">
             {(['overview', 'products'] as const).map((tab) => (

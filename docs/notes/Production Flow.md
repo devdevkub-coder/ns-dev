@@ -159,6 +159,7 @@ Dashboard source-of-truth ต้องใช้ production facts ที่ recon
   * ตามคำสั่งผู้ใช้ ให้ทำการซ่อนหน้าแดชบอร์ดการผลิตชั่วคราวเพื่อเก็บไว้ก่อน
   * ดำเนินการโดยถอดเส้นทางเข้าถึงออกจากโครงสร้างเมนูหลัก [navigation.ts](file:///c:/new-ns-scrap-erp/apps/next/src/lib/navigation.ts) และหน้ารวมรายงาน [ReportsIndexPageClient.tsx](file:///c:/new-ns-scrap-erp/apps/next/src/app/reports/ReportsIndexPageClient.tsx) เรียบร้อยแล้ว
   * Route และ API ยังเก็บไว้เป็น hidden baseline ไม่ใช่ active navigation/report surface
+  * Direct route บน mobile ไม่แสดง header card/heading ซ้ำด้านบน เหลือ tabs และเนื้อหา dashboard ตามเดิม
 
 
 Status target สำหรับ MVP:
