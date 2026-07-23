@@ -25,6 +25,10 @@ const ledgerQuerySchema = stockQuerySchema.extend({
     (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
     z.string().trim().max(80).nullable().default(null),
   ),
+  movementDirection: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
+    z.enum(['in', 'out']).nullable().default(null),
+  ),
   negativeOnly: z.coerce.boolean().default(false),
   warehouseType: z.preprocess(
     (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
@@ -50,6 +54,7 @@ function sqlWhereForStockLedger(input: {
   from?: string | null
   lotNo?: string | null
   movementType?: string | null
+  movementDirection?: 'in' | 'out' | null
   productId: bigint | null
   q?: string | null
   refType?: string | null
@@ -63,6 +68,8 @@ function sqlWhereForStockLedger(input: {
   if (input.branchId) clauses.push(Prisma.sql`branch_id = ${input.branchId}`)
   if (input.warehouseId) clauses.push(Prisma.sql`warehouse_id = ${input.warehouseId}`)
   if (input.movementType) clauses.push(Prisma.sql`movement_type = ${input.movementType}`)
+  if (input.movementDirection === 'in') clauses.push(Prisma.sql`qty_in > 0`)
+  if (input.movementDirection === 'out') clauses.push(Prisma.sql`qty_out > 0`)
   if (input.refType) clauses.push(Prisma.sql`ref_type = ${input.refType}`)
   if (input.lotNo) clauses.push(Prisma.sql`lot_no ilike ${`%${input.lotNo}%`}`)
   if (input.status) clauses.push(Prisma.sql`output_category = ${input.status}`)
@@ -120,6 +127,8 @@ export async function GET(request: Request) {
     const baseWhere = stockWhere({ ...normalizedQuery, from: query.from, lotNo: query.lotNo, movementType: query.movementType, refType: query.refType, status: query.status, to: query.to })
     const where: Prisma.stock_ledgerWhereInput = {
       ...baseWhere,
+      ...(query.movementDirection === 'in' ? { qty_in: { gt: 0 } } : {}),
+      ...(query.movementDirection === 'out' ? { qty_out: { gt: 0 } } : {}),
       ...(query.warehouseType ? { warehouses: { type: query.warehouseType } } : {}),
       ...(query.q
         ? {
@@ -144,6 +153,7 @@ export async function GET(request: Request) {
       from: query.from,
       lotNo: query.lotNo,
       movementType: query.movementType,
+      movementDirection: query.movementDirection,
       productId: normalizedQuery.productId,
       q: query.q,
       refType: query.refType,
