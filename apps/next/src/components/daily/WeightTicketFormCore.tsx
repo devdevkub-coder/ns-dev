@@ -1431,6 +1431,45 @@ export function WeightTicketFormCore({
     }
   }
 
+  async function saveWtiManualLineChanges() {
+    if (form.type !== WEIGHT_TICKET_TYPE.WTI || !activeDocumentNo || !loadedTicket) return
+
+    const persisted = persistedLinesRef.current
+    const currentById = new Map(form.lines.map((line) => [line.id, line] as const))
+    let latestTicket: WeightTicketRecord | null = null
+    const toOperationLine = (line: FormWeightTicketLine): WeightTicketLine => ({
+      ...line,
+      imageNames: getLineEvidenceImages(line).map((file) => file.rawValue),
+    })
+
+    for (const persistedLine of persisted) {
+      if (currentById.has(persistedLine.id)) continue
+      const parentDeleted = persistedLine.parentId && !currentById.has(persistedLine.parentId)
+      const sourceDeleted = persistedLine.impuritySourceLineId && !currentById.has(persistedLine.impuritySourceLineId)
+      if (parentDeleted || sourceDeleted) continue
+      latestTicket = await saveWeightTicketLineDraft({
+        action: 'delete',
+        documentNo: activeDocumentNo,
+        expectedLineVersion: persistedLine.draftVersion ?? 0,
+        lineId: persistedLine.id,
+      })
+    }
+
+    for (const persistedLine of persisted) {
+      const currentLine = currentById.get(persistedLine.id)
+      if (!currentLine || lineDraftFingerprint(currentLine) === lineDraftFingerprint(persistedLine)) continue
+      latestTicket = await saveWeightTicketLineDraft({
+        action: 'update',
+        documentNo: activeDocumentNo,
+        expectedLineVersion: persistedLine.draftVersion ?? 0,
+        line: toOperationLine(currentLine),
+        lineId: currentLine.id,
+      })
+    }
+
+    if (latestTicket) persistedLinesRef.current = ticketToFormState(latestTicket).lines
+  }
+
   async function saveTicket() {
     const nextTouched: Record<string, boolean> = {
       branchId: true,
@@ -1467,6 +1506,7 @@ export function WeightTicketFormCore({
 
     setIsSaving(true)
     try {
+      await saveWtiManualLineChanges()
       const ticket = await saveWeightTicket({
         branchId: form.branchId,
         id: activeDocumentNo || undefined,

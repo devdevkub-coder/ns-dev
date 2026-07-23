@@ -235,6 +235,36 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       throw caught
     }
 
+    if (existing.doc_type === 'WTI' && existing.status === 'draft') {
+      const actor = currentActor(auth)
+      const partySnapshot = weightTicketPartySnapshot({ customer, supplier, type: values.type })
+      const updated = await prisma.weight_tickets.update({
+        data: {
+          branch_id: branch.id,
+          customer_id: partySnapshot.customerId,
+          godown_name: values.godownName,
+          party_name: partySnapshot.partyName,
+          remark: values.remark || null,
+          supplier_id: partySnapshot.supplierId,
+          updated_at: new Date(),
+          updated_by: actor,
+          vehicle_image_count: values.vehicleImageNames.length,
+          vehicle_image_names: values.vehicleImageNames,
+          vehicle_no: values.vehicleNo,
+        },
+        include: ticketInclude,
+        where: { id: existing.id },
+      })
+      const updatedUsage = await getWeightTicketUsageCounts(prisma, updated.id)
+      const mapped = mapWeightTicketRow(updated as WeightTicketRow, updatedUsage)
+      await syncWeightTicketToGoogleSheets('update', mapped)
+      return NextResponse.json({
+        ...mapped,
+        pendingOutEvents: await getWeightTicketPendingOutEvents(prisma, updated.id),
+        timeline: await getWeightTicketTimeline(prisma, updated.id),
+      })
+    }
+
     const actor = currentActor(auth)
     const documentDate = toDateOnly(existing.document_date)
     const nextStatus = existing.status
