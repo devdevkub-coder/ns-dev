@@ -180,6 +180,21 @@ function lineDraftFingerprint(line: FormWeightTicketLine) {
   })
 }
 
+function lineDraftFingerprintWithoutImages(line: FormWeightTicketLine) {
+  return JSON.stringify({
+    containerDeductionWeight: line.containerDeductionWeight,
+    deductionMode: line.deductionMode,
+    deductionValue: line.deductionValue,
+    grossWeight: line.grossWeight,
+    impurityId: line.impurityId,
+    impurityProductId: line.impurityProductId ?? '',
+    impuritySourceLineId: line.impuritySourceLineId ?? null,
+    note: line.note,
+    parentId: line.parentId ?? null,
+    productId: line.productId,
+  })
+}
+
 function getBoughtImpurityEntriesForLine(line: FormWeightTicketLine, allLines: FormWeightTicketLine[]) {
   const targetEntries = allLines
     .filter((entry) => entry.impuritySourceLineId && (entry.id === line.id || entry.parentId === line.id))
@@ -512,6 +527,7 @@ export function WeightTicketFormCore({
   const [savedTicket, setSavedTicket] = useState<WeightTicketRecord | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isLoadingTicket, setIsLoadingTicket] = useState(Boolean(editingTicketId))
+  const [isItemsSectionUnlocked, setIsItemsSectionUnlocked] = useState(() => initialType !== WEIGHT_TICKET_TYPE.WTI || Boolean(editingTicketId))
   const [loadError, setLoadError] = useState('')
   const [mergeNotice, setMergeNotice] = useState('')
   const [previewImage, setPreviewImage] = useState<AttachmentPreview | null>(null)
@@ -728,6 +744,7 @@ export function WeightTicketFormCore({
         const nextForm = ticketToFormState(ticket)
         setLoadedTicket(ticket)
         setForm(nextForm)
+        setIsItemsSectionUnlocked(true)
         persistedLinesRef.current = nextForm.lines
         setSavedTicket(null)
         setActiveLineId('')
@@ -760,6 +777,7 @@ export function WeightTicketFormCore({
     if (errorKey === 'branchId') return 'weight-ticket-branch'
     if (errorKey === 'partyId') return 'weight-ticket-party'
     if (errorKey === 'vehicleNo') return 'weight-ticket-vehicleNo'
+    if (errorKey === 'godownName') return 'weight-ticket-godown'
 
     const match = errorKey.match(/^line-(.+?)-(product|warehouse|gross|container|images|impurity|impurity-product|deduction)$/)
     if (match) {
@@ -918,24 +936,29 @@ export function WeightTicketFormCore({
     const persisted = persistedLinesRef.current
     if (persisted.length === 0) return
     const persistedById = new Map(persisted.map((line) => [line.id, line] as const))
-    const currentById = new Map(form.lines.map((line) => [line.id, line] as const))
-    const removed = persisted.find((line) => !currentById.has(line.id))
     const added = form.lines.find((line) => (
       !persistedById.has(line.id)
       && Boolean(line.productId)
       && (!line.parentId || persistedById.has(line.parentId))
       && (!line.impuritySourceLineId || persistedById.has(line.impuritySourceLineId))
     ))
-    const changed = persisted.find((line) => {
-      const current = currentById.get(line.id)
-      return current && lineDraftFingerprint(line) !== lineDraftFingerprint(current)
+    const removedImpurity = persisted.find((line) => (
+      !form.lines.some((current) => current.id === line.id)
+      && Boolean(line.parentId)
+      && line.deductionMode !== 'none'
+    ))
+    const imageChanged = persisted.find((line) => {
+      const current = form.lines.find((entry) => entry.id === line.id)
+      return Boolean(current)
+        && lineDraftFingerprintWithoutImages(line) === lineDraftFingerprintWithoutImages(current!)
+        && line.imageFiles.map((file) => file.rawValue).join('|') !== current!.imageFiles.map((file) => file.rawValue).join('|')
     })
-    const action = removed
-      ? { action: 'delete' as const, line: removed, lineId: removed.id }
-      : added
-        ? { action: 'add' as const, line: added, lineId: added.id }
-        : changed
-          ? { action: 'update' as const, line: currentById.get(changed.id)!, lineId: changed.id }
+    const action = added
+      ? { action: 'add' as const, line: added, lineId: added.id }
+      : removedImpurity
+        ? { action: 'delete' as const, line: removedImpurity, lineId: removedImpurity.id }
+        : imageChanged
+          ? { action: 'update' as const, line: form.lines.find((entry) => entry.id === imageChanged.id)!, lineId: imageChanged.id }
           : null
     if (!action) return
 
@@ -981,6 +1004,7 @@ export function WeightTicketFormCore({
       || editingTicketId
       || loadedTicket
       || isLoadingTicket
+      || !isItemsSectionUnlocked
       || createDraftInFlightRef.current
       || ['branchId', 'partyId', 'vehicleNo', 'godownName'].some((key) => errors[key])
       || !form.lines.some((line) => line.productId)
@@ -1013,7 +1037,7 @@ export function WeightTicketFormCore({
     }, 500)
 
     return () => window.clearTimeout(timerId)
-  }, [editingTicketId, errors, form, getLineEvidenceImages, isLoadingTicket, loadedTicket])
+  }, [editingTicketId, errors, form, getLineEvidenceImages, isItemsSectionUnlocked, isLoadingTicket, loadedTicket])
 
   useEffect(() => {
     if (form.type !== WEIGHT_TICKET_TYPE.WTI || !activeDocumentNo || !loadedTicket) return
@@ -1052,6 +1076,48 @@ export function WeightTicketFormCore({
 
   function markTouched(key: string) {
     setTouched((current) => ({ ...current, [key]: true }))
+  }
+
+  function focusFirstError(errorKeys: string[]) {
+    const firstErrorKey = errorKeys[0]
+    if (!firstErrorKey) return
+    const match = firstErrorKey.match(/^line-(.+?)-(product|warehouse|gross|container|images|impurity|impurity-product|deduction)$/)
+    if (match) {
+      const lineInForm = form.lines.find((line) => line.id === match[1])
+      const parentLineId = lineInForm?.parentId || match[1]
+      if (activeLineId !== parentLineId) setActiveLineId(parentLineId)
+    }
+    setPendingFocusField(firstErrorKey)
+  }
+
+  function canAddAnotherLine() {
+    if (form.type !== WEIGHT_TICKET_TYPE.WTI) return true
+    const lineErrorKeys = Object.keys(errors).filter((key) => key.startsWith('line-'))
+    if (lineErrorKeys.length === 0) return true
+
+    setTouched((current) => ({
+      ...current,
+      ...Object.fromEntries(lineErrorKeys.map((key) => [key, true])),
+    }))
+    setMergeNotice('กรุณากรอกข้อมูลรายการเดิมให้ครบก่อนเพิ่มรายการใหม่')
+    focusFirstError(lineErrorKeys)
+    return false
+  }
+
+  function unlockItemsSection() {
+    const headerErrorKeys = ['branchId', 'partyId', 'vehicleNo', 'godownName'].filter((key) => errors[key])
+    if (headerErrorKeys.length > 0) {
+      setTouched((current) => ({
+        ...current,
+        ...Object.fromEntries(headerErrorKeys.map((key) => [key, true])),
+      }))
+      setMergeNotice('กรอกข้อมูลหัวเอกสารให้ครบก่อนเพิ่มรายการสินค้า')
+      const firstHeaderError = headerErrorKeys[0]
+      setPendingFocusField(firstHeaderError)
+      return
+    }
+    setMergeNotice('')
+    setIsItemsSectionUnlocked(true)
   }
 
   function toggleLotCollapsed(lotId: string) {
@@ -1119,6 +1185,7 @@ export function WeightTicketFormCore({
   }
 
   function addLine() {
+    if (!canAddAnotherLine()) return
     setMergeNotice('')
     const nextLine = createFormWeightTicketLine()
     setForm((current) => ({ ...current, lines: [...current.lines, nextLine] }))
@@ -1126,6 +1193,7 @@ export function WeightTicketFormCore({
   }
 
   function addSameProductLot(sourceLine: FormWeightTicketLine) {
+    if (!canAddAnotherLine()) return
     setMergeNotice('')
     const nextLine = createFormWeightTicketLine()
     nextLine.productId = sourceLine.productId
@@ -1230,6 +1298,7 @@ export function WeightTicketFormCore({
   }
 
   function addImpurityLine(sourceLine: FormWeightTicketLine) {
+    if (!canAddAnotherLine()) return
     if (calculateRealLotSummary(sourceLine, form.lines).lotCount === 0) return
     const nextLine = createFormWeightTicketLine()
     nextLine.productId = sourceLine.productId
@@ -1344,8 +1413,12 @@ export function WeightTicketFormCore({
       vehicleImageNames: loadedTicket.vehicleImageNames,
       vehicleNo: loadedTicket.vehicleNo.trim(),
     }) : null
+    const hasUnsavedManualLineChanges = activeDocumentNo
+      && form.type === WEIGHT_TICKET_TYPE.WTI
+      ? JSON.stringify(form.lines.map(lineDraftFingerprint)) !== JSON.stringify(persistedLinesRef.current.map(lineDraftFingerprint))
+      : false
     const hasUnsavedManualChanges = loadedTicket
-      ? currentHeader !== savedHeader || (
+      ? currentHeader !== savedHeader || hasUnsavedManualLineChanges || (
         form.type === WEIGHT_TICKET_TYPE.WTO
         && JSON.stringify(form.lines.map(lineDraftFingerprint)) !== JSON.stringify(ticketToFormState(loadedTicket).lines.map(lineDraftFingerprint))
       )
@@ -1667,6 +1740,7 @@ export function WeightTicketFormCore({
               </FieldBlock>
 	              <FieldBlock error={showError('godownName')} label="โกดัง*">
 	                <Input
+	                  id="weight-ticket-godown"
 	                  placeholder="เช่น โกดัง A"
 	                  value={form.godownName}
 	                  onBlur={() => markTouched('godownName')}
@@ -1688,6 +1762,16 @@ export function WeightTicketFormCore({
             </div>
           </Card>
 
+          {form.type === WEIGHT_TICKET_TYPE.WTI && !isItemsSectionUnlocked ? (
+            <div className="flex items-center justify-end rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3">
+              <Button type="button" onClick={unlockItemsSection}>
+                <Plus className="mr-1 size-4" />
+                เพิ่มรายการสินค้า
+              </Button>
+            </div>
+          ) : null}
+
+          {form.type !== WEIGHT_TICKET_TYPE.WTI || isItemsSectionUnlocked ? (
           <Card className={cn(isEmbeddedModal ? "border-0 bg-transparent shadow-none p-0" : "p-5")}>
             <SectionHeader title="สินค้าและน้ำหนัก" />
 
@@ -1701,9 +1785,14 @@ export function WeightTicketFormCore({
               <div className="min-w-0 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-sm font-medium text-slate-700">รายการทั้งหมด {getMainParentLines(form.lines).length} รายการ</div>
-                  <Button size="xs" type="button" onClick={addLine}>
+                  <Button
+                    disabled={form.type === WEIGHT_TICKET_TYPE.WTI && Object.keys(errors).some((key) => key.startsWith('line-'))}
+                    size="xs"
+                    type="button"
+                    onClick={addLine}
+                  >
                     <Plus className="mr-1 size-3" />
-                    เพิ่มสินค้า
+                    เพิ่มรายการสินค้า
                   </Button>
                 </div>
                 <div className="space-y-2">
@@ -2344,6 +2433,7 @@ export function WeightTicketFormCore({
               })() : null}
             </div>
           </Card>
+          ) : null}
 
           <Card className={cn(isEmbeddedModal ? "border-0 bg-transparent shadow-none p-0" : "p-5")}>
             <SectionHeader title="หมายเหตุท้ายเอกสาร" />

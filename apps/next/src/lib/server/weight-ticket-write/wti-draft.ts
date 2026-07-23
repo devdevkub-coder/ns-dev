@@ -77,6 +77,7 @@ type DraftLineRow = {
   deduction_mode: string
   deduction_value: Prisma.Decimal | null
   impurity_id: bigint | null
+  impurity_name: string | null
   image_count: number
   image_names: string[]
   note: string | null
@@ -119,6 +120,51 @@ async function nextLineNo(tx: TxClient, documentId: bigint) {
     where: { weight_ticket_id: documentId },
   })
   return (row._max.line_no ?? 0) + 1
+}
+
+export type WtiLineValidationRow = {
+  container_deduction_weight: Prisma.Decimal | number
+  deduction_mode: string
+  deduction_value: Prisma.Decimal | number | null
+  gross_weight: Prisma.Decimal | number
+  image_names: string[]
+  impurity_id: bigint | null
+  impurity_name: string | null
+  line_no: number
+  parent_line_no: number | null
+}
+
+export function assertExistingWtiLinesComplete(lines: WtiLineValidationRow[]) {
+  for (const line of lines) {
+    const lineLabel = `รายการที่ ${line.line_no}`
+    const isImpurity = line.parent_line_no != null && line.deduction_mode !== 'none'
+    const grossWeight = toNumber(line.gross_weight)
+    const containerWeight = toNumber(line.container_deduction_weight)
+    const deductionValue = toNumber(line.deduction_value)
+
+    if (isImpurity) {
+      if (line.impurity_id == null && line.impurity_name !== 'สินค้าอื่น') {
+        throw new WtiDraftOperationError('INVALID_OPERATION', `${lineLabel} ต้องเลือกสิ่งเจือปนให้ครบก่อนเพิ่มรายการใหม่`, 400)
+      }
+      if (line.deduction_mode === 'percent' && deductionValue > 100) {
+        throw new WtiDraftOperationError('INVALID_OPERATION', `${lineLabel} หักสิ่งเจือปนเกิน 100% ไม่สามารถเพิ่มรายการใหม่ได้`, 400)
+      }
+      if (deductionValue <= 0) {
+        throw new WtiDraftOperationError('INVALID_OPERATION', `${lineLabel} ต้องกรอกน้ำหนักหักสิ่งเจือปนก่อนเพิ่มรายการใหม่`, 400)
+      }
+      continue
+    }
+
+    if (grossWeight <= 0) {
+      throw new WtiDraftOperationError('INVALID_OPERATION', `${lineLabel} ต้องกรอกน้ำหนักรวมก่อนเพิ่มรายการใหม่`, 400)
+    }
+    if (containerWeight > grossWeight) {
+      throw new WtiDraftOperationError('INVALID_OPERATION', `${lineLabel} หักภาชนะต้องไม่เกินน้ำหนักรวมก่อนเพิ่มรายการใหม่`, 400)
+    }
+    if (line.image_names.length === 0) {
+      throw new WtiDraftOperationError('INVALID_OPERATION', `${lineLabel} ต้องแนบรูปภาพก่อนเพิ่มรายการใหม่`, 400)
+    }
+  }
 }
 
 async function resolveLineInput(tx: TxClient, documentId: bigint, input: WtiDraftLineInput, lineNo: number) {
@@ -264,6 +310,31 @@ export async function applyWtiDraftLineOperation(
 
   if (input.action === 'add') {
     if (!lineInput) throw new WtiDraftOperationError('INVALID_OPERATION', 'ข้อมูลเต๋าไม่ครบ', 400)
+    const existingLines = await tx.weight_ticket_lines.findMany({
+      orderBy: { line_no: 'asc' },
+      where: { weight_ticket_id: input.documentId },
+      select: {
+        container_deduction_weight: true,
+        deduction_mode: true,
+        deduction_value: true,
+        gross_weight: true,
+        id: true,
+        image_count: true,
+        image_names: true,
+        impurity_id: true,
+        impurity_name: true,
+        line_no: true,
+        net_weight: true,
+        parent_line_no: true,
+        product_id: true,
+        product_name: true,
+        impurity_source_line_no: true,
+        weight_ticket_id: true,
+        deduct_weight: true,
+        draft_version: true,
+      },
+    })
+    assertExistingWtiLinesComplete(existingLines)
     const lineNo = await nextLineNo(tx, input.documentId)
     const data = await resolveLineInput(tx, input.documentId, lineInput, lineNo)
     const created = await tx.weight_ticket_lines.create({ data: { ...data, draft_version: 0 } })
