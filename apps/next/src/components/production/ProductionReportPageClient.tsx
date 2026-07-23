@@ -765,14 +765,13 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
     const daily = data?.daily ?? []
     const machineUtil = sortedDashboardMachineUtil
     const dashboardRangeControls = (
-      <div className="w-full rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm sm:w-auto">
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
-          {dashboardRangeOptions.map((option) => {
+      <div className="flex w-full flex-wrap items-center justify-end gap-1.5 xl:w-auto xl:flex-nowrap">
+        {dashboardRangeOptions.map((option) => {
             const isActive = rangeType === option.value
             return (
               <button
                 key={option.value}
-                className={`inline-flex h-7 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors ${
+                className={`inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors ${
                   isActive
                     ? 'border-slate-700 bg-slate-700 text-white'
                     : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
@@ -783,30 +782,22 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                 {option.label}
               </button>
             )
-          })}
-        </div>
-        <div className="mt-2 flex w-full items-center justify-end gap-1.5">
-          <DatePickerInput
-            className="h-9 min-w-0 flex-1 bg-white text-slate-900 sm:w-[130px] sm:flex-none"
-            value={dateFrom}
-            onChange={(val) => { setDateFrom(val); setRangeType('custom') }}
-          />
+        })}
+        <div className="flex w-full items-center justify-end gap-1.5 xl:ml-1 xl:w-auto">
+          <span className="shrink-0 text-xs font-medium text-slate-500">ช่วงวันที่</span>
+          <DatePickerInput className="h-9 min-w-0 flex-1 bg-white text-slate-900 sm:w-[130px] sm:flex-none" value={dateFrom} onChange={(val) => { setDateFrom(val); setRangeType('custom') }} />
           <span className="px-1 text-xs font-bold text-slate-400">→</span>
-          <DatePickerInput
-            className="h-9 min-w-0 flex-1 bg-white text-slate-900 sm:w-[130px] sm:flex-none"
-            value={dateTo}
-            onChange={(val) => { setDateTo(val); setRangeType('custom') }}
-          />
+          <DatePickerInput className="h-9 min-w-0 flex-1 bg-white text-slate-900 sm:w-[130px] sm:flex-none" value={dateTo} onChange={(val) => { setDateTo(val); setRangeType('custom') }} />
         </div>
       </div>
     )
     const machineUtilCard = (
-      <div className="flex min-h-[260px] flex-col overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm lg:min-h-[340px]">
-        <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-indigo-50/50 p-3">
-          <h3 className="text-sm font-bold text-indigo-700">การใช้เครื่องจักร (ปริมาณผลิตต่อเครื่อง)</h3>
+      <div className="flex min-h-[260px] flex-col overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white p-3">
+          <h3 className="text-sm font-bold text-slate-700">การใช้เครื่องจักร (ปริมาณผลิตต่อเครื่อง)</h3>
           {dashboardMachineResize.hasCustomWidths ? (
             <button
-              className="hidden rounded-xl border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 lg:inline-flex"
+              className="hidden rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 lg:inline-flex"
               type="button"
               onClick={dashboardMachineResize.resetColumnWidths}
             >
@@ -825,19 +816,19 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                 />
               ))}
             </colgroup>
-            <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
-              <tr>
-                <ResizableTableHead activeSortKey={dashboardMachineSortKey} direction={dashboardMachineSortDir} label="เครื่องจักร" resizeProps={dashboardMachineResize.getResizeHandleProps('name', 'เครื่องจักร')} sortKey="name" onSort={toggleDashboardMachineSort} />
-                <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="right" direction={dashboardMachineSortDir} label="รอบที่ใช้" resizeProps={dashboardMachineResize.getResizeHandleProps('batches', 'รอบที่ใช้')} sortKey="batches" onSort={toggleDashboardMachineSort} />
-                <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="right" direction={dashboardMachineSortDir} label="น้ำหนักผลิต" resizeProps={dashboardMachineResize.getResizeHandleProps('qty', 'น้ำหนักผลิต')} sortKey="qty" onSort={toggleDashboardMachineSort} />
+                <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
+                  <tr>
+                    <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="center" direction={dashboardMachineSortDir} label="เครื่องจักร" resizeProps={dashboardMachineResize.getResizeHandleProps('name', 'เครื่องจักร')} sortKey="name" onSort={toggleDashboardMachineSort} />
+                    <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="center" direction={dashboardMachineSortDir} label="รอบที่ใช้" resizeProps={dashboardMachineResize.getResizeHandleProps('batches', 'รอบที่ใช้')} sortKey="batches" onSort={toggleDashboardMachineSort} />
+                    <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="right" direction={dashboardMachineSortDir} label="น้ำหนักผลิต" resizeProps={dashboardMachineResize.getResizeHandleProps('qty', 'น้ำหนักผลิต')} sortKey="qty" onSort={toggleDashboardMachineSort} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {machineUtil.map((item) => (
                 <tr key={item.name} className="hover:bg-slate-50">
-                  <td className="min-w-0 overflow-hidden p-3 text-xs text-slate-700"><div className="truncate" title={item.name}>{item.name}</div></td>
-                  <td className="whitespace-nowrap p-3 text-right text-xs tabular-nums">{item.batches}</td>
-                  <td className="whitespace-nowrap p-3 text-right text-xs font-bold tabular-nums text-indigo-700">{formatMoney(item.qty)}</td>
+                  <td className="min-w-0 overflow-hidden p-3 text-center text-xs text-slate-700"><div className="truncate" title={item.name}>{item.name}</div></td>
+                  <td className="whitespace-nowrap p-3 text-center text-xs tabular-nums">{item.batches}</td>
+                  <td className="whitespace-nowrap p-3 text-right text-xs font-bold tabular-nums text-slate-800">{formatMoney(item.qty)}</td>
                 </tr>
               ))}
               {!machineUtil.length ? <tr><td className="py-6 text-center text-slate-400" colSpan={3}>ยังไม่มีข้อมูล</td></tr> : null}
@@ -850,7 +841,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             <div key={item.name} className="space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <span className="truncate text-base font-bold text-slate-900">{item.name}</span>
-                <span className="shrink-0 text-base font-bold text-indigo-700">{formatMoney(item.qty)} กก.</span>
+                <span className="shrink-0 text-base font-bold text-slate-800">{formatMoney(item.qty)} กก.</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="font-semibold text-slate-500">รอบที่ใช้งาน</span>
@@ -867,13 +858,6 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
     return (
       <section className="space-y-4">
         {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
-
-        {/* Desktop Header */}
-        <div className="hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:block">
-          <div className="flex items-center justify-between gap-3">
-            <h1 className="text-2xl font-bold text-slate-900">แดชบอร์ดการผลิต</h1>
-          </div>
-        </div>
 
         <Tabs className="min-w-0 lg:hidden" value={activeTab} onValueChange={(value) => setActiveTab(value as 'overview' | 'products')}>
           <TabsList className="w-full min-w-0 overflow-x-auto" variant="line">
@@ -896,7 +880,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         </div>
 
         {/* Charts Container */}
-        <div className={`grid-cols-1 gap-4 lg:grid-cols-2 ${
+        <div className={`grid-cols-1 gap-4 ${
           activeTab === 'overview' ? 'grid lg:grid' : 'hidden lg:grid'
         }`}>
           <ChartPanel controls={dashboardRangeControls} title="ผลิตรายวัน (วัตถุดิบเข้า / ผลผลิต / สูญเสีย)" type="line" rows={daily.map((item) => ({ label: item.date.slice(5), input: item.inputQty, output: item.outputQty, loss: item.lossQty }))} />
@@ -909,11 +893,11 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         }`}>
           {/* Top Products Card */}
           <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-emerald-50/50 p-3">
-              <h3 className="font-bold text-emerald-700 text-sm">Top 10 สินค้าที่ผลิตมากสุด</h3>
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white p-3">
+              <h3 className="text-sm font-bold text-slate-700">Top 10 สินค้าที่ผลิตมากสุด</h3>
               {dashboardTopProductResize.hasCustomWidths ? (
                 <button
-                  className="hidden rounded-xl border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 lg:inline-flex"
+                  className="hidden rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 lg:inline-flex"
                   type="button"
                   onClick={dashboardTopProductResize.resetColumnWidths}
                 >
@@ -923,7 +907,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             </div>
 
             {/* Desktop View */}
-            <div className="hidden lg:block overflow-x-auto">
+            <div className="hidden max-h-[440px] overflow-auto lg:block">
               <table className="ns-table min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: dashboardTopProductResize.tableMinWidth, tableLayout: 'fixed', width: '100%' }}>
                 <colgroup>
                   {dashboardTopProductColumns.map((column) => (
@@ -936,21 +920,21 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                 <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
                   <tr>
                     <ResizableTableHead align="center" label="#" resizeProps={dashboardTopProductResize.getResizeHandleProps('rank', '#')} />
-                    <ResizableTableHead activeSortKey={dashboardProductSortKey} direction={dashboardProductSortDir} label="Code" resizeProps={dashboardTopProductResize.getResizeHandleProps('code', 'Code')} sortKey="code" onSort={toggleDashboardProductSort} />
-                    <ResizableTableHead activeSortKey={dashboardProductSortKey} direction={dashboardProductSortDir} label="สินค้า" resizeProps={dashboardTopProductResize.getResizeHandleProps('name', 'สินค้า')} sortKey="name" onSort={toggleDashboardProductSort} />
-                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" direction={dashboardProductSortDir} label="รอบ" resizeProps={dashboardTopProductResize.getResizeHandleProps('batches', 'รอบ')} sortKey="batches" onSort={toggleDashboardProductSort} />
-                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" direction={dashboardProductSortDir} label="น้ำหนัก" resizeProps={dashboardTopProductResize.getResizeHandleProps('qty', 'น้ำหนัก')} sortKey="qty" onSort={toggleDashboardProductSort} />
-                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" direction={dashboardProductSortDir} label="ต้นทุนรวม" resizeProps={dashboardTopProductResize.getResizeHandleProps('cost', 'ต้นทุนรวม')} sortKey="cost" onSort={toggleDashboardProductSort} />
-                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" direction={dashboardProductSortDir} label="ต้นทุนผลิต ฿/กก." resizeProps={dashboardTopProductResize.getResizeHandleProps('avgCost', 'ต้นทุนผลิต ฿/กก.')} sortKey="avgCost" onSort={toggleDashboardProductSort} />
+                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="center" direction={dashboardProductSortDir} label="รหัสสินค้า" resizeProps={dashboardTopProductResize.getResizeHandleProps('code', 'รหัสสินค้า')} sortKey="code" onSort={toggleDashboardProductSort} />
+                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="center" direction={dashboardProductSortDir} label="สินค้า" resizeProps={dashboardTopProductResize.getResizeHandleProps('name', 'สินค้า')} sortKey="name" onSort={toggleDashboardProductSort} />
+                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="center" direction={dashboardProductSortDir} label="รอบ" resizeProps={dashboardTopProductResize.getResizeHandleProps('batches', 'รอบ')} sortKey="batches" onSort={toggleDashboardProductSort} />
+                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" direction={dashboardProductSortDir} label="น้ำหนัก (กก.)" resizeProps={dashboardTopProductResize.getResizeHandleProps('qty', 'น้ำหนัก (กก.)')} sortKey="qty" onSort={toggleDashboardProductSort} />
+                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" direction={dashboardProductSortDir} label="ต้นทุนรวม (บาท)" resizeProps={dashboardTopProductResize.getResizeHandleProps('cost', 'ต้นทุนรวม (บาท)')} sortKey="cost" onSort={toggleDashboardProductSort} />
+                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" direction={dashboardProductSortDir} label="ต้นทุนผลิต (บาท/กก.)" resizeProps={dashboardTopProductResize.getResizeHandleProps('avgCost', 'ต้นทุนผลิต (บาท/กก.)')} sortKey="avgCost" onSort={toggleDashboardProductSort} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {topProducts.map((item, index) => (
                     <tr key={`${item.code || item.name}-${index}`} className="hover:bg-slate-50">
                       <td className="p-3 text-center text-xs font-bold text-emerald-700 tabular-nums">{index + 1}</td>
-                      <td className="p-3 font-mono text-xs text-slate-600 min-w-0 overflow-hidden"><div className="truncate" title={item.code || '-'}>{item.code || '-'}</div></td>
-                      <td className="p-3 text-xs text-slate-700 min-w-0 overflow-hidden"><div className="truncate" title={item.name}>{item.name}</div></td>
-                      <td className="p-3 text-right text-xs tabular-nums whitespace-nowrap">{item.batches}</td>
+                      <td className="min-w-0 overflow-hidden p-3 text-center font-mono text-xs text-slate-600"><div className="truncate" title={item.code || '-'}>{item.code || '-'}</div></td>
+                      <td className="min-w-0 overflow-hidden p-3 text-center text-xs text-slate-700"><div className="truncate" title={item.name}>{item.name}</div></td>
+                      <td className="whitespace-nowrap p-3 text-center text-xs tabular-nums">{item.batches}</td>
                       <td className="p-3 text-right font-bold text-xs tabular-nums whitespace-nowrap">{formatMoney(item.qty)}</td>
                       <td className="p-3 text-right text-xs tabular-nums whitespace-nowrap">{formatMoney(item.cost)}</td>
                       <td className="p-3 text-right text-xs text-slate-600 tabular-nums whitespace-nowrap">{formatMoney(item.avgCost ?? (item.qty > 0 ? item.cost / item.qty : 0))}</td>
@@ -962,7 +946,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             </div>
 
             {/* Mobile View */}
-            <div className="lg:hidden p-3 space-y-3 bg-slate-50/30 flex-1">
+            <div className="max-h-[440px] space-y-3 overflow-y-auto bg-slate-50/30 p-3 lg:hidden">
               {topProducts.map((item, index) => (
                 <div key={`${item.code || item.name}-${index}`} className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-sm space-y-3">
                   <div className="border-b border-slate-100 pb-2 flex justify-between items-center">
@@ -975,20 +959,20 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                     <span className="font-mono text-sm text-slate-500 shrink-0">{item.code || '-'}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
-                    <div>
+                      <div>
                       <span className="text-slate-500 block text-sm font-semibold">รอบการผลิต</span>
                       <span className="text-sm font-bold text-slate-900 mt-0.5 block">{item.batches} รอบ</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block text-sm font-semibold">น้ำหนักรวม</span>
+                      <span className="text-slate-500 block text-sm font-semibold">น้ำหนักรวม (กก.)</span>
                       <span className="text-base font-bold text-emerald-700 mt-0.5 block">{formatMoney(item.qty)} กก.</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block text-sm font-semibold">ต้นทุนรวม</span>
+                      <span className="text-slate-500 block text-sm font-semibold">ต้นทุนรวม (บาท)</span>
                       <span className="text-sm font-bold text-slate-900 mt-0.5 block">{formatMoney(item.cost)} ฿</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block text-sm font-semibold">ต้นทุนเฉลี่ย</span>
+                      <span className="text-slate-500 block text-sm font-semibold">ต้นทุนเฉลี่ย (บาท/กก.)</span>
                       <span className="text-sm font-bold text-slate-800 mt-0.5 block">
                         {formatMoney(item.avgCost ?? (item.qty > 0 ? item.cost / item.qty : 0))} ฿/กก.
                       </span>
@@ -1599,17 +1583,28 @@ function DashboardKpi({
 function DashboardStatusKpi({ items }: { items: Array<{ count: number; status: string }> }) {
   const statusCounts = new Map(items.map((item) => [item.status, item.count]))
   const visibleItems = [
-    { label: 'เสร็จบางส่วน', value: statusCounts.get('Partially Completed') ?? 0 },
-    { label: 'กำลังผลิต', value: statusCounts.get('In Production') ?? 0 },
-    { label: 'เสร็จสิ้น', value: statusCounts.get('Completed') ?? 0 },
+    { label: 'เสร็จบางส่วน', value: statusCounts.get('Partially Completed') ?? 0, labelClass: 'text-amber-700', valueClass: 'text-amber-700' },
+    { label: 'กำลังผลิต', value: statusCounts.get('In Production') ?? 0, labelClass: 'text-blue-700', valueClass: 'text-blue-700' },
+    { label: 'เสร็จสิ้น', value: statusCounts.get('Completed') ?? 0, labelClass: 'text-emerald-700', valueClass: 'text-emerald-700' },
   ]
 
   return (
-    <>
-      {visibleItems.map((item) => (
-        <SharedKpiCard key={item.label} icon={<FileText aria-hidden="true" className="size-5" />} label={item.label} tone="emerald" value={item.value.toLocaleString('th-TH')} />
-      ))}
-    </>
+    <div className="col-span-2 flex min-w-0 items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-5 md:col-span-1">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 sm:h-12 sm:w-12">
+        <FileText aria-hidden="true" className="size-5 sm:size-6" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-xs font-medium text-emerald-600">สถานะการผลิต</div>
+        <div className="mt-2 grid grid-cols-3 divide-x divide-slate-200">
+          {visibleItems.map((item) => (
+            <div className="min-w-0 px-2 first:pl-0 last:pr-0" key={item.label}>
+              <div className={`truncate text-[11px] font-medium ${item.labelClass}`} title={item.label}>{item.label}</div>
+              <div className={`mt-0.5 font-mono text-base font-bold leading-tight tabular-nums ${item.valueClass}`}>{item.value.toLocaleString('th-TH')}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1644,9 +1639,11 @@ function smoothAreaPath(points: Array<{ x: number; y: number }>, baselineY: numb
 }
 
 function ChartPanel({ controls, rows, title, type }: { controls?: ReactNode; rows: ChartRow[]; title: string; type: 'bar' | 'line' }) {
+  const chartContainerRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState(0)
   const max = Math.max(1, ...rows.flatMap((row) => [row.input, row.output, row.loss]))
   const yMax = niceChartMax(max)
-  const chartWidth = Math.max(640, rows.length * 96)
+  const chartWidth = Math.max(640, rows.length * 96, containerWidth)
   const chartHeight = 280
   const paddingLeft = 56
   const paddingRight = 28
@@ -1663,6 +1660,16 @@ function ChartPanel({ controls, rows, title, type }: { controls?: ReactNode; row
     { color: '#e11d48', key: 'loss' as const, label: 'สูญเสีย', soft: 'transparent' },
   ]
 
+  useEffect(() => {
+    const element = chartContainerRef.current
+    if (!element) return
+    const updateWidth = () => setContainerWidth(Math.round(element.clientWidth))
+    updateWidth()
+    const observer = new ResizeObserver(updateWidth)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm">
       <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
@@ -1670,7 +1677,7 @@ function ChartPanel({ controls, rows, title, type }: { controls?: ReactNode; row
         {controls}
       </div>
       {type === 'line' ? (
-        <div className="bg-slate-50/40 p-4">
+        <div className="bg-white p-4">
           <div className="mb-3 flex flex-wrap justify-end gap-4 text-xs font-medium text-slate-500">
             {series.map((item) => (
               <span key={item.key} className="inline-flex items-center gap-1.5">
@@ -1679,10 +1686,9 @@ function ChartPanel({ controls, rows, title, type }: { controls?: ReactNode; row
               </span>
             ))}
           </div>
-          <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
+          <div ref={chartContainerRef} className="overflow-x-auto">
           {rows.length ? (
-            <svg aria-label={title} className="h-[220px] sm:h-[260px] lg:h-[300px]" role="img" style={{ minWidth: chartWidth, width: '100%' }} viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
-              <rect fill="white" height={chartHeight - 1} rx="8" width={chartWidth - 1} x="0.5" y="0.5" />
+            <svg aria-label={title} className="h-[220px] sm:h-[260px] lg:h-[300px]" preserveAspectRatio="xMidYMid meet" role="img" style={{ minWidth: chartWidth, width: chartWidth }} viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
               {ticks.map((value) => {
                 const y = yFor(value)
                 return (

@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-07-12
+updated: 2026-07-23
 route: /production/dashboard
 ---
 
@@ -124,6 +124,66 @@ Legacy distinction:
 ## Current Gap
 
 - Add branch/machine/status filters only if required for operational dashboard parity; date range remains the minimum current dashboard filter.
+
+## Dashboard Query Separation Task List 2026-07-23
+
+### Design Decision
+
+This batch is limited to `/production/dashboard` and `GET /api/production/dashboard`. The report page and standalone machine-utilization API remain out of scope. The existing `production-reports.ts` shared module must not be changed in a way that changes those consumers; Dashboard-specific behavior belongs behind a dedicated module.
+
+### Target Module Shape
+
+```text
+dashboard/route.ts
+  -> production-dashboard.service.ts
+    -> production-dashboard.query.ts
+    -> production-scope.ts
+    -> production-ledger-facts.ts
+    -> production-serializer.ts
+```
+
+The route owns authentication, request parsing, service invocation, and response headers only. The Dashboard service owns KPI/chart/top-product/machine/WIP composition. Query modules own scoped reads and aggregation inputs. Ledger facts remain the source of truth for output, loss, and WIP.
+
+### Implementation Tasks
+
+- [x] `DASH-01` Define the Dashboard service interface with `dateFrom`, `dateTo`, and `allowedBranchIds`; preserve the current response shape.
+- [x] `DASH-02` Resolve and enforce branch scope for every Dashboard query, including WIP and machine data; never treat an invalid scope as all branches.
+- [x] `DASH-03` Extract Dashboard-specific query/service seams from `production-reports.ts` without changing Report or Machine Utilization routes.
+- [x] `DASH-04` Keep WIP as a separate current snapshot query with the same branch scope; the as-of contract remains documented for the next query-plan batch.
+- [x] `DASH-05` Keep `topProducts` based on active non-loss output receipts and preserve the current response/UI contract.
+- [x] `DASH-06` Define `machineUtil.batches` according to this page flow as active non-loss output receipt row count; keep any order count separately named.
+- [x] `DASH-07` Aggregate machine data by `machine_id`, not machine name, and serialize IDs safely for JSON.
+- [x] `DASH-08` Fix zero-value variance fallback and retain Decimal-to-number conversion at the existing server response boundary.
+- [x] `DASH-09` Apply `Cache-Control: private, no-store` to the Dashboard response.
+- [x] `DASH-10` Review existing production indexes with `EXPLAIN ANALYZE`; add a migration only when a measured query plan requires it.
+- [x] `DASH-11` Add focused tests for branch isolation, WIP scope, output/loss exclusion, distinct metric meanings, zero variance, BigInt serialization, date boundaries, and empty results.
+- [x] `DASH-12` Run lint, type-check, build, diff-check, and document the final source/fact reconciliation result.
+
+### Out Of Scope For This Batch
+
+- [ ] Do not refactor `/api/production/report` or `/api/production/machine-utilization`.
+- [ ] Do not change production transaction writes, stock-ledger rules, or production-order status transitions.
+- [ ] Do not change primary-key types; production relational IDs remain `BigInt` and `stock_ledger.ref_id` remains polymorphic text.
+- [ ] Do not introduce a Dashboard read model or new cache until query-plan/performance evidence supports it.
+
+### Acceptance Criteria
+
+- A user sees Dashboard facts only for allowed branches.
+- Dashboard output, loss, yield, Top 10, machine summary, and WIP reconcile to the scoped PI/PO2 production facts.
+- `รอบที่ใช้` is counted according to this page's output-receipt contract and does not silently overcount from unrelated rows.
+- The Dashboard API returns JSON-safe IDs and is not cacheable by browsers/intermediaries.
+- Existing Report and Machine Utilization consumers have no behavior change from this batch.
+- Required focused and workspace validation passes.
+
+### Implementation Checkpoint 2026-07-23
+
+- Completed `DASH-01` through `DASH-09` in the first implementation batch.
+- Added `production-dashboard.ts` and `production-dashboard-query.ts`; the API route now only handles auth, date parsing, scope resolution, service invocation, and response headers.
+- Dashboard scope now passes authenticated branch IDs to both metric and WIP reads; machine aggregation uses machine IDs and response IDs are strings.
+- Focused production tests passed `16/16`; workspace type-check and production build passed; workspace lint has zero errors and four pre-existing warnings outside this batch.
+- Query-plan evidence: dev-target `EXPLAIN (ANALYZE, BUFFERS)` completed for scoped production orders, active input/output relations, and PI/PO2 ledger lookup. Current dataset is small and execution times were under 1.3 ms; existing indexes are sufficient, so no migration was added.
+- Reconciliation evidence: `npm run verify:production-report --workspace @ns-scrap-erp/next` returned `ok: true`, `checkedRows: 7`, and `productSummaryRows: 3`.
+- Final validation: focused production tests `19/19`, workspace type-check, production build, and `git diff --check` passed. Workspace lint has zero errors and four existing warnings outside this batch.
 
 ## Runtime Follow-up 2026-06-13
 

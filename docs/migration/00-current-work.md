@@ -1,3 +1,15 @@
+# Active Production Dashboard Query Separation Batch 2026-07-23
+
+Objective: แยก query/service ของ `/production/dashboard` ออกจาก shared `production-reports.ts` โดยคง API contract เดิมของหน้าไว้ และแก้ branch scope, WIP scope, aggregation correctness, BigInt serialization, cache header และ test coverage.
+
+Approved design: batch นี้โฟกัสเฉพาะ `/production/dashboard` และ `GET /api/production/dashboard`; ยังไม่ refactor `/production/report`, `/api/production/report` หรือ `/api/production/machine-utilization`. ใช้ `production-dashboard.service.ts` และ query module เฉพาะหน้า โดยใช้ shared module เฉพาะ scope/ledger/serialization ที่ไม่เปลี่ยน behavior ของหน้าอื่น.
+
+Task list: `docs/notes/page-flows/production-production-dashboard.md` หัวข้อ `Dashboard Query Separation Task List 2026-07-23`.
+
+Write areas: `apps/next/src/app/api/production/dashboard/route.ts`, new dashboard service/query/serializer modules, focused dashboard tests, and only targeted DB migration/index changes after `EXPLAIN ANALYZE`.
+
+Checkpoint: Dashboard query separation batch completed for `DASH-01` through `DASH-12`. Focused production tests `19/19`, production formula verification `ok: true` for 7 rows, workspace type-check, production build, and `git diff --check` pass. Workspace lint has zero errors with four existing warnings. No DB migration was needed after `EXPLAIN ANALYZE` review.
+
 # Active Profit & Cost Performance Batch 2026-07-19
 
 WTI/WTO gallery checkpoint 2026-07-22: detail row galleries now form one continuous sequence across image-bearing lots in table order. Opening a row starts at that lot, Next moves from the last image of one lot to the first image of the next, and the heading follows the active lot; the separate document-level album is unchanged. This batch intentionally excludes working-draft autosave, team visibility, recovery, APIs, and migrations from the SIT promotion.
@@ -34,6 +46,8 @@ Completed: four access-control migrations are now applied to dev-target and SIT 
 Blocker/next: continue the remaining broad finance-route audit documented in `docs/notes/access-control-broad-permission-audit-2026-07-19.md`.
 
 # 00 Current Work
+
+WTI concurrent draft design checkpoint 2026-07-23: ออกแบบให้ WTI รองรับผู้ใช้ 2 คนจาก 2 ตราชั่งเพิ่ม/แก้/ลบสินค้า เต๋า น้ำหนัก รูป และสิ่งเจือปนใน draft เดียวกันด้วย line-level operations + server-side summary + realtime event ต่อเอกสาร; ข้อมูลหัวเอกสารและข้อมูลอื่นยังใช้ปุ่มบันทึกแบบเดิม และปุ่มยกเลิกถามยืนยันเฉพาะ manual changes ที่ยังไม่ถูกบันทึก. Task list อยู่ใน `docs/notes/WTI-WTO Flow.md` ตั้งแต่ `WTI-00` ถึง `WTI-55`; รอบแรกเปิดใช้เฉพาะ WTI แต่ operation/version/event/reconnect contract ต้องออกแบบให้ WTO นำไปใช้ต่อได้. ยังไม่แก้โค้ดหรือ schema; รอผู้ใช้ review/อนุมัติ task list ก่อนทำ implementation plan.
 
 Dashboard report query-slimming checkpoint 2026-07-19: Dashboard Overview และ Daily Report ใช้ lightweight sales-line reader เฉพาะ amount/product/qty และไม่เรียก allocation/trading/stock-cost pipeline ที่ไม่ใช่ consumer ของหน้านี้; สี่ report API เพิ่ม `Server-Timing` (`auth`, `service`, `total`) เพื่อแยกคอขวดจาก SIT. Type-check, lint (มี warning เดิมที่ `qa-thai-font.tsx`), production build `312/312` และ diff-check ผ่าน. Local re-measurement หลังแก้ยังติด `P1000` จาก database credential ใน env ปัจจุบัน; ต้องแก้ connection แล้ววัด parity/performance ซ้ำก่อน promotion. Browser/UAT ยังไม่ได้รันใน coding batch นี้.
 
