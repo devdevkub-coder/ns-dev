@@ -222,7 +222,11 @@ export async function GET(request: Request) {
     return NextResponse.json({
       categories: productionOutputCategories,
       filters: {
-        branches,
+        branches: branches.map((branch) => ({
+          code: branch.code,
+          id: branch.code,
+          name: branch.name,
+        })),
       },
       page,
       pageSize,

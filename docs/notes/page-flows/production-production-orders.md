@@ -159,3 +159,8 @@ production order เป็น owner ของ input/WIP/output lifecycle target.
 - Verified `/production/orders` in Codex Browser on desktop and mobile. The desktop table keeps a single-line header with horizontal table-only overflow.
 - Kept the leading index column left-aligned and aligned every later table column right in both header and body. Renamed visible working labels to Thai-first `งานระหว่างทำคงเหลือ` and `อัตราผลได้`, then widened/reset those persisted columns so the new labels cannot wrap.
 - Mobile cards use the same Thai labels and no longer expose the English `Locked` state text. Filters, exports, modal behavior, production lifecycle, API contracts, permissions, database schema, and business data did not change.
+
+## 2026-07-23 API serialization checkpoint
+
+- The list API keeps branch database identifiers as internal `bigint` values only. The JSON filter contract exposes `code`, `id` (the branch code as a string), and `name`, because the UI filters by `branchCode` and JSON cannot serialize `bigint`.
+- This keeps the API boundary aligned with the business key used by list and Excel queries, while preventing the branch option payload from turning a successful production-order query into a 500 response.

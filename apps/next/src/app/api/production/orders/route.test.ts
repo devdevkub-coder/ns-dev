@@ -73,6 +73,19 @@ beforeEach(() => {
 })
 
 describe('production orders branch authorization', () => {
+  it('serializes branch filter options without leaking internal bigint ids', async () => {
+    mocks.listActiveBranchesByCodes.mockResolvedValue([
+      { address: null, code: 'B01', id: 1n, name: 'สาขาหลัก', phone: null },
+    ])
+
+    const response = await GET(new Request('http://localhost/api/production/orders'))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      filters: { branches: [{ code: 'B01', id: 'B01', name: 'สาขาหลัก' }] },
+    })
+  })
+
   it('keeps unrestricted users unscoped while honoring an optional requested branch', async () => {
     mocks.getBranchCodeIntersection.mockImplementation((_context, requested?: string | null) => requested ? [requested] : null)
 
