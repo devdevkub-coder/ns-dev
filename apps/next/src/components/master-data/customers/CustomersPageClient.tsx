@@ -829,9 +829,7 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
       const branchIds = checked
         ? uniqueValues([...current.branchIds, branchId])
         : current.branchIds.filter((id) => id !== branchId)
-      const primaryBranchId = current.primaryBranchId && branchIds.includes(current.primaryBranchId)
-        ? current.primaryBranchId
-        : branchIds[0] ?? null
+      const primaryBranchId = branchIds[0] ?? null
       return { ...current, branchIds, primaryBranchId }
     })
   }
@@ -888,7 +886,10 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const parsed = customerFormSchema.safeParse(form)
+    const parsed = customerFormSchema.safeParse({
+      ...form,
+      primaryBranchId: form.branchIds[0] ?? null,
+    })
     if (form.branchIds.length === 0) {
       setErrors({ branchIds: 'เลือกสาขาที่ใช้ได้อย่างน้อย 1 สาขา' })
       return
@@ -966,15 +967,7 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
                     <span className="block truncate font-semibold text-slate-800">{branch.name}</span>
                     <span className="block truncate font-mono text-xs text-slate-500">{branch.code ?? branch.id}</span>
                   </span>
-                  <span className="flex shrink-0 items-center gap-3">
-                    <input
-                      checked={form.primaryBranchId === branch.id}
-                      className="h-4 w-4"
-                      disabled={!checked}
-                      name="customer-primary-branch"
-                      type="radio"
-                      onChange={() => update('primaryBranchId', branch.id)}
-                    />
+                  <span className="flex shrink-0 items-center">
                     <input
                       checked={checked}
                       className="h-4 w-4"
@@ -986,7 +979,6 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
               )
             })}
           </div>
-          <div className="mt-2 text-xs text-slate-500">เลือก checkbox เพื่อกำหนดสาขาที่ใช้ได้ และเลือก radio เป็นสาขาหลัก</div>
           {errors.branchIds ? <span className="mt-1 block text-xs text-red-700">{errors.branchIds}</span> : null}
         </section>
 

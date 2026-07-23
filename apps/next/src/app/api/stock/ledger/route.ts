@@ -41,7 +41,7 @@ function sourcePathFor(row: { refNo: string; refType: string }) {
   if (row.refType === 'SC' || row.refType === 'SC-REV') return `/stock/status-convert?docNo=${refNo}`
   if (row.refType === 'GA') return `/stock/convert?docNo=${refNo}`
   if (row.refType === 'ADJ') return `/stock/adjust?docNo=${refNo}`
-  if (row.refType === 'PI' || row.refType === 'PI-REV' || row.refType === 'PO2' || row.refType === 'PO2-REV') return `/production/orders?docNo=${refNo}`
+  if (row.refType === 'PI' || row.refType === 'PI-REV' || row.refType === 'PI-RETURN' || row.refType === 'PI-RETURN-CORRECTION' || row.refType === 'PO2' || row.refType === 'PO2-REV') return `/production/orders?docNo=${refNo}`
   return ''
 }
 

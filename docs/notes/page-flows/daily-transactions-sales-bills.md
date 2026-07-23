@@ -193,3 +193,7 @@ SB ตั้งลูกหนี้, consume WTO `pending_out`, ตัด stock
 Sales Bill detail now shows `ต้นทุน/หน่วย` between `จำนวนสุทธิ` and `ราคาขาย/หน่วย`, using the existing read-only `unitCostSnapshot` from the detail contract and showing `-` when no snapshot exists. The wider table keeps horizontal overflow, while sale price, discount, and line total remain unchanged. What is what: this is the captured unit cost for the document line, not a recalculation from current WAC. Why it has to be like this: users need to compare captured cost with sale price without changing historical bill facts or adding a backend/database contract.
 
 The `/sales/bills` list also left-aligns the `ลูกค้า` header to match its left-aligned body. Numeric, status, and action columns retain their accepted alignment and behavior.
+
+## 2026-07-23 Sales list center-alignment checkpoint
+
+The `/sales/bills` desktop list now centers every non-numeric visible header/body column. Numeric columns `รายการ`, `ยอดรวม`, `GP / Margin`, `รับแล้ว`, and `ค้างชำระ` stay right-aligned in both the header and table body. What is what: this changes only Sales Bill list table geometry; totals, GP, received amount, and receivable balance remain the existing read-model facts. Why it has to be like this: sales document identifiers, party/source/status/tax/update/action fields are scanned as centered categorical facts, while numbers remain right-aligned for vertical comparison. This does not change formulas, source allocation, receipt/refund flows, APIs, permissions, database schema, or DB state.

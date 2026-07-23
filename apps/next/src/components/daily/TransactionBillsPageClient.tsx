@@ -3194,37 +3194,37 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               {mode === 'purchase' ? <ResizableTableHead align="center" label="เลขที่ใบรับของ" resizeProps={columnResize.getResizeHandleProps('receiptDocs', 'เลขที่ใบรับของ')} /> : null}
               {mode === 'sales' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="เลขที่อ้างอิง" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่อ้างอิง')} sortKey="refNo" onSort={changeSort} /> : null}
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="วันที่สร้าง" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่สร้าง')} sortKey="date" onSort={changeSort} />
-              <SortHeader activeKey={sortKey} align={mode === 'purchase' ? 'center' : 'left'} className={mode === 'purchase' ? undefined : 'ns-table-textual-column'} direction={sortDirection} label={mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')} sortKey="name" onSort={changeSort} />
+              <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')} sortKey="name" onSort={changeSort} />
               {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="สาขา / คลัง" resizeProps={columnResize.getResizeHandleProps('warehouse', 'สาขา / คลัง')} sortKey="warehouse" onSort={changeSort} /> : null}
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('transactionMode', 'ประเภท')} sortKey="transactionMode" onSort={changeSort} />
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'สถานะเอกสาร' : 'สถานะรับเงิน'} resizeProps={columnResize.getResizeHandleProps('status', mode === 'purchase' ? 'สถานะเอกสาร' : 'สถานะรับเงิน')} sortKey="status" onSort={changeSort} />
               {mode === 'purchase' ? <ResizableTableHead align="center" label="PMA / PMT" resizeProps={columnResize.getResizeHandleProps('paymentDocs', 'PMA / PMT')} /> : null}
-              {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="รายการ" resizeProps={columnResize.getResizeHandleProps('itemCount', 'รายการ')} sortKey="itemCount" onSort={changeSort} /> : null}
-              <SortHeader activeKey={sortKey} align="right" className="ns-table-money-header" direction={sortDirection} label="ยอดรวม" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'ยอดรวม')} sortKey="totalAmount" onSort={changeSort} />
-              {mode === 'sales' ? <ResizableTableHead align="right" label="GP / Margin" resizeProps={columnResize.getResizeHandleProps('gp', 'GP / Margin')} /> : null}
-              {mode === 'sales' ? <ResizableTableHead align="right" label="รับแล้ว" resizeProps={columnResize.getResizeHandleProps('paidAmount', 'รับแล้ว')} /> : null}
-              <SortHeader activeKey={sortKey} align="right" className="ns-table-money-header" direction={sortDirection} label="ค้างชำระ" resizeProps={columnResize.getResizeHandleProps('outstanding', 'ค้างชำระ')} sortKey="outstanding" onSort={changeSort} />
+              {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="right" className="ns-table-numeric-header" direction={sortDirection} label="รายการ" resizeProps={columnResize.getResizeHandleProps('itemCount', 'รายการ')} sortKey="itemCount" onSort={changeSort} /> : null}
+              <SortHeader activeKey={sortKey} align="right" className="ns-table-numeric-header" direction={sortDirection} label="ยอดรวม" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'ยอดรวม')} sortKey="totalAmount" onSort={changeSort} />
+              {mode === 'sales' ? <ResizableTableHead align="right" className="ns-table-numeric-header" label="GP / Margin" resizeProps={columnResize.getResizeHandleProps('gp', 'GP / Margin')} /> : null}
+              {mode === 'sales' ? <ResizableTableHead align="right" className="ns-table-numeric-header" label="รับแล้ว" resizeProps={columnResize.getResizeHandleProps('paidAmount', 'รับแล้ว')} /> : null}
+              <SortHeader activeKey={sortKey} align="right" className="ns-table-numeric-header" direction={sortDirection} label="ค้างชำระ" resizeProps={columnResize.getResizeHandleProps('outstanding', 'ค้างชำระ')} sortKey="outstanding" onSort={changeSort} />
               {mode === 'sales' ? <ResizableTableHead align="center" label="VAT" resizeProps={columnResize.getResizeHandleProps('vat', 'VAT')} /> : null}
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="อัพเดตล่าสุด" resizeProps={columnResize.getResizeHandleProps('updatedBy', 'อัพเดตล่าสุด')} sortKey="updatedBy" onSort={changeSort} />
-              <ResizableTableHead align={mode === 'purchase' ? 'center' : 'right'} label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+              <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
             </tr>
           </TableHeader>
           <TableBody className="divide-y divide-slate-100">
             {isLoading ? <TableRow><td className="p-6 text-center text-slate-500" colSpan={tableColSpan}>กำลังโหลดข้อมูล</td></TableRow> : null}
             {!isLoading && pageRows.map((row) => (
               <TableRow key={row.id} className={`${row.status === 'cancelled' ? 'bg-red-100/60 hover:bg-red-200/60 text-slate-400' : 'hover:bg-slate-50'} cursor-pointer`} onClick={() => openListRow(row)}>
-                <td className={`whitespace-nowrap p-2 text-xs font-semibold text-slate-700 ${mode === 'purchase' ? 'text-center' : ''}`}>{row.docNo}</td>
+                <td className="whitespace-nowrap p-2 text-center text-xs font-semibold text-slate-700">{row.docNo}</td>
                 {mode === 'purchase' ? (
                   <td className="p-2 text-center text-xs font-semibold text-slate-700">
                     <CollapsedList items={row.receiptDocNos} splitItems={true} />
                   </td>
                 ) : null}
-                {mode === 'sales' ? <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700">{row.refNo || '-'}</td> : null}
-                <td className={`p-2 text-xs font-semibold text-slate-700 ${mode === 'purchase' ? 'text-center' : 'text-left'}`}>{formatDateDisplay(row.date)}</td>
-                <td className={`${mode === 'purchase' ? 'text-center' : 'ns-table-textual-column'} p-2 text-xs font-semibold text-slate-700`}>{'supplierName' in row ? row.supplierName : row.customerName}</td>
-                {mode !== 'purchase' ? <td className="p-2 text-xs font-semibold text-slate-700">{formatBranchWarehouse(row)}</td> : null}
-                <td className={`p-2 ${mode === 'purchase' ? 'text-center' : 'text-left'}`}><span className={`rounded-md-full px-2 py-0.5 text-xs font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>{transactionModeLabel(row.transactionMode)}</span></td>
-                <td className={`p-2 ${mode === 'purchase' ? 'text-center' : 'text-left'}`}>
+                {mode === 'sales' ? <td className="whitespace-nowrap p-2 text-center text-xs font-semibold text-slate-700">{row.refNo || '-'}</td> : null}
+                <td className="p-2 text-center text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</td>
+                <td className="p-2 text-center text-xs font-semibold text-slate-700">{'supplierName' in row ? row.supplierName : row.customerName}</td>
+                {mode !== 'purchase' ? <td className="p-2 text-center text-xs font-semibold text-slate-700">{formatBranchWarehouse(row)}</td> : null}
+                <td className="p-2 text-center"><span className={`rounded-md-full px-2 py-0.5 text-xs font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>{transactionModeLabel(row.transactionMode)}</span></td>
+                <td className="p-2 text-center">
                   <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${mode === 'purchase' ? workflowStatusBadgeClass(row.paymentWorkflowStatus ?? 'pending_approval') : statusBadgeClass(row.status)}`}>
                     <span className="size-1.5 rounded-full bg-current" />
                     {mode === 'purchase' ? workflowStatusText(row.paymentWorkflowStatus ?? 'pending_approval') : statusText(row.status)}
@@ -3245,7 +3245,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     )}
                   </td>
                 ) : null}
-                <td className={`p-2 text-xs font-semibold text-slate-700 ${mode === 'purchase' ? 'text-center' : ''}`}><div>{row.updatedBy || row.createdBy || '-'}</div><div className="text-xs font-normal text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></td>
+                <td className="p-2 text-center text-xs font-semibold text-slate-700"><div>{row.updatedBy || row.createdBy || '-'}</div><div className="text-xs font-normal text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></td>
                 {mode === 'purchase' ? (
                   <td className="p-2 text-center">
                     <TableActionButton menu={(
@@ -3258,7 +3258,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   </td>
                 ) : null}
                 {mode === 'sales' ? (
-                  <td className="p-2 text-right">
+                  <td className="p-2 text-center">
                     <TableActionButton menu={(
                       <>
                         <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onSelect={() => void printSalesBill(row)}>พิมพ์</TableActionMenuItem>

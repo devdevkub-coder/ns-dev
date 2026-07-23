@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor } from '@/lib/server/daily'
-import { cancelProductionOrder, completeProductionOrder, ProductionOrderError, updateProductionOrderActionSchema } from '@/lib/server/production-orders'
+import { assertProductionOrderBranchAccess, cancelProductionOrder, completeProductionOrder, ProductionOrderError, updateProductionOrderActionSchema } from '@/lib/server/production-orders'
 
 export const runtime = 'nodejs'
 
@@ -15,7 +15,9 @@ export async function PATCH(request: Request, context: ProductionOrderRouteConte
     const auth = await getCurrentAuthContext()
     requirePermission(auth, 'production.orders.view')
     const { docNo } = await context.params
+    await assertProductionOrderBranchAccess(docNo, getBranchCodeIntersection(auth))
     const values = updateProductionOrderActionSchema.parse(await request.json())
+    requirePermission(auth, values.action === 'complete' ? 'production.orders.complete' : 'production.orders.cancel')
     const actor = currentActor(auth)
     const payload = values.action === 'complete'
       ? await completeProductionOrder(docNo, values.note, actor)

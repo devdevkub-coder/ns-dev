@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor } from '@/lib/server/daily'
-import { ProductionOrderError, reverseProductionInput, reverseProductionInputSchema } from '@/lib/server/production-orders'
+import { assertProductionOrderBranchAccess, ProductionOrderError, reverseProductionInput, reverseProductionInputSchema } from '@/lib/server/production-orders'
 
 export const runtime = 'nodejs'
 
@@ -13,8 +13,9 @@ type ProductionInputReverseRouteContext = {
 export async function POST(request: Request, context: ProductionInputReverseRouteContext) {
   try {
     const auth = await getCurrentAuthContext()
-    requirePermission(auth, 'production.orders.view')
+    requirePermission(auth, 'production.orders.reverse')
     const { docNo, inputDocNo } = await context.params
+    await assertProductionOrderBranchAccess(docNo, getBranchCodeIntersection(auth))
     const values = reverseProductionInputSchema.parse(await request.json())
     return NextResponse.json(await reverseProductionInput(docNo, inputDocNo, values, currentActor(auth)))
   } catch (caught) {

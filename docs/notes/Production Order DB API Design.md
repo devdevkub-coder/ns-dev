@@ -26,7 +26,7 @@ MVP ครอบคลุม:
 - เบิกวัตถุดิบเข้า WIP ด้วย `PI`
 - รับผลผลิตเป็น `FG` หรือ `RM` ด้วย `PO2`
 - บันทึก `Loss` เพื่อเคลียร์ WIP
-- reverse เอกสารผิดด้วย `PI-REV` / `PO2-REV`
+- คืนวัตถุดิบที่ยังอยู่ใน WIP ด้วย `PI-RETURN` ที่อ้างอิง PI เดิม; reverse ผลผลิตยังใช้ `PO2-REV`
 - รายงาน WIP/Yield/Stock Ledger จาก facts จริง
 
 นอก MVP:
@@ -49,7 +49,7 @@ MVP ครอบคลุม:
 | ห้าม completed ถ้า WIP ยังเหลือ | server reject complete action ถ้า WIP balance != 0 |
 | Stock ห้ามติดลบ | input issue ต้อง validate available stock ก่อนเขียน ledger |
 | WAC | ใช้ WAC ณ วันที่เบิก input เป็นต้นทุน input line |
-| แก้ input/output หลังบันทึก | ไม่แก้ ledger เดิมโดยตรง ให้ reverse แล้วบันทึกใหม่ |
+| แก้ input/output หลังบันทึก | input ใช้คืนวัตถุดิบด้วย `PI-RETURN`; output ใช้ reverse ตาม downstream guard; ไม่แก้ ledger เดิมโดยตรง |
 | Legacy fallback | ห้าม fallback เช่น `code ?? id`, live master snapshot fallback, hard delete ledger, auto grade convert |
 
 ## Flow
@@ -256,13 +256,24 @@ Additive schema for MVP:
 | Column | Rule |
 |---|---|
 | `doc_no` | generated `PIYYMM-NNNN`, document group key; not unique because one PI can contain multiple input lines |
-| `status` | `active` / `reversed` |
+| `status` | `active` / `returned` |
 | `source_warehouse_id` | source stock warehouse |
 | `wip_warehouse_id` | WIP warehouse |
 | `lot_no` | optional |
 | `wac_unit_cost` | required by API for new rows |
 | `reversed_at/by/reason` | nullable |
-| `reversal_doc_no` | generated `PI-REVYYMM-NNNN`, document group key for reversing all lines in one PI |
+| `reversal_doc_no` | legacy input field; new input returns do not generate or populate it |
+| `stock_category` | immutable input category snapshot: `RM` or `FG` |
+
+### `production_input_returns`
+
+| Column | Rule |
+|---|---|
+| `production_input_id`, `order_id` | original PI line and production order references |
+| `qty` | returned quantity; the current UI returns a whole PI document group |
+| `unit_cost`, `total_cost` | copied from the original PI WAC snapshot; never recalculated from current WAC |
+| `reason`, `created_at`, `created_by` | mandatory audit context |
+| `status` | `active` / `cancelled` |
 
 ### `production_outputs` additions
 
@@ -282,7 +293,7 @@ Additive schema for MVP:
 | Document | ref_type | ref_no | ref_id |
 |---|---|---|---|
 | Input issue | `PI` | input `doc_no` | input internal id as text |
-| Input reverse | `PI-REV` | reversal doc no | original input id as text |
+| Input return | `PI-RETURN` | original PI doc no | return row id as text |
 | Output receive | `PO2` | output `doc_no` | output internal id as text |
 | Output reverse | `PO2-REV` | reversal doc no | original output id as text |
 
@@ -296,8 +307,8 @@ All writes run in DB transaction and validate with shared server schema.
 | `POST /api/production/orders` | create order as `Open`, no stock ledger |
 | `PATCH /api/production/orders/[docNo]` | update header/cancel/complete |
 | `POST /api/production/orders/[docNo]/inputs` | create `PI` |
-| `POST /api/production/orders/[docNo]/inputs/[inputDocNo]/reverse` | create `PI-REV` |
-| `POST /api/production/orders/[docNo]/inputs/reverse` | create `PI-REV` with `inputDocNo` in body; stable runtime endpoint for browser clients |
+| `POST /api/production/orders/[docNo]/inputs/[inputDocNo]/return` | return against the original PI |
+| `POST /api/production/orders/[docNo]/inputs/return` | return with `inputDocNo` in body; stable runtime endpoint for browser clients |
 | `POST /api/production/orders/[docNo]/outputs` | create `PO2` |
 | `POST /api/production/orders/[docNo]/outputs/[outputDocNo]/reverse` | create `PO2-REV` |
 | `POST /api/production/orders/[docNo]/outputs/reverse` | create `PO2-REV` with `outputDocNo` in body; stable runtime endpoint for browser clients |
@@ -411,7 +422,7 @@ where po2.status = 'active'
 
 ### Batch P3C: Server Domain Services
 
-- [x] Add document-number generator for `PO`, `PI`, `PO2`, `PI-REV`, `PO2-REV`.
+- [x] Add document-number generator for `PO`, `PI`, `PO2`, and legacy `PO2-REV`; input return does not generate a new document number.
 - [x] Add production order create service.
 - [x] Add WIP calculation service from active facts/ledger.
 - [x] Add WAC lookup that rejects missing/ambiguous cost.

@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { requireBusinessCode } from '@/lib/business-code'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
-import { listActiveBranches, listActiveProductReferences, listActiveProductionLines, listActiveProductionMachines, listActiveWarehouses, listActiveWarehousesByBranch } from '@/lib/server/reference-master-cache'
+import { listActiveBranches, listActiveBranchesByCodes, listActiveProductReferences, listActiveProductionLines, listActiveProductionMachines, listActiveWarehouses, listActiveWarehousesByBranch } from '@/lib/server/reference-master-cache'
 
 type DbClient = Prisma.TransactionClient | typeof prisma
 
@@ -26,14 +26,12 @@ export const createProductionOrderSchema = z.object({
   branchCode: codeSchema,
   date: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'วันที่ต้องเป็นรูปแบบ YYYY-MM-DD'),
   destinationWarehouseCode: codeSchema,
-  machineCode: z.string().trim().optional(),
+  machineCode: z.string().trim().max(120).optional(),
   notes: z.string().trim().max(1000).optional(),
-  productionLineCode: z.string().trim().optional(),
-  productionType: z.string().trim().min(1, 'เลือกประเภทการผลิต').max(80),
-  shift: z.string().trim().max(80).optional(),
+  productionLineCode: z.string().trim().max(120).optional(),
+  shift: z.string().trim().min(1, 'เลือกกะการผลิต').max(80),
   sourceWarehouseCode: codeSchema,
   targetProductCode: codeSchema,
-  wipWarehouseCode: codeSchema,
 })
 
 export const updateProductionOrderActionSchema = z.discriminatedUnion('action', [
@@ -64,6 +62,11 @@ export const reverseProductionInputSchema = z.object({
   reason: z.string().trim().min(1, 'ระบุเหตุผลการ reverse').max(1000),
 })
 
+export const returnProductionInputSchema = z.object({
+  date: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'วันที่ต้องเป็นรูปแบบ YYYY-MM-DD'),
+  reason: z.string().trim().min(1, 'ระบุเหตุผลการคืนวัตถุดิบ').max(1000),
+})
+
 export const createProductionOutputSchema = z.object({
   completeOrder: z.boolean().optional(),
   date: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'วันที่ต้องเป็นรูปแบบ YYYY-MM-DD'),
@@ -87,6 +90,7 @@ export type CreateProductionOrderValues = z.infer<typeof createProductionOrderSc
 export type CreateProductionInputValues = z.infer<typeof createProductionInputSchema>
 export type CreateProductionOutputValues = z.infer<typeof createProductionOutputSchema>
 export type ReverseProductionMovementValues = z.infer<typeof reverseProductionInputSchema>
+export type ReturnProductionInputValues = z.infer<typeof returnProductionInputSchema>
 
 function compactPeriod(date: string) {
   return date.slice(2, 4) + date.slice(5, 7)
@@ -129,6 +133,16 @@ async function findActiveWarehouseByCode(tx: DbClient, code: string, branchId?: 
   return warehouse
 }
 
+async function findBranchWipWarehouse(tx: DbClient, branchId: bigint) {
+  const warehouses = await tx.warehouses.findMany({
+    select: { branch_id: true, code: true, id: true, name: true, type: true },
+    where: { active: true, branch_id: branchId, type: { equals: 'WIP', mode: 'insensitive' } },
+  })
+  if (warehouses.length === 0) throw new ProductionOrderError('สาขานี้ยังไม่ได้ตั้งค่าคลัง WIP')
+  if (warehouses.length > 1) throw new ProductionOrderError('สาขานี้มีคลัง WIP มากกว่า 1 แห่ง กรุณาตั้งค่าให้เหลือ 1 แห่ง')
+  return warehouses[0]
+}
+
 async function findActiveProductByCode(tx: DbClient, code: string) {
   const product = await tx.products.findFirst({ select: { code: true, id: true, name: true, metal_group: true }, where: { active: true, code } })
   if (!product) throw new ProductionOrderError(`ไม่พบสินค้า ${code}`)
@@ -136,16 +150,22 @@ async function findActiveProductByCode(tx: DbClient, code: string) {
   return product
 }
 
-async function findOptionalMachineByCode(tx: DbClient, code?: string) {
+async function findMachineByCode(tx: DbClient, code: string | undefined, branchId: bigint) {
   if (!code) return null
-  const machine = await tx.production_machines.findFirst({ select: { id: true }, where: { active: true, name: { equals: code, mode: 'insensitive' } } })
+  const machine = await tx.production_machines.findFirst({
+    select: { id: true, type: true },
+    where: { active: true, name: { equals: code, mode: 'insensitive' }, OR: [{ branch_id: null }, { branch_id: branchId }] },
+  })
   if (!machine) throw new ProductionOrderError(`ไม่พบเครื่องจักร ${code}`)
   return machine
 }
 
-async function findOptionalProductionLineByCode(tx: DbClient, code?: string) {
+async function findProductionLineByCode(tx: DbClient, code: string | undefined, branchId: bigint) {
   if (!code) return null
-  const line = await tx.production_lines.findFirst({ select: { id: true }, where: { active: true, name: { equals: code, mode: 'insensitive' } } })
+  const line = await tx.production_lines.findFirst({
+    select: { id: true },
+    where: { active: true, name: { equals: code, mode: 'insensitive' }, OR: [{ branch_id: null }, { branch_id: branchId }] },
+  })
   if (!line) throw new ProductionOrderError(`ไม่พบไลน์ผลิต ${code}`)
   return line
 }
@@ -155,6 +175,18 @@ async function findOrderByDocNo(tx: DbClient, docNo: string) {
     where: { doc_no: docNo },
   })
   if (!order) throw new ProductionOrderError(`ไม่พบใบสั่งผลิต ${docNo}`, 404)
+  return order
+}
+
+export async function assertProductionOrderBranchAccess(docNo: string, allowedBranchCodes: string[] | null) {
+  const order = await prisma.production_orders.findFirst({
+    select: { branches: { select: { code: true } }, doc_no: true },
+    where: { doc_no: docNo },
+  })
+  if (!order) throw new ProductionOrderError(`ไม่พบใบสั่งผลิต ${docNo}`, 404)
+  if (allowedBranchCodes && !allowedBranchCodes.includes(order.branches?.code ?? '')) {
+    throw new ProductionOrderError('ไม่มีสิทธิ์เข้าถึงใบสั่งผลิตสาขานี้', 403)
+  }
   return order
 }
 
@@ -220,14 +252,15 @@ export async function createProductionOrder(values: CreateProductionOrderValues,
       findActiveBranchByCode(tx, values.branchCode),
       findActiveProductByCode(tx, values.targetProductCode),
     ])
-    const [sourceWarehouse, wipWarehouse, destinationWarehouse, machine, line] = await Promise.all([
+    const [sourceWarehouse, destinationWarehouse, machine, line, wipWarehouse] = await Promise.all([
       findActiveWarehouseByCode(tx, values.sourceWarehouseCode, branch.id),
-      findActiveWarehouseByCode(tx, values.wipWarehouseCode, branch.id),
       findActiveWarehouseByCode(tx, values.destinationWarehouseCode, branch.id),
-      findOptionalMachineByCode(tx, values.machineCode),
-      findOptionalProductionLineByCode(tx, values.productionLineCode),
+      findMachineByCode(tx, values.machineCode, branch.id),
+      findProductionLineByCode(tx, values.productionLineCode, branch.id),
+      findBranchWipWarehouse(tx, branch.id),
     ])
-    if (wipWarehouse.type?.toUpperCase() !== 'WIP') throw new ProductionOrderError(`คลัง ${values.wipWarehouseCode} ไม่ใช่คลัง WIP`)
+    if (sourceWarehouse.type?.toUpperCase() === 'WIP') throw new ProductionOrderError(`คลัง ${values.sourceWarehouseCode} ต้องเป็นคลังวัตถุดิบ ไม่ใช่คลัง WIP`)
+    if (destinationWarehouse.type?.toUpperCase() === 'WIP') throw new ProductionOrderError(`คลัง ${values.destinationWarehouseCode} ต้องเป็นคลังรับผลผลิต ไม่ใช่คลัง WIP`)
     const docNo = await nextDocNo(tx, 'production_orders', 'PO', values.date)
     const created = await tx.production_orders.create({
       data: {
@@ -238,7 +271,7 @@ export async function createProductionOrder(values: CreateProductionOrderValues,
         notes: values.notes ?? null,
         product_id: product.id,
         production_line_id: line?.id ?? null,
-        production_type: values.productionType,
+        production_type: null,
         shift: values.shift ?? null,
         status: 'Open',
         updated_by: actor,
@@ -304,6 +337,10 @@ export async function createProductionInput(orderDocNo: string, values: CreatePr
         findActiveProductByCode(tx, line.productCode),
         findActiveWarehouseByCode(tx, line.sourceWarehouseCode, order.branch_id),
       ])
+      const expectedStockCategory = sourceWarehouse.type?.toUpperCase() === 'FG' ? 'FG' : 'RM'
+      if (line.stockStatus !== expectedStockCategory) {
+        throw new ProductionOrderError(`ประเภทสินค้าไม่ตรงกับประเภทคลัง ${line.sourceWarehouseCode}`)
+      }
       const stock = await stockSnapshot(tx, {
         branchId: order.branch_id,
         lotNo: line.lotNo ?? null,
@@ -327,6 +364,7 @@ export async function createProductionInput(orderDocNo: string, values: CreatePr
           qty: line.netQty,
           source: line.sourceWarehouseCode,
           source_warehouse_id: sourceWarehouse.id,
+          stock_category: line.stockStatus,
           status: 'active',
           total_cost: totalLineCost,
           unit_cost: stock.unitCost,
@@ -398,50 +436,65 @@ export async function createProductionInput(orderDocNo: string, values: CreatePr
   })
 }
 
-export async function reverseProductionInput(orderDocNo: string, inputDocNo: string, values: ReverseProductionMovementValues, actor: string) {
+export async function returnProductionInput(orderDocNo: string, inputDocNo: string, values: ReturnProductionInputValues, actor: string) {
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const order = await findOrderByDocNo(tx, orderDocNo)
     const isGrace = isGracePeriodActive(order)
     if (['Completed', 'Cancelled'].includes(order.status ?? '') && (!isGrace || order.status === 'Cancelled')) {
-      throw new ProductionOrderError('ใบสั่งผลิตปิดงานหรือยกเลิกแล้ว ไม่สามารถ reverse ได้')
+      throw new ProductionOrderError('ใบสั่งผลิตปิดงานหรือยกเลิกแล้ว ไม่สามารถคืนวัตถุดิบได้')
     }
     if (!order.branch_id || !order.warehouse_wip_id || !order.product_id) throw new ProductionOrderError('ใบสั่งผลิตไม่มีสาขา สินค้า หรือคลัง WIP ที่ครบถ้วน')
 
     const inputs = await tx.production_inputs.findMany({
       where: { doc_no: inputDocNo, order_id: order.id, status: 'active' },
     })
-    if (inputs.length === 0) throw new ProductionOrderError(`ไม่พบรายการเบิกวัตถุดิบที่ reverse ได้ ${inputDocNo}`, 404)
+    if (inputs.length === 0) throw new ProductionOrderError(`ไม่พบรายการเบิกวัตถุดิบที่คืนได้ ${inputDocNo}`, 404)
 
     const wip = await productionWipBalance(tx, order.id)
     const reverseQty = inputs.reduce((sum: number, row: (typeof inputs)[number]) => sum + toNumber(row.qty), 0)
-    if (reverseQty > wip.wipQty + 0.000001) throw new ProductionOrderError('WIP ถูกใช้ไปแล้ว ไม่สามารถ reverse input ชุดนี้ได้')
+    if (reverseQty > wip.wipQty + 0.000001) throw new ProductionOrderError('WIP ถูกใช้ไปแล้ว ไม่สามารถคืนวัตถุดิบชุดนี้ได้')
 
-    const reversalDocNo = await nextDocNo(tx, 'production_inputs', 'PI-REV', values.date)
     const ledgerRows: Prisma.stock_ledgerCreateManyInput[] = []
     let reverseCost = 0
 
     for (const input of inputs) {
       if (!input.source_warehouse_id || !input.wip_warehouse_id || !input.product_id) {
-        throw new ProductionOrderError(`รายการ ${inputDocNo} ไม่มีข้อมูลคลังหรือสินค้า ไม่สามารถ reverse ได้`)
+        throw new ProductionOrderError(`รายการ ${inputDocNo} ไม่มีข้อมูลคลังหรือสินค้า ไม่สามารถคืนวัตถุดิบได้`)
       }
       const qty = toNumber(input.qty)
       const unitCost = toNumber(input.wac_unit_cost) || toNumber(input.unit_cost)
+      const stockCategory = input.stock_category
+      if (stockCategory !== 'RM' && stockCategory !== 'FG') {
+        throw new ProductionOrderError(`รายการ ${inputDocNo} ไม่มีประเภทสินค้าเดิม ไม่สามารถคืนวัตถุดิบได้`)
+      }
       const totalCost = qty * unitCost
       reverseCost += totalCost
+      const returned = await tx.production_input_returns.create({
+        data: {
+          created_by: actor,
+          date: normalizeDate(values.date),
+          order_id: order.id,
+          production_input_id: input.id,
+          qty,
+          reason: values.reason,
+          total_cost: totalCost,
+          unit_cost: unitCost,
+        },
+      })
       ledgerRows.push(
         {
           branch_id: order.branch_id,
           created_by: actor,
           date: normalizeDate(values.date),
           lot_no: input.lot_no,
-          movement_type: 'PRODUCTION_INPUT_REVERSE_WIP_OUT',
+          movement_type: 'PRODUCTION_INPUT_RETURN_WIP_OUT',
           notes: values.reason,
           output_category: 'WIP',
           product_id: order.product_id,
           qty_out: qty,
-          ref_id: input.id.toString(),
-          ref_no: reversalDocNo,
-          ref_type: 'PI-REV',
+          ref_id: returned.id.toString(),
+          ref_no: inputDocNo,
+          ref_type: 'PI-RETURN',
           unit_cost: unitCost,
           value_out: totalCost,
           warehouse_id: input.wip_warehouse_id,
@@ -451,14 +504,14 @@ export async function reverseProductionInput(orderDocNo: string, inputDocNo: str
           created_by: actor,
           date: normalizeDate(values.date),
           lot_no: input.lot_no,
-          movement_type: 'PRODUCTION_INPUT_REVERSE_STOCK_IN',
+          movement_type: 'PRODUCTION_INPUT_RETURN_STOCK_IN',
           notes: values.reason,
-          output_category: input.source === 'FG' ? 'FG' : 'RM',
+          output_category: stockCategory,
           product_id: input.product_id,
           qty_in: qty,
-          ref_id: input.id.toString(),
-          ref_no: reversalDocNo,
-          ref_type: 'PI-REV',
+          ref_id: returned.id.toString(),
+          ref_no: inputDocNo,
+          ref_type: 'PI-RETURN',
           unit_cost: unitCost,
           value_in: totalCost,
           warehouse_id: input.source_warehouse_id,
@@ -468,7 +521,7 @@ export async function reverseProductionInput(orderDocNo: string, inputDocNo: str
 
     await tx.stock_ledger.createMany({ data: ledgerRows })
     await tx.production_inputs.updateMany({
-      data: { reversal_doc_no: reversalDocNo, reversed_at: new Date(), reversed_by: actor, reverse_reason: values.reason, status: 'reversed', updated_by: actor },
+      data: { status: 'returned', updated_by: actor },
       where: { doc_no: inputDocNo, order_id: order.id, status: 'active' },
     })
 
@@ -482,18 +535,23 @@ export async function reverseProductionInput(orderDocNo: string, inputDocNo: str
       where: { id: order.id },
     })
     await appendOrderStatusLog(tx, {
-      action: 'input_reversed',
+      action: 'input_returned',
       actor,
       fromStatus: order.status,
-      meta: { inputDocNo, reversalDocNo, reverseCost, reverseQty },
+      meta: { inputDocNo, returnCost: reverseCost, returnQty: reverseQty },
       note: values.reason,
       orderDocNo: order.doc_no,
       orderId: order.id,
       toStatus: nextStatus,
     })
     const nextWip = await productionWipBalance(tx, order.id)
-    return { inputDocNo, orderStatus: nextStatus, reversalDocNo, reversedQty: reverseQty, wipQty: nextWip.wipQty }
+    return { inputDocNo, orderStatus: nextStatus, returnedQty: reverseQty, wipQty: nextWip.wipQty }
   })
+}
+
+// Keep the old route callable during rollout; it now executes the return flow and does not create a reversal document.
+export async function reverseProductionInput(orderDocNo: string, inputDocNo: string, values: ReverseProductionMovementValues, actor: string) {
+  return returnProductionInput(orderDocNo, inputDocNo, values, actor)
 }
 
 export async function createProductionOutput(orderDocNo: string, values: CreateProductionOutputValues, actor: string) {
@@ -842,21 +900,33 @@ export async function readProductionWip(orderDocNo: string) {
   return { docNo: order.doc_no, ...wip }
 }
 
-export async function productionOrderOptions() {
-  const [branches, warehouses, products, machines, lines] = await Promise.all([
-    listActiveBranches(),
-    listActiveWarehouses(),
-    listActiveProductReferences(),
-    listActiveProductionMachines(),
-    listActiveProductionLines(),
-  ])
+export async function productionOrderOptions(allowedBranchCodes: string[] | null = null) {
+  const branches = allowedBranchCodes ? await listActiveBranchesByCodes(allowedBranchCodes) : await listActiveBranches()
+  const [warehouses, products, machines, lines] = allowedBranchCodes
+    ? await Promise.all([
+        listActiveWarehouses(),
+        listActiveProductReferences(),
+        prisma.production_machines.findMany({
+          orderBy: [{ name: 'asc' }, { id: 'asc' }],
+          select: { active: true, id: true, name: true, type: true },
+          where: { active: true, OR: [{ branch_id: null }, { branch_id: { in: branches.map((row) => row.id) } }] },
+        }),
+        prisma.production_lines.findMany({
+          orderBy: [{ name: 'asc' }, { id: 'asc' }],
+          select: { active: true, id: true, name: true },
+          where: { active: true, OR: [{ branch_id: null }, { branch_id: { in: branches.map((row) => row.id) } }] },
+        }),
+      ])
+    : await Promise.all([listActiveWarehouses(), listActiveProductReferences(), listActiveProductionMachines(), listActiveProductionLines()])
+  const visibleBranchCodes = new Set(branches.flatMap((row) => row.code ? [row.code] : []))
+  const visibleWarehouses = warehouses.filter((row) => !allowedBranchCodes || (row.branchCode != null && visibleBranchCodes.has(row.branchCode)))
   return {
     branches: branches.map((row: (typeof branches)[number]) => ({ code: requireBusinessCode(row.code, `สาขา ${row.id}`), id: requireBusinessCode(row.code, `สาขา ${row.id}`), name: row.name })),
     machines: machines.map((row: (typeof machines)[number]) => ({ code: row.name, id: row.name, name: row.name, type: row.type })),
     productionLines: lines.map((row: (typeof lines)[number]) => ({ code: row.name, id: row.name, name: row.name })),
     products: products.map((row: (typeof products)[number]) => ({ code: requireBusinessCode(row.code, `สินค้า ${row.id}`), id: requireBusinessCode(row.code, `สินค้า ${row.id}`), name: row.name })),
     productionTypes: ['Sorting', 'Baling', 'Melting', 'Processing'],
-    warehouses: warehouses.map((row: (typeof warehouses)[number]) => ({ branchCode: row.branchCode, code: row.code, id: row.code, name: row.name, type: row.type })),
+    warehouses: visibleWarehouses.map((row: (typeof warehouses)[number]) => ({ branchCode: row.branchCode, code: row.code, id: row.code, name: row.name, type: row.type })),
   }
 }
 
@@ -875,25 +945,34 @@ export async function productionProductStock(input: { branchCode: string; produc
     warehouseName: string
   }> = []
 
-  for (const warehouse of warehouses) {
-    for (const status of ['RM', 'FG'] as const) {
-      const snap = await stockSnapshot(prisma, {
-        branchId: branch.id,
-        productId: product.id,
-        status,
-        warehouseId: warehouse.id,
-      })
-      if (Math.abs(snap.qty) > 0.000001) {
-        rows.push({
-          avgCost: snap.unitCost,
-          qty: snap.qty,
-          status,
-          value: snap.value,
-          warehouseCode: warehouse.code,
-          warehouseName: warehouse.name,
-        })
-      }
-    }
+  const snapshots = await prisma.stock_ledger.groupBy({
+    by: ['warehouse_id', 'output_category'],
+    where: {
+      branch_id: branch.id,
+      lot_no: null,
+      OR: [{ not_available_for_sale: false }, { not_available_for_sale: null }],
+      output_category: { in: ['RM', 'FG'] },
+      product_id: product.id,
+      warehouse_id: { in: warehouses.map((warehouse) => warehouse.id) },
+    },
+    _sum: { qty_in: true, qty_out: true, value_in: true, value_out: true },
+  })
+  const warehouseById = new Map(warehouses.map((warehouse) => [warehouse.id.toString(), warehouse]))
+  for (const snapshot of snapshots) {
+    const warehouse = snapshot.warehouse_id == null ? null : warehouseById.get(snapshot.warehouse_id.toString())
+    const status = snapshot.output_category
+    if (!warehouse || (status !== 'RM' && status !== 'FG')) continue
+    const qty = toNumber(snapshot._sum.qty_in) - toNumber(snapshot._sum.qty_out)
+    const value = toNumber(snapshot._sum.value_in) - toNumber(snapshot._sum.value_out)
+    if (Math.abs(qty) <= 0.000001) continue
+    rows.push({
+      avgCost: qty > 0 ? value / qty : 0,
+      qty,
+      status,
+      value,
+      warehouseCode: warehouse.code,
+      warehouseName: warehouse.name,
+    })
   }
 
   return {

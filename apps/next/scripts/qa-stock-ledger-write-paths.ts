@@ -3,7 +3,7 @@ import {
   createProductionOrder,
   createProductionOutput,
   productionOrderOptions,
-  reverseProductionInput,
+  returnProductionInput,
   reverseProductionOutput,
 } from '../src/lib/server/production-orders'
 import { toNumber } from '../src/lib/server/daily'
@@ -99,17 +99,21 @@ async function findProductionQaScenario(): Promise<ProductionQaScenario> {
 
 async function qaProductionInputOutputReverse(): Promise<QaResult> {
   const [scenario, options] = await Promise.all([findProductionQaScenario(), productionOrderOptions()])
-  const productionType = options.productionTypes[0]
-  assert(productionType, 'ไม่พบ production type สำหรับ QA')
+  const machine = options.machines[0]
+  const productionLine = options.productionLines[0]
+  assert(machine, 'ไม่พบเครื่องจักรสำหรับ QA')
+  assert(machine.type, 'ไม่พบประเภทเครื่องจักรสำหรับ QA')
+  assert(productionLine, 'ไม่พบไลน์ผลิตสำหรับ QA')
   const order = await createProductionOrder({
     branchCode: scenario.branch_code,
     date: qaDate,
     destinationWarehouseCode: scenario.destination_warehouse_code,
     notes: 'QA production ledger append/reversal',
-    productionType,
+    machineCode: machine.code,
+    productionLineCode: productionLine.code,
+    shift: 'เช้า',
     sourceWarehouseCode: scenario.source_warehouse_code,
     targetProductCode: scenario.product_code,
-    wipWarehouseCode: scenario.wip_warehouse_code,
   }, actor)
   const input = await createProductionInput(order.docNo, {
     date: qaDate,
@@ -137,18 +141,18 @@ async function qaProductionInputOutputReverse(): Promise<QaResult> {
     date: qaDate,
     reason: 'QA reverse PO2',
   }, actor)
-  const inputRev = await reverseProductionInput(order.docNo, input.inputDocNo, {
+  await returnProductionInput(order.docNo, input.inputDocNo, {
     date: qaDate,
     reason: 'QA reverse PI',
   }, actor)
 
-  const refs = [input.inputDocNo, output.outputDocNo, outputRev.reversalDocNo, inputRev.reversalDocNo]
+  const refs = [input.inputDocNo, output.outputDocNo, outputRev.reversalDocNo]
   const ledgerRows = await prisma.stock_ledger.groupBy({
     _sum: { qty_in: true, qty_out: true },
     by: ['ref_type'],
-    where: { ref_no: { in: refs }, ref_type: { in: ['PI', 'PI-REV', 'PO2', 'PO2-REV'] } },
+    where: { ref_no: { in: refs }, ref_type: { in: ['PI', 'PI-RETURN', 'PO2', 'PO2-REV'] } },
   })
-  for (const refType of ['PI', 'PI-REV', 'PO2', 'PO2-REV']) {
+  for (const refType of ['PI', 'PI-RETURN', 'PO2', 'PO2-REV']) {
     assert(ledgerRows.some((row: { ref_type: string | null }) => row.ref_type === refType), `Production QA ${order.docNo} missing ${refType}`)
   }
 

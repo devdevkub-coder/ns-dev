@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { productionProductStock, ProductionOrderError } from '@/lib/server/production-orders'
 
 export const runtime = 'nodejs'
@@ -13,6 +13,10 @@ export async function GET(request: Request) {
     const branchCode = url.searchParams.get('branchCode') ?? ''
     const productCode = url.searchParams.get('productCode') ?? ''
     const warehouseCode = url.searchParams.get('warehouseCode') ?? ''
+    const allowedBranchCodes = getBranchCodeIntersection(context, branchCode)
+    if (allowedBranchCodes && !allowedBranchCodes.includes(branchCode)) {
+      throw new AuthContextError('ไม่มีสิทธิ์เข้าถึงสต๊อกสาขานี้', 403)
+    }
     return NextResponse.json(await productionProductStock({ branchCode, productCode, warehouseCode }))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

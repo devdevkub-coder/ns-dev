@@ -24,6 +24,8 @@ describe('parseProductionOrdersQuery', () => {
       page: '-2',
       pageSize: '500',
       search: '  PO-2607  ',
+      docNo: ' PO2607-0001 ',
+      include: 'detail',
       sort: 'unknown-field',
     }))
 
@@ -31,7 +33,9 @@ describe('parseProductionOrdersQuery', () => {
     expect(query.page).toBe(1)
     expect(query.pageSize).toBe(100)
     expect(query.search).toBe('PO-2607')
-    expect(query.sort).toBe('date')
+    expect(query.docNo).toBe('PO2607-0001')
+    expect(query.includeDetail).toBe(true)
+    expect(query.sort).toBe('docNo')
   })
 
   it('drops invalid dates and unsupported statuses instead of passing them to Prisma', () => {

@@ -38,7 +38,9 @@ export function parseProductionOrdersQuery(searchParams: URLSearchParams) {
     page: positiveInteger(searchParams.get('page'), 1),
     pageSize: Math.min(100, Math.max(10, positiveInteger(searchParams.get('pageSize'), 10))),
     search: searchParams.get('search')?.trim() ?? '',
-    sort: allowedSorts.has(requestedSort) ? requestedSort : 'date',
+    docNo: searchParams.get('docNo')?.trim() ?? '',
+    includeDetail: searchParams.get('include') === 'detail',
+    sort: allowedSorts.has(requestedSort) ? requestedSort : 'docNo',
     statuses,
   }
 }

@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   branchFindMany: vi.fn(),
   count: vi.fn(),
   findMany: vi.fn(),
+  inputGroupBy: vi.fn(),
+  outputGroupBy: vi.fn(),
   getBranchCodeIntersection: vi.fn(),
   getCurrentAuthContext: vi.fn(),
   listActiveBranches: vi.fn(),
@@ -25,7 +27,9 @@ vi.mock('@/lib/server/daily', () => ({ currentActor: vi.fn(), toDateOnly: vi.fn(
 vi.mock('@/lib/server/prisma', () => ({
   prisma: {
     branches: { findMany: mocks.branchFindMany },
+    production_inputs: { groupBy: mocks.inputGroupBy },
     production_orders: { count: mocks.count, findMany: mocks.findMany },
+    production_outputs: { groupBy: mocks.outputGroupBy },
     warehouses: { findMany: mocks.warehouseFindMany },
   },
 }))
@@ -60,6 +64,8 @@ beforeEach(() => {
   mocks.getCurrentAuthContext.mockResolvedValue(context)
   mocks.count.mockResolvedValue(0)
   mocks.findMany.mockResolvedValue([])
+  mocks.inputGroupBy.mockResolvedValue([])
+  mocks.outputGroupBy.mockResolvedValue([])
   mocks.warehouseFindMany.mockResolvedValue([])
   mocks.branchFindMany.mockResolvedValue([])
   mocks.listActiveBranches.mockResolvedValue([])
@@ -156,5 +162,20 @@ describe('production orders status filter', () => {
     expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ status: { in: ['Open', 'Completed'] } }),
     }))
+  })
+
+  it('includes the full dateTo business day and searches product codes', async () => {
+    await GET(new Request('http://localhost/api/production/orders?dateTo=2026-07-31&search=SKU001'))
+
+    const where = mocks.findMany.mock.calls[0]?.[0].where
+    expect(where.date.lt).toEqual(new Date('2026-08-01T00:00:00.000Z'))
+    expect(where.OR).toEqual(expect.arrayContaining([
+      { products: { code: { contains: 'SKU001', mode: 'insensitive' } } },
+    ]))
+  })
+
+  it('declares list summary as page-scoped', async () => {
+    const response = await GET(new Request('http://localhost/api/production/orders'))
+    await expect(response.json()).resolves.toMatchObject({ summaryScope: 'page' })
   })
 })

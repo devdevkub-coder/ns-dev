@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { ProductionOrderError, readProductionWip } from '@/lib/server/production-orders'
+import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { assertProductionOrderBranchAccess, ProductionOrderError, readProductionWip } from '@/lib/server/production-orders'
 
 export const runtime = 'nodejs'
 
@@ -14,6 +14,7 @@ export async function GET(_request: Request, context: ProductionOrderRouteContex
     const auth = await getCurrentAuthContext()
     requirePermission(auth, 'production.orders.view')
     const { docNo } = await context.params
+    await assertProductionOrderBranchAccess(docNo, getBranchCodeIntersection(auth))
     return NextResponse.json(await readProductionWip(docNo))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

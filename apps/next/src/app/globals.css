@@ -517,11 +517,11 @@ table.ns-table > thead > tr > th[data-column-align="right"]:not([colspan]) > :is
   text-align: right !important;
 }
 
-table.ns-table > thead > tr > th.ns-table-money-header:not([colspan]) {
+table.ns-table > thead > tr > th:is(.ns-table-numeric-header, .ns-table-money-header):not([colspan]) {
   text-align: right !important;
 }
 
-table.ns-table > thead > tr > th.ns-table-money-header:not([colspan]) > :is(.flex, .inline-flex, button) {
+table.ns-table > thead > tr > th:is(.ns-table-numeric-header, .ns-table-money-header):not([colspan]) > :is(.flex, .inline-flex, button) {
   justify-content: flex-end !important;
   text-align: right !important;
 }

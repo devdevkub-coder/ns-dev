@@ -45,7 +45,7 @@ updated: 2026-06-11
 | `SC` | ปรับสถานะสินค้า | paired out/in |
 | `GA` | ปรับเกรด/แปลงสินค้า | paired out/in |
 | `ADJ` | นับสต๊อก/ปรับยอด | one-sided gain/loss |
-| `PI`, `PI-REV` | เบิกวัตถุดิบเข้า WIP / reverse input | paired out/in |
+| `PI`, `PI-RETURN` | เบิกวัตถุดิบเข้า WIP / คืนวัตถุดิบกลับคลังต้นทาง | paired out/in; return uses original PI cost/category |
 | `PO2`, `PO2-REV` | รับผลผลิต / reverse output | WIP out + destination in หรือ reverse |
 
 ## What Must Not Appear
@@ -154,7 +154,7 @@ Export `.xlsx` ต้องใช้ filter เดียวกับหน้า
 
 - มี read/export baseline และ row detail modal แล้ว
 - API ใช้ server-side `q` search, pagination count, aggregate summary, distinct movement types, และ SQL window running balance ต่อ page แทนการโหลดทุก row เข้า Node
-- row detail มี source document links สำหรับ ref type หลักที่ active app มี route: `PB/SB/ST/SC/SC-REV/GA/ADJ/PI/PI-REV/PO2/PO2-REV`; `PSALE` เป็น legacy ref type เท่านั้น
+- row detail มี source document links สำหรับ ref type หลักที่ active app มี route: `PB/SB/ST/SC/SC-REV/GA/ADJ/PI/PI-RETURN/PO2/PO2-REV`; `PI-REV` และ `PSALE` เป็น legacy ref type เท่านั้น
 - list/detail/export แสดง business date และ detail แสดง created context ของ row
 - ต้องคง rule ว่า pending_out ไม่แสดงเป็น ledger row หลังเพิ่ม reservation layer
 - cleanup tools ยังเป็น follow-up/design-dependent และต้องเป็น admin-only flow แยก
