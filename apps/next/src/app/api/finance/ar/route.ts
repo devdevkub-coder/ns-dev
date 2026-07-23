@@ -4,6 +4,7 @@ import { XLSX } from '@/lib/server/xlsx'
 import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { normalizeDate, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
@@ -109,7 +110,7 @@ function xlsxResponse(body: Buffer, filename: string) {
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, FINANCE_DEBT_PAGE_PERMISSIONS.accountsReceivable)
 
     const url = new URL(request.url)
     const query = parseQuery(url)

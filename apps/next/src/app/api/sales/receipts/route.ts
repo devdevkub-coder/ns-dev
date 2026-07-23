@@ -3,6 +3,7 @@ import { customerReceiptFormSchema } from '@/lib/daily'
 import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { cancelCustomerReceipt, createCustomerReceipt, replaceCustomerReceipt } from '@/lib/server/customer-receipts'
 import { currentActor, listDailyAccounts, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jobs'
@@ -167,7 +168,7 @@ async function ensurePendingCustomerReceipts(context: Awaited<ReturnType<typeof 
 export async function GET() {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'sales.bills.view')
+    requirePermission(context, FINANCE_DEBT_PAGE_PERMISSIONS.receipts)
     try {
       await ensurePendingCustomerReceipts(context)
     } catch (caught) {

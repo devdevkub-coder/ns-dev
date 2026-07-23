@@ -16,6 +16,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { refreshAdvancePaymentWorkflowStatus } from '@/lib/server/advance-payments'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission, getBranchCodeIntersection } from '@/lib/server/auth-context'
+import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { currentActor, listDailyAccounts, nextBankStatementDocNos, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { refreshExpensePaymentStatus } from '@/lib/server/expense-payment-status'
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
@@ -251,7 +252,7 @@ export async function GET() {
       }
     }
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'purchase.bills.view')
+    requirePermission(context, FINANCE_DEBT_PAGE_PERMISSIONS.payments)
 
     const allowedBranchCodes = getBranchCodeIntersection(context)
     let allowedBranchIds: bigint[] | undefined = undefined

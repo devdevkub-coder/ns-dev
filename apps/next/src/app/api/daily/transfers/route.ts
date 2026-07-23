@@ -4,6 +4,7 @@ import { transferFormSchema } from '@/lib/daily'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { bankStatementTransferRows, currentActor, listDailyAccounts, nextDailyDocNo, nextDailyDocNos, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import type { Prisma } from '../../../../../generated/prisma/client'
@@ -49,7 +50,7 @@ function transferJson(row: TransferWithAccounts) {
 export async function GET() {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, FINANCE_DEBT_PAGE_PERMISSIONS.transfers)
 
     const [accounts, rows] = await Promise.all([
       listDailyAccounts(),

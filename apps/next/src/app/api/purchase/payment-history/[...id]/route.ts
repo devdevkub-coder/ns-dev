@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { parseInternalBigIntId } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission, getBranchCodeIntersection } from '@/lib/server/auth-context'
+import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranchesByCodes } from '@/lib/server/reference-master-cache'
@@ -110,7 +111,7 @@ function directPaymentSourceRows(lines: unknown) {
 export async function GET(_request: Request, context: { params: Promise<{ id: string[] }> }) {
   try {
     const authContext = await getCurrentAuthContext()
-    requirePermission(authContext, 'finance.cash.view')
+    requirePermission(authContext, FINANCE_DEBT_PAGE_PERMISSIONS.payments)
 
     const allowedBranchCodes = getBranchCodeIntersection(authContext)
     let allowedBranchIds: bigint[] | undefined = undefined

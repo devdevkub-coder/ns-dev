@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { REPORT_PAGE_PERMISSIONS } from '@/lib/report-permissions'
 
 export const runtime = 'nodejs'
 
 export async function GET(_request: NextRequest) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'reports.reports.view')
+    requirePermission(context, REPORT_PAGE_PERMISSIONS.profitCostAnalysis)
 
     return NextResponse.json({
       error: 'Endpoint นี้ยกเลิกแล้ว ให้ใช้ /summary, /rankings และ endpoint ตารางแยกตาม tab',

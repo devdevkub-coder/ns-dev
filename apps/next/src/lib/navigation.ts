@@ -1,3 +1,6 @@
+import { REPORT_PAGE_PERMISSIONS } from '@/lib/report-permissions'
+import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
+
 export type NavigationSectionKey =
   | 'main'
   | 'tracking'
@@ -57,7 +60,7 @@ const exactPathPermissions: Record<string, string> = {
   '/admin/line-settings': 'system.settings.manage',
   '/admin/migration-tools': 'system.backup.manage',
   '/admin/system-settings': 'system.settings.manage',
-  '/admin/transaction-ledger': 'finance.cash.view',
+  '/admin/transaction-ledger': FINANCE_DEBT_PAGE_PERMISSIONS.transactionLedger,
   '/admin/roles-permissions': 'system.roles.view',
   '/admin/users': 'system.users.view',
   '/admin/users-permissions': 'system.users.view',
@@ -66,7 +69,7 @@ const exactPathPermissions: Record<string, string> = {
   '/api/admin/line-settings/test': 'system.settings.manage',
   '/api/admin/line-groups': 'system.settings.manage',
   '/api/admin/auth-events': 'system.audit.view',
-  '/api/admin/transaction-ledger': 'finance.cash.view',
+  '/api/admin/transaction-ledger': FINANCE_DEBT_PAGE_PERMISSIONS.transactionLedger,
   '/api/admin/users': 'system.users.view',
   '/api/daily/payment-approval': 'daily.payment_approval.view',
   '/api/daily/expenses': 'daily.expenses.view',
@@ -75,22 +78,32 @@ const exactPathPermissions: Record<string, string> = {
   '/api/purchase/bills': 'purchase.bills.view',
   '/api/purchase/advance-payments': 'purchase.advance_payments.view',
   '/api/purchase/bills/options': 'purchase.bills.view',
-  '/api/purchase/payments': 'purchase.bills.view',
+  '/api/purchase/payment-history': FINANCE_DEBT_PAGE_PERMISSIONS.payments,
+  '/api/purchase/payments': FINANCE_DEBT_PAGE_PERMISSIONS.payments,
   '/api/sales/bills': 'sales.bills.view',
   '/api/sales/bills/options': 'sales.bills.view',
-  '/api/sales/receipts': 'sales.bills.view',
-  '/api/business-calendar': 'reports.reports.view',
-  '/api/cash-others-summary': 'reports.reports.view',
-  '/api/cash-flow-calendar': 'reports.reports.view',
-  '/api/dashboard-overview': 'reports.reports.view',
+  '/api/sales/receipts': FINANCE_DEBT_PAGE_PERMISSIONS.receipts,
+  '/api/daily/transfers': FINANCE_DEBT_PAGE_PERMISSIONS.transfers,
+  '/api/finance/ar': FINANCE_DEBT_PAGE_PERMISSIONS.accountsReceivable,
+  '/api/finance/ap': FINANCE_DEBT_PAGE_PERMISSIONS.accountsPayable,
+  '/api/finance/bank': FINANCE_DEBT_PAGE_PERMISSIONS.bankStatement,
+  '/api/finance/cash-position': FINANCE_DEBT_PAGE_PERMISSIONS.cashPosition,
+  '/api/trading/matching': FINANCE_DEBT_PAGE_PERMISSIONS.tradingMatching,
+  '/api/business-calendar': REPORT_PAGE_PERMISSIONS.businessCalendar,
+  '/api/cash-others-summary': REPORT_PAGE_PERMISSIONS.cashOthersSummary,
+  '/api/cash-flow-calendar': REPORT_PAGE_PERMISSIONS.cashFlowCalendar,
+  '/api/dashboard-overview': REPORT_PAGE_PERMISSIONS.dashboardOverview,
   '/api/dashboard': 'reports.reports.view',
-  '/api/daily-report': 'reports.reports.view',
+  '/api/reports/aggregate': REPORT_PAGE_PERMISSIONS.reportsIndex,
+  '/api/trading/dashboard': REPORT_PAGE_PERMISSIONS.tradingDashboard,
+  '/api/po-reports/outstanding': REPORT_PAGE_PERMISSIONS.poOutstanding,
+  '/api/daily-report': REPORT_PAGE_PERMISSIONS.dailyReport,
   '/api/daily/weight-ticket-dashboard': 'daily.weight_tickets.view',
   '/api/daily/weight-tickets': 'daily.weight_tickets.view',
   '/api/daily/weight-tickets/options': 'daily.weight_tickets.view',
   '/api/daily/weight-tickets/products': 'daily.weight_tickets.view',
   '/api/daily/weight-tickets/stock-options': 'daily.weight_tickets.view',
-  '/api/owner-daily': 'reports.reports.view',
+  '/api/owner-daily': REPORT_PAGE_PERMISSIONS.ownerDaily,
   '/api/production/orders': 'production.orders.view',
   '/api/production/orders/options': 'production.orders.view',
   '/api/production/orders/product-stock': 'production.orders.view',
@@ -98,12 +111,13 @@ const exactPathPermissions: Record<string, string> = {
   '/api/production/production-cost-report': 'production.reports.view',
   '/api/production/report': 'production.reports.view',
   '/api/production/yield-loss-report': 'production.reports.view',
-  '/api/profit-cost-analysis': 'reports.reports.view',
-  '/api/sales-commission': 'reports.reports.view',
-  '/api/sales-plan': 'reports.reports.view',
-  '/business-calendar': 'reports.reports.view',
-  '/cash-others-summary': 'reports.reports.view',
-  '/cash-flow-calendar': 'reports.reports.view',
+  '/api/profit-cost-analysis': REPORT_PAGE_PERMISSIONS.profitCostAnalysis,
+  '/api/sales-commission': REPORT_PAGE_PERMISSIONS.salesTracking,
+  '/api/sales-plan': REPORT_PAGE_PERMISSIONS.salesPlan,
+  '/api/sales-plan-analysis': REPORT_PAGE_PERMISSIONS.salesPlanAnalysis,
+  '/business-calendar': REPORT_PAGE_PERMISSIONS.businessCalendar,
+  '/cash-others-summary': REPORT_PAGE_PERMISSIONS.cashOthersSummary,
+  '/cash-flow-calendar': REPORT_PAGE_PERMISSIONS.cashFlowCalendar,
   '/api/master-data/customers': 'master.customers.view',
   '/api/master-data/customers/export': 'master.customers.export',
   '/api/master-data/customers/import': 'master.customers.create',
@@ -114,33 +128,45 @@ const exactPathPermissions: Record<string, string> = {
   '/api/master-data/suppliers/import': 'master.suppliers.create',
   '/api/master-data/vat-settings': 'system.settings.manage',
   '/api/master-data/wht-settings': 'system.settings.manage',
-  '/dashboard': 'reports.reports.view',
-  '/dashboard-overview': 'reports.reports.view',
+  '/dashboard': REPORT_PAGE_PERMISSIONS.dashboardOverview,
+  '/dashboard-overview': REPORT_PAGE_PERMISSIONS.dashboardOverview,
   '/daily/weight-ticket-dashboard': 'daily.weight_tickets.view',
   '/daily/weight-ticket-list': 'daily.weight_tickets.view',
   '/daily/weight-tickets': 'daily.weight_tickets.view',
   '/daily/petty-advance': 'daily.petty_advances.view',
   '/daily/payment-approval': 'daily.payment_approval.view',
   '/daily/expense': 'daily.expenses.view',
-  '/daily-report': 'reports.reports.view',
-  '/analytics-dashboard': 'reports.reports.view',
+  '/daily/expense-dashboard': REPORT_PAGE_PERMISSIONS.expenseDashboard,
+  '/daily-report': REPORT_PAGE_PERMISSIONS.dailyReport,
+  '/analytics-dashboard': REPORT_PAGE_PERMISSIONS.analyticsDashboard,
   '/master-data/customers': 'master.customers.view',
   '/master-data/products': 'master.products.view',
   '/master-data/impurity-products': 'master.products.view',
   '/master-data/suppliers': 'master.suppliers.view',
-  '/owner-daily': 'reports.reports.view',
+  '/owner-daily': REPORT_PAGE_PERMISSIONS.ownerDaily,
   '/production/orders': 'production.orders.view',
   '/production/dashboard': 'production.operations.view',
   '/production/production-cost-report': 'production.reports.view',
   '/production/report': 'production.reports.view',
   '/production/yield-loss-report': 'production.reports.view',
-  '/profit-cost-analysis': 'reports.reports.view',
-  '/sales-commission': 'reports.reports.view',
-  '/sales-plan': 'reports.reports.view',
-  '/sales-plan-analysis': 'reports.reports.view',
+  '/profit-cost-analysis': REPORT_PAGE_PERMISSIONS.profitCostAnalysis,
+  '/sales-commission': REPORT_PAGE_PERMISSIONS.salesTracking,
+  '/sales-plan': REPORT_PAGE_PERMISSIONS.salesPlan,
+  '/sales-plan-analysis': REPORT_PAGE_PERMISSIONS.salesPlanAnalysis,
   '/purchase/bills': 'purchase.bills.view',
+  '/purchase/payments': FINANCE_DEBT_PAGE_PERMISSIONS.payments,
+  '/sales/receipts': FINANCE_DEBT_PAGE_PERMISSIONS.receipts,
+  '/daily/transfer': FINANCE_DEBT_PAGE_PERMISSIONS.transfers,
+  '/finance/ar': FINANCE_DEBT_PAGE_PERMISSIONS.accountsReceivable,
+  '/finance/ap': FINANCE_DEBT_PAGE_PERMISSIONS.accountsPayable,
+  '/finance/bank': FINANCE_DEBT_PAGE_PERMISSIONS.bankStatement,
+  '/finance/cash-position': FINANCE_DEBT_PAGE_PERMISSIONS.cashPosition,
+  '/trading/matching': FINANCE_DEBT_PAGE_PERMISSIONS.tradingMatching,
   '/purchase/advance-payments': 'purchase.advance_payments.view',
   '/sales/bills': 'sales.bills.view',
+  '/trading/dashboard': REPORT_PAGE_PERMISSIONS.tradingDashboard,
+  '/po-reports/outstanding': REPORT_PAGE_PERMISSIONS.poOutstanding,
+  '/reports': REPORT_PAGE_PERMISSIONS.reportsIndex,
 }
 
 const prefixPathPermissions: Array<[string, string]> = [
@@ -151,6 +177,7 @@ const prefixPathPermissions: Array<[string, string]> = [
   ['/api/master-data/wht-settings/', 'system.settings.manage'],
   ['/api/daily/weight-tickets/', 'daily.weight_tickets.view'],
   ['/api/daily/expenses/', 'daily.expenses.view'],
+  ['/api/purchase/payment-history/', FINANCE_DEBT_PAGE_PERMISSIONS.payments],
   ['/api/purchase/advance-payments/', 'purchase.advance_payments.view'],
   ['/api/purchase/bills/', 'purchase.bills.view'],
   ['/api/sales/bills/', 'sales.bills.view'],
@@ -209,9 +236,19 @@ export function permissionForPath(pathname: string) {
 }
 
 export function canAccessPath(pathname: string, context: { permissions?: string[] }) {
-  const requiredPermission = permissionForPath(pathname)
+  const requiredPermissions = permissionCodesForPath(pathname)
 
-  return !requiredPermission || (context.permissions ?? []).includes(requiredPermission)
+  return requiredPermissions.length === 0 || requiredPermissions.some((permission) => (context.permissions ?? []).includes(permission))
+}
+
+export function permissionCodesForPath(pathname: string) {
+  const normalizedPath = pathname.endsWith('/') && pathname !== '/' ? pathname.slice(0, -1) : pathname
+  if (normalizedPath === '/api/daily/expenses') {
+    return ['daily.expenses.view', REPORT_PAGE_PERMISSIONS.expenseDashboard]
+  }
+
+  const requiredPermission = permissionForPath(pathname)
+  return requiredPermission ? [requiredPermission] : []
 }
 
 export const navigationSections: Array<{ key: NavigationSectionKey; label: string }> = [

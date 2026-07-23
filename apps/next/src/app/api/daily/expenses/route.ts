@@ -3,7 +3,8 @@ import { XLSX } from '@/lib/server/xlsx'
 import { expenseFormSchema } from '@/lib/daily'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, hasPermission, requirePermission } from '@/lib/server/auth-context'
+import { REPORT_PAGE_PERMISSIONS } from '@/lib/report-permissions'
 import { currentActor, listDailyAccounts, nextBankStatementDocNos, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { hasLockedPaymentApproval } from '@/lib/server/payment-approval-pending'
@@ -292,7 +293,9 @@ function xlsxResponse(body: Buffer, filename: string) {
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'daily.expenses.view')
+    if (!hasPermission(context, 'daily.expenses.view') && !hasPermission(context, REPORT_PAGE_PERMISSIONS.expenseDashboard)) {
+      throw new AuthContextError('ไม่มีสิทธิ์ดูข้อมูลค่าใช้จ่าย', 403)
+    }
 
     const url = new URL(request.url)
     const search = (url.searchParams.get('q') ?? '').trim().toLowerCase()

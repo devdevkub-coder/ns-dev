@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { REPORT_PAGE_PERMISSIONS } from '@/lib/report-permissions'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { listProductReferences } from '@/lib/server/reference-master-cache'
@@ -53,7 +54,7 @@ function poItems(
 export async function GET() {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'reports.reports.view')
+    requirePermission(context, REPORT_PAGE_PERMISSIONS.poOutstanding)
 
     const [poBuys, poSells] = await Promise.all([
       prisma.po_buys.findMany({

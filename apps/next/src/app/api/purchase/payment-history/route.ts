@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { parseInternalBigIntId, requireBusinessCode, requireDocumentNo, stringifyBusinessValue } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission, getBranchCodeIntersection } from '@/lib/server/auth-context'
+import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { listDailyAccounts, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranchesByCodes, listSupplierReferencesByIds } from '@/lib/server/reference-master-cache'
@@ -39,7 +40,7 @@ type AccountEntry = {
 export async function GET() {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, FINANCE_DEBT_PAGE_PERMISSIONS.payments)
 
     const prismaExt = prisma as typeof prisma & {
       payment_approvals: {

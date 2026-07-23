@@ -4,11 +4,12 @@ import { AuthContextError, getCurrentAuthContext, requirePermission } from '@/li
 import { ProfitCostQueryValidationError, parseProfitCostFilter, parseProfitCostTableQuery } from '@/lib/server/profit-cost-report-contract'
 import type { ProfitCostReaderFilter } from '@/lib/server/profit-cost-report-reader'
 import { prisma } from '@/lib/server/prisma'
+import { REPORT_PAGE_PERMISSIONS } from '@/lib/report-permissions'
 
 export async function authorizeProfitCostRequest(request: NextRequest) {
   const startedAt = performance.now()
   const context = await getCurrentAuthContext()
-  requirePermission(context, 'reports.reports.view')
+  requirePermission(context, REPORT_PAGE_PERMISSIONS.profitCostAnalysis)
   return { context, request, startedAt }
 }
 

@@ -3,6 +3,7 @@ import type { Prisma } from '../../../../../generated/prisma/client'
 import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { REPORT_PAGE_PERMISSIONS } from '@/lib/report-permissions'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveCustomers, listActiveProductReferences, listActiveSuppliers } from '@/lib/server/reference-master-cache'
@@ -186,7 +187,7 @@ function factCustomerName(row: TradingAllocationFactRow) {
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, REPORT_PAGE_PERMISSIONS.tradingDashboard)
 
     const url = new URL(request.url)
     const from = url.searchParams.get('from') || firstDayOfCurrentMonth()

@@ -4,6 +4,7 @@ import { XLSX } from '@/lib/server/xlsx'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
@@ -99,7 +100,7 @@ function xlsxResponse(body: Buffer, filename: string) {
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, FINANCE_DEBT_PAGE_PERMISSIONS.bankStatement)
 
     const url = new URL(request.url)
     const query = parseQuery(url)

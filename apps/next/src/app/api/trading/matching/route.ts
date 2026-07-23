@@ -3,6 +3,7 @@ import { XLSX } from '@/lib/server/xlsx'
 import { stringifyBusinessValue } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
@@ -40,7 +41,7 @@ function xlsxResponse(body: Buffer, filename: string) {
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, FINANCE_DEBT_PAGE_PERMISSIONS.tradingMatching)
 
     const url = new URL(request.url)
     const q = url.searchParams.get('q')?.trim().toLowerCase()

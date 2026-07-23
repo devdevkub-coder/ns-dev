@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { listAllAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
@@ -333,7 +334,7 @@ async function buildWorkbook(payload: Awaited<ReturnType<typeof ledgerPayload>>)
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, FINANCE_DEBT_PAGE_PERMISSIONS.transactionLedger)
 
     const url = new URL(request.url)
     const values = querySchema.parse({

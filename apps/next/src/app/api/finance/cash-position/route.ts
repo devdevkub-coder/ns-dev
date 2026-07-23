@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
@@ -41,7 +42,7 @@ type ExposureRow = {
 export async function GET() {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, FINANCE_DEBT_PAGE_PERMISSIONS.cashPosition)
 
     const [accounts, bankRows, salesBills, receipts, purchaseBills, payments] = await Promise.all([
       listActiveAccounts(),

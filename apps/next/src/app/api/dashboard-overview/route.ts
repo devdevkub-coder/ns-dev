@@ -3,6 +3,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { parseReportDate, reportTimingHeaders } from '@/lib/server/dashboard-report-shared'
 import { buildDashboardSummary } from '@/lib/server/dashboard-summary'
+import { REPORT_PAGE_PERMISSIONS } from '@/lib/report-permissions'
 
 export const runtime = 'nodejs'
 
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest) {
   try {
     const context = await getCurrentAuthContext()
     const authFinishedAt = performance.now()
-    requirePermission(context, 'reports.reports.view')
+    requirePermission(context, REPORT_PAGE_PERMISSIONS.dashboardOverview)
     const params = request.nextUrl.searchParams
     const payload = await buildDashboardSummary({
       branchId: params.get('branchId') || undefined,

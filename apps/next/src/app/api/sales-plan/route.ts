@@ -5,6 +5,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { buildSalesPlan } from '@/lib/server/main-sales-control'
 import { clearPendingSalesPlans, createSalesPlan, getSalesPlanRow, lockSalesPlan } from '@/lib/server/sales-plans'
 import { fetchLiveSalesPlanLmeConfig, getSalesPlanLmeConfig, saveSalesPlanLmeConfig } from '../../../lib/server/sales-plan-lme'
+import { REPORT_PAGE_PERMISSIONS } from '@/lib/report-permissions'
 
 export const runtime = 'nodejs'
 
@@ -53,7 +54,7 @@ const salesPlanLmeRequestSchema = z.discriminatedUnion('action', [
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'reports.reports.view')
+    requirePermission(context, REPORT_PAGE_PERMISSIONS.salesPlan)
     const { searchParams } = new URL(request.url)
     const planId = searchParams.get('planId')
     const month = searchParams.get('month')?.trim() ?? ''
@@ -76,7 +77,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'reports.reports.view')
+    requirePermission(context, REPORT_PAGE_PERMISSIONS.salesPlan)
 
     const payload = salesPlanLmeRequestSchema.parse(await request.json())
     if (payload.action === 'fetch-live') {

@@ -5,6 +5,7 @@ import { requireBusinessCode } from '@/lib/business-code'
 import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { normalizeDate, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import { getFinanceBranchCodeIntersection } from '@/lib/server/finance-accounting-branch-scope'
@@ -106,7 +107,7 @@ function xlsxResponse(body: Buffer, filename: string) {
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, FINANCE_DEBT_PAGE_PERMISSIONS.accountsPayable)
 
     const url = new URL(request.url)
     const query = parseQuery(url)
