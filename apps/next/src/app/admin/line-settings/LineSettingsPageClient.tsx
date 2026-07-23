@@ -11,6 +11,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader } from '@/components/ui/Dialog'
 import { Select } from '@/components/ui/Select'
+import { KpiCard } from '@/components/ui/KpiCard'
+import { Bot, CircleAlert, Clock3, RefreshCw, Users, XCircle } from 'lucide-react'
 
 // Validation Schema for credentials and basic configs
 const credentialsSchema = z.object({
@@ -214,7 +216,7 @@ const targetCols: Array<ResizableColumnDefinition<TargetColKey>> = [
   { key: 'notifyWti', defaultWidth: 90, minWidth: 80 },
   { key: 'notifyWto', defaultWidth: 90, minWidth: 80 },
   { key: 'status', defaultWidth: 110, minWidth: 90 },
-  { key: 'actions', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
+  { key: 'actions', defaultWidth: 230, minWidth: 180 },
 ]
 
 const ruleCols: Array<ResizableColumnDefinition<RuleColKey>> = [
@@ -223,7 +225,7 @@ const ruleCols: Array<ResizableColumnDefinition<RuleColKey>> = [
   { key: 'target', defaultWidth: 180, minWidth: 130 },
   { key: 'stopAfter', defaultWidth: 110, minWidth: 90 },
   { key: 'isActive', defaultWidth: 90, minWidth: 80 },
-  { key: 'actions', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
+  { key: 'actions', defaultWidth: 150, minWidth: 120 },
 ]
 
 const jobCols: Array<ResizableColumnDefinition<JobColKey>> = [
@@ -232,7 +234,7 @@ const jobCols: Array<ResizableColumnDefinition<JobColKey>> = [
   { key: 'target', defaultWidth: 180, minWidth: 130 },
   { key: 'status', defaultWidth: 100, minWidth: 95 },
   { key: 'attempts', defaultWidth: 90, minWidth: 80 },
-  { key: 'actions', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
+  { key: 'actions', defaultWidth: 200, minWidth: 160 },
 ]
 
 function compareSortValues(left: SortValue, right: SortValue) {
@@ -1125,32 +1127,25 @@ export function LineSettingsPageClient() {
   }, [editingTarget])
 
   const templateFormConfig = editingTemplate ? getTemplateConfig(editingTemplate) : createDefaultTemplateConfig()
+  const activeGroupCount = targets.filter((target) => target.target_type === 'group' && target.is_active).length
+  const overviewWarnings = [
+    !form.lineChannelAccessToken ? 'ยังไม่ได้ตั้งค่า LINE Channel Access Token' : null,
+    !form.lineChannelSecret ? 'ยังไม่ได้ตั้งค่า LINE Channel Secret' : null,
+    activeGroupCount === 0 ? 'ยังไม่มีกลุ่ม LINE ที่เปิดใช้งานสำหรับรับแจ้งเตือน' : null,
+    analytics?.today.failed ? `มีรายการส่งไม่สำเร็จ ${analytics.today.failed} รายการในวันนี้` : null,
+  ].filter((warning): warning is string => Boolean(warning))
 
   return (
-    <section className="line-settings-page w-full max-w-none space-y-6 px-6 py-5 lg:px-10 lg:py-8 animate-fade-in font-normal text-slate-800">
-      {/* Page Title & Environment Details */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200/60 bg-white px-6 py-5 text-slate-900 shadow-sm">
-        <div>
-          <h1 className="text-xl font-bold">🛠️ LINE Notification Control Center</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-md border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-slate-700 select-none">
-            {process.env.NODE_ENV === 'development' ? 'Development' : 'Production'}
-          </span>
-          <span
-            className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 font-mono text-xs tracking-wider text-slate-500 select-none"
-            title={`Build: ${process.env.NEXT_PUBLIC_BUILD_TIME || '-'}`}
-          >
-            v{process.env.NEXT_PUBLIC_BUILD_VERSION || '0.0.0'} · {process.env.NEXT_PUBLIC_BUILD_COMMIT || 'unknown'}
-          </span>
-          <button
-            type="button"
-            className="h-8 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 transition hover:bg-slate-50 focus:outline-none select-none"
-            onClick={() => void initData()}
-          >
-            🔄 รีเฟรชหน้าจอนี้
-          </button>
-        </div>
+    <section className="line-settings-page w-full max-w-none space-y-6 px-6 py-5 font-normal text-slate-800 animate-fade-in lg:px-10 lg:py-8 [&_button:focus-visible]:ring-2 [&_button:focus-visible]:ring-blue-500 [&_button:focus-visible]:ring-offset-2 [&_input:focus-visible]:ring-2 [&_input:focus-visible]:ring-blue-500 [&_input:focus-visible]:ring-offset-2 [&_select:focus-visible]:ring-2 [&_select:focus-visible]:ring-blue-500 [&_select:focus-visible]:ring-offset-2 [&_textarea:focus-visible]:ring-2 [&_textarea:focus-visible]:ring-blue-500 [&_textarea:focus-visible]:ring-offset-2">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          onClick={() => void initData()}
+        >
+          <RefreshCw aria-hidden="true" className="size-4" />
+          รีเฟรชข้อมูล
+        </button>
       </div>
 
       {error ? (
@@ -1179,20 +1174,21 @@ export function LineSettingsPageClient() {
           if (value === 'analytics') void loadAnalytics()
         }}
       >
-        <TabsList className="w-full flex-nowrap overflow-x-auto scrollbar-hide" variant="line">
+        <TabsList className="grid w-full grid-cols-3 gap-y-1 sm:grid-cols-6" variant="line">
         {[
-          { key: 'overview', label: '📊 Overview' },
-          { key: 'credentials', label: '🔌 Credentials' },
-          { key: 'targets', label: '👥 Targets / Groups' },
-          { key: 'rules', label: '🛣️ Routing Rules' },
+          { key: 'overview', label: 'ภาพรวม' },
+          { key: 'credentials', label: 'การเชื่อมต่อ' },
+          { key: 'targets', label: 'กลุ่มรับแจ้งเตือน' },
+          { key: 'rules', label: 'กฎการส่ง' },
           // { key: 'templates', label: '📝 Templates' }, // ซ่อนชั่วคราว: template config ยังไม่ถูกเชื่อมกับ flow ส่งแจ้งเตือนจริง (buildFlexMessageFromTemplate ใช้แค่ใน Preview)
-          { key: 'outbox', label: '📥 Outbox Queue' },
-          { key: 'analytics', label: '📈 Analytics' }
+          { key: 'outbox', label: 'คิวส่งข้อความ' },
+          { key: 'analytics', label: 'สถิติการส่ง' }
         ].map((tab) => (
           <TabsTrigger
             key={tab.key}
             value={tab.key}
             variant="line"
+            className="min-w-0 px-1 text-xs focus-visible:!ring-0 focus-visible:!ring-offset-0 focus-visible:border-slate-400 sm:px-3 sm:text-sm"
           >
             {tab.label}
           </TabsTrigger>
@@ -1203,165 +1199,55 @@ export function LineSettingsPageClient() {
       {/* Tab Render Area */}
       <div className="grid grid-cols-1 gap-6">
 
-        {/* Tab 1: Overview & Health */}
+        {/* Tab 1: Overview */}
         {activeTab === 'overview' && (
           <div className="space-y-6 animate-fade-in">
-            {/* KPI Cards on pure grid - No Outer Wrapper Card, AcexPOS Parity */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-lg select-none">
-                  🔌
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">LINE Connection</div>
-                  <div className="text-sm font-bold text-slate-800 mt-1">{form.lineChannelAccessToken ? 'พร้อมเชื่อมต่อ' : 'ยังไม่ระบุ Token'}</div>
-                </div>
-              </div>
-
-              <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center font-bold text-lg select-none">
-                  👥
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">LINE Targets</div>
-                  <div className="text-sm font-bold text-slate-800 mt-1">{targets.length} ช่องทาง</div>
+            <div className="grid gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5">
+              <div className="flex min-w-0 items-center gap-3">
+                {botInfo?.pictureUrl ? (
+                  <img src={botInfo.pictureUrl} alt={botInfo.botName} className="size-12 shrink-0 rounded-full border border-slate-200 object-cover" />
+                ) : (
+                  <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700"><Bot aria-hidden="true" className="size-6" /></div>
+                )}
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-slate-500">บัญชี LINE ที่เชื่อมต่อ</p>
+                  <p className="truncate text-base font-bold text-slate-900">{botInfo?.botName || 'ยังไม่พบบัญชี LINE'}</p>
+                  {botInfo?.basicId ? <p className="truncate font-mono text-xs text-slate-500">{botInfo.basicId}</p> : null}
                 </div>
               </div>
-
-              <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-lg select-none">
-                  ⏳
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">Pending Jobs</div>
-                  <div className="text-sm font-bold text-slate-800 mt-1">{analytics?.today?.pending || 0} งานส่งคิว</div>
-                </div>
-              </div>
-
-              <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-lg select-none">
-                  ❌
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">Failed Jobs</div>
-                  <div className="text-sm font-bold text-slate-800 mt-1">{analytics?.today?.failed || 0} งานส่งพลาด</div>
-                </div>
+              <div className="flex items-center gap-2 border-t border-slate-100 pt-3 md:border-l md:border-t-0 md:pl-5 md:pt-0">
+                <Users aria-hidden="true" className="size-4 text-slate-500" />
+                <span className="text-sm text-slate-600">กลุ่มที่เปิดใช้งาน</span>
+                <span className="font-mono text-lg font-bold tabular-nums text-slate-900">{activeGroupCount}</span>
               </div>
             </div>
 
-            {/* Connected Bot Info Card - shows current LINE OA identity */}
-            {botInfo && (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                <div className="flex items-center gap-4 flex-wrap">
-                  {botInfo.pictureUrl ? (
-                    <img
-                      src={botInfo.pictureUrl}
-                      alt={botInfo.botName}
-                      className="h-14 w-14 rounded-full border border-slate-200 object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="h-14 w-14 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-lg flex-shrink-0">
-                      🤖
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">บอทที่เชื่อมต่ออยู่</div>
-                    <div className="text-base font-bold text-slate-900 mt-1 truncate">{botInfo.botName}</div>
-                    <div className="text-xs text-slate-400 font-mono mt-0.5 truncate select-all">{botInfo.basicId}</div>
-                  </div>
-                  <span className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 text-xs font-bold uppercase select-none tracking-wider flex-shrink-0">
-                    เชื่อมต่อแล้ว
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Health Checklist Section */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-6">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 pb-2 border-b border-slate-100 flex items-center gap-2">
-                  <span>🏥</span> ความพร้อมของการส่งข้อความแจ้งเตือน (System Health Checklist)
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <span className="text-base leading-none mt-0.5">{form.lineChannelAccessToken ? '✅' : '❌'}</span>
-                    <div>
-                      <div className="text-sm font-bold text-slate-800">Channel Access Token</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <span className="text-base leading-none mt-0.5">{form.lineChannelSecret ? '✅' : '❌'}</span>
-                    <div>
-                      <div className="text-sm font-bold text-slate-800">Channel Secret</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <span className="text-base leading-none mt-0.5">{targets.some(t => t.is_default) ? '✅' : '⚠️'}</span>
-                    <div>
-                      <div className="text-sm font-bold text-slate-800">Default Target (เป้าหมายดีฟอลต์)</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <span className="text-base leading-none mt-0.5">✅</span>
-                    <div>
-                      <div className="text-sm font-bold text-slate-800">PDF Generator & Fonts Status</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <span className="text-base leading-none mt-0.5">{form.pdfBucket ? '✅' : '❌'}</span>
-                    <div>
-                      <div className="text-sm font-bold text-slate-800">Storage Bucket</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Actions Panel */}
-              <div className="pt-4 border-t border-slate-100 flex flex-wrap gap-2.5">
-                <button
-                  type="button"
-                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-md transition focus:outline-none flex items-center gap-1.5 h-10"
-                  onClick={() => void testOAConnection()}
-                  disabled={isTestingOA}
-                >
-                  {isTestingOA ? 'กำลังทดสอบ...' : '🔌 ทดสอบสิทธิ์ Token'}
-                </button>
-                <button
-                  type="button"
-                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-md transition focus:outline-none flex items-center gap-1.5 h-10"
-                  onClick={() => void testWebhookSignature()}
-                  disabled={isTestingWebhook}
-                >
-                  {isTestingWebhook ? 'กำลังทดสอบ...' : '🔑 ทดสอบสิทธิ์ Webhook'}
-                </button>
-                <button
-                  type="button"
-                  className="px-3.5 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition focus:outline-none flex items-center gap-1.5 h-10"
-                  onClick={() => void runOutboxWorker()}
-                  disabled={isProcessingJobs}
-                >
-                  ⚙️ เรียกใช้งาน Worker คิวงานด่วน
-                </button>
-              </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <KpiCard icon={<Clock3 aria-hidden="true" className="size-5" />} label="คิวรอส่ง" note="รายการที่รอระบบประมวลผล" tone="amber" value={`${analytics?.today?.pending ?? 0} รายการ`} />
+              <KpiCard icon={<XCircle aria-hidden="true" className="size-5" />} label="ส่งไม่สำเร็จวันนี้" note="ตรวจสอบและส่งใหม่ได้จากคิวส่งข้อความ" tone="red" value={`${analytics?.today?.failed ?? 0} รายการ`} />
             </div>
+
+            {overviewWarnings.length > 0 ? (
+              <div role="status" className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <CircleAlert aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-amber-700" />
+                <div>
+                  <h3 className="font-semibold">รายการที่ต้องตรวจสอบ</h3>
+                  <ul className="mt-1 list-disc space-y-1 pl-5 text-amber-800">
+                    {overviewWarnings.map((warning) => <li key={warning}>{warning}</li>)}
+                  </ul>
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
 
         {/* Tab 2: Channel Credentials */}
         {activeTab === 'credentials' && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-6 animate-fade-in" data-ns-field-scope="entry">
-            <h3 className="text-base font-bold text-slate-900 pb-2 border-b border-slate-100 flex items-center gap-2">
-              <span>🔑</span> การตั้งค่า LINE Messaging API & Credential Configuration
-            </h3>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-6 animate-fade-in">
+            <div className="border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900">การเชื่อมต่อ LINE</h3>
+              <p className="mt-1 text-sm text-slate-500">ระบุข้อมูลการเชื่อมต่อและบันทึกก่อนทดสอบการทำงาน</p>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Channel Access Token */}
@@ -1473,15 +1359,37 @@ export function LineSettingsPageClient() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-700">ทดสอบการเชื่อมต่อ</p>
+                <p className="text-xs text-slate-500">ใช้ตรวจสอบ Token และลายเซ็น Webhook หลังบันทึกข้อมูล</p>
+              </div>
+              <div className="flex flex-wrap gap-2 lg:justify-end">
+                <button
+                  type="button"
+                  className="inline-flex h-10 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => void testOAConnection()}
+                  disabled={isTestingOA}
+                >
+                  {isTestingOA ? 'กำลังทดสอบ Token...' : 'ทดสอบ Token'}
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex h-10 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => void testWebhookSignature()}
+                  disabled={isTestingWebhook}
+                >
+                  {isTestingWebhook ? 'กำลังทดสอบ Webhook...' : 'ทดสอบ Webhook'}
+                </button>
               <button
                 type="button"
-                className="px-5 py-2.5 text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition focus:outline-none h-10"
+                className="h-10 rounded-md bg-slate-900 px-5 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={() => void saveCredentials()}
                 disabled={isSaving}
               >
-                {isSaving ? 'กำลังบันทึก...' : '💾 บันทึกข้อมูลการตั้งค่า'}
+                {isSaving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
               </button>
+              </div>
             </div>
           </div>
         )}
@@ -1492,7 +1400,8 @@ export function LineSettingsPageClient() {
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">👥 ช่องทางรับข่าวสาร / LINE Targets (Groups & Users)</h3>
+                  <h3 className="text-base font-bold text-slate-900">กลุ่มรับแจ้งเตือน</h3>
+                  <p className="mt-1 text-sm text-slate-500">กำหนดกลุ่มหรือผู้รับที่ต้องการให้ระบบส่งแจ้งเตือน</p>
                 </div>
                 <div className="flex gap-2.5">
                   {targetResize.hasCustomWidths && (
@@ -1530,6 +1439,13 @@ export function LineSettingsPageClient() {
                   </button>
                 </div>
               </div>
+
+              {targets.length === 0 ? (
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                  <p className="font-medium">ยังไม่มีกลุ่มรับแจ้งเตือน</p>
+                  <p className="mt-1 text-slate-500">เชิญ LINE OA เข้ากลุ่ม แล้วพิมพ์ <code className="rounded bg-white px-1 py-0.5 font-mono text-xs text-slate-700">/register สาขา=[code]</code> หรือเพิ่มกลุ่มด้วยตนเอง</p>
+                </div>
+              ) : null}
 
               {/* Lined table view with resize headers */}
               <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm hidden lg:block">
@@ -1689,7 +1605,7 @@ export function LineSettingsPageClient() {
                           <span className="text-slate-400">ส่ง WTO:</span> <span className="font-bold text-slate-800">{t.notify_wto ? 'เปิด' : 'ปิด'}</span>
                         </div>
                       </div>
-                      <div className="space-y-2 border-t border-slate-100 pt-2">
+                      <div>
                         {(() => {
                           const isLeft = !t.is_active && t.last_event_type === 'not_found'
                           const isDisabled = !t.is_active && !isLeft
@@ -1728,7 +1644,8 @@ export function LineSettingsPageClient() {
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">🔀 กฎการกระจายการแจ้งเตือน (Notification Routing Rules)</h3>
+                  <h3 className="text-base font-bold text-slate-900">กฎการส่งแจ้งเตือน</h3>
+                  <p className="mt-1 text-sm text-slate-500">กำหนดเงื่อนไขเพื่อส่งเอกสารไปยังกลุ่มที่ต้องการ</p>
                 </div>
                 <button
                   className="px-3.5 py-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition focus:outline-none h-8"
@@ -2000,9 +1917,18 @@ export function LineSettingsPageClient() {
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">📥 คิวรอส่งแจ้งเตือนย้อนหลัง (Outbox / Retry Job Queue)</h3>
+                  <h3 className="text-base font-bold text-slate-900">คิวส่งข้อความ</h3>
+                  <p className="mt-1 text-sm text-slate-500">ติดตามรายการที่รอส่ง ส่งแล้ว หรือส่งไม่สำเร็จ</p>
                 </div>
-                <div className="flex flex-wrap gap-2 text-xs">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    className="h-8 rounded-md bg-slate-900 px-3 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() => void runOutboxWorker()}
+                    disabled={isProcessingJobs}
+                  >
+                    {isProcessingJobs ? 'กำลังประมวลผล...' : 'ประมวลผลคิว'}
+                  </button>
                   {/* Status filter buttons */}
                   {['', 'pending', 'sent', 'failed', 'processing'].map((status) => (
                     <button
@@ -2236,47 +2162,11 @@ export function LineSettingsPageClient() {
         {/* Tab 7: Analytics */}
         {activeTab === 'analytics' && (
           <div className="space-y-6 animate-fade-in">
-            {/* pure layout metric cards - no outer wrapper - AcexPOS design standard */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-lg select-none">
-                  🚀
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">ความสำเร็จสะสม (30 วัน)</div>
-                  <div className="text-base font-bold text-slate-800 mt-1">{analytics?.last30Days?.successRate || 0} %</div>
-                </div>
-              </div>
-
-              <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center font-bold text-lg select-none">
-                  📊
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">จำนวนจัดส่ง (30 วัน)</div>
-                  <div className="text-base font-bold text-slate-800 mt-1">{analytics?.last30Days?.total || 0} รายการ</div>
-                </div>
-              </div>
-
-              <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-lg select-none">
-                  🕒
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">ดีเลย์ประมวลผลเฉลี่ย</div>
-                  <div className="text-base font-bold text-slate-800 mt-1">{analytics?.last30Days?.avgDurationMs ? `${(analytics.last30Days.avgDurationMs / 1000).toFixed(2)} วินาที` : '-'}</div>
-                </div>
-              </div>
-
-              <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-lg select-none">
-                  ❌
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">จัดส่งล้มเหลว (30 วัน)</div>
-                  <div className="text-base font-bold text-slate-800 mt-1">{analytics?.last30Days?.failed || 0} รายการ</div>
-                </div>
-              </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <KpiCard label="อัตราส่งสำเร็จ 30 วัน" tone="emerald" value={`${analytics?.last30Days?.successRate ?? 0}%`} />
+              <KpiCard label="จำนวนที่ส่ง 30 วัน" tone="blue" value={`${analytics?.last30Days?.total ?? 0} รายการ`} />
+              <KpiCard label="เวลาประมวลผลเฉลี่ย" tone="slate" value={analytics?.last30Days?.avgDurationMs ? `${(analytics.last30Days.avgDurationMs / 1000).toFixed(2)} วินาที` : '-'} />
+              <KpiCard label="ส่งไม่สำเร็จ 30 วัน" tone="red" value={`${analytics?.last30Days?.failed ?? 0} รายการ`} />
             </div>
 
             {/* Top error messages and targets reports */}
@@ -2284,7 +2174,7 @@ export function LineSettingsPageClient() {
               {/* Top Targets */}
               <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
                 <h4 className="font-bold text-slate-900 border-b border-slate-100 pb-2 text-sm flex items-center gap-1.5">
-                  <span>👥</span> LINE Targets ที่ส่งแจ้งเตือนสูงสุด (สูงสุด 5 อันดับแรก)
+                  <span>👥</span> กลุ่ม LINE ที่ได้รับแจ้งเตือนมากที่สุด
                 </h4>
                 <div className="space-y-3">
                   {analytics?.topTargets?.map((t, idx) => (
@@ -2305,7 +2195,7 @@ export function LineSettingsPageClient() {
               {/* Top Errors */}
               <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
                 <h4 className="font-bold text-slate-900 border-b border-slate-100 pb-2 text-sm flex items-center gap-1.5">
-                  <span>⚠️</span> ปัญหาและสาเหตุจัดส่งล้มเหลวสูงสุด (Top Error Reasons)
+                  <span>⚠️</span> สาเหตุการส่งไม่สำเร็จที่พบบ่อย
                 </h4>
                 <div className="space-y-3">
                   {analytics?.topErrors?.map((err, idx) => (
@@ -2325,15 +2215,6 @@ export function LineSettingsPageClient() {
 
       </div>
 
-      {/* FOOTER INFO */}
-      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs text-blue-800 space-y-1 select-none">
-        <p className="font-bold">💡 ข้อแนะนำเพิ่มเติม:</p>
-        <ul className="list-disc pl-5 space-y-0.5">
-          <li>สำหรับการลงทะเบียนบอทรับสิทธิ: เชิญ LINE OA บอทเข้าร่วมกลุ่มแชท ➡️ พิมพ์คำสั่ง <code>/register สาขา=[code]</code> บอทจะทำการซิงค์โครงสร้างและอัปเดตลงตารางหน้านี้ทันที</li>
-          <li>การยิงทดสอบ หรือ บังคับยิงแจ้งเตือนคิวใหม่ (Force retry) จะประมวลผล PDF rendering และสร้างอัลบั้มรูปข้าม duplicate log ทันที</li>
-        </ul>
-      </div>
-
       {/* ================= MODAL DIALOGS ================= */}
 
       {/* Target Add/Edit Modal */}
@@ -2341,7 +2222,7 @@ export function LineSettingsPageClient() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 animate-fade-in">
           <div className="relative w-full max-w-md overflow-hidden rounded-md bg-slate-900 shadow-2xl animate-zoom-in">
             {/* Modal Header */}
-            <div data-ns-dialog-header className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
+            <div className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
               <h3 className="text-base font-bold">
                 {editingTarget.id ? '📝 แก้ไขรายละเอียดผู้รับ' : '👥 เพิ่มเป้าหมายรับแจ้งเตือนใหม่'}
               </h3>
@@ -2469,7 +2350,7 @@ export function LineSettingsPageClient() {
           }}
         >
           <DialogContent
-            className="max-h-[90vh] max-w-2xl"
+            className="max-h-[90vh] max-w-2xl [&_button:focus-visible]:ring-2 [&_button:focus-visible]:ring-blue-500 [&_button:focus-visible]:ring-offset-2 [&_input:focus-visible]:ring-2 [&_input:focus-visible]:ring-blue-500 [&_input:focus-visible]:ring-offset-2 [&_select:focus-visible]:ring-2 [&_select:focus-visible]:ring-blue-500 [&_select:focus-visible]:ring-offset-2 [&_textarea:focus-visible]:ring-2 [&_textarea:focus-visible]:ring-blue-500 [&_textarea:focus-visible]:ring-offset-2"
             fallbackTitle={editingRule.id ? 'แก้ไขการส่งแจ้งเตือน LINE' : 'เพิ่มการส่งแจ้งเตือน LINE'}
             hideClose
             mobileAppShell={false}
@@ -2764,7 +2645,7 @@ export function LineSettingsPageClient() {
       {isTemplateModalOpen && editingTemplate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 animate-fade-in">
           <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl animate-zoom-in">
-            <div data-ns-dialog-header className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
+            <div className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
               <h3 className="text-base font-bold">
                 {editingTemplate.id ? '📝 แก้ไขเทมเพลตและ Preview' : '➕ เพิ่มเทมเพลตการ์ดใหม่'}
               </h3>
@@ -3065,7 +2946,7 @@ export function LineSettingsPageClient() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 animate-fade-in">
           <div className="relative flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-md bg-slate-900 shadow-2xl animate-zoom-in">
             {/* Header */}
-            <div data-ns-dialog-header className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
+            <div className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
               <h3 className="text-base font-bold">📋 ประวัติการยิงและการส่งของบิล {selectedJob.document_no}</h3>
               <button
                 type="button"
