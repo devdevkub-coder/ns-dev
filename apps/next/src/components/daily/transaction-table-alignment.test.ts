@@ -88,26 +88,33 @@ describe('accepted textual table alignment', () => {
     expect(globalsSource.slice(globalsSource.indexOf(numericSelector), globalsSource.indexOf('}', globalsSource.indexOf(numericSelector)))).toContain('text-align: right !important;')
   })
 
-  it('left-aligns the Supplier column on /purchase/bills', () => {
+  it('centers purchase bill columns except money columns on /purchase/bills', () => {
     expect(purchaseBillsSource).toContain('<TransactionBillsPageClient mode="purchase" />')
-    expectLeftAlignedColumn({
-      bodyMarker: "'supplierName' in row ? row.supplierName : row.customerName",
-      bodyTagName: 'td',
-      headerMarker: "getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')",
-      headerTagName: 'SortHeader',
-      source: transactionBillsSource,
-    })
+    const supplierHeaderTag = openingTag(transactionBillsSource, 'SortHeader', "getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')")
+    const supplierBodyTag = openingTag(transactionBillsSource, 'td', "'supplierName' in row ? row.supplierName : row.customerName")
+    const totalHeaderTag = openingTag(transactionBillsSource, 'SortHeader', 'sortKey="totalAmount"')
+    const outstandingHeaderTag = openingTag(transactionBillsSource, 'SortHeader', 'sortKey="outstanding"')
+    const actionHeaderTag = openingTag(transactionBillsSource, 'ResizableTableHead', "getResizeHandleProps('action', 'จัดการ')")
+
+    expect(supplierHeaderTag).toContain("align={mode === 'purchase' ? 'center' : 'left'}")
+    expect(supplierHeaderTag).toContain("className={mode === 'purchase' ? undefined : 'ns-table-textual-column'}")
+    expect(supplierBodyTag).toContain("mode === 'purchase' ? 'text-center' : 'ns-table-textual-column'")
+    expect(totalHeaderTag).toContain('align="right"')
+    expect(totalHeaderTag).toContain('className="ns-table-money-header"')
+    expect(outstandingHeaderTag).toContain('align="right"')
+    expect(outstandingHeaderTag).toContain('className="ns-table-money-header"')
+    expect(actionHeaderTag).toContain("align={mode === 'purchase' ? 'center' : 'right'}")
+    expect(transactionBillsSource).toContain('<td className="p-2 text-center">\n                    <TableActionButton menu={(')
   })
 
   it('left-aligns the Customer column on /sales/bills', () => {
     expect(salesBillsRouteSource).toContain('<TransactionBillsPageClient mode="sales" />')
-    expectLeftAlignedColumn({
-      bodyMarker: "'supplierName' in row ? row.supplierName : row.customerName",
-      bodyTagName: 'td',
-      headerMarker: "getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')",
-      headerTagName: 'SortHeader',
-      source: transactionBillsSource,
-    })
+    const customerHeaderTag = openingTag(transactionBillsSource, 'SortHeader', "getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')")
+    const customerBodyTag = openingTag(transactionBillsSource, 'td', "'supplierName' in row ? row.supplierName : row.customerName")
+
+    expect(customerHeaderTag).toContain("align={mode === 'purchase' ? 'center' : 'left'}")
+    expect(customerHeaderTag).toContain("className={mode === 'purchase' ? undefined : 'ns-table-textual-column'}")
+    expect(customerBodyTag).toContain("mode === 'purchase' ? 'text-center' : 'ns-table-textual-column'")
   })
 
   it('left-aligns the payee column on /purchase/receipt-vouchers', () => {
