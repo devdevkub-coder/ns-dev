@@ -12,12 +12,12 @@ import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/Searc
 import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
-import { formatDateDisplay } from '@/lib/format'
+import { format, parseISO } from 'date-fns'
 import { stockMovementTypeLabel } from '@/lib/stock-movement-types'
 import type { StockOption } from '@/lib/stock'
 
 type StockLedgerSortDirection = 'asc' | 'desc'
-type StockLedgerSortKey = 'counterpartyName' | 'date' | 'movementType' | 'productName' | 'qtyIn' | 'qtyOut' | 'refNo' | 'runningBalanceByProduct' | 'unitCost' | 'valueIn' | 'valueOut' | 'warehouseName'
+type StockLedgerSortKey = 'createdBy' | 'date' | 'movementType' | 'productName' | 'qtyIn' | 'qtyOut' | 'refNo' | 'runningBalanceByProduct' | 'unitCost' | 'valueIn' | 'valueOut' | 'warehouseName'
 
 const stockLedgerPageSizes = [25, 50, 80, 100]
 const warehouseTypeOptions = [
@@ -29,7 +29,7 @@ const warehouseTypeOptions = [
 const stockLedgerColumns: Array<ResizableColumnDefinition<StockLedgerColumnKey>> = [
   { defaultWidth: 92, key: 'date', minWidth: 82 },
   { defaultWidth: 132, key: 'refNo', minWidth: 110 },
-  { defaultWidth: 200, key: 'counterpartyName', minWidth: 140 },
+  { defaultWidth: 180, key: 'createdBy', minWidth: 140 },
   { defaultWidth: 170, key: 'movementType', minWidth: 140 },
   { defaultWidth: 180, key: 'productName', minWidth: 140 },
   { defaultWidth: 170, key: 'warehouseName', minWidth: 130 },
@@ -56,6 +56,8 @@ type StockLedgerPayload = {
 type StockLedgerRow = {
   branchName: string
   counterpartyName: string
+  createdBy: string
+  createdAt: string | null
   date: string
   id: string
   lotNo: string
@@ -212,7 +214,7 @@ export function StockLedgerPageClient() {
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input 
               className="h-9 w-full rounded-md border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-slate-400 focus:ring-0"
-              placeholder="ค้นหาเลขเอกสาร / ผู้ขาย/ผู้ซื้อ / สาขา / คลัง..." 
+              placeholder="ค้นหาเลขเอกสาร / ผู้ขาย/ผู้ซื้อ / ผู้ทำรายการ / สาขา / คลัง..."
               type="search" 
               value={search} 
               onChange={(event) => { setPage(1); setSearch(event.target.value); }}
@@ -432,7 +434,7 @@ export function StockLedgerPageClient() {
           >
             <div className="flex justify-between items-start">
               <span className="font-bold text-slate-800 text-sm">{row.refNo || '-'}</span>
-              <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+              <LedgerTimestamp value={row.createdAt} />
             </div>
             
             <div className="text-xs text-slate-600 space-y-1">
@@ -467,7 +469,7 @@ export function StockLedgerPageClient() {
               </div>
               <div className="flex justify-between items-center text-xs text-slate-400 pt-1 border-t border-slate-100/60 mt-1">
                 <span>ต้นทุนต่อหน่วย: {formatMoney(row.runningBalanceByProduct < 0 ? 0 : row.unitCost)} บาท</span>
-                <span className="truncate max-w-[150px]">{row.counterpartyName && row.counterpartyName !== '-' ? row.counterpartyName : ''}</span>
+                <span className="truncate max-w-[150px]">ผู้ทำรายการ: {row.createdBy || '-'}</span>
               </div>
             </div>
           </div>
@@ -506,9 +508,9 @@ export function StockLedgerPageClient() {
           </colgroup>
           <thead className="border-b border-slate-100 bg-slate-100 text-slate-600">
             <tr>
-              <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="วันที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} sortKey="date" onSort={changeSort} />
+              <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="วันเวลารายการ" resizeProps={columnResize.getResizeHandleProps('date', 'วันเวลารายการ')} sortKey="date" onSort={changeSort} />
               <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="เลขที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่เอกสาร')} sortKey="refNo" onSort={changeSort} />
-              <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="ผู้ขาย/ผู้ซื้อ" resizeProps={columnResize.getResizeHandleProps('counterpartyName', 'ผู้ขาย/ผู้ซื้อ')} sortKey="counterpartyName" onSort={changeSort} />
+              <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="ผู้ทำรายการ" resizeProps={columnResize.getResizeHandleProps('createdBy', 'ผู้ทำรายการ')} sortKey="createdBy" onSort={changeSort} />
               <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('movementType', 'ประเภท')} sortKey="movementType" onSort={changeSort} />
               <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={changeSort} />
               <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="คลัง/สาขา" resizeProps={columnResize.getResizeHandleProps('warehouseName', 'คลัง/สาขา')} sortKey="warehouseName" onSort={changeSort} />
@@ -535,9 +537,9 @@ export function StockLedgerPageClient() {
                   }
                 }}
               >
-                <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700 tabular-nums">{formatDateDisplay(row.date)}</td>
+                <td className="p-2 text-xs font-semibold text-slate-700 tabular-nums"><LedgerTimestamp value={row.createdAt} /></td>
                 <td className="truncate whitespace-nowrap p-2 text-xs font-semibold text-slate-700 tabular-nums">{row.refNo || '-'}</td>
-                <td className="p-2"><Counterparty name={row.counterpartyName} refType={row.refType} /></td>
+                <td className="truncate p-2 text-xs font-semibold text-slate-700" title={row.createdBy}>{row.createdBy || '-'}</td>
                 <td className="p-2 overflow-hidden max-w-[170px]"><span className={`inline-block truncate max-w-full rounded-md px-2 py-0.5 text-xs font-medium ${row.qtyIn > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`} title={stockMovementTypeLabel(row.movementType)}>{stockMovementTypeLabel(row.movementType)}</span></td>
                 <td className="truncate p-2 text-xs font-semibold text-slate-700"><span>{row.productCode ? `${row.productCode} · ` : ''}{row.productName}</span>{row.lotNo && row.lotNo !== 'OPENING' ? <span className="ml-1 text-xs font-medium text-slate-400">[{row.lotNo}]</span> : null}</td>
                 <td className="p-2 text-xs font-semibold text-slate-700">
@@ -563,26 +565,12 @@ export function StockLedgerPageClient() {
   )
 }
 
-function Counterparty({ name, refType }: { name: string; refType: string }) {
-  if (name && name !== '-') {
-    const isSupplier = refType === 'PB' || refType === 'PB-CANCEL'
-    return (
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className={`whitespace-nowrap rounded-md px-1.5 py-0.5 text-xs font-semibold ${isSupplier ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>{isSupplier ? 'ผู้ขาย' : 'ผู้ซื้อ'}</span>
-        <span className={`truncate text-xs font-medium ${isSupplier ? 'text-emerald-800' : 'text-blue-800'}`}>{name}</span>
-      </div>
-    )
-  }
-  const labelMap: Record<string, string> = { ADJ: 'นับสต๊อก', CR: 'รับคืนสินค้า', GA: 'ปรับเกรด', OB: 'ยอดยกมา', SC: 'แปลงสถานะ', ST: 'โอนระหว่างสาขา' }
-  return <span className="text-xs italic text-slate-500">{labelMap[refType] ?? refType ?? '-'}</span>
-}
-
 function stockLedgerSortValue(row: StockLedgerRow, sortKey: StockLedgerSortKey) {
   switch (sortKey) {
-    case 'counterpartyName':
-      return row.counterpartyName
+    case 'createdBy':
+      return row.createdBy
     case 'date':
-      return row.date
+      return row.createdAt ?? ''
     case 'movementType':
       return row.movementType
     case 'productName':
@@ -602,6 +590,24 @@ function stockLedgerSortValue(row: StockLedgerRow, sortKey: StockLedgerSortKey) 
     case 'valueOut':
       return row.valueOut
   }
+}
+
+function formatLedgerTimestamp(value: string) {
+  const parsed = parseISO(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return `${format(parsed, 'dd/MM/yyyy HH:mm:ss')}`
+}
+
+function LedgerTimestamp({ value }: { value: string | null }) {
+  if (!value) return <span>-</span>
+  const parsed = parseISO(value)
+  if (Number.isNaN(parsed.getTime())) return <span>{value}</span>
+  return (
+    <span className="block whitespace-nowrap">
+      <span className="block">{format(parsed, 'dd/MM/yyyy')}</span>
+      <span className="block text-xs font-medium text-slate-500">{format(parsed, 'HH:mm:ss')}</span>
+    </span>
+  )
 }
 
 function compareStockLedgerRows(left: StockLedgerRow, right: StockLedgerRow, sortKey: StockLedgerSortKey, direction: StockLedgerSortDirection) {
@@ -672,9 +678,10 @@ function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: St
           <div className="grid gap-4 lg:grid-cols-[1.05fr_1fr]">
             <DetailPanel title="เอกสารและที่มา">
               <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
-                <DetailRow label="วันที่เอกสาร" value={row.date || '-'} />
+                <DetailRow label="วันเวลารายการ" value={row.createdAt ? formatLedgerTimestamp(row.createdAt) : '-'} />
                 <DetailRow label="เลขที่เอกสาร" value={row.refNo || '-'} mono />
                 <DetailRow label="ประเภท" value={stockMovementTypeLabel(row.movementType)} />
+                <DetailRow label="ผู้ทำรายการ" value={row.createdBy || '-'} />
                 <DetailRow className="sm:col-span-2" label="ผู้ขาย/ผู้ซื้อ" value={row.counterpartyName || '-'} />
                 <div className="sm:col-span-2">
                   <div className="text-xs font-medium text-slate-500">เอกสารต้นทาง</div>

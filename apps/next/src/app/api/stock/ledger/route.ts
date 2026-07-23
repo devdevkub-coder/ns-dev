@@ -71,6 +71,7 @@ function sqlWhereForStockLedger(input: {
     clauses.push(Prisma.sql`(
       ref_no ilike ${`%${input.q}%`}
       or ref_id ilike ${`%${input.q}%`}
+      or created_by ilike ${`%${input.q}%`}
       or notes ilike ${`%${input.q}%`}
       or note ilike ${`%${input.q}%`}
       or exists (select 1 from public.products p where p.id = stock_ledger.product_id and (p.code ilike ${`%${input.q}%`} or p.name ilike ${`%${input.q}%`}))
@@ -103,7 +104,7 @@ function stockLedgerOrderBy(sort: string, direction: 'asc' | 'desc') {
       return [{ warehouses: { name: direction } }, { date: direction }, { created_at: direction }, { id: direction }]
     case 'date':
     default:
-      return [{ date: direction }, { created_at: direction }, { id: direction }]
+      return [{ created_at: direction }, { date: direction }, { id: direction }]
   }
 }
 
@@ -125,6 +126,7 @@ export async function GET(request: Request) {
             OR: [
               { ref_no: { contains: query.q, mode: 'insensitive' } },
               { ref_id: { contains: query.q, mode: 'insensitive' } },
+              { created_by: { contains: query.q, mode: 'insensitive' } },
               { notes: { contains: query.q, mode: 'insensitive' } },
               { note: { contains: query.q, mode: 'insensitive' } },
               { products: { code: { contains: query.q, mode: 'insensitive' } } },
@@ -176,6 +178,17 @@ export async function GET(request: Request) {
       products?: { code: string; name: string } | null
       warehouses?: { name: string } | null
     }>
+    const actorValues = [...new Set(pageRows.map((row) => row.created_by?.trim()).filter((value): value is string => Boolean(value)))]
+    const actorRows = actorValues.length
+      ? await prisma.app_users.findMany({
+        select: { display_name: true, email: true, first_name: true, last_name: true },
+        where: { email: { in: actorValues, mode: 'insensitive' } },
+      })
+      : []
+    const actorNameByEmail = new Map(actorRows.map((actor) => {
+      const personalName = [actor.first_name?.trim(), actor.last_name?.trim()].filter(Boolean).join(' ')
+      return [actor.email?.trim().toLowerCase() ?? '', personalName || actor.display_name?.trim() || actor.email?.trim() || '']
+    }))
     const pageRowIds = pageRows.map((row) => row.id)
 
     const purchaseRefTypes = new Set(['PB', 'PB-CANCEL', 'PB-EDIT-REV'])
@@ -286,6 +299,8 @@ export async function GET(request: Request) {
       return {
         branchName: row.branches?.name ?? '-',
         counterpartyName: purchaseBill?.suppliers?.name ?? salesBill?.customers?.name ?? '-',
+        createdBy: actorNameByEmail.get(row.created_by?.trim().toLowerCase() ?? '') || row.created_by || '-',
+        createdAt: row.created_at?.toISOString() ?? null,
         date: toDateOnly(row.date),
         id: row.ledger_key,
         movementType: row.movement_type,
@@ -314,11 +329,11 @@ export async function GET(request: Request) {
 
     if (query.format === 'xlsx') {
       const body = await buildStockWorkbook('Stock Ledger', payloadRows.map((row) => ({
-        วันที่: row.date,
+        'วันเวลารายการ': row.createdAt ?? '',
         Ref: `${row.refType}:${row.refNo}`,
         Movement: stockMovementTypeLabel(row.movementType),
         สินค้า: `${row.productCode} ${row.productName}`.trim(),
-        'ผู้ขาย/ผู้ซื้อ': row.counterpartyName,
+        'ผู้ทำรายการ': row.createdBy,
         สาขา: row.branchName,
         คลัง: row.warehouseName,
         Lot: row.lotNo,

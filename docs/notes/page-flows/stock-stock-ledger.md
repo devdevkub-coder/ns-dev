@@ -70,6 +70,9 @@ WTO `pending_out` is not a ledger row. Creating WTO writes `pending_out` only; t
 - reversal ต้องแสดงเป็น movement/audit ไม่ลบประวัติแบบเงียบ
 - `pending_out` ไม่ใช่ movement
 - list/export `ต้นทุน/น.` แสดง running WAC หลังแต่ละ movement โดยคำนวณจากยอดสะสม `sum(value_in - value_out) / sum(qty_in - qty_out)` ตามมุมมองคงเหลือสะสมที่เลือก ส่วน `stock_ledger.unit_cost` ในฐานข้อมูลยังเป็นต้นทุน audit ของ movement จากเอกสารต้นทาง
+- ตารางหลักและ export แสดง `ผู้ทำรายการ` จาก `stock_ledger.created_by` แทนคอลัมน์ `ผู้ขาย/ผู้ซื้อ`; รายละเอียด movement ยังคงแสดงทั้งผู้ทำรายการและคู่ค้าเมื่อมีข้อมูล
+- ตารางหลักใช้ `stock_ledger.created_at` เป็น `วันเวลารายการ` แสดงวันที่บรรทัดแรกและเวลา `HH:mm:ss` บรรทัดที่สอง; `stock_ledger.date` ยังคงเป็นวันที่เอกสารสำหรับ filter/source contract
+- ค่า `stock_ledger.created_by` เป็น audit actor เดิม แต่ UI แปลงอีเมลเป็นชื่อ-นามสกุลจาก `app_users` โดยไม่แสดงคำนำหน้า; ถ้าไม่พบผู้ใช้จะแสดงค่า actor เดิมเพื่อไม่ซ่อนประวัติ
 - Sales Bill stock-out from WTO uses `movement_type = ขายออก`, `ref_type = SB`, `qty_out > 0`, and carries `output_category` as the technical stock bucket (`RM/WIP/FG`)
 - Sales Bill cancellation for WTO-backed stock uses `movement_type = ยกเลิกขายคืนสต๊อก`, `ref_type = SB-CANCEL`, and `qty_in > 0`
 - Newly designed WTO-to-SB transactions must not create any intermediate stock issue ledger movement before the Sales Bill
