@@ -106,27 +106,22 @@ async function qaProductionInputOutputReverse(): Promise<QaResult> {
   assert(productionLine, 'ไม่พบไลน์ผลิตสำหรับ QA')
   const order = await createProductionOrder({
     branchCode: scenario.branch_code,
-    date: qaDate,
     destinationWarehouseCode: scenario.destination_warehouse_code,
     notes: 'QA production ledger append/reversal',
     machineCode: machine.code,
     productionLineCode: productionLine.code,
     shift: 'เช้า',
-    sourceWarehouseCode: scenario.source_warehouse_code,
     targetProductCode: scenario.product_code,
   }, actor)
   const input = await createProductionInput(order.docNo, {
-    date: qaDate,
     lines: [{
       netQty: 1,
       productCode: scenario.product_code,
       sourceWarehouseCode: scenario.source_warehouse_code,
       stockStatus: scenario.source_status,
     }],
-    notes: 'QA PI',
   }, actor)
   const output = await createProductionOutput(order.docNo, {
-    completeOrder: false,
     date: qaDate,
     lines: [{
       categoryCode: 'FG',
@@ -141,9 +136,10 @@ async function qaProductionInputOutputReverse(): Promise<QaResult> {
     date: qaDate,
     reason: 'QA reverse PO2',
   }, actor)
-  await returnProductionInput(order.docNo, input.inputDocNo, {
-    date: qaDate,
-    reason: 'QA reverse PI',
+  const inputRows = await prisma.production_inputs.findMany({ where: { doc_no: input.inputDocNo, order_id: BigInt(order.id), status: 'active' }, select: { id: true, qty: true } })
+  await returnProductionInput(order.docNo, {
+    lines: inputRows.map((inputRow) => ({ inputId: inputRow.id, qty: Number(inputRow.qty) })),
+    reason: 'QA return PI',
   }, actor)
 
   const refs = [input.inputDocNo, output.outputDocNo, outputRev.reversalDocNo]

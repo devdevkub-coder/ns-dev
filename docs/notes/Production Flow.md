@@ -130,7 +130,7 @@ Dashboard source-of-truth ต้องใช้ production facts ที่ recon
 | 2 | Production Input | เบิกวัตถุดิบเข้า WIP | paired movement `PI`: source stock out + WIP in |
 | 3 | Production Output | รับผลผลิตเป็น FG/RM หรือบันทึก loss | `PO2`: WIP out + destination in หรือ loss |
 | 4 | Partial Complete | มี output แล้วแต่ WIP ยังเหลือ | ไม่มี movement เพิ่มเอง; รอ output เพิ่ม |
-| 5 | Complete | จบงานผลิตเมื่อ WIP = 0 | ห้าม complete ถ้า WIP ยังเหลือ |
+| 5 | Complete | จบงานผลิต; ถ้า WIP เหลือ ระบบต้องยืนยันและคืน WIP ที่เหลือกลับคลังต้นทางก่อน | `PI-RETURN` สำหรับ WIP ที่เหลือ แล้วจึงเปลี่ยนเป็น `Completed` |
 | 6 | คืน/Reverse | คืนวัตถุดิบที่ยังอยู่ใน WIP หรือ reverse ผลผลิตที่ผิด | `PI-RETURN` อ้างอิง PI เดิม / `PO2-REV`; ไม่ลบ ledger เดิม |
 
 ### 📢 ข้อตกลงการกรอกข้อมูลคลังสินค้า (Destination Warehouse Redesign - 2026-06-15)
@@ -143,6 +143,7 @@ Dashboard source-of-truth ต้องใช้ production facts ที่ recon
   - ฟิลด์ **"คลังรับ"** จะเปิดให้กรอกและเลือกบน UI ในแท็บ **Output** เพื่อให้ผู้ใช้ระบุคลังสินค้าสำเร็จรูปหรือคลังเศษเหล็ก/ของเสียที่ต้องการนำของเข้าสต๊อกจริง ณ เวลาที่ผลิตเสร็จสิ้น
 - **การซ่อนฟิลด์ใน Step 2 และ Step 3 (เบิก/รับผลผลิต):**
   - แท็บ **Input (เบิกวัตถุดิบ):** นำฟิลด์ "สถานะสต๊อก" และ "Lot No." ออกจาก UI ปรับแบบฟอร์มเป็น Grid 3 คอลัมน์ โดยเบื้องหลังจะส่งค่า `stockStatus: 'RM'` อัตโนมัติ
+  - วันที่เบิกไม่ให้ผู้ใช้เลือกเอง ระบบกำหนด `production_inputs.date` และ `stock_ledger.date` จากวันที่กรุงเทพฯ ณ เวลากดบันทึก และบันทึก timestamp เดียวกันใน `created_at` เพื่อแสดงวันเวลาเบิกในรายการ
   - แท็บ **Output (รับผลผลิต):** นำฟิลด์ "ประเภท" และ "Lot No." ออกจาก UI ปรับแบบฟอร์มเป็น Grid 3 คอลัมน์ โดยเบื้องหลังจะส่งค่า `categoryCode: 'FG'` อัตโนมัติ
 - **ข้อมูลเครื่องจักรและไลน์ผลิต:**
   - ใน Step 1 `เครื่องจักร` และ `ไลน์ผลิต` เป็น required choice โดยเลือกได้ทั้งรายการจริงหรือ `ไม่มีเครื่องจักร` / `ไม่มีไลน์ผลิต`; server จะแปลงตัวเลือกไม่มีรายการเป็น `null`
@@ -179,7 +180,7 @@ Status target สำหรับ MVP:
 | `Open` | สร้าง order แล้ว ยังไม่มี input |
 | `In Production` | มี active input และมี WIP |
 | `Partially Completed` | มี output แล้วแต่ WIP ยังเหลือ |
-| `Completed` | WIP = 0 |
+| `Completed` | ผู้ใช้ยืนยันจบงานแล้ว และ WIP ถูกใช้หมดหรือคืนกลับคลังต้นทางครบแล้ว |
 | `Cancelled` | ยกเลิกก่อนมี movement หรือหลัง reverse movement ครบ |
 
 ไม่ใช้ `Draft`, `Pending Approval`, `Approved`, `Closed` ใน MVP. `Closed` จะพิจารณาอีกครั้งเมื่อมี accounting/cost lock.
@@ -223,7 +224,8 @@ Status target สำหรับ MVP:
 - output category MVP รับเฉพาะ `FG`, `RM`, `LOSS`
 - output product/grade ต้องเลือกจริงโดย user; ห้าม auto จาก target product
 - output ที่ product/grade ต่างจาก input ไม่สร้าง Grade Adjustment อัตโนมัติ; trace อยู่ใน production output เอง
-- ถ้าจะ complete ต้องให้ `FG + RM + Loss = WIP balance`
+- การคืน input ไม่เปลี่ยนสถานะแถว `production_inputs` เป็น `returned`; ตาราง input เดิมต้องคงอยู่เพื่อประวัติ และยอดคืน/ยอดคงเหลืออ่านจาก active `production_input_returns`
+- ก่อน complete ผลผลิตและ loss ต้อง reconcile กับ WIP ที่ใช้; หาก WIP คงเหลือ ระบบจะคืนยอดคงเหลือกลับคลังต้นทางก่อนปิดงาน
 - ห้าม edit/delete ledger เดิม; ถ้าผิดต้อง reverse ด้วย `PO2-REV` และต้อง block ถ้า output stock ถูก downstream ใช้แล้ว
 
 ## Output Category Master
@@ -256,13 +258,25 @@ Status target สำหรับ MVP:
 
 ## Current Gaps
 
+## End-to-End Audit Checkpoint 2026-07-24
+
+ตรวจ flow ตั้งแต่เปิดใบสั่งผลิต -> เบิกเข้า WIP -> ใช้ WIP ผลิต -> รับ FG/RM หรือบันทึก LOSS -> คืน/void -> ledger และ timeline แล้ว พบประเด็นที่ต้องปิดก่อนถือว่า production write flow พร้อมใช้งานจริง:
+
+- ต้องกำหนด WIP ledger dimension ให้เป็น contract เดียวกัน: `WIP_IN` ตอนเบิกใช้สินค้า/คลัง WIP ของใบสั่งผลิต ส่วน `PRODUCTION_OUTPUT_WIP_OUT`, `PRODUCTION_LOSS` และ `PO2-REV` ต้องหัก/คืนด้วย dimension เดียวกัน; รายละเอียดวัตถุดิบต้นทางให้เก็บใน allocation และ history แยก ไม่ใช้แทน WIP product dimension.
+- ต้องแสดงและบันทึก `source_wip_allocations` ในผลผลิตแต่ละรายการและ timeline เพื่อบอกว่าสินค้าใด ประเภทใด คลังต้นทางใด ถูกใช้ไปเท่าไรและต้นทุนเท่าไร; draft ปัจจุบันยังเก็บแหล่ง WIP เป็นชุดระดับฟอร์ม ไม่ได้ผูกกับ output line โดยตรง.
+- ต้องมี integration tests ครอบ input/output/loss/partial output/return/void/idempotency และตรวจสมดุล ledger ต่อเอกสาร; ปัจจุบันมี test ฝั่ง query/UI แต่ยังไม่มีชุด write-flow ที่พิสูจน์ผลกระทบ DB ครบวงจร.
+- ต้องเพิ่ม concurrency guard หรือ row/advisory lock ต่อ production order และ stock scope ก่อนคำนวณ available quantity เพื่อไม่ให้การเบิกหรือใช้ WIP พร้อมกันทำให้ยอดติดลบ.
+- การ void ต้องตรวจ dependency หลังผลผลิต เช่น การขาย/จัดสรร/การเคลื่อนไหวถัดไป และต้องยืนยัน policy ว่าการออก `PO2-REV` เป็นเอกสาร audit ที่ถูกต้อง ไม่ใช่การแก้หรือลบ ledger เดิม.
+
+รอบ implementation นี้เพิ่ม advisory lock สำหรับ production order/stock scope, แก้ WIP ledger ให้ใช้สินค้า WIP ของใบสั่งผลิตเป็น dimension เดียวกัน, เพิ่ม source WIP ใน timeline และเมื่อกดจบงานขณะมี WIP ระบบจะแจ้งยืนยันแล้วคืน WIP ที่เหลือกลับคลังต้นทางด้วย `PI-RETURN` ก่อนเปลี่ยนสถานะเป็น `Completed`.
+
 - [ ] Production Order write flow
 - [ ] Simplified status flow: `Open -> In Production -> Partially Completed -> Completed`
 - [ ] Production Input write + paired `PI` stock ledger
 - [ ] Production Output write + `PO2` stock ledger
 - [ ] Reverse input/output policy with append-only reversal
 - [ ] WIP reconciliation report from ledger vs production tables
-- [ ] Lock rules after `Completed`
+- [x] Lock rules after `Completed`
 - [ ] Timeline/status log for production documents
 - [ ] Process Cost and cost allocation later phase, not MVP
 
@@ -275,7 +289,7 @@ Status target สำหรับ MVP:
 - WIP balance = sum(`WIP_IN`) - sum(`PRODUCTION_OUTPUT_WIP_OUT`) - sum(`PRODUCTION_LOSS`)
 - `production_inputs.qty` ต้อง reconcile กับ `stock_ledger.ref_type = PI`
 - `production_outputs.qty` ต้อง reconcile กับ `stock_ledger.ref_type = PO2`
-- Completed order ต้องไม่มี WIP คงเหลือ
+- Completed order ต้องไม่มี WIP คงเหลือหลังระบบคืน WIP ที่เหลือกลับคลังต้นทางสำเร็จ
 - `LOSS` ต้องแยกจาก saleable stock และไม่เข้า available stock
 - ไม่มี fallback: ถ้า doc no, category, WAC, warehouse, product, stock balance, หรือ status reconcile ไม่ครบ ต้อง reject หรือแก้ data/migration ไม่ใช่ default ค่าแทน
 

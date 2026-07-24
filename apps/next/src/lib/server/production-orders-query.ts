@@ -1,4 +1,4 @@
-const allowedSorts = new Set(['date', 'docNo', 'status', 'qtyPlanned', 'inputCost', 'outputValue', 'variance'])
+const allowedSorts = new Set(['date', 'startDate', 'createdAt', 'docNo', 'status', 'qtyPlanned', 'inputQty', 'wipQty', 'outputQty', 'yield', 'inputCost', 'outputValue', 'variance'])
 const allowedStatuses = new Set(['Open', 'In Production', 'Partially Completed', 'Completed', 'Cancelled'])
 
 function dateOnly(value: string | null) {

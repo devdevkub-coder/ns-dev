@@ -4,8 +4,7 @@ alter table public.production_inputs
   add column if not exists stock_category text;
 
 update public.production_inputs pi
-set stock_category = source.output_category
-from lateral (
+set stock_category = (
   select sl.output_category
   from public.stock_ledger sl
   where sl.ref_type = 'PI'
@@ -14,7 +13,7 @@ from lateral (
     and sl.output_category in ('RM', 'FG')
   order by sl.id asc
   limit 1
-) source
+)
 where pi.stock_category is null;
 
 alter table public.production_inputs

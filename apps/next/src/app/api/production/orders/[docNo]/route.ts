@@ -20,7 +20,7 @@ export async function PATCH(request: Request, context: ProductionOrderRouteConte
     requirePermission(auth, values.action === 'complete' ? 'production.orders.complete' : 'production.orders.cancel')
     const actor = currentActor(auth)
     const payload = values.action === 'complete'
-      ? await completeProductionOrder(docNo, values.note, actor)
+      ? await completeProductionOrder(docNo, values.note, actor, values.confirmCloseWithWip)
       : await cancelProductionOrder(docNo, values.reason, actor)
     return NextResponse.json(payload)
   } catch (caught) {

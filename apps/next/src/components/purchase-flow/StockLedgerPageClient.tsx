@@ -391,6 +391,21 @@ export function StockLedgerPageClient() {
         </div>
       </div>
 
+      <div className="mb-3 hidden items-center justify-between gap-2 px-1 py-1 text-sm text-slate-600 lg:flex">
+        <div>พบทั้งหมด <span className="font-semibold text-slate-900">{data?.total ?? 0}</span> รายการ</div>
+        <div className="flex flex-wrap items-center gap-2">
+          {columnResize.hasCustomWidths ? (
+            <button className="h-9 rounded-md bg-slate-100 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={columnResize.resetColumnWidths}>
+              คืนค่าเดิมตาราง
+            </button>
+          ) : null}
+          <PageSizeDropdown options={stockLedgerPageSizes} value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
+          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
+          <span className="px-1">หน้า {page} / {totalPages}</span>
+          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => value + 1)}>ถัดไป</button>
+        </div>
+      </div>
+
       {/* Mobile Card list */}
       <div className="block lg:hidden space-y-3">
         {isLoading ? (
@@ -416,7 +431,7 @@ export function StockLedgerPageClient() {
               </div>
               <div>
                 <span className="font-semibold text-slate-500">คลัง/สาขา: </span>
-                <span className="text-slate-800">{row.warehouseName || '-'} / {row.branchName || '-'}</span>
+                <span className="text-slate-800">{stockLedgerLocationLabel(row.warehouseName, row.branchName)}</span>
               </div>
               <div>
                 <span className="font-semibold text-slate-500">ประเภทการโอน: </span>
@@ -455,20 +470,6 @@ export function StockLedgerPageClient() {
 
       {/* Desktop Table View */}
       <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:block">
-        <div className="flex flex-col gap-3 border-b border-slate-100 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-          <div>พบทั้งหมด <span className="font-semibold text-slate-900">{data?.total ?? 0}</span> รายการ</div>
-          <div className="flex flex-wrap items-center gap-2">
-            <PageSizeDropdown options={stockLedgerPageSizes} value={pageSize} onChange={(size) => { setPageSize(size); setPage(1) }} />
-            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
-            <span className="px-1">หน้า {page} / {totalPages}</span>
-            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => value + 1)}>ถัดไป</button>
-            {columnResize.hasCustomWidths ? (
-              <button className="h-9 rounded-md bg-slate-100 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={columnResize.resetColumnWidths}>
-                คืนค่าตาราง
-              </button>
-            ) : null}
-          </div>
-        </div>
         <div className="overflow-x-auto">
         <table className="ns-table w-full divide-y divide-slate-200 text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
@@ -520,8 +521,15 @@ export function StockLedgerPageClient() {
                   </div>
                 </td>
                 <td className="p-2 text-xs font-semibold text-slate-700">
-                  <div className="truncate">{row.warehouseName || '-'}</div>
-                  <div className="truncate text-xs font-medium text-slate-500">{row.branchName || '-'}</div>
+                  {(() => {
+                    const location = stockLedgerLocationLines(row.warehouseName, row.branchName)
+                    return (
+                      <>
+                        <div className="truncate">{location.warehouse}</div>
+                        {location.branch ? <div className="truncate text-xs font-medium text-slate-500">{location.branch}</div> : null}
+                      </>
+                    )
+                  })()}
                 </td>
                 <td className="p-2 pr-4 text-right text-xs font-semibold text-emerald-600 tabular-nums">{row.qtyIn ? formatMoney(row.qtyIn) : '-'}</td>
                 <td className="p-2 pr-4 text-right text-xs font-semibold text-red-600 tabular-nums">{row.qtyOut ? formatMoney(row.qtyOut) : '-'}</td>
@@ -573,6 +581,18 @@ function formatLedgerTimestamp(value: string) {
   const parsed = parseISO(value)
   if (Number.isNaN(parsed.getTime())) return value
   return `${format(parsed, 'dd/MM/yyyy HH:mm:ss')}`
+}
+
+function stockLedgerLocationLines(warehouseName: string, branchName: string) {
+  const warehouse = warehouseName?.trim() || '-'
+  const branch = branchName?.trim() || '-'
+  const hasBranchInWarehouse = branch !== '-' && warehouse.toLocaleLowerCase('th-TH').includes(branch.toLocaleLowerCase('th-TH'))
+  return { branch: hasBranchInWarehouse ? '' : branch, warehouse }
+}
+
+function stockLedgerLocationLabel(warehouseName: string, branchName: string) {
+  const location = stockLedgerLocationLines(warehouseName, branchName)
+  return location.branch ? `${location.warehouse} / ${location.branch}` : location.warehouse
 }
 
 function LedgerTimestamp({ value }: { value: string | null }) {

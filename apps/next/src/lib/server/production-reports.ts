@@ -139,6 +139,10 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
           id: true,
           qty: true,
           total_cost: true,
+          production_input_returns: {
+            select: { qty: true, total_cost: true },
+            where: { status: 'active' },
+          },
           products: {
             select: {
               code: true,
@@ -180,8 +184,10 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
     const factMetric = emptyLedgerMetric()
     order.production_inputs.forEach((input) => {
       inputOwnerById.set(input.id.toString(), orderKey)
-      factMetric.inputQty += toNumber(input.qty)
-      factMetric.inputValue += toNumber(input.total_cost)
+      const returnedQty = input.production_input_returns.reduce((sum, returned) => sum + toNumber(returned.qty), 0)
+      const returnedCost = input.production_input_returns.reduce((sum, returned) => sum + toNumber(returned.total_cost), 0)
+      factMetric.inputQty += Math.max(0, toNumber(input.qty) - returnedQty)
+      factMetric.inputValue += Math.max(0, toNumber(input.total_cost) - returnedCost)
     })
     order.production_outputs.forEach((output) => {
       outputOwnerById.set(output.id.toString(), orderKey)
@@ -323,7 +329,13 @@ export async function loadProductionTotalWipQty(filters: Pick<ProductionReportFi
     select: {
       id: true,
       production_inputs: {
-        select: { id: true },
+        select: {
+          id: true,
+          production_input_returns: {
+            select: { qty: true },
+            where: { status: 'active' },
+          },
+        },
         where: { status: 'active' },
       },
       production_outputs: {
@@ -350,7 +362,7 @@ export async function loadProductionTotalWipQty(filters: Pick<ProductionReportFi
 
   if (!inputOwnerById.size && !outputOwnerById.size) return 0
 
-  const wipByOrder = new Map<string, { inputQty: number; consumedQty: number }>()
+  const wipByOrder = new Map<string, { inputQty: number; consumedQty: number; returnedQty: number }>()
   const ledgerRows = await prisma.stock_ledger.findMany({
     select: {
       movement_type: true,
@@ -371,7 +383,7 @@ export async function loadProductionTotalWipQty(filters: Pick<ProductionReportFi
     const refId = String(row.ref_id ?? '')
     const orderKey = row.ref_type === 'PI' ? inputOwnerById.get(refId) : outputOwnerById.get(refId)
     if (!orderKey) return
-    const metric = wipByOrder.get(orderKey) ?? { consumedQty: 0, inputQty: 0 }
+    const metric = wipByOrder.get(orderKey) ?? { consumedQty: 0, inputQty: 0, returnedQty: 0 }
     if (row.ref_type === 'PI' && row.movement_type === 'WIP_IN') {
       metric.inputQty += toNumber(row.qty_in)
     } else if (row.ref_type === 'PO2' && ['PRODUCTION_OUTPUT_WIP_OUT', 'PRODUCTION_LOSS'].includes(row.movement_type ?? '')) {
@@ -380,7 +392,14 @@ export async function loadProductionTotalWipQty(filters: Pick<ProductionReportFi
     wipByOrder.set(orderKey, metric)
   })
 
-  return Array.from(wipByOrder.values()).reduce((sum, row) => sum + Math.max(0, row.inputQty - row.consumedQty), 0)
+  orders.forEach((order) => {
+    const orderKey = order.id.toString()
+    const metric = wipByOrder.get(orderKey) ?? { consumedQty: 0, inputQty: 0, returnedQty: 0 }
+    metric.returnedQty += order.production_inputs.reduce((sum, input) => sum + input.production_input_returns.reduce((subtotal, returned) => subtotal + toNumber(returned.qty), 0), 0)
+    wipByOrder.set(orderKey, metric)
+  })
+
+  return Array.from(wipByOrder.values()).reduce((sum, row) => sum + Math.max(0, row.inputQty - row.returnedQty - row.consumedQty), 0)
 }
 
 export function summarizeProductionMetrics(rows: ProductionOrderMetric[]) {

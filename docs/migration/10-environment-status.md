@@ -2,6 +2,13 @@
 
 ## Current Direction
 
+### Production Input Return Permission Fix 2026-07-23
+
+- Applied `20260723173500_add_production_input_return_permission.sql` and `20260723200000_grant_production_input_return_to_system_admin.sql` to dev-target using the local dev database connection after confirming the local database had neither the permission catalog row nor its role grants.
+- Postflight confirms `production.orders.input_return` is active and granted to `admin`, `owner`, `production_department`, and `system_admin`. No production order, stock, or ledger rows were changed.
+- Applied and recorded `20260723190000_separate_production_and_stock_receipt_costs.sql` to dev-target after the first authorized return attempt exposed missing `production_input_returns` stock-receipt cost columns. Postflight confirms `stock_receipt_unit_cost`, `stock_receipt_total_cost`, and `cost_variance` exist; no business rows were changed.
+- Applied and recorded `20260724100000_add_production_output_wip_source.sql` to dev-target. `production_outputs` now stores the selected WIP source product, RM/FG category, and source warehouse for production-round traceability; no existing business rows were changed.
+
 Development database and auth testing should use a separate Supabase dev/target project.
 
 The customer's old production Supabase remains the legacy source system for read-only audit and migration-source dumps.
@@ -451,3 +458,6 @@ DB schema redesign status:
 - Additive target tables and customer classification/person-name fields have been applied to `dev-target` for the current master-data work.
 - Security/access baseline migrations are applied to `dev-target`; they are additive and keep legacy `public.users`, `user_profiles`, `roles`, and `roles_config` for reference during migration.
 - Full table-level RLS rollout for legacy/imported business tables is still pending and must be done table-by-table before UAT/production.
+- Applied and recorded `20260724110000_add_production_output_wip_allocations.sql` to dev-target. `production_outputs.source_wip_allocations` is now available for multi-source WIP allocation snapshots; no existing business rows were changed.
+- `20260724130000_add_production_output_drafts.sql` has been applied to dev-target using the project database credentials. Postflight confirmed `public.production_output_drafts` exists with the expected order, payload, audit, and timestamp columns; the table is empty and ready for Draft API testing.
+- Applied and recorded `20260724150000_reconcile_production_wip_ledger_product_dimension.sql` to dev-target. Postflight updated 16 output WIP/loss ledger rows and 2 input-return WIP-out rows so the WIP bucket uses the production-order product dimension while preserving the original input product in `source_input_product_id` when it differed.

@@ -1873,6 +1873,9 @@ model production_input_returns {
   qty                 Decimal            @db.Decimal
   unit_cost           Decimal            @default(0) @db.Decimal
   total_cost          Decimal            @default(0) @db.Decimal
+  stock_receipt_unit_cost Decimal?        @db.Decimal
+  stock_receipt_total_cost Decimal?       @db.Decimal
+  cost_variance        Decimal?           @db.Decimal
   reason              String
   status              String             @default("active")
   created_at          DateTime           @default(now()) @db.Timestamptz(6)
@@ -1931,6 +1934,7 @@ model production_orders {
   production_lines             production_lines?              @relation(fields: [production_line_id], references: [id])
   warehouses                   warehouses?                    @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   production_outputs           production_outputs[]
+  production_output_drafts     production_output_drafts?
 
   @@index([machine_id])
   @@index([production_line_id])
@@ -1990,6 +1994,9 @@ model production_outputs {
   qty                          Decimal                       @db.Decimal
   unit_cost                    Decimal?                      @default(0) @db.Decimal
   total_cost                   Decimal?                      @default(0) @db.Decimal
+  stock_receipt_unit_cost      Decimal?                      @db.Decimal
+  stock_receipt_total_cost     Decimal?                      @db.Decimal
+  cost_variance                Decimal?                      @db.Decimal
   output_type                  String?                       @default("PO2")
   notes                        String?
   created_at                   DateTime?                     @default(now()) @db.Timestamptz(6)
@@ -2007,6 +2014,10 @@ model production_outputs {
   destination_warehouse_id     BigInt?
   lot_no                       String?
   source_wip_qty               Decimal?                      @db.Decimal
+  source_wip_allocations       Json?
+  source_product_id            BigInt?
+  source_stock_category        String?
+  source_warehouse_id          BigInt?
   reversed_at                  DateTime?                     @db.Timestamptz(6)
   reversed_by                  String?
   reverse_reason               String?
@@ -2024,6 +2035,20 @@ model production_outputs {
   @@index([status], map: "idx_production_outputs_status")
   @@index([category_code], map: "idx_production_outputs_category_code")
   @@index([destination_warehouse_id], map: "idx_production_outputs_destination_warehouse")
+  @@schema("public")
+}
+
+model production_output_drafts {
+  id                BigInt             @id @default(autoincrement())
+  order_id          BigInt             @unique
+  payload           Json
+  created_at        DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime           @default(now()) @db.Timestamptz(6)
+  created_by        String?
+  updated_by        String?
+  production_orders production_orders @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([updated_at], map: "idx_production_output_drafts_updated_at")
   @@schema("public")
 }
 
