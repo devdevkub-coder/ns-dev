@@ -152,6 +152,8 @@ As of 2026-07-11, role permission selection is organized from the active Side me
 
 As of 2026-07-11, `/admin/roles-permissions` has separate `Role ตามฝ่าย` and `สิทธิ์รายหน้า` tabs. The Role tab filters reusable work-function templates by the selected department based on real user assignments; it does not duplicate department ownership onto the role record. The permission tab selects either one Role or one user, then displays Side menu pages as a permission matrix whose columns are the registered actions for that page. Saving a Role updates its template permissions. Saving a user writes only direct `allow` overrides through `PUT /api/admin/users/:id/permission-overrides`; it does not overwrite that user's profile, department, branches, or assigned templates. Why it stays this way: a department remains an organizational fact, while a reusable Role and a single-user exception remain separate authorization mechanisms.
 
+Role-only test accounts must have no direct permission overrides. An unchecked permission in the Role matrix means only that the Role does not grant it; a direct user `allow` still makes the permission effective and can show the associated Side menu page. Before using a test account to verify Role behavior, clear only that account's intentional test overrides and keep production/user-authored exceptions untouched.
+
 ## Organization And Access Decision (2026-07-11)
 
 Employee directory synchronization on 2026-07-11: migration `20260711110000_sync_employee_directory.sql` updates the approved employee names and primary departments, clears name prefixes, and removes explicit branch rows for the listed employees so their branch scope stays `ทุกสาขา`. It creates the directory row for `photsathon.spd1@gmail.com` without an `auth_user_id`; that person appears in the employee list and must be invited through the normal User Admin flow before they can sign in. The new-user form defaults its optional name prefix to `คุณ`; editing an existing employee does not overwrite their stored prefix. Role assignments and permission overrides are deliberately unchanged in this directory-only batch.
@@ -207,6 +209,8 @@ create employee -> pending -> invitation sent -> admin activates employee
        B. issue one-time visible temporary password -> must_change_password = true
           -> employee logs in -> forced change-password page -> credentials ready
 ```
+
+After authentication and any required password change complete, `/` resolves `app_roles.default_landing_path` from the user's assigned active Roles before normal menu order. The preference never grants access: runtime accepts it only when the path exists in the active navigation registry and the user's effective permissions authorize that page; otherwise it falls back to the first accessible navigation item. If more than one assigned Role defines a landing path, Role code order makes the choice deterministic.
 
 `account_status` is the lifecycle source of truth with `pending`, `active`, and `disabled`. The existing `active` boolean remains synchronized for permission guards and older authorization helpers. `invitation_sent_at`, `password_link_sent_at`, and `password_set_at` record delivery/readiness without inferring password state from `last_login_at`; a user can set a password before their first login. Admin activation records `activated_at`, `activated_by`, and `activation_source` for audit. Disabling an active account changes it to `disabled`; enabling it again is an Admin activation and does not send mail automatically.
 

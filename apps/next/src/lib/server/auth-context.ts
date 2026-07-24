@@ -8,6 +8,7 @@ import { prisma } from '@/lib/server/prisma'
 export type AppRoleSummary = {
   branchScope: string
   code: string
+  defaultLandingPath: string | null
   id: bigint | null
   name: string
 }
@@ -65,6 +66,7 @@ const appUserAuthSelect = {
           active: true,
           branch_scope: true,
           code: true,
+          default_landing_path: true,
           id: true,
           name: true,
           app_role_permissions: {
@@ -131,12 +133,15 @@ function buildAppUserContext(appUser: AppUserWithAuth | null, user: User): AppAu
       .map((override) => ({ code: override.app_permissions.code, effect: override.effect as 'allow' | 'deny' })),
     rolePermissionCodes,
   })
-  const roleSummaries = roles.map((role) => ({
-    branchScope: role.branch_scope,
-    code: role.code,
-    id: role.id,
-    name: role.name,
-  }))
+  const roleSummaries = roles
+    .map((role) => ({
+      branchScope: role.branch_scope,
+      code: role.code,
+      defaultLandingPath: role.default_landing_path,
+      id: role.id,
+      name: role.name,
+    }))
+    .sort((left, right) => left.code.localeCompare(right.code))
   const isAdmin = roleSummaries.some((role) => role.code === 'admin' || role.code === 'owner')
   return {
     appUser: {

@@ -4107,6 +4107,7 @@ model app_roles {
   created_by               String?
   updated_by               String?
   id                       BigInt                 @id @default(autoincrement())
+  default_landing_path     String?
   app_role_permissions     app_role_permissions[]
   app_user_roles           app_user_roles[]
 

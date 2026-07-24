@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { permissionForPath } from '@/lib/navigation'
+import { permissionCodesForPath } from '@/lib/navigation'
 
 const publicPaths = new Set(['/login', '/forgot-password', '/reset-password', '/api/auth/forgot-password', '/api/health', '/api/line/webhook'])
 
@@ -96,12 +96,14 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
-  const requiredPermission = permissionForPath(pathname)
+  const requiredPermissions = permissionCodesForPath(pathname)
 
-  if (requiredPermission) {
-    const { data: hasPermission, error: permissionError } = await supabase.rpc('has_app_permission', {
-      _permission_code: requiredPermission,
-    })
+  if (requiredPermissions.length > 0) {
+    const permissionResults = await Promise.all(requiredPermissions.map((permissionCode) => supabase.rpc('has_app_permission', {
+      _permission_code: permissionCode,
+    })))
+    const permissionError = permissionResults.find((result) => result.error)?.error
+    const hasPermission = permissionResults.some((result) => result.data === true)
 
     if (permissionError) {
       return pathname.startsWith('/api/')
@@ -118,7 +120,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  const message = requiredPermission ? 'ไม่มีสิทธิ์ใช้งานส่วนนี้' : 'ต้องใช้บัญชีที่เปิดใช้งาน'
+  const message = requiredPermissions.length > 0 ? 'ไม่มีสิทธิ์ใช้งานส่วนนี้' : 'ต้องใช้บัญชีที่เปิดใช้งาน'
   return pathname.startsWith('/api/') ? jsonError(message, 403) : NextResponse.redirect(new URL('/login', request.url))
 }
 

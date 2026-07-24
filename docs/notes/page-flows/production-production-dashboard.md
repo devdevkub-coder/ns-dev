@@ -29,6 +29,8 @@ dashboard KPI จาก production orders/input/output/WIP/yield/cost
 
 Current runtime note: this route/API is an active Production sidebar page and remains a read-only operational monitor. Do not add write actions or alter production transactions from this dashboard.
 
+Role `production_department` uses `/production/dashboard` as its landing preference. The root route honors that preference only for users assigned this active Role, while the path remains registered in navigation and the user's effective permissions include `production.operations.view`; otherwise normal accessible-menu fallback applies.
+
 ## Requirement Snapshot 2026-06-13
 
 Customer screenshot/latest requirement defines Production Dashboard as a read-only monitor for production output, WIP, yield, loss, and efficiency.
