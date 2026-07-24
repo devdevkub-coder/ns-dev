@@ -51,6 +51,12 @@ type PoBuyFormState = {
 }
 
 type PoBuyPayload = {
+  capabilities: {
+    cancel: boolean
+    create: boolean
+    shortClose: boolean
+    update: boolean
+  }
   filters: { statuses: string[] }
   options: {
     branches: Option[]
@@ -508,6 +514,7 @@ export function PoBuyPageClient() {
   }, [data?.vatRatePercent, form.hasVat, form.items])
 
   const openCreateForm = () => {
+    if (!data?.capabilities.create) return
     setEditingPoId(null)
     setEditingPoNo(null)
     setForm(blankForm())
@@ -517,6 +524,7 @@ export function PoBuyPageClient() {
   }
 
   const openEditForm = (row: PoBuyRow) => {
+    if (!data?.capabilities.update) return
     setEditingPoId(row.id)
     setEditingPoNo(row.docNo)
     setSelectedRow(null)
@@ -538,6 +546,7 @@ export function PoBuyPageClient() {
   }
 
   const openCancelDialog = (row: PoBuyRow) => {
+    if (!data?.capabilities.cancel) return
     setCancelingRow(row)
     setCancelNote('')
     setCancelNoteError('')
@@ -545,6 +554,7 @@ export function PoBuyPageClient() {
   }
 
   const openShortCloseDialog = (row: PoBuyRow) => {
+    if (!data?.capabilities.shortClose) return
     setShortClosingRow(row)
     setShortCloseNote('')
     setShortCloseNoteError('')
@@ -828,7 +838,7 @@ export function PoBuyPageClient() {
           />
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <ExportButton href={exportHref} />
-            <UiButton size="sm" type="button" onClick={openCreateForm}>+ PO Buy ใหม่</UiButton>
+            {data?.capabilities.create ? <UiButton size="sm" type="button" onClick={openCreateForm}>+ PO Buy ใหม่</UiButton> : null}
           </div>
         </div>
       </div>
@@ -1071,10 +1081,10 @@ export function PoBuyPageClient() {
                 <TableCell className="whitespace-nowrap text-right">
                   <TableActionButton menu={(
                     <>
-                      {row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
-                      {row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openCancelDialog(row)}>ยกเลิก</TableActionMenuItem> : null}
+                      {data?.capabilities.update && row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openEditForm(row)}>แก้ไข</TableActionMenuItem> : null}
+                      {data?.capabilities.cancel && row.status === 'Open' && row.qty === row.remainingQty ? <TableActionMenuItem onSelect={() => openCancelDialog(row)}>ยกเลิก</TableActionMenuItem> : null}
                       <TableActionMenuItem disabled={printingPoDocNo === row.docNo} onSelect={() => void printPoBuy(row)}>พิมพ์</TableActionMenuItem>
-                      {shouldShowShortCloseButton(row) ? <TableActionMenuItem disabled={!canShortClosePoBuy(row)} onSelect={() => openShortCloseDialog(row)}>ปิดรับไม่ครบ</TableActionMenuItem> : null}
+                      {data?.capabilities.shortClose && shouldShowShortCloseButton(row) ? <TableActionMenuItem disabled={!canShortClosePoBuy(row)} onSelect={() => openShortCloseDialog(row)}>ปิดรับไม่ครบ</TableActionMenuItem> : null}
                     </>
                   )} />
                 </TableCell>
@@ -1084,7 +1094,7 @@ export function PoBuyPageClient() {
         </Table>
       </div>
 
-      <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 lg:hidden">
+      {data?.capabilities.create ? <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 lg:hidden">
         <button
           className="flex size-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 active:scale-95 transition-transform"
           onClick={openCreateForm}
@@ -1092,7 +1102,7 @@ export function PoBuyPageClient() {
         >
           <Plus className="size-8" />
         </button>
-      </div>
+      </div> : null}
 
       {showForm ? (
         <PoBuyFormModal
@@ -1155,9 +1165,9 @@ export function PoBuyPageClient() {
           isPrinting={printingPoDocNo === selectedRow.docNo}
           row={selectedRow}
           onClose={() => setSelectedRow(null)}
-          onEdit={openEditForm}
-          onCancel={openCancelDialog}
-          onShortClose={openShortCloseDialog}
+          onEdit={data?.capabilities.update ? openEditForm : undefined}
+          onCancel={data?.capabilities.cancel ? openCancelDialog : undefined}
+          onShortClose={data?.capabilities.shortClose ? openShortCloseDialog : undefined}
           onPrint={(rowToPrint) => void printPoBuy(rowToPrint)}
         />
       ) : null}
@@ -1755,8 +1765,9 @@ function PoBuyDetailModal({
             <DialogDescription className="truncate text-slate-300">{row.supplierName}</DialogDescription>
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
-            {onEdit && onCancel && row.status === 'Open' && row.qty === row.remainingQty ? (
+            {row.status === 'Open' && row.qty === row.remainingQty ? (
               <>
+                {onCancel ? (
                 <UiButton
                   className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white"
                   type="button"
@@ -1768,6 +1779,8 @@ function PoBuyDetailModal({
                 >
                   ยกเลิก PO
                 </UiButton>
+                ) : null}
+                {onEdit ? (
                 <UiButton
                   className="h-9 border-slate-700 bg-slate-800 font-normal text-white hover:bg-slate-700 hover:text-white"
                   type="button"
@@ -1779,6 +1792,7 @@ function PoBuyDetailModal({
                 >
                   แก้ไข
                 </UiButton>
+                ) : null}
               </>
             ) : null}
             {onShortClose && shouldShowShortCloseButton(row) ? (

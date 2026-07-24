@@ -16,6 +16,19 @@ WTI/WTO gallery checkpoint 2026-07-22: detail row galleries now form one continu
 
 Shared row-action SIT checkpoint 2026-07-22: runtime `จัดการ` columns use the shared Desktop ellipsis and full-width Mobile button. The opened menu matches the Mobile trigger width, centers each label between a fixed left icon and equal trailing spacer, uses subtle row dividers, keeps destructive commands red, and stops portalled menu clicks from opening the parent row/modal. Existing permissions, disabled states, confirmations, and business handlers remain unchanged.
 
+## Accountant Default Landing And PO Permission Split 2026-07-24
+
+Implemented locally and applied transactionally to dev-target: Role
+`accountant` uses `/daily/expense-dashboard` as its default landing page, while
+PO Buy and PO Sell use independent `view`, `create`, `update`, `cancel`, and
+`short_close` permissions instead of `finance.cash.view`. Migrations
+`20260724020000_split_po_buy_sell_permissions.sql` and
+`20260724120000_set_accountant_expense_dashboard_landing.sql` are recorded in
+dev-target migration history. The PO migration preserved existing access with
+10 active permission rows and 60 copied grants across 6 Roles; the accountant
+migration fails closed unless the Role already holds
+`reports.expense_dashboard.view`.
+
 Objective: cut `/profit-cost-analysis` over from transaction-wide Node aggregation to strict PostgreSQL fact/daily read models with split APIs, applied filters, request cancellation, branch scope, and server pagination/sort.
 
 Active batch: implementation is promoted to Dev and SIT, and migration `20260719160000_create_profit_cost_reporting_read_model.sql` is applied to both dev-target and SIT. SIT backfill produced 266 facts and 135 daily rows; reconciliation reports zero issues and exact purchase/revenue/COGS parity. Focused Vitest is 16/16 after the Dev/SIT semantic merges, full lint and source type-check pass, and `git diff --check` passes. Summary, rankings, and the active table fail independently; alerts are evaluated directly from the full scoped daily read model rather than a capped product page. No browser/UAT run was requested.

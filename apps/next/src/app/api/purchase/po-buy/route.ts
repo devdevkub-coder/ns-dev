@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server'
 import { XLSX } from '@/lib/server/xlsx'
 import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { poBuyCancelSchema, poBuyFormSchema, poBuyShortCloseSchema, poBuyUpdateSchema, type PoBuyFormValues } from '@/lib/po-buy'
+import { PO_BUY_PERMISSIONS, poBuyPatchPermission } from '@/lib/po-permissions'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission, getBranchCodeIntersection } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, hasPermission, requirePermission, getBranchCodeIntersection } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { appendPoBuyStatusLog, createInitialPoBuyStatusLog, PO_BUY_STATUS, reconcilePoBuys } from '@/lib/server/po-buy-reconciliation'
 import { prisma } from '@/lib/server/prisma'
@@ -524,7 +525,7 @@ function poItems(values: PoBuyFormValues, products: ProductRow[], docNo: string)
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, PO_BUY_PERMISSIONS.view)
 
     const allowedBranchCodes = getBranchCodeIntersection(context)
     let allowedBranchIds: bigint[] | undefined = undefined
@@ -767,6 +768,12 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
+      capabilities: {
+        cancel: hasPermission(context, PO_BUY_PERMISSIONS.cancel),
+        create: hasPermission(context, PO_BUY_PERMISSIONS.create),
+        shortClose: hasPermission(context, PO_BUY_PERMISSIONS.shortClose),
+        update: hasPermission(context, PO_BUY_PERMISSIONS.update),
+      },
       filters: {
         statuses: Array.from(new Set(poRows.map((row: PoBuyListRow) => row.status ?? 'Open'))).sort(),
       },
@@ -793,7 +800,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, PO_BUY_PERMISSIONS.create)
 
     const values = poBuyFormSchema.parse(await request.json())
     const actor = currentActor(context)
@@ -899,7 +906,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, PO_BUY_PERMISSIONS.update)
 
     const values = poBuyUpdateSchema.parse(await request.json())
     const actor = currentActor(context)
@@ -1040,11 +1047,10 @@ export async function PATCH(request: Request) {
   let action = 'cancel'
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
-
     const raw = await request.json()
     const actor = currentActor(context)
     action = typeof raw?.action === 'string' ? raw.action : 'cancel'
+    requirePermission(context, poBuyPatchPermission(action))
 
     if (action === 'shortClose') {
       const values = poBuyShortCloseSchema.parse(raw)

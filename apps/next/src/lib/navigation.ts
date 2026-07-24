@@ -1,5 +1,6 @@
 import { REPORT_PAGE_PERMISSIONS } from '@/lib/report-permissions'
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
+import { PO_BUY_PERMISSIONS, PO_SELL_PERMISSIONS } from '@/lib/po-permissions'
 
 export type NavigationSectionKey =
   | 'main'
@@ -76,11 +77,13 @@ const exactPathPermissions: Record<string, string> = {
   '/api/daily/petty-advances': 'daily.petty_advances.view',
   '/api/daily/petty-advances/returns': 'daily.petty_advances.return',
   '/api/purchase/bills': 'purchase.bills.view',
+  '/api/purchase/po-buy': PO_BUY_PERMISSIONS.view,
   '/api/purchase/advance-payments': 'purchase.advance_payments.view',
   '/api/purchase/bills/options': 'purchase.bills.view',
   '/api/purchase/payment-history': FINANCE_DEBT_PAGE_PERMISSIONS.payments,
   '/api/purchase/payments': FINANCE_DEBT_PAGE_PERMISSIONS.payments,
   '/api/sales/bills': 'sales.bills.view',
+  '/api/sales/po-sell': PO_SELL_PERMISSIONS.view,
   '/api/sales/bills/options': 'sales.bills.view',
   '/api/sales/receipts': FINANCE_DEBT_PAGE_PERMISSIONS.receipts,
   '/api/daily/transfers': FINANCE_DEBT_PAGE_PERMISSIONS.transfers,
@@ -154,6 +157,7 @@ const exactPathPermissions: Record<string, string> = {
   '/sales-plan': REPORT_PAGE_PERMISSIONS.salesPlan,
   '/sales-plan-analysis': REPORT_PAGE_PERMISSIONS.salesPlanAnalysis,
   '/purchase/bills': 'purchase.bills.view',
+  '/purchase/po-buy': PO_BUY_PERMISSIONS.view,
   '/purchase/payments': FINANCE_DEBT_PAGE_PERMISSIONS.payments,
   '/sales/receipts': FINANCE_DEBT_PAGE_PERMISSIONS.receipts,
   '/daily/transfer': FINANCE_DEBT_PAGE_PERMISSIONS.transfers,
@@ -164,6 +168,7 @@ const exactPathPermissions: Record<string, string> = {
   '/trading/matching': FINANCE_DEBT_PAGE_PERMISSIONS.tradingMatching,
   '/purchase/advance-payments': 'purchase.advance_payments.view',
   '/sales/bills': 'sales.bills.view',
+  '/sales/po-sell': PO_SELL_PERMISSIONS.view,
   '/trading/dashboard': REPORT_PAGE_PERMISSIONS.tradingDashboard,
   '/po-reports/outstanding': REPORT_PAGE_PERMISSIONS.poOutstanding,
   '/reports': REPORT_PAGE_PERMISSIONS.reportsIndex,

@@ -38,6 +38,7 @@ type PoSellRow = {
   branchName: string
   canCancel: boolean
   canEdit: boolean
+  canShortClose: boolean
   cancelDisabledReason: string
   channelId: string | null
   channelName: string
@@ -93,7 +94,7 @@ type PoSellRow = {
 }
 
 function canShortClosePoSell(row: PoSellRow) {
-  return (row.documentStatus === 'open' || row.documentStatus === 'partial') && row.remainingQty > 0
+  return row.canShortClose && (row.documentStatus === 'open' || row.documentStatus === 'partial') && row.remainingQty > 0
 }
 
 type StatusFilterOption = {
@@ -102,6 +103,9 @@ type StatusFilterOption = {
 }
 
 type PoSellPayload = {
+  capabilities: {
+    create: boolean
+  }
   filters: { matchStatuses: StatusFilterOption[]; statuses: StatusFilterOption[] }
   options: {
     branches: Option[]
@@ -387,6 +391,7 @@ export function PoSellPageClient() {
   }
 
   function openCreateForm() {
+    if (!data?.capabilities.create) return
     setEditingDocNo(null)
     setForm(initialPoSellForm())
     setFieldErrors({})
@@ -438,6 +443,11 @@ export function PoSellPageClient() {
     }
     if (handledSalesPlanQueryRef.current === salesPlanIdFromQuery) return
     if (!salesPlanIdFromQuery || !data) return
+    if (!data.capabilities.create) {
+      handledSalesPlanQueryRef.current = salesPlanIdFromQuery
+      setError('ไม่มีสิทธิ์สร้าง PO Sell')
+      return
+    }
     let cancelled = false
     const today = new Date().toISOString().slice(0, 10)
     setError(null)
@@ -686,7 +696,7 @@ export function PoSellPageClient() {
           ))}
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <a className="inline-flex h-9 items-center rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700" href={exportHref}>ส่งออก Excel</a>
-            <button className="inline-flex h-9 items-center rounded-md bg-blue-600 px-4 text-sm text-white hover:bg-blue-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={openCreateForm}>+ PO Sell ใหม่</button>
+            {data?.capabilities.create ? <button className="inline-flex h-9 items-center rounded-md bg-blue-600 px-4 text-sm text-white hover:bg-blue-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={openCreateForm}>+ PO Sell ใหม่</button> : null}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -913,7 +923,7 @@ export function PoSellPageClient() {
       </div>
 
       {/* Floating Action Button (FAB) for Mobile */}
-      <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 lg:hidden">
+      {data?.capabilities.create ? <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 lg:hidden">
         <button
           className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform"
           onClick={openCreateForm}
@@ -922,7 +932,7 @@ export function PoSellPageClient() {
         >
           <Plus className="h-6 w-6" />
         </button>
-      </div>
+      </div> : null}
 
       {selectedRow ? (
         <PoSellDetailModal

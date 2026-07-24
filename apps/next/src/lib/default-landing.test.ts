@@ -17,6 +17,13 @@ describe('default landing path', () => {
     })).toBe('/production/dashboard')
   })
 
+  it('uses the expense dashboard for an accountant role with page access', () => {
+    expect(defaultLandingPath({
+      permissions: ['reports.expense_dashboard.view'],
+      preferredPath: '/daily/expense-dashboard',
+    })).toBe('/daily/expense-dashboard')
+  })
+
   it('ignores a preferred landing path without permission', () => {
     expect(defaultLandingPath({
       permissions: ['daily.weight_tickets.view'],

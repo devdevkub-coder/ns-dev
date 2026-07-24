@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { XLSX } from '@/lib/server/xlsx'
+import { PO_SELL_PERMISSIONS, poSellPatchPermission } from '@/lib/po-permissions'
 import { poSellFormSchema, type PoSellFormValues } from '@/lib/sales'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission, type AppAuthContext } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, hasPermission, requirePermission, type AppAuthContext } from '@/lib/server/auth-context'
 import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
@@ -94,6 +95,7 @@ type PoSellResponseRow = {
   branchName: string
   canCancel: boolean
   canEdit: boolean
+  canShortClose: boolean
   cancelDisabledReason: string
   channelId: string | null
   channelName: string
@@ -694,7 +696,7 @@ async function optionsPayload(scope: { codes: string[] | null }) {
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, PO_SELL_PERMISSIONS.view)
 
     const url = new URL(request.url)
     const q = url.searchParams.get('q')?.trim().toLowerCase()
@@ -806,12 +808,18 @@ export async function GET(request: Request) {
       const currentMatchStatus = matchStatus(matched.qty, qty, currentDocumentStatus)
       const lockedByDownstream = lockedPoSellIds.has(po.id)
       const canWrite = currentDocumentStatus === 'open' && !lockedByDownstream
+      const canShortClose = (
+        (currentDocumentStatus === 'open' || currentDocumentStatus === 'partial')
+        && remainingQty > 0.001
+        && hasPermission(context, PO_SELL_PERMISSIONS.shortClose)
+      )
 
       return {
         branchId: po.branch_id ? branchById.get(po.branch_id)?.code ?? null : null,
         branchName: po.branch_id ? branchById.get(po.branch_id)?.name ?? '-' : '-',
-        canCancel: canWrite,
-        canEdit: canWrite,
+        canCancel: canWrite && hasPermission(context, PO_SELL_PERMISSIONS.cancel),
+        canEdit: canWrite && hasPermission(context, PO_SELL_PERMISSIONS.update),
+        canShortClose,
         cancelDisabledReason: canWrite ? '' : lockedByDownstream ? 'มีรายการนำไปเปิดบิล/จัดสรรต้นทุนแล้ว' : 'แก้ไขได้เฉพาะรายการที่เปิดอยู่',
         channelId: po.channel_id ? channelById.get(po.channel_id)?.code ?? null : null,
         channelName: po.channel_id ? channelById.get(po.channel_id)?.name ?? '-' : '-',
@@ -897,6 +905,9 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
+      capabilities: {
+        create: hasPermission(context, PO_SELL_PERMISSIONS.create),
+      },
       filters: {
         matchStatuses: MATCH_STATUS_OPTIONS,
         statuses: DOCUMENT_STATUS_OPTIONS,
@@ -926,7 +937,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, PO_SELL_PERMISSIONS.create)
 
     const values = poSellFormSchema.parse(await request.json())
     const actor = currentActor(context)
@@ -1064,9 +1075,9 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
-
-    const values = poSellPatchSchema.parse(await request.json())
+    const raw = await request.json()
+    requirePermission(context, poSellPatchPermission(raw?.action))
+    const values = poSellPatchSchema.parse(raw)
     const actor = currentActor(context)
     const updatedAt = new Date()
     const branchScope = await salesBranchScope(context)

@@ -17,7 +17,7 @@ function enclosingTableCell(source: string, marker: string) {
 }
 
 describe('PO Sell desktop table layout', () => {
-  it('reserves a non-collapsing action column for every valid row action', async () => {
+  it('keeps every permitted row action inside the non-collapsing action menu column', async () => {
     const source = await readFile(pageSourcePath, 'utf8')
     const actionCell = enclosingTableCell(source, '<TableActionButton menu={(')
 
@@ -26,6 +26,9 @@ describe('PO Sell desktop table layout', () => {
     expect(actionCell).toContain('className="whitespace-nowrap text-right"')
     expect(actionCell).toContain('<TableActionButton menu={(')
     expect(actionCell).toContain('<TableActionMenuItem')
+    expect(actionCell).toContain('row.canEdit')
+    expect(actionCell).toContain('row.canCancel')
+    expect(actionCell).toContain('canShortClosePoSell(row)')
     expect(actionCell).toContain('แก้ไข')
     expect(actionCell).toContain('พิมพ์')
     expect(actionCell).toContain('ปิดส่งไม่ครบ')
