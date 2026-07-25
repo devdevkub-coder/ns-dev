@@ -138,6 +138,11 @@ Ledger rows in one DB transaction:
 | source out | `PI` | `PRODUCTION_INPUT_OUT` | `qty_out`, `value_out` |
 | WIP in | `PI` | `WIP_IN` | `qty_in`, `value_in` |
 
+The paired `PRODUCTION_INPUT_OUT` and `WIP_IN` rows must carry the same
+`product_id`. The product issued from the source warehouse is the product
+received into WIP; `production_orders.product_id` is only the intended output
+product and must not replace the input product in the WIP ledger.
+
 System result:
 
 - create `production_inputs`
