@@ -572,6 +572,40 @@ export function ProductionOrdersPageClient() {
     }
   }
 
+  async function cancelOrderFromList(row: ProductionOrderRow) {
+    const reason = window.prompt('เหตุผลการยกเลิก')?.trim()
+    if (!reason) return
+    if (!window.confirm('ระบบจะย้อนผลผลิตกลับ WIP และคืน RM/FG กลับคลังต้นทางให้อัตโนมัติภายในรายการเดียว ต้องการยกเลิกใบสั่งผลิตนี้หรือไม่')) return
+    setError(null)
+    try {
+      await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}`, {
+        body: JSON.stringify({ action: 'cancel', reason }),
+        method: 'PATCH',
+      })
+      await loadData(page)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'ยกเลิกใบสั่งผลิตไม่ได้')
+    }
+  }
+
+  async function completeOrderFromList(row: ProductionOrderRow) {
+    const wipQty = Math.max(0, row.wipQty ?? 0)
+    const confirmCloseWithWip = wipQty > 0.000001
+      ? window.confirm(`ยังมี WIP คงเหลือ ${formatMoney(wipQty)} กก.\nหากยืนยันจบงาน ระบบจะคืน WIP ที่เหลือกลับคลังต้นทาง ต้องการดำเนินการต่อหรือไม่`)
+      : false
+    if (wipQty > 0.000001 && !confirmCloseWithWip) return
+    setError(null)
+    try {
+      await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}`, {
+        body: JSON.stringify({ action: 'complete', confirmCloseWithWip, note: '' }),
+        method: 'PATCH',
+      })
+      await loadData(page)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'จบงานผลิตไม่ได้')
+    }
+  }
+
   return (
       <section className="space-y-4">
       {error ? <Alert tone="red" title="โหลดข้อมูลใบสั่งผลิตไม่ได้" text={error} /> : null}
@@ -932,11 +966,27 @@ export function ProductionOrdersPageClient() {
                         <TableActionButton
                           label="เปิด"
                           menu={(
-                            <TableActionMenuItem onSelect={() => {
-                              void openOrder(row)
-                            }}>
-                              เปิด
-                            </TableActionMenuItem>
+                            <>
+                              <TableActionMenuItem onSelect={() => {
+                                void openOrder(row)
+                              }}>
+                                เปิด
+                              </TableActionMenuItem>
+                              {['Open', 'In Production', 'Partially Completed'].includes(row.status) ? (
+                                <TableActionMenuItem onSelect={() => {
+                                  void completeOrderFromList(row)
+                                }}>
+                                  จบงาน
+                                </TableActionMenuItem>
+                              ) : null}
+                              {canCancelProductionOrder(row) ? (
+                                <TableActionMenuItem onSelect={() => {
+                                  void cancelOrderFromList(row)
+                                }}>
+                                  ยกเลิกใบสั่งผลิต
+                                </TableActionMenuItem>
+                              ) : null}
+                            </>
                           )}
                         />
                       </td>
@@ -986,6 +1036,13 @@ export function ProductionOrdersPageClient() {
       {modalMode ? <ProductionOrderModal mode={modalMode} row={selectedRow} onClose={closeModal} onOpenCreated={openCreatedOrder} onRefreshRow={refreshSelectedOrder} /> : null}
     </section>
   )
+}
+
+function canCancelProductionOrder(row: ProductionOrderRow) {
+  if (row.status === 'Cancelled') return false
+  if (['Open', 'In Production', 'Partially Completed'].includes(row.status)) return true
+  if (row.status !== 'Completed' || !row.closedAt) return false
+  return (Date.now() - new Date(row.closedAt).getTime()) / (1000 * 60 * 60 * 24) <= 7
 }
 
 export function OrderCard({ onOpen, row }: { onOpen: () => void; row: ProductionOrderRow }) {
@@ -1678,6 +1735,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
     if (!row) return
     const reason = action === 'cancel' ? window.prompt('เหตุผลการยกเลิก')?.trim() : undefined
     if (action === 'cancel' && !reason) return
+    if (action === 'cancel' && !window.confirm('ระบบจะย้อนผลผลิตกลับ WIP และคืน RM/FG กลับคลังต้นทางให้อัตโนมัติภายในรายการเดียว ต้องการยกเลิกใบสั่งผลิตนี้หรือไม่')) return
     const confirmCloseWithWip = action === 'complete' && rowWipQty > 0.000001
       ? window.confirm(`ยังมี WIP คงเหลือ ${formatMoney(rowWipQty)} กก.\nหากยืนยันจบงาน ระบบจะคืน WIP ที่เหลือกลับคลังต้นทาง ต้องการดำเนินการต่อหรือไม่`)
       : false
@@ -1796,7 +1854,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                   {row.status !== 'Completed' && row.status !== 'Cancelled' ? (
                     <button className="h-11 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 disabled:opacity-50 sm:h-9" disabled={isSaving} type="button" onClick={() => void patchOrder('complete')}>จบงาน</button>
                   ) : null}
-                  {row.inputCount <= 0 && row.outputCount <= 0 && row.status !== 'Cancelled' ? (
+                  {canWrite && row.status !== 'Cancelled' ? (
                     <button className="h-11 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-medium text-white hover:border-rose-700 hover:bg-rose-700 disabled:opacity-50 sm:h-9" disabled={isSaving} type="button" onClick={() => void patchOrder('cancel')}>ยกเลิกใบสั่งผลิต</button>
                   ) : null}
                   <ModalDismissButton onClick={() => onClose(false)} />
