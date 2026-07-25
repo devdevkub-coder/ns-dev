@@ -6,6 +6,8 @@ import { authContextErrorResponse, getCurrentAuthContext, requirePermission } fr
 import { findActiveBranchReferencesByCodes } from '@/lib/server/branch-reference'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranches } from '@/lib/server/reference-master-cache'
+import { adminUserEmailSchema, contactPhoneErrorMessage, isValidContactPhone } from './admin-user-form-validation'
+import { AdminUserReferenceError, adminUserReferenceErrorResponse, findBranchReferenceForAccess } from './admin-users-route-helpers'
 
 export const runtime = 'nodejs'
 
@@ -14,11 +16,11 @@ const adminUserFormSchema = z.object({
   branchIds: z.array(z.string().min(1)).default([]),
   contactLineId: z.string().trim().max(120, 'LINE ID ยาวเกินไป').optional().default(''),
   contactNote: z.string().trim().max(500, 'หมายเหตุ contact ยาวเกินไป').optional().default(''),
-  contactPhone: z.string().trim().max(80, 'เบอร์ติดต่อยาวเกินไป').optional().default(''),
+  contactPhone: z.string().trim().max(80, 'เบอร์ติดต่อยาวเกินไป').refine(isValidContactPhone, contactPhoneErrorMessage).optional().default(''),
   departmentId: z.string().trim().regex(/^\d+$/, 'เลือกฝ่ายให้ถูกต้อง'),
-  email: z.string().trim().email('รูปแบบอีเมลไม่ถูกต้อง'),
-  firstName: z.string().trim().max(120, 'ชื่อจริงยาวเกินไป').optional().default(''),
-  lastName: z.string().trim().max(120, 'นามสกุลยาวเกินไป').optional().default(''),
+  email: adminUserEmailSchema,
+  firstName: z.string().trim().min(1, 'กรุณากรอกชื่อจริง').max(120, 'ชื่อจริงยาวเกินไป'),
+  lastName: z.string().trim().min(1, 'กรุณากรอกนามสกุล').max(120, 'นามสกุลยาวเกินไป'),
   mustChangePassword: z.boolean().default(false),
   namePrefix: z.enum(['', 'นาย', 'นาง', 'นางสาว', 'คุณ'], { message: 'คำนำหน้าชื่อไม่ถูกต้อง' }).optional().default(''),
   profileImageUrl: z.string().trim().max(500, 'URL รูป profile ยาวเกินไป').optional().default('')
@@ -69,7 +71,7 @@ function parseRoleIds(roleIds: string[]) {
   const parsed = roleIds.map((roleId) => parseInternalBigIntId(roleId))
 
   if (parsed.some((roleId) => roleId == null) || new Set(parsed.filter((roleId): roleId is bigint => roleId != null)).size !== parsed.length) {
-    throw new Error('Role ที่เลือกไม่ถูกต้อง')
+    throw new AdminUserReferenceError('Role ที่เลือกไม่ถูกต้อง')
   }
 
   return parsed as bigint[]
@@ -78,7 +80,7 @@ function parseRoleIds(roleIds: string[]) {
 function parseDepartmentId(value: string) {
   const parsed = parseInternalBigIntId(value)
   if (parsed == null) {
-    throw new Error('ฝ่ายไม่ถูกต้อง')
+    throw new AdminUserReferenceError('ฝ่ายไม่ถูกต้อง')
   }
   return parsed
 }
@@ -103,15 +105,15 @@ async function assertUserRefs(
   ])
 
   if (roles.length !== new Set(parsedRoleIds.map((roleId) => roleId.toString())).size) {
-    throw new Error('หน้าที่งานที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+    throw new AdminUserReferenceError('หน้าที่งานที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
   if (branchIds.length && branches.length !== new Set(branchIds).size) {
-    throw new Error('สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+    throw new AdminUserReferenceError('สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
   if (!department) {
-    throw new Error('ฝ่ายที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+    throw new AdminUserReferenceError('ฝ่ายที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
   return {
@@ -313,7 +315,7 @@ export async function POST(request: Request) {
       if (values.branchIds.length) {
         await tx.app_user_branch_access.createMany({
           data: values.branchIds.map((branchId) => ({
-            branch_id: branchRefs.find((branch) => branch.code === branchId.toUpperCase())!.id,
+            branch_id: findBranchReferenceForAccess(branchRefs, branchId).id,
             created_by: actor,
             user_id: created.id,
           })),
@@ -342,6 +344,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ id: user.id.toString() }, { status: 201 })
   } catch (caught) {
+    console.error('[admin/users] POST failed', {
+      name: caught instanceof Error ? caught.name : typeof caught,
+      message: caught instanceof Error ? caught.message : String(caught),
+    })
+    const referenceErrorResponse = adminUserReferenceErrorResponse(caught)
+    if (referenceErrorResponse) return referenceErrorResponse
     return authContextErrorResponse(caught)
   }
 }

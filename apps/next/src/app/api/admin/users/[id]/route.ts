@@ -5,6 +5,8 @@ import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { findActiveBranchReferencesByCodes } from '@/lib/server/branch-reference'
 import { prisma } from '@/lib/server/prisma'
+import { adminUserEmailSchema, contactPhoneErrorMessage, isValidContactPhone } from '../admin-user-form-validation'
+import { adminUserReferenceErrorResponse } from '../admin-users-route-helpers'
 
 export const runtime = 'nodejs'
 
@@ -17,11 +19,11 @@ const adminUserFormSchema = z.object({
   branchIds: z.array(z.string().min(1)).default([]),
   contactLineId: z.string().trim().max(120, 'LINE ID ยาวเกินไป').optional().default(''),
   contactNote: z.string().trim().max(500, 'หมายเหตุ contact ยาวเกินไป').optional().default(''),
-  contactPhone: z.string().trim().max(80, 'เบอร์ติดต่อยาวเกินไป').optional().default(''),
+  contactPhone: z.string().trim().max(80, 'เบอร์ติดต่อยาวเกินไป').refine(isValidContactPhone, contactPhoneErrorMessage).optional().default(''),
   departmentId: z.string().trim().regex(/^\d+$/, 'เลือกฝ่ายให้ถูกต้อง'),
-  email: z.string().trim().email('รูปแบบอีเมลไม่ถูกต้อง'),
-  firstName: z.string().trim().max(120, 'ชื่อจริงยาวเกินไป').optional().default(''),
-  lastName: z.string().trim().max(120, 'นามสกุลยาวเกินไป').optional().default(''),
+  email: adminUserEmailSchema,
+  firstName: z.string().trim().min(1, 'กรุณากรอกชื่อจริง').max(120, 'ชื่อจริงยาวเกินไป'),
+  lastName: z.string().trim().min(1, 'กรุณากรอกนามสกุล').max(120, 'นามสกุลยาวเกินไป'),
   mustChangePassword: z.boolean().default(false),
   namePrefix: z.enum(['', 'นาย', 'นาง', 'นางสาว', 'คุณ'], { message: 'คำนำหน้าชื่อไม่ถูกต้อง' }).optional().default(''),
   profileImageUrl: z.string().trim().max(500, 'URL รูป profile ยาวเกินไป').optional().default('')
@@ -191,6 +193,8 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
 
     return NextResponse.json({ id: id.toString() })
   } catch (caught) {
+    const validationErrorResponse = adminUserReferenceErrorResponse(caught)
+    if (validationErrorResponse) return validationErrorResponse
     return authContextErrorResponse(caught)
   }
 }

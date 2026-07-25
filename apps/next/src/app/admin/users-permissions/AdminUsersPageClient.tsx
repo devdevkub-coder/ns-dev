@@ -1,12 +1,13 @@
 'use client'
 
 import Image from 'next/image'
-import { Copy, KeyRound, Mail, Pencil, Send } from 'lucide-react'
+import { Camera, Copy, KeyRound, Mail, Pencil, Send, Trash2, Upload, UserRound } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { PhoneInput } from '@/components/ui/PhoneInput'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { Select } from '@/components/ui/Select'
@@ -17,6 +18,7 @@ import { useResizableColumns, type ResizableColumnDefinition } from '@/component
 import { getErrorMessage, readJsonResponse } from '@/lib/api-client'
 import { sidebarPermissionSections } from '@/lib/navigation'
 import { z } from 'zod'
+import { contactPhoneErrorMessage, emailErrorMessage, isValidAdminUserEmail, isValidContactPhone, sanitizeAdminUserEmail } from '@/app/api/admin/users/admin-user-form-validation'
 
 type AdminUsersPayload = {
   branches: Array<{
@@ -299,9 +301,31 @@ function statusText(accountStatus: AdminUser['accountStatus']) {
   return 'ปิดใช้งาน'
 }
 
+type DuplicateUserCandidate = Pick<AdminUser, 'accountStatus' | 'displayName' | 'email'>
+
+export function findExistingUserByEmail(users: DuplicateUserCandidate[], email: string) {
+  const normalizedEmail = email.trim().toLowerCase()
+  if (!normalizedEmail) return null
+  return users.find((user) => user.email?.trim().toLowerCase() === normalizedEmail) ?? null
+}
+
+export function duplicateUserMessage(user: DuplicateUserCandidate) {
+  const label = user.displayName?.trim() || user.email?.trim() || 'ผู้ใช้นี้'
+  return `อีเมลนี้มีอยู่แล้วในรายการ ${label} (สถานะ: ${statusText(user.accountStatus)}) ระบบปรับตัวกรองไปที่รายการเดิมแล้ว`
+}
+
 function formatDate(value: string | null) {
   if (!value) return '-'
   return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+}
+
+function formatDateParts(value: string | null) {
+  if (!value) return { date: '-', time: '' }
+  const parsed = new Date(value)
+  return {
+    date: new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(parsed),
+    time: new Intl.DateTimeFormat('th-TH', { timeStyle: 'short' }).format(parsed),
+  }
 }
 
 function branchScopeText(value: string) {
@@ -331,7 +355,7 @@ function compareSortValue(left: number | string, right: number | string) {
 
 function getUserSortValue(user: AdminUser, key: UserColumnKey) {
   if (key === 'name') return fullName(user)
-  if (key === 'contact') return [user.contactPhone, user.contactLineId, user.contactNote].filter(Boolean).join(' ')
+  if (key === 'contact') return user.contactPhone ?? ''
   if (key === 'email') return user.email ?? ''
   if (key === 'department') return user.department?.name ?? ''
   if (key === 'roles') return user.roles.map((role) => role.name).join(' ')
@@ -374,9 +398,12 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const [isSavingMatrix, setIsSavingMatrix] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null)
+  const [detailUser, setDetailUser] = useState<AdminUser | null>(null)
   const [form, setForm] = useState<UserFormState>(emptyUserForm)
   const [formError, setFormError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null)
+  const [profileImagePreviewUrl, setProfileImagePreviewUrl] = useState<string | null>(null)
   const [isSavingRole, setIsSavingRole] = useState(false)
   const [roleForm, setRoleForm] = useState<RoleFormState>(emptyRoleForm)
   const [roleFormError, setRoleFormError] = useState<string | null>(null)
@@ -390,6 +417,12 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const [userSortKey, setUserSortKey] = useState<UserColumnKey | null>(null)
   const roleColumnResize = useResizableColumns('admin.users-permissions.roles.v1', roleColumns)
   const userColumnResize = useResizableColumns('admin.users-permissions.users.v5', userColumns)
+
+  useEffect(() => {
+    return () => {
+      if (profileImagePreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(profileImagePreviewUrl)
+    }
+  }, [profileImagePreviewUrl])
 
   async function loadData() {
     setIsLoading(true)
@@ -736,6 +769,8 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   function openAddUser() {
     setEditingUser(null)
     setForm(emptyUserForm)
+    setProfileImageFile(null)
+    setProfileImagePreviewUrl(null)
     setFormError(null)
     setFormOpen(true)
   }
@@ -758,8 +793,20 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       profileImageUrl: user.profileImageUrl ?? '',
       roleIds: user.roles.map((role) => role.id),
     })
+    setProfileImageFile(null)
+    setProfileImagePreviewUrl(user.profileImageUrl ?? null)
     setFormError(null)
     setFormOpen(true)
+  }
+
+  function openUserDetails(user: AdminUser) {
+    setDetailUser(user)
+  }
+
+  function handleUserRowClick(event: React.MouseEvent, user: AdminUser) {
+    const target = event.target as HTMLElement
+    if (target.closest('button, a, input, [role="button"], [role="switch"], [role="menuitem"]')) return
+    openUserDetails(user)
   }
 
   function toggleFormArray(key: 'branchIds', value: string) {
@@ -776,32 +823,75 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     setFormError(null)
 
     if (!form.email.trim() || !form.departmentId) {
-      setFormError('กรอก Email และเลือกฝ่าย')
+      setFormError('กรอกอีเมลและเลือกฝ่าย')
       return
     }
 
-    if (!form.email.includes('@')) {
-      setFormError('รูปแบบอีเมลไม่ถูกต้อง')
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      setFormError('กรุณากรอกชื่อจริงและนามสกุล')
       return
+    }
+
+    if (!isValidAdminUserEmail(form.email)) {
+      setFormError(emailErrorMessage)
+      return
+    }
+
+    if (!isValidContactPhone(form.contactPhone)) {
+      setFormError(contactPhoneErrorMessage)
+      return
+    }
+
+    if (!editingUser) {
+      const existingUser = findExistingUserByEmail(data?.users ?? [], form.email)
+
+      if (existingUser) {
+        setSearch(existingUser.email?.trim() || form.email.trim())
+        setStatusFilter(existingUser.accountStatus)
+        setFormOpen(false)
+        setEditingUser(null)
+        setFormError(null)
+        setError(duplicateUserMessage(existingUser))
+        return
+      }
     }
 
     setIsSaving(true)
 
+    let uploadedProfileImageUrl: string | null = null
     try {
+      let profileImageUrl = form.profileImageUrl
+      if (profileImageFile) {
+        const imageFormData = new FormData()
+        imageFormData.set('file', profileImageFile)
+        const uploadResponse = await fetch('/api/admin/users/profile-image', { method: 'POST', body: imageFormData })
+        const uploadedImage = await readJsonResponse(uploadResponse, z.object({ storageKey: z.string(), url: z.string().url() }), 'อัปโหลดรูป profile ไม่สำเร็จ')
+        profileImageUrl = uploadedImage.url
+        uploadedProfileImageUrl = uploadedImage.url
+      }
       const response = await fetch(editingUser ? `/api/admin/users/${encodeURIComponent(editingUser.id)}` : '/api/admin/users', {
         method: editingUser ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, profileImageUrl }),
       })
       const savedUser = await readJsonResponse(response, saveUserResultSchema, 'บันทึกผู้ใช้ไม่ได้')
 
       setFormOpen(false)
       setEditingUser(null)
       setForm(emptyUserForm)
+      setProfileImageFile(null)
+      setProfileImagePreviewUrl(null)
+      if (editingUser && editingUser.profileImageUrl && editingUser.profileImageUrl !== profileImageUrl) {
+        void fetch('/api/admin/users/profile-image', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: editingUser.profileImageUrl }),
+        }).catch(() => undefined)
+      }
       let inviteErrorMessage: string | null = null
 
       if (!editingUser) {
-        setStatusFilter('pending')
+        setStatusFilter('all')
         try {
           const inviteResponse = await fetch(`/api/admin/users/${encodeURIComponent(savedUser.id)}/invite`, {
             method: 'POST',
@@ -818,6 +908,13 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       await loadData()
       if (inviteErrorMessage) setError(inviteErrorMessage)
     } catch (caught) {
+      if (uploadedProfileImageUrl) {
+        void fetch('/api/admin/users/profile-image', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: uploadedProfileImageUrl }),
+        }).catch(() => undefined)
+      }
       setFormError(getErrorMessage(caught, 'บันทึกผู้ใช้ไม่ได้'))
     } finally {
       setIsSaving(false)
@@ -996,7 +1093,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
           <input
             className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
             onChange={(event) => setSearch(event.target.value)}
-            placeholder={isUsersPage ? 'ค้นหาชื่อ Email ฝ่าย หน้าที่งาน สาขา...' : 'ค้นหาหน้าที่งาน...'}
+            placeholder={isUsersPage ? 'ค้นหาชื่อ อีเมล ฝ่าย หน้าที่งาน สาขา...' : 'ค้นหาหน้าที่งาน...'}
             type="search"
             value={search}
           />
@@ -1274,10 +1371,50 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         </Dialog>
       ) : null}
 
+      {detailUser ? (
+        <Dialog open onOpenChange={(open) => { if (!open) setDetailUser(null) }}>
+          <DialogContent aria-labelledby="admin-user-detail-title" className="max-w-2xl overflow-hidden rounded-md border-0 bg-slate-900 !p-0" hideClose>
+            <div data-ns-dialog-header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 px-5 py-4 text-white dark:border-slate-700 dark:bg-slate-950">
+              <div className="min-w-0">
+                <DialogTitle id="admin-user-detail-title" className="text-lg font-bold text-white">รายละเอียดผู้ใช้</DialogTitle>
+                <DialogDescription className="mt-0.5 text-xs text-slate-300">ข้อมูลบัญชีและข้อมูลติดต่อ</DialogDescription>
+              </div>
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${detailUser.accountStatus === 'active' ? 'bg-emerald-100 text-emerald-800' : detailUser.accountStatus === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'}`}>
+                {statusText(detailUser.accountStatus)}
+              </span>
+            </div>
+            <div className="max-h-[75vh] space-y-4 overflow-y-auto bg-slate-50 p-5 dark:bg-slate-900">
+              <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+                {detailUser.profileImageUrl ? (
+                  <Image alt="รูป profile" className="h-20 w-20 shrink-0 rounded-full object-cover ring-2 ring-slate-200 dark:ring-slate-600" height={80} src={detailUser.profileImageUrl} unoptimized width={80} />
+                ) : (
+                  <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-slate-100 text-lg font-bold text-slate-600 ring-2 ring-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:ring-slate-600">{userInitials(detailUser)}</span>
+                )}
+                <div className="min-w-0">
+                  <div className="truncate text-lg font-bold text-slate-900 dark:text-slate-50">{fullName(detailUser)}</div>
+                  <div className="mt-1 break-all text-sm text-slate-500 dark:text-slate-400">{detailUser.email || '-'}</div>
+                  <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{detailUser.department?.name || '-'} · {detailUser.roles.map((role) => role.name).join(', ') || '-'}</div>
+                </div>
+              </div>
+              <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm dark:border-slate-700 dark:bg-slate-800 sm:grid-cols-2">
+                <div><div className="text-xs text-slate-500 dark:text-slate-400">อีเมล</div><div className="mt-1 break-all font-medium text-slate-800 dark:text-slate-100">{detailUser.email || '-'}</div></div>
+                <div><div className="text-xs text-slate-500 dark:text-slate-400">เบอร์ติดต่อ</div><div className="mt-1 font-medium text-slate-800 dark:text-slate-100">{detailUser.contactPhone || '-'}</div></div>
+                <div><div className="text-xs text-slate-500 dark:text-slate-400">LINE ID</div><div className="mt-1 font-medium text-slate-800 dark:text-slate-100">{detailUser.contactLineId || '-'}</div></div>
+                <div><div className="text-xs text-slate-500 dark:text-slate-400">สาขาที่เข้าถึง</div><div className="mt-1 font-medium text-slate-800 dark:text-slate-100">{detailUser.branches.length ? detailUser.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</div></div>
+                <div className="sm:col-span-2"><div className="text-xs text-slate-500 dark:text-slate-400">หมายเหตุการติดต่อ</div><div className="mt-1 whitespace-pre-wrap font-medium text-slate-800 dark:text-slate-100">{detailUser.contactNote || '-'}</div></div>
+              </div>
+              <div className="flex justify-end">
+                <button className="h-9 rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" type="button" onClick={() => setDetailUser(null)}>ปิด</button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
       {formOpen ? (
         <Dialog open={formOpen} onOpenChange={setFormOpen}>
-          <DialogContent className="max-w-2xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" hideClose>
-            <form className="flex flex-col h-full overflow-hidden" onSubmit={saveUser}>
+          <DialogContent className="max-w-4xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" hideClose>
+            <form className="flex flex-col h-full overflow-hidden" data-ns-field-scope="entry" onSubmit={saveUser}>
               <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 px-5 py-4 text-white shrink-0 dark:border-slate-700 dark:bg-slate-950">
                 <DialogTitle className="text-lg font-bold text-white">{editingUser ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้'}</DialogTitle>
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
@@ -1290,22 +1427,62 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
 
               <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4 dark:bg-slate-900 dark:text-slate-100">
                 <div className="grid gap-4 text-sm md:grid-cols-2">
-                  <label className="text-sm font-medium text-slate-700">
-                    Email *
-                    <input aria-invalid={Boolean(formError && (!form.email.trim() || !form.email.includes('@')))} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" required type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} />
-                  </label>
-                  <div className="md:col-span-2">
-                    <SearchCombobox
-                      inputId="admin-user-form-department"
-                      label="ฝ่าย *"
-                      options={departmentOptions}
-                      placeholder="เลือกฝ่าย"
-                      value={form.departmentId}
-                      onChange={(departmentId) => setForm((current) => ({ ...current, departmentId }))}
-                    />
-                  </div>
-                  <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
-                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูล Profile</div>
+                  <div className="md:col-span-2 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+                    <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-700">
+                      <div>
+                        <div className="text-base font-bold text-slate-900 dark:text-slate-50">ข้อมูลส่วนตัว</div>
+                        <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">ข้อมูลตัวตนและบัญชีผู้ใช้งาน</div>
+                      </div>
+                      <UserRound aria-hidden="true" className="h-5 w-5 text-slate-500" />
+                    </div>
+                    <div className="mb-5 flex flex-col items-center gap-3 border-b border-slate-200 px-4 pb-5 sm:flex-row sm:items-center dark:border-slate-700">
+                      <div className="relative shrink-0">
+                        {profileImagePreviewUrl ? (
+                          <Image alt="รูป profile" className="h-24 w-24 rounded-full object-cover ring-4 ring-white dark:ring-slate-700" height={96} src={profileImagePreviewUrl} unoptimized width={96} />
+                        ) : (
+                          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-slate-200 text-slate-500 ring-4 ring-white dark:bg-slate-700 dark:text-slate-300 dark:ring-slate-700">
+                            <UserRound aria-hidden="true" className="h-10 w-10" />
+                          </div>
+                        )}
+                        <label className="absolute bottom-0 right-0 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-slate-900 text-white shadow-sm hover:bg-slate-700 dark:border-slate-800" title="อัปโหลดรูป profile">
+                          <Camera aria-hidden="true" className="h-4 w-4" />
+                          <input accept="image/jpeg,image/png,image/webp" className="sr-only" type="file" onChange={(event) => {
+                            const file = event.target.files?.[0] ?? null
+                            if (!file) return
+                            if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024) {
+                              setFormError('รูป profile ต้องเป็น JPEG, PNG หรือ WebP และมีขนาดไม่เกิน 10 MB')
+                              event.target.value = ''
+                              return
+                            }
+                            setProfileImageFile(file)
+                            setProfileImagePreviewUrl(URL.createObjectURL(file))
+                            setFormError(null)
+                          }} />
+                        </label>
+                      </div>
+                      <div className="min-w-0 text-center sm:text-left">
+                        <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">รูปประจำตัว</div>
+                        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">JPEG, PNG หรือ WebP ไม่เกิน 10 MB</div>
+                        <div className="mt-3 flex justify-center gap-2 sm:justify-start">
+                          <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+                            <Upload aria-hidden="true" className="h-3.5 w-3.5" /> อัปโหลดรูป
+                            <input accept="image/jpeg,image/png,image/webp" className="sr-only" type="file" onChange={(event) => {
+                              const file = event.target.files?.[0] ?? null
+                              if (!file) return
+                              if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024) {
+                                setFormError('รูป profile ต้องเป็น JPEG, PNG หรือ WebP และมีขนาดไม่เกิน 10 MB')
+                                event.target.value = ''
+                                return
+                              }
+                              setProfileImageFile(file)
+                              setProfileImagePreviewUrl(URL.createObjectURL(file))
+                              setFormError(null)
+                            }} />
+                          </label>
+                          {profileImagePreviewUrl ? <button aria-label="ลบรูป profile" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:bg-slate-800 dark:text-rose-300" title="ลบรูป profile" type="button" onClick={() => { setProfileImageFile(null); setProfileImagePreviewUrl(null); setForm((current) => ({ ...current, profileImageUrl: '' })) }}><Trash2 aria-hidden="true" className="h-3.5 w-3.5" /></button> : null}
+                        </div>
+                      </div>
+                    </div>
                     <div className="grid gap-3 md:grid-cols-[120px_1fr_1fr]">
                       <label className="text-sm font-medium text-slate-700">
                         คำนำหน้า
@@ -1318,39 +1495,59 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                         </Select>
                       </label>
                       <label className="text-sm font-medium text-slate-700">
-                        ชื่อจริง
-                        <input className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" value={form.firstName} onChange={(event) => setForm((current) => ({ ...current, firstName: event.target.value }))} />
+                        ชื่อจริง <span aria-hidden="true" className="ml-1 text-red-600">*</span>
+                        <input aria-invalid={Boolean(formError && !form.firstName.trim())} aria-required="true" className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" required value={form.firstName} onChange={(event) => setForm((current) => ({ ...current, firstName: event.target.value }))} />
                       </label>
                       <label className="text-sm font-medium text-slate-700">
-                        นามสกุล
-                        <input className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" value={form.lastName} onChange={(event) => setForm((current) => ({ ...current, lastName: event.target.value }))} />
+                        นามสกุล <span aria-hidden="true" className="ml-1 text-red-600">*</span>
+                        <input aria-invalid={Boolean(formError && !form.lastName.trim())} aria-required="true" className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" required value={form.lastName} onChange={(event) => setForm((current) => ({ ...current, lastName: event.target.value }))} />
                       </label>
                     </div>
-                    <label className="mt-3 block text-sm font-medium text-slate-700">
-                      URL รูป Profile
-                      <input className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" placeholder="https://..." value={form.profileImageUrl} onChange={(event) => setForm((current) => ({ ...current, profileImageUrl: event.target.value }))} />
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <label className="text-sm font-medium text-slate-700">
+                        อีเมล <span aria-hidden="true" className="ml-1 text-red-600">*</span>
+                        <input aria-invalid={Boolean(formError && !isValidAdminUserEmail(form.email))} aria-required="true" autoComplete="email" className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" inputMode="email" maxLength={254} required type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: sanitizeAdminUserEmail(event.target.value) }))} />
+                      </label>
+                      <SearchCombobox
+                        inputId="admin-user-form-department"
+                        label="ฝ่าย *"
+                        options={departmentOptions}
+                        placeholder="เลือกฝ่าย"
+                        value={form.departmentId}
+                        onChange={(departmentId) => setForm((current) => ({ ...current, departmentId }))}
+                      />
+                    </div>
+                    <label className="mt-4 flex cursor-pointer items-center gap-2 border-t border-slate-200 pt-3 text-sm font-medium text-slate-700 select-none dark:border-slate-700 dark:text-slate-200">
+                      <input checked={form.mustChangePassword} type="checkbox" className="rounded border-slate-300 text-slate-800 focus:ring-blue-500" onChange={(event) => setForm((current) => ({ ...current, mustChangePassword: event.target.checked }))} />
+                      บังคับเปลี่ยน password หลังเข้าสู่ระบบ
                     </label>
                   </div>
                   <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
-                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">Contact</div>
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลติดต่อ</div>
                     <div className="grid gap-3 md:grid-cols-2">
                       <label className="text-sm font-medium text-slate-700">
                         เบอร์ติดต่อ
-                        <input className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" value={form.contactPhone} onChange={(event) => setForm((current) => ({ ...current, contactPhone: event.target.value }))} />
+                        <PhoneInput
+                          className="mt-1"
+                          error={Boolean(formError && !isValidContactPhone(form.contactPhone))}
+                          maxLength={24}
+                          value={form.contactPhone}
+                          onChange={(value) => setForm((current) => ({ ...current, contactPhone: value }))}
+                        />
                       </label>
                       <label className="text-sm font-medium text-slate-700">
                         LINE ID
-                        <input className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" value={form.contactLineId} onChange={(event) => setForm((current) => ({ ...current, contactLineId: event.target.value }))} />
+                        <input className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" value={form.contactLineId} onChange={(event) => setForm((current) => ({ ...current, contactLineId: event.target.value }))} />
                       </label>
                     </div>
                     <label className="mt-3 block text-sm font-medium text-slate-700">
-                      หมายเหตุ Contact
+                      หมายเหตุการติดต่อ
                       <textarea className="mt-1 min-h-20 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" value={form.contactNote} onChange={(event) => setForm((current) => ({ ...current, contactNote: event.target.value }))} />
                     </label>
                   </div>
 
                   <div className="rounded-xl border border-slate-100 bg-white p-4">
-                    <div className="mb-2 text-sm font-medium text-slate-700">หน้าที่งาน *</div>
+                    <div className="mb-2 text-sm font-medium text-slate-700">หน้าที่งาน <span aria-hidden="true" className="ml-1 text-red-600">*</span></div>
                     <div className="space-y-2">
                       {employeeRoles.map((role) => (
                         <label key={role.id} className="flex items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
@@ -1425,11 +1622,6 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                       {data?.branches.length === 0 ? <span className="text-sm text-slate-500">ยังไม่มีสาขาที่เปิดใช้งาน</span> : null}
                     </div>
                   </div>
-
-                  <label className="md:col-span-2 flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none mt-2">
-                    <input checked={form.mustChangePassword} type="checkbox" className="rounded border-slate-300 text-slate-800 focus:ring-blue-500" onChange={(event) => setForm((current) => ({ ...current, mustChangePassword: event.target.checked }))} />
-                    บังคับเปลี่ยน password หลังเข้าสู่ระบบ
-                  </label>
 
                   {formError ? <p className="md:col-span-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</p> : null}
                 </div>
@@ -1559,22 +1751,33 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                 </colgroup>
                 <thead className="bg-slate-100">
                   <tr>
-                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} direction={userSortDirection} label="ชื่อ" resizeProps={userColumnResize.getResizeHandleProps('name', 'ชื่อ')} sortKey="name" onSort={handleUserSort} />
-                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} direction={userSortDirection} label="Contact" resizeProps={userColumnResize.getResizeHandleProps('contact', 'Contact')} sortKey="contact" onSort={handleUserSort} />
-                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} direction={userSortDirection} label="Email" resizeProps={userColumnResize.getResizeHandleProps('email', 'Email')} sortKey="email" onSort={handleUserSort} />
-                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} direction={userSortDirection} label="ฝ่าย" resizeProps={userColumnResize.getResizeHandleProps('department', 'ฝ่าย')} sortKey="department" onSort={handleUserSort} />
-                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} direction={userSortDirection} label="หน้าที่งาน" resizeProps={userColumnResize.getResizeHandleProps('roles', 'หน้าที่งาน')} sortKey="roles" onSort={handleUserSort} />
-                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} direction={userSortDirection} label="สาขา" resizeProps={userColumnResize.getResizeHandleProps('branches', 'สาขา')} sortKey="branches" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="ชื่อ" resizeProps={userColumnResize.getResizeHandleProps('name', 'ชื่อ')} sortKey="name" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="ข้อมูลติดต่อ" resizeProps={userColumnResize.getResizeHandleProps('contact', 'ข้อมูลติดต่อ')} sortKey="contact" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="อีเมล" resizeProps={userColumnResize.getResizeHandleProps('email', 'อีเมล')} sortKey="email" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="ฝ่าย" resizeProps={userColumnResize.getResizeHandleProps('department', 'ฝ่าย')} sortKey="department" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="หน้าที่งาน" resizeProps={userColumnResize.getResizeHandleProps('roles', 'หน้าที่งาน')} sortKey="roles" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="สาขา" resizeProps={userColumnResize.getResizeHandleProps('branches', 'สาขา')} sortKey="branches" onSort={handleUserSort} />
                     <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="สถานะ" resizeProps={userColumnResize.getResizeHandleProps('active', 'สถานะ')} sortKey="active" onSort={handleUserSort} />
-                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} direction={userSortDirection} label="Login ล่าสุด" resizeProps={userColumnResize.getResizeHandleProps('lastLoginAt', 'Login ล่าสุด')} sortKey="lastLoginAt" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="เข้าสู่ระบบล่าสุด" resizeProps={userColumnResize.getResizeHandleProps('lastLoginAt', 'เข้าสู่ระบบล่าสุด')} sortKey="lastLoginAt" onSort={handleUserSort} />
                     <ResizableTableHead align="center" label="จัดการ" resizeProps={userColumnResize.getResizeHandleProps('action', 'จัดการ')} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {sortedUsers.map((user) => (
-                    <tr key={user.id} className="hover:bg-slate-50">
-                      <td className="p-3">
-                        <div className="flex items-center gap-2">
+                    <tr
+                      key={user.id}
+                      className="cursor-pointer hover:bg-slate-50"
+                      tabIndex={0}
+                      onClick={(event) => handleUserRowClick(event, user)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          openUserDetails(user)
+                        }
+                      }}
+                    >
+                      <td className="p-3 text-center">
+                        <div className="flex items-center justify-center gap-2">
                           {user.profileImageUrl ? (
                             <Image alt="" className="h-9 w-9 rounded-full object-cover ring-1 ring-slate-200" height={36} src={user.profileImageUrl} unoptimized width={36} />
                           ) : (
@@ -1585,18 +1788,20 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                           </div>
                         </div>
                       </td>
-                      <td className="p-3 text-slate-600">
-                        <div>{user.contactPhone || '-'}</div>
-                        {user.contactLineId ? <div className="text-xs text-slate-500">LINE: {user.contactLineId}</div> : null}
+                      <td className="p-3 text-center text-slate-600">
+                        {user.contactPhone || '-'}
                       </td>
-                      <td className="p-3 text-slate-600">{user.email || '-'}</td>
-                      <td className="p-3 text-slate-700">{user.department?.name || '-'}</td>
-                      <td className="p-3 text-slate-700">{user.roles.map((role) => role.name).join(', ') || '-'}</td>
-                      <td className="p-3 text-slate-700">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</td>
+                      <td className="p-3 text-center text-slate-600">{user.email || '-'}</td>
+                      <td className="p-3 text-center text-slate-700">{user.department?.name || '-'}</td>
+                      <td className="p-3 text-center text-slate-700">{user.roles.map((role) => role.name).join(', ') || '-'}</td>
+                      <td className="p-3 text-center text-slate-700">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</td>
                       <td className="p-3 text-center">
                         <ActiveToggle checked={user.accountStatus === 'active'} disabled={savingUserId === user.id} label={statusText(user.accountStatus)} onChange={(checked) => void updateUserStatus(user.id, checked)} />
                       </td>
-                      <td className="p-3 text-slate-600">{formatDate(user.lastLoginAt)}</td>
+                      <td className="p-3 text-center text-slate-600">
+                        <div>{formatDateParts(user.lastLoginAt).date}</div>
+                        {formatDateParts(user.lastLoginAt).time ? <div className="text-xs text-slate-400">{formatDateParts(user.lastLoginAt).time}</div> : null}
+                      </td>
                       <td className="p-3 text-center">
                         {renderUserActions(user)}
                       </td>
@@ -1614,7 +1819,18 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
             {/* Mobile View: Dense Card List (Hidden on Desktop) */}
             <div className="lg:hidden divide-y divide-slate-100">
               {sortedUsers.map((user) => (
-                <div key={user.id} className="p-4 bg-white space-y-3 animate-fade-in">
+                <div
+                  key={user.id}
+                  className="cursor-pointer space-y-3 bg-white p-4 animate-fade-in"
+                  tabIndex={0}
+                  onClick={(event) => handleUserRowClick(event, user)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      openUserDetails(user)
+                    }
+                  }}
+                >
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="font-bold text-slate-900 text-sm leading-snug">{fullName(user)}</div>
@@ -1626,12 +1842,12 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
 
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="col-span-2">
-                      <span className="text-slate-400 block text-xs uppercase font-semibold">Email</span>
+                      <span className="text-slate-400 block text-xs font-semibold">อีเมล</span>
                       <span className="text-slate-700 break-all">{user.email || '-'}</span>
                     </div>
                     <div className="col-span-2">
-                      <span className="text-slate-400 block text-xs uppercase font-semibold">Contact</span>
-                      <span className="text-slate-700">{[user.contactPhone, user.contactLineId ? `LINE: ${user.contactLineId}` : null].filter(Boolean).join(' · ') || '-'}</span>
+                      <span className="text-slate-400 block text-xs font-semibold">ข้อมูลติดต่อ</span>
+                      <span className="text-slate-700">{user.contactPhone || '-'}</span>
                     </div>
                     <div>
                       <span className="text-slate-400 block text-xs uppercase font-semibold">ฝ่าย</span>
