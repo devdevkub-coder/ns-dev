@@ -535,6 +535,22 @@ export function ProductionOrdersPageClient() {
     }
   }
 
+  async function openCreatedOrder(docNo: string) {
+    setError(null)
+    try {
+      const payload = await dailyFetchJson<ProductionOrdersPayload>(`/api/production/orders?docNo=${encodeURIComponent(docNo)}&include=detail&pageSize=1`)
+      const detail = payload.rows.find((candidate) => candidate.docNo === docNo)
+      if (!detail) throw new Error(`โหลดรายละเอียดใบสั่งผลิต ${docNo} ไม่สำเร็จ`)
+      setSelectedRow(detail)
+      setModalMode('detail')
+      setPage(1)
+      await loadData(1)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'โหลดรายละเอียดใบสั่งผลิตที่สร้างใหม่ไม่ได้')
+      closeModal(true)
+    }
+  }
+
   async function refreshSelectedOrder(docNo: string) {
     const params = new URLSearchParams({ docNo, include: 'detail', pageSize: '10' })
     const payload = await dailyFetchJson<ProductionOrdersPayload>(`/api/production/orders?${params.toString()}`)
@@ -967,7 +983,7 @@ export function ProductionOrdersPageClient() {
         </button>
       </div>
 
-      {modalMode ? <ProductionOrderModal mode={modalMode} row={selectedRow} onClose={closeModal} onRefreshRow={refreshSelectedOrder} /> : null}
+      {modalMode ? <ProductionOrderModal mode={modalMode} row={selectedRow} onClose={closeModal} onOpenCreated={openCreatedOrder} onRefreshRow={refreshSelectedOrder} /> : null}
     </section>
   )
 }
@@ -1074,7 +1090,7 @@ function CountdownTimer({ closedAt }: { closedAt: string | null }) {
 }
 
 
-function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'create' | 'detail'; onClose: (refresh?: boolean) => void; onRefreshRow: (docNo: string) => Promise<ProductionOrderRow | null>; row: ProductionOrderRow | null }) {
+function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row }: { mode: 'create' | 'detail'; onClose: (refresh?: boolean) => void; onOpenCreated: (docNo: string) => Promise<void>; onRefreshRow: (docNo: string) => Promise<ProductionOrderRow | null>; row: ProductionOrderRow | null }) {
   const isCreate = mode === 'create'
   const [options, setOptions] = useState<ProductionOrderOptions>(emptyOptions)
   const [tab, setTab] = useState<'header' | 'input' | 'output' | 'history'>('header')
@@ -1326,7 +1342,7 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
   async function submitCreate() {
     if (!validateCreateForm()) return
     await runAction(async () => {
-      await dailyFetchJson('/api/production/orders', {
+      const created = await dailyFetchJson<{ docNo: string }>('/api/production/orders', {
         body: JSON.stringify({
           branchCode: createForm.branchCode,
           destinationWarehouseCode: createForm.destinationWarehouseCode,
@@ -1338,7 +1354,7 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
         }),
         method: 'POST',
       })
-      onClose(true)
+      await onOpenCreated(created.docNo)
     })
   }
 

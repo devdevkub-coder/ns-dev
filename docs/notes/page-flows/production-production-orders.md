@@ -272,7 +272,7 @@ This implementation batch completes `PO-REV-01`, `PO-REV-02`, `PO-REV-03`, `PO-R
 - The list API keeps branch database identifiers as internal `bigint` values only. The JSON filter contract exposes `code`, `id` (the branch code as a string), and `name`, because the UI filters by `branchCode` and JSON cannot serialize `bigint`.
 - This keeps the API boundary aligned with the business key used by list and Excel queries, while preventing the branch option payload from turning a successful production-order query into a 500 response.
 
-หลังสร้างใบสั่งผลิตสำเร็จ ระบบปิด modal และโหลดรายการหน้า 1 ใหม่ทันที พร้อม reset pagination เป็นหน้า 1 เพื่อให้เอกสารล่าสุดแสดงในตาราง แม้ผู้ใช้จะเปิด modal จากหน้าอื่นอยู่ก็ตาม การ refresh นี้เป็น client-side API request ไม่ต้อง restart tmux หรือ dev server; restart จะจำเป็นเฉพาะกรณีเปลี่ยนโค้ดฝั่ง server แล้วใช้ process แบบ production ที่ไม่ได้ทำ hot reload.
+หลังสร้างใบสั่งผลิตสำเร็จ ระบบใช้ `docNo` จาก response โหลดรายละเอียดและเปิด popup ใบสั่งผลิตที่สร้างใหม่ทันที เพื่อให้ผู้ใช้ทำงานต่อได้โดยไม่ต้องกลับไปคลิกหาเอกสารในตารางเอง พร้อม refresh รายการหน้า 1 และ reset pagination เป็นหน้า 1 เพื่อให้เอกสารล่าสุดแสดงในตาราง การ refresh นี้เป็น client-side API request ไม่ต้อง restart tmux หรือ dev server; restart จะจำเป็นเฉพาะกรณีเปลี่ยนโค้ดฝั่ง server แล้วใช้ process แบบ production ที่ไม่ได้ทำ hot reload.
 
 ## Production Output Posting And Void Task List 2026-07-24
 
