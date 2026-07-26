@@ -39,6 +39,7 @@ production order เป็น owner ของ input/WIP/output lifecycle target.
 - การเบิกวัตถุดิบเข้า WIP เป็นขั้นตอนก่อนเริ่มผลิตจริง และเก็บต้นทุน snapshot จาก WAC ของคลังต้นทางไว้ใน `production_inputs.unit_cost` / `wac_unit_cost` / `total_cost` เพื่อใช้คำนวณต้นทุนการผลิตและต้นทุนเฉลี่ยของ WIP.
 - การรับผลผลิตหรือ RM เข้า stock ปลายทางใช้ WAC ปัจจุบันของคลังปลายทาง ณ เวลารับ ไม่ใช้ต้นทุน snapshot ของ WIP แทน. ค่า production cost และ stock receipt cost จึงถูกเก็บแยกใน `production_outputs` พร้อม `cost_variance`.
 - การคืนวัตถุดิบออกจาก WIP เป็นการ reverse มูลค่าจาก Pool WIP ที่ post แล้ว ไม่ใช่การระบุคืนล็อตเดิม. เมื่อเบิกเข้ามาหลายรอบด้วยต้นทุนต่างกัน ระบบต้องรวมเป็นมูลค่า/ปริมาณของ Pool เดียวกันตาม `สินค้า + ประเภท RM/FG + คลังต้นทาง` แล้วคำนวณ WAC ของ WIP ณ เวลาคืน (`มูลค่า WIP คงเหลือ / ปริมาณ WIP คงเหลือ`). จำนวนคืนคูณ WAC นี้ใช้เป็นต้นทุน WIP ออกและ stock เข้า เพื่อไม่สร้างหรือทำลายมูลค่ารวม; WAC ของคลังปลายทางจะถูกคำนวณใหม่จากยอดเดิมของคลังนั้น.
+- ปุ่ม `ยกเลิกใบสั่งผลิต` ใช้ action เดียวที่ตรวจ period 7 วันเดิม แล้ว reverse ผลผลิต active ทุกชุดกลับ WIP, คืน RM/FG ที่เหลือจาก WIP กลับคลังต้นทาง และเปลี่ยนสถานะเป็น `Cancelled` ใน transaction เดียวกัน; ถ้าผลผลิตถูกใช้ต่อ, stock ปลายทางไม่พอ, WIP คืนไม่ครบ หรือจบงานเกิน 7 วัน ระบบ reject ทั้งรายการ
 - ก่อนเกิดผลผลิต ตาราง WIP จะแสดงเฉพาะยอดเบิกสุทธิและต้นทุนเฉลี่ย WIP; `ใช้ไปผลิตแล้ว` เป็นศูนย์. การคืนบางส่วนต้องถูกหักออกจากยอด WIP ทุก read/write path.
 - reconciliation แยกตรวจ production value ที่ไหลออกจาก WIP และ stock receipt value ที่เข้า stock เพื่อไม่ตีความส่วนต่างระหว่างสองฐานต้นทุนเป็น ledger error.
 
@@ -272,7 +273,7 @@ This implementation batch completes `PO-REV-01`, `PO-REV-02`, `PO-REV-03`, `PO-R
 - The list API keeps branch database identifiers as internal `bigint` values only. The JSON filter contract exposes `code`, `id` (the branch code as a string), and `name`, because the UI filters by `branchCode` and JSON cannot serialize `bigint`.
 - This keeps the API boundary aligned with the business key used by list and Excel queries, while preventing the branch option payload from turning a successful production-order query into a 500 response.
 
-หลังสร้างใบสั่งผลิตสำเร็จ ระบบปิด modal และโหลดรายการหน้า 1 ใหม่ทันที พร้อม reset pagination เป็นหน้า 1 เพื่อให้เอกสารล่าสุดแสดงในตาราง แม้ผู้ใช้จะเปิด modal จากหน้าอื่นอยู่ก็ตาม การ refresh นี้เป็น client-side API request ไม่ต้อง restart tmux หรือ dev server; restart จะจำเป็นเฉพาะกรณีเปลี่ยนโค้ดฝั่ง server แล้วใช้ process แบบ production ที่ไม่ได้ทำ hot reload.
+หลังสร้างใบสั่งผลิตสำเร็จ ระบบใช้ `docNo` จาก response โหลดรายละเอียดและเปิด popup ใบสั่งผลิตที่สร้างใหม่ทันที เพื่อให้ผู้ใช้ทำงานต่อได้โดยไม่ต้องกลับไปคลิกหาเอกสารในตารางเอง พร้อม refresh รายการหน้า 1 และ reset pagination เป็นหน้า 1 เพื่อให้เอกสารล่าสุดแสดงในตาราง การ refresh นี้เป็น client-side API request ไม่ต้อง restart tmux หรือ dev server; restart จะจำเป็นเฉพาะกรณีเปลี่ยนโค้ดฝั่ง server แล้วใช้ process แบบ production ที่ไม่ได้ทำ hot reload.
 
 ## Production Output Posting And Void Task List 2026-07-24
 

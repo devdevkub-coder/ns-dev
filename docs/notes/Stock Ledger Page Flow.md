@@ -45,7 +45,7 @@ updated: 2026-06-11
 | `SC` | ปรับสถานะสินค้า | paired out/in |
 | `GA` | ปรับเกรด/แปลงสินค้า | paired out/in |
 | `ADJ` | นับสต๊อก/ปรับยอด | one-sided gain/loss |
-| `PI`, `PI-RETURN` | เบิกวัตถุดิบเข้า WIP / คืนวัตถุดิบกลับคลังต้นทาง | paired out/in; return uses original PI cost/category |
+| `PI`, `PI-RETURN` | เบิกวัตถุดิบเข้า WIP / คืนวัตถุดิบกลับคลังต้นทาง | paired out/in ของสินค้าเดียวกัน; return uses original PI product, cost, and category |
 | `PO2`, `PO2-REV` | รับผลผลิต / reverse output | WIP out + destination in หรือ reverse |
 
 ## What Must Not Appear

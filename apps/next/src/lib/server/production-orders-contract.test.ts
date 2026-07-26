@@ -9,6 +9,14 @@ describe('production write contracts', () => {
     })
   })
 
+  it('requires a cancellation reason for the automatic rollback action', () => {
+    expect(updateProductionOrderActionSchema.parse({ action: 'cancel', reason: 'ยกเลิกการผลิต' })).toEqual({
+      action: 'cancel',
+      reason: 'ยกเลิกการผลิต',
+    })
+    expect(() => updateProductionOrderActionSchema.parse({ action: 'cancel', reason: '' })).toThrow('ระบุเหตุผลการยกเลิก')
+  })
+
   it('allows a loss-only production result when WIP is consumed', () => {
     const parsed = createProductionOutputSchema.parse({
       date: '2026-07-24',
