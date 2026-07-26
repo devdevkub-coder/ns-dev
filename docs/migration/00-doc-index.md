@@ -40,6 +40,7 @@
 | API contract baseline | `docs/api/openapi.yaml` | catalog route/API ปัจจุบัน |
 | Data dictionary | `docs/data-dictionary/` | ความหมายตาราง/คอลัมน์เชิงธุรกิจ |
 | Page inventory checklist | `docs/page-inventory-checklist.csv` | checklist assign/QA |
+| Production user workflow | `docs/notes/Production User Guide.md` | คู่มือใช้งาน 3 หน้าของหมวดการผลิต |
 
 ## Which Document To Open
 

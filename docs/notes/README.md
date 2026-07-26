@@ -30,7 +30,7 @@
 | Finance & Debt | `Finance Debt Flow.md` | AR/AP/bank/cash/petty advance category baseline |
 | Finance / Accounting | `Finance Accounting Flow.md` | accounting/reporting/GL-side menu baseline |
 | Trading | `Trading Flow.md` | trading and PO reports baseline |
-| Production | `Production Flow.md` | production baseline |
+| Production | `Production Flow.md` + `Production User Guide.md` | business baseline and end-user workflow |
 | Stock | `Stock Ledger and Stock Balance.md` | stock movement vs derived balance baseline |
 | Main dashboards | `Main Dashboard Reports Flow.md` | reporting/dashboard baseline |
 | Tracking 360 | `Tracking 360 Flow.md` | customer/supplier/product tracking baseline |
@@ -53,6 +53,16 @@
 | Stock ledger DB/API | `Stock Ledger DB API Design.md` |
 | Reference cache | `Reference Master Cache Flow.md` |
 | Printable docs | `Printable Documents.md` |
+
+## Production Supporting Notes
+
+| Topic | Note |
+|---|---|
+| Production order DB/API | `Production Order DB API Design.md` |
+| Production dashboard | `page-flows/production-production-dashboard.md` |
+| Production orders | `page-flows/production-production-orders.md` |
+| Production report / Yield | `page-flows/production-production-report.md` |
+| Stock effects of production | `Stock Ledger Page Flow.md`, `Stock Ledger and Stock Balance.md` |
 
 ## Note Groups
 
