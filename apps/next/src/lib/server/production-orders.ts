@@ -621,7 +621,9 @@ export async function createProductionInput(orderDocNo: string, values: CreatePr
           lot_no: line.lotNo ?? null,
           movement_type: 'WIP_IN',
           output_category: 'WIP',
-          product_id: order.product_id,
+          // WIP is a stock bucket for the exact input line that was issued.
+          // The production order target is not a substitute for the source product.
+          product_id: product.id,
           qty_in: line.netQty,
           ref_id: created.id.toString(),
           ref_no: inputDocNo,
@@ -664,8 +666,7 @@ export async function createProductionInput(orderDocNo: string, values: CreatePr
   })
 }
 
-export async function returnProductionInput(orderDocNo: string, values: ReturnProductionInputValues, actor: string) {
-  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+async function returnProductionInputInTransaction(tx: Prisma.TransactionClient, orderDocNo: string, values: ReturnProductionInputValues, actor: string) {
     const order = await findOrderByDocNo(tx, orderDocNo)
     await lockProductionOrder(tx, order.id)
     const isGrace = isGracePeriodActive(order)
@@ -764,7 +765,7 @@ export async function returnProductionInput(orderDocNo: string, values: ReturnPr
           movement_type: 'PRODUCTION_INPUT_RETURN_WIP_OUT',
           notes: values.reason,
           output_category: 'WIP',
-          product_id: order.product_id,
+          product_id: input.product_id,
           qty_out: qty,
           ref_id: returned.id.toString(),
           ref_no: input.doc_no,
@@ -823,7 +824,10 @@ export async function returnProductionInput(orderDocNo: string, values: ReturnPr
     })
     const nextWip = await productionWipBalance(tx, order.id)
     return { orderStatus: nextStatus, returnedQty: reverseQty, wipQty: nextWip.wipQty }
-  })
+}
+
+export async function returnProductionInput(orderDocNo: string, values: ReturnProductionInputValues, actor: string) {
+  return prisma.$transaction((tx: Prisma.TransactionClient) => returnProductionInputInTransaction(tx, orderDocNo, values, actor))
 }
 
 // Keep the old route callable during rollout; it now executes the return flow and does not create a reversal document.
@@ -994,7 +998,7 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
             movement_type: 'PRODUCTION_OUTPUT_WIP_OUT',
             notes: values.notes ?? null,
             output_category: 'WIP',
-            product_id: order.product_id,
+            product_id: BigInt(allocation.productId),
             qty_out: allocation.qty,
             ref_id: created.id.toString(),
             ref_no: outputDocNo,
@@ -1057,7 +1061,7 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
           movement_type: 'PRODUCTION_LOSS',
           notes: values.notes ?? null,
           output_category: 'LOSS',
-          product_id: order.product_id,
+          product_id: BigInt(allocation.productId),
           qty_out: allocation.qty,
           ref_id: created.id.toString(),
           ref_no: outputDocNo,
@@ -1121,8 +1125,7 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
   })
 }
 
-export async function reverseProductionOutput(orderDocNo: string, outputDocNo: string, values: ReverseProductionMovementValues, actor: string) {
-  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+async function reverseProductionOutputInTransaction(tx: Prisma.TransactionClient, orderDocNo: string, outputDocNo: string, values: ReverseProductionMovementValues, actor: string) {
     const order = await findOrderByDocNo(tx, orderDocNo)
     await lockProductionOrder(tx, order.id)
     const isGrace = isGracePeriodActive(order)
@@ -1251,7 +1254,7 @@ export async function reverseProductionOutput(orderDocNo: string, outputDocNo: s
         movement_type: 'PRODUCTION_OUTPUT_REVERSE_WIP_IN',
         notes: values.reason,
         output_category: 'WIP',
-        product_id: order.product_id,
+        product_id: allocation.productId,
         qty_in: allocation.qty,
         ref_id: output.id.toString(),
         ref_no: reversalDocNo,
@@ -1289,7 +1292,10 @@ export async function reverseProductionOutput(orderDocNo: string, outputDocNo: s
     })
     const nextWip = await productionWipBalance(tx, order.id)
     return { orderStatus: nextStatus, outputDocNo, reversalDocNo, reversedQty: reverseQty, wipQty: nextWip.wipQty }
-  })
+}
+
+export async function reverseProductionOutput(orderDocNo: string, outputDocNo: string, values: ReverseProductionMovementValues, actor: string) {
+  return prisma.$transaction((tx: Prisma.TransactionClient) => reverseProductionOutputInTransaction(tx, orderDocNo, outputDocNo, values, actor))
 }
 
 export async function completeProductionOrder(orderDocNo: string, note: string | undefined, actor: string, confirmCloseWithWip = false) {
@@ -1364,7 +1370,7 @@ export async function completeProductionOrder(orderDocNo: string, note: string |
             movement_type: 'PRODUCTION_INPUT_RETURN_WIP_OUT',
             notes: note?.trim() || 'คืน WIP คงเหลือก่อนปิดงาน',
             output_category: 'WIP',
-            product_id: order.product_id,
+            product_id: input.product_id,
             qty_out: qty,
             ref_id: returned.id.toString(),
             ref_no: input.doc_no,
@@ -1442,15 +1448,47 @@ export async function cancelProductionOrder(orderDocNo: string, reason: string, 
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const order = await findOrderByDocNo(tx, orderDocNo)
     await lockProductionOrder(tx, order.id)
-    const [activeInputs, activeOutputs] = await Promise.all([
-      tx.production_inputs.count({ where: { order_id: order.id, status: 'active' } }),
-      tx.production_outputs.count({ where: { order_id: order.id, status: 'active' } }),
-    ])
-    if (activeInputs > 0 || activeOutputs > 0) throw new ProductionOrderError('ยกเลิกได้เฉพาะใบที่ยังไม่มี movement หรือ reverse ครบแล้ว')
+    const isGrace = isGracePeriodActive(order)
+    if (order.status === 'Cancelled') throw new ProductionOrderError('ใบสั่งผลิตถูกยกเลิกแล้ว')
+    if (order.status === 'Completed' && !isGrace) throw new ProductionOrderError('ใบสั่งผลิตจบงานเกินระยะเวลา 7 วัน ไม่สามารถยกเลิกได้')
+
+    const activeOutputRows = await tx.production_outputs.findMany({
+      distinct: ['doc_no'],
+      orderBy: [{ doc_no: 'asc' }],
+      select: { doc_no: true },
+      where: { order_id: order.id, status: 'active' },
+    })
+    const reversalValues: ReverseProductionMovementValues = {
+      date: toBangkokDateOnly(new Date()),
+      reason,
+    }
+    for (const output of activeOutputRows) {
+      await reverseProductionOutputInTransaction(tx, order.doc_no, output.doc_no, reversalValues, actor)
+    }
+
+    const activeInputs = await tx.production_inputs.findMany({
+      include: { production_input_returns: { where: { status: 'active' }, select: { qty: true } } },
+      where: { order_id: order.id, status: 'active' },
+    })
+    const returnLines = activeInputs.flatMap((input) => {
+      const returnedQty = input.production_input_returns.reduce((sum, returned) => sum + toNumber(returned.qty), 0)
+      const remainingQty = Math.max(0, toNumber(input.qty) - returnedQty)
+      return remainingQty > 0.000001 ? [{ inputId: input.id, qty: remainingQty }] : []
+    })
+    if (returnLines.length > 0) {
+      await returnProductionInputInTransaction(tx, order.doc_no, { lines: returnLines, reason }, actor)
+    }
+
+    const remainingWip = await productionWipBalance(tx, order.id)
+    const remainingOutputs = await tx.production_outputs.count({ where: { order_id: order.id, status: 'active' } })
+    if (remainingWip.wipQty > 0.000001 || remainingOutputs > 0) {
+      throw new ProductionOrderError('ไม่สามารถยกเลิกได้ เนื่องจากยังมี WIP หรือผลผลิตคงเหลือ')
+    }
     const updated = await tx.production_orders.update({
       data: { notes: order.notes ? `${order.notes}\nCancel: ${reason}` : `Cancel: ${reason}`, status: 'Cancelled', updated_by: actor },
       where: { id: order.id },
     })
+    await tx.production_output_drafts.deleteMany({ where: { order_id: order.id } })
     await appendOrderStatusLog(tx, {
       action: 'cancelled',
       actor,
