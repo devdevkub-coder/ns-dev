@@ -1216,6 +1216,10 @@ Reporting rule:
 - [ ] design customer receipt allocations
 - [ ] define bank statement relation
 - [ ] sync `/finance/ap` and `/finance/ar` with created-date display, source document links, and final allocation facts
+- [ ] audit every date-range page/API for date meaning (`document/business date` vs `created_at`) and record the source contract before changing filters
+- [ ] standardize Bangkok business-day boundaries for timestamp filters and date-only display; cover AP, AR, PO Sell, daily transactions, tracking, production, finance reports, and dashboards
+- [ ] separate `purchase_bills` document date from `created_at`; keep AP aging on the documented business-date policy and expose creation timestamp for audit
+- [ ] add regression tests for Bangkok `00:00-06:59` records, inclusive end dates, UTC serialization, and records with zero outstanding balance
 - [x] Fix `/api/finance/ar` AR source-of-truth: use `sales_bills.receivable_balance` and `sales_bills.received_amount` as the primary balance/read fields; use `customer_receipt_allocations`, `customer_receipts`, and legacy `receipts` only for RCP drilldown/audit. This prevents Customer Advance allocations from being missed when legacy receipt rows are used to derive received amounts.
 - [x] Add AR detail drilldown from `/finance/ar` to SB and RCP allocation facts, including Customer Advance allocation facts, cancelled receipt exclusion, and created-date display in list/detail payload.
 - [x] Fix `/api/finance/ap` AP source-of-truth: use `purchase_bills.payable_balance` and `purchase_bills.paid_amount` as the primary balance/read fields; use `payments`, `payment_allocations`, `payment_approvals`, and `supplier_advance_allocations` only for PMT/PMA/ADV drilldown/audit.
