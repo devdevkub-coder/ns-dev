@@ -31,7 +31,7 @@ route: /finance-accounting/asset-register
 
 ## Page Responsibilities
 
-- สร้าง/แก้ไขทะเบียนทรัพย์สิน เช่น code, name, category, branch, supplier, purchase date, cost, VAT, net asset cost, salvage value, useful life, depreciation method, location, responsible person, serial/vehicle fields, notes
+- สร้าง/แก้ไขทะเบียนทรัพย์สิน เช่น name, category, branch, supplier, purchase date, cost, VAT, net asset cost, salvage value, useful life, depreciation method, location, responsible person, serial/vehicle fields, notes; ระบบสร้าง code อัตโนมัติตอนสร้างจากหน้า form
 - นำเข้า CSV/TSV ผ่าน preview ก่อน commit
 - ส่งออก CSV และดาวน์โหลด template
 - คำนวณ NBV, accumulated depreciation, monthly depreciation จาก `assets` + active `depreciations`
@@ -74,7 +74,7 @@ Source tables:
 
 ## Validation / Status Rules
 
-- `code`, `name`, `originalCost`, `netAssetCost` จำเป็น
+- `name`, `originalCost`, `netAssetCost` จำเป็น; `code` สร้างอัตโนมัติสำหรับการสร้างจากหน้า form และยังจำเป็นสำหรับ import
 - `vatAmount` ต้องไม่เกิน `originalCost`
 - `salvageValue` ต้องไม่เกิน `netAssetCost`
 - `Straight Line` ต้องมี `usefulLifeMonths > 0`
