@@ -200,6 +200,7 @@ export const customerReceiptFormSchema = z.object({
   docNo: optionalDocNo,
   date: requiredDate,
   sourceType: z.enum(customerReceiptSourceTypeValues, { message: 'เลือกประเภทเอกสารรับเงิน' }),
+  branchId: optionalSafeId('สาขา'),
   billId: optionalSafeId('บิลขาย'),
   customerId: z.string().trim().min(1, 'เลือกลูกค้า'),
   accountId: z.string().trim().min(1, 'เลือกบัญชีรับเงิน'),
@@ -229,6 +230,9 @@ export const customerReceiptFormSchema = z.object({
   }
   if (value.sourceType === 'SB' && !hasSalesBillLines) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'เลือกบิลขายอย่างน้อย 1 รายการ', path: ['salesBillLines'] })
+  }
+  if (value.sourceType === 'SB' && !value.branchId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'เลือกสาขาก่อนเลือกบิลขาย', path: ['branchId'] })
   }
   if (value.sourceType === 'CADV' && !hasCustomerAdvanceLines) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'เลือก CADV อย่างน้อย 1 รายการ', path: ['customerAdvanceLines'] })

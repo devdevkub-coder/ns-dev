@@ -792,14 +792,14 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       sortDirection,
       sortKey,
     })
-    if (mode === 'purchase' && branchFilter) params.set('branchId', branchFilter)
+    if (branchFilter) params.set('branchId', branchFilter)
     if (search.trim()) params.set('search', search.trim())
     if (dateFrom) params.set('dateFrom', dateFrom)
     if (dateTo) params.set('dateTo', dateTo)
     if (filterMode) params.set('filterMode', filterMode)
     if (statusFilter.length > 0) params.set('status', statusFilter.join(','))
     return `${apiPath}?${params.toString()}`
-  }, [apiPath, branchFilter, dateFrom, dateTo, filterMode, mode, page, pageSize, search, sortDirection, sortKey, statusFilter])
+  }, [apiPath, branchFilter, dateFrom, dateTo, filterMode, page, pageSize, search, sortDirection, sortKey, statusFilter])
 
   const activeFilters = Boolean(
     search.trim() !== '' ||
@@ -810,7 +810,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     statusFilter.length > 0
   )
   const mobileFilterCount =
-    (mode === 'purchase' && branchFilter ? 1 : 0) +
+    (branchFilter ? 1 : 0) +
     (dateFrom || dateTo ? 1 : 0) +
     (filterMode ? 1 : 0) +
     (statusFilter.length > 0 ? 1 : 0)

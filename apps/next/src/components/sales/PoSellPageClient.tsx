@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Plus, Printer } from 'lucide-react'
 import { openPoSellPrint, openPoSellPrintWindow, type PoSellPrintDocument } from '@/lib/po-sell-print'
 import { Button as UiButton } from '@/components/ui/Button'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input as UiInput } from '@/components/ui/Input'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
@@ -189,6 +190,7 @@ export function PoSellPageClient() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<PoSellFormValues>(initialPoSellForm())
   const [fromDate, setFromDate] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [matchStatus, setMatchStatus] = useState('all')
@@ -238,8 +240,9 @@ export function PoSellPageClient() {
     const params = new URLSearchParams()
     if (fromDate) params.set('from', fromDate)
     if (toDate) params.set('to', toDate)
+    if (branchFilter) params.set('branchId', branchFilter)
     return params.toString()
-  }, [fromDate, toDate])
+  }, [branchFilter, fromDate, toDate])
 
   const loadData = useCallback(async () => {
     const requestId = latestLoadRequestRef.current + 1
@@ -322,7 +325,7 @@ export function PoSellPageClient() {
 
   useEffect(() => {
     setPage(1)
-  }, [documentStatus, fromDate, matchStatus, pageSize, search, toDate])
+  }, [branchFilter, documentStatus, fromDate, matchStatus, pageSize, search, toDate])
 
   const totalRows = rows.length
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
@@ -378,11 +381,13 @@ export function PoSellPageClient() {
     if (toDate) params.set('to', toDate)
     if (documentStatus !== 'all') params.set('status', documentStatus)
     if (matchStatus !== 'all') params.set('matchStatus', matchStatus)
+    if (branchFilter) params.set('branchId', branchFilter)
     return `/api/sales/po-sell?${params.toString()}`
-  }, [documentStatus, fromDate, matchStatus, search, toDate])
+  }, [branchFilter, documentStatus, fromDate, matchStatus, search, toDate])
 
-  const hasFilters = Boolean(search.trim() || fromDate || toDate || matchStatus !== 'all' || documentStatus !== 'all')
+  const hasFilters = Boolean(branchFilter || search.trim() || fromDate || toDate || matchStatus !== 'all' || documentStatus !== 'all')
   const resetFilters = () => {
+    setBranchFilter('')
     setSearch('')
     setFromDate('')
     setToDate('')
@@ -682,6 +687,16 @@ export function PoSellPageClient() {
       <div className="mb-4 hidden space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
         <div className="flex flex-wrap items-center gap-2">
           <input autoComplete="off" className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหาเลข PO / ชื่อ Customer / ชื่อสินค้า / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <BranchSelectCombobox
+            branches={activeBranches}
+            className="w-full sm:w-auto"
+            controlSize="filter"
+            inputId="po-sell-list-branch-filter"
+            label="สาขา"
+            placeholder="ทุกสาขา"
+            value={branchFilter}
+            onChange={(value) => setBranchFilter(value ?? '')}
+          />
           <label className="text-sm text-slate-500">วันที่สร้างรายการ:</label>
           <DatePickerInput ariaLabel="จากวันที่" className="w-[130px]" title="จากวันที่" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
@@ -749,6 +764,17 @@ export function PoSellPageClient() {
             </>
           )}
         >
+              <div>
+                <BranchSelectCombobox
+                  branches={activeBranches}
+                  inputId="po-sell-list-mobile-branch-filter"
+                  label="สาขา"
+                  placeholder="ทุกสาขา"
+                  value={branchFilter}
+                  onChange={(value) => setBranchFilter(value ?? '')}
+                />
+              </div>
+
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">

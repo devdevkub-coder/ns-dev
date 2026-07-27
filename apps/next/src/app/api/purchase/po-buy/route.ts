@@ -538,6 +538,11 @@ export async function GET(request: Request) {
     }
 
     const url = new URL(request.url)
+    const requestedBranchId = url.searchParams.get('branchId')?.trim() || ''
+    const selectedBranch = requestedBranchId ? await findActiveBranchReferenceByCodeOrId(requestedBranchId) : null
+    if (requestedBranchId && (!selectedBranch || (allowedBranchCodes && !allowedBranchCodes.includes(selectedBranch.code)))) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาที่เลือกไม่ถูกต้องหรือไม่มีสิทธิ์ใช้งาน' }, { status: 400 })
+    }
     const q = url.searchParams.get('q')?.trim().toLowerCase()
     const statusFilter = url.searchParams.get('status')
     const from = url.searchParams.get('from')
@@ -641,7 +646,7 @@ export async function GET(request: Request) {
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 5000,
         where: {
-          ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
+          ...(selectedBranch ? { branch_id: selectedBranch.id } : allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
         },
       }),
       activeVatRatePercent(new Date()),

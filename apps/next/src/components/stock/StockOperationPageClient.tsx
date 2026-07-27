@@ -274,16 +274,16 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
         label: option.code ? `${option.code} - ${option.name}` : option.name,
         searchText: `${option.code ?? ''} ${option.name}`.toLowerCase(),
       }))
-  }, [data.reference?.products])
+  }, [data.reference.products])
 
   const categoryOptions = useMemo(() => {
     const groups = (data.reference?.products ?? []).map(p => p.metalGroup).filter(Boolean) as string[]
     return [...new Set(groups)]
-  }, [data.reference?.products])
+  }, [data.reference.products])
 
   const warehouseOptions = useMemo(() => {
     return data.reference?.warehouses ?? []
-  }, [data.reference?.warehouses])
+  }, [data.reference.warehouses])
 
   const reasonOptions = useMemo(() => {
     return data.reasonOptions ?? stockAdjustReasonOptions
@@ -329,7 +329,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       .filter((row) => mode !== 'convert' || !costStatusFilter || row.costStatus === costStatusFilter)
       .filter((row) => mode !== 'convert' || !documentStatusFilter || row.status === documentStatusFilter)
       // Stock Adjust Filters (NSERP-66)
-      .filter((row) => mode !== 'adjust' || !adjustBranchFilter || row.branchId === adjustBranchFilter)
+      .filter((row) => !adjustBranchFilter || row.branchId === adjustBranchFilter)
       .filter((row) => mode !== 'adjust' || !adjustTypeFilter || row.adjustType === adjustTypeFilter)
       .filter((row) => mode !== 'adjust' || !fromDateFilter || String(row.date ?? '') >= fromDateFilter)
       .filter((row) => mode !== 'adjust' || !toDateFilter || String(row.date ?? '') <= toDateFilter)
@@ -456,9 +456,9 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
   }, [adjustPage, adjustPageSize, convertPage, convertPageSize, mode, operationSortedRows, statusConvertPage, statusConvertPageSize, statusConvertSortedRows])
 
   const hasFilters = useMemo(() => {
-    if (mode === 'convert') return Boolean(search.trim() || sourceTypeFilter || costStatusFilter || documentStatusFilter)
+    if (mode === 'convert') return Boolean(search.trim() || adjustBranchFilter || sourceTypeFilter || costStatusFilter || documentStatusFilter)
     if (mode === 'adjust') return Boolean(search.trim() || adjustBranchFilter || adjustTypeFilter || fromDateFilter || toDateFilter || adjustProductFilter || adjustCategoryFilter || adjustWarehouseFilter || adjustReasonFilter)
-    if (mode === 'status-convert') return Boolean(search.trim() || statusProductFilter || statusCategoryFilter || statusWarehouseFilter || statusFromDateFilter || statusToDateFilter || statusFlowFilter)
+    if (mode === 'status-convert') return Boolean(search.trim() || adjustBranchFilter || statusProductFilter || statusCategoryFilter || statusWarehouseFilter || statusFromDateFilter || statusToDateFilter || statusFlowFilter)
     return Boolean(search.trim())
   }, [
     mode,
@@ -654,6 +654,10 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
+          <Select className="h-9 w-auto" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
+            <option value="">ทุกสาขา</option>
+            {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+          </Select>
           {mode === 'convert' ? (
             <>
               <Select className="h-9 w-auto" value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>
@@ -663,10 +667,6 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
             </>
           ) : mode === 'adjust' ? (
             <>
-              <Select className="h-9 w-auto" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
-                <option value="">ทุกสาขา</option>
-                {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-              </Select>
               <div className="w-[200px]">
                 <SearchCombobox
                   inputClassName="h-9 text-sm"
@@ -837,6 +837,13 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
             </>
           )}
         >
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
+                <Select className="h-9 w-full" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
+                  <option value="">ทุกสาขา</option>
+                  {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                </Select>
+              </label>
               {mode === 'convert' ? (
                 <>
                   <label className="block">
@@ -867,13 +874,6 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                 </>
               ) : mode === 'adjust' ? (
                 <>
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
-                    <Select className="h-9 w-full" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
-                      <option value="">ทุกสาขา</option>
-                      {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-                    </Select>
-                  </label>
                   <div className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">สินค้า</span>
                     <SearchCombobox

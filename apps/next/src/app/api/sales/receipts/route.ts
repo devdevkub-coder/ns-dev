@@ -2,14 +2,14 @@ import { NextResponse } from 'next/server'
 import { customerReceiptFormSchema } from '@/lib/daily'
 import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { cancelCustomerReceipt, createCustomerReceipt, replaceCustomerReceipt } from '@/lib/server/customer-receipts'
 import { currentActor, listDailyAccounts, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jobs'
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import { prisma } from '@/lib/server/prisma'
-import { listActiveCustomers } from '@/lib/server/reference-master-cache'
+import { listActiveBranches, listActiveBranchesByCodes, listActiveCustomers } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -35,6 +35,7 @@ async function notifyCustomerReceiptAfterCommit(documentNo: string, requestedBy:
 
 type PendingReceiptSalesBill = {
   branch_id: bigint | null
+  branches: { code: string; name: string } | null
   customer_id: bigint
   customers: { code: string | null; name: string } | null
   date: Date
@@ -63,6 +64,7 @@ async function ensurePendingCustomerReceipts(context: Awaited<ReturnType<typeof 
         orderBy: [{ date: 'asc' }, { id: 'asc' }],
         select: {
           branch_id: true,
+          branches: { select: { code: true, name: true } },
           customer_id: true,
           customers: { select: { code: true, name: true } },
           date: true,
@@ -94,7 +96,9 @@ async function ensurePendingCustomerReceipts(context: Awaited<ReturnType<typeof 
         if (activeAllocation) continue
         const customerCode = bill.customers?.code?.trim() || stringifyBusinessValue(bill.customer_id)
         const date = toDateOnly(bill.date)
-        const docNo = await nextDailyDocNo('customer_receipts', 'RCP', date, tx)
+        const branchCode = bill.branches?.code?.trim()
+        if (!branchCode) throw new Error(`ไม่พบรหัสสาขาสำหรับบิลขาย ${bill.doc_no}`)
+        const docNo = await nextDailyDocNo('customer_receipts', 'RCP', date, tx, branchCode)
         const receivableBalance = toNumber(bill.receivable_balance as { toNumber: () => number } | number | null | undefined)
         const receipt = await tx.customer_receipts.create({
           data: {
@@ -165,10 +169,21 @@ async function ensurePendingCustomerReceipts(context: Awaited<ReturnType<typeof 
   })
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, FINANCE_DEBT_PAGE_PERMISSIONS.receipts)
+    const requestedBranchId = new URL(request.url).searchParams.get('branchId')?.trim() || ''
+    const allowedBranchCodes = getBranchCodeIntersection(context)
+    const branchReferences = allowedBranchCodes === null
+      ? await listActiveBranches()
+      : await listActiveBranchesByCodes(allowedBranchCodes)
+    const selectedBranch = requestedBranchId
+      ? branchReferences.find((branch) => branch.code === requestedBranchId || stringifyBusinessValue(branch.id) === requestedBranchId)
+      : null
+    if (requestedBranchId && !selectedBranch) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาที่เลือกไม่ถูกต้องหรือไม่มีสิทธิ์ใช้งาน' }, { status: 400 })
+    }
     try {
       await ensurePendingCustomerReceipts(context)
     } catch (caught) {
@@ -194,6 +209,8 @@ export async function GET() {
       },
       customer_id: true,
       customers: { select: { code: true } },
+      branch_id: true,
+      branches: { select: { code: true, name: true } },
       date: true,
       doc_no: true,
       id: true,
@@ -201,6 +218,7 @@ export async function GET() {
       total_amount: true,
     }
 
+    const salesBillBranchWhere = selectedBranch ? { branch_id: selectedBranch.id } : {}
     const [accounts, customers, outstandingBills, allocatedBills, customerAdvances, receipts, paymentMethods] = await Promise.all([
       listDailyAccounts(),
       listActiveCustomers(),
@@ -209,6 +227,7 @@ export async function GET() {
         orderBy: [{ date: 'desc' }],
         take: CUSTOMER_RECEIPT_LIST_LIMIT,
         where: {
+          ...salesBillBranchWhere,
           receivable_balance: { gt: 0 },
           status: { notIn: ['cancelled', 'canceled'] },
         },
@@ -218,6 +237,7 @@ export async function GET() {
         orderBy: [{ date: 'desc' }],
         take: CUSTOMER_RECEIPT_LIST_LIMIT,
         where: {
+          ...salesBillBranchWhere,
           customer_receipt_allocations: {
             some: { status: { in: RECEIPT_QUEUE_STATUSES } },
           },
@@ -267,6 +287,8 @@ export async function GET() {
           },
           customer_code_snapshot: true,
           customer_name_snapshot: true,
+          branch_id: true,
+          branches: { select: { code: true } },
           date: true,
           doc_no: true,
           gross_amount: true,
@@ -315,6 +337,7 @@ export async function GET() {
 
     return NextResponse.json({
       accounts,
+      branches: branchReferences.map((branch) => ({ active: true, code: branch.code, id: branch.code, name: branch.name })),
       bills: bills.map((bill) => ({
         activeReceiptDocNos: [...new Set(bill.customer_receipt_allocations
           .filter((allocation) => {
@@ -324,6 +347,8 @@ export async function GET() {
           .map((allocation) => allocation.customer_receipts.doc_no))],
         receiptStatus: bill.customer_receipt_allocations.find((allocation) => RECEIPT_QUEUE_STATUSES.includes(allocation.status))?.customer_receipts.status ?? '',
         customerId: bill.customers?.code?.trim() || stringifyBusinessValue(bill.customer_id),
+        branchId: bill.branches?.code ?? '',
+        branchName: bill.branches?.name ?? '',
         date: toDateOnly(bill.date),
         docNo: bill.doc_no,
         id: bill.doc_no,
@@ -384,6 +409,7 @@ export async function GET() {
           billDocNos: receipt.customer_receipt_allocations.map((allocation) => allocation.sales_bill_doc_no_snapshot),
           billId: receipt.customer_receipt_allocations[0]?.sales_bill_doc_no_snapshot ?? '',
           customerId: receipt.customer_code_snapshot,
+          branchId: receipt.branches?.code ?? '',
           customerName: receipt.customer_name_snapshot,
           date: toDateOnly(receipt.date),
           docNo: receipt.doc_no,

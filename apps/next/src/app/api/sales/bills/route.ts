@@ -52,6 +52,7 @@ async function projectProfitCostSalesBill(tx: Prisma.TransactionClient, salesBil
 }
 
 type BillQuery = {
+  branchId?: string
   dateFrom?: string
   dateTo?: string
   filterMode?: string
@@ -157,6 +158,7 @@ type DeliverySummarySource = DeliveryTicketOptionRow['weight_ticket_product_summ
 
 function parseBillQuery(url: URL, includePaging = true): BillQuery {
   return {
+    branchId: url.searchParams.get('branchId')?.trim() || undefined,
     dateFrom: url.searchParams.get('dateFrom') || undefined,
     dateTo: url.searchParams.get('dateTo') || undefined,
     filterMode: url.searchParams.get('filterMode') || undefined,
@@ -1725,7 +1727,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const includePaging = url.searchParams.get('format') !== 'xlsx'
     const query = parseBillQuery(url, includePaging)
-    const branchScope = await salesBranchScope(context)
+    const branchScope = await salesBranchScope(context, query.branchId)
     const where = billWhere(query, branchScope.ids)
 
     const [rows, totalRows, totals] = await Promise.all([

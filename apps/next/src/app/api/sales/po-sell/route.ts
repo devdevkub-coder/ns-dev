@@ -700,11 +700,12 @@ export async function GET(request: Request) {
     const q = url.searchParams.get('q')?.trim().toLowerCase()
     const from = url.searchParams.get('from')
     const to = url.searchParams.get('to')
+    const branchId = url.searchParams.get('branchId')?.trim() || null
     const statusFilter = url.searchParams.get('status')
     const matchStatusFilter = url.searchParams.get('matchStatus')
     const activeStatusFilter = statusFilter && statusFilter !== 'all' ? statusFilter : null
     const activeMatchStatusFilter = matchStatusFilter && matchStatusFilter !== 'all' ? matchStatusFilter : null
-    const branchScope = await salesBranchScope(context)
+    const branchScope = await salesBranchScope(context, branchId)
     const createdAtWhere = createdAtDateRange(from, to)
     const poSellWhere: Prisma.po_sellsWhereInput = {
       ...scopedBranchWhere(branchScope.ids),

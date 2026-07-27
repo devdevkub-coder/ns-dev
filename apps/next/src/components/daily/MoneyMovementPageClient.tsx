@@ -8,6 +8,7 @@ import { Field, SelectField } from '@/components/daily/MoneyMovementFieldHelpers
 import { PaymentLinesSection, PaymentSplitsSection } from '@/components/daily/MoneyMovementFormSections'
 import { matchesMoneyAccountFilter, summarizeActiveReceiptRows } from '@/components/daily/money-movement-metrics'
 import { Button as UiButton } from '@/components/ui/Button'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input as UiInput } from '@/components/ui/Input'
@@ -43,6 +44,8 @@ type Bill = {
   approvalPaymentMethod?: string
   approvedAmount?: number
   customerId?: string | null
+  branchId?: string | null
+  branchName?: string | null
   date?: string
   docNo: string
   id: string
@@ -82,6 +85,7 @@ type MoneyRow = {
   billId?: string
   billDocNo?: string
   billDocNos?: string[]
+  branchId?: string | null
   customerId?: string
   customerAdvanceDocNos?: string[]
   date: string
@@ -112,6 +116,7 @@ type MoneyRow = {
 }
 type Payload = {
   accounts: DailyAccountOption[]
+  branches?: Array<{ active: boolean; code: string; id: string; name: string }>
   bills: Bill[]
   customerAdvances?: CustomerAdvance[]
   customers?: Party[]
@@ -376,7 +381,7 @@ function initialForm(mode: 'payment' | 'receipt'): MoneyForm {
     id: null,
     method: '',
     notes: null,
-    ...(mode === 'payment' ? { lines: [newPaymentLine()], splits: [newPaymentSplit()], supplierId: '' } : { customerId: '', sourceType: 'SB', salesBillLines: [newReceiptLine()], customerAdvanceLines: [], splits: [newReceiptSplit()] }),
+    ...(mode === 'payment' ? { lines: [newPaymentLine()], splits: [newPaymentSplit()], supplierId: '' } : { branchId: '', customerId: '', sourceType: 'SB', salesBillLines: [newReceiptLine()], customerAdvanceLines: [], splits: [newReceiptSplit()] }),
     withholdingTax: 0,
   } as MoneyForm
 }
@@ -943,6 +948,7 @@ export function MoneyMovementPageClient({
   const [dateFrom, setDateFrom] = useState(() => mode === 'payment' ? todayDateInput() : '')
   const [dateTo, setDateTo] = useState(() => mode === 'payment' ? todayDateInput() : '')
   const [accountFilter, setAccountFilter] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
   const [billSearch, setBillSearch] = useState('')
   const [billPage, setBillPage] = useState(1)
   const [billPageSize, setBillPageSize] = useState(25)
@@ -1080,8 +1086,13 @@ export function MoneyMovementPageClient({
   const selectedCustomerAdvanceDocNos = useMemo(() => new Set(customerAdvanceReceiptLines.map((line) => line.customerAdvanceDocNo).filter(Boolean)), [customerAdvanceReceiptLines])
   const receiptSelectableBills = useMemo(() => {
     if (mode !== 'receipt') return []
-    const customerId = (form as CustomerReceiptFormValues).customerId
-    return data.bills.filter((bill) => !customerId || bill.customerId === customerId)
+    const receiptForm = form as CustomerReceiptFormValues
+    if (receiptForm.sourceType === 'SB' && !receiptForm.branchId) return []
+    const customerId = receiptForm.customerId
+    return data.bills.filter((bill) => (
+      (!receiptForm.branchId || bill.branchId === receiptForm.branchId)
+      && (!customerId || bill.customerId === customerId)
+    ))
   }, [data.bills, form, mode])
   const receiptSelectableCustomerAdvances = useMemo(() => {
     if (mode !== 'receipt') return []
@@ -1174,7 +1185,8 @@ export function MoneyMovementPageClient({
         bill.date ?? '',
       ].join(' ').toLowerCase()
       const matchesSearch = !query || searchHaystack.includes(query)
-      return matchesSearch && balance > 0
+      const matchesBranch = !branchFilter || bill.branchId === branchFilter
+      return matchesSearch && matchesBranch && balance > 0
     }).sort((left, right) => {
       const leftCustomerName = partyMap.get(left.customerId ?? '') ?? left.customerId ?? ''
       const rightCustomerName = partyMap.get(right.customerId ?? '') ?? right.customerId ?? ''
@@ -1215,7 +1227,7 @@ export function MoneyMovementPageClient({
           return String(right.date ?? '').localeCompare(String(left.date ?? ''))
       }
     })
-  }, [billSearch, billSort, data.bills, mode, partyMap])
+  }, [billSearch, billSort, branchFilter, data.bills, mode, partyMap])
 
   const supplierBillTotalRows = supplierBills.length
   const supplierBillTotalPages = Math.max(1, Math.ceil(supplierBillTotalRows / billPageSize))
@@ -1226,10 +1238,10 @@ export function MoneyMovementPageClient({
   const receiptBillCurrentPage = Math.min(billPage, receiptBillTotalPages)
   const receiptBillPageRows = receiptBills.slice((receiptBillCurrentPage - 1) * billPageSize, receiptBillCurrentPage * billPageSize)
   const entryBillTotalPages = mode === 'payment' ? supplierBillTotalPages : receiptBillTotalPages
-  const hasActiveBillFilters = billSearch.trim() !== '' || billSort !== 'date_desc' || billSourceFilter !== 'all'
+  const hasActiveBillFilters = billSearch.trim() !== '' || billSort !== 'date_desc' || billSourceFilter !== 'all' || branchFilter !== ''
   useEffect(() => {
     setBillPage(1)
-  }, [billPageSize, billSearch, billSort, billSourceFilter])
+  }, [billPageSize, billSearch, billSort, billSourceFilter, branchFilter])
 
   useEffect(() => {
     if (billPage > entryBillTotalPages) setBillPage(entryBillTotalPages)
@@ -1252,13 +1264,14 @@ export function MoneyMovementPageClient({
       ].join(' ').toLowerCase()
       const matchesSearch = !query || searchHaystack.includes(query)
       const matchesAccount = matchesMoneyAccountFilter(row, accountFilter)
+      const matchesBranch = !branchFilter || row.branchId === branchFilter
       const matchesFrom = !dateFrom || row.date >= dateFrom
       const matchesTo = !dateTo || row.date <= dateTo
       const matchesHistoryStatus = paymentHistoryStatusFilter === 'all'
         || (paymentHistoryStatusFilter === 'active' ? row.status !== 'cancelled' : row.status === 'cancelled')
-      return matchesSearch && matchesAccount && matchesFrom && matchesTo && matchesHistoryStatus
+      return matchesSearch && matchesAccount && matchesBranch && matchesFrom && matchesTo && matchesHistoryStatus
     })
-  }, [accountFilter, data.rows, dateFrom, dateTo, paymentHistoryStatusFilter, search])
+  }, [accountFilter, branchFilter, data.rows, dateFrom, dateTo, paymentHistoryStatusFilter, search])
 
   const historyRows = useMemo(() => {
     return [...rows].sort((left, right) => {
@@ -1278,6 +1291,7 @@ export function MoneyMovementPageClient({
   const hasActiveHistoryFilters = search.trim() !== ''
     || (mode === 'payment' ? dateFrom !== todayDateInput() || dateTo !== todayDateInput() : dateFrom !== '' || dateTo !== '')
     || accountFilter !== ''
+    || branchFilter !== ''
     || paymentHistoryStatusFilter !== 'all'
 
   const receiptHistoryMetrics = useMemo(() => summarizeActiveReceiptRows(rows), [rows])
@@ -1307,7 +1321,7 @@ export function MoneyMovementPageClient({
 
   useEffect(() => {
     setHistoryPage(1)
-  }, [search, dateFrom, dateTo, accountFilter, historyPageSize, historySortField, historySortDirection, paymentHistoryStatusFilter])
+  }, [search, dateFrom, dateTo, accountFilter, branchFilter, historyPageSize, historySortField, historySortDirection, paymentHistoryStatusFilter])
 
   useEffect(() => {
     if (historyPage > historyTotalPages) setHistoryPage(historyTotalPages)
@@ -1358,6 +1372,7 @@ export function MoneyMovementPageClient({
         ...initialForm(mode),
         amount,
         billId: bill.id,
+        branchId: bill.branchId ?? '',
         customerId: bill.customerId ?? '',
         docNo: bill.activeReceiptDocNos?.[0] ?? null,
         salesBillLines: [{
@@ -1420,6 +1435,7 @@ export function MoneyMovementPageClient({
       accountId: row.accountId,
       amount: row.amount,
       billId: lines[0]?.salesBillDocNo ?? null,
+      branchId: row.branchId ?? '',
       customerId: row.customerId ?? '',
       date: row.date,
       discount: roundMoney(lines.reduce((sum, line) => sum + line.discountAmount, 0)),
@@ -1460,6 +1476,7 @@ export function MoneyMovementPageClient({
     setDateFrom('')
     setDateTo('')
     setAccountFilter('')
+    setBranchFilter('')
     setPaymentHistoryStatusFilter('all')
   }
 
@@ -1480,6 +1497,7 @@ export function MoneyMovementPageClient({
     setDateFrom(mode === 'payment' && value === 'history' ? todayDateInput() : '')
     setDateTo(mode === 'payment' && value === 'history' ? todayDateInput() : '')
     setAccountFilter('')
+    setBranchFilter('')
     setPaymentHistoryStatusFilter('all')
     setBillSearch('')
     setBillSort('date_desc')
@@ -1860,6 +1878,7 @@ export function MoneyMovementPageClient({
     setForm({
       ...receiptForm,
       amount: 0,
+      branchId: sourceType === 'SB' ? receiptForm.branchId ?? '' : '',
       billId: null,
       customerAdvanceLines: sourceType === 'CADV' ? [newCustomerAdvanceReceiptLine()] : [],
       discount: 0,
@@ -1876,6 +1895,15 @@ export function MoneyMovementPageClient({
       bill.docNo === currentDocNo
       || ((bill.receivableBalance ?? 0) > 0 && !selectedReceiptBillDocNos.has(bill.docNo))
     ))
+  }
+
+  function changeReceiptBranch(branchId: string | null) {
+    const nextBranchId = branchId ?? ''
+    const nextLines = receiptLines.map((line) => {
+      const bill = billMap.get(line.salesBillDocNo)
+      return bill && bill.branchId !== nextBranchId ? newReceiptLine() : line
+    })
+    syncReceiptLines(nextLines, { branchId: nextBranchId, customerId: '' })
   }
 
   function selectReceiptLineBill(index: number, docNo: string) {
@@ -2364,6 +2392,16 @@ export function MoneyMovementPageClient({
                 value={billSearch}
                 onChange={(event) => setBillSearch(event.target.value)}
               />
+              <BranchSelectCombobox
+                branches={(data.branches ?? []).filter((branch) => branch.active)}
+                className="w-full sm:w-auto"
+                controlSize="filter"
+                inputId="receipt-queue-branch-filter"
+                label="สาขา"
+                placeholder="ทุกสาขา"
+                value={branchFilter}
+                onChange={(value) => setBranchFilter(value ?? '')}
+              />
               {hasActiveBillFilters ? (
                 <UiButton
                   className="h-9 font-normal"
@@ -2373,6 +2411,7 @@ export function MoneyMovementPageClient({
                   onClick={() => {
                     setBillSearch('')
                     setBillSort('date_desc')
+                    setBranchFilter('')
                   }}
                 >
                   <X aria-hidden="true" className="mr-1 h-4 w-4" />
@@ -2539,6 +2578,7 @@ export function MoneyMovementPageClient({
                     setBillSearch('')
                     setBillSort('date_desc')
                     setBillSourceFilter('all')
+                    setBranchFilter('')
                   }}
                 >
                   <X aria-hidden="true" className="mr-1 h-4 w-4" />
@@ -2822,7 +2862,7 @@ export function MoneyMovementPageClient({
                     <div className="border-b border-slate-100 px-4 py-3">
                       <h3 className="text-sm font-bold text-slate-900">ข้อมูลใบรับเงิน</h3>
                     </div>
-                    <div className="grid gap-4 p-4 md:grid-cols-3">
+                    <div className="grid gap-4 p-4 md:grid-cols-4">
                       <label className="block">
                         <span className="mb-1 block text-xs font-medium text-slate-600">วันที่</span>
                         <DatePickerInput
@@ -2831,14 +2871,23 @@ export function MoneyMovementPageClient({
                           onChange={(value) => setForm({ ...form, date: value })}
                         />
                       </label>
+                      <BranchSelectCombobox
+                        branches={(data.branches ?? []).filter((branch) => branch.active)}
+                        disabled={Boolean(form.id) || receiptSourceType !== 'SB'}
+                        inputId="receipt-branch"
+                        label="สาขา *"
+                        placeholder="เลือกสาขาก่อน"
+                        value={(form as CustomerReceiptFormValues).branchId ?? ''}
+                        onChange={changeReceiptBranch}
+                      />
                       <SearchCombobox
-                        disabled={Boolean(form.id || form.billId)}
+                        disabled={Boolean(form.id || form.billId) || (receiptSourceType === 'SB' && !(form as CustomerReceiptFormValues).branchId)}
                         inputClassName="!h-9 px-2 py-1.5"
                         inputId="receipt-customer-search"
                         label={`${partyLabel} *`}
                         options={customerSearchOptions}
                         optionsPanelClassName="max-h-[280px]"
-                        placeholder="พิมพ์ค้นหาลูกค้า..."
+                        placeholder={receiptSourceType === 'SB' && !(form as CustomerReceiptFormValues).branchId ? 'เลือกสาขาก่อน' : 'พิมพ์ค้นหาลูกค้า...'}
                         value={partyValue}
                         onChange={changeReceiptCustomer}
                       />
@@ -2888,11 +2937,12 @@ export function MoneyMovementPageClient({
                               <tr key={line.id ?? `${index}-${line.salesBillDocNo}`} className="border-t border-slate-100">
                                 <td className="p-2">
                                   <UiSelect
+                                    disabled={!(form as CustomerReceiptFormValues).branchId}
                                     className="h-9 w-full rounded-md border border-slate-300 px-2 text-xs"
                                     value={line.salesBillDocNo}
                                     onChange={(event) => selectReceiptLineBill(index, event.target.value)}
                                   >
-                                    <option value="">เลือกบิลขาย</option>
+                                    <option value="">{(form as CustomerReceiptFormValues).branchId ? 'เลือกบิลขาย' : 'เลือกสาขาก่อน'}</option>
                                     {receiptSelectableBillsForLine(index).map((bill) => (
                                       <option key={bill.docNo} value={bill.docNo}>
                                         {bill.docNo} - {partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? '-'} - ค้าง {formatMoney(bill.receivableBalance ?? 0)}
@@ -2975,11 +3025,12 @@ export function MoneyMovementPageClient({
                             <div>
                               <span className="mb-1 block text-xs font-medium text-slate-600">Sales Bill</span>
                               <UiSelect
+                                disabled={!(form as CustomerReceiptFormValues).branchId}
                                 className="h-9 w-full rounded-md border border-slate-300 px-2 text-xs"
                                 value={line.salesBillDocNo}
                                 onChange={(event) => selectReceiptLineBill(index, event.target.value)}
                               >
-                                <option value="">เลือกบิลขาย</option>
+                                <option value="">{(form as CustomerReceiptFormValues).branchId ? 'เลือกบิลขาย' : 'เลือกสาขาก่อน'}</option>
                                 {receiptSelectableBillsForLine(index).map((bill) => (
                                   <option key={bill.docNo} value={bill.docNo}>
                                     {bill.docNo} - {partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? '-'} - ค้าง {formatMoney(bill.receivableBalance ?? 0)}
@@ -3207,6 +3258,18 @@ export function MoneyMovementPageClient({
                 <option value="">ทุกบัญชี</option>
                 {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
               </UiSelect>
+              {mode === 'receipt' ? (
+                <BranchSelectCombobox
+                  branches={(data.branches ?? []).filter((branch) => branch.active)}
+                  className="w-auto min-w-[180px]"
+                  controlSize="filter"
+                  inputId="receipt-history-branch-filter"
+                  label="สาขา"
+                  placeholder="ทุกสาขา"
+                  value={branchFilter}
+                  onChange={(value) => setBranchFilter(value ?? '')}
+                />
+              ) : null}
 
               {hasActiveHistoryFilters ? (
                 <UiButton className="h-9 font-normal" size="sm" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</UiButton>
@@ -3300,6 +3363,17 @@ export function MoneyMovementPageClient({
                       {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                     </UiSelect>
                   </div>
+
+                  {mode === 'receipt' ? (
+                    <BranchSelectCombobox
+                      branches={(data.branches ?? []).filter((branch) => branch.active)}
+                      inputId="receipt-history-mobile-branch-filter"
+                      label="สาขา"
+                      placeholder="ทุกสาขา"
+                      value={branchFilter}
+                      onChange={(value) => setBranchFilter(value ?? '')}
+                    />
+                  ) : null}
 
                   <div>
                     <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะ</span>
