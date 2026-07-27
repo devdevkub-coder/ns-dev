@@ -5,7 +5,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, hasPermission, requirePermission } from '@/lib/server/auth-context'
 import { REPORT_PAGE_PERMISSIONS } from '@/lib/report-permissions'
-import { currentActor, listDailyAccounts, nextBankStatementDocNos, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, documentBranchCode, listDailyAccounts, nextBankStatementDocNos, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { hasLockedPaymentApproval } from '@/lib/server/payment-approval-pending'
 import {
@@ -14,6 +14,7 @@ import {
   PAYMENT_STATUS_ACTION,
 } from '@/lib/server/payment-history'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranches } from '@/lib/server/reference-master-cache'
 import { listActiveSupplierPaymentOptions } from '@/lib/server/reference-master-cache'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import { activeVatRatePercent, activeWhtRatePercent } from '@/lib/server/tax-settings'
@@ -307,6 +308,7 @@ export async function GET(request: Request) {
       .filter(Boolean)
     const dateFrom = url.searchParams.get('dateFrom') || ''
     const dateTo = url.searchParams.get('dateTo') || ''
+    const branchId = url.searchParams.get('branchId') || ''
 
     const accountReference = accountId ? await findActiveAccountReferenceByCode(accountId) : null
     if (accountId && accountReference == null) {
@@ -315,6 +317,7 @@ export async function GET(request: Request) {
 
     const [
       accounts,
+      branches,
       categories,
       supplierPayees,
       rows,
@@ -322,6 +325,7 @@ export async function GET(request: Request) {
       whtRatePercent,
     ] = await Promise.all([
       listDailyAccounts(),
+      listActiveBranches(),
       prisma.expense_categories.findMany({
         include: { expense_types: { select: { active: true, code: true, name: true } } },
         orderBy: [{ active: 'desc' }, { name: 'asc' }],
@@ -337,6 +341,7 @@ export async function GET(request: Request) {
         orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
         where: {
           ...(accountReference != null ? { account_id: accountReference.id } : {}),
+          ...(branchId ? { branches: { code: branchId } } : {}),
           ...(statuses.length > 0 ? { status: { in: statuses } } : {}),
           ...(dateFrom || dateTo
             ? {
@@ -384,6 +389,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       accounts,
+      branches: branches.map((branch) => ({ active: true, code: branch.code, id: branch.code, name: branch.name })),
       categories: categories.map((row: { active: boolean | null, code: string, expense_types: { code: string, name: string } | null, name: string }) => ({
         active: row.active,
         id: row.code,
@@ -513,7 +519,7 @@ export async function POST(request: Request) {
       if (!existingExpense) {
         await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('expenses.doc_no'))`
       }
-      const docNo = existingExpense?.doc_no ?? await nextDailyDocNo('expenses', 'EXP', documentDateInput, tx)
+      const docNo = existingExpense?.doc_no ?? await nextDailyDocNo('expenses', 'EXP', documentDateInput, tx, documentBranchCode(branch?.code))
       const isPayNow = values.paymentAction === 'pay_now'
       const persistedStatus = isPayNow ? 'paid' : 'pending_approval'
       const selectedDestination = isPayNow
