@@ -30,6 +30,8 @@ SC ย้าย qty ระหว่าง stock status/output category โดย
 ## Page Responsibilities
 
 - ปรับสถานะสินค้าเฉพาะ `RM <-> FG` ตาม requirement ล่าสุด โดยใช้กับการจัดประเภทผิดตั้งแต่ต้น ไม่ใช่ production
+- กรณีคลังต้นทางและปลายทางอยู่คนละสาขา ให้เลือก `สาขาต้นทาง` และ `สาขาปลายทาง` แยกกัน แล้วเลือกคลังภายใต้สาขาของแต่ละฝั่ง
+- เลขเอกสาร `SC` ยึดรหัสของสาขาจากคลังต้นทาง เพราะรายการขาออกและการตรวจสอบ stock ต้นทางเป็น source ของเอกสาร; ledger ขาเข้าบันทึก `branch_id` ของสาขาปลายทาง
 - เลือก product/warehouse/source status/target status/qty/reason
 - เขียน paired ledger ออกจาก status เดิมและเข้า status ใหม่
 - ใช้สำหรับ stock status correction และ RM/FG bucket conversion ไม่ใช่ grade/product conversion และไม่ใช่การแปรรูปจริง
