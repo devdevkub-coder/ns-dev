@@ -7,12 +7,13 @@ import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { refreshAdvancePaymentWorkflowStatus } from '@/lib/server/advance-payments'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { listDailyAccounts, nextBankStatementDocNos, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { nextPaymentApprovalDocNos } from '@/lib/server/payment-approval-pending'
 import { getActivePaymentMethods, type ActivePaymentMethod } from '@/lib/server/payment-methods'
 import { appendPaymentApprovalStatusLog, PAYMENT_APPROVAL_STATUS_ACTION } from '@/lib/server/payment-history'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranches, listActiveBranchesByCodes } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -80,14 +81,18 @@ function pettyReturnDisplayDocNo(entry: { date: Date; doc_no: string | null; id:
   return `PRET${toDateOnly(entry.date).slice(2, 7).replace('-', '')}-${entry.id.toString().padStart(4, '0')}`
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'daily.payment_approval.view')
+    const requestedBranchCode = new URL(request.url).searchParams.get('branchId')?.trim() || null
+    const allowedBranchCodes = getBranchCodeIntersection(context, requestedBranchCode)
+    const branchWhere = allowedBranchCodes === null ? {} : { branches: { code: { in: allowedBranchCodes } } }
 
-    const [purchaseBills, advancePayments, expenses, approvals, pettyReturns, paymentMethods, dailyAccounts] = await Promise.all([
+    const [purchaseBills, advancePayments, expenses, approvals, pettyReturns, paymentMethods, dailyAccounts, branches] = await Promise.all([
       prisma.purchase_bills.findMany({
         include: {
+          branches: true,
           suppliers: {
             include: {
               supplier_bank_accounts: {
@@ -105,6 +110,7 @@ export async function GET() {
         take: 5000,
         where: {
           status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] },
+          ...branchWhere,
         },
       }),
       prisma.supplier_advance_payments.findMany({
@@ -127,11 +133,13 @@ export async function GET() {
         take: 5000,
         where: {
           status: { not: 'cancelled' },
+          ...branchWhere,
         },
       }),
       prisma.expenses.findMany({
         include: {
           accounts: true,
+          branches: true,
           suppliers: {
             include: {
               supplier_bank_accounts: {
@@ -149,6 +157,7 @@ export async function GET() {
         take: 5000,
         where: {
           status: { notIn: ['paid', 'cancelled'] },
+          ...branchWhere,
         },
       }),
       prisma.payment_approvals.findMany({
@@ -171,6 +180,7 @@ export async function GET() {
       }),
       getActivePaymentMethods(),
       listDailyAccounts(),
+      allowedBranchCodes === null ? listActiveBranches() : listActiveBranchesByCodes(allowedBranchCodes),
     ])
 
     const approvedByPurchaseBillId = new Map<string, typeof approvals[number][]>()
@@ -558,7 +568,18 @@ export async function GET() {
       })
     const pettyReturnRows = [...pendingPettyReturnRows, ...approvedPettyReturnRows]
 
-    return NextResponse.json({ apRows: [...apRows, ...advanceRows], expenseRows, pettyReturnRows })
+    const branchBySourceDocNo = new Map<string, string | null>([
+      ...purchaseBills.map((row) => [row.doc_no, row.branches?.code ?? null] as const),
+      ...advancePayments.map((row) => [row.doc_no, row.branches?.code ?? null] as const),
+      ...expenses.map((row) => [row.doc_no, row.branches?.code ?? null] as const),
+    ])
+    const attachBranch = <T extends { sourceDocNo: string }>(rows: T[]) => rows.map((row) => ({ ...row, branchId: branchBySourceDocNo.get(row.sourceDocNo) ?? null }))
+    return NextResponse.json({
+      apRows: attachBranch([...apRows, ...advanceRows]),
+      branches: branches.map((branch) => ({ code: branch.code, id: branch.code, name: branch.name })),
+      expenseRows: attachBranch(expenseRows),
+      pettyReturnRows: attachBranch(pettyReturnRows),
+    })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดรายการอนุมัติจ่ายเงินไม่ได้', 500)
