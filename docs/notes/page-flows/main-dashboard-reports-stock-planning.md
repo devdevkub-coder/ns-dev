@@ -11,35 +11,44 @@
 
 หน้าวางแผนต้องเรียง PO ตามวันส่งและจำลองยอดแบบ FIFO: `Stock พร้อมส่ง + PO Buy ที่เข้าก่อน/ระหว่างไทม์ไลน์ - PO Sell ก่อนหน้า` เพื่อให้เห็นว่าสินค้าใดเริ่มขาดและต้องซื้อเพิ่มกี่กิโลกรัมจริง ๆ
 
-กล่อง `ต้องซื้อสินค้าเพิ่มด่วน` แสดงรายการจากชุดคำนวณเดียวกับตารางหลัก โดยแต่ละแถวแสดงสินค้า, shortage, PO Sell แรกที่ขาด, วันส่ง และลูกค้า จึงไม่เป็นเพียงตัวเลขรวมที่ผู้ใช้ต้องไล่หาเองในตารางด้านล่าง
+แท็บ `ต้องซื้อเพิ่ม` แสดงรายการจากชุดคำนวณเดียวกับภาพรวม โดยแต่ละแถวแสดงสินค้า, shortage, งบประมาณซื้อ, กำไรที่คาด และ PO Sell แรกที่ขาด จึงเป็นพื้นที่ตัดสินใจเฉพาะงานจัดซื้อโดยไม่ซ้อนกับตารางภาพรวม
 
 ## Runtime surfaces
 
-- `/stock/planning` — Table view สำหรับสรุปสินค้าและขยายดู PO Sell รายใบ
-- `/stock/planning` — Calendar view สำหรับดู PO Sell ตามวันส่งและ drill-down รายวัน
+- `/stock/planning` — `ภาพรวมสต๊อก` สำหรับสรุปสินค้าและขยายดู PO Sell รายใบ
+- `/stock/planning` — `ต้องซื้อเพิ่ม` สำหรับเรียงสินค้าที่เกิด shortage พร้อมงบประมาณและกำไรที่คาด
+- `/stock/planning` — `ปฏิทิน` สำหรับดู PO Sell ตามวันส่งและ drill-down รายวัน
 - Source of truth: `GET /api/stock/balance` และ `GET /api/po-reports/outstanding`; stock/PO/report facts ไม่ถูก cache ใน browser
 
 ## UI presentation contract
 
 - KPI ด้านบนเป็นภาพรวมจากผลคำนวณชุดเดียวกัน: PO Sell ค้างส่ง, พร้อมส่ง, ขาด และยอดที่ต้องซื้อเพิ่ม
-- `ตาราง` กับ `ปฏิทิน` เป็นคนละ data surface จึงใช้ shared line tabs ไม่ใช้ปุ่มสลับมุมมองเฉพาะหน้า
-- Desktop ใช้ filter card สองแถวตาม Design: ค้นหาสินค้าและหมวดอยู่แถวบน ส่วนตัวเลือกสินค้าที่ไม่มี PO, รีเฟรช และ `ส่งออก Excel` อยู่แถวล่าง
-- Mobile ย่อเป็น search, `ตัวกรอง`, รีเฟรช และ `ส่งออก Excel`; ตัวเลือกเพิ่มเติมอยู่ใน shared `MobileFilterSheet`
+- เนื้อหาหน้าเริ่มที่ KPI โดยไม่แสดงชื่อหน้าซ้ำกับ AppShell
+- `ภาพรวมสต๊อก`, `ต้องซื้อเพิ่ม` และ `ปฏิทิน` เป็นคนละ data surface จึงใช้ shared line tabs และหนึ่งแท็บแสดงพื้นที่ข้อมูลหลักเพียงชุดเดียว
+- Desktop ใช้ filter card ตาม Design: ค้นหาสินค้า, หมวด และล้างตัวกรองอยู่แถวบน; ในแท็บภาพรวมมี shared segmented `การแสดงผล` อยู่ซ้ายของแถวล่าง และ action จริง `ส่งออก Excel` อยู่ขวา
+- Mobile ย่อเป็น search และ `ตัวกรอง`; แท็บภาพรวมแสดง `ส่งออก Excel` ในแถว action ส่วนตัวเลือกเพิ่มเติมอยู่ใน shared `MobileFilterSheet`
+- ไม่มีปุ่มรีเฟรชถาวรใน toolbar เพราะไม่ใช่ page action ตาม Design; หน้าจะโหลดข้อมูลใหม่เมื่อกลับมา active และป้องกัน request ซ้อน ส่วนกรณีโหลดผิดพลาดจะแสดง `ลองใหม่` โดยไม่แสดงศูนย์หรือ empty state ที่อาจทำให้เข้าใจผิดว่าเป็นข้อมูลจริง
 - ตารางหนักเปลี่ยนเป็น dense cards บน mobile ส่วน Desktop คงหัวตารางบรรทัดเดียว, จัด identifiers/status กึ่งกลาง และตัวเลขชิดขวาด้วย tabular numerals
-- ตารางหลักมี pagination และ shared `PageSizeDropdown`; การขยาย PO Sell ใช้ native button พร้อม `aria-expanded` และ `aria-controls`
-- Calendar เก็บตารางเดือนที่กว้างไว้ใน local horizontal scroll โดยไม่ทำให้ทั้ง document ล้น และแสดงรายการวันเลือกเป็น cards บน mobile
-- Export สร้าง workbook `.xlsx` จริงจากผลหลังกรอง ไม่ใช้ไฟล์ CSV ที่เปลี่ยนเพียงนามสกุล
+- ตารางภาพรวมและตารางต้องซื้อเพิ่มใช้ pagination กับ shared `PageSizeDropdown` ชุดเดียวกันตามแท็บที่เปิด; การขยาย PO Sell ใช้ native button พร้อม `aria-expanded` และ `aria-controls`
+- ตาราง Desktop ทั้งภาพรวม, ต้องซื้อเพิ่ม, PO Sell ที่ขยาย และรายการรายวันใช้ shared `ResizableTableHead`, ความกว้างรายคอลัมน์ และ local horizontal scroll เดียวกับ `/stock/convert`; pagination ไม่มีกล่องครอบซ้ำและแสดงปุ่ม `คืนค่าเดิมตาราง` เมื่อผู้ใช้ปรับความกว้าง
+- ตารางต้องซื้อเพิ่มรวม `หมวด` ไว้ใต้สินค้า, `ต้นทุนเฉลี่ย` ไว้ใต้งบประมาณซื้อ และ `ราคาขาย PO` ไว้ใต้กำไรที่คาด เพื่อเหลือ 6 คอลัมน์ที่เปรียบเทียบได้โดยไม่ทิ้งข้อมูล
+- Calendar ใช้ toolbar แบบไม่มีกล่อง พื้นหลัง หรือเงาครอบซ้ำ โดยวางข้อความ `เลือกวันที่เพื่อดู PO Sell` ทางซ้ายและชุดเลื่อน/เลือกเดือนทางขวาบน Desktop; ตารางเดือนที่กว้างอยู่ใน local horizontal scroll โดยไม่ทำให้ทั้ง document ล้น และรายการวันเลือกแสดงเป็น cards บน mobile
+- Export แสดงเฉพาะแท็บภาพรวมซึ่งมี schema ตรงกับ workbook และสร้าง `.xlsx` จริงจากผลหลังกรอง ไม่ใช้ไฟล์ CSV ที่เปลี่ยนเพียงนามสกุล
+
+- Surface ตัวกรองบน Desktop, Mobile และตัวเลือกเดือนต้องประกาศ `data-ns-field-scope="filter"` เพื่อรับ yellow-field contract จาก Design โดยตรง ไม่พึ่ง global fallback
+- สี semantic ใช้เฉพาะสถานะหรือความเสี่ยงจริง: ตัวเลขทั่วไปใช้ slate, ค่าติดลบหรือ shortage ใช้สีแดง และกำไร/ขาดทุนกับ urgency ใช้สีตามความหมายทางธุรกิจ; ตารางต้องซื้อเพิ่มใช้ table shell กลางโดยไม่มีกรอบแดงครอบทั้งพื้นที่
 
 ## Why the UI has to be like this
 
-ผู้ใช้ต้องเห็นความเสี่ยงที่ต้องซื้อเพิ่มก่อน แล้วจึงลงรายละเอียดตามงานที่กำลังทำโดยไม่ต้องเทียบหลายรูปแบบใน surface เดียวกัน. Desktop ใช้พื้นที่เพื่อสแกนตารางและตัวเลขได้เร็ว ส่วน mobile ลดตารางกว้างเป็น card ที่ยังคงลำดับข้อมูลทางธุรกิจ. Filter sheet และปุ่มขยายแบบ native ทำให้การใช้งานด้วย touch, keyboard และ assistive technology สอดคล้องกับ component กลางของระบบ.
+ผู้ใช้ต้องเลือกบริบทงานก่อนแล้วจึงอ่านตารางเดียวที่ตรงกับงานนั้น: ตรวจสมดุลใน `ภาพรวมสต๊อก`, ตัดสินใจซื้อใน `ต้องซื้อเพิ่ม` หรือไล่กำหนดส่งใน `ปฏิทิน`. การแยกแท็บลดการสแกนข้อมูลซ้ำและป้องกันตารางสองชุดต่อกันเป็นหน้าแนวยาว. Desktop ใช้พื้นที่เพื่อเทียบตัวเลขได้เร็ว ส่วน mobile ลดตารางกว้างเป็น card ที่ยังคงลำดับข้อมูลทางธุรกิจ. Filter sheet และปุ่มขยายแบบ native ทำให้การใช้งานด้วย touch, keyboard และ assistive technology สอดคล้องกับ component กลางของระบบ. การอัปเดตเมื่อกลับเข้าแท็บรักษาความสดของ stock/PO โดยไม่เพิ่มปุ่มที่ทำงานซ้ำกับการโหลดข้อมูลลงใน toolbar.
 
 การปรับ presentation นี้ไม่เปลี่ยน FIFO, shortage, margin, API, database, permission, cache contract หรือ source of truth เดิม.
 
-## Validation checkpoint — 2026-07-27
+## Validation checkpoint — 2026-07-28
 
-- Focused design-contract Vitest ผ่าน `3/3`; targeted ESLint ผ่าน
+- Focused design-contract Vitest ผ่าน `7/7`; targeted ESLint ผ่าน
 - Workspace lint ผ่านด้วย `0 errors` และมี warnings เดิมนอก scope `6` จุด; workspace type-check ผ่าน
-- Production build ผ่านและสร้าง routes ครบ `326/326`
-- Browser QA ผ่านที่ Desktop `1280x720` และ Mobile `390x844`: ไม่มี document overflow, Desktop แสดง table/ซ่อน mobile cards, Mobile ซ่อน table/แสดง cards, numeric headers ตรงกับ numeric cells, filter sheet มี dialog semantics และคืน focus, Calendar ใช้ local overflow และแสดง drill-down cards; Light/Dark surfaces ยังรักษาลำดับชั้นและ contrast
-- แท็บ browser ใหม่ไม่มี console warning/error หลังจบ flow
+- Production build ผ่านด้วย Node heap `8 GB` และสร้าง routes ครบ `326/326`; รอบแรก compile ผ่านแต่ worker ชน heap เริ่มต้น `2 GB` ระหว่าง TypeScript
+- Browser inspection หลังแก้รอบสุดท้ายผ่านบน Desktop `1287px`: ไม่มีหัวหน้าซ้ำหรือปุ่มรีเฟรช, document ไม่ล้น, ภาพรวมมี Export หนึ่งปุ่ม ส่วนแท็บต้องซื้อเพิ่ม/ปฏิทินไม่มี Export ที่ไม่ตรงข้อมูล และหัวตารางจัดซื้อใช้ `Stock พร้อมส่ง` / `กำไรที่คาด`
+- Mobile `390x844` ไม่มี document overflow (`scrollWidth === clientWidth === 390`), ภาพรวม/จัดซื้อใช้ cards โดยไม่ render ตาราง Desktop, Export แสดงเฉพาะภาพรวม และปฏิทินกว้าง `720px` เลื่อนเฉพาะในกรอบ `356px`; ไม่พบ console warning/error
+- Focused contract ยืนยัน Desktop table ทั้ง 4 ชุดใช้ shared resizable headers/colgroup, ไม่มี raw `<th>` เหลือ, mobile card branch มี empty state สำหรับสินค้าที่ไม่มี PO และไม่เปลี่ยน FIFO/shortage/margin/API
