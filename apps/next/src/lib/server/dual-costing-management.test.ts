@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  canAccessBranchId: vi.fn(),
   getCurrentAuthContext: vi.fn(),
+  getAllowedBranchIds: vi.fn(),
   listActiveBranches: vi.fn(),
   listProductReferences: vi.fn(),
   poSellFindMany: vi.fn(),
@@ -28,6 +30,11 @@ vi.mock('@/lib/server/prisma', () => ({
   },
 }))
 
+vi.mock('@/lib/server/branch-scope', () => ({
+  canAccessBranchId: mocks.canAccessBranchId,
+  getAllowedBranchIds: mocks.getAllowedBranchIds,
+}))
+
 vi.mock('@/lib/server/reference-master-cache', () => ({
   listActiveBranches: mocks.listActiveBranches,
   listProductReferences: mocks.listProductReferences,
@@ -48,6 +55,8 @@ const product = {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.getCurrentAuthContext.mockResolvedValue({})
+  mocks.getAllowedBranchIds.mockResolvedValue(null)
+  mocks.canAccessBranchId.mockReturnValue(true)
   mocks.listActiveBranches.mockResolvedValue([{ code: 'B01', id: 10n, name: 'สมุทรสาคร' }])
   mocks.listProductReferences.mockResolvedValue([{
     active: true,
@@ -195,5 +204,93 @@ describe('dual-costing product presentation', () => {
       po: ['POS-JSON', 'POS-HEADER'],
       production: ['PROD-001'],
     })
+  })
+
+  it('keeps every verified Cost Pool lot under one stored match id for the ledger drilldown', async () => {
+    mocks.tradingDealFindMany.mockResolvedValue([
+      {
+        created_at: new Date('2026-07-06T00:00:00.000Z'),
+        created_by: 'ผู้จัดสรร',
+        customers: { name: 'ลูกค้า ก' },
+        date: new Date('2026-07-06T00:00:00.000Z'),
+        deal_no: 'ML2607-0001',
+        id: 401n,
+        matched_purchase_amount: 90,
+        matched_qty: 1,
+        matched_sales_amount: 110,
+        product_id: product.id,
+        products: product,
+        purchase_bill_no: 'PB-001',
+        purchase_bills: { doc_no: 'PB-001' },
+        sales_bill_id: 101n,
+        sales_bill_no: 'SB-NORMALIZED',
+        sales_bills: { doc_no: 'SB-NORMALIZED', po_sell_id: null },
+        status: 'Matched',
+        suppliers: { name: 'ผู้ขาย ก' },
+      },
+      {
+        created_at: new Date('2026-07-06T00:00:00.000Z'),
+        created_by: 'ผู้จัดสรร',
+        customers: { name: 'ลูกค้า ก' },
+        date: new Date('2026-07-06T00:00:00.000Z'),
+        deal_no: 'ML2607-0001',
+        id: 402n,
+        matched_purchase_amount: 190,
+        matched_qty: 2,
+        matched_sales_amount: 220,
+        product_id: product.id,
+        products: product,
+        purchase_bill_no: 'PB-002',
+        purchase_bills: { doc_no: 'PB-002' },
+        sales_bill_id: 101n,
+        sales_bill_no: 'SB-NORMALIZED',
+        sales_bills: { doc_no: 'SB-NORMALIZED', po_sell_id: null },
+        status: 'Matched',
+        suppliers: { name: 'ผู้ขาย ข' },
+      },
+    ])
+    mocks.tradingAllocationFactFindMany.mockResolvedValue([
+      {
+        created_at: new Date('2026-07-06T00:00:00.000Z'),
+        created_by: 'ผู้จัดสรร',
+        date: new Date('2026-07-06T00:00:00.000Z'),
+        id: 501n,
+        matched_cogs: 90,
+        product_id: product.id,
+        qty: 1,
+        sales_amount: 110,
+        sales_bill_id: 101n,
+        sales_doc_no: 'SB-NORMALIZED',
+        sales_line_no: 1,
+        source_doc_no: 'PB-001',
+        status: 'active',
+        stock_cost_pool_entries: { lot_no: 'LOT-A', pool_key: 'SCP-A' },
+        trading_deal_id: 401n,
+      },
+      {
+        created_at: new Date('2026-07-06T00:00:00.000Z'),
+        created_by: 'ผู้จัดสรร',
+        date: new Date('2026-07-06T00:00:00.000Z'),
+        id: 502n,
+        matched_cogs: 190,
+        product_id: product.id,
+        qty: 2,
+        sales_amount: 220,
+        sales_bill_id: 101n,
+        sales_doc_no: 'SB-NORMALIZED',
+        sales_line_no: 1,
+        source_doc_no: 'PB-002',
+        status: 'active',
+        stock_cost_pool_entries: { lot_no: 'LOT-B', pool_key: 'SCP-B' },
+        trading_deal_id: 402n,
+      },
+    ])
+
+    const payload = await buildDualCostingManagement()
+
+    expect(payload.ledgerRows.map((row) => ({ canReverse: row.canReverse, lot: row.costPoolLotNo, matchId: row.matchId, pool: row.costPoolNo }))).toEqual([
+      { canReverse: true, lot: 'LOT-A', matchId: 'ML2607-0001', pool: 'SCP-A' },
+      { canReverse: true, lot: 'LOT-B', matchId: 'ML2607-0001', pool: 'SCP-B' },
+    ])
   })
 })

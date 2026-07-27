@@ -3,13 +3,19 @@ import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } fr
 import { PO_SELL_STATUS, requirePoSellStatus } from '@/lib/po-sell-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { canAccessBranchId, getAllowedBranchIds } from '@/lib/server/branch-scope'
+import {
+  COST_POOL_EPSILON,
+  DUAL_COSTING_ALLOCATION_ADVISORY_LOCK,
+  getCostPoolAvailableQty,
+  getCostPoolStatus,
+} from '@/lib/server/dual-costing-allocation-contract'
 import { getDualCostingBranch } from '@/lib/server/dual-costing-branch'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { formatDualCostingMatchId, getDualCostingMatchIdPrefix } from '@/lib/server/dual-costing-match-id'
 import { prisma } from '@/lib/server/prisma'
 import { listProductReferences } from '@/lib/server/reference-master-cache'
 import { getCostPoolRowsData } from '../cost-pool/handler'
-
 export const runtime = 'nodejs'
 
 type CostPoolRow = {
@@ -72,13 +78,7 @@ type SaleRow = {
 
 type ConfirmCandidate = {
   costPoolId: string
-  counterparty?: string
   qtyToUse: number
-  sourceId?: string
-  sourceLineId?: string
-  sourceNo: string
-  sourceType: string
-  unitCost: number
 }
 
 function jsonNumber(value: unknown) {
@@ -159,6 +159,33 @@ function sortPool(rows: CostPoolRow[], mode: string, targetCost: number) {
   return nextRows.sort(incomingAsc)
 }
 
+function isFullQuantity(actualQty: number, expectedQty: number) {
+  return Math.abs(actualQty - expectedQty) <= COST_POOL_EPSILON
+}
+
+function allocationFactSourceType(sourceType: string | null | undefined) {
+  const normalized = (sourceType ?? '').trim().toLowerCase()
+  if (normalized.includes('production')) return 'PRODUCTION'
+  if (normalized.includes('regrade') || normalized.includes('grade')) return 'REGRADE'
+  return 'TRADING_PURCHASE_BILL'
+}
+
+function nextMatchSequence(dealNumbers: Array<string | null>, prefix: string) {
+  const pattern = new RegExp(`^${prefix}-(\\d{4})$`)
+  return dealNumbers.reduce((highest, dealNo) => {
+    const sequence = pattern.exec(dealNo ?? '')?.[1]
+    return sequence ? Math.max(highest, Number(sequence)) : highest
+  }, 0) + 1
+}
+
+function isAllocatableProductionStatus(status: string | null | undefined) {
+  return ['open', 'in production', 'partially completed'].includes((status ?? 'Open').trim().toLowerCase())
+}
+
+function sumFactQty(facts: Array<{ qty: unknown }>) {
+  return facts.reduce((sum, fact) => sum + toNumber(fact.qty as { toNumber: () => number }), 0)
+}
+
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
@@ -171,6 +198,10 @@ export async function GET(request: Request) {
     const sourceType = url.searchParams.get('sourceType') ?? 'spot-sell'
     const targetCost = Number(url.searchParams.get('targetCost')) || 0
     const branch = await getDualCostingBranch()
+    const allowedBranchIds = await getAllowedBranchIds(context)
+    if (!canAccessBranchId(allowedBranchIds, branch.id, { allowNull: false })) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์เข้าถึงข้อมูล Dual Costing ของสาขานี้' }, { status: 403 })
+    }
 
     const [costPool, poSells, salesBills, spotSalesBills, tradingDeals, products, productionOrders, tradingAllocationFacts] = await Promise.all([
       getCostPoolRowsData({ showAvailableOnly: true }),
@@ -258,6 +289,9 @@ export async function GET(request: Request) {
     const allowedPoSellIds = new Set(poSells.map((po) => po.id.toString()))
 
     const matchedQtyByPoSellProduct = new Map<string, number>() // key: `${po_sell_id}|${product_id}`
+    const matchedQtyByPoSellTarget = new Map<string, number>()
+    const poSellIdsWithExactTargetFacts = new Set<string>()
+    const matchedQtyByProductionProduct = new Map<string, number>()
     const matchedQtyBySpotProduct = new Map<string, number>() // key: `${sales_bill_id}:${product_id}`
 
     const accountedDealIds = new Set<bigint>()
@@ -266,6 +300,8 @@ export async function GET(request: Request) {
         accountedDealIds.add(fact.trading_deal_id)
       }
     })
+
+    const productionDocNos = new Set(productionOrders.map((order) => order.doc_no))
 
     // Process facts
     tradingAllocationFacts.forEach((fact) => {
@@ -284,7 +320,9 @@ export async function GET(request: Request) {
       if (!resolvedPoSellId && fact.sales_doc_no) {
         resolvedPoSellId = poSellDocNoToPoSellId.get(fact.sales_doc_no) ?? null
       }
-      const inBranchScope = (resolvedSalesBillId && allowedSalesBillIds.has(resolvedSalesBillId.toString()))
+      const isProductionTarget = Boolean(fact.sales_doc_no && productionDocNos.has(fact.sales_doc_no))
+      const inBranchScope = isProductionTarget
+        || (resolvedSalesBillId && allowedSalesBillIds.has(resolvedSalesBillId.toString()))
         || (resolvedPoSellId && allowedPoSellIds.has(resolvedPoSellId.toString()))
       if (!inBranchScope) return
 
@@ -296,6 +334,15 @@ export async function GET(request: Request) {
       if (resolvedPoSellId) {
         const key = `${resolvedPoSellId.toString()}|${fact.product_id.toString()}`
         matchedQtyByPoSellProduct.set(key, (matchedQtyByPoSellProduct.get(key) ?? 0) + toNumber(fact.qty))
+      }
+      if (fact.target_ref_id) {
+        matchedQtyByPoSellTarget.set(fact.target_ref_id, (matchedQtyByPoSellTarget.get(fact.target_ref_id) ?? 0) + toNumber(fact.qty))
+        const poSellIdFromTarget = fact.target_ref_id.match(/^(\d+)-/)?.[1]
+        if (poSellIdFromTarget) poSellIdsWithExactTargetFacts.add(poSellIdFromTarget)
+      }
+      if (isProductionTarget && fact.sales_doc_no) {
+        const key = `${fact.sales_doc_no}|${fact.product_id.toString()}`
+        matchedQtyByProductionProduct.set(key, (matchedQtyByProductionProduct.get(key) ?? 0) + toNumber(fact.qty))
       }
     })
 
@@ -314,11 +361,13 @@ export async function GET(request: Request) {
       if (resolvedSalesBillId) {
         resolvedPoSellId = salesBillIdToPoSellId.get(resolvedSalesBillId) ?? null
       }
-      if (!resolvedPoSellId && deal.sales_bill_no) {
-        resolvedPoSellId = poSellDocNoToPoSellId.get(deal.sales_bill_no) ?? null
-      }
-      const inBranchScope = (resolvedSalesBillId && allowedSalesBillIds.has(resolvedSalesBillId.toString()))
-        || (resolvedPoSellId && allowedPoSellIds.has(resolvedPoSellId.toString()))
+    if (!resolvedPoSellId && deal.sales_bill_no) {
+      resolvedPoSellId = poSellDocNoToPoSellId.get(deal.sales_bill_no) ?? null
+    }
+    const isProductionTarget = Boolean(deal.sales_bill_no && productionDocNos.has(deal.sales_bill_no))
+    const inBranchScope = isProductionTarget
+      || (resolvedSalesBillId && allowedSalesBillIds.has(resolvedSalesBillId.toString()))
+      || (resolvedPoSellId && allowedPoSellIds.has(resolvedPoSellId.toString()))
       if (!inBranchScope) return
 
       if (resolvedSalesBillId) {
@@ -326,22 +375,29 @@ export async function GET(request: Request) {
         matchedQtyBySpotProduct.set(key, (matchedQtyBySpotProduct.get(key) ?? 0) + toNumber(deal.matched_qty))
       }
 
-      if (resolvedPoSellId) {
-        const key = `${resolvedPoSellId.toString()}|${deal.product_id.toString()}`
-        matchedQtyByPoSellProduct.set(key, (matchedQtyByPoSellProduct.get(key) ?? 0) + toNumber(deal.matched_qty))
-      }
+    if (resolvedPoSellId) {
+      const key = `${resolvedPoSellId.toString()}|${deal.product_id.toString()}`
+      matchedQtyByPoSellProduct.set(key, (matchedQtyByPoSellProduct.get(key) ?? 0) + toNumber(deal.matched_qty))
+    }
+    if (isProductionTarget && deal.sales_bill_no) {
+      const key = `${deal.sales_bill_no}|${deal.product_id.toString()}`
+      matchedQtyByProductionProduct.set(key, (matchedQtyByProductionProduct.get(key) ?? 0) + toNumber(deal.matched_qty))
+    }
     })
 
     const salesRows: SaleRow[] = poSells.flatMap((po) => {
       const fallbackProduct = po.product_id ? productById.get(po.product_id) ?? null : null
       const items = itemRows(po, fallbackProduct, productById)
       return items.map((item) => {
-        const qty = item.qty || jsonNumber(po.qty)
+        const qty = item.remainingQty || item.qty || jsonNumber(po.remaining_qty ?? po.qty)
 
         const productObj = productByCode.get(item.productId)
         let matchedQty = 0
         if (productObj) {
-          matchedQty = matchedQtyByPoSellProduct.get(`${po.id.toString()}|${productObj.id.toString()}`) ?? 0
+          matchedQty = matchedQtyByPoSellTarget.get(`${po.id.toString()}-${item.lineId}`)
+            ?? (poSellIdsWithExactTargetFacts.has(po.id.toString())
+              ? 0
+              : matchedQtyByPoSellProduct.get(`${po.id.toString()}|${productObj.id.toString()}`) ?? 0)
         }
 
         const remainingQty = Math.max(0, qty - matchedQty)
@@ -389,6 +445,7 @@ export async function GET(request: Request) {
     const productionRows: SaleRow[] = productionOrders.flatMap((order) => {
       const product = order.products
       if (!product || !isDualCostingGroup(product.metal_group)) return []
+      if (!isAllocatableProductionStatus(order.status)) return []
 
       const inputQty = order.production_inputs.reduce((sum, input) => sum + toNumber(input.qty), 0)
       const inputCost = order.production_inputs.reduce((sum, input) => sum + toNumber(input.total_cost), 0)
@@ -396,8 +453,9 @@ export async function GET(request: Request) {
       const qty = inputQty > 0 ? inputQty : (toNumber(order.planned_input_qty) || toNumber(order.qty_planned) || 0)
       if (qty <= 0) return []
 
-      const matchedQty = 0
-      const remainingQty = qty
+      const matchedQty = Math.min(qty, matchedQtyByProductionProduct.get(`${order.doc_no}|${product.id.toString()}`) ?? 0)
+      const remainingQty = Math.max(0, qty - matchedQty)
+      if (remainingQty <= COST_POOL_EPSILON) return []
       const unitPrice = inputQty > 0 ? inputCost / inputQty : 0
       const productCode = requireBusinessCode(product.code, `สินค้า ${product.id}`)
 
@@ -484,8 +542,8 @@ export async function GET(request: Request) {
         totalCostMatch,
         totalToMatch,
       },
-      writeDeferred: true,
-    })
+      writeDeferred: false,
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลด Cost Allocator ไม่ได้', 500)
@@ -506,40 +564,53 @@ export async function POST(request: Request) {
       sourceType?: string
     }
 
-    if (!productId || !poSellId || !sourceType || !Array.isArray(candidates) || candidates.length === 0) {
+    const targetSourceType = String(sourceType ?? '').trim().toLowerCase()
+    if (!productId || !poSellId || !targetSourceType || !Array.isArray(candidates) || candidates.length === 0) {
       return NextResponse.json({ error: 'ข้อมูลไม่ครบถ้วน' }, { status: 400 })
+    }
+    if (!['po-sell', 'production', 'spot-sell'].includes(targetSourceType)) {
+      return NextResponse.json({ error: 'ประเภทเป้าหมายไม่ถูกต้อง' }, { status: 400 })
     }
 
     const normalizedCandidates = candidates
       .map((candidate) => ({
-        ...candidate,
         costPoolId: String(candidate.costPoolId ?? '').trim(),
         qtyToUse: Number(candidate.qtyToUse ?? 0),
-        sourceId: String(candidate.sourceId ?? '').trim(),
-        sourceLineId: String(candidate.sourceLineId ?? '').trim(),
-        sourceNo: String(candidate.sourceNo ?? '').trim(),
-        sourceType: String(candidate.sourceType ?? '').trim(),
-        unitCost: Number(candidate.unitCost ?? 0),
       }))
-      .filter((candidate) => candidate.qtyToUse > 0)
+      .filter((candidate) => Number.isFinite(candidate.qtyToUse) && candidate.qtyToUse > 0)
 
     if (normalizedCandidates.length === 0) {
       return NextResponse.json({ error: 'ไม่มีรายการต้นทุนที่พร้อมยืนยันการจัดสรร' }, { status: 400 })
     }
 
-    const invalidCandidate = normalizedCandidates.find((candidate) => !candidate.costPoolId || !candidate.sourceNo || !candidate.sourceType || !Number.isFinite(candidate.unitCost))
+    const invalidCandidate = normalizedCandidates.find((candidate) => !candidate.costPoolId)
     if (invalidCandidate) {
       return NextResponse.json({ error: 'ข้อมูลต้นทุนที่เลือกไม่สมบูรณ์ กรุณาเปิด Preview ใหม่แล้วลองอีกครั้ง' }, { status: 400 })
     }
 
+    if (new Set(normalizedCandidates.map((candidate) => candidate.costPoolId)).size !== normalizedCandidates.length) {
+      return NextResponse.json({ error: 'เลือกรายการ Cost Pool ซ้ำ กรุณาเปิด Preview ใหม่' }, { status: 400 })
+    }
+
     const actor = context.appUser?.email || context.authUser.email || 'system'
     const branch = await getDualCostingBranch()
+    const allowedBranchIds = await getAllowedBranchIds(context)
+    if (!canAccessBranchId(allowedBranchIds, branch.id, { allowNull: false })) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดสรรต้นทุนของสาขานี้' }, { status: 403 })
+    }
     const result = await prisma.$transaction(async (tx) => {
+      // ponytail: one L5 allocation lock is intentionally global until measured contention justifies scoped locks.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${DUAL_COSTING_ALLOCATION_ADVISORY_LOCK})`
+
       // 1. Find product
       const product = await tx.products.findFirst({
         where: { code: productId }
       })
       if (!product) throw new Error(`ไม่พบรหัสสินค้า: ${productId}`)
+
+      if (!isDualCostingGroup(product.metal_group)) {
+        throw new Error(`Product ${product.code} is not eligible for Dual Costing`)
+      }
 
       // 2. Resolve target document
       let customerId: bigint | null = null
@@ -547,9 +618,11 @@ export async function POST(request: Request) {
       let salesDocNo: string | null = null
       let salesLineNo: number | null = null
       let customerNameSnapshot: string | null = null
+      let targetRefId: string | null = null
+      let targetQty = 0
       let unitPrice = 0
 
-      if (sourceType === 'spot-sell') {
+      if (targetSourceType === 'spot-sell') {
         const [docNo, lineNoStr] = poSellId.split(':')
         const lineNo = parseInt(lineNoStr)
         if (!docNo || !Number.isFinite(lineNo)) throw new Error(`เลขรายการขายไม่ถูกต้อง: ${poSellId}`)
@@ -562,7 +635,11 @@ export async function POST(request: Request) {
           include: {
             customers: true,
             sales_bill_lines: {
-              where: { line_no: lineNo }
+              include: {
+                products: true,
+                sales_bill_po_sell_allocations: { where: { status: 'active' } },
+              },
+              where: { line_no: lineNo, status: 'active' },
             }
           }
         })
@@ -570,13 +647,27 @@ export async function POST(request: Request) {
         const line = salesBill.sales_bill_lines[0]
         if (!line) throw new Error(`ไม่พบไลน์ที่: ${lineNo} ในบิลขาย: ${docNo}`)
         
+        if (isCancelled(salesBill.status) || salesBill.transaction_mode === 'TRADING') {
+          throw new Error(`Sales Bill ${docNo} is not an active Spot Sell target`)
+        }
+        if (line.product_id !== product.id || !isDualCostingGroup(line.products?.metal_group)) {
+          throw new Error(`Sales Bill ${docNo} line ${lineNo} does not match product ${product.code}`)
+        }
+        if (line.sales_bill_po_sell_allocations.some((allocation) => allocation.po_sell_id != null)) {
+          throw new Error(`Sales Bill ${docNo} line ${lineNo} is already linked to PO Sell`)
+        }
+        targetQty = jsonNumber(line.qty) || jsonNumber(line.net_weight)
+        if (targetQty <= COST_POOL_EPSILON) {
+          throw new Error(`Sales Bill ${docNo} line ${lineNo} has no quantity available for allocation`)
+        }
+
         salesBillId = salesBill.id
         salesDocNo = salesBill.doc_no
         customerId = salesBill.customer_id
         customerNameSnapshot = salesBill.customers?.name || null
         salesLineNo = line.line_no
         unitPrice = toNumber(line.unit_price)
-      } else if (sourceType === 'po-sell') {
+      } else if (targetSourceType === 'po-sell') {
         const poId = parseInternalBigIntId(poSellId.split('-')[0])
         if (!poId) throw new Error(`เลข PO Sell ไม่ถูกต้อง: ${poSellId}`)
         const poSell = await tx.po_sells.findFirst({
@@ -589,6 +680,22 @@ export async function POST(request: Request) {
         }
         if (poSell.branch_id !== branch.id) throw new Error(`ไม่พบ PO Sell ID: ${poId}`)
 
+        const productRows = await tx.products.findMany({
+          select: { code: true, id: true, metal_group: true, name: true },
+        })
+        const productById = new Map(productRows.map((row) => [row.id, row]))
+        const fallbackProduct = poSell.product_id ? productById.get(poSell.product_id) ?? null : null
+        const targetItem = itemRows(poSell, fallbackProduct, productById).find((item) => `${poSell.id.toString()}-${item.lineId}` === poSellId)
+        if (!targetItem) throw new Error(`PO Sell target line is not valid: ${poSellId}`)
+        if (targetItem.productId !== product.code) {
+          throw new Error(`PO Sell ${poSell.doc_no} target line does not match product ${product.code}`)
+        }
+        targetQty = targetItem.remainingQty
+        if (targetQty <= COST_POOL_EPSILON) {
+          throw new Error(`PO Sell ${poSell.doc_no} target line has no quantity available for allocation`)
+        }
+        targetRefId = poSellId
+
         const salesBill = await tx.sales_bills.findFirst({
           where: {
             branch_id: branch.id,
@@ -598,34 +705,90 @@ export async function POST(request: Request) {
         })
 
         salesBillId = salesBill?.id || null
-        salesDocNo = salesBill?.doc_no || poSell.doc_no
+        salesDocNo = poSell.doc_no
         customerId = poSell.customer_id
         customerNameSnapshot = poSell.customers?.name || null
-        unitPrice = toNumber(poSell.unit_price)
-      } else if (sourceType === 'production') {
+        unitPrice = targetItem.unitPrice || (targetQty > 0 ? targetItem.totalAmount / targetQty : 0)
+      } else if (targetSourceType === 'production') {
         const prodOrder = await tx.production_orders.findFirst({
           where: {
             branch_id: branch.id,
             doc_no: poSellId,
           },
-          include: { products: true }
+          include: {
+            products: true,
+            production_inputs: { where: { status: 'active' } },
+          }
         })
         if (!prodOrder) throw new Error(`ไม่พบใบสั่งผลิต: ${poSellId}`)
+        if (!isAllocatableProductionStatus(prodOrder.status)) {
+          throw new Error(`Production order ${prodOrder.doc_no} is not open for allocation`)
+        }
+        if (prodOrder.product_id !== product.id || !isDualCostingGroup(prodOrder.products?.metal_group)) {
+          throw new Error(`Production order ${prodOrder.doc_no} does not match product ${product.code}`)
+        }
+        const inputQty = prodOrder.production_inputs.reduce((sum, input) => sum + toNumber(input.qty), 0)
+        targetQty = inputQty > 0 ? inputQty : (toNumber(prodOrder.planned_input_qty) || toNumber(prodOrder.qty_planned))
+        if (targetQty <= COST_POOL_EPSILON) {
+          throw new Error(`Production order ${prodOrder.doc_no} has no quantity available for allocation`)
+        }
         salesDocNo = prodOrder.doc_no
         unitPrice = 0
       } else {
-        throw new Error(`ไม่รองรับประเภทเป้าหมาย: ${sourceType}`)
+        throw new Error(`ไม่รองรับประเภทเป้าหมาย: ${targetSourceType}`)
+      }
+
+      const activeTargetFacts = await tx.trading_allocation_facts.findMany({
+        where: targetSourceType === 'po-sell'
+          ? {
+              OR: [
+                { target_ref_id: targetRefId },
+                { sales_doc_no: salesDocNo, target_ref_id: null },
+              ],
+              product_id: product.id,
+              status: 'active',
+            }
+          : targetSourceType === 'spot-sell'
+            ? {
+                product_id: product.id,
+                sales_bill_id: salesBillId,
+                sales_line_no: salesLineNo,
+                status: 'active',
+              }
+            : {
+                product_id: product.id,
+                sales_bill_id: null,
+                sales_doc_no: salesDocNo,
+                status: 'active',
+              },
+      })
+      const legacyPoFacts = targetSourceType === 'po-sell'
+        ? activeTargetFacts.filter((fact) => fact.target_ref_id == null)
+        : []
+      if (legacyPoFacts.length > 0) {
+        throw new Error(`PO Sell ${salesDocNo} has legacy allocation facts without an exact target line`)
+      }
+      const allocatedTargetQty = sumFactQty(activeTargetFacts)
+      const remainingTargetQty = Math.max(0, targetQty - allocatedTargetQty)
+      if (remainingTargetQty <= COST_POOL_EPSILON) {
+        throw new Error(`Target ${salesDocNo} is already fully allocated`)
+      }
+      const requestedQty = normalizedCandidates.reduce((sum, candidate) => sum + candidate.qtyToUse, 0)
+      if (!isFullQuantity(requestedQty, remainingTargetQty)) {
+        throw new Error(`Allocation quantity must equal the latest target remaining quantity (${remainingTargetQty})`)
       }
 
       const allocationDate = new Date()
       const matchIdPrefix = getDualCostingMatchIdPrefix(allocationDate)
-      const existingMatchCount = await tx.trading_deals.count({
+      const existingMatchRows = await tx.trading_deals.findMany({
         where: {
           deal_no: {
             startsWith: `${matchIdPrefix}-`,
           },
         },
+        select: { deal_no: true },
       })
+      const matchId = formatDualCostingMatchId(allocationDate, nextMatchSequence(existingMatchRows.map((row) => row.deal_no), matchIdPrefix))
 
       const createdDeals = []
       const createdFacts = []
@@ -650,49 +813,75 @@ export async function POST(request: Request) {
         if (!poolEntry) {
           throw new Error(`ไม่พบ Cost Pool Entry สำหรับ key: ${cand.costPoolId}`)
         }
-        const availableQty = Math.max(0, toNumber(poolEntry.original_qty) - toNumber(poolEntry.allocated_qty) - toNumber(poolEntry.released_qty))
+        const availableQty = getCostPoolAvailableQty(
+          toNumber(poolEntry.original_qty),
+          toNumber(poolEntry.allocated_qty),
+          toNumber(poolEntry.released_qty),
+        )
         if (qtyToUse > availableQty + 0.001) {
-          throw new Error(`Cost Pool ${cand.sourceNo} คงเหลือไม่พอสำหรับยืนยัน กรุณาเปิด Preview ใหม่อีกครั้ง`)
+          throw new Error(`Cost Pool ${poolEntry.pool_key} คงเหลือไม่พอสำหรับยืนยัน กรุณาเปิด Preview ใหม่อีกครั้ง`)
         }
         if (poolEntry.branch_id !== branch.id) {
-          throw new Error(`Cost Pool ${cand.sourceNo} ไม่ได้อยู่ในสาขา ${branch.name}`)
+          throw new Error(`Cost Pool ${poolEntry.pool_key} ไม่ได้อยู่ในสาขา ${branch.name}`)
         }
+        if (poolEntry.product_id !== product.id) {
+          throw new Error(`Cost Pool ${poolEntry.pool_key} ไม่ตรงกับสินค้าที่ต้องการจัดสรร`)
+        }
+        const sourceNo = poolEntry.source_ref_no?.trim() || poolEntry.pool_key
+        const sourceLineNo = poolEntry.source_line_id && /^\d+$/.test(poolEntry.source_line_id)
+          ? Number(poolEntry.source_line_id)
+          : null
+        const unitCost = toNumber(poolEntry.unit_cost)
 
-        // If candidate is a purchase document (PO Buy or Spot Buy)
-        if (cand.sourceType === 'PO_Buy' || cand.sourceType === 'Spot_Buy') {
-          const purchaseBillIdFromSource = /^\d+$/.test(cand.sourceId) ? BigInt(cand.sourceId) : null
-          pb = purchaseBillIdFromSource
+        const sourceRefId = parseInternalBigIntId(poolEntry.source_ref_id)
+        const sourceRefType = (poolEntry.source_ref_type ?? '').trim().toLowerCase()
+        const sourceKind = (poolEntry.source_type ?? '').trim().toLowerCase()
+        const sourceFactType = allocationFactSourceType(poolEntry.source_type || poolEntry.source_ref_type)
+        if (sourceRefType === 'pb' || sourceKind.includes('purchase') || sourceKind === 'spot_buy') {
+          pb = sourceRefId
             ? await tx.purchase_bills.findFirst({
-              where: { id: purchaseBillIdFromSource, NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
-              include: { suppliers: true }
+              where: { id: sourceRefId, NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
+              include: { suppliers: true },
             })
-            : null
-          if (!pb) {
-            pb = await tx.purchase_bills.findFirst({
-              where: { doc_no: cand.sourceNo, NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
-              include: { suppliers: true }
+            : await tx.purchase_bills.findFirst({
+              where: { doc_no: sourceNo, NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
+              include: { suppliers: true },
             })
-          }
           if (pb) {
             purchaseBillId = pb.id
             supplierId = pb.supplier_id
             supplierNameSnapshot = pb.suppliers?.name || null
           }
-          if (!supplierId) {
-            // Check if PO Buy exists
-            poBuy = await tx.po_buys.findFirst({
-              where: { doc_no: cand.sourceNo, NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
-              include: { suppliers: true }
+        }
+        if (!pb && (sourceRefType === 'pob' || sourceKind.includes('po_buy') || sourceKind.includes('purchase'))) {
+          poBuy = sourceRefId
+            ? await tx.po_buys.findFirst({
+              where: { id: sourceRefId, NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
+              include: { suppliers: true },
             })
-            if (poBuy) {
-              supplierId = poBuy.supplier_id
-              supplierNameSnapshot = poBuy.suppliers?.name || null
-            }
+            : await tx.po_buys.findFirst({
+              where: { doc_no: sourceNo, NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
+              include: { suppliers: true },
+            })
+          if (poBuy) {
+            supplierId = poBuy.supplier_id
+            supplierNameSnapshot = poBuy.suppliers?.name || null
           }
+        }
+        if (!supplierNameSnapshot) {
+          supplierNameSnapshot = sourceFactType === 'PRODUCTION'
+            ? 'การผลิต'
+            : sourceFactType === 'REGRADE'
+              ? 'ปรับเกรด'
+              : 'รับซื้อ'
         }
 
         const nextAllocatedQty = toNumber(poolEntry.allocated_qty) + qtyToUse
-        const nextStatus = nextAllocatedQty >= toNumber(poolEntry.original_qty) - 0.001 ? 'Fully Used' : 'Partially Used'
+        const nextStatus = getCostPoolStatus(
+          toNumber(poolEntry.original_qty),
+          nextAllocatedQty,
+          toNumber(poolEntry.released_qty),
+        )
         await tx.stock_cost_pool_entries.update({
           where: { id: poolEntry.id },
           data: {
@@ -704,20 +893,19 @@ export async function POST(request: Request) {
         })
 
         // Create trading deal
-        const candDealNo = formatDualCostingMatchId(allocationDate, existingMatchCount + i + 1)
         const deal = await tx.trading_deals.create({
           data: {
-            deal_no: candDealNo,
+            deal_no: matchId,
             date: allocationDate,
             purchase_bill_id: purchaseBillId,
-            purchase_bill_no: pb?.doc_no || cand.sourceNo,
+            purchase_bill_no: pb?.doc_no || sourceNo,
             sales_bill_id: salesBillId,
             sales_bill_no: salesDocNo,
             product_id: product.id,
             supplier_id: supplierId,
             customer_id: customerId,
             matched_qty: qtyToUse,
-            matched_purchase_amount: qtyToUse * cand.unitCost,
+            matched_purchase_amount: qtyToUse * unitCost,
             matched_sales_amount: qtyToUse * unitPrice,
             ex_vat: true,
             status: 'Matched',
@@ -733,7 +921,7 @@ export async function POST(request: Request) {
         // Create trading allocation fact
         const fact = await tx.trading_allocation_facts.create({
           data: {
-            allocation_no: `TAF-${candDealNo}`,
+            allocation_no: `TAF-${matchId}-${String(i + 1).padStart(3, '0')}`,
             date: allocationDate,
             trading_deal_id: deal.id,
             purchase_bill_id: purchaseBillId,
@@ -741,18 +929,20 @@ export async function POST(request: Request) {
             supplier_id: supplierId,
             customer_id: customerId,
             product_id: product.id,
-            source_type: cand.sourceType === 'Production' ? 'PRODUCTION' : cand.sourceType === 'Grade Adjustment' ? 'REGRADE' : 'TRADING_PURCHASE_BILL',
-            source_doc_no: cand.sourceNo,
-            source_line_no: cand.sourceLineId ? parseInt(cand.sourceLineId) : null,
+            cost_pool_entry_id: poolEntry.id,
+            target_ref_id: targetRefId,
+            source_type: sourceFactType,
+            source_doc_no: sourceNo,
+            source_line_no: sourceLineNo,
             sales_doc_no: salesDocNo,
             sales_line_no: salesLineNo,
             product_code_snapshot: product.code,
             product_name_snapshot: product.name,
-            supplier_name_snapshot: supplierNameSnapshot || cand.counterparty,
-            customer_name_snapshot: customerNameSnapshot || (sourceType === 'production' ? 'ภายในโรงงาน' : '-'),
+            supplier_name_snapshot: supplierNameSnapshot,
+            customer_name_snapshot: customerNameSnapshot || (targetSourceType === 'production' ? 'ภายในโรงงาน' : '-'),
             qty: qtyToUse,
             sales_amount: qtyToUse * unitPrice,
-            matched_cogs: qtyToUse * cand.unitCost,
+            matched_cogs: qtyToUse * unitCost,
             allocation_method: 'RECORDED_LINE',
             status: 'active',
             notes: notes || 'Matched via Cost Allocator',
@@ -767,7 +957,8 @@ export async function POST(request: Request) {
 
       return {
         dealsCount: createdDeals.length,
-        factsCount: createdFacts.length
+        factsCount: createdFacts.length,
+        matchId,
       }
     })
 
@@ -775,7 +966,7 @@ export async function POST(request: Request) {
       success: true,
       message: 'ยืนยันการจัดสรรต้นทุนสำเร็จ',
       result
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     if (

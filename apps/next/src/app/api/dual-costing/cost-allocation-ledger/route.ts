@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { canAccessBranchId, getAllowedBranchIds } from '@/lib/server/branch-scope'
+import { getDualCostingBranch } from '@/lib/server/dual-costing-branch'
 import { buildDualCostingManagement } from '@/lib/server/dual-costing-management'
 
 export const runtime = 'nodejs'
@@ -18,13 +20,22 @@ function filterLedgerRows(rows: LedgerExportRow[], filters: {
 }) {
   const { category, from, q, status, targetType, to } = filters
 
-  return rows
+  const filteredRows = rows
     .filter((row) => !from || row.date >= from)
     .filter((row) => !to || row.date <= to)
     .filter((row) => !status || status === 'all' || row.status === status)
     .filter((row) => !category || category === 'all' || row.productCategory === category)
     .filter((row) => !targetType || targetType === 'all' || row.targetType === targetType)
-    .filter((row) => !q || `${row.matchId} ${row.saleDocNo} ${row.sourceNo} ${row.productId} ${row.productName}`.toLowerCase().includes(q))
+
+  if (!q) return filteredRows
+
+  const matchingMatchIds = new Set(
+    filteredRows
+      .filter((row) => `${row.matchId} ${row.saleDocNo} ${row.sourceNo} ${row.productId} ${row.productName}`.toLowerCase().includes(q))
+      .map((row) => row.matchId),
+  )
+
+  return filteredRows.filter((row) => matchingMatchIds.has(row.matchId))
 }
 
 async function buildWorkbook(rows: LedgerExportRow[]) {
@@ -58,6 +69,7 @@ async function buildWorkbook(rows: LedgerExportRow[]) {
 function xlsxResponse(body: Buffer, filename: string) {
   return new Response(new Uint8Array(body), {
     headers: {
+      'Cache-Control': 'private, no-store',
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     },
@@ -68,6 +80,11 @@ export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'finance.cash.view')
+    const branch = await getDualCostingBranch()
+    const allowedBranchIds = await getAllowedBranchIds(context)
+    if (!canAccessBranchId(allowedBranchIds, branch.id, { allowNull: false })) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์เข้าถึง Allocation Ledger ของสาขานี้' }, { status: 403 })
+    }
 
     const url = new URL(request.url)
     const q = url.searchParams.get('q')?.trim().toLowerCase()
@@ -94,7 +111,7 @@ export async function GET(request: Request) {
       filters: {
         categories: Array.from(new Set(payload.ledgerRows.map((row) => row.productCategory))).sort(),
         statuses: ['approved', 'reversed'],
-        targetTypes: ['PO_SELL', 'SPOT_SELL'],
+        targetTypes: Array.from(new Set(payload.ledgerRows.map((row) => row.targetType))).sort(),
       },
       rows,
       summary: {
@@ -109,8 +126,8 @@ export async function GET(request: Request) {
         spotCount: activeRows.filter((row) => row.targetType === 'SPOT_SELL').length,
         totalQty: activeRows.reduce((sum, row) => sum + row.allocatedQty, 0),
       },
-      writeDeferred: true,
-    })
+      writeDeferred: false,
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลด Allocation Ledger ไม่ได้', 500)
