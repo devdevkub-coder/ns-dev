@@ -49,7 +49,7 @@ Write areas: `apps/next/src/components/main/MainSalesControlClients.tsx`, `apps/
 
 Completed locally: UI restructuring and Thai status wording; server analysis now uses only same-product Sales Plan price/% LME and returns no projected price/profit when no plan exists.
 
-Validation pending: workspace lint, type-check, build, and diff-check.
+Validation checkpoint 2026-07-27: fixed the stale `periodFrom`/`periodTo` references in `buildSalesCommission`; the API now returns its existing string date range (`from`/`to`). Workspace type-check and production build pass; lint has zero errors with the existing warnings listed in the command output.
 
 Completed locally: effective-permission helper/tests; action catalog and legacy-permission mapping migrations; User Admin/Security Admin split; multi-role user assignment; action checks for petty advance, payment approval, WTI open-bill buttons, purchase/sales bills, supplier payment, customer receipts, supplier ADV and daily expenses.
 

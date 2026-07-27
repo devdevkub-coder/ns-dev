@@ -816,8 +816,8 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
   return {
     billRows,
     filters: {
-      dateFrom: toDateOnly(periodFrom),
-      dateTo: toDateOnly(periodTo),
+      dateFrom: from,
+      dateTo: to,
       periods: ['today', 'week', 'month', 'quarter', 'year'],
       branches: branches.map((branch: BranchReferenceRow) => ({ id: branch.id.toString(), name: branch.name }))
     },
