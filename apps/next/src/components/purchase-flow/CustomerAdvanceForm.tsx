@@ -47,7 +47,6 @@ type CustomerAdvanceRow = {
   subtotalAmount: number
   targetAmount: number
   totalGrossWeight: number
-  totalNetWeight: number
   usableCreditAmount: number
   vatAmount: number
   vatRatePercent: number
@@ -76,14 +75,13 @@ type CustomerAdvanceResponse = {
 type CustomerAdvanceLine = {
   grossWeight: string
   id: string
-  netWeight: string
   productId: string
   quantity: string
 }
 
 type CustomerAdvanceSortDirection = 'asc' | 'desc'
 type CustomerAdvanceSortKey = 'availableAmount' | 'customerName' | 'documentDate' | 'docNo' | 'status' | 'targetAmount'
-type CustomerAdvanceColumnKey = 'action' | 'availableAmount' | 'branchName' | 'customerName' | 'documentDate' | 'docNo' | 'reference' | 'remainingReceiptAmount' | 'receivedAmount' | 'status' | 'targetAmount' | 'totalNetWeight' | 'usableCreditAmount'
+type CustomerAdvanceColumnKey = 'action' | 'availableAmount' | 'branchName' | 'customerName' | 'documentDate' | 'docNo' | 'reference' | 'remainingReceiptAmount' | 'receivedAmount' | 'status' | 'targetAmount' | 'totalGrossWeight' | 'usableCreditAmount'
 
 type CustomerAdvanceFormState = {
   amount: string
@@ -102,7 +100,6 @@ type CustomerAdvanceDetail = CustomerAdvanceRow & {
   lines: Array<{
     grossWeight: number
     lineNo: number
-    netWeight: number
     productCode: string
     productId: string
     productName: string
@@ -125,7 +122,7 @@ type CustomerAdvanceDetail = CustomerAdvanceRow & {
 
 type FormErrors = Record<string, string>
 
-const emptyLine = (id: string): CustomerAdvanceLine => ({ grossWeight: '', id, netWeight: '', productId: '', quantity: '' })
+const emptyLine = (id: string): CustomerAdvanceLine => ({ grossWeight: '', id, productId: '', quantity: '' })
 
 const initialForm = (): CustomerAdvanceFormState => ({
   amount: '',
@@ -145,7 +142,7 @@ const customerAdvanceColumns: Array<ResizableColumnDefinition<CustomerAdvanceCol
   { key: 'branchName', defaultWidth: 150, minWidth: 120 },
   { key: 'customerName', defaultWidth: 260, minWidth: 170 },
   { key: 'reference', defaultWidth: 180, minWidth: 140 },
-  { key: 'totalNetWeight', defaultWidth: 130, minWidth: 110 },
+  { key: 'totalGrossWeight', defaultWidth: 130, minWidth: 110 },
   { key: 'targetAmount', defaultWidth: 140, minWidth: 120 },
   { key: 'receivedAmount', defaultWidth: 130, minWidth: 115 },
   { key: 'remainingReceiptAmount', defaultWidth: 130, minWidth: 115 },
@@ -269,7 +266,6 @@ export function CustomerAdvanceForm() {
   })), [data])
   const totals = useMemo(() => ({
     grossWeight: form.lines.reduce((total, line) => total + parseDecimal(line.grossWeight), 0),
-    netWeight: form.lines.reduce((total, line) => total + parseDecimal(line.netWeight), 0),
     quantity: form.lines.reduce((total, line) => total + parseDecimal(line.quantity), 0),
   }), [form.lines])
   const selectedVatRatePercent = useMemo(() => data ? vatRateForDate(data.settings.vatRates, form.documentDate) : null, [data, form.documentDate])
@@ -340,7 +336,6 @@ export function CustomerAdvanceForm() {
         lines: detail.lines.map((line, index) => ({
           grossWeight: String(line.grossWeight),
           id: `line-${index}`,
-          netWeight: String(line.netWeight),
           productId: line.productId,
           quantity: String(line.quantity),
         })),
@@ -502,8 +497,8 @@ export function CustomerAdvanceForm() {
               </FormSection>
 
               <FormSection description="รายการสินค้าและน้ำหนักตาม Packing List" title="รายการสินค้า">
-                <div className="overflow-x-auto rounded-md border border-slate-200"><table className="ns-table w-full min-w-[760px] text-sm"><thead className="bg-slate-50 text-left text-xs font-medium text-slate-600"><tr><th className="px-3 py-2">สินค้า <span className="text-red-600">*</span></th><th className="w-32 px-3 py-2 text-right">จำนวน <span className="text-red-600">*</span></th><th className="w-36 px-3 py-2 text-right">น้ำหนักรวม (กก.) <span className="text-red-600">*</span></th><th className="w-36 px-3 py-2 text-right">น้ำหนักสุทธิ (กก.) <span className="text-red-600">*</span></th><th className="w-12 px-2 py-2" aria-label="ลบรายการ" /></tr></thead><tbody className="divide-y divide-slate-100">
-                  {form.lines.map((line, index) => <tr key={line.id}><td className="p-2"><SearchCombobox disabled={isLoading || !data} error={lineFieldError(formErrors, index, 'productId')} hideLabel inputId={`customer-advance-product-${line.id}`} label="สินค้า *" options={productOptions} value={line.productId} onChange={(value) => updateLine(line.id, 'productId', value)} /></td><td className="p-2"><DecimalInput aria-label="จำนวน" error={lineFieldError(formErrors, index, 'quantity')} required value={line.quantity} onChange={(value) => updateLine(line.id, 'quantity', value)} /></td><td className="p-2"><DecimalInput aria-label="น้ำหนักรวม" error={lineFieldError(formErrors, index, 'grossWeight')} required value={line.grossWeight} onChange={(value) => updateLine(line.id, 'grossWeight', value)} /></td><td className="p-2"><DecimalInput aria-label="น้ำหนักสุทธิ" error={lineFieldError(formErrors, index, 'netWeight')} required value={line.netWeight} onChange={(value) => updateLine(line.id, 'netWeight', value)} /></td><td className="p-2 text-center">{form.lines.length > 1 ? <Button aria-label="ลบรายการ" className="text-red-600 hover:bg-red-50 hover:text-red-700" size="icon" type="button" variant="ghost" onClick={() => removeLine(line.id)}><Trash2 className="h-4 w-4" /></Button> : null}</td></tr>)}
+                <div className="overflow-x-auto rounded-md border border-slate-200"><table className="ns-table w-full min-w-[620px] text-sm"><thead className="bg-slate-50 text-left text-xs font-medium text-slate-600"><tr><th className="px-3 py-2">สินค้า <span className="text-red-600">*</span></th><th className="w-32 px-3 py-2 text-right">จำนวน <span className="text-red-600">*</span></th><th className="w-36 px-3 py-2 text-right">น้ำหนักรวม (กก.) <span className="text-red-600">*</span></th><th className="w-12 px-2 py-2" aria-label="ลบรายการ" /></tr></thead><tbody className="divide-y divide-slate-100">
+                  {form.lines.map((line, index) => <tr key={line.id}><td className="p-2"><SearchCombobox disabled={isLoading || !data} error={lineFieldError(formErrors, index, 'productId')} hideLabel inputId={`customer-advance-product-${line.id}`} label="สินค้า *" options={productOptions} value={line.productId} onChange={(value) => updateLine(line.id, 'productId', value)} /></td><td className="p-2"><DecimalInput aria-label="จำนวน" error={lineFieldError(formErrors, index, 'quantity')} required value={line.quantity} onChange={(value) => updateLine(line.id, 'quantity', value)} /></td><td className="p-2"><DecimalInput aria-label="น้ำหนักรวม" error={lineFieldError(formErrors, index, 'grossWeight')} required value={line.grossWeight} onChange={(value) => updateLine(line.id, 'grossWeight', value)} /></td><td className="p-2 text-center">{form.lines.length > 1 ? <Button aria-label="ลบรายการ" className="text-red-600 hover:bg-red-50 hover:text-red-700" size="icon" type="button" variant="ghost" onClick={() => removeLine(line.id)}><Trash2 className="h-4 w-4" /></Button> : null}</td></tr>)}
                 </tbody></table></div>
                 {formErrors.lines ? <p className="mt-2 text-xs text-red-600">{formErrors.lines}</p> : null}
                 <Button className="mt-3 gap-2" size="sm" type="button" variant="outline" onClick={appendLine}><Plus className="h-4 w-4" />เพิ่มรายการ</Button>
@@ -525,7 +520,7 @@ export function CustomerAdvanceForm() {
 
               <FormSection description="ข้อมูลเพิ่มเติมที่ไม่มีใน Packing List" title="หมายเหตุ"><Field error={formErrors.remark} label="หมายเหตุ"><textarea className="min-h-20 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-blue-100" placeholder="ระบุหมายเหตุ" value={form.remark} onChange={(event) => updateField('remark', event.target.value)} /></Field></FormSection>
             </div>
-            <aside className="h-fit rounded-md border border-slate-200 bg-slate-50 p-4"><h3 className="text-sm font-semibold text-slate-900">สรุปรายการ CADV</h3><dl className="mt-3 space-y-2 text-sm"><SummaryRow label="จำนวนสินค้า" value={formatQuantity(totals.quantity)} /><SummaryRow label="น้ำหนักรวม" value={`${formatQuantity(totals.grossWeight)} กก.`} /><SummaryRow label="น้ำหนักสุทธิ" value={`${formatQuantity(totals.netWeight)} กก.`} /></dl>{taxBreakdown ? <><div className="my-4 border-t border-slate-200" /><dl className="space-y-2 text-sm"><SummaryRow label="VAT" value={form.vatType === 'INCLUDE' ? `มี VAT ${formatQuantity(taxBreakdown.vatRatePercent)}%` : 'ไม่มี VAT'} />{form.vatType === 'INCLUDE' ? <SummaryRow label="ยอดก่อน VAT" value={formatMoney(taxBreakdown.subtotalAmount)} /> : null}{form.vatType === 'INCLUDE' ? <SummaryRow label="ยอด VAT" value={formatMoney(taxBreakdown.vatAmount)} /> : null}<SummaryRow strong label="ยอดเงินล่วงหน้าที่ต้องรับ" value={formatMoney(taxBreakdown.targetAmount)} /></dl></> : null}<div className="mt-4 space-y-2"><Button className="w-full gap-2" disabled={isSaving || isLoading || !data || Boolean(vatConfigurationError)} type="button" onClick={() => void submit()}><Save className="h-4 w-4" />{isSaving ? 'กำลังบันทึก' : editingDocNo ? 'บันทึกการแก้ไข' : 'บันทึก CADV'}</Button></div></aside>
+            <aside className="h-fit rounded-md border border-slate-200 bg-slate-50 p-4"><h3 className="text-sm font-semibold text-slate-900">สรุปรายการ CADV</h3><dl className="mt-3 space-y-2 text-sm"><SummaryRow label="จำนวนสินค้า" value={formatQuantity(totals.quantity)} /><SummaryRow label="น้ำหนักรวม" value={`${formatQuantity(totals.grossWeight)} กก.`} /></dl>{taxBreakdown ? <><div className="my-4 border-t border-slate-200" /><dl className="space-y-2 text-sm"><SummaryRow label="VAT" value={form.vatType === 'INCLUDE' ? `มี VAT ${formatQuantity(taxBreakdown.vatRatePercent)}%` : 'ไม่มี VAT'} />{form.vatType === 'INCLUDE' ? <SummaryRow label="ยอดก่อน VAT" value={formatMoney(taxBreakdown.subtotalAmount)} /> : null}{form.vatType === 'INCLUDE' ? <SummaryRow label="ยอด VAT" value={formatMoney(taxBreakdown.vatAmount)} /> : null}<SummaryRow strong label="ยอดเงินล่วงหน้าที่ต้องรับ" value={formatMoney(taxBreakdown.targetAmount)} /></dl></> : null}<div className="mt-4 space-y-2"><Button className="w-full gap-2" disabled={isSaving || isLoading || !data || Boolean(vatConfigurationError)} type="button" onClick={() => void submit()}><Save className="h-4 w-4" />{isSaving ? 'กำลังบันทึก' : editingDocNo ? 'บันทึกการแก้ไข' : 'บันทึก CADV'}</Button></div></aside>
           </div>
         </div>
       </DialogContent>
@@ -593,7 +588,6 @@ export function CustomerAdvanceForm() {
               <DetailMetric label="ฐานที่ใช้หักบิล" value={formatMoney(detail.usableCreditAmount)} />
               <DetailMetric label="ฐานคงเหลือใช้หักบิล" value={formatMoney(detail.availableAmount)} />
               <DetailMetric label="น้ำหนักรวม" value={`${formatQuantity(detail.totalGrossWeight)} กก.`} />
-              <DetailMetric label="น้ำหนักสุทธิ" value={`${formatQuantity(detail.totalNetWeight)} กก.`} />
             </div>
 
             <section className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
@@ -764,7 +758,7 @@ export function CustomerAdvanceForm() {
                     <ResizableTableHead label="สาขา" resizeProps={columnResize.getResizeHandleProps('branchName', 'สาขา')} />
                     <CustomerAdvanceSortHeader activeKey={sortKey} direction={sortDirection} label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} sortKey="customerName" onSort={changeSort} />
                     <ResizableTableHead label="Invoice / Contract" resizeProps={columnResize.getResizeHandleProps('reference', 'Invoice / Contract')} />
-                    <ResizableTableHead align="right" label="น้ำหนักสุทธิ" resizeProps={columnResize.getResizeHandleProps('totalNetWeight', 'น้ำหนักสุทธิ')} />
+                    <ResizableTableHead align="right" label="น้ำหนักรวม" resizeProps={columnResize.getResizeHandleProps('totalGrossWeight', 'น้ำหนักรวม')} />
                     <CustomerAdvanceSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ยอดที่ต้องรับ" resizeProps={columnResize.getResizeHandleProps('targetAmount', 'ยอดที่ต้องรับ')} sortKey="targetAmount" onSort={changeSort} />
                     <ResizableTableHead align="right" label="รับแล้ว" resizeProps={columnResize.getResizeHandleProps('receivedAmount', 'รับแล้ว')} />
                     <ResizableTableHead align="right" label="คงค้างรับ" resizeProps={columnResize.getResizeHandleProps('remainingReceiptAmount', 'คงค้างรับ')} />
@@ -806,7 +800,7 @@ export function CustomerAdvanceForm() {
                         <p>{row.invoiceNo || '-'}</p>
                         <p className="text-xs">{row.contractNo || '-'}</p>
                       </td>
-                      <td className="p-3 text-right tabular-nums whitespace-nowrap">{formatQuantity(row.totalNetWeight)} กก.</td>
+                      <td className="p-3 text-right tabular-nums whitespace-nowrap">{formatQuantity(row.totalGrossWeight)} กก.</td>
                       <td className="p-3 text-right tabular-nums whitespace-nowrap"><p>{formatMoney(row.targetAmount)}</p><p className="text-xs text-slate-500">{row.vatTypeLabel}</p></td>
                       <td className="p-3 text-right tabular-nums whitespace-nowrap">{formatMoney(row.receivedAmount)}</td>
                       <td className="p-3 text-right tabular-nums whitespace-nowrap">{formatMoney(row.remainingReceiptAmount)}</td>

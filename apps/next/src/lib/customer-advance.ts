@@ -141,7 +141,6 @@ export const customerAdvanceFormSchema = z.object({
   invoiceNo: optionalReference('เลขที่ Invoice'),
   lines: z.array(z.object({
     grossWeight: nonNegativeDecimal('น้ำหนักรวม'),
-    netWeight: nonNegativeDecimal('น้ำหนักสุทธิ'),
     productId: requiredMasterId('สินค้า'),
     quantity: positiveDecimal('จำนวน'),
   })).min(1, 'ต้องมีรายการสินค้าอย่างน้อย 1 รายการ').max(100, 'รายการสินค้าเกิน 100 รายการ'),
@@ -150,9 +149,6 @@ export const customerAdvanceFormSchema = z.object({
 }).superRefine((value, context) => {
   const productIds = new Set<string>()
   value.lines.forEach((line, index) => {
-    if (line.netWeight > line.grossWeight) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: 'น้ำหนักสุทธิต้องไม่เกินน้ำหนักรวม', path: ['lines', index, 'netWeight'] })
-    }
     if (productIds.has(line.productId)) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: 'สินค้าในรายการซ้ำกัน', path: ['lines', index, 'productId'] })
     }

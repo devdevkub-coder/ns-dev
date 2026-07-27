@@ -88,7 +88,6 @@ function toDetailJson(advance: NonNullable<Awaited<ReturnType<typeof findCustome
     lines: advance.customer_advance_items.map((line) => ({
       grossWeight: toNumber(line.gross_weight),
       lineNo: line.line_no,
-      netWeight: toNumber(line.net_weight),
       productCode: line.product_code_snapshot,
       productId: line.product_id.toString(),
       productName: line.product_name_snapshot,
@@ -223,7 +222,7 @@ export async function PUT(request: Request, context: { params: Promise<{ docNo: 
             customer_advance_id: existing.id,
             gross_weight: line.grossWeight,
             line_no: index + 1,
-            net_weight: line.netWeight,
+            net_weight: line.grossWeight,
             product_code_snapshot: product.code,
             product_id: product.id,
             product_name_snapshot: product.name,

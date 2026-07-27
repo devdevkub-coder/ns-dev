@@ -55,9 +55,9 @@ Packing List หนึ่งใบมีได้หลายรายการ 
 | สินค้า | Yes | active product master |
 | จำนวน | Yes | quantity > 0; ใช้ unit snapshot ของสินค้า |
 | น้ำหนักรวม | Yes | numeric(18,2), kg |
-| น้ำหนักสุทธิ | Yes | numeric(18,2), kg; ต้องไม่มากกว่าน้ำหนักรวม |
+| น้ำหนักสุทธิ | No | ไม่ใช้ในฟอร์ม CADV |
 
-หน้าจอแสดงผลรวมจำนวน, น้ำหนักรวม และน้ำหนักสุทธิใต้ตาราง. CADV ไม่ใช่เอกสาร stock movement และไม่ตัด/เพิ่ม stock.
+หน้าจอรับข้อมูลแสดงผลรวมจำนวนและน้ำหนักรวมในรายการ โดยกล่องสรุป CADV ใช้เฉพาะผลรวมน้ำหนักรวมของทุกรายการ. CADV ไม่ใช่เอกสาร stock movement และไม่ตัด/เพิ่ม stock.
 
 ## Lifecycle
 
@@ -115,7 +115,7 @@ flowchart LR
 ตารางรายการใช้ server-side pagination, filter, และ sort เพื่อไม่ให้เรียงเพียงข้อมูลของหน้าปัจจุบัน. ผู้ใช้ปรับความกว้างคอลัมน์ได้ผ่าน shared `useResizableColumns` และ browser จดจำความกว้างตามตาราง; มีปุ่ม `คืนค่าเดิมตาราง` เมื่อขนาดถูกแก้ไข.
 
 - sortable: เลขที่ CADV, วันที่เอกสาร, ลูกค้า, ยอดที่ต้องรับ, เครดิตคงเหลือ, และสถานะ เพราะเป็นค่าที่เก็บโดยตรงใน `customer_advances` หรือ status relation
-- display-only: สาขา, Invoice/Contract, น้ำหนักสุทธิ, และเครดิตที่ใช้ได้ เพราะเป็น snapshot หลายค่า, aggregate item lines, หรือคำนวณจากยอดรับเงินจริงกับ VAT; ห้าม client-side sort เพื่อหลีกเลี่ยงลำดับที่ไม่ตรงกับข้อมูลทั้งชุด
+- display-only: สาขา, Invoice/Contract, น้ำหนักรวม, และเครดิตที่ใช้ได้ เพราะเป็น snapshot หลายค่า, aggregate item lines, หรือคำนวณจากยอดรับเงินจริงกับ VAT; ห้าม client-side sort เพื่อหลีกเลี่ยงลำดับที่ไม่ตรงกับข้อมูลทั้งชุด
 
 ## API Design
 
@@ -144,8 +144,7 @@ flowchart LR
   lines: [{
     productId: "501",
     quantity: "1850",
-    grossWeight: "17560.000",
-    netWeight: "17560.000"
+    grossWeight: "17560.000"
   }]
 }
 ```
@@ -239,7 +238,7 @@ Balance invariant:
 | `product_name_snapshot` | product name ตอนสร้าง | ใช้ trace/print |
 | `quantity` | จำนวน | > 0 |
 | `gross_weight` | น้ำหนักรวม | numeric(18,2), kg |
-| `net_weight` | น้ำหนักสุทธิ | numeric(18,2), kg; ต้องไม่มากกว่า gross |
+| `net_weight` | น้ำหนักสุทธิที่เก็บเพื่อคงโครงสร้างข้อมูลเดิม | ระบบเขียนค่าเท่ากับ `gross_weight` ตามกติกา CADV ปัจจุบัน; ไม่รับค่าจากผู้ใช้รายบรรทัด |
 | `created_at`, `created_by`, `updated_at`, `updated_by` | audit | เขียนพร้อม header transaction |
 
 ### `customer_advance_status_logs`
