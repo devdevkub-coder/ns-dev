@@ -121,8 +121,10 @@ async function validateTransferReferences(values: {
   if (!toBranch) throw new Error('สาขาปลายทางไม่ถูกต้องหรือถูกปิดใช้งาน')
   if (!fromWarehouse) throw new Error('คลังต้นทางไม่ถูกต้องหรือถูกปิดใช้งาน')
   if (!toWarehouse) throw new Error('คลังปลายทางไม่ถูกต้องหรือถูกปิดใช้งาน')
-  if (fromWarehouse.branchCode && fromWarehouse.branchCode !== fromBranch.code) throw new Error('สาขาต้นทางและคลังต้นทางไม่ตรงกัน')
-  if (toWarehouse.branchCode && toWarehouse.branchCode !== toBranch.code) throw new Error('สาขาปลายทางและคลังปลายทางไม่ตรงกัน')
+  if (!fromWarehouse.branchCode) throw new Error('คลังต้นทางไม่มีรหัสสาขาสำหรับสร้างเลขเอกสาร')
+  if (!toWarehouse.branchCode) throw new Error('คลังปลายทางไม่มีรหัสสาขา')
+  if (fromWarehouse.branchCode !== fromBranch.code) throw new Error('สาขาต้นทางและคลังต้นทางไม่ตรงกัน')
+  if (toWarehouse.branchCode !== toBranch.code) throw new Error('สาขาปลายทางและคลังปลายทางไม่ตรงกัน')
   if (fromWarehouse.id === toWarehouse.id) throw new Error('ต้นทางและปลายทางต้องไม่เป็นคลังเดียวกัน')
 
   return { fromBranch, fromWarehouse, toBranch, toWarehouse }
@@ -470,6 +472,8 @@ export async function POST(request: Request) {
     const values = stockTransferFormSchema.parse(await request.json())
     const actor = currentActor(context)
     const refs = await validateTransferReferences(values)
+    const sourceBranchCode = refs.fromWarehouse.branchCode
+    if (!sourceBranchCode) throw new Error('คลังต้นทางไม่มีรหัสสาขาสำหรับสร้างเลขเอกสาร')
     const normalizedItems = await resolveTransferItems({
       branchId: refs.fromBranch.id,
       items: values.items,
@@ -479,7 +483,7 @@ export async function POST(request: Request) {
     const totalValue = normalizedItems.reduce((sum, item) => sum + item.lineValue, 0)
 
     const created = await prisma.$transaction(async (tx) => {
-      const docNo = values.docNo ?? await nextStockTransferDocNo(tx, values.date, refs.fromBranch.code)
+      const docNo = values.docNo ?? await nextStockTransferDocNo(tx, values.date, sourceBranchCode)
       const transfer = await tx.stock_transfers.create({
         data: {
           created_by: actor,
