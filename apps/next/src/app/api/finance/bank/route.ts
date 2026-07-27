@@ -106,6 +106,9 @@ export async function GET(request: Request) {
     const query = parseQuery(url)
     const search = query.q?.trim().toLowerCase()
     const accountReference = await findActiveAccountReferenceByCode(query.accountId)
+    if (query.accountId && !accountReference) {
+      throw new Error('ไม่พบบัญชีเงินบริษัทตามรหัสบัญชีที่ระบุ')
+    }
     const internalAccountId = accountReference?.id ?? null
 
     const [sourceRows, accounts] = await Promise.all([
