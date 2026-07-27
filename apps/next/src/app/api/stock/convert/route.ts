@@ -4,7 +4,7 @@ import { requireBusinessCode, requireDocumentNo } from '@/lib/business-code'
 import { isCostPoolEligibleMetalGroup, stockConvertFormSchema } from '@/lib/stock'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, hasPermission, requirePermission } from '@/lib/server/auth-context'
-import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, documentBranchCode, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { averageCostForStock, normalizeStockReferenceInput, quantityForStock, stockReferenceData } from '@/lib/server/stock'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
@@ -110,9 +110,10 @@ type AllocationDetailRow = {
   warehouse_name: string | null
 }
 
-async function nextDocNo() {
-  const prefix = 'GA-'
-  const last = await prisma.grade_adjustments.findFirst({
+async function nextDocNo(tx: Prisma.TransactionClient, branchCode: string) {
+  const prefix = `GA${branchCode}-`
+  await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${`grade_adjustments:${prefix}`}))`
+  const last = await tx.grade_adjustments.findFirst({
     orderBy: { doc_no: 'desc' },
     select: { doc_no: true },
     where: { doc_no: { startsWith: prefix } },
@@ -577,6 +578,9 @@ export async function POST(request: Request) {
     if (!references.warehouseId) return NextResponse.json({ error: 'คลังไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (!sourceProductReference.productId) return NextResponse.json({ error: 'สินค้าต้นทางไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (!targetProductReference.productId) return NextResponse.json({ error: 'สินค้าปลายทางไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    const branch = await prisma.branches.findFirst({ select: { code: true }, where: { active: true, id: references.branchId } })
+    const branchCode = documentBranchCode(branch?.code)
+    if (!branchCode) return NextResponse.json({ error: 'สาขานี้ไม่มีรหัสสำหรับสร้างเลขปรับเกรด' }, { status: 400 })
     if (values.targetCostPolicy === 'CUSTOM_UNIT_COST' && !hasPermission(context, 'finance.financials.manage')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์กำหนดต้นทุนปลายทางเอง' }, { status: 403 })
     }
@@ -604,9 +608,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `จำนวนเกินสต๊อกพร้อมใช้ (${readyQty.toLocaleString('th-TH')})` }, { status: 400 })
     }
 
-    const refNo = values.docNo ?? await nextDocNo()
     const actor = currentActor(context)
     const result = await prisma.$transaction(async (tx) => {
+      const refNo = values.docNo ?? await nextDocNo(tx, branchCode)
       const allocations = usesCostPool
         ? await lockPoolEntries({
           branchId: references.branchId as bigint,

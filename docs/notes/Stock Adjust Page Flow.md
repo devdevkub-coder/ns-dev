@@ -25,6 +25,7 @@ updated: 2026-06-22
 - Owner: Stock / Inventory
 - Page type: stock movement write flow
 - Ledger ref type: `ADJ`
+- เลข ADJ ที่สร้างใหม่ใช้รูปแบบ `ADJ` + รหัสสาขา 2 หลัก + running 6 หลัก เช่น `ADJ01-000001`; เลข legacy เดิมไม่ถูกเปลี่ยน
 
 หน้านี้ใช้บันทึกผลนับจริงเมื่อยอดในระบบไม่ตรงกับของจริง เป็น audit-sensitive flow และควรใช้เฉพาะกรณีปรับยอดจากการนับ ไม่ใช่ใช้แทน transfer, sale, purchase, return, หรือ production
 

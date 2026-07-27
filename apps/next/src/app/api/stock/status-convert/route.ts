@@ -5,7 +5,7 @@ import { z } from 'zod'
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, documentBranchCode, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { averageCostForStock, normalizeStockReferenceInput, quantityForStock, stockReferenceData } from '@/lib/server/stock'
 import { statusConvertFormSchema } from '@/lib/stock'
@@ -18,9 +18,10 @@ const stockLedgerInclude = {
   warehouses: { select: { name: true, code: true } },
 } as const
 
-async function nextDocNo() {
-  const prefix = 'SC-'
-  const last = await prisma.stock_ledger.findFirst({
+async function nextDocNo(tx: Prisma.TransactionClient, branchCode: string) {
+  const prefix = `SC${branchCode}-`
+  await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${`stock_status_convert:${prefix}`}))`
+  const last = await tx.stock_ledger.findFirst({
     orderBy: { ref_no: 'desc' },
     select: { ref_no: true },
     where: { ref_no: { startsWith: prefix }, ref_type: 'SC' },
@@ -268,6 +269,9 @@ export async function POST(request: Request) {
     if (!references.productId) {
       return NextResponse.json({ error: 'สินค้าไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     }
+    const branch = await prisma.branches.findFirst({ select: { code: true }, where: { active: true, id: references.branchId } })
+    const branchCode = documentBranchCode(branch?.code)
+    if (!branchCode) return NextResponse.json({ error: 'สาขานี้ไม่มีรหัสสำหรับสร้างเลขปรับสถานะ' }, { status: 400 })
     const warehouse = await prisma.warehouses.findFirst({
       select: { branch_id: true },
       where: { active: true, id: references.warehouseId },
@@ -305,11 +309,12 @@ export async function POST(request: Request) {
     const unitCost = await averageCostForStock({ branchId: references.branchId, lotNo: values.lotNo, productId: references.productId, status: values.fromStatus, warehouseId: references.warehouseId })
     const value = values.qty * unitCost
     const refId = `SC-${randomUUID()}`
-    const refNo = values.docNo ?? await nextDocNo()
     const actor = currentActor(context)
 
-    await prisma.stock_ledger.createMany({
-      data: [
+    const refNo = await prisma.$transaction(async (tx) => {
+      const nextRefNo = values.docNo ?? await nextDocNo(tx, branchCode)
+      await tx.stock_ledger.createMany({
+        data: [
         {
           branch_id: references.branchId,
           created_by: actor,
@@ -323,7 +328,7 @@ export async function POST(request: Request) {
           qty_in: 0,
           qty_out: values.qty,
           ref_id: refId,
-          ref_no: refNo,
+          ref_no: nextRefNo,
           ref_type: 'SC',
           unit_cost: unitCost,
           value_in: 0,
@@ -343,14 +348,16 @@ export async function POST(request: Request) {
           qty_in: values.qty,
           qty_out: 0,
           ref_id: refId,
-          ref_no: refNo,
+          ref_no: nextRefNo,
           ref_type: 'SC',
           unit_cost: unitCost,
           value_in: value,
           value_out: 0,
           warehouse_id: targetWarehouseId,
         },
-      ],
+        ],
+      })
+      return nextRefNo
     })
 
     return NextResponse.json({ id: refNo, refNo })
