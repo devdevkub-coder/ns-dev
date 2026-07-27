@@ -1944,14 +1944,6 @@ export async function listAllAccounts() {
   return listAccountReferences(undefined, KEY_ACCOUNTS_ALL)
 }
 
-export async function findActiveAccountReferenceByCodeOrId(value: string | bigint | null | undefined) {
-  const normalized = String(value ?? '').trim()
-  if (!normalized) return null
-  const internalId = parseInternalBigIntId(normalized)
-  const rows = await listActiveAccounts()
-  return rows.find((row) => row.code === normalized.toUpperCase() || (internalId != null && row.id === internalId)) ?? null
-}
-
 export async function listActiveOverseasRecipients() {
   return readThroughCache<OverseasRecipientReferenceRecord[]>({
     key: KEY_OVERSEAS_RECIPIENTS_ACTIVE,

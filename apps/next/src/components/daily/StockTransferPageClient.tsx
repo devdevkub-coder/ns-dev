@@ -100,6 +100,7 @@ export function StockTransferPageClient() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [docNo, setDocNo] = useState('')
+  const [sourceBranchFilter, setSourceBranchFilter] = useState('')
   const [editingDocNo, setEditingDocNo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -126,6 +127,7 @@ export function StockTransferPageClient() {
       params.set('page', String(page))
       params.set('pageSize', String(pageSize))
       if (docNo.trim()) params.set('docNo', docNo.trim())
+      if (sourceBranchFilter) params.set('branchId', sourceBranchFilter)
       if (dateFrom) params.set('dateFrom', dateFrom)
       if (dateTo) params.set('dateTo', dateTo)
       if (totalQtyFrom.trim()) params.set('totalQtyFrom', totalQtyFrom.trim())
@@ -136,7 +138,7 @@ export function StockTransferPageClient() {
     } finally {
       setIsLoading(false)
     }
-  }, [dateFrom, dateTo, docNo, page, pageSize, totalQtyFrom, totalQtyTo])
+  }, [dateFrom, dateTo, docNo, page, pageSize, sourceBranchFilter, totalQtyFrom, totalQtyTo])
 
   useEffect(() => {
     void loadData()
@@ -144,7 +146,7 @@ export function StockTransferPageClient() {
 
   useEffect(() => {
     setPage(1)
-  }, [dateFrom, dateTo, docNo, pageSize, totalQtyFrom, totalQtyTo])
+  }, [dateFrom, dateTo, docNo, pageSize, sourceBranchFilter, totalQtyFrom, totalQtyTo])
 
   useEffect(() => {
     if (!formOpen || !form.fromBranchId || !form.fromWarehouseId) {
@@ -192,10 +194,11 @@ export function StockTransferPageClient() {
       return sortDirection === 'asc' ? result : -result
     })
   }, [data.rows, sortDirection, sortKey])
-  const hasFilters = Boolean(docNo.trim() || dateFrom || dateTo || totalQtyFrom.trim() || totalQtyTo.trim())
+  const hasFilters = Boolean(docNo.trim() || dateFrom || dateTo || sourceBranchFilter || totalQtyFrom.trim() || totalQtyTo.trim())
 
   function clearFilters() {
     setDocNo('')
+    setSourceBranchFilter('')
     setDateFrom('')
     setDateTo('')
     setTotalQtyFrom('')
@@ -364,6 +367,10 @@ export function StockTransferPageClient() {
             onChange={(event) => setTotalQtyFrom(event.target.value)}
           />
           <span className="text-slate-400">→</span>
+          <Select className="h-9 w-auto" value={sourceBranchFilter} onChange={(event) => setSourceBranchFilter(event.target.value)}>
+            <option value="">ทุกสาขาต้นทาง</option>
+            {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
+          </Select>
           <Input
             className={`h-9 w-[100px] text-right tabular-nums ${numberInputClass}`}
             inputMode="decimal"
@@ -427,6 +434,14 @@ export function StockTransferPageClient() {
             </>
           )}
         >
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สาขาต้นทาง</span>
+                <Select className="h-9 w-full" value={sourceBranchFilter} onChange={(event) => setSourceBranchFilter(event.target.value)}>
+                  <option value="">ทุกสาขาต้นทาง</option>
+                  {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
+                </Select>
+              </div>
+
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">

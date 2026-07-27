@@ -3,7 +3,9 @@ import { z } from 'zod'
 import { pettyAdvanceFormSchema } from '@/lib/daily'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { currentActor, listDailyAccounts, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, documentBranchCode, listDailyAccounts, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { listActiveBranches } from '@/lib/server/reference-master-cache'
 import { prisma } from '@/lib/server/prisma'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
@@ -12,6 +14,7 @@ export const runtime = 'nodejs'
 type PettyAdvanceWithRelations = Prisma.petty_advancesGetPayload<{
   include: {
     accounts: true
+    branches: { select: { code: true; name: true } }
     petty_advance_returns: {
       include: {
         accounts: true
@@ -182,6 +185,8 @@ function advanceJson(row: PettyAdvanceWithRelations, pendingReturn = 0) {
     accountId: row.accounts?.code ?? '',
     accountName: row.accounts?.name ?? '-',
     amount,
+    branchId: row.branches?.code ?? '',
+    branchName: row.branches?.name ?? '-',
     date: toDateOnly(row.date),
     docNo: row.doc_no,
     id: row.doc_no,
@@ -216,16 +221,20 @@ function advanceJson(row: PettyAdvanceWithRelations, pendingReturn = 0) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'daily.petty_advances.view')
 
-    const [accounts, rows, recipientOptions, pendingReturns] = await Promise.all([
+    const url = new URL(request.url)
+    const branchId = url.searchParams.get('branchId')?.trim() ?? ''
+    const [accounts, branches, rows, recipientOptions, pendingReturns] = await Promise.all([
       listDailyAccounts(),
+      listActiveBranches(),
       prisma.petty_advances.findMany({
         include: {
           accounts: true,
+          branches: { select: { code: true, name: true } },
           petty_advance_returns: {
             include: { accounts: true },
             orderBy: [{ date: 'desc' }],
@@ -234,6 +243,7 @@ export async function GET() {
         },
         orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
         take: 5000,
+        where: branchId ? { branches: { code: branchId } } : undefined,
       }),
       listPettyAdvanceRecipients(),
       prisma.petty_advance_returns.findMany({
@@ -252,7 +262,12 @@ export async function GET() {
       pendingReturnByAdvanceId.set(advanceId, (pendingReturnByAdvanceId.get(advanceId) ?? 0) + toNumber(entry.amount))
     })
 
-    return NextResponse.json({ accounts, recipientOptions, rows: rows.map((row) => advanceJson(row, pendingReturnByAdvanceId.get(row.id.toString()) ?? 0)) })
+    return NextResponse.json({
+      accounts,
+      branches: branches.map((branch) => ({ active: true, code: branch.code, id: branch.code, name: branch.name })),
+      recipientOptions,
+      rows: rows.map((row) => advanceJson(row, pendingReturnByAdvanceId.get(row.id.toString()) ?? 0)),
+    })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดเงินสำรองจ่ายไม่ได้', 500)
@@ -266,6 +281,8 @@ export async function POST(request: Request) {
 
     const values = pettyAdvanceFormSchema.parse(await request.json())
     const actor = currentActor(context)
+    const branch = await findActiveBranchReferenceByCodeOrId(values.branchId)
+    if (!branch) throw pettyAdvanceFieldError('branchId', 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน')
     const recipient = await findPettyAdvanceRecipient(values.recipientId)
     if (!recipient) {
       throw pettyAdvanceFieldError('recipientId', 'เลือกผู้รับเงินจากรายชื่อกรรมการ/พนักงานที่ใช้งานอยู่')
@@ -277,6 +294,7 @@ export async function POST(request: Request) {
     const result = await prisma.$transaction(async (tx) => {
       const existingAdvance = values.id
         ? await findPettyAdvanceByDocNo(tx, values.id, {
+            branch_id: true,
             doc_no: true,
             id: true,
           })
@@ -284,13 +302,17 @@ export async function POST(request: Request) {
       if (values.id && !existingAdvance) {
         throw new Error('ไม่พบรายการเงินสำรองจ่าย')
       }
-      const docNo = existingAdvance?.doc_no ?? (await nextDailyDocNo('petty_advances', 'PADV', values.date, tx))
+      if (existingAdvance?.branch_id && existingAdvance.branch_id !== branch.id) {
+        throw pettyAdvanceFieldError('branchId', 'แก้ไขสาขาของเอกสารเดิมไม่ได้')
+      }
+      const docNo = existingAdvance?.doc_no ?? (await nextDailyDocNo('petty_advances', 'PADV', values.date, tx, documentBranchCode(branch.code)))
       const advance = existingAdvance
         ? await tx.petty_advances.update({
             where: { id: existingAdvance.id },
             data: {
               account_id: null,
               amount: values.amount,
+              branch_id: branch.id,
               date: normalizeDate(values.date),
               doc_no: docNo,
               notes: values.notes,
@@ -310,6 +332,7 @@ export async function POST(request: Request) {
             data: {
               account_id: null,
               amount: values.amount,
+              branch_id: branch.id,
               created_by: actor,
               date: normalizeDate(values.date),
               doc_no: docNo,

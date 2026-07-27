@@ -259,7 +259,7 @@ export async function POST(request: Request) {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'stock.ledger.view')
     const values = statusConvertFormSchema.parse(await request.json())
-    const references = await normalizeStockReferenceInput({ branchId: values.branchId, productId: values.productId, warehouseId: values.warehouseId })
+    const references = await normalizeStockReferenceInput({ branchId: values.sourceBranchId, productId: values.productId, warehouseId: values.warehouseId })
     if (!references.branchId) {
       return NextResponse.json({ error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     }
@@ -281,7 +281,7 @@ export async function POST(request: Request) {
     }
 
     // ตรวจสอบคลังสินค้าปลายทาง
-    const targetRef = await normalizeStockReferenceInput({ branchId: values.branchId, warehouseId: values.targetWarehouseId })
+    const targetRef = await normalizeStockReferenceInput({ branchId: values.targetBranchId, warehouseId: values.targetWarehouseId })
     const targetWarehouseId = targetRef.warehouseId
     if (!targetWarehouseId) {
       return NextResponse.json({ error: 'คลังปลายทางไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
@@ -290,8 +290,8 @@ export async function POST(request: Request) {
       select: { branch_id: true },
       where: { active: true, id: targetWarehouseId },
     })
-    if (!targetWarehouse || targetWarehouse.branch_id !== references.branchId) {
-      return NextResponse.json({ error: 'คลังปลายทางไม่ถูกต้องหรือไมู่อยู่ในสาขาที่เลือก' }, { status: 400 })
+    if (!targetWarehouse || targetWarehouse.branch_id !== targetRef.branchId) {
+      return NextResponse.json({ error: 'คลังปลายทางไม่ถูกต้องหรือไม่อยู่ในสาขาที่เลือก' }, { status: 400 })
     }
 
     const availableQty = await quantityForStock({
@@ -336,7 +336,7 @@ export async function POST(request: Request) {
           warehouse_id: references.warehouseId,
         },
         {
-          branch_id: references.branchId,
+          branch_id: targetRef.branchId,
           created_by: actor,
           date: normalizeDate(values.date),
           lot_no: values.lotNo,

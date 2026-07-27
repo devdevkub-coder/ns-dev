@@ -3,10 +3,10 @@ import { z } from 'zod'
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, documentBranchCode, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import { prisma } from '@/lib/server/prisma'
-import { listActiveSupplierPaymentOptions, listActiveSuppliers } from '@/lib/server/reference-master-cache'
+import { listActiveBranches, listActiveSupplierPaymentOptions, listActiveSuppliers } from '@/lib/server/reference-master-cache'
 import { isPurchaseBillCancelledStatus, PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
@@ -38,6 +38,7 @@ type ActiveReceiptVoucherReferenceRow = Prisma.receipt_vouchersGetPayload<{
 }>
 type PurchaseBillReceiptOptionRow = Prisma.purchase_billsGetPayload<{
   select: {
+    branches: { select: { code: true; name: true } }
     date: true
     doc_no: true
     id: true
@@ -67,6 +68,7 @@ type PurchaseBillReceiptOptionRow = Prisma.purchase_billsGetPayload<{
 }>
 type ReceiptVoucherPurchaseBillLookupRow = Prisma.purchase_billsGetPayload<{
   select: {
+    branches: { select: { code: true; name: true } }
     doc_no: true
     suppliers: { select: { code: true } }
   }
@@ -253,9 +255,9 @@ function xlsxResponse(body: Buffer, filename: string) {
   })
 }
 
-async function nextReceiptVoucherDocNo(tx: Prisma.TransactionClient, date: string) {
+async function nextReceiptVoucherDocNo(tx: Prisma.TransactionClient, date: string, branchCode: string) {
   const compactDate = date.slice(2, 4) + date.slice(5, 7)
-  const startsWith = `RV${compactDate}-`
+  const startsWith = `RV${documentBranchCode(branchCode)}${compactDate}-`
   await tx.$executeRaw`
     select pg_advisory_xact_lock(hashtext(${`receipt_vouchers:${startsWith}`}))
   `
@@ -368,6 +370,7 @@ async function buildVoucherWriteData(
         supplier_sales_rep_snapshot: true,
         supplier_tax_id_snapshot: true,
         suppliers: { select: { code: true } },
+        branches: { select: { code: true, name: true } },
       },
       where: { doc_no: values.purchaseBillDocNo },
     })
@@ -428,9 +431,10 @@ export async function GET(request: Request) {
       .map((rv: ActiveReceiptVoucherReferenceRow) => rv.purchase_bill_doc_no)
       .filter((docNo): docNo is string => docNo !== null)
 
-    const [suppliers, supplierPaymentOptions, purchaseBills, receiptVoucherPurchaseBills, rows, companyProfile, paymentMethods]: [
+    const [suppliers, supplierPaymentOptions, branches, purchaseBills, receiptVoucherPurchaseBills, rows, companyProfile, paymentMethods]: [
       ActiveSupplierRecord[],
       ActiveSupplierPaymentOptionRecord[],
+      Awaited<ReturnType<typeof listActiveBranches>>,
       PurchaseBillReceiptOptionRow[],
       ReceiptVoucherPurchaseBillLookupRow[],
       ReceiptVoucherRow[],
@@ -439,6 +443,7 @@ export async function GET(request: Request) {
     ] = await Promise.all([
       listActiveSuppliers(),
       listActiveSupplierPaymentOptions(),
+      listActiveBranches(),
       prisma.purchase_bills.findMany({
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         select: {
@@ -462,6 +467,7 @@ export async function GET(request: Request) {
             },
             where: { item_status: 'active' },
           },
+          branches: { select: { code: true, name: true } },
           suppliers: {
             select: {
               code: true,
@@ -478,10 +484,12 @@ export async function GET(request: Request) {
         where: {
           status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] },
           doc_no: { notIn: referencedBillDocNos },
+          ...(url.searchParams.get('branchId') ? { branches: { code: url.searchParams.get('branchId')! } } : {}),
         },
       }),
       prisma.purchase_bills.findMany({
         select: {
+          branches: { select: { code: true, name: true } },
           doc_no: true,
           suppliers: {
             select: {
@@ -524,6 +532,7 @@ export async function GET(request: Request) {
     const supplierCodeByPurchaseBillDocNo = new Map(
       receiptVoucherPurchaseBills.map((bill: ReceiptVoucherPurchaseBillLookupRow) => [bill.doc_no, bill.suppliers?.code ?? ''] as const),
     )
+    const branchByPurchaseBillDocNo = new Map(receiptVoucherPurchaseBills.map((bill) => [bill.doc_no, bill.branches] as const))
     const supplierCodeByTaxId = new Map(
       suppliers
         .map((supplier: ActiveSupplierRecord) => [supplier.taxId?.trim() ?? '', supplier.code] as const)
@@ -535,6 +544,7 @@ export async function GET(request: Request) {
         .filter(([name]) => name),
     )
 
+    const requestedBranchId = url.searchParams.get('branchId')?.trim() ?? ''
     const receiptVoucherRows = rows.map((row: ReceiptVoucherRow) => ({
       amountInWords: row.amount_in_words ?? '',
       createdAt: row.created_at?.toISOString() ?? '',
@@ -542,6 +552,8 @@ export async function GET(request: Request) {
       date: toDateOnly(row.date),
       docNo: row.doc_no ?? '',
       id: row.doc_no ?? '',
+      branchId: branchByPurchaseBillDocNo.get(row.purchase_bill_doc_no ?? '')?.code ?? '',
+      branchName: branchByPurchaseBillDocNo.get(row.purchase_bill_doc_no ?? '')?.name ?? '-',
       items: row.items ?? [],
       licensePlate: row.license_plate ?? '',
       note: row.note ?? '',
@@ -576,7 +588,7 @@ export async function GET(request: Request) {
       totalQty: toNumber(row.total_qty),
       updatedAt: row.updated_at?.toISOString() ?? '',
       updatedBy: row.updated_by ?? '',
-    }))
+    })).filter((row) => !requestedBranchId || row.branchId === requestedBranchId)
 
     if (url.searchParams.get('format') === 'xlsx') {
       const exportRows = filteredReceiptVoucherExportRows(receiptVoucherRows, url)
@@ -599,6 +611,7 @@ export async function GET(request: Request) {
         name: method.name,
         type: method.type,
       })),
+      branches: branches.map((branch) => ({ active: true, code: branch.code, id: branch.code, name: branch.name })),
       suppliers: suppliers.map((supplier: ActiveSupplierRecord) => {
         const paymentOption = supplierPaymentOptionByCode.get(supplier.code)
         return {
@@ -620,6 +633,8 @@ export async function GET(request: Request) {
         }
       }),
       purchaseBills: purchaseBills.map((bill: PurchaseBillReceiptOptionRow) => ({
+        branchId: bill.branches?.code ?? '',
+        branchName: bill.branches?.name ?? '-',
         date: toDateOnly(bill.date),
         docNo: bill.doc_no,
         id: bill.doc_no,
@@ -658,8 +673,12 @@ export async function POST(request: Request) {
     const values = receiptVoucherWriteSchema.parse(await request.json())
 
     const created = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const docNo = await nextReceiptVoucherDocNo(tx, values.date)
       const data = await buildVoucherWriteData(tx, values, actor, actor)
+      const purchaseBillBranch = values.purchaseBillDocNo
+        ? await tx.purchase_bills.findUnique({ select: { branches: { select: { code: true } } }, where: { doc_no: values.purchaseBillDocNo } })
+        : null
+      if (!purchaseBillBranch?.branches?.code) throw new Error('ใบสำคัญรับเงินต้องอ้างอิงบิลซื้อที่มีสาขา')
+      const docNo = await nextReceiptVoucherDocNo(tx, values.date, purchaseBillBranch.branches.code)
       const created = await tx.receipt_vouchers.create({
         data: {
           doc_no: docNo,

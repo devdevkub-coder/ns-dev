@@ -42,6 +42,7 @@ type PettyReturnRow = {
 
 type PettyPayload = {
   accounts: DailyAccountOption[]
+  branches: Array<{ active: boolean; code: string; id: string; name: string }>
   recipientOptions: PettyAdvanceRecipientOption[]
   rows: PettyAdvanceRow[]
 }
@@ -73,6 +74,7 @@ const pettyAdvanceColumns: Array<ResizableColumnDefinition<PettyAdvanceColumnKey
 const emptyForm: PettyAdvanceFormValues = {
   accountId: '',
   amount: 0,
+  branchId: '',
   date: todayDateInput(),
   docNo: null,
   id: null,
@@ -115,6 +117,7 @@ function getPettyAdvanceSortValue(row: PettyAdvanceRow, key: PettyAdvanceSortKey
 
 export function DailyPettyAdvancePageClient() {
   const [accounts, setAccounts] = useState<DailyAccountOption[]>([])
+  const [branches, setBranches] = useState<PettyPayload['branches']>([])
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<PettyAdvanceFormValues>(emptyForm)
@@ -127,6 +130,7 @@ export function DailyPettyAdvancePageClient() {
   const [recipientOptions, setRecipientOptions] = useState<PettyAdvanceRecipientOption[]>([])
   const [rows, setRows] = useState<PettyAdvanceRow[]>([])
   const [search, setSearch] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
   const [status, setStatus] = useState('active')
   const [type, setType] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
@@ -147,6 +151,7 @@ export function DailyPettyAdvancePageClient() {
     try {
       const payload = await dailyFetchJson<PettyPayload>('/api/daily/petty-advances')
       setAccounts(payload.accounts)
+      setBranches(payload.branches ?? [])
       setRecipientOptions(payload.recipientOptions ?? [])
       setRows(payload.rows)
     } catch (caught) {
@@ -163,10 +168,11 @@ export function DailyPettyAdvancePageClient() {
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase()
     return rows
+      .filter((row) => !branchFilter || row.branchId === branchFilter)
       .filter((row) => !status || row.status === status)
       .filter((row) => !type || row.type === type)
       .filter((row) => !query || `${row.docNo} ${row.recipientName} ${row.notes ?? ''}`.toLowerCase().includes(query))
-  }, [rows, search, status, type])
+  }, [branchFilter, rows, search, status, type])
 
   const sortedRows = useMemo(() => {
     return [...filteredRows].sort((left, right) => {
@@ -211,7 +217,7 @@ export function DailyPettyAdvancePageClient() {
 
 
   const activeAccounts = useMemo(() => accounts.filter((account) => account.active), [accounts])
-  const hasActiveFilters = Boolean(search.trim() || type || status !== 'active')
+  const hasActiveFilters = Boolean(search.trim() || branchFilter || type || status !== 'active')
 
   function handleSort(key: PettyAdvanceSortKey) {
     if (sortKey === key) {
@@ -251,6 +257,7 @@ export function DailyPettyAdvancePageClient() {
     setForm({
       accountId: '',
       amount: row.amount,
+      branchId: row.branchId,
       date: row.date,
       docNo: row.docNo,
       id: row.id,
@@ -375,7 +382,7 @@ export function DailyPettyAdvancePageClient() {
           </button>
 
           {hasActiveFilters ? (
-            <button className="h-9 rounded-md border border-slate-300 px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={() => { setSearch(''); setType(''); setStatus('active') }}>
+            <button className="h-9 rounded-md border border-slate-300 px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={() => { setSearch(''); setBranchFilter(''); setType(''); setStatus('active') }}>
               ล้าง filter
             </button>
           ) : null}
@@ -384,6 +391,11 @@ export function DailyPettyAdvancePageClient() {
         {/* Desktop Filters */}
         <div className="mt-3 space-y-2 hidden lg:block">
           <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-500 w-14 inline-block shrink-0">สาขา:</span>
+            <Select className="h-9 w-auto" value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)}>
+              <option value="">ทุกสาขา</option>
+              {branches.filter((branch) => branch.active).map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
+            </Select>
             <span className="text-xs text-slate-500 w-14 inline-block shrink-0">ประเภท:</span>
             <SegmentFilterButton active={!type} label="ทุกประเภท" onClick={() => setType('')} />
             <SegmentFilterButton active={type === 'DIRECTOR_LOAN'} label="กู้กรรมการ" onClick={() => setType(type === 'DIRECTOR_LOAN' ? '' : 'DIRECTOR_LOAN')} />
@@ -532,6 +544,14 @@ export function DailyPettyAdvancePageClient() {
               <section className="space-y-3">
                 <h4 className="text-sm font-semibold text-slate-900">ข้อมูลการจ่าย</h4>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <label className="block col-span-2 sm:col-span-1" data-field="branchId">
+                    <span className="mb-1 block text-xs font-medium text-slate-600">สาขา <span className="text-red-600">*</span></span>
+                    <Select className="h-10 w-full px-3 text-sm" required value={form.branchId} onChange={(event) => setForm({ ...form, branchId: event.target.value })}>
+                      <option disabled value="">เลือกสาขา</option>
+                      {branches.filter((branch) => branch.active).map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
+                    </Select>
+                    {fieldErrors.branchId ? <span className="mt-1 block text-xs text-red-700">{fieldErrors.branchId}</span> : null}
+                  </label>
                   <label className="block col-span-2 sm:col-span-1" data-field="type">
                     <span className="mb-1 block text-xs font-medium text-slate-600">ประเภท <span className="text-red-600">*</span></span>
                     <Select className="h-10 w-full px-3 text-sm" value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value as 'DIRECTOR_LOAN' | 'PETTY_CASH' })}>

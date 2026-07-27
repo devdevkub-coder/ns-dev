@@ -46,7 +46,7 @@ type BankRow = {
 
 type BankPayload = {
   byAccount: Array<{ accountId: string; accountName: string; amountIn: number; amountOut: number; balance: number; rows: number }>
-  filters: { accounts: AccountOption[]; refTypes: string[]; types: string[] }
+  filters: { accounts: AccountOption[]; branches: Array<{ code: string; id: string; name: string }>; refTypes: string[]; types: string[] }
   pagination: { page: number; pageSize: number; totalPages: number; totalRows: number }
   rows: BankRow[]
   summary: { accounts: number; amountIn: number; amountOut: number; netMovement: number; rows: number }
@@ -76,6 +76,7 @@ function getBankSortValue(row: BankRow, key: BankColumnKey, odLimit: number) {
 export function BankStatementPageClient({ initialFilters }: { initialFilters?: { from?: string; to?: string } } = {}) {
   const latestLoadRequestRef = useRef(0)
   const [accountId, setAccountId] = useState('')
+  const [branchCode, setBranchCode] = useState('')
   const [data, setData] = useState<BankPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [from, setFrom] = useState(initialFilters?.from || currentMonthStart())
@@ -97,6 +98,7 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
       pageSize: '50',
       sortDirection,
     })
+    if (branchCode) params.set('branchCode', branchCode)
     if (accountId) params.set('accountId', accountId)
     if (from) params.set('from', from)
     if (q.trim()) params.set('q', q.trim())
@@ -104,7 +106,7 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
     if (to) params.set('to', to)
     if (type) params.set('type', type)
     return params
-  }, [accountId, from, page, q, refType, sortDirection, to, type])
+  }, [accountId, branchCode, from, page, q, refType, sortDirection, to, type])
 
   const loadData = useCallback(async () => {
     const requestId = latestLoadRequestRef.current + 1
@@ -134,6 +136,13 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
     }
   }, [accountId, data?.filters.accounts])
 
+  function changeBranch(value: string) {
+    setBranchCode(value)
+    setAccountId('')
+    setData(null)
+    setPage(1)
+  }
+
   async function exportXlsx() {
     setIsExporting(true)
     setError(null)
@@ -160,7 +169,8 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
 
   const totalPages = data?.pagination.totalPages ?? 1
   const accounts = data?.filters.accounts ?? []
-  const selectedAccount = accounts.find((account) => account.id === accountId) ?? accounts[0] ?? null
+  const branches = data?.filters.branches ?? []
+  const selectedAccount = accounts.find((account) => account.id === accountId) ?? null
   const selectedAccountSummary = data?.byAccount.find((row) => row.accountId === selectedAccount?.id) ?? null
   const openingBalance = selectedAccount
     ? data?.rows[0]
@@ -201,7 +211,12 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         {/* Desktop View */}
         <div className="hidden lg:flex flex-wrap items-center gap-2">
+          <Select className="h-9 w-52 text-sm" value={branchCode} onChange={(event) => changeBranch(event.target.value)}>
+            <option value="">ทุกสาขา</option>
+            {branches.map((branch) => <option key={branch.id} value={branch.code}>{branch.code} - {branch.name}</option>)}
+          </Select>
           <Select className="h-9 w-64 text-sm" value={accountId} onChange={(event) => { setPage(1); setAccountId(event.target.value) }}>
+            <option value="">เลือกบัญชี</option>
             {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.name} ({account.type})</option>)}
           </Select>
           <DatePickerInput className="h-9 w-[130px]" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
@@ -218,7 +233,12 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
         {/* Mobile View (Collapsible Filters) */}
         <div className="block lg:hidden space-y-2.5">
           <div className="flex flex-wrap gap-2">
+            <Select className="h-9 min-w-[160px] flex-1 text-sm text-slate-900" value={branchCode} onChange={(event) => changeBranch(event.target.value)}>
+              <option value="">ทุกสาขา</option>
+              {branches.map((branch) => <option key={branch.id} value={branch.code}>{branch.code} - {branch.name}</option>)}
+            </Select>
             <Select className="h-9 min-w-[160px] flex-1 text-sm text-slate-900" value={accountId} onChange={(event) => { setPage(1); setAccountId(event.target.value) }}>
+              <option value="">เลือกบัญชี</option>
               {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.name} ({account.type})</option>)}
             </Select>
             <button

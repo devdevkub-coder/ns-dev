@@ -26,6 +26,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { formatDecimalDisplay, formatDecimalDraft, formatPhoneDisplay, sanitizeAccountNoInput, sanitizeDecimalInput } from '@/lib/format'
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
+import { Select } from '@/components/ui/Select'
 import { invalidateClientReferenceRecords, listClientReferenceRecords } from '@/lib/client-reference-cache'
 import { invalidateSalesBillReferencesCache } from '@/lib/sales-bill-options-cache'
 
@@ -305,6 +306,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [sortKey, setSortKey] = useState<SortKey>(config.columns[0]?.key ?? 'code')
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [branchFilter, setBranchFilter] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const resizableColumns = useMemo<Array<ResizableColumnDefinition<TableColumnKey>>>(() => ([
     ...config.columns.map((column) => ({
@@ -361,6 +363,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
   const filteredRecords = useMemo(() => {
     const query = search.trim().toLowerCase()
     const rows = records.filter((record) => {
+      if (config.apiPath === '/api/master-data/accounts' && branchFilter && record.branchId !== branchFilter) return false
       if (config.supportsActive !== false) {
         if (activeFilter === 'active' && !record.active) return false
         if (activeFilter === 'inactive' && record.active) return false
@@ -372,7 +375,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
     })
 
     return [...rows].sort((left, right) => compareRecords(left, right, sortKey, sortDirection))
-  }, [records, search, sortDirection, sortKey, activeFilter, config.supportsActive])
+  }, [records, search, sortDirection, sortKey, activeFilter, branchFilter, config.apiPath, config.supportsActive])
 
   const total = filteredRecords.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -384,14 +387,18 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
 
   useEffect(() => {
     setPage(1)
-  }, [search, activeFilter, pageSize])
+  }, [search, activeFilter, branchFilter, pageSize])
 
-  const hasFilters = Boolean(search.trim() || (config.supportsActive !== false && activeFilter !== 'all'))
+  const hasFilters = Boolean(search.trim() || branchFilter || (config.supportsActive !== false && activeFilter !== 'all'))
   const resetFilters = useCallback(() => {
     setSearch('')
     setActiveFilter('all')
+    setBranchFilter('')
     setPage(1)
   }, [])
+
+  const isAccountsPage = config.apiPath === '/api/master-data/accounts'
+  const branchOptions = fieldOptions.branchId ?? []
 
   function openCreateForm() {
     setSelectedRecord(null)
@@ -466,6 +473,12 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
               setPage(1)
             }}
           />
+          {isAccountsPage ? (
+            <Select className="h-9 w-56 text-sm" value={branchFilter} onChange={(event) => { setBranchFilter(event.target.value); setPage(1) }}>
+              <option value="">ทุกสาขา</option>
+              {branchOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </Select>
+          ) : null}
           {hasFilters ? (
             <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none" type="button" onClick={resetFilters}>
               ✕ ล้าง
@@ -519,7 +532,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
               className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none"
               onClick={() => setShowMobileFilters(true)}
             >
-              ตัวกรอง {activeFilter !== 'all' ? '(มี)' : ''}
+              ตัวกรอง {activeFilter !== 'all' || branchFilter ? '(มี)' : ''}
             </button>
           ) : null}
         </div>
@@ -565,6 +578,15 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
           )}
         >
               <div>
+                {isAccountsPage ? (
+                  <div className="mb-4">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
+                    <Select className="h-10 w-full text-sm" value={branchFilter} onChange={(event) => { setBranchFilter(event.target.value); setPage(1) }}>
+                      <option value="">ทุกสาขา</option>
+                      {branchOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </Select>
+                  </div>
+                ) : null}
                 <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะการใช้งาน</span>
                 <div className="flex flex-wrap gap-2">
                   <MatchButton active={activeFilter === 'all'} label="ทั้งหมด" onClick={() => setActiveFilter('all')} />

@@ -66,7 +66,8 @@ export const stockQuerySchema = z.object({
 })
 
 export const statusConvertFormSchema = z.object({
-  branchId: z.string().trim().min(1, 'เลือกสาขา'),
+  sourceBranchId: z.string().trim().min(1, 'เลือกสาขาต้นทาง'),
+  targetBranchId: z.string().trim().min(1, 'เลือกสาขาปลายทาง'),
   date: requiredDate,
   docNo: optionalDocNo,
   fromStatus: statusConvertStatusSchema.default('RM'),

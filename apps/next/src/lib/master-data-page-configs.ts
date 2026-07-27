@@ -139,7 +139,6 @@ export const accountsPageConfig: MasterDataPageConfig = {
   entityName: 'บัญชีเงินบริษัท',
   emptyMessage: 'ไม่พบข้อมูลบัญชีเงินบริษัท',
   fields: [
-    { key: 'code', label: 'รหัสบัญชีเงินบริษัท', section: 'ข้อมูลบัญชี' },
     { key: 'type', label: 'วิธีจ่าย/รับเงิน', type: 'select', required: true, optionsApiPath: '/api/master-data/payment-methods', section: 'ข้อมูลบัญชี' },
     { key: 'branchId', label: 'สาขา', type: 'select', required: true, optionsApiPath: '/api/master-data/branches', optionValueKey: 'code', section: 'ข้อมูลบัญชี' },
     { key: 'name', label: 'ชื่อบัญชี', required: true, section: 'ข้อมูลบัญชี' },

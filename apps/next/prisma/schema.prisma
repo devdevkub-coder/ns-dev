@@ -735,6 +735,7 @@ model branches {
   expenses                  expenses[]
   grade_adjustments         grade_adjustments[]
   payments                  payments[]
+  petty_advances            petty_advances[]
   production_lines          production_lines[]
   production_machines       production_machines[]
   production_orders         production_orders[]
@@ -1658,6 +1659,7 @@ model petty_advances {
   version                     Int                     @default(1)
   id                          BigInt                  @id @default(autoincrement())
   account_id                  BigInt?
+  branch_id                   BigInt?
   recipient_person_code       String?
   recipient_bank_name         String?
   recipient_bank_account_name String?
@@ -1665,9 +1667,11 @@ model petty_advances {
   recipient_bank_branch       String?
   petty_advance_returns       petty_advance_returns[]
   accounts                    accounts?               @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branches                    branches?               @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   recipient_person            director_employees?     @relation(fields: [recipient_person_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([account_id], map: "idx_petty_advances_account")
+  @@index([branch_id], map: "idx_petty_advances_branch")
   @@index([date(sort: Desc)], map: "idx_petty_advances_date")
   @@index([recipient_person_code], map: "idx_petty_advances_recipient_person_code")
   @@index([status], map: "idx_petty_advances_status")

@@ -35,6 +35,7 @@ route: /finance-accounting/asset-disposal
 - สร้าง disposal ประเภท `Sale`, `Scrap`, `Write Off`, `Lost`, `Other`
 - บันทึกราคาขาย, customer optional, receipt ref optional, reason, notes
 - คำนวณ `gainLoss = sellingPrice - NBV`
+- เลขเอกสาร `ADP{สาขา}{YYMM}-####` ยึดรหัสสาขาจาก Asset ที่ถูกจำหน่าย ไม่ให้ผู้ใช้เลือกสาขาแยกซ้ำ
 - เปลี่ยนสถานะ asset เป็น `Sold`, `Disposed`, หรือ `Lost`
 - Reverse disposal ด้วยเหตุผลและคืนสถานะ asset เป็น `Active`
 

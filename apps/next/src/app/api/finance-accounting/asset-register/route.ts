@@ -16,6 +16,7 @@ const CATEGORIES = ['Land', 'Building', 'Machinery', 'Vehicle', 'Equipment', 'Le
 const STATUSES = ['Active', 'Inactive', 'Fully Depreciated', 'Sold', 'Disposed', 'Lost']
 const ACQUISITION_TYPES = ['Purchased', 'Leased', 'Transferred', 'Opening', 'Other']
 const DEPRECIATION_METHODS = ['Straight Line', 'No Depreciation', 'Manual']
+const AUTO_ASSET_CODE_PREFIX = 'FA-'
 
 type AssetRow = Prisma.assetsGetPayload<{
   include: {
@@ -25,6 +26,17 @@ type AssetRow = Prisma.assetsGetPayload<{
   }
 }>
 type MappedAssetRow = ReturnType<typeof mapAsset>
+
+async function nextAssetCode(tx: Prisma.TransactionClient) {
+  await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('asset-register:auto-code'))`
+  let sequence = await tx.assets.count({ where: { code: { startsWith: AUTO_ASSET_CODE_PREFIX } } }) + 1
+  while (true) {
+    const code = `${AUTO_ASSET_CODE_PREFIX}${String(sequence).padStart(3, '0')}`
+    const existing = await tx.assets.findUnique({ select: { id: true }, where: { code } })
+    if (!existing) return code
+    sequence += 1
+  }
+}
 
 function asText(value: unknown, fallback = '') {
   return String(value ?? fallback).trim()
@@ -282,7 +294,8 @@ export async function POST(request: NextRequest) {
     const createdOrUpdated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const result: bigint[] = []
       for (const row of rows as Record<string, unknown>[]) {
-        const input = assetInput(row)
+        const code = row.id ? asText(row.code) : (asText(row.code) || (body.action === 'commitImport' ? '' : await nextAssetCode(tx)))
+        const input = assetInput({ ...row, code })
         const duplicate = await tx.assets.findFirst({ select: { id: true }, where: { code: input.code, ...(input.id ? { id: { not: input.id } } : {}) } })
         if (duplicate) throw new Error(`รหัสทรัพย์สินซ้ำ: ${input.code}`)
         const data = { ...input, id: undefined, created_by: actor }

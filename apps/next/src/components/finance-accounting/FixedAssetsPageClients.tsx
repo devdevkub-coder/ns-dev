@@ -798,63 +798,48 @@ export function AssetRegisterPageClient() {
 
       {modal === 'asset' ? (
         <Modal title={form.id ? `แก้ไขทรัพย์สิน ${form.code}` : 'เพิ่มทรัพย์สิน'}>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-            <Field label="รหัสทรัพย์สิน">
-              <input 
-                className={fieldClass} 
-                disabled 
-                placeholder={form.id ? "" : "(ระบบสร้างให้อัตโนมัติ)"} 
-                value={form.id ? form.code : "(ระบบสร้างให้อัตโนมัติ)"} 
-              />
-            </Field>
-            <Field label="ชื่อทรัพย์สิน"><input className={fieldClass} value={form.name} onChange={(event) => updateForm('name', event.target.value)} /></Field>
-            <div className="w-full">
-              <SearchCombobox
-                inputId="form-category"
-                label="หมวด"
-                options={categoryOptions}
-                value={form.category}
-                onChange={(value) => updateForm('category', value)}
-                placeholder="เลือกหรือพิมพ์หมวด..."
-              />
-            </div>
-            <Field label="สาขา"><OptionSelect blankLabel="ไม่ระบุสาขา" options={data?.options.branches ?? []} value={form.branchId} onChange={(value) => updateForm('branchId', value)} /></Field>
-            <div className="w-full">
-              <SearchCombobox
-                inputId="form-department"
-                label="ฝ่าย"
-                options={departmentOptions}
-                value={form.department}
-                onChange={(value) => updateForm('department', value)}
-                placeholder="เลือกหรือพิมพ์ฝ่าย..."
-              />
-            </div>
-            <Field label="สถานที่"><input className={fieldClass} value={form.location} onChange={(event) => updateForm('location', event.target.value)} /></Field>
-            <Field label="วันที่ซื้อ"><input className={fieldClass} type="date" value={form.purchaseDate} onChange={(event) => updateForm('purchaseDate', event.target.value)} /></Field>
-            <Field label="ประเภทการได้มา"><SelectControl options={data?.options.acquisitionTypes ?? []} value={form.acquisitionType} onChange={(value) => updateForm('acquisitionType', value)} /></Field>
-            <div className="w-full">
-              <SearchCombobox 
-                inputId="form-supplier" 
-                label="ผู้ขาย" 
-                options={supplierOptions} 
-                value={form.supplierId} 
-                onChange={(value) => updateForm('supplierId', value)} 
-                placeholder="พิมพ์เพื่อค้นหาผู้ขาย..."
-              />
-            </div>
-            <MoneyField label="ราคาทุน" value={form.originalCost} onChange={(value) => updateForm('originalCost', value)} />
-            <MoneyField label="มูลค่าซาก" value={form.salvageValue} onChange={(value) => updateForm('salvageValue', value)} />
-            <Field label="อายุใช้งาน (เดือน)"><input className={fieldClass} inputMode="numeric" value={form.usefulLifeMonths} onChange={(event) => updateForm('usefulLifeMonths', event.target.value)} /></Field>
-            <Field label="วิธีคิดค่าเสื่อม"><SelectControl options={data?.options.depreciationMethods ?? []} value={form.depreciationMethod} onChange={(value) => updateForm('depreciationMethod', value)} /></Field>
-            <Field label="สถานะ"><SelectControl options={data?.options.assetStatuses ?? []} value={form.assetStatus} onChange={(value) => updateForm('assetStatus', value)} /></Field>
-            <Field label="Serial No."><input className={fieldClass} value={form.serialNo} onChange={(event) => updateForm('serialNo', event.target.value)} /></Field>
-            <Field label="ทะเบียนรถ"><input className={fieldClass} value={form.licensePlate} onChange={(event) => updateForm('licensePlate', event.target.value)} /></Field>
-            <Field label="เลขตัวถัง"><input className={fieldClass} value={form.chassisNo} onChange={(event) => updateForm('chassisNo', event.target.value)} /></Field>
-            <Field label="เลขเครื่อง"><input className={fieldClass} value={form.engineNo} onChange={(event) => updateForm('engineNo', event.target.value)} /></Field>
-            <Field label="กรมธรรม์"><input className={fieldClass} value={form.insurancePolicyNo} onChange={(event) => updateForm('insurancePolicyNo', event.target.value)} /></Field>
-            <Field label="หมดประกัน"><input className={fieldClass} type="date" value={form.warrantyExpireDate} onChange={(event) => updateForm('warrantyExpireDate', event.target.value)} /></Field>
-            <Field label="ผู้รับผิดชอบ"><input className={fieldClass} value={form.responsiblePerson} onChange={(event) => updateForm('responsiblePerson', event.target.value)} /></Field>
-            <div className="col-span-2 md:col-span-3"><Field label="หมายเหตุ"><textarea className={`${fieldClass} min-h-20`} value={form.notes} onChange={(event) => updateForm('notes', event.target.value)} /></Field></div>
+          <div className="space-y-4">
+            <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <h3 className="mb-4 text-sm font-bold text-slate-800">ข้อมูลหลัก</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="md:col-span-2"><Field label="ชื่อทรัพย์สิน *"><input className={fieldClass} value={form.name} onChange={(event) => updateForm('name', event.target.value)} /></Field></div>
+                <div><SearchCombobox inputId="form-category" label="หมวด" options={categoryOptions} value={form.category} onChange={(value) => updateForm('category', value)} placeholder="เลือกหรือพิมพ์หมวด..." /></div>
+                <Field label="สาขา"><OptionSelect blankLabel="ไม่ระบุสาขา" options={data?.options.branches ?? []} value={form.branchId} onChange={(value) => updateForm('branchId', value)} /></Field>
+                <div><SearchCombobox inputId="form-department" label="ฝ่าย" options={departmentOptions} value={form.department} onChange={(value) => updateForm('department', value)} placeholder="เลือกหรือพิมพ์ฝ่าย..." /></div>
+                <Field label="สถานที่"><input className={fieldClass} value={form.location} onChange={(event) => updateForm('location', event.target.value)} /></Field>
+                <Field label="วันที่ซื้อ"><input className={fieldClass} type="date" value={form.purchaseDate} onChange={(event) => updateForm('purchaseDate', event.target.value)} /></Field>
+                <Field label="ประเภทการได้มา"><SelectControl options={data?.options.acquisitionTypes ?? []} value={form.acquisitionType} onChange={(value) => updateForm('acquisitionType', value)} /></Field>
+                <div><SearchCombobox inputId="form-supplier" label="ผู้ขาย" options={supplierOptions} value={form.supplierId} onChange={(value) => updateForm('supplierId', value)} placeholder="พิมพ์เพื่อค้นหาผู้ขาย..." /></div>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <h3 className="mb-4 text-sm font-bold text-slate-800">ข้อมูลทางบัญชีและค่าเสื่อม</h3>
+              <div className="grid gap-4 md:grid-cols-3">
+                <MoneyField label="ราคาทุน *" value={form.originalCost} onChange={(value) => updateForm('originalCost', value)} />
+                <MoneyField label="มูลค่าซาก" value={form.salvageValue} onChange={(value) => updateForm('salvageValue', value)} />
+                <Field label="อายุใช้งาน (เดือน)"><input className={fieldClass} inputMode="numeric" value={form.usefulLifeMonths} onChange={(event) => updateForm('usefulLifeMonths', event.target.value)} /></Field>
+                <Field label="วิธีคิดค่าเสื่อม"><SelectControl options={data?.options.depreciationMethods ?? []} value={form.depreciationMethod} onChange={(value) => updateForm('depreciationMethod', value)} /></Field>
+                <Field label="สถานะ"><SelectControl options={data?.options.assetStatuses ?? []} value={form.assetStatus} onChange={(value) => updateForm('assetStatus', value)} /></Field>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <h3 className="mb-4 text-sm font-bold text-slate-800">รายละเอียดเฉพาะทรัพย์สิน</h3>
+              <div className="grid gap-4 md:grid-cols-3">
+                <Field label="Serial No."><input className={fieldClass} value={form.serialNo} onChange={(event) => updateForm('serialNo', event.target.value)} /></Field>
+                <Field label="ทะเบียนรถ"><input className={fieldClass} value={form.licensePlate} onChange={(event) => updateForm('licensePlate', event.target.value)} /></Field>
+                <Field label="เลขตัวถัง"><input className={fieldClass} value={form.chassisNo} onChange={(event) => updateForm('chassisNo', event.target.value)} /></Field>
+                <Field label="เลขเครื่อง"><input className={fieldClass} value={form.engineNo} onChange={(event) => updateForm('engineNo', event.target.value)} /></Field>
+                <Field label="กรมธรรม์"><input className={fieldClass} value={form.insurancePolicyNo} onChange={(event) => updateForm('insurancePolicyNo', event.target.value)} /></Field>
+                <Field label="หมดประกัน"><input className={fieldClass} type="date" value={form.warrantyExpireDate} onChange={(event) => updateForm('warrantyExpireDate', event.target.value)} /></Field>
+                <Field label="ผู้รับผิดชอบ"><input className={fieldClass} value={form.responsiblePerson} onChange={(event) => updateForm('responsiblePerson', event.target.value)} /></Field>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <Field label="หมายเหตุ"><textarea className={`${fieldClass} min-h-20`} value={form.notes} onChange={(event) => updateForm('notes', event.target.value)} /></Field>
+            </section>
           </div>
           <ModalActions>
             <ActionButton onClick={() => setModal(null)}>ยกเลิก</ActionButton>
@@ -1987,7 +1972,29 @@ function IdOptionSelect({ blankLabel, onChange, options, value }: { blankLabel: 
 }
 
 function MoneyField({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
-  return <Field label={label}><input className={fieldClass} inputMode="decimal" value={value} onChange={(event) => onChange(event.target.value)} /></Field>
+  const [isFocused, setIsFocused] = useState(false)
+  const sanitize = (input: string) => {
+    const normalized = input.replace(/,/g, '').replace(/[^0-9.]/g, '')
+    const [integerPart, ...decimalParts] = normalized.split('.')
+    return decimalParts.length > 0 ? `${integerPart}.${decimalParts.join('').slice(0, 2)}` : integerPart
+  }
+  const formatted = value.trim() ? Number(sanitize(value)).toLocaleString('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 }) : ''
+
+  return <Field label={label}>
+    <input
+      className={`${fieldClass} text-right tabular-nums`}
+      inputMode="decimal"
+      type="text"
+      value={isFocused ? sanitize(value) : formatted}
+      onBlur={() => {
+        setIsFocused(false)
+        const normalized = sanitize(value)
+        onChange(normalized ? Number(normalized).toFixed(2) : '')
+      }}
+      onChange={(event) => onChange(sanitize(event.target.value))}
+      onFocus={() => setIsFocused(true)}
+    />
+  </Field>
 }
 
 function ActionButton({ children, disabled = false, onClick, strong = false }: { children: ReactNode; disabled?: boolean; onClick: () => void; strong?: boolean }) {
