@@ -2636,10 +2636,10 @@ paths:
       operationId: readCostPool
       summary: Read Cost Pool baseline
       description: >
-        Read-only Cost Pool contract for Batch D5. Rows are derived from PO Buy,
-        purchase bills, production outputs, grade adjustments, and currently
-        known trading usage. Allocation/write/reverse/recalc actions are
-        deferred until reconciliation rules and source links are locked.
+        Read-only Cost Pool contract. Rows are derived from PO Buy, purchase
+        bills, production outputs, and grade adjustments. Available quantity
+        excludes both allocated and released quantity; allocation and reverse
+        writes are performed through Cost Allocator and Allocation Ledger.
       parameters:
         - $ref: "#/components/parameters/CostPoolQ"
         - $ref: "#/components/parameters/CostPoolProductId"
@@ -2671,26 +2671,35 @@ paths:
     get:
       tags: [Dual Costing]
       operationId: readCostAllocator
-      summary: Read Cost Allocator simulation baseline
+      summary: Read Cost Allocator preview
       description: >
-        Read-only Cost Allocator contract for Batch D6. Returns product options,
-        open PO Sell rows, available Cost Pool lots, and simulated allocation
-        candidates by FIFO/LIFO/Cheap/Expensive mode. Confirm/write/reverse
-        actions are deferred until allocation logs and reconciliation rules are
-        locked.
+        Returns eligible product options, open PO Sell, Spot Sell, or production
+        targets, available Cost Pool lots, and allocation preview candidates.
+        All values are L5 business facts and are returned with private, no-store.
       parameters:
         - $ref: "#/components/parameters/CostPoolProductId"
         - name: poSellId
           in: query
           schema:
             type: string
-          description: Derived PO Sell line id returned by this endpoint.
+          description: Exact target reference returned by this endpoint.
+        - name: sourceType
+          in: query
+          schema:
+            type: string
+            enum: [po-sell, spot-sell, production]
+            default: spot-sell
         - name: mode
           in: query
           schema:
             type: string
-            enum: [FIFO, LIFO, Cheap, Expensive]
+            enum: [FIFO, LIFO, Cheap, Expensive, Manual]
             default: FIFO
+        - name: targetCost
+          in: query
+          schema:
+            type: number
+            minimum: 0
       responses:
         "200":
           description: Cost Allocator read-only simulation model
@@ -2698,6 +2707,59 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CostAllocatorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Dual Costing]
+      operationId: confirmCostAllocation
+      summary: Confirm a full Cost Allocation match
+      description: >
+        Persists one Match ID for every selected Cost Pool lot after server-side
+        validation of target quantity, target state, product, branch, and latest
+        lot availability. The server derives persisted cost/source facts from the
+        Cost Pool; client preview values are not authoritative.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, poSellId, sourceType, candidates]
+              properties:
+                productId:
+                  type: string
+                poSellId:
+                  type: string
+                sourceType:
+                  type: string
+                  enum: [po-sell, spot-sell, production]
+                candidates:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [costPoolId, qtyToUse]
+                    properties:
+                      costPoolId:
+                        type: string
+                      qtyToUse:
+                        type: number
+                        exclusiveMinimum: 0
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        "200":
+          description: Allocation match was recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -2711,8 +2773,8 @@ paths:
       description: >
         Read-only management queue for dual-costing sales rows whose
         copper/brass quantities are not fully allocated to current deal-cost
-        records. Allocation/write actions remain disabled until normalized
-        allocation logs, reverse rules, audit, and reconciliation are designed.
+        records. The queue opens Cost Allocator for the selected exact target;
+        it does not allocate or mutate records itself.
       parameters:
         - name: q
           in: query
@@ -2744,11 +2806,11 @@ paths:
     get:
       tags: [Dual Costing]
       operationId: readCostAllocationLedger
-      summary: Read Cost Allocation Ledger baseline
+      summary: Read Cost Allocation Ledger
       description: >
-        Read-only management/audit ledger derived from current trading deal
-        matches because a normalized cost allocation ledger table is not
-        present yet. Reverse/write/export actions stay deferred.
+        Audit ledger derived from trading match and allocation facts. It returns
+        lot-level Cost Pool evidence, supports XLSX export, and keeps all L5
+        responses private, no-store. Reverse is a separate whole-match action.
       parameters:
         - name: q
           in: query
@@ -2773,23 +2835,68 @@ paths:
           in: query
           schema:
             type: string
-            enum: [PO_SELL, SPOT_SELL]
+            enum: [PO_SELL, SPOT_SELL, PRODUCTION]
         - name: category
           in: query
           schema:
             type: string
+        - $ref: "#/components/parameters/Format"
       responses:
         "200":
-          description: Cost allocation ledger rows and management summary
+          description: Cost allocation ledger JSON rows and management summary, or XLSX export
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+
+  /api/dual-costing/cost-allocation-ledger/reverse:
+    post:
+      tags: [Dual Costing]
+      operationId: reverseCostAllocationLedgerMatch
+      summary: Reverse one Cost Allocation match
+      description: >
+        Atomically reverses every active lot in a persisted Match ID, restores
+        quantity only to each exact Cost Pool lot, and preserves the original
+        allocation facts and deals as reversed/cancelled. Production targets and
+        historic facts without an exact Cost Pool lot are rejected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dealId]
+              properties:
+                dealId:
+                  type: string
+                reason:
+                  type: string
+                  maxLength: 500
+      responses:
+        "200":
+          description: Match was reversed or was already reversed
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Allocation match cannot be safely reversed
 
   /api/dual-costing/report:
     get:
@@ -4214,7 +4321,7 @@ components:
           additionalProperties: true
         writeDeferred:
           type: boolean
-          const: true
+          const: false
     StockAdjustRequest:
       allOf:
         - $ref: "#/components/schemas/StockBaseWriteRequest"

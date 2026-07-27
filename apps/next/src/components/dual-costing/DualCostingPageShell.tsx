@@ -9,7 +9,7 @@ export function DualCostingPageSection({ children, className, ...props }: HTMLAt
 }
 
 export function DualCostingFilterCard({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm', className)}>{children}</div>
+  return <div data-ns-field-scope="filter" className={cn('rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm', className)}>{children}</div>
 }
 
 export function DualCostingPanel({

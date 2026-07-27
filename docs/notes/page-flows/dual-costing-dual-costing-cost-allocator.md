@@ -5,7 +5,7 @@ tags:
   - menu
   - dual-costing
 status: accepted-baseline
-updated: 2026-07-08
+updated: 2026-07-27
 route: /dual-costing/cost-allocator
 ---
 
@@ -131,6 +131,11 @@ Current behavior 2026-07-08:
 - auto modes must expose preview/confirm immediately after target selection; `Manual` must require explicit calculate first.
 - Confirm write must be idempotent and create an auditable `matchId`.
 - If multiple Cost Pool rows have equal priority in the selected mode, tie-break by oldest incoming row/doc first.
+- One Confirm creates one shared `matchId` for every selected lot; each fact keeps a unique allocation number and the exact Cost Pool entry ID used.
+- The server reads product/source/lot unit cost from Cost Pool inside the transaction. Client-preview cost is display-only and cannot decide posted cost.
+- The server serializes Match ID creation and rejects a Cost Pool row from a different product or an unauthorized branch.
+- The server validates the exact current target quantity after taking the allocation lock. Candidate quantities must equal the target's latest unallocated quantity; stale previews, product mismatches, completed production orders, and unavailable/released Cost Pool quantity are rejected before any write.
+- New PO Sell facts persist `target_ref_id` with the exact `po_sell_id-line_id` used by the target selector. This is the only reference used when Allocation Ledger opens `แก้ไข`.
 
 ## Side Effects
 
@@ -148,6 +153,9 @@ Current Next confirm:
 - Current API delegates pool eligibility to Cost Pool API, so Cost Pool hardening is prerequisite.
 - 2026-06-14 runtime opens `spot-sell` read targets from Sales Bill lines with no active PO allocation and non-Trading transaction mode. This is the default mode per latest requirement.
 - 2026-07-08 runtime behavior: non-Manual modes (`FIFO`, `LIFO`, `Cheap`, `Expensive`) auto-open preview when a target is selected so the confirm action is visible without extra user input; `Manual` still requires explicit calculation first.
+- 2026-07-27 NSERP-159: confirmation writes `cost_pool_entry_id` to each `trading_allocation_facts` row and stores the same Match ID on all related deals. This preserves an exact reverse path without guessing from document number/line.
+- 2026-07-27 NSERP-159 hardening: confirmation uses one shared L5 advisory lock with reverse, validates current target/product/production status inside the transaction, and derives source document, supplier snapshot, source type, and unit cost from the persisted Cost Pool row only.
+- Cost Allocator responses are `private, no-store` because pool availability and allocation facts are L5 business data.
 
 ## Current Gap
 
