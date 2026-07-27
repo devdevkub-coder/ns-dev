@@ -579,7 +579,11 @@ rules:
 
 ## Column Rules
 
-### Canonical Runtime Table Alignment
+### Historical Runtime Table Alignment (Superseded)
+
+This historical rule is retained for audit only. Do not use it for new or updated pages. The active rule is the customer-approved combined table baseline above: center non-numeric identifiers, dates, labels, statuses, and actions; right-align quantities and monetary values; keep header and body alignment matched.
+
+<!-- Historical guidance retained below only as a record of the superseded 2026-07-12 convention.
 
 - ยึด `/stock/convert` เป็นตัวอย่างการจัดแนวคอลัมน์สำหรับตารางข้อมูล runtime ใน active Next app
 - คอลัมน์ข้อมูลจริงคอลัมน์แรกชิดซ้ายทั้งหัวตารางและข้อมูล
@@ -589,6 +593,8 @@ rules:
 - หัวตารางและข้อมูลของคอลัมน์เดียวกันต้องใช้ alignment เดียวกันเสมอ; ห้ามปน `left` / `center` / `right` ในชุดตารางเดียวกัน
 - badge สถานะและกลุ่มปุ่ม action ในคอลัมน์ชิดขวาต้องใช้ `justify-end`; sort indicator ต้องเรียงตาม alignment ของหัวตาราง
 - checkbox, expand, หรือ icon-only control ที่ไม่ใช่ข้อมูลธุรกิจ ไม่อยู่ในกติกาคอลัมน์ข้อมูลนี้
+
+-->
 
 ### Numeric
 
@@ -947,7 +953,7 @@ reference implementation ที่ใช้อ้างอิงได้ตอ�
 
 - 2026-07-14: Replaced the final-column auto-stretch rule with the customer-approved balanced-width rule. Every resizable `<col>` now keeps its configured width, including the final column, so widescreen remainder is distributed across the table instead of becoming one large blank status/action cell while business names truncate.
 
-- 2026-07-12: Set `/stock/convert` as the canonical alignment template for active runtime data tables: the first logical data column is left-aligned; every remaining data column is right-aligned; header and body always match; status badges and action groups end-align. Do not mix left/center/right alignment inside one table without an explicitly documented non-data control exception.
+- 2026-07-12: Historical table-alignment baseline, superseded by the customer-approved 2026-07-24 combined-table rule above. Retained only for audit history; do not use it as current implementation guidance.
 
 - 2026-07-12: Set the current rendered `/daily/weight-ticket-list` page as the customer-approved canonical full-page UX/UI reference for layout hierarchy, Light/Dark colors, modal/dialog composition, filters, tables, actions, pagination, responsive behavior, and spacing. Business-specific content may differ, but visual deviations require explicit approval and a checkpoint note.
 
