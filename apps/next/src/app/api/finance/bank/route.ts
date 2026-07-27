@@ -6,14 +6,16 @@ import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { getFinanceBranchCodeIntersection } from '@/lib/server/finance-accounting-branch-scope'
 import { prisma } from '@/lib/server/prisma'
-import { listActiveAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
+import { listActiveAccounts, listActiveBranches, listActiveBranchesByCodes, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
 
 type BankQuery = {
   accountId: string | null
+  branchCode: string | null
   from: string | null
   page: number
   pageSize: number
@@ -49,8 +51,10 @@ type BankStatementRow = {
 function parseQuery(url: URL): BankQuery {
   const page = Number(url.searchParams.get('page') ?? '1')
   const pageSize = Number(url.searchParams.get('pageSize') ?? '50')
+  const branchCode = url.searchParams.get('branchCode')?.trim().toUpperCase()
   return {
     accountId: url.searchParams.get('accountId') || null,
+    branchCode: branchCode && branchCode !== 'ALL' ? branchCode : null,
     from: url.searchParams.get('from') || null,
     page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
     pageSize: Number.isFinite(pageSize) && pageSize > 0 ? Math.min(Math.floor(pageSize), 500) : 50,
@@ -62,9 +66,9 @@ function parseQuery(url: URL): BankQuery {
   }
 }
 
-function statementWhere(query: BankQuery, internalAccountId: bigint | null, includeBeforeFrom: boolean): Prisma.bank_statementWhereInput {
+function statementWhere(query: BankQuery, internalAccountId: bigint | null, visibleAccountIds: bigint[], includeBeforeFrom: boolean): Prisma.bank_statementWhereInput {
   return {
-    ...(internalAccountId != null ? { account_id: internalAccountId } : {}),
+    ...(internalAccountId != null ? { account_id: internalAccountId } : { account_id: { in: visibleAccountIds } }),
     ...(query.refType ? { ref_type: query.refType } : {}),
     ...(query.type ? { type: query.type } : {}),
     ...(query.to || (!includeBeforeFrom && query.from)
@@ -104,24 +108,39 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url)
     const query = parseQuery(url)
+    const allowedBranchCodes = getFinanceBranchCodeIntersection(context)
+    const visibleBranches = allowedBranchCodes === null
+      ? await listActiveBranches()
+      : allowedBranchCodes.length > 0
+        ? await listActiveBranchesByCodes(allowedBranchCodes)
+        : []
+    const branch = query.branchCode
+      ? visibleBranches.find((row) => row.code === query.branchCode) ?? null
+      : null
+    if (query.branchCode && !branch) {
+      throw new Error('ไม่พบสาขาที่เปิดใช้งานหรือไม่มีสิทธิ์ดูข้อมูลสาขานี้')
+    }
     const search = query.q?.trim().toLowerCase()
     const accountReference = await findActiveAccountReferenceByCode(query.accountId)
     if (query.accountId && !accountReference) {
       throw new Error('ไม่พบบัญชีเงินบริษัทตามรหัสบัญชีที่ระบุ')
     }
+    const allAccounts = await listActiveAccounts()
+    const accounts = allAccounts.filter((account) => !branch || account.branchCode === branch.code)
+    if (accountReference && !accounts.some((account) => account.id === accountReference.id)) {
+      throw new Error('บัญชีเงินบริษัทไม่อยู่ในสาขาที่เลือกหรือไม่มีสิทธิ์ดูข้อมูล')
+    }
     const internalAccountId = accountReference?.id ?? null
+    const visibleAccountIds = accounts.map((account) => account.id)
 
-    const [sourceRows, accounts] = await Promise.all([
-      prisma.bank_statement.findMany({
-        include: {
-          accounts: { include: { branches: { select: { id: true, name: true } } } },
-        },
-        orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-        take: 10000,
-        where: statementWhere(query, internalAccountId, true),
-      }),
-      listActiveAccounts(),
-    ])
+    const sourceRows = await prisma.bank_statement.findMany({
+      include: {
+        accounts: { include: { branches: { select: { id: true, name: true } } } },
+      },
+      orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
+      take: 10000,
+      where: statementWhere(query, internalAccountId, visibleAccountIds, true),
+    })
 
     const accountCodeByInternalId = new Map(accounts.map((account: AccountReferenceRecord) => [String(account.id), account.code] as const))
     const runningByAccount = new Map<string, number>()
@@ -201,6 +220,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       byAccount: Array.from(accountSummary.values()).sort((left, right) => right.balance - left.balance),
       filters: {
+        branches: visibleBranches.map((row) => ({ code: row.code, id: row.code, name: row.name })),
         accounts: accounts.map((row: AccountReferenceRecord) => ({
           accountNo: row.accountNo,
           active: true,
