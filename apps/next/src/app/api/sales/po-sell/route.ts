@@ -8,7 +8,7 @@ import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, 
 import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
-import { bangkokDateRange, currentActor, normalizeDate, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
+import { bangkokDateRange, currentActor, documentBranchCode, normalizeDate, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import { isCustomerEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranches, listActiveBranchesByCodes, listActiveCustomerBranchOptions, listActiveSalesChannels, listBranchMasterRecords, listProductReferences, type BranchReferenceRecord, type CustomerBranchOptionRecord } from '@/lib/server/reference-master-cache'
@@ -631,11 +631,16 @@ function poSellItems(
   })
 }
 
-async function nextPoSellDocNo(date: Date) {
+async function nextPoSellDocNo(tx: Prisma.TransactionClient, date: Date, branchCode: string) {
   const year = String(date.getFullYear() + 543).slice(-2)
   const month = String(date.getMonth() + 1).padStart(2, '0')
-  const prefix = `POS${year}${month}-`
-  const latest = await prisma.po_sells.findFirst({
+  const normalizedBranchCode = documentBranchCode(branchCode)
+  if (!normalizedBranchCode) throw new Error('สาขาไม่มีรหัสสำหรับสร้างเลข PO Sell')
+  const prefix = `POS${normalizedBranchCode}${year}${month}-`
+  await tx.$executeRaw`
+    select pg_advisory_xact_lock(hashtext(${`po_sells:${prefix}`}))
+  `
+  const latest = await tx.po_sells.findFirst({
     orderBy: { doc_no: 'desc' },
     select: { doc_no: true },
     where: { doc_no: { startsWith: prefix } },
@@ -956,19 +961,19 @@ export async function POST(request: Request) {
     ])
 
     if (!customer) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (values.branchId && !branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (branch && !(await isCustomerEligibleForBranch({ branchId: branch.id, customerId: customer.id }))) {
+    if (!values.branchId) return NextResponse.json({ code: 'BAD_REQUEST', error: 'กรุณาเลือกสาขาก่อนสร้าง PO Sell', fieldErrors: { branchId: ['กรุณาเลือกสาขา'] } }, { status: 400 })
+    if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    if (!documentBranchCode(branch.code)) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขานี้ไม่มีรหัสสำหรับสร้างเลข PO Sell' }, { status: 400 })
+    if (!(await isCustomerEligibleForBranch({ branchId: branch.id, customerId: customer.id }))) {
       return NextResponse.json({
         code: 'BAD_REQUEST',
         error: 'ลูกค้าไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้',
         fieldErrors: { customerId: ['ลูกค้าไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้'] },
       }, { status: 400 })
     }
-    if (branch) {
-      const requestedBranchScope = await salesBranchScope(context, branch.code)
-      if (requestedBranchScope.ids !== null && requestedBranchScope.ids.length === 0) {
-        return NextResponse.json({ code: 'FORBIDDEN', error: 'ไม่มีสิทธิ์สร้าง PO Sell ในสาขานี้' }, { status: 403 })
-      }
+    const requestedBranchScope = await salesBranchScope(context, branch.code)
+    if (requestedBranchScope.ids !== null && requestedBranchScope.ids.length === 0) {
+      return NextResponse.json({ code: 'FORBIDDEN', error: 'ไม่มีสิทธิ์สร้าง PO Sell ในสาขานี้' }, { status: 403 })
     }
     if (values.channelId && !channel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
 
@@ -986,7 +991,6 @@ export async function POST(request: Request) {
     const vatRatePercent = await activeVatRatePercent(createdAt)
     const vatAmount = values.hasVat ? Math.round((subtotal * vatRatePercent / 100 + Number.EPSILON) * 100) / 100 : 0
     const totalAmount = subtotal + vatAmount
-    const docNo = await nextPoSellDocNo(createdAt)
     const salesPlanId = values.salesPlanId?.trim() || null
     let linkedPlan: LinkedSalesPlanRow | null = null
     if (salesPlanId) {
@@ -1009,9 +1013,10 @@ export async function POST(request: Request) {
       if (Math.abs((items[0]?.unitPrice ?? 0) - toNumber(linkedPlan.sell_price)) > 0.01) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ราคาขายใน PO ไม่ตรงกับแผนขาย' }, { status: 400 })
     }
     const created = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const docNo = await nextPoSellDocNo(tx, createdAt, branch.code)
       const poSell = await tx.po_sells.create({
         data: {
-          branch_id: branch?.id ?? null,
+          branch_id: branch.id,
           channel_id: channel?.id ?? null,
           created_at: createdAt,
           created_by: actor,
@@ -1191,19 +1196,20 @@ export async function PATCH(request: Request) {
     ])
 
     if (!customer) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (values.branchId && !branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (branch && !(await isCustomerEligibleForBranch({ branchId: branch.id, customerId: customer.id }))) {
+    if (!values.branchId) return NextResponse.json({ code: 'BAD_REQUEST', error: 'กรุณาเลือกสาขาก่อนแก้ไข PO Sell', fieldErrors: { branchId: ['กรุณาเลือกสาขา'] } }, { status: 400 })
+    if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    if (!documentBranchCode(branch.code)) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขานี้ไม่มีรหัสสำหรับสร้างเลข PO Sell' }, { status: 400 })
+    if (existing.branch_id !== branch.id) return NextResponse.json({ code: 'CONFLICT', error: 'ห้ามเปลี่ยนสาขาของ PO Sell ที่สร้างแล้ว' }, { status: 409 })
+    if (!(await isCustomerEligibleForBranch({ branchId: branch.id, customerId: customer.id }))) {
       return NextResponse.json({
         code: 'BAD_REQUEST',
         error: 'ลูกค้าไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้',
         fieldErrors: { customerId: ['ลูกค้าไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้'] },
       }, { status: 400 })
     }
-    if (branch) {
-      const requestedBranchScope = await salesBranchScope(context, branch.code)
-      if (requestedBranchScope.ids !== null && requestedBranchScope.ids.length === 0) {
-        return NextResponse.json({ code: 'FORBIDDEN', error: 'ไม่มีสิทธิ์แก้ไข PO Sell ในสาขานี้' }, { status: 403 })
-      }
+    const requestedBranchScope = await salesBranchScope(context, branch.code)
+    if (requestedBranchScope.ids !== null && requestedBranchScope.ids.length === 0) {
+      return NextResponse.json({ code: 'FORBIDDEN', error: 'ไม่มีสิทธิ์แก้ไข PO Sell ในสาขานี้' }, { status: 403 })
     }
     if (values.channelId && !channel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
 
@@ -1223,7 +1229,7 @@ export async function PATCH(request: Request) {
 
     await prisma.po_sells.update({
       data: {
-        branch_id: branch?.id ?? null,
+        branch_id: branch.id,
         channel_id: channel?.id ?? null,
         customer_id: customer.id,
         delivery_date: expectedDelivery,

@@ -83,6 +83,8 @@ POS เป็น customer commitment/reservation ฝั่งขาย ก่อ
 ## Validation / Status Rules
 
 - customer/branch/product/qty/price required
+- เลข POS ที่สร้างใหม่ใช้รูปแบบ `POS` + รหัสสาขา 2 หลัก + `YYMM` + running 4 หลัก; เลข legacy เดิมไม่ถูกเปลี่ยน
+- API ต้อง reject หากไม่มีสาขาหรือสาขาไม่มีรหัส และห้ามเปลี่ยนสาขาของ POS ที่สร้างแล้วเพื่อให้เลขเอกสารไม่ขัดกับ branch context
 - customer ต้อง active และมี active `customer_branches` กับ branch ของ POS; API ต้อง reject ถ้าไม่ตรง mapping และห้าม fallback เป็นทุกสาขา
 - qty > 0 แยกตามหน่วย
 - SB allocation ต้องไม่เกิน POS remaining
