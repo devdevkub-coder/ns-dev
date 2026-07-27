@@ -2,6 +2,12 @@
 
 ## Current Direction
 
+### Petty Advance Branch Migration 2026-07-27
+
+- Applied `20260727150000_add_branch_to_petty_advances.sql` directly to dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) because both environments have pre-existing migration-history drift that blocks a blanket `supabase db push`.
+- Postflight confirms `public.petty_advances.branch_id`, `idx_petty_advances_branch`, `petty_advances_branch_id_fkey`, and migration history version `20260727150000` exist in both environments.
+- No existing petty-advance business rows were backfilled or rewritten; new PADV records require a valid active branch from the application flow.
+
 ### Company Account Code Cutover 2026-07-27
 
 - Applied `20260727120000_assign_branch_scoped_account_codes.sql` directly to dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`). The migration remapped 12 `public.accounts` rows in each environment to deterministic codes in the form `ACC<branch code>-<3-digit sequence>`, ordered by `branch_id, id`.
