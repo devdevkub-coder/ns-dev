@@ -632,7 +632,7 @@ function poSellItems(
 }
 
 async function nextPoSellDocNo(tx: Prisma.TransactionClient, date: Date, branchCode: string) {
-  const year = String(date.getFullYear() + 543).slice(-2)
+  const year = String(date.getFullYear()).slice(-2)
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const normalizedBranchCode = documentBranchCode(branchCode)
   if (!normalizedBranchCode) throw new Error('สาขาไม่มีรหัสสำหรับสร้างเลข PO Sell')
