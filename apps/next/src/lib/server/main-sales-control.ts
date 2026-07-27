@@ -2,7 +2,7 @@ import type { Prisma } from '../../../generated/prisma/client'
 import { outwardCustomerReference } from '@/lib/server/customer-reference'
 import { requireBusinessCode } from '@/lib/business-code'
 import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
-import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { bangkokDateRange, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import { getSalesPlanLmeConfigAutoRefresh, type SalesPlanLmeConfig } from './sales-plan-lme'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
@@ -585,12 +585,13 @@ export async function buildSalesPlan(selectedMonth?: string) {
 }
 
 export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo?: string; branchId?: string }) {
-  const periodFrom = filters?.dateFrom ? new Date(`${filters.dateFrom}T00:00:00.000Z`) : new Date(`${new Date().toISOString().slice(0, 7)}-01T00:00:00.000Z`)
-  const periodTo = filters?.dateTo ? new Date(`${filters.dateTo}T23:59:59.999Z`) : new Date()
-  const year = periodFrom.getFullYear()
+  const today = toBangkokDateOnly(new Date())
+  const from = filters?.dateFrom ?? `${today.slice(0, 7)}-01`
+  const to = filters?.dateTo ?? today
+  const year = Number(from.slice(0, 4))
 
   const currentWhere: Prisma.purchase_billsWhereInput = {
-    date: { gte: periodFrom, lte: periodTo },
+    date: bangkokDateRange(from, to),
     status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] }
   }
   if (filters?.branchId) {
@@ -598,10 +599,7 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
   }
 
   const annualWhere: Prisma.purchase_billsWhereInput = {
-    date: {
-      gte: new Date(`${year}-01-01T00:00:00.000Z`),
-      lte: new Date(`${year}-12-31T23:59:59.999Z`),
-    },
+    date: bangkokDateRange(`${year}-01-01`, `${year}-12-31`),
     status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] }
   }
   if (filters?.branchId) {

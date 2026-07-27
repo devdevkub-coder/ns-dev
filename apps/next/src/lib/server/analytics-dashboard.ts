@@ -1,4 +1,4 @@
-import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { bangkokDateRange, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
@@ -61,8 +61,9 @@ export async function buildAnalyticsDashboard(filter: MainDashboardFilter): Prom
   const to = filter.dateTo || dateLabel
   const rangeStart = new Date(`${from}T00:00:00.000Z`)
   const rangeEnd = new Date(`${to}T23:59:59.999Z`)
+  const purchaseRange = bangkokDateRange(from, to)
   const [purchases, sales, expenses, products, salespersons] = await runBounded([
-    () => prisma.purchase_bills.findMany({ include: { purchase_bill_items: { where: { item_status: 'active' } }, suppliers: { select: { code: true, name: true } } }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, supplier_id: supplier?.id, date: { gte: rangeStart, lte: rangeEnd } } }),
+    () => prisma.purchase_bills.findMany({ include: { purchase_bill_items: { where: { item_status: 'active' } }, suppliers: { select: { code: true, name: true } } }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, supplier_id: supplier?.id, date: purchaseRange } }),
     () => prisma.sales_bills.findMany({ include: { customers: { select: { code: true, name: true } } }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, customer_id: customer?.id || undefined, date: { gte: rangeStart, lte: rangeEnd } } }),
     () => prisma.expenses.findMany({ select: { amount: true, status: true }, take: 3000, where: { date: { gte: rangeStart, lte: rangeEnd } } }),
     async () => (await listProductReferences()).filter((row) => row.active).map((row) => ({ code: row.code, id: row.id, metal_group: row.metalGroup, name: row.name })),
@@ -104,7 +105,7 @@ export async function buildAnalyticsDashboard(filter: MainDashboardFilter): Prom
   for (const bill of activePurchases) for (const item of itemRows(purchaseBillItemRows(bill))) { const group = productById.get(item.productId)?.metal_group ?? 'อื่นๆ'; const current = groupSummary.get(group) ?? { amount: 0, group, qty: 0 }; current.amount += item.amount; current.qty += item.qty; groupSummary.set(group, current) }
   for (const bill of activeSales) for (const item of salesLineRows(linesByBill.get(bill.id))) { const group = productById.get(item.productId)?.metal_group ?? 'อื่นๆ'; const current = groupSummary.get(group) ?? { amount: 0, group, qty: 0 }; current.amount += item.amount; current.qty += item.qty; groupSummary.set(group, current) }
   const dailyTrend = new Map<string, { label: string; purchase: number; sales: number }>()
-  for (const bill of activePurchases) { const label = toDateOnly(bill.date); const current = dailyTrend.get(label) ?? { label, purchase: 0, sales: 0 }; current.purchase += toNumber(bill.total_amount); dailyTrend.set(label, current) }
+  for (const bill of activePurchases) { const label = toBangkokDateOnly(bill.date); const current = dailyTrend.get(label) ?? { label, purchase: 0, sales: 0 }; current.purchase += toNumber(bill.total_amount); dailyTrend.set(label, current) }
   for (const bill of activeSales) { const label = toDateOnly(bill.date); const current = dailyTrend.get(label) ?? { label, purchase: 0, sales: 0 }; current.sales += toNumber(bill.total_amount); dailyTrend.set(label, current) }
   return {
     filters: { date: dateLabel, from, to },

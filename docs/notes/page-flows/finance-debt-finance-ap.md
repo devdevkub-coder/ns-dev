@@ -104,8 +104,9 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - Outward bill id = `purchase_bills.doc_no`.
 - Supplier/branch filter uses outward business code.
 - Current row fields include `docNo`, `date`, `dueDate`, `supplierCode`, `supplierName`, `branchName`, `status`, `transactionMode`, `totalAmount`, `paidAmount`, `payableBalance`, `aging`, `bucket`.
+- For Purchase Bill, `date` is the outward bill date and is sourced from `purchase_bills.created_at` by accepted business policy; the database timestamp remains UTC while API filtering and display use `Asia/Bangkok`.
 - `totalAmount`, `paidAmount`, and `payableBalance` must come from `purchase_bills.total_amount`, `purchase_bills.paid_amount`, and `purchase_bills.payable_balance`.
-- Current API does not include `created_at`; target table/export should add created date.
+- The page must not reinterpret an ISO timestamp with UTC calendar-day semantics. A selected date range maps to Bangkok `00:00` inclusive through the following Bangkok `00:00` exclusive, so records created from 00:00 through 06:59 ICT remain in their intended bill date.
 
 ## Validation / Status Rules
 
@@ -127,13 +128,18 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - Current API supports filters, sort, pagination, xlsx export, and supplier/bucket summary.
 - Current AP aging base date is intentionally `purchase_bills.date` under the no-credit-term policy.
 
+## Bangkok Timestamp Contract 2026-07-27
+
+- What is what: `purchase_bills.date` is the existing Prisma alias for physical `purchase_bills.created_at`; it is the accepted source of the visible bill date and AP aging base for this flow.
+- Why it has to be like this: business users group Purchase Bills by the time the ERP creates the bill. PostgreSQL `timestamptz` stays in UTC for storage and audit consistency, while all user-selected date ranges are converted from `Asia/Bangkok` to an inclusive/exclusive UTC range at the API boundary.
+- Boundary: selecting `2026-06-26` means `2026-06-25T17:00:00.000Z <= created_at < 2026-06-26T17:00:00.000Z`. Displayed bill/log timestamps use `Asia/Bangkok`; true business-date columns elsewhere retain their date-only contract.
+
 ## Current Gap
 
 - API visible balance now reads the `purchase_bills` balance snapshot first; payment/supplier-advance facts are drilldown only.
 - AP channel filter is removed/hidden until purchase channel exists as a real document source.
 - PMA/PMT state separation and locks need end-to-end runtime proof.
 - Source links to PB/PMA/PMT/Supplier Advance are available in detail; export/source-link depth can still be expanded later.
-- Need created date in list/detail/export.
 
 ## Drilldown Scope Hydration 2026-07-17
 

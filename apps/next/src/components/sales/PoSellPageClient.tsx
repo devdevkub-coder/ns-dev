@@ -1027,7 +1027,7 @@ function formatTimestampDisplay(value: string | null | undefined) {
   if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
+  return date.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Bangkok' })
 }
 
 function documentStatusTone(value: string): 'amber' | 'dark' | 'emerald' | 'red' | 'rose' | 'slate' {

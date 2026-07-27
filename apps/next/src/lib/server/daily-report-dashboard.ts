@@ -1,4 +1,4 @@
-import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { bangkokDateRange, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
@@ -47,10 +47,11 @@ export async function buildDailyReportDashboard(filter: MainDashboardFilter): Pr
   const to = filter.dateTo || dateLabel
   const rangeStart = new Date(`${from}T00:00:00.000Z`)
   const rangeEnd = new Date(`${to}T23:59:59.999Z`)
+  const purchaseRange = bangkokDateRange(from, to)
   const todayStart = startOfDay(selectedDate)
   const todayEnd = endOfDay(selectedDate)
   const [purchases, sales, expenses, bankRows, payments, receipts, products, salespersons] = await runBounded([
-    () => prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: { select: { code: true, name: true } } }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, supplier_id: supplier?.id, date: { gte: rangeStart, lte: rangeEnd } } }),
+    () => prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: { select: { code: true, name: true } } }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, supplier_id: supplier?.id, date: purchaseRange } }),
     () => prisma.sales_bills.findMany({ include: { customers: { select: { code: true, name: true } } }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, customer_id: customer?.id || undefined, date: { gte: rangeStart, lte: rangeEnd } } }),
     () => prisma.expenses.findMany({ include: { expense_categories: { select: { name: true } } }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 3000, where: { date: { gte: rangeStart, lte: rangeEnd } } }),
     () => prisma.bank_statement.findMany({ include: { accounts: { select: { name: true, type: true } } }, orderBy: [{ date: 'asc' }], take: 10000, where: { date: { gte: rangeStart, lte: rangeEnd } } }),
@@ -63,7 +64,7 @@ export async function buildDailyReportDashboard(filter: MainDashboardFilter): Pr
   const activePurchases = purchases.filter((row) => activeStatus(row.status))
   const activeSales = sales.filter((row) => activeStatus(row.status))
   const linesByBill = await salesBillAnalyticsLinesByBillId(activeSales.map((row) => row.id))
-  const todayPurchases = activePurchases.filter((row) => row.date >= todayStart && row.date <= todayEnd)
+  const todayPurchases = activePurchases.filter((row) => toBangkokDateOnly(row.date) === dateLabel)
   const todaySales = activeSales.filter((row) => row.date >= todayStart && row.date <= todayEnd)
   const todayExpenses = expenses.filter((row) => row.date >= todayStart && row.date <= todayEnd && activeStatus(row.status))
   const todayBank = bankRows.filter((row) => row.date >= todayStart && row.date <= todayEnd)
@@ -89,7 +90,7 @@ export async function buildDailyReportDashboard(filter: MainDashboardFilter): Pr
   for (const bill of todaySales) for (const item of salesLineRows(linesByBill.get(bill.id))) { const product = productById.get(item.productId); const group = getGroup(product?.metal_group ?? 'อื่นๆ'); const row = group.products.get(item.productId) ?? { buyAmt: 0, buyQty: 0, productCode: product?.code ?? '', productId: product?.code ?? '', productName: product?.name ?? '-', sellAmt: 0, sellQty: 0 }; group.products.set(item.productId, row); group.sellAmt += item.amount; group.sellQty += item.qty; row.sellAmt += item.amount; row.sellQty += item.qty }
   const dailyTrend = new Map<string, { label: string; purchase: number; sales: number }>()
   for (const row of bankRows) dailyTrend.set(toDateOnly(row.date), { label: toDateOnly(row.date), purchase: 0, sales: 0 })
-  for (const bill of activePurchases) { const label = toDateOnly(bill.date); const row = dailyTrend.get(label) ?? { label, purchase: 0, sales: 0 }; row.purchase += toNumber(bill.total_amount); dailyTrend.set(label, row) }
+  for (const bill of activePurchases) { const label = toBangkokDateOnly(bill.date); const row = dailyTrend.get(label) ?? { label, purchase: 0, sales: 0 }; row.purchase += toNumber(bill.total_amount); dailyTrend.set(label, row) }
   for (const bill of activeSales) { const label = toDateOnly(bill.date); const row = dailyTrend.get(label) ?? { label, purchase: 0, sales: 0 }; row.sales += toNumber(bill.total_amount); dailyTrend.set(label, row) }
   const expenseByCategory = new Map<string, { amount: number; count: number; name: string }>()
   for (const row of todayExpenses) { const key = row.expense_categories?.name ?? 'ไม่ระบุ'; const current = expenseByCategory.get(key) ?? { amount: 0, count: 0, name: key }; current.amount += toNumber(row.amount); current.count += 1; expenseByCategory.set(key, current) }

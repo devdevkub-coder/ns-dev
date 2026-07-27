@@ -133,7 +133,7 @@ export async function readProfitCostSummary(filter: ProfitCostReaderFilter) {
     prisma.$queryRaw<BalanceSqlRow[]>(Prisma.sql`
       select
         coalesce((select sum(pb.payable_balance) from public.purchase_bills pb
-          where pb.created_at::date between ${filter.from}::date and ${filter.to}::date
+          where (pb.created_at at time zone 'Asia/Bangkok')::date between ${filter.from}::date and ${filter.to}::date
             and lower(coalesce(pb.status, '')) not in ${cancelledStatuses}
             and lower(coalesce(pb.status, '')) <> 'draft'
             ${branchScopeSql(filter, Prisma.sql`pb.branch_id`)}
@@ -362,12 +362,12 @@ export async function readProfitCostDimension(
         count(distinct fact.source_doc_no)::int bill_count,
         0::numeric buy_qty, 0::numeric buy_amount,
         coalesce((select sum(pb.paid_amount) from public.purchase_bills pb
-          where pb.supplier_id = supplier.id and pb.created_at::date between ${query.from}::date and ${query.to}::date
+          where pb.supplier_id = supplier.id and (pb.created_at at time zone 'Asia/Bangkok')::date between ${query.from}::date and ${query.to}::date
             and lower(coalesce(pb.status, '')) not in ${cancelledStatuses} and lower(coalesce(pb.status, '')) <> 'draft'
             ${branchScopeSql(query, Prisma.sql`pb.branch_id`)}
             ${query.purchaseChannelId != null ? Prisma.sql`and pb.purchase_channel_id = ${query.purchaseChannelId}` : Prisma.empty}), 0) paid,
         coalesce((select sum(pb.payable_balance) from public.purchase_bills pb
-          where pb.supplier_id = supplier.id and pb.created_at::date between ${query.from}::date and ${query.to}::date
+          where pb.supplier_id = supplier.id and (pb.created_at at time zone 'Asia/Bangkok')::date between ${query.from}::date and ${query.to}::date
             and lower(coalesce(pb.status, '')) not in ${cancelledStatuses} and lower(coalesce(pb.status, '')) <> 'draft'
             ${branchScopeSql(query, Prisma.sql`pb.branch_id`)}
             ${query.purchaseChannelId != null ? Prisma.sql`and pb.purchase_channel_id = ${query.purchaseChannelId}` : Prisma.empty}), 0) payable,

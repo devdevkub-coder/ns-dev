@@ -1,5 +1,5 @@
 import { requireBusinessCode } from '@/lib/business-code'
-import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { bangkokDateRange, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
@@ -287,7 +287,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
     CustomerReferenceRow[],
     HistoricalMonthlyRow[],
   ] = await runReadBatch([
-    () => prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, supplier_id: supplier?.id, date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
+    () => prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, supplier_id: supplier?.id, date: bangkokDateRange(from, to) } }),
     () => prisma.sales_bills.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, customer_id: customer?.id || undefined, date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
     () => prisma.expenses.findMany({ include: { expense_categories: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
     () => prisma.sales_bills.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, customer_id: customer?.id || undefined, date: { gte: new Date(`${previousRange.from}T00:00:00.000Z`), lte: new Date(`${previousRange.to}T23:59:59.999Z`) } } }),
@@ -473,7 +473,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
   const dailyTrendMap = new Map<string, { label: string; purchase: number; sales: number }>()
   for (const row of bankRange) dailyTrendMap.set(dateOnly(row.date), { label: dateOnly(row.date), purchase: 0, sales: 0 })
   for (const bill of activePurchases) {
-    const label = dateOnly(bill.date)
+    const label = toBangkokDateOnly(bill.date)
     const current = dailyTrendMap.get(label) ?? { label, purchase: 0, sales: 0 }
     current.purchase += toNumber(bill.total_amount)
     dailyTrendMap.set(label, current)

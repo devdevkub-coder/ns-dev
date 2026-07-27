@@ -7,12 +7,14 @@ export function toDateOnly(value: Date | null | undefined) {
   return value ? value.toISOString().slice(0, 10) : ''
 }
 
+export const BUSINESS_TIMEZONE = 'Asia/Bangkok'
+
 export function toBangkokDateOnly(value: Date | null | undefined) {
   if (!value) return ''
   const parts = new Intl.DateTimeFormat('en-CA', {
     day: '2-digit',
     month: '2-digit',
-    timeZone: 'Asia/Bangkok',
+    timeZone: BUSINESS_TIMEZONE,
     year: 'numeric',
   }).formatToParts(value)
   const valueByType = Object.fromEntries(parts.map((part) => [part.type, part.value]))
@@ -21,6 +23,17 @@ export function toBangkokDateOnly(value: Date | null | undefined) {
 
 export function toBangkokEndOfDay(value: Date) {
   return new Date(`${toBangkokDateOnly(value)}T23:59:59.999+07:00`)
+}
+
+export function bangkokDateStart(value: string) {
+  return new Date(`${value}T00:00:00.000+07:00`)
+}
+
+export function bangkokDateRange(from?: string | null, to?: string | null) {
+  return {
+    ...(from ? { gte: bangkokDateStart(from) } : {}),
+    ...(to ? { lt: new Date(bangkokDateStart(to).getTime() + 24 * 60 * 60 * 1000) } : {}),
+  }
 }
 
 export function toNumber(value: { toNumber: () => number } | number | null | undefined) {

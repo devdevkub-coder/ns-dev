@@ -1,4 +1,4 @@
-import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { bangkokDateRange, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import type { OwnerDailyPayload } from '@/lib/server/dashboard-report-contracts'
 import type { MainDashboardFilter } from '@/lib/server/main-dashboards'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
@@ -65,9 +65,10 @@ export async function buildOwnerDailyDashboard(filter: MainDashboardFilter): Pro
   const todayEnd = endOfDay(selectedDate)
   const rangeStart = new Date(`${from}T00:00:00.000Z`)
   const rangeEnd = new Date(`${to}T23:59:59.999Z`)
+  const purchaseRange = bangkokDateRange(from, to)
 
   const [purchases, sales, expenses, payments, receipts, stockRows, deals, bankToday, loanSchedules, currentCash, productionWip] = await runBounded([
-    () => prisma.purchase_bills.findMany({ select: { date: true, doc_no: true, paid_amount: true, payable_balance: true, status: true, transaction_mode: true, suppliers: { select: { name: true } } }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, date: { gte: rangeStart, lte: rangeEnd } } }),
+    () => prisma.purchase_bills.findMany({ select: { date: true, doc_no: true, paid_amount: true, payable_balance: true, status: true, transaction_mode: true, suppliers: { select: { name: true } } }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, date: purchaseRange } }),
     () => prisma.sales_bills.findMany({ select: { credit_term: true, customers: { select: { name: true } }, date: true, doc_no: true, receivable_balance: true, status: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, date: { gte: rangeStart, lte: rangeEnd } } }),
     () => prisma.expenses.findMany({ select: { amount: true, date: true, doc_no: true, expense_categories: { select: { name: true } }, payee: true, status: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 3000, where: { date: { gte: rangeStart, lte: rangeEnd } } }),
     () => prisma.payments.findMany({ select: { amount: true, net_amount: true }, where: { date: { gte: rangeStart, lte: rangeEnd } }, take: 3000, orderBy: [{ date: 'desc' }] }),
@@ -89,7 +90,7 @@ export async function buildOwnerDailyDashboard(filter: MainDashboardFilter): Pro
   const cashIn = receipts.reduce((sum, row) => sum + toNumber(row.net_amount || row.amount), 0)
   const cashOut = payments.reduce((sum, row) => sum + toNumber(row.net_amount || row.amount), 0) + expenseAmount
   const arDueRows = activeSales.map((row) => { const dueDate = addDays(row.date, row.credit_term ?? 0); return { amount: toNumber(row.receivable_balance), daysOverdue: Math.max(0, daysBetween(dueDate, selectedDate)), docNo: row.doc_no, due: toDateOnly(dueDate), id: row.doc_no, name: row.customers?.name ?? '-' } }).filter((row) => row.amount > 0 && row.due <= toDateOnly(selectedDate)).sort((a, b) => b.daysOverdue - a.daysOverdue || b.amount - a.amount)
-  const apDueRows = activePurchases.map((row) => ({ amount: toNumber(row.payable_balance), docNo: row.doc_no, due: toDateOnly(row.date), id: row.doc_no, name: row.suppliers?.name ?? '-' })).filter((row) => row.amount > 0 && row.due <= toDateOnly(selectedDate)).sort((a, b) => b.amount - a.amount)
+  const apDueRows = activePurchases.map((row) => ({ amount: toNumber(row.payable_balance), docNo: row.doc_no, due: toBangkokDateOnly(row.date), id: row.doc_no, name: row.suppliers?.name ?? '-' })).filter((row) => row.amount > 0 && row.due <= toDateOnly(selectedDate)).sort((a, b) => b.amount - a.amount)
   const loanToday = loanSchedules.map((row) => ({ amount: Math.max(0, toNumber(row.total_due_amount) - toNumber(row.paid_amount)), contractNo: row.loans?.contract_no ?? '-', due: toDateOnly(row.due_date), id: row.loans?.contract_no ? `${row.loans.contract_no}-${row.installment_no ?? 0}` : '', installmentNo: row.installment_no ?? 0 })).filter((row) => row.amount > 0)
   const fgRows = stockRows.filter((row) => (row.output_category ?? '').toUpperCase() === 'FG')
   const fgQty = fgRows.reduce((sum, row) => sum + toNumber(row.qty_in) - toNumber(row.qty_out), 0)

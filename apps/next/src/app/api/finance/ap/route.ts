@@ -7,7 +7,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
-import { normalizeDate, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
+import { bangkokDateRange, normalizeDate, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import { getFinanceBranchCodeIntersection } from '@/lib/server/finance-accounting-branch-scope'
 import { prisma } from '@/lib/server/prisma'
 import {
@@ -77,8 +77,7 @@ function billWhere(query: ApQuery, branchId: bigint | null, allowedBranchCodes: 
     ...(query.from || query.to
       ? {
           date: {
-            ...(query.from ? { gte: normalizeDate(query.from) } : {}),
-            ...(query.to ? { lt: new Date(normalizeDate(query.to).getTime() + 24 * 60 * 60 * 1000) } : {}),
+            ...bangkokDateRange(query.from, query.to),
           },
         }
       : {}),
@@ -158,7 +157,7 @@ export async function GET(request: Request) {
         const payableBalance = toNumber(bill.payable_balance)
         const creditTerm = 0
         // Current AP policy has no supplier credit term: aging starts from the PB date.
-        const due = new Date(bill.date)
+        const due = normalizeDate(toBangkokDateOnly(bill.date))
         const aging = Math.floor((today.getTime() - due.getTime()) / 86400000)
 
         return {
@@ -167,9 +166,9 @@ export async function GET(request: Request) {
           branchName: bill.branches?.name ?? '-',
           bucket: ageBucket(aging),
           creditTerm,
-          date: toDateOnly(bill.date),
+          date: toBangkokDateOnly(bill.date),
           docNo: bill.doc_no,
-          dueDate: toDateOnly(due),
+          dueDate: toBangkokDateOnly(bill.date),
           id: bill.doc_no,
           paidAmount,
           payableBalance,

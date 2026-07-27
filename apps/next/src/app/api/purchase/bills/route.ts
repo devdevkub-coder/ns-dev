@@ -18,7 +18,7 @@ import {
 import { summarizeAdvancePaymentApprovalStatus } from '@/lib/server/advance-payments'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission, getBranchCodeIntersection } from '@/lib/server/auth-context'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
-import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { bangkokDateRange, currentActor, normalizeDate, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import { appendPoBuyAllocationLogs, PO_BUY_ALLOCATION_ACTION, PO_BUY_STATUS, reconcilePoBuys } from '@/lib/server/po-buy-reconciliation'
 import { isSupplierEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { appendPurchaseBillStatusLog, createInitialPurchaseBillStatusLog, PURCHASE_BILL_STATUS_ACTION } from '@/lib/server/purchase-bill-history'
@@ -365,7 +365,7 @@ function billJson(row: PurchaseBillRow, paymentDocNos: string[] = []) {
     branchName: row.branches?.name ?? '-',
     createdAt: row.date?.toISOString() ?? '',
     createdBy: row.created_by ?? '-',
-    date: row.date ? toDateOnly(row.date) : '',
+    date: row.date ? toBangkokDateOnly(row.date) : '',
     discountTotal: toNumber(row.discount_total ?? row.discount),
     docNo: row.doc_no,
     hasVat: row.has_vat ?? false,
@@ -1986,10 +1986,7 @@ function billWhere(query: BillQuery, allowedBranchCodes?: string[] | null): Pris
     }
   }
   if (query.dateFrom || query.dateTo) {
-    where.date = {
-      ...(query.dateFrom ? { gte: normalizeDate(query.dateFrom) } : {}),
-      ...(query.dateTo ? { lt: new Date(normalizeDate(query.dateTo).getTime() + 24 * 60 * 60 * 1000) } : {}),
-    }
+    where.date = bangkokDateRange(query.dateFrom, query.dateTo)
   }
   if (query.filterMode) where.transaction_mode = query.filterMode
   if (query.filterSource) where.purchase_source = query.filterSource

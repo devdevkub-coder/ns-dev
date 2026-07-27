@@ -22,3 +22,12 @@ describe('toBangkokEndOfDay', () => {
     expect(toBangkokEndOfDay?.(new Date('2026-07-17T00:00:00.000Z')).toISOString()).toBe('2026-07-17T16:59:59.999Z')
   })
 })
+
+describe('bangkokDateRange', () => {
+  it('converts a Bangkok calendar day to an exclusive UTC timestamp range', () => {
+    const range = daily.bangkokDateRange('2026-06-26', '2026-06-26')
+
+    expect(range.gte?.toISOString()).toBe('2026-06-25T17:00:00.000Z')
+    expect(range.lt?.toISOString()).toBe('2026-06-26T17:00:00.000Z')
+  })
+})

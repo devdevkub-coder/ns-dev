@@ -8,7 +8,7 @@ import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, 
 import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
-import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { bangkokDateRange, currentActor, normalizeDate, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import { isCustomerEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranches, listActiveBranchesByCodes, listActiveCustomerBranchOptions, listActiveSalesChannels, listBranchMasterRecords, listProductReferences, type BranchReferenceRecord, type CustomerBranchOptionRecord } from '@/lib/server/reference-master-cache'
@@ -204,14 +204,7 @@ function scopedBranchWhere(allowedBranchIds: bigint[] | null): Prisma.po_sellsWh
 
 function createdAtDateRange(from: string | null, to: string | null): Prisma.DateTimeNullableFilter | undefined {
   if (!from && !to) return undefined
-  const range: Prisma.DateTimeNullableFilter = {}
-  if (from) range.gte = new Date(`${from}T00:00:00.000Z`)
-  if (to) {
-    const nextDay = new Date(`${to}T00:00:00.000Z`)
-    nextDay.setUTCDate(nextDay.getUTCDate() + 1)
-    range.lt = nextDay
-  }
-  return range
+  return bangkokDateRange(from, to)
 }
 
 function jsonNumber(value: unknown) {
@@ -828,7 +821,7 @@ export async function GET(request: Request) {
         customerAddress: po.customers?.address ?? '',
         customerTaxId: po.customers?.tax_id ?? '',
         customerPhone: po.customers?.phone ?? '',
-        createdAt: toDateOnly(po.created_at ?? po.date),
+        createdAt: toBangkokDateOnly(po.created_at ?? po.date),
         docNo: po.doc_no,
         editDisabledReason: canWrite ? '' : lockedByDownstream ? 'มีรายการนำไปเปิดบิล/จัดสรรต้นทุนแล้ว' : 'แก้ไขได้เฉพาะรายการที่เปิดอยู่',
         expectedDelivery: toDateOnly(po.expected_delivery),
