@@ -35,17 +35,16 @@ export function ResizableTableHead<TSortKey extends string>({
   const alignment = alignmentClasses[align]
   const contentPadding = align === 'right' ? 'p-2 pr-3' : 'p-2 pr-4'
   const activeSortIconStyle = { color: 'var(--ns-sort-active)' }
-  const content = (
-    <>
-      <span className="min-w-0 whitespace-nowrap leading-snug">{label}</span>
-      {sortKey ? (
-        <span aria-hidden="true" className="flex h-5 w-3 shrink-0 flex-col items-center justify-center gap-0.5 leading-none">
-          <Triangle className={`size-2.5 fill-current stroke-none ${active && direction === 'asc' ? '' : 'text-slate-400'}`} style={active && direction === 'asc' ? activeSortIconStyle : undefined} />
-          <Triangle className={`size-2.5 rotate-180 fill-current stroke-none ${active && direction === 'desc' ? '' : 'text-slate-400'}`} style={active && direction === 'desc' ? activeSortIconStyle : undefined} />
-        </span>
-      ) : null}
-    </>
-  )
+  const labelContent = <span className="min-w-0 whitespace-nowrap leading-snug">{label}</span>
+  const sortContent = sortKey ? (
+    <span aria-hidden="true" className="flex h-5 w-3 shrink-0 flex-col items-center justify-center gap-0.5 leading-none">
+      <Triangle className={`size-2.5 fill-current stroke-none ${active && direction === 'asc' ? '' : 'text-slate-400'}`} style={active && direction === 'asc' ? activeSortIconStyle : undefined} />
+      <Triangle className={`size-2.5 rotate-180 fill-current stroke-none ${active && direction === 'desc' ? '' : 'text-slate-400'}`} style={active && direction === 'desc' ? activeSortIconStyle : undefined} />
+    </span>
+  ) : null
+  const content = align === 'right'
+    ? <>{sortContent}{labelContent}</>
+    : <>{labelContent}{sortContent}</>
 
   return (
     <th

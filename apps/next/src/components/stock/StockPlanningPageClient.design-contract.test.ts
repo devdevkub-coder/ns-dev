@@ -123,7 +123,7 @@ describe('Stock Planning design contract', () => {
 
   it('switches heavy tables to mobile cards and keeps expansion keyboard-accessible', async () => {
     const client = await readFile(clientPath, 'utf8')
-    const rightAlignedNumericHeaders = client.match(/<ResizableTableHead align="right"/g) ?? []
+    const rightAlignedNumericHeaders = client.match(/<ResizableTableHead\b[^>]*\balign="right"/g) ?? []
     const resizableHeaders = client.match(/<ResizableTableHead\b/g) ?? []
     const fixedLayoutTables = client.match(/tableLayout: 'fixed'/g) ?? []
     const dividedBodies = client.match(/<tbody className="divide-y divide-slate-200">/g) ?? []
@@ -145,6 +145,31 @@ describe('Stock Planning design contract', () => {
     expect(client).toContain("useResizableColumns('stock.planning.detail.v1'")
     expect(client).toContain("useResizableColumns('stock.planning.calendar-day.v1'")
     expect(client.match(/ยังไม่มี PO Sell สำหรับสินค้านี้/g) ?? []).toHaveLength(2)
+  })
+
+  it('sorts summary tables before pagination while preserving FIFO detail order', async () => {
+    const client = await readFile(clientPath, 'utf8')
+    const urgentSurface = client.slice(
+      client.indexOf('function UrgentPurchasePanel'),
+      client.indexOf('function PlanningPagination'),
+    )
+    const overviewSurface = client.slice(
+      client.indexOf('function PlanDataSurface'),
+      client.indexOf('function PlanDetailDesktopTable'),
+    )
+    const detailSurface = client.slice(
+      client.indexOf('function PlanDetailDesktopTable'),
+      client.indexOf('function PlanDetailMobileCards'),
+    )
+    const calendarSurface = client.slice(client.indexOf('function CalendarView'))
+
+    expect(client).toContain("import { nextSortState, sortRows, type SortState } from './stock-planning-sort'")
+    expect(client.indexOf('const sortedActivePlans')).toBeLessThan(client.indexOf('const pagedPlans'))
+    expect(client).toContain('sortedActivePlans.slice')
+    expect(overviewSurface.match(/\bsortKey="/g) ?? []).toHaveLength(9)
+    expect(urgentSurface.match(/\bsortKey="/g) ?? []).toHaveLength(6)
+    expect(detailSurface).not.toContain('sortKey=')
+    expect(calendarSurface).not.toContain('sortKey=')
   })
 
   it('shows canonical pagination/loading and exports a real Excel workbook', async () => {
