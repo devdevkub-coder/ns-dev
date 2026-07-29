@@ -1066,7 +1066,7 @@ export function WeightTicketFormCore({
     setMobileProductView('editor')
   }
 
-  function closeMobileProductEditor(focusTargetId = activeLineId, onClosed?: () => void) {
+  const closeMobileProductEditor = useCallback((focusTargetId = activeLineId, onClosed?: () => void) => {
     if (mobileProductEditorCloseTimeoutRef.current !== null) return
 
     cancelMobileProductEditorOpenAnimation()
@@ -1081,7 +1081,21 @@ export function WeightTicketFormCore({
 
     setMobileProductEditorVisible(false)
     mobileProductEditorCloseTimeoutRef.current = window.setTimeout(finishClose, 400)
-  }
+  }, [activeLineId, cancelMobileProductEditorOpenAnimation])
+
+  useEffect(() => {
+    if (mobileProductView !== 'editor') return
+
+    const handleMobileProductEditorKeyDown = (event: KeyboardEvent) => {
+      if (window.matchMedia('(min-width: 1280px)').matches || event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      closeMobileProductEditor()
+    }
+
+    document.addEventListener('keydown', handleMobileProductEditorKeyDown)
+    return () => document.removeEventListener('keydown', handleMobileProductEditorKeyDown)
+  }, [closeMobileProductEditor, mobileProductView])
 
   function addSameProductLot(sourceLine: FormWeightTicketLine) {
     setMergeNotice('')
@@ -1748,12 +1762,6 @@ export function WeightTicketFormCore({
                 )}
                   onClick={(event) => {
                     if (event.currentTarget === event.target) closeMobileProductEditor()
-                  }}
-                  onKeyDownCapture={(event) => {
-                    if (window.matchMedia('(min-width: 1280px)').matches || event.key !== 'Escape') return
-                    event.preventDefault()
-                    event.stopPropagation()
-                    closeMobileProductEditor()
                   }}
                 >
                   <div className={cn(

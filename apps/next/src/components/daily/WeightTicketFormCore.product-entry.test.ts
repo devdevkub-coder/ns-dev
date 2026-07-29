@@ -41,7 +41,7 @@ describe('weight-ticket product entry start contract', () => {
 
 describe('weight-ticket mobile product workspace contract', () => {
   it('opens a blank product editor without auto-opening the product dropdown', () => {
-    const addLineSource = formSource.match(/function addLine\(\) \{([\s\S]*?)\r?\n  \}\r?\n\r?\n  function closeMobileProductEditor/)
+    const addLineSource = formSource.match(/function addLine\(\) \{([\s\S]*?)\r?\n  \}\r?\n\r?\n  const closeMobileProductEditor = useCallback/)
 
     expect(addLineSource).not.toBeNull()
     expect(addLineSource?.[1]).toContain("setMobileProductView('editor')")
@@ -64,9 +64,10 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).not.toContain('motion-reduce:transition-none')
     expect(formSource).toContain("activeLine.productId ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'")
     expect(formSource).toContain('aria-label="ปิดหน้ากรอกสินค้า"')
-    expect(formSource).toContain('function closeMobileProductEditor(')
+    expect(formSource).toContain('const closeMobileProductEditor = useCallback(')
     expect(formSource).toContain('id={`weight-ticket-line-card-${line.id}`}')
     expect(formSource).toContain("window.matchMedia('(min-width: 1280px)').matches || event.key !== 'Escape'")
+    expect(formSource).toContain("document.addEventListener('keydown', handleMobileProductEditorKeyDown)")
     expect(formSource).toContain('transition-transform duration-[400ms] ease-[cubic-bezier(.32,.72,0,1)]')
     expect(formSource).toContain('translate-y-full')
     expect(formSource).not.toContain('animate-in slide-in-from-bottom-8')
@@ -311,6 +312,44 @@ describe('weight-ticket product editor behavior', () => {
     const closingOverlay = container.querySelector<HTMLElement>('[class*="fixed"][class*="inset-0"][class*="z-40"]')
     expect(closingOverlay).not.toBeNull()
     expect(closingOverlay?.classList.contains('opacity-0')).toBe(false)
+    expect(container.querySelector('[class*="translate-y-full"]')).not.toBeNull()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(399)
+    })
+
+    expect(container.querySelector('[class*="fixed"][class*="inset-0"][class*="z-40"]')).not.toBeNull()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+
+    expect(container.querySelector('[class*="fixed"][class*="inset-0"][class*="z-40"]')).toBeNull()
+  })
+
+  it('closes the mobile editor with Escape even when focus stays on the add-product trigger', async () => {
+    await renderForm()
+
+    const addProductButton = container.querySelector<HTMLButtonElement>('#weight-ticket-add-product')
+    expect(addProductButton).not.toBeNull()
+
+    await act(async () => {
+      addProductButton?.click()
+      addProductButton?.focus()
+      await Promise.resolve()
+    })
+
+    expect(document.activeElement).toBe(addProductButton)
+
+    vi.useFakeTimers()
+    const escapeEvent = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Escape' })
+    await act(async () => {
+      document.dispatchEvent(escapeEvent)
+      await Promise.resolve()
+    })
+
+    expect(escapeEvent.defaultPrevented).toBe(true)
+    expect(container.querySelector('[class*="fixed"][class*="inset-0"][class*="z-40"]')).not.toBeNull()
     expect(container.querySelector('[class*="translate-y-full"]')).not.toBeNull()
 
     await act(async () => {
