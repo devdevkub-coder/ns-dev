@@ -6,6 +6,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { errorJson, masterDataJson, masterDataListJson, toIso, toNumber } from '@/lib/server/master-data'
 import { findActiveBranchReferenceByCodeOrId, outwardBranchReference } from '@/lib/server/branch-reference'
 import { findActiveBankNameReferenceByName, invalidateAccountReferenceCache } from '@/lib/server/reference-master-cache'
+import { buildCompanyAccountCurrencyBalances } from '@/lib/company-account-currency'
 
 export const runtime = 'nodejs'
 
@@ -26,18 +27,16 @@ function accountTypeLabel(type: string | null | undefined) {
 }
 
 function normalizeAccountSubtype(
-  row: { account_group?: string | null; bank_account_type?: string | null; currency?: string | null; od_limit?: unknown; subtype?: string | null; type?: string | null },
+  row: { account_group: string; bank_account_type?: string | null },
 ) {
-  if (row.account_group === 'cash' || row.subtype === 'cash' || row.type === 'cash') return 'cash'
-  if (row.account_group === 'virtual' || row.type === 'virtual') return 'virtual'
+  if (row.account_group === 'cash') return 'cash'
+  if (row.account_group === 'virtual') return 'virtual'
   if (row.bank_account_type === 'savings' || row.bank_account_type === 'current') return row.bank_account_type
-  if (row.subtype === 'savings' || row.subtype === 'current') return row.subtype
-  if (row.subtype === 'od') return 'current'
-  return 'savings'
+  throw new Error(`บัญชีธนาคาร ${row.account_group} ไม่มีประเภทบัญชีธนาคารที่ถูกต้อง`)
 }
 
 function accountSubtypeLabel(
-  row: { account_group?: string | null; bank_account_type?: string | null; currency?: string | null; od_limit?: unknown; subtype?: string | null; type?: string | null },
+  row: { account_group: string; bank_account_type?: string | null },
 ) {
   const subtype = normalizeAccountSubtype(row)
   if (subtype === 'cash') return 'เงินสด'
@@ -95,53 +94,44 @@ function validateAccountBusinessRules(values: {
 }
 
 async function resolveAccountCurrencyBalances(values: z.infer<typeof accountMasterDataFormSchema>, accountGroup: string) {
-  const requested = accountGroup === 'bank'
-    ? (values.accountCurrencyBalances ?? []).map((entry) => ({
-      currency: String(entry.currency ?? '').trim().toUpperCase(),
-      openingBalance: entry.openingBalance ?? 0,
-    })).filter((entry) => entry.currency)
-    : [{ currency: String(values.currency ?? 'THB').trim().toUpperCase(), openingBalance: values.openingBalance ?? 0 }]
-  const unique = Array.from(new Map(requested.map((entry) => [entry.currency, entry])).values())
-  if (unique.some((entry) => entry.openingBalance < 0)) {
-    throw new Error('ยอดตั้งต้นบัญชีต้องไม่ติดลบ')
-  }
+  const unique = buildCompanyAccountCurrencyBalances({
+    accountGroup,
+    additionalBalances: values.accountCurrencyBalances ?? [],
+    isFcd: values.isFcd,
+    openingBalance: values.openingBalance,
+    primaryCurrency: values.currency,
+  })
   const currencyRows = await prisma.currencies.findMany({ select: { code: true }, where: { code: { in: unique.map((entry) => entry.currency) } } })
-  const activeCodes = new Set(currencyRows.map((row) => row.code.toUpperCase()))
-  if (unique.length === 0) throw new Error('เลือกสกุลเงินอย่างน้อย 1 รายการ')
-  if (!activeCodes.has('THB')) throw new Error('บัญชีต้องมี THB เสมอ')
-  if (accountGroup === 'bank' && !values.isFcd && (unique.length !== 1 || unique[0]?.currency !== 'THB')) {
-    throw new Error('บัญชีที่ไม่ใช่ FCD ต้องเลือกเฉพาะ THB')
-  }
-  if (accountGroup === 'bank' && values.isFcd && unique.length < 2) {
-    throw new Error('บัญชี FCD ต้องมี THB และสกุลเงินต่างประเทศอย่างน้อย 1 สกุล')
-  }
   if (currencyRows.length !== unique.length) throw new Error('มีสกุลเงินที่ไม่ถูกต้องหรือถูกปิดใช้งาน')
   return unique
 }
 
-function mapAccount(
-  row: AccountRow,
-  statementTotalByAccountId: Map<string, number>
-) {
+function mapAccount(row: AccountRow) {
   const outwardId = requireBusinessCode(row.code, `บัญชีเงิน ${row.id}`)
-  const realBalance = (toNumber(row.opening_balance) ?? 0) + (statementTotalByAccountId.get(row.id.toString()) ?? 0)
   const odLimit = toNumber(row.od_limit) ?? 0
-  const odUsed = Math.max(0, -realBalance)
-  const odRemaining = Math.max(0, odLimit - odUsed)
-  const availableToPay = realBalance + odLimit
+  const currencyDisplay = Array.from(new Set([
+    ...(row.account_currency_balances ?? []).map((balance) => balance.currency_code),
+    row.currency,
+  ].filter((currency): currency is string => Boolean(currency))))
+    .sort((left, right) => {
+      if (left === row.currency) return -1
+      if (right === row.currency) return 1
+      return left.localeCompare(right)
+    })
+    .join(', ')
 
   return {
     id: outwardId,
     code: outwardId,
     name: row.name,
     active: row.active ?? true,
-    type: row.account_group ?? row.type,
-  typeLabel: row.account_categories?.name ?? accountTypeLabel(row.account_group ?? row.type),
+    type: row.account_group,
+  typeLabel: row.account_categories?.name ?? accountTypeLabel(row.account_group),
     subtype: normalizeAccountSubtype(row),
     subtypeLabel: accountSubtypeLabel(row),
-    accountGroup: row.account_group ?? row.type,
-    bankAccountType: row.bank_account_type ?? (row.subtype === 'savings' || row.subtype === 'current' ? row.subtype : null),
-    isFcd: row.is_fcd ?? (row.account_group === 'bank' && String(row.currency ?? 'THB').toUpperCase() !== 'THB'),
+    accountGroup: row.account_group,
+    bankAccountType: row.bank_account_type,
+    isFcd: row.is_fcd,
     phone: null,
     email: null,
     note: null,
@@ -153,6 +143,7 @@ function mapAccount(
     bankBranch: row.bank_branch,
     accountNo: row.account_no,
     currency: row.currency,
+    currencyDisplay: currencyDisplay || null,
     openingBalance: toNumber(row.opening_balance),
     hasOd: odLimit > 0,
     accountCurrencyBalances: (row.account_currency_balances ?? []).map((balance) => ({
@@ -160,10 +151,6 @@ function mapAccount(
       openingBalance: toNumber(balance.opening_balance as number | null),
     })),
     odLimit,
-    realBalance,
-    odUsed,
-    odRemaining,
-    availableToPay,
     ...outwardBranchReference(row.branches, row.branch_id),
     address: null,
     commissionPct: null,
@@ -224,22 +211,8 @@ export async function GET() {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'master.reference.view')
 
-    const [rows, statementTotals] = await Promise.all([
-      prisma.accounts.findMany({ include: { account_categories: true, branches: true, account_currency_balances: true }, orderBy: [{ code: 'asc' }, { name: 'asc' }, { account_no: 'asc' }] }),
-      prisma.bank_statement.groupBy({
-        by: ['account_id'],
-        _sum: {
-          amount_in: true,
-          amount_out: true,
-        },
-        where: { account_id: { not: null } },
-      }),
-    ])
-    const statementTotalByAccountId = new Map<string, number>(statementTotals.map((total) => [
-      total.account_id?.toString() ?? '',
-      ((toNumber(total._sum?.amount_in) ?? 0) - (toNumber(total._sum?.amount_out) ?? 0)),
-    ] as const))
-    return masterDataListJson(rows.map((row: Awaited<ReturnType<typeof prisma.accounts.findMany>>[number]) => mapAccount(row, statementTotalByAccountId)))
+    const rows = await prisma.accounts.findMany({ include: { account_categories: true, branches: true, account_currency_balances: true }, orderBy: [{ code: 'asc' }, { name: 'asc' }, { account_no: 'asc' }] })
+    return masterDataListJson(rows.map((row: Awaited<ReturnType<typeof prisma.accounts.findMany>>[number]) => mapAccount(row)))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return errorJson(caught, 'โหลดข้อมูลบัญชีเงินไม่ได้', 500)
@@ -275,7 +248,7 @@ export async function POST(request: Request) {
       bankName: values.bankName,
       bankAccountType,
       branchId: values.branchId,
-      currency: currencyBalances[0]?.currency ?? values.currency,
+      currency: values.currency,
     isFcd: values.isFcd,
       hasOd: values.hasOd,
       openingBalance: values.openingBalance,
@@ -287,8 +260,8 @@ export async function POST(request: Request) {
       throw new Error('สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
     }
     const code = await resolveAccountCode(branch.code, existing?.code)
-    const legacyCurrency = currencyBalances.find((entry) => entry.currency !== 'THB')?.currency ?? 'THB'
-    const thbBalance = currencyBalances.find((entry) => entry.currency === 'THB')?.openingBalance ?? 0
+    const primaryCurrency = String(values.currency).trim().toUpperCase()
+    const primaryBalance = currencyBalances.find((entry) => entry.currency === primaryCurrency)?.openingBalance ?? 0
     const data = {
       code,
       name: values.name,
@@ -301,9 +274,9 @@ export async function POST(request: Request) {
       bank_branch: accountGroup === 'bank' ? values.bankBranch || null : null,
       bank: accountGroup === 'bank' ? values.bankName || null : null,
       account_no: accountGroup === 'bank' ? values.accountNo || null : null,
-      currency: accountGroup === 'bank' ? legacyCurrency : values.currency || 'THB',
-      opening_balance: accountGroup === 'bank' ? thbBalance : values.openingBalance,
-      od_limit: values.hasOd && bankAccountType === 'current' ? values.odLimit : 0,
+      currency: primaryCurrency,
+      opening_balance: primaryBalance,
+      od_limit: values.hasOd && bankAccountType === 'current' ? values.odLimit ?? 0 : 0,
       branch_id: branch.id,
       active: values.active,
     }
@@ -317,19 +290,8 @@ export async function POST(request: Request) {
         data: { ...data, account_currency_balances: { create: currencyBalances.map((entry) => ({ currency_code: entry.currency, opening_balance: entry.openingBalance })) } },
         include: { branches: true, account_currency_balances: true },
       })
-    const statementSum = await prisma.bank_statement.aggregate({
-        _sum: {
-          amount_in: true,
-          amount_out: true,
-        },
-        where: { account_id: row.id },
-      })
-    const statementTotalByAccountId = new Map<string, number>([[
-      row.id.toString(),
-      ((toNumber(statementSum._sum?.amount_in) ?? 0) - (toNumber(statementSum._sum?.amount_out) ?? 0)),
-    ]])
     await invalidateAccountReferenceCache()
-    return masterDataJson(mapAccount(row, statementTotalByAccountId))
+    return masterDataJson(mapAccount(row))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return errorJson(caught, 'บันทึกข้อมูลบัญชีเงินไม่ได้')

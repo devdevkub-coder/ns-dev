@@ -63,6 +63,7 @@ updated: 2026-07-17
 - `asOf` reports use facts up to end-of-day of the selected date.
 - period reports use document/business dates in the selected range unless a page explicitly states another basis.
 - Currency, FCD, OD and FX treatment must not be silently mixed into THB totals without a documented conversion rule.
+- FCD current accounts may have an OD limit. The limit, usage and remaining availability stay in the Statement currency unless a documented FX conversion rule explicitly produces a THB reporting value.
 - Opening/historical/cutover data must be locked by a cutover approval policy before any write action is enabled.
 - Asset and loan write flows need idempotency, audit trail, reversal and bank/GL side-effect policy before moving beyond read baseline.
 
