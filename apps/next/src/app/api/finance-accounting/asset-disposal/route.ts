@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { parseInternalBigIntId } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, documentBranchCode, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveCustomers } from '@/lib/server/reference-master-cache'
 
@@ -43,9 +43,9 @@ function disposalStatus(type: string) {
   return 'Disposed'
 }
 
-async function nextDisposalNo(tx: DisposalNoClient = prisma) {
-  const now = new Date()
-  const prefix = `ADP${String(now.getUTCFullYear()).slice(2)}${String(now.getUTCMonth() + 1).padStart(2, '0')}`
+async function nextDisposalNo(tx: DisposalNoClient, disposalDate: Date, branchCode: string) {
+  const compactDate = `${String(disposalDate.getUTCFullYear()).slice(2)}${String(disposalDate.getUTCMonth() + 1).padStart(2, '0')}`
+  const prefix = `ADP${documentBranchCode(branchCode)}${compactDate}`
   const count = await tx.asset_disposals.count({ where: { disposal_no: { startsWith: prefix } } })
   return `${prefix}-${String(count + 1).padStart(4, '0')}`
 }
@@ -141,9 +141,11 @@ export async function POST(request: NextRequest) {
     const sellingPrice = Math.max(0, Number(body.sellingPrice || 0))
     const customerId = bigIntId(body.customerId)
     const result = await prisma.$transaction(async (tx) => {
-      const asset = await tx.assets.findUnique({ include: { depreciations: true }, where: { id: assetId } })
+      const asset = await tx.assets.findUnique({ include: { branches: { select: { code: true } }, depreciations: true }, where: { id: assetId } })
       if (!asset) throw new Error('ไม่พบทรัพย์สิน')
       if (['Sold', 'Disposed', 'Lost'].includes(asset.asset_status || '')) throw new Error('ทรัพย์สินนี้ถูกจำหน่ายแล้ว')
+      const branchCode = documentBranchCode(asset.branches?.code)
+      if (!branchCode) throw new Error('ทรัพย์สินนี้ไม่มีรหัสสาขาสำหรับสร้างเลขจำหน่าย')
       
       const dDate = new Date(disposalDate)
       const dYear = dDate.getUTCFullYear()
@@ -202,7 +204,7 @@ export async function POST(request: NextRequest) {
           created_by: actor,
           customer_id: customerId,
           disposal_date: disposalDate,
-          disposal_no: await nextDisposalNo(tx),
+          disposal_no: await nextDisposalNo(tx, disposalDate, branchCode),
           disposal_type: disposalType,
           gain_loss: sellingPrice - bookValue,
           notes: String(body.notes || '').trim() || null,

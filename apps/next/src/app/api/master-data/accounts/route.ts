@@ -1,9 +1,9 @@
 import { z } from 'zod'
-import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
+import { requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { accountMasterDataFormSchema } from '@/lib/master-data'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { errorJson, masterDataJson, masterDataListJson, normalizeCode, toIso, toNumber } from '@/lib/server/master-data'
+import { errorJson, masterDataJson, masterDataListJson, toIso, toNumber } from '@/lib/server/master-data'
 import { findActiveBranchReferenceByCodeOrId, outwardBranchReference } from '@/lib/server/branch-reference'
 import { findActiveBankNameReferenceByName, findActivePaymentMethodReferenceByName, invalidateAccountReferenceCache, listActivePaymentMethods } from '@/lib/server/reference-master-cache'
 
@@ -142,18 +142,40 @@ async function getPaymentMethodTypes() {
   return new Map(rows.map((row) => [row.name, row.type === 'cash' ? 'cash' : 'bank'] as const))
 }
 
-async function getNextAccountCode() {
+function accountCodePrefix(branchCode: string) {
+  const normalizedBranchCode = String(branchCode).trim().toUpperCase()
+  if (!normalizedBranchCode || !/^[A-Z0-9_-]+$/.test(normalizedBranchCode)) {
+    throw new Error('สาขาที่เลือกไม่มีรหัสสาขา')
+  }
+  return `ACC${normalizedBranchCode}-`
+}
+
+async function getNextAccountCode(branchCode: string) {
+  const prefix = accountCodePrefix(branchCode)
   const rows = await prisma.accounts.findMany({
     orderBy: { code: 'desc' },
     select: { code: true },
-    where: { code: { startsWith: 'ACC' } },
+    where: { code: { startsWith: prefix } },
   })
   const lastNumber = rows.reduce((max: number, row: { code: string | null }) => {
-    const matched = String(row.code ?? '').match(/^ACC(\d+)$/i)
+    const matched = String(row.code ?? '').match(new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\d+)$`, 'i'))
     const value = matched ? Number(matched[1]) : 0
     return Number.isFinite(value) ? Math.max(max, value) : max
   }, 0)
-  return `ACC${String(lastNumber + 1).padStart(3, '0')}`
+  const nextNumber = lastNumber + 1
+  if (nextNumber > 999) {
+    throw new Error(`รหัสบัญชีสาขา ${branchCode} เกินลำดับสูงสุด 999`)
+  }
+  return `${prefix}${String(nextNumber).padStart(3, '0')}`
+}
+
+async function resolveAccountCode(branchCode: string, currentCode: string | null | undefined) {
+  const prefix = accountCodePrefix(branchCode)
+  const normalizedCurrentCode = String(currentCode ?? '').trim().toUpperCase()
+  if (new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\d{3}$`, 'i').test(normalizedCurrentCode)) {
+    return normalizedCurrentCode
+  }
+  return getNextAccountCode(branchCode)
 }
 
 async function assertActiveBankName(bankName: string | null) {
@@ -218,16 +240,10 @@ export async function POST(request: Request) {
     const values = accountMasterDataFormSchema.parse(await request.json())
     const existing = values.id
       ? await prisma.accounts.findFirst({
-        select: { id: true },
-        where: {
-          OR: [
-            { code: values.id.toUpperCase() },
-            ...(parseInternalBigIntId(values.id) != null ? [{ id: parseInternalBigIntId(values.id) as bigint }] : []),
-          ],
-        } as any,
+        select: { code: true, id: true },
+        where: { code: values.id.toUpperCase() },
       })
       : null
-    const code = normalizeCode(values.code, values.id || await getNextAccountCode())
     const accountType = accountTypeSchema.parse(values.type)
     const paymentMethodGroup = await assertActivePaymentMethod(accountType)
     const accountSubtype = paymentMethodGroup === 'cash'
@@ -246,6 +262,7 @@ export async function POST(request: Request) {
     if (!branch) {
       throw new Error('สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
     }
+    const code = await resolveAccountCode(branch.code, existing?.code)
     const data = {
       code,
       name: values.name,

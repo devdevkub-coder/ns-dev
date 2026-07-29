@@ -7,6 +7,7 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { Button as UiButton } from '@/components/ui/Button'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input as UiInput } from '@/components/ui/Input'
@@ -470,6 +471,7 @@ export function PoBuyPageClient() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [form, setForm] = useState<PoBuyFormState>(() => blankForm())
   const [fromDate, setFromDate] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [page, setPage] = useState(1)
@@ -707,6 +709,7 @@ export function PoBuyPageClient() {
     const query = search.trim().toLowerCase()
     const filteredRows = (data?.rows ?? []).filter((row) => {
       if (statuses.length > 0 && !statuses.includes(row.status)) return false
+      if (branchFilter && row.branchId !== branchFilter) return false
       if (fromDate && row.date < fromDate) return false
       if (toDate && row.date > toDate) return false
       if (!query) return true
@@ -720,11 +723,11 @@ export function PoBuyPageClient() {
         : String(leftValue).localeCompare(String(rightValue), 'th')
       return sortDirection === 'asc' ? result : -result
     })
-  }, [data?.rows, fromDate, search, sortDirection, sortKey, statuses, toDate])
+  }, [branchFilter, data?.rows, fromDate, search, sortDirection, sortKey, statuses, toDate])
 
   useEffect(() => {
     setPage(1)
-  }, [fromDate, pageSize, search, sortDirection, sortKey, statuses, toDate])
+  }, [branchFilter, fromDate, pageSize, search, sortDirection, sortKey, statuses, toDate])
 
   const exportHref = useMemo(() => {
     const params = new URLSearchParams({ format: 'xlsx' })
@@ -732,11 +735,13 @@ export function PoBuyPageClient() {
     if (statuses.length > 0) params.set('status', statuses.join(','))
     if (fromDate) params.set('from', fromDate)
     if (toDate) params.set('to', toDate)
+    if (branchFilter) params.set('branchId', branchFilter)
     if (selectedPoIds.length > 0) params.set('ids', selectedPoIds.join(','))
     return `/api/purchase/po-buy?${params.toString()}`
-  }, [fromDate, search, selectedPoIds, statuses, toDate])
+  }, [branchFilter, fromDate, search, selectedPoIds, statuses, toDate])
 
   const resetFilters = () => {
+    setBranchFilter('')
     setFromDate('')
     setSearch('')
     setStatuses([])
@@ -752,7 +757,7 @@ export function PoBuyPageClient() {
     setSortDirection(nextKey === 'date' || nextKey === 'docNo' ? 'desc' : 'asc')
   }
 
-  const hasFilters = statuses.length > 0 || fromDate || toDate || search.trim()
+  const hasFilters = Boolean(branchFilter || statuses.length > 0 || fromDate || toDate || search.trim())
   const totalRows = rows.length
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -793,6 +798,16 @@ export function PoBuyPageClient() {
       <div className="hidden space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
         <div className="flex flex-wrap items-center gap-2">
           <UiInput className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหาเลข PO / ชื่อผู้ขาย / ชื่อสินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <BranchSelectCombobox
+            branches={(data?.options.branches ?? []).filter((branch) => branch.active !== false)}
+            className="w-full sm:w-auto"
+            controlSize="filter"
+            inputId="po-buy-list-branch-filter"
+            label="สาขา"
+            placeholder="ทุกสาขา"
+            value={branchFilter}
+            onChange={(value) => setBranchFilter(value ?? '')}
+          />
           <label className="text-xs text-slate-500">วันที่:</label>
           <DatePickerInput id="po-buy-date-from" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
@@ -905,6 +920,17 @@ export function PoBuyPageClient() {
             </>
           )}
         >
+              <div>
+                <BranchSelectCombobox
+                  branches={(data?.options.branches ?? []).filter((branch) => branch.active !== false)}
+                  inputId="po-buy-list-mobile-branch-filter"
+                  label="สาขา"
+                  placeholder="ทุกสาขา"
+                  value={branchFilter}
+                  onChange={(value) => setBranchFilter(value ?? '')}
+                />
+              </div>
+
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">

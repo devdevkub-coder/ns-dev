@@ -78,9 +78,20 @@ function docNoRunningNumber(docNo: string | null | undefined, startsWith: string
   return Number.isFinite(running) ? running : 0
 }
 
-export async function nextDailyDocNo(table: DailyDocNoTable, prefix: string, date: string, client: unknown = prisma) {
+export function documentBranchCode(branchCode: string | null | undefined) {
+  const digits = String(branchCode ?? '').replace(/\D/g, '')
+  return digits ? digits.padStart(2, '0').slice(-2) : null
+}
+
+export async function nextDailyDocNo(
+  table: DailyDocNoTable,
+  prefix: string,
+  date: string,
+  client: unknown = prisma,
+  branchCode?: string | null,
+) {
   const compactDate = date.slice(2, 4) + date.slice(5, 7)
-  const startsWith = `${prefix}${compactDate}-`
+  const startsWith = `${prefix}${documentBranchCode(branchCode) ?? ''}${compactDate}-`
   const model = dailyDocNoModel(client, table)
   const last = await model.findFirst({
     orderBy: { doc_no: 'desc' },

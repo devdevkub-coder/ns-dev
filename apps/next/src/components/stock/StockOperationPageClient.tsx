@@ -274,16 +274,16 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
         label: option.code ? `${option.code} - ${option.name}` : option.name,
         searchText: `${option.code ?? ''} ${option.name}`.toLowerCase(),
       }))
-  }, [data.reference?.products])
+  }, [data.reference.products])
 
   const categoryOptions = useMemo(() => {
     const groups = (data.reference?.products ?? []).map(p => p.metalGroup).filter(Boolean) as string[]
     return [...new Set(groups)]
-  }, [data.reference?.products])
+  }, [data.reference.products])
 
   const warehouseOptions = useMemo(() => {
     return data.reference?.warehouses ?? []
-  }, [data.reference?.warehouses])
+  }, [data.reference.warehouses])
 
   const reasonOptions = useMemo(() => {
     return data.reasonOptions ?? stockAdjustReasonOptions
@@ -329,7 +329,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       .filter((row) => mode !== 'convert' || !costStatusFilter || row.costStatus === costStatusFilter)
       .filter((row) => mode !== 'convert' || !documentStatusFilter || row.status === documentStatusFilter)
       // Stock Adjust Filters (NSERP-66)
-      .filter((row) => mode !== 'adjust' || !adjustBranchFilter || row.branchId === adjustBranchFilter)
+      .filter((row) => !adjustBranchFilter || row.branchId === adjustBranchFilter)
       .filter((row) => mode !== 'adjust' || !adjustTypeFilter || row.adjustType === adjustTypeFilter)
       .filter((row) => mode !== 'adjust' || !fromDateFilter || String(row.date ?? '') >= fromDateFilter)
       .filter((row) => mode !== 'adjust' || !toDateFilter || String(row.date ?? '') <= toDateFilter)
@@ -456,9 +456,9 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
   }, [adjustPage, adjustPageSize, convertPage, convertPageSize, mode, operationSortedRows, statusConvertPage, statusConvertPageSize, statusConvertSortedRows])
 
   const hasFilters = useMemo(() => {
-    if (mode === 'convert') return Boolean(search.trim() || sourceTypeFilter || costStatusFilter || documentStatusFilter)
+    if (mode === 'convert') return Boolean(search.trim() || adjustBranchFilter || sourceTypeFilter || costStatusFilter || documentStatusFilter)
     if (mode === 'adjust') return Boolean(search.trim() || adjustBranchFilter || adjustTypeFilter || fromDateFilter || toDateFilter || adjustProductFilter || adjustCategoryFilter || adjustWarehouseFilter || adjustReasonFilter)
-    if (mode === 'status-convert') return Boolean(search.trim() || statusProductFilter || statusCategoryFilter || statusWarehouseFilter || statusFromDateFilter || statusToDateFilter || statusFlowFilter)
+    if (mode === 'status-convert') return Boolean(search.trim() || adjustBranchFilter || statusProductFilter || statusCategoryFilter || statusWarehouseFilter || statusFromDateFilter || statusToDateFilter || statusFlowFilter)
     return Boolean(search.trim())
   }, [
     mode,
@@ -654,6 +654,10 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
+          <Select className="h-9 w-auto" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
+            <option value="">ทุกสาขา</option>
+            {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+          </Select>
           {mode === 'convert' ? (
             <>
               <Select className="h-9 w-auto" value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>
@@ -663,10 +667,6 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
             </>
           ) : mode === 'adjust' ? (
             <>
-              <Select className="h-9 w-auto" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
-                <option value="">ทุกสาขา</option>
-                {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-              </Select>
               <div className="w-[200px]">
                 <SearchCombobox
                   inputClassName="h-9 text-sm"
@@ -837,6 +837,13 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
             </>
           )}
         >
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
+                <Select className="h-9 w-full" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
+                  <option value="">ทุกสาขา</option>
+                  {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                </Select>
+              </label>
               {mode === 'convert' ? (
                 <>
                   <label className="block">
@@ -867,13 +874,6 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                 </>
               ) : mode === 'adjust' ? (
                 <>
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
-                    <Select className="h-9 w-full" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
-                      <option value="">ทุกสาขา</option>
-                      {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-                    </Select>
-                  </label>
                   <div className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">สินค้า</span>
                     <SearchCombobox
@@ -2068,9 +2068,10 @@ function BranchWarehouseFields({ branchId, reference, setBranchId, setWarehouseI
 }
 
 function StatusConvertForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onSubmit: (values: StatusConvertFormValues) => void; reference: Payload['reference'] }) {
-  const [values, setValues] = useState<StatusConvertFormValues>({ branchId: '', date: todayDateInput(), docNo: null, fromStatus: 'RM', lotNo: null, notes: null, productId: '', qty: 0, reason: '', toStatus: 'FG', warehouseId: '', targetWarehouseId: '' })
+  const [values, setValues] = useState<StatusConvertFormValues>({ sourceBranchId: '', targetBranchId: '', date: todayDateInput(), docNo: null, fromStatus: 'RM', lotNo: null, notes: null, productId: '', qty: 0, reason: '', toStatus: 'FG', warehouseId: '', targetWarehouseId: '' })
   const activeBranches = props.reference.branches.filter((option) => option.active !== false)
-  const activeWarehouses = props.reference.warehouses.filter((option) => option.active !== false && (!values.branchId || option.branchId === values.branchId))
+  const sourceWarehouses = props.reference.warehouses.filter((option) => option.active !== false && (!values.sourceBranchId || option.branchId === values.sourceBranchId))
+  const targetWarehouses = props.reference.warehouses.filter((option) => option.active !== false && (!values.targetBranchId || option.branchId === values.targetBranchId))
 
   const [productStock, setProductStock] = useState<ProductStockPayload | null>(null)
   const [productStockError, setProductStockError] = useState<string | null>(null)
@@ -2078,7 +2079,7 @@ function StatusConvertForm(props: { isSaving: boolean; error?: string | null; on
 
   useEffect(() => {
     const productCode = props.reference.products.find(p => p.id === values.productId)?.code
-    const branchCode = props.reference.branches.find(b => b.id === values.branchId)?.code
+    const branchCode = props.reference.branches.find(b => b.id === values.sourceBranchId)?.code
     
     if (!branchCode || !productCode) {
       setProductStock(null)
@@ -2109,7 +2110,7 @@ function StatusConvertForm(props: { isSaving: boolean; error?: string | null; on
     }
     void loadProductStock()
     return () => { cancelled = true }
-  }, [values.productId, values.branchId, props.reference.products, props.reference.branches])
+  }, [values.productId, values.sourceBranchId, props.reference.products, props.reference.branches])
 
   const productSearchOptions = useMemo<SearchComboboxOption[]>(() => {
     return props.reference.products
@@ -2133,16 +2134,16 @@ function StatusConvertForm(props: { isSaving: boolean; error?: string | null; on
           onChange={(productId) => setValues({ ...values, productId })}
         />
       </div>
-      {/* สาขา */}
+      {/* สาขาต้นทาง */}
       <label className="block text-xs font-semibold text-slate-600">
-        สาขา
+        สาขาต้นทาง *
         <Select
           className="mt-1.5 h-10 w-full"
           disabled={!activeBranches.length}
-          value={values.branchId}
-          onChange={(event) => setValues({ ...values, branchId: event.target.value, warehouseId: '', targetWarehouseId: '' })}
+          value={values.sourceBranchId}
+          onChange={(event) => setValues({ ...values, sourceBranchId: event.target.value, warehouseId: '' })}
         >
-          <option value="">{activeBranches.length ? 'เลือกสาขา' : 'กำลังโหลดสาขา...'}</option>
+          <option value="">{activeBranches.length ? 'เลือกสาขาต้นทาง' : 'กำลังโหลดสาขา...'}</option>
           {activeBranches.map((option) => <option key={option.id} value={option.id}>{option.code ? `${option.code} - ${option.name}` : option.name}</option>)}
         </Select>
       </label>
@@ -2152,12 +2153,26 @@ function StatusConvertForm(props: { isSaving: boolean; error?: string | null; on
         คลังต้นทาง
         <Select
           className="mt-1.5 h-10 w-full"
-          disabled={!values.branchId}
+          disabled={!values.sourceBranchId}
           value={values.warehouseId}
           onChange={(event) => setValues({ ...values, warehouseId: event.target.value })}
         >
-          <option value="">{values.branchId ? 'เลือกคลังต้นทาง' : 'เลือกสาขาก่อน'}</option>
-          {activeWarehouses.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+          <option value="">{values.sourceBranchId ? 'เลือกคลังต้นทาง' : 'เลือกสาขาต้นทางก่อน'}</option>
+          {sourceWarehouses.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+        </Select>
+      </label>
+
+      {/* สาขาปลายทาง */}
+      <label className="block text-xs font-semibold text-slate-600">
+        สาขาปลายทาง *
+        <Select
+          className="mt-1.5 h-10 w-full"
+          disabled={!activeBranches.length}
+          value={values.targetBranchId}
+          onChange={(event) => setValues({ ...values, targetBranchId: event.target.value, targetWarehouseId: '' })}
+        >
+          <option value="">{activeBranches.length ? 'เลือกสาขาปลายทาง' : 'กำลังโหลดสาขา...'}</option>
+          {activeBranches.map((option) => <option key={option.id} value={option.id}>{option.code ? `${option.code} - ${option.name}` : option.name}</option>)}
         </Select>
       </label>
 
@@ -2166,12 +2181,12 @@ function StatusConvertForm(props: { isSaving: boolean; error?: string | null; on
         คลังปลายทาง
         <Select
           className="mt-1.5 h-10 w-full"
-          disabled={!values.branchId}
+          disabled={!values.targetBranchId}
           value={values.targetWarehouseId}
           onChange={(event) => setValues({ ...values, targetWarehouseId: event.target.value })}
         >
-          <option value="">{values.branchId ? 'เลือกคลังปลายทาง' : 'เลือกสาขาก่อน'}</option>
-          {activeWarehouses.filter((option) => option.id !== values.warehouseId).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+          <option value="">{values.targetBranchId ? 'เลือกคลังปลายทาง' : 'เลือกสาขาปลายทางก่อน'}</option>
+          {targetWarehouses.filter((option) => option.id !== values.warehouseId).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
         </Select>
       </label>
 
@@ -2184,7 +2199,7 @@ function StatusConvertForm(props: { isSaving: boolean; error?: string | null; on
           destinationWarehouseName=""
           error={productStockError}
           isLoading={isStockPreviewLoading}
-          isReady={Boolean(values.branchId && values.productId)}
+          isReady={Boolean(values.sourceBranchId && values.productId)}
           stock={productStock}
         />
       </div>

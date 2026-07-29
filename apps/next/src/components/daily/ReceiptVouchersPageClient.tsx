@@ -40,6 +40,8 @@ type ReceiptVoucherRow = {
   date: string
   docNo: string
   id: string
+  branchId?: string
+  branchName?: string
   items?: unknown
   licensePlate: string
   note: string
@@ -78,6 +80,7 @@ type ReceiptVoucherFormItem = {
 }
 type ReceiptVoucherFormState = {
   amountInWords: string
+  branchId: string
   date: string
   docNo: string
   items: ReceiptVoucherFormItem[]
@@ -111,6 +114,8 @@ type SupplierOption = {
   taxId: string
 }
 type PurchaseBillOption = {
+  branchId?: string
+  branchName?: string
   date: string
   docNo: string
   id: string
@@ -179,6 +184,7 @@ function dateInputToday() {
 function blankForm(): ReceiptVoucherFormState {
   return {
     amountInWords: '',
+    branchId: '',
     date: dateInputToday(),
     docNo: '',
     items: [],
@@ -247,6 +253,7 @@ function normalizeFormFromRow(row: ReceiptVoucherRow): ReceiptVoucherFormState {
   }))
   const form = {
     amountInWords: row.amountInWords || '',
+    branchId: row.branchId || '',
     date: row.date || dateInputToday(),
     docNo: row.docNo,
     items: items.length > 0 ? items : [{ description: '', price: '0', qty: '0', unit: 'กก.' }],
@@ -271,6 +278,7 @@ export function ReceiptVouchersPageClient() {
   const [cancelingRow, setCancelingRow] = useState<ReceiptVoucherRow | null>(null)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
   const [detailRow, setDetailRow] = useState<ReceiptVoucherRow | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -307,6 +315,7 @@ export function ReceiptVouchersPageClient() {
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'active' | 'all' | 'cancelled'>('all')
   const [supplierOptions, setSupplierOptions] = useState<SupplierOption[]>([])
+  const [branchOptions, setBranchOptions] = useState<Array<{ id: string; code: string; name: string; active: boolean }>>([])
   const [currentActorName, setCurrentActorName] = useState('')
   const columnResize = useResizableColumns('daily.receipt-vouchers.v5', receiptVoucherColumns)
 
@@ -327,19 +336,21 @@ export function ReceiptVouchersPageClient() {
     setIsLoading(true)
     setError(null)
     try {
-      const payload = await dailyFetchJson<{ companyProfile: ReceiptVoucherCompanyProfile; currentActor: string; paymentMethods?: PaymentMethodOption[]; purchaseBills: PurchaseBillOption[]; rows: ReceiptVoucherRow[]; suppliers: SupplierOption[] }>('/api/purchase/receipt-vouchers')
+      const query = branchFilter ? `?branchId=${encodeURIComponent(branchFilter)}` : ''
+      const payload = await dailyFetchJson<{ branches?: Array<{ id: string; code: string; name: string; active: boolean }>; companyProfile: ReceiptVoucherCompanyProfile; currentActor: string; paymentMethods?: PaymentMethodOption[]; purchaseBills: PurchaseBillOption[]; rows: ReceiptVoucherRow[]; suppliers: SupplierOption[] }>(`/api/purchase/receipt-vouchers${query}`)
       setCompanyProfile(payload.companyProfile)
       setCurrentActorName(payload.currentActor ?? '')
       setPaymentMethodOptions(payload.paymentMethods ?? [])
       setPurchaseBillOptions(payload.purchaseBills ?? [])
       setRows(payload.rows)
       setSupplierOptions(payload.suppliers ?? [])
+      setBranchOptions(payload.branches ?? [])
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'โหลดใบสำคัญรับเงินไม่ได้')
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [branchFilter])
 
   useEffect(() => {
     void loadData()
@@ -349,7 +360,7 @@ export function ReceiptVouchersPageClient() {
 
   useEffect(() => {
     setPage(1)
-  }, [dateFrom, dateTo, pageSize, search, sortKey, sortDirection, statusFilter])
+  }, [branchFilter, dateFrom, dateTo, pageSize, search, sortKey, sortDirection, statusFilter])
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -385,7 +396,7 @@ export function ReceiptVouchersPageClient() {
         }
         return sortDirection === 'asc' ? comparison : -comparison
       })
-  }, [dateFrom, dateTo, rows, search, sortKey, sortDirection, statusFilter])
+  }, [branchFilter, dateFrom, dateTo, rows, search, sortKey, sortDirection, statusFilter])
 
   const supplierSearchOptions = useMemo<SearchComboboxOption[]>(() => supplierOptions.map((supplier) => ({
     description: supplier.taxId ? `เลขประจำตัวผู้เสียภาษี ${supplier.taxId}` : supplier.address,
@@ -394,9 +405,8 @@ export function ReceiptVouchersPageClient() {
     searchText: `${supplier.code} ${supplier.name} ${supplier.taxId} ${supplier.address} ${supplier.phone}`.toLowerCase(),
   })), [supplierOptions])
   const filteredPurchaseBillOptions = useMemo(() => {
-    if (!form.supplierCode) return purchaseBillOptions
-    return purchaseBillOptions.filter((bill) => bill.sellerCode === form.supplierCode)
-  }, [form.supplierCode, purchaseBillOptions])
+    return purchaseBillOptions.filter((bill) => (!form.branchId || bill.branchId === form.branchId) && (!form.supplierCode || bill.sellerCode === form.supplierCode))
+  }, [form.branchId, form.supplierCode, purchaseBillOptions])
   const purchaseBillSearchOptions = useMemo<SearchComboboxOption[]>(() => filteredPurchaseBillOptions.map((bill) => ({
     description: `${bill.date} · ${bill.sellerName || '-'} · ${formatMoney(bill.totalAmount)}`,
     id: bill.docNo,
@@ -408,22 +418,24 @@ export function ReceiptVouchersPageClient() {
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
   const currentPage = Math.min(page, totalPages)
   const pagedRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
-  const hasActiveFilter = Boolean(search || dateFrom || dateTo || statusFilter !== 'all')
-  const mobileFilterCount = (dateFrom || dateTo ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
+  const hasActiveFilter = Boolean(search || dateFrom || dateTo || branchFilter || statusFilter !== 'all')
+  const mobileFilterCount = (dateFrom || dateTo ? 1 : 0) + (branchFilter ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
   const exportHref = useMemo(() => {
     const params = new URLSearchParams({ direction: sortDirection, format: 'xlsx', sort: sortKey })
     if (search.trim()) params.set('search', search.trim())
     if (dateFrom) params.set('dateFrom', dateFrom)
     if (dateTo) params.set('dateTo', dateTo)
     if (statusFilter !== 'all') params.set('status', statusFilter)
+    if (branchFilter) params.set('branchId', branchFilter)
     return `/api/purchase/receipt-vouchers?${params.toString()}`
-  }, [dateFrom, dateTo, search, sortDirection, sortKey, statusFilter])
+  }, [branchFilter, dateFrom, dateTo, search, sortDirection, sortKey, statusFilter])
 
   function clearFilters() {
     setSearch('')
     setDateFrom('')
     setDateTo('')
     setStatusFilter('all')
+    setBranchFilter('')
   }
 
   function openCreateForm() {
@@ -435,7 +447,7 @@ export function ReceiptVouchersPageClient() {
   function openEditForm(row: ReceiptVoucherRow) {
     if (row.status === 'cancelled') return
     const purchaseBill = purchaseBillOptions.find((bill) => bill.docNo === row.purchaseBillDocNo)
-    setForm({ ...normalizeFormFromRow(row), supplierCode: row.supplierCode || purchaseBill?.sellerCode || '' })
+    setForm({ ...normalizeFormFromRow(row), branchId: row.branchId || purchaseBill?.branchId || '', supplierCode: row.supplierCode || purchaseBill?.sellerCode || '' })
     setFormError(null)
     setFormMode('edit')
   }
@@ -494,6 +506,7 @@ export function ReceiptVouchersPageClient() {
       sellerTaxId: bill.sellerTaxId,
       supplierCode: bill.sellerCode,
       paymentMethod: paymentMethodForSupplier(supplier, form.paymentMethod),
+      branchId: bill.branchId ?? form.branchId,
     })
   }
 
@@ -592,6 +605,10 @@ export function ReceiptVouchersPageClient() {
               <DatePickerInput id="receipt-vouchers-date-from" value={dateFrom} onChange={setDateFrom} />
               <span className="text-slate-400">→</span>
               <DatePickerInput id="receipt-vouchers-date-to" value={dateTo} onChange={setDateTo} />
+              <Select className="h-9 w-auto" value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)}>
+                <option value="">ทุกสาขา</option>
+                {branchOptions.filter((branch) => branch.active).map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
+              </Select>
             </div>
 
             {hasActiveFilter ? <Button size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้างตัวกรอง</Button> : null}
@@ -834,6 +851,7 @@ export function ReceiptVouchersPageClient() {
           onSave={saveForm}
           onUpdateForm={updateForm}
           paymentMethods={paymentMethodOptions}
+          branchOptions={branchOptions}
           supplierBankAccounts={supplierOptions.find((supplier) => supplier.code === form.supplierCode)?.bankAccounts ?? []}
           supplierSearchOptions={supplierSearchOptions}
           purchaseBillSearchOptions={purchaseBillSearchOptions}
@@ -890,6 +908,7 @@ function ReceiptVoucherFormModal({
   onSave,
   onUpdateForm,
   paymentMethods,
+  branchOptions,
   supplierBankAccounts,
   supplierSearchOptions,
   purchaseBillSearchOptions,
@@ -904,6 +923,7 @@ function ReceiptVoucherFormModal({
   onSave: () => void
   onUpdateForm: (patch: Partial<ReceiptVoucherFormState>) => void
   paymentMethods: PaymentMethodOption[]
+  branchOptions: Array<{ id: string; code: string; name: string; active: boolean }>
   supplierBankAccounts: SupplierOption['bankAccounts']
   supplierSearchOptions: SearchComboboxOption[]
   purchaseBillSearchOptions: SearchComboboxOption[]
@@ -969,6 +989,14 @@ function ReceiptVoucherFormModal({
           <section className="rounded-xl border border-slate-200 !bg-white p-3 shadow-sm sm:p-4">
             <div className="mb-3 border-b border-slate-100 pb-2 text-sm font-semibold text-slate-800">ข้อมูลหลัก</div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_180px]">
+              <div className="col-span-1">
+                <FormField label="สาขา">
+                  <Select className="h-9 w-full" disabled={mode === 'edit'} value={form.branchId} onChange={(event) => onUpdateForm({ branchId: event.target.value, purchaseBillDocNo: '' })}>
+                    <option value="">เลือกสาขาก่อน</option>
+                    {branchOptions.filter((branch) => branch.active).map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
+                  </Select>
+                </FormField>
+              </div>
               <div className="sm:col-span-2 lg:col-span-1">
                 <SearchCombobox
                   disabled={mode === 'edit'}
@@ -990,7 +1018,7 @@ function ReceiptVoucherFormModal({
                   label="อ้างอิงบิลซื้อ"
                   options={purchaseBillSearchOptions}
                   optionsPanelClassName="max-h-80"
-                  placeholder={form.supplierCode ? 'ค้นเลขบิลซื้อ' : 'เลือก Supplier ก่อน'}
+                  placeholder={form.branchId ? 'ค้นเลขบิลซื้อ' : 'เลือกสาขาก่อน'}
                   value={form.purchaseBillDocNo}
                   onChange={onPickPurchaseBill}
                 />

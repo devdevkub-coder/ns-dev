@@ -79,7 +79,7 @@ export const expenseFormSchema = z.object({
   hasWht: z.boolean().default(false),
   accountId: optionalSafeId('บัญชีจ่าย'),
   bankFee: money('Bank fee').default(0),
-  branchId: optionalSafeId('สาขา'),
+  branchId: requiredDocNo('สาขา'),
   discount: money('ส่วนลด').default(0),
   paymentAction: z.enum(['submit_approval', 'pay_now']).default('submit_approval'),
   supplierPaymentDestinationId: optionalSafeId('ช่องทางรับเงิน Supplier'),
@@ -127,6 +127,7 @@ export const pettyAdvanceFormSchema = z.object({
   recipientId: z.string().trim().min(1, 'เลือกผู้รับเงินจากรายชื่อกรรมการ/พนักงาน').max(80, 'ผู้รับเงินยาวเกินไป').regex(/^[A-Za-z0-9_.:-]+$/, 'ผู้รับเงินมีรูปแบบไม่ถูกต้อง'),
   recipientName: z.string().trim().min(1, 'เลือกผู้รับเงิน').max(180, 'ผู้รับเงินยาวเกินไป').regex(businessTextPattern, 'ผู้รับเงินมีรูปแบบไม่ถูกต้อง'),
   amount: positiveMoney('จำนวนเงิน'),
+  branchId: requiredDocNo('สาขา'),
   accountId: optionalSafeId('บัญชีจ่าย'),
   status: z.enum(['active', 'closed', 'cancelled']).default('active'),
   notes: optionalGeneralText('หมายเหตุ', 500),
@@ -200,6 +201,7 @@ export const customerReceiptFormSchema = z.object({
   docNo: optionalDocNo,
   date: requiredDate,
   sourceType: z.enum(customerReceiptSourceTypeValues, { message: 'เลือกประเภทเอกสารรับเงิน' }),
+  branchId: optionalSafeId('สาขา'),
   billId: optionalSafeId('บิลขาย'),
   customerId: z.string().trim().min(1, 'เลือกลูกค้า'),
   accountId: z.string().trim().min(1, 'เลือกบัญชีรับเงิน'),
@@ -229,6 +231,9 @@ export const customerReceiptFormSchema = z.object({
   }
   if (value.sourceType === 'SB' && !hasSalesBillLines) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'เลือกบิลขายอย่างน้อย 1 รายการ', path: ['salesBillLines'] })
+  }
+  if (value.sourceType === 'SB' && !value.branchId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'เลือกสาขาก่อนเลือกบิลขาย', path: ['branchId'] })
   }
   if (value.sourceType === 'CADV' && !hasCustomerAdvanceLines) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'เลือก CADV อย่างน้อย 1 รายการ', path: ['customerAdvanceLines'] })

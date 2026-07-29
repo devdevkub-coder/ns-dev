@@ -3,7 +3,7 @@ import { pettyAdvanceReturnFormSchema } from '@/lib/daily'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { currentActor, nextDailyDocNo, normalizeDate, toNumber } from '@/lib/server/daily'
+import { currentActor, documentBranchCode, nextDailyDocNo, normalizeDate, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import type { Prisma } from '../../../../../../generated/prisma/client'
 
@@ -12,6 +12,7 @@ export const runtime = 'nodejs'
 async function findPettyAdvanceByDocNo(client: Prisma.TransactionClient | typeof prisma, value: string) {
   const advancesClient = client.petty_advances as typeof prisma.petty_advances
   return advancesClient.findFirst({
+    include: { branches: { select: { code: true } } },
     where: { doc_no: value },
   })
 }
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
           amount: values.amount,
           created_by: actor,
           date: normalizeDate(values.date),
-          doc_no: await nextDailyDocNo('petty_advance_returns', 'PRET', values.date, tx),
+          doc_no: await nextDailyDocNo('petty_advance_returns', 'PRET', values.date, tx, documentBranchCode(advance.branches?.code)),
           notes: values.notes,
           status: 'pending',
           updated_at: new Date(),

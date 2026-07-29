@@ -5,7 +5,7 @@ import { stockTransferFormSchema } from '@/lib/daily'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
-import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, documentBranchCode, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranches, listActiveWarehouses, listProductReferences } from '@/lib/server/reference-master-cache'
 import { normalizeStockReferenceInput, stockBalanceSnapshot } from '@/lib/server/stock'
@@ -91,10 +91,10 @@ function toTransferRow(row: TransferWithRelations) {
   }
 }
 
-async function nextStockTransferDocNo(tx: Prisma.TransactionClient, date: string) {
+async function nextStockTransferDocNo(tx: Prisma.TransactionClient, date: string, branchCode: string) {
   const compactDate = date.slice(2, 4) + date.slice(5, 7)
-  const startsWith = `ST${compactDate}-`
-  await tx.$executeRaw`select pg_advisory_xact_lock(hashtextextended(${`stock_transfers:doc_no:${compactDate}`}, 0))`
+  const startsWith = `ST${documentBranchCode(branchCode)}${compactDate}-`
+  await tx.$executeRaw`select pg_advisory_xact_lock(hashtextextended(${`stock_transfers:doc_no:${startsWith}`}, 0))`
   const last = await tx.stock_transfers.findFirst({
     orderBy: { doc_no: 'desc' },
     select: { doc_no: true },
@@ -121,8 +121,10 @@ async function validateTransferReferences(values: {
   if (!toBranch) throw new Error('สาขาปลายทางไม่ถูกต้องหรือถูกปิดใช้งาน')
   if (!fromWarehouse) throw new Error('คลังต้นทางไม่ถูกต้องหรือถูกปิดใช้งาน')
   if (!toWarehouse) throw new Error('คลังปลายทางไม่ถูกต้องหรือถูกปิดใช้งาน')
-  if (fromWarehouse.branchCode && fromWarehouse.branchCode !== fromBranch.code) throw new Error('สาขาต้นทางและคลังต้นทางไม่ตรงกัน')
-  if (toWarehouse.branchCode && toWarehouse.branchCode !== toBranch.code) throw new Error('สาขาปลายทางและคลังปลายทางไม่ตรงกัน')
+  if (!fromWarehouse.branchCode) throw new Error('คลังต้นทางไม่มีรหัสสาขาสำหรับสร้างเลขเอกสาร')
+  if (!toWarehouse.branchCode) throw new Error('คลังปลายทางไม่มีรหัสสาขา')
+  if (fromWarehouse.branchCode !== fromBranch.code) throw new Error('สาขาต้นทางและคลังต้นทางไม่ตรงกัน')
+  if (toWarehouse.branchCode !== toBranch.code) throw new Error('สาขาปลายทางและคลังปลายทางไม่ตรงกัน')
   if (fromWarehouse.id === toWarehouse.id) throw new Error('ต้นทางและปลายทางต้องไม่เป็นคลังเดียวกัน')
 
   return { fromBranch, fromWarehouse, toBranch, toWarehouse }
@@ -377,10 +379,12 @@ export async function GET(request: Request) {
     const totalQtyFrom = parsePositiveNumber(url.searchParams.get('totalQtyFrom'))
     const totalQtyTo = parsePositiveNumber(url.searchParams.get('totalQtyTo'))
     const status = url.searchParams.get('status')?.trim() ?? ''
+    const branchId = url.searchParams.get('branchId')?.trim() ?? ''
 
     const where: Prisma.stock_transfersWhereInput = {
       ...(docNo ? { doc_no: { startsWith: docNo } } : {}),
       ...(status ? { status } : {}),
+      ...(branchId ? { branches_from: { code: branchId } } : {}),
       ...((dateFrom || dateTo) ? {
         date: {
           ...(dateFrom ? { gte: normalizeDate(dateFrom) } : {}),
@@ -468,6 +472,8 @@ export async function POST(request: Request) {
     const values = stockTransferFormSchema.parse(await request.json())
     const actor = currentActor(context)
     const refs = await validateTransferReferences(values)
+    const sourceBranchCode = refs.fromWarehouse.branchCode
+    if (!sourceBranchCode) throw new Error('คลังต้นทางไม่มีรหัสสาขาสำหรับสร้างเลขเอกสาร')
     const normalizedItems = await resolveTransferItems({
       branchId: refs.fromBranch.id,
       items: values.items,
@@ -477,7 +483,7 @@ export async function POST(request: Request) {
     const totalValue = normalizedItems.reduce((sum, item) => sum + item.lineValue, 0)
 
     const created = await prisma.$transaction(async (tx) => {
-      const docNo = values.docNo ?? await nextStockTransferDocNo(tx, values.date)
+      const docNo = values.docNo ?? await nextStockTransferDocNo(tx, values.date, sourceBranchCode)
       const transfer = await tx.stock_transfers.create({
         data: {
           created_by: actor,

@@ -20,6 +20,7 @@ import { openExpenseReceiptPrint } from '@/lib/expense-print'
 import { listMasterDataRecords, type MasterDataRecord } from '@/lib/master-data'
 
 type CategoryOption = { active: boolean | null; id: string; name: string; typeId?: string | null; typeName?: string | null }
+type BranchOption = { active: boolean; code: string; id: string; name: string }
 type ExpenseLineDraft = Omit<ExpenseLineFormValues, 'id'> & { categoryName?: string; id: string; lineNo?: number; vatPct?: number }
 type ExpenseRow = Omit<ExpenseFormValues, 'lines'> & {
   accountName: string
@@ -50,6 +51,7 @@ type PayeeOption = {
 
 type ExpensePayload = {
   accounts: DailyAccountOption[]
+  branches: BranchOption[]
   categories: CategoryOption[]
   payeeOptions?: PayeeOption[]
   rows: ExpenseRow[]
@@ -104,7 +106,7 @@ const whtRateOptions = [
 const emptyForm: ExpenseFormValues = {
   accountId: null,
   amount: 0,
-  branchId: null,
+  branchId: '',
   bankFee: 0,
   categoryId: null,
   date: todayDateInput(),
@@ -396,6 +398,7 @@ function buildLegacyExpenseDashboard(rows: ExpenseRow[], categories: CategoryOpt
 export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnly?: boolean }) {
   const [accounts, setAccounts] = useState<DailyAccountOption[]>([])
   const [categories, setCategories] = useState<CategoryOption[]>([])
+  const [branches, setBranches] = useState<BranchOption[]>([])
   const [detailRow, setDetailRow] = useState<ExpenseRow | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -412,6 +415,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [accountId, setAccountId] = useState('')
+  const [branchId, setBranchId] = useState('')
   const [statusFilter, setStatusFilter] = useState<ExpenseFormValues['status'][]>([])
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
@@ -439,6 +443,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
       ])
       const activePaymentMethods = paymentMethodRows.filter((method) => method.active)
       setAccounts(payload.accounts)
+      setBranches(payload.branches ?? [])
       setCategories(payload.categories)
       setPaymentMethods(activePaymentMethods)
       setPaymentMethod((current) => current || activePaymentMethods[0]?.name || '')
@@ -464,6 +469,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
       .filter((row) => !dateFrom || row.date >= dateFrom)
       .filter((row) => !dateTo || row.date <= dateTo)
       .filter((row) => !accountId || row.accountId === accountId)
+      .filter((row) => !branchId || row.branchId === branchId)
       .filter((row) => statusFilter.length === 0 || statusFilter.includes(row.status))
       .filter((row) => {
         const lineText = row.lines.map((line) => `${line.categoryName ?? ''} ${line.description ?? ''}`).join(' ')
@@ -478,7 +484,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
         const directed = sortDirection === 'asc' ? base : -base
         return directed || right.date.localeCompare(left.date) || right.docNo.localeCompare(left.docNo)
       })
-  }, [accountId, categoryId, dateFrom, dateTo, rows, search, sortDirection, sortKey, statusFilter])
+  }, [accountId, branchId, categoryId, dateFrom, dateTo, rows, search, sortDirection, sortKey, statusFilter])
 
   const summary = useMemo(() => {
     const month = todayDateInput().slice(0, 7)
@@ -539,12 +545,13 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
     if (search) params.set('q', search)
     if (categoryId) params.set('categoryId', categoryId)
     if (accountId) params.set('accountId', accountId)
+    if (branchId) params.set('branchId', branchId)
     if (dateFrom) params.set('dateFrom', dateFrom)
     if (dateTo) params.set('dateTo', dateTo)
     if (statusFilter.length > 0) params.set('status', statusFilter.join(','))
     params.set('format', 'xlsx')
     return `/api/daily/expenses?${params.toString()}`
-  }, [accountId, categoryId, dateFrom, dateTo, search, statusFilter])
+  }, [accountId, branchId, categoryId, dateFrom, dateTo, search, statusFilter])
 
   const dashboard = useMemo(() => buildLegacyExpenseDashboard(filteredRows, categories, periodMonths), [categories, periodMonths, filteredRows])
   const dashboardColumns = useMemo<Array<ResizableColumnDefinition<ExpenseDashboardColumnKey>>>(() => [
@@ -575,11 +582,11 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
   const currentPage = Math.min(page, totalPages)
   const pagedRows = useMemo(() => filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize), [currentPage, filteredRows, pageSize])
-  const activeMobileFilterCount = [dateFrom || dateTo, categoryId, accountId, statusFilter.length > 0].filter(Boolean).length
+  const activeMobileFilterCount = [dateFrom || dateTo, categoryId, accountId, branchId, statusFilter.length > 0].filter(Boolean).length
 
   useEffect(() => {
     setPage(1)
-  }, [accountId, categoryId, dateFrom, dateTo, pageSize, search, sortDirection, sortKey, statusFilter])
+  }, [accountId, branchId, categoryId, dateFrom, dateTo, pageSize, search, sortDirection, sortKey, statusFilter])
 
   function changeSort(nextKey: ExpenseSortKey) {
     if (nextKey === sortKey) {
@@ -1445,6 +1452,10 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                   <option value="">ทุกบัญชี</option>
                   {accounts.filter((account) => account.active).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                 </Select>
+                <Select className="h-9 w-auto" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
+                  <option value="">ทุกสาขา</option>
+                  {branches.filter((branch) => branch.active).map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
+                </Select>
               </div>
 
               {search || dateFrom || dateTo || categoryId || accountId || statusFilter.length > 0 ? (
@@ -1658,6 +1669,14 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                           {fieldErrors.supplierPaymentDestinationId ? <span className="mt-1 block text-xs text-red-700">{fieldErrors.supplierPaymentDestinationId}</span> : null}
                         </label>
                       ) : null}
+                      <label className="block col-span-2 md:col-span-2" data-field="branchId">
+                        <span className="mb-1 block text-xs font-medium text-slate-600">สาขา <span className="text-red-600">*</span></span>
+                        <Select aria-invalid={Boolean(fieldErrors.branchId)} className="h-10 w-full" required value={form.branchId} onChange={(event) => setForm({ ...form, branchId: event.target.value })}>
+                          <option disabled value="">เลือกสาขา</option>
+                          {branches.filter((branch) => branch.active).map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
+                        </Select>
+                        {fieldErrors.branchId ? <span className="mt-1 block text-xs text-red-700">{fieldErrors.branchId}</span> : null}
+                      </label>
                       <TextField error={fieldErrors.date} fieldName="date" label="วันที่จ่าย" required type="date" value={form.date} onChange={(value) => setForm({ ...form, date: value })} />
                       <TextField error={fieldErrors.dueDate} fieldName="dueDate" label="ครบกำหนด" type="date" value={form.dueDate ?? ''} onChange={(value) => setForm({ ...form, dueDate: value })} />
                       {form.id ? (

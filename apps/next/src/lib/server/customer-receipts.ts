@@ -2,7 +2,7 @@ import type { CustomerReceiptFormValues } from '@/lib/daily'
 import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { applyCustomerAdvanceReceipt, reverseCustomerAdvanceReceipt } from '@/lib/server/customer-advance-settlement'
-import { currentActor, nextBankStatementDocNos, nextDailyDocNo, normalizeDate, toNumber } from '@/lib/server/daily'
+import { currentActor, documentBranchCode, nextBankStatementDocNos, nextDailyDocNo, normalizeDate, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import type { Prisma } from '../../../generated/prisma/client'
 
@@ -226,8 +226,6 @@ async function createCustomerReceiptInTransaction(
     throw new Error('วิธีรับเงินไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
-  const docNo = values.docNo ?? await nextDailyDocNo('customer_receipts', RECEIPT_DOC_PREFIX, values.date, tx)
-  const bankStatementDocNos = await nextBankStatementDocNos(values.date, accountSplits.length, tx)
   const billDocNos = lines.map((line) => line.salesBillDocNo)
   const salesBills = await tx.sales_bills.findMany({
     select: {
@@ -249,12 +247,22 @@ async function createCustomerReceiptInTransaction(
     throw new Error(`ไม่พบบิลขาย ${missingBill}`)
   }
 
+  const selectedBranch = values.branchId
+    ? await tx.branches.findFirst({ select: { code: true, id: true }, where: { active: true, code: values.branchId } })
+    : null
+  if (!selectedBranch) throw new Error('กรุณาเลือกสาขาก่อนเลือกบิลขาย')
+  const branchCode = documentBranchCode(selectedBranch.code)
+  if (!branchCode) throw new Error('สาขาที่เลือกไม่มีรหัสสาขาสำหรับสร้างเลขที่ใบรับเงิน')
+
   const distinctBranchIds = new Set<bigint>()
   for (const line of lines) {
     const bill = salesBillByDocNo.get(line.salesBillDocNo)
     if (!bill) throw new Error(`ไม่พบบิลขาย ${line.salesBillDocNo}`)
     if (bill.customer_id !== customer.id) {
       throw new Error(`บิลขาย ${line.salesBillDocNo} ไม่ใช่ของลูกค้าที่เลือก`)
+    }
+    if (bill.branch_id !== selectedBranch.id) {
+      throw new Error(`บิลขาย ${line.salesBillDocNo} ไม่อยู่ในสาขาที่เลือก`)
     }
     if (String(bill.status ?? '').toLowerCase() === 'cancelled') {
       throw new Error(`บิลขาย ${line.salesBillDocNo} ถูกยกเลิกแล้ว`)
@@ -273,7 +281,12 @@ async function createCustomerReceiptInTransaction(
     }
   }
 
-  const branchId = distinctBranchIds.size === 1 ? [...distinctBranchIds][0] : null
+  if (distinctBranchIds.size !== 1 || !distinctBranchIds.has(selectedBranch.id)) {
+    throw new Error('บิลขายที่เลือกต้องอยู่ในสาขาเดียวกัน')
+  }
+  const docNo = values.docNo ?? await nextDailyDocNo('customer_receipts', RECEIPT_DOC_PREFIX, values.date, tx, branchCode)
+  const bankStatementDocNos = await nextBankStatementDocNos(values.date, accountSplits.length, tx)
+  const branchId = selectedBranch.id
   const existingReceipt = await tx.customer_receipts.findUnique({
     select: { customer_id: true, id: true, status: true },
     where: { doc_no: docNo },
@@ -545,9 +558,12 @@ async function createCustomerAdvanceReceiptInTransaction(
     if (advance.branch_id) branchIds.add(advance.branch_id)
   }
 
-  const docNo = values.docNo ?? await nextDailyDocNo('customer_receipts', RECEIPT_DOC_PREFIX, values.date, tx)
-  const bankStatementDocNos = await nextBankStatementDocNos(values.date, accountSplits.length, tx)
   const branchId = branchIds.size === 1 ? [...branchIds][0] : null
+  const branch = branchId
+    ? await tx.branches.findUnique({ select: { code: true }, where: { id: branchId } })
+    : null
+  const docNo = values.docNo ?? await nextDailyDocNo('customer_receipts', RECEIPT_DOC_PREFIX, values.date, tx, documentBranchCode(branch?.code))
+  const bankStatementDocNos = await nextBankStatementDocNos(values.date, accountSplits.length, tx)
   const existingReceipt = await tx.customer_receipts.findUnique({
     select: { customer_id: true, id: true, source_type: true, status: true },
     where: { doc_no: docNo },

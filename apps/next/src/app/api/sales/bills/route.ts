@@ -7,7 +7,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission, type AppAuthContext } from '@/lib/server/auth-context'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
-import { currentActor, nextDailyDocNo, normalizeDate, roundMoney, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, documentBranchCode, nextDailyDocNo, normalizeDate, roundMoney, toDateOnly, toNumber } from '@/lib/server/daily'
 import { requireBusinessCode } from '@/lib/business-code'
 import { isCustomerEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jobs'
@@ -52,6 +52,7 @@ async function projectProfitCostSalesBill(tx: Prisma.TransactionClient, salesBil
 }
 
 type BillQuery = {
+  branchId?: string
   dateFrom?: string
   dateTo?: string
   filterMode?: string
@@ -157,6 +158,7 @@ type DeliverySummarySource = DeliveryTicketOptionRow['weight_ticket_product_summ
 
 function parseBillQuery(url: URL, includePaging = true): BillQuery {
   return {
+    branchId: url.searchParams.get('branchId')?.trim() || undefined,
     dateFrom: url.searchParams.get('dateFrom') || undefined,
     dateTo: url.searchParams.get('dateTo') || undefined,
     filterMode: url.searchParams.get('filterMode') || undefined,
@@ -1725,7 +1727,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const includePaging = url.searchParams.get('format') !== 'xlsx'
     const query = parseBillQuery(url, includePaging)
-    const branchScope = await salesBranchScope(context)
+    const branchScope = await salesBranchScope(context, query.branchId)
     const where = billWhere(query, branchScope.ids)
 
     const [rows, totalRows, totals] = await Promise.all([
@@ -1805,6 +1807,8 @@ export async function POST(request: Request) {
 
     if (!customer) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    const normalizedBranchCode = documentBranchCode(branch.code)
+    if (!normalizedBranchCode) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขานี้ไม่มีรหัสสำหรับสร้างเลขบิลขาย' }, { status: 400 })
     if (!(await isCustomerEligibleForBranch({ branchId: branch.id, customerId: customer.id }))) {
       return NextResponse.json({
         code: 'BAD_REQUEST',
@@ -1923,7 +1927,6 @@ export async function POST(request: Request) {
     }
     const manualStockCostByItemIndex = manualStockValidation.manualStockCostByItemIndex
 
-    const docNo = await nextDailyDocNo('sales_bills', 'SB', billDate)
     const items = salesItems(values, parsedProductIdsByLine as bigint[], productById, deliverySummarySourceMap, deliverySummaryIdByItemIndex, stockIssueQtyByItemIndex)
     const poSellAllocations = new Map<string, ReturnType<typeof allocatePoSellForSalesBill>>()
     for (const poSellDocNo of requestedPoSellDocNos) {
@@ -2135,6 +2138,10 @@ export async function POST(request: Request) {
     const selectedHeaderPoSell = poSells.length === 1 ? poSells[0] : null
 
     const created = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        select pg_advisory_xact_lock(hashtext(${`sales_bills:SB${normalizedBranchCode}${billDate.slice(2, 4) + billDate.slice(5, 7)}`}))
+      `
+      const docNo = await nextDailyDocNo('sales_bills', 'SB', billDate, tx, branch.code)
       const lineCogsByLineNo = new Map<number, string>()
       tradingMatchedCogsByLineIndex.forEach((amount, index) => {
         const item = items[index]

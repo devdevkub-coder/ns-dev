@@ -24,6 +24,7 @@ updated: 2026-06-21
 - Owner: Stock / Inventory
 - Page type: stock movement write flow
 - Ledger ref type: `SC`
+- เลข SC ที่สร้างใหม่ใช้รูปแบบ `SC` + รหัสสาขา 2 หลัก + running 6 หลัก เช่น `SC01-000001`; เลข legacy เดิมไม่ถูกเปลี่ยน
 
 หน้านี้ใช้ทำ `Stock Reclassification / แก้ classification ผิด` ระหว่าง status bucket `RM` และ `FG` ภายใน `product + branch + warehouse + lot` เดิม เช่น รับซื้อเข้ามาเป็น `RM` แต่ตรวจพบภายหลังว่าจริง ๆ ควรเป็น `FG` หรือย้อนกลับ `FG -> RM`
 

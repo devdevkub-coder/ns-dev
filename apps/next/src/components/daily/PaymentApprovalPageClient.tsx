@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ButtonHTMLAttributes } from 'react'
 import { FileText, Coins, CheckCircle, AlertCircle, FileCheck2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
@@ -42,6 +43,7 @@ type ApprovalApRow = {
   bankAccount: string
   bankAccounts: ApprovalDestinationOption[]
   bankName: string
+  branchId?: string | null
   date: string
   destinationLabel: string
   docNo: string
@@ -64,6 +66,7 @@ type ApprovalApRow = {
 type ApprovalExpenseRow = {
   accountId: string
   accountName: string
+  branchId?: string | null
   approvalDisplayDocNo: string | null
   approvalId: string | null
   approvalStatus: ApprovalStatus
@@ -85,6 +88,7 @@ type ApprovalExpenseRow = {
 
 type ApprovalPayload = {
   apRows: ApprovalApRow[]
+  branches: Array<{ code: string; id: string; name: string }>
   expenseRows: ApprovalExpenseRow[]
   pettyReturnRows: ApprovalExpenseRow[]
 }
@@ -297,7 +301,7 @@ function SortableHead({
 }
 
 export function PaymentApprovalPageClient() {
-  const [data, setData] = useState<ApprovalPayload>({ apRows: [], expenseRows: [], pettyReturnRows: [] })
+  const [data, setData] = useState<ApprovalPayload>({ apRows: [], branches: [], expenseRows: [], pettyReturnRows: [] })
   const [detail, setDetail] = useState<ApprovalDetailState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -305,6 +309,7 @@ export function PaymentApprovalPageClient() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false)
   const [approvalStatusFilter, setApprovalStatusFilter] = useState<ApprovalStatus[]>(defaultApprovalStatusFilter)
+  const [branchFilter, setBranchFilter] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -322,14 +327,16 @@ export function PaymentApprovalPageClient() {
     setIsLoading(true)
     setError(null)
     try {
-      const payload = await dailyFetchJson<ApprovalPayload>('/api/daily/payment-approval')
-      setData({ ...payload, pettyReturnRows: payload.pettyReturnRows ?? [] })
+      const params = new URLSearchParams()
+      if (branchFilter) params.set('branchId', branchFilter)
+      const payload = await dailyFetchJson<ApprovalPayload>(`/api/daily/payment-approval${params.toString() ? `?${params.toString()}` : ''}`)
+      setData({ ...payload, branches: payload.branches ?? [], pettyReturnRows: payload.pettyReturnRows ?? [] })
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'โหลดรายการอนุมัติไม่ได้')
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [branchFilter])
 
   useEffect(() => {
     void loadData()
@@ -368,9 +375,10 @@ export function PaymentApprovalPageClient() {
       if (dateFrom && rowDate < dateFrom) return false
       if (dateTo && rowDate > dateTo) return false
       if (approvalStatusFilter.length > 0 && !approvalStatusFilter.includes(row.approvalStatus)) return false
+      if (branchFilter && row.branchId !== branchFilter) return false
       return true
     })
-  }, [advanceApprovalRows, approvalStatusFilter, data.expenseRows, data.pettyReturnRows, dateFrom, dateTo, purchaseApprovalRows, search, tab])
+  }, [advanceApprovalRows, approvalStatusFilter, branchFilter, data.expenseRows, data.pettyReturnRows, dateFrom, dateTo, purchaseApprovalRows, search, tab])
 
   const rows = useMemo(() => {
     const collator = new Intl.Collator('th-TH', { numeric: true, sensitivity: 'base' })
@@ -464,15 +472,16 @@ export function PaymentApprovalPageClient() {
   const splitDiff = currentSplitRow ? approvalBalanceForRow(currentSplitRow) - splitTotal : 0
   const isDefaultApprovalStatusFilter = approvalStatusFilter.length === defaultApprovalStatusFilter.length
     && defaultApprovalStatusFilter.every((status) => approvalStatusFilter.includes(status))
-  const hasCustomFilters = Boolean(search || dateFrom || dateTo || !isDefaultApprovalStatusFilter || sortKey !== 'date' || sortDirection !== 'desc')
-  const activeMobileFilterCount = (dateFrom || dateTo ? 1 : 0) + (!isDefaultApprovalStatusFilter ? 1 : 0)
+  const hasCustomFilters = Boolean(branchFilter || search || dateFrom || dateTo || !isDefaultApprovalStatusFilter || sortKey !== 'date' || sortDirection !== 'desc')
+  const activeMobileFilterCount = (branchFilter ? 1 : 0) + (dateFrom || dateTo ? 1 : 0) + (!isDefaultApprovalStatusFilter ? 1 : 0)
 
   useEffect(() => {
     setPage(1)
-  }, [approvalStatusFilter, dateFrom, dateTo, pageSize, search, sortDirection, sortKey, tab])
+  }, [approvalStatusFilter, branchFilter, dateFrom, dateTo, pageSize, search, sortDirection, sortKey, tab])
 
   function clearFilters() {
     setApprovalStatusFilter(defaultApprovalStatusFilter)
+    setBranchFilter('')
     setDateFrom('')
     setDateTo('')
     setSearch('')
@@ -723,6 +732,7 @@ export function PaymentApprovalPageClient() {
         <div className="hidden space-y-3 border-b border-slate-100 p-4 lg:block">
           <div className="flex flex-wrap items-center gap-2">
             <Input className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหาเลขที่ / ชื่อ / ช่องทางจ่าย..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <BranchSelectCombobox branches={data.branches} inputId="payment-approval-branch-filter" label="สาขา" placeholder="ทุกสาขา" value={branchFilter || null} onChange={(value) => setBranchFilter(value ?? '')} />
             <label className="text-xs text-slate-500">วันที่:</label>
             <DatePickerInput id="payment-approval-date-from" value={dateFrom} onChange={setDateFrom} />
             <span className="text-slate-400">→</span>
@@ -813,6 +823,10 @@ export function PaymentApprovalPageClient() {
           )}
         >
               <div>
+                <BranchSelectCombobox branches={data.branches} inputId="payment-approval-mobile-branch-filter" label="สาขา" placeholder="ทุกสาขา" value={branchFilter || null} onChange={(value) => setBranchFilter(value ?? '')} />
+              </div>
+
+              <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">
                   <DatePickerInput className="flex-1" value={dateFrom} onChange={setDateFrom} />
@@ -868,7 +882,7 @@ export function PaymentApprovalPageClient() {
                     onClick={(e) => e.stopPropagation()}
                   />
                 ) : null}
-                <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
+                <span className="font-bold text-slate-800 text-sm">{row.docNo}<span className="ml-2 text-xs font-normal text-slate-500">สาขา {row.branchId ?? '-'}</span></span>
               </div>
               <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
             </div>
@@ -925,7 +939,7 @@ export function PaymentApprovalPageClient() {
                       onClick={(e) => e.stopPropagation()}
                   />
                   ) : null}
-                  <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
+                <span className="font-bold text-slate-800 text-sm">{row.docNo}<span className="ml-2 text-xs font-normal text-slate-500">สาขา {row.branchId ?? '-'}</span></span>
                 </div>
                 <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
               </div>
@@ -1033,6 +1047,7 @@ export function PaymentApprovalPageClient() {
                       </TableCell>
                       <TableCell className="ns-leading-business-column text-sm font-semibold text-slate-700">
                         <div className="whitespace-nowrap">{row.docNo}</div>
+                        <div className="text-xs font-normal text-slate-500">สาขา {row.branchId ?? '-'}</div>
                         <div className="text-xs text-slate-500">{approvalRowKindLabel(row.approvalStatus)}</div>
                       </TableCell>
                       <TableCell className="text-sm font-semibold text-slate-700">
@@ -1129,6 +1144,7 @@ export function PaymentApprovalPageClient() {
                       </TableCell>
                       <TableCell className="ns-leading-business-column text-sm font-semibold text-slate-700">
                         <div className="whitespace-nowrap">{row.docNo}</div>
+                        <div className="text-xs font-normal text-slate-500">สาขา {row.branchId ?? '-'}</div>
                         <div className="text-slate-500">{approvalRowKindLabel(row.approvalStatus)}</div>
                       </TableCell>
                       <TableCell className="text-sm font-semibold text-slate-700">
@@ -1206,6 +1222,7 @@ export function PaymentApprovalPageClient() {
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                   <DetailItem label="เลขที่เอกสารอ้างอิง" value={detail.row.sourceDocNo} />
                   <DetailItem label="ประเภทเอกสารอ้างอิง" value={detail.row.sourceLabel} />
+                  <DetailItem label="สาขา" value={detail.row.branchId ? `สาขา ${detail.row.branchId}` : '-'} />
                   <DetailItem label="วันที่" value={formatDateDisplay(detail.row.date)} />
                   <DetailItem label="ผู้ขาย" value={detail.row.supplierName} />
                   {detail.row.sourceType === 'advance_payment' ? (
@@ -1255,6 +1272,7 @@ export function PaymentApprovalPageClient() {
               <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800">ข้อมูลเอกสารต้นทาง</div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  <DetailItem label="สาขา" value={detail.row.branchId ? `สาขา ${detail.row.branchId}` : '-'} />
                   <DetailItem label="เลขที่เอกสาร / PMA" value={detail.row.docNo} />
                   <DetailItem label="เลขที่เอกสารอ้างอิง" value={detail.row.sourceDocNo} />
                   <DetailItem label="วันที่" value={formatDateDisplay(detail.row.date)} />

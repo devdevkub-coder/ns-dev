@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, documentBranchCode, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { listBranchMasterRecords, listProductReferences, listWarehouseMasterRecords, searchActiveProducts } from '@/lib/server/reference-master-cache'
 import { normalizeStockReferenceInput, stockBalanceSnapshot, stockReferenceData } from '@/lib/server/stock'
@@ -39,9 +39,9 @@ const stockAdjustmentSelect = {
   warehouse_id: true,
 } satisfies Prisma.stock_adjustmentsSelect
 
-async function nextDocNo(tx: Prisma.TransactionClient) {
-  const prefix = 'ADJ-'
-  await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('stock_adjustments.doc_no'))`
+async function nextDocNo(tx: Prisma.TransactionClient, branchCode: string) {
+  const prefix = `ADJ${branchCode}-`
+  await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${`stock_adjustments:${prefix}`}))`
   const last = await tx.stock_adjustments.findFirst({
     orderBy: { doc_no: 'desc' },
     select: { doc_no: true },
@@ -302,6 +302,9 @@ export async function POST(request: Request) {
     if (!references.productId) {
       return NextResponse.json({ error: 'สินค้าไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     }
+    const branch = await prisma.branches.findFirst({ select: { code: true }, where: { active: true, id: references.branchId } })
+    const branchCode = documentBranchCode(branch?.code)
+    if (!branchCode) return NextResponse.json({ error: 'สาขานี้ไม่มีรหัสสำหรับสร้างเลขปรับสต๊อก' }, { status: 400 })
     const { readyQty, systemQty, unitPricePerKg: unitCost } = await stockAdjustMetrics({
       asOf: values.date,
       branchId: references.branchId,
@@ -328,7 +331,7 @@ export async function POST(request: Request) {
     const now = new Date()
 
     const saved = await prisma.$transaction(async (tx) => {
-      const docNo = values.docNo?.trim() || await nextDocNo(tx)
+      const docNo = values.docNo?.trim() || await nextDocNo(tx, branchCode)
       if (values.docNo) {
         const duplicate = await tx.stock_adjustments.findFirst({
           select: { id: true },

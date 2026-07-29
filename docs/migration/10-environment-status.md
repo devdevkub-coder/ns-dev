@@ -2,6 +2,19 @@
 
 ## Current Direction
 
+### Petty Advance Branch Migration 2026-07-27
+
+- Applied `20260727150000_add_branch_to_petty_advances.sql` directly to dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) because both environments have pre-existing migration-history drift that blocks a blanket `supabase db push`.
+- Postflight confirms `public.petty_advances.branch_id`, `idx_petty_advances_branch`, `petty_advances_branch_id_fkey`, and migration history version `20260727150000` exist in both environments.
+- No existing petty-advance business rows were backfilled or rewritten; new PADV records require a valid active branch from the application flow.
+
+### Company Account Code Cutover 2026-07-27
+
+- Applied `20260727120000_assign_branch_scoped_account_codes.sql` directly to dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`). The migration remapped 12 `public.accounts` rows in each environment to deterministic codes in the form `ACC<branch code>-<3-digit sequence>`, ordered by `branch_id, id`.
+- Postflight for both environments: 12/12 valid branch-scoped codes, 12/12 distinct codes, and 0 accounts without `branch_id`. Migration history row `20260727120000` is present in both environments.
+- `bank_statement.account_id` was not changed because it remains the internal FK to `accounts.id`; bank statement outward `accountId` now resolves only through the new `accounts.code` contract. No historical snapshot fields were rewritten in this accounts-only cutover.
+- Runtime flow now rejects numeric internal ids and unknown account codes instead of silently falling back to an unfiltered account/bank-statement flow.
+
 ### Production Input Return Permission Fix 2026-07-23
 
 - Applied `20260723173500_add_production_input_return_permission.sql` and `20260723200000_grant_production_input_return_to_system_admin.sql` to dev-target using the local dev database connection after confirming the local database had neither the permission catalog row nor its role grants.

@@ -78,6 +78,7 @@ SB ตั้งลูกหนี้, consume WTO `pending_out`, ตัด stock
 ## Validation / Status Rules
 
 - WTO ต้อง active, same branch/customer context, not billed, allocate ครบใน SB เดียว
+- เลข SB ที่สร้างใหม่ใช้รูปแบบ `SB` + รหัสสาขา 2 หลัก + `YYMM` + running 4 หลัก; เลข legacy เดิมไม่ถูกเปลี่ยน
 - customer ต้อง active และมี active `customer_branches` กับ branch ของ SB; API ต้อง reject ถ้าไม่ตรง mapping และห้าม fallback เป็นทุกสาขา
 - POS allocation ต้อง product/unit match และไม่เกิน remaining
 - stock sale ต้อง validate available/pending_out ใน transaction
