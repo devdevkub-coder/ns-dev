@@ -6,7 +6,7 @@ tags:
   - read-model
   - flow
 status: accepted-baseline
-updated: 2026-07-17
+updated: 2026-07-29
 ---
 
 # Finance Accounting Flow
@@ -41,7 +41,7 @@ updated: 2026-07-17
 | `/finance-accounting/loan-dashboard` | `GET /api/finance-accounting/loan-dashboard` | none | `loans`, `loan_schedules`, `loan_payments` | read-only |
 | `/finance-accounting/asset-overview` | `GET /api/finance-accounting/asset-overview` | `asOf`, `branchId` | `buildCashOthersSummary()` + `buildFinancialDashboard()` | read-only |
 | `/finance-accounting/equity-maint` | `GET /api/finance-accounting/equity-maint` | none | latest `equity` row | write disabled |
-| `/finance-accounting/opening-balance` | `GET /api/finance-accounting/opening-balance` | none | `opening_balance`, `accounts` | save/apply disabled |
+| `/finance-accounting/opening-balance` | `GET/POST /api/finance-accounting/opening-balance` | none | `opening_balance.data.stockItems`, active stock references, `stock_ledger`, shadow `purchase_bills` for unpaid stock | Stock Opening save/apply/unapply enabled; unpaid rows with Supplier auto-create AP; accounting/AR/GL tabs remain read-only |
 | `/finance-accounting/accounting-periods` | page/policy UI | none | accounting period policy/readiness state | policy UI; runtime write enforcement deferred |
 | `/finance-accounting/posting-rules` | page/policy UI | none | source-to-account mapping readiness | policy UI; GL posting deferred |
 | `/finance-accounting/historical-data` | `GET /api/finance-accounting/historical-data` | none | `historical_monthly` | save/clear disabled |
@@ -89,6 +89,6 @@ The two pages remain read-only management surfaces. They do not post GL, close p
 - tax filing status and PP30/PND workflow are not implemented
 - asset acquisition/disposal/depreciation GL posting remains deferred in this dev-scope batch; source lifecycle rows and reversals are enabled
 - loan payment posting to bank statement/interest/principal split remains design-only
-- opening balance and historical-data writes are disabled until cutover approval policy is defined
+- opening balance writes remain disabled for accounting/AR/GL sections until cutover approval policy is defined; Stock Opening is the controlled inventory cutover path, writes `OPENING_STOCK_IN` transactionally, and creates/removes an idempotent unpaid AP shadow bill when `จ่ายแล้ว` is not selected
 - Accounting Periods and Posting Rules are visible policy surfaces but do not yet enforce closed-period locks across all transaction write APIs
 - monthly/yearly close needs the snapshot layer from [[Reporting History Snapshot Policy]] before dashboards/statements can be frozen reliably
