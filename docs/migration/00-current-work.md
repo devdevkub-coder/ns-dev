@@ -1,3 +1,13 @@
+# Active Dev/SIT Transaction Reset Checkpoint 2026-07-29
+
+Objective: ลบข้อมูล transaction และ derived transaction data ทั้งหมดบน Dev และ SIT เพื่อเริ่มทดสอบ flow code ใหม่ โดยคง master data, auth/permission, settings และ migration history ไว้.
+
+Completed: truncate แบบ transactional ของ transaction tables 79 ตารางใน Dev และ SIT สำเร็จ; postflight ทุกตารางเป้าหมายเป็น 0 แถว. Accounts 12, products 236, branches 2 และ migration history ยังคงอยู่ครบทั้งสอง environment. Dev มี app users 27 ราย, SIT มี 24 ราย.
+
+Immediate next task: ตรวจ SIT runtime smoke หลัง reset แล้วเริ่มสร้าง transaction ใหม่ตาม flow ที่ไม่มี fallback.
+
+---
+
 # Active Production PO Event Identity Batch 2026-07-29
 
 Objective: ทำให้ `PO` เป็นเลขเอกสารการผลิตเพียงตัวเดียว โดย PO ต้องมีรหัสสาขา; input/output/return/void เป็น event ภายใน PO และรอบรับผลผลิตแสดงเป็น `PO.../01`, `PO.../02` โดยไม่มีเลข `PI`, `PO2`, `PI-REV`, `PO2-REV` และไม่มี fallback.
@@ -12,7 +22,7 @@ Environment/migration checkpoint: แก้ env ให้เหลือชุ�
 
 Git checkpoint: commit `0a0d7a24` ถูก push ไป `new-origin/dev` และ `sit-origin/main` แล้ว; worktree สะอาด. Customer UAT ยังไม่ได้รับ code promotion.
 
-Immediate next tasks: (1) verify deployed SIT runtime and production flow smoke, (2) triage/fix or explicitly classify the 37 full-test failures, (3) re-run full validation, and (4) promote code to customer UAT only after SIT sign-off.
+Immediate next tasks after reset: (1) verify deployed SIT runtime and production flow smoke, (2) triage/fix or explicitly classify the 37 full-test failures, (3) re-run full validation, and (4) promote code to customer UAT only after SIT sign-off.
 
 # Active Strict Branch-Coded ADV Batch 2026-07-28
 

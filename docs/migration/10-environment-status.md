@@ -2,6 +2,13 @@
 
 ## Current Direction
 
+### Dev/SIT Transaction Reset 2026-07-29
+
+- ลบ transaction และ derived transaction data ด้วย transactional `TRUNCATE ... RESTART IDENTITY` จำนวน 79 ตารางบน dev-target (`fhglqymcdmrgbsbadnwr`) และ SIT (`vbjlkxbytccklhqvxjuu`) แล้ว.
+- ครอบคลุม bank statement, PO/PB/SB, payments/advances/receipts, production, WTI/WTO, stock ledger/holds/transfers, trading และ profit-cost read models รวมถึง status/allocation/draft/notification rows ที่ผูก FK.
+- ไม่ลบ master data, auth/app users, roles/permissions, settings หรือ `supabase_migrations.schema_migrations`.
+- Postflight ทั้งสอง environment: transaction tables เป้าหมาย 0 rows; accounts 12, products 236, branches 2; migration history คงอยู่ (Dev 155, SIT 153). App users คงอยู่ (Dev 27, SIT 24).
+
 ### Strict Branch-Coded Supplier Advance ADV 2026-07-28
 
 - ADV document numbering now rejects a missing/invalid branch code instead of generating a `00` fallback. The selected active branch remains the source of `branch_id` and the `ADV<branch><YYMM>-####` prefix.
