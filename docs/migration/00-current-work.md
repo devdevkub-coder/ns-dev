@@ -1,4 +1,4 @@
-# Active Production PO Event Identity Batch 2026-07-28
+# Active Production PO Event Identity Batch 2026-07-29
 
 Objective: ทำให้ `PO` เป็นเลขเอกสารการผลิตเพียงตัวเดียว โดย PO ต้องมีรหัสสาขา; input/output/return/void เป็น event ภายใน PO และรอบรับผลผลิตแสดงเป็น `PO.../01`, `PO.../02` โดยไม่มีเลข `PI`, `PO2`, `PI-REV`, `PO2-REV` และไม่มี fallback.
 
@@ -6,11 +6,13 @@ Plan: `docs/superpowers/plans/2026-07-28-production-event-identity.md`. Batch 1 
 
 Write areas: `apps/next/src/lib/server/production-orders.ts`, production API/UI/report/reconciliation, Prisma schema/migration, stock ledger contracts, production flow notes. ไม่ backfill ข้อมูลเก่า.
 
-Validation: focused production tests `25/25`, full lint `0 errors/6 warnings`, type-check และ production build ผ่าน. `git diff --check` ผ่าน.
+Validation: focused production tests `25/25`, full lint `0 errors/6 warnings`, type-check, production build และ `git diff --check` ผ่าน. Full Vitest ยังมี 37 failures จาก 12 suites และต้อง triage ก่อนปิด batch.
 
-Environment/migration checkpoint: แก้ env ให้เหลือชุด canonical ใน `apps/next/.env.local`, `apps/next/.env.sit.local`, `apps/next/.env.uat.local`; ลบ root `.env.local` และ `apps/next/.env` ที่ซ้ำ/เก่า. Migration `20260728110000_add_production_event_identity.sql` apply และ record ใน Dev/SIT แล้ว; postflight ผ่าน 3 columns, 3 indexes และ 1 migration-history row ต่อ environment.
+Environment/migration checkpoint: แก้ env ให้เหลือชุด canonical ใน `apps/next/.env.local`, `apps/next/.env.sit.local`, `apps/next/.env.uat.local`; ลบ root `.env.local` และ `apps/next/.env` ที่ซ้ำ/เก่า. Migration `20260728110000_add_production_event_identity.sql` apply และ record ใน Dev/SIT/UAT แล้ว; postflight ผ่าน 3 columns, 3 indexes และ 1 migration-history row ต่อ environment.
 
-Immediate next task: ใช้ target-specific env ทุกครั้งก่อน run migration/deploy; ยังไม่ push code หรือ deploy จนกว่าจะได้รับคำขอ promotion.
+Git checkpoint: commit `0a0d7a24` ถูก push ไป `new-origin/dev` และ `sit-origin/main` แล้ว; worktree สะอาด. Customer UAT ยังไม่ได้รับ code promotion.
+
+Immediate next tasks: (1) verify deployed SIT runtime and production flow smoke, (2) triage/fix or explicitly classify the 37 full-test failures, (3) re-run full validation, and (4) promote code to customer UAT only after SIT sign-off.
 
 # Active Strict Branch-Coded ADV Batch 2026-07-28
 
