@@ -142,7 +142,7 @@ function buildAppUserContext(appUser: AppUserWithAuth | null, user: User): AppAu
       name: role.name,
     }))
     .sort((left, right) => left.code.localeCompare(right.code))
-  const isAdmin = roleSummaries.some((role) => role.code === 'admin' || role.code === 'owner')
+  const isAdmin = roleSummaries.some((role) => role.code === 'admin' || role.code === 'owner' || role.code === 'system_admin')
   return {
     appUser: {
       active: appUser.active,

@@ -6,6 +6,10 @@ Completed: truncate แบบ transactional ของ transaction tables 79 ต�
 
 Immediate next task: ตรวจ SIT runtime smoke หลัง reset แล้วเริ่มสร้าง transaction ใหม่ตาม flow ที่ไม่มี fallback.
 
+## Super Admin Authorization Checkpoint 2026-07-29
+
+`system_admin` is now the Super Admin role. The application authorization context treats it as an admin bypass, and migration `20260729100000_promote_system_admin_to_super_admin.sql` updates the role label/flags and backfills every active permission grant in Dev and SIT. Postflight confirms `system_admin = Super Admin`, 122 active permission grants, and `daily.weight_tickets.open_bill` present in both environments. No transaction data changed. The deployed SIT runtime still needs the code commit before the bypass is active in the UI/API.
+
 ---
 
 # Active Production PO Event Identity Batch 2026-07-29
