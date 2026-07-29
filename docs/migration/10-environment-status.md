@@ -1,5 +1,12 @@
 # 10 Environment Status
 
+### Company Account Data Normalization 2026-07-30
+
+- Applied and recorded migration `20260730090000_normalize_company_accounts_to_current_design.sql` in dev-target and SIT.
+- `ACC01-002` FCD now has ordinary bank subtype `savings`, keeps `is_fcd = true`, and has both `THB:0` and `USD:0` currency-balance rows.
+- `ACC01-009` and `ACC01-011` are now company-level `virtual` reimbursement-payable accounts with no bank identity, no OD, THB currency, and zero opening balance. The future advance/loan flow will create their negative balance.
+- Account codes, branches, and transaction rows were not rewritten. Postflight matched Dev and SIT for the normalized rows.
+
 ### Company Account Classification And Reimbursement Payable 2026-07-29
 
 - Applied and recorded migration `20260729170000_restructure_company_account_classification.sql` in dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`).

@@ -2220,7 +2220,7 @@ export function MoneyMovementPageClient({
         const account = activeAccounts.find((a) => a.id === split.accountId)
         if (account) {
           const splitAmount = Number(split.amount) || 0
-          const available = (account.balance ?? 0) + (account.subtype === 'current' ? (account.odLimit ?? 0) : 0)
+          const available = account.availableToPay ?? account.balance ?? 0
           if (splitAmount > available + 0.01) {
             setError('ยอดจ่ายเกินยอดเงินคงเหลือและวงเงิน OD ที่ใช้ได้ กรุณาลดจำนวนหรือเพิ่มบัญชีจ่าย')
             return

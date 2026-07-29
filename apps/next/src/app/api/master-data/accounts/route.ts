@@ -56,12 +56,17 @@ function validateAccountBusinessRules(values: {
   currency: string | null
   isFcd: boolean
   hasOd: boolean
+  openingBalance: number | null
   odLimit: number | null
 }) {
   const currency = String(values.currency ?? '').trim().toUpperCase()
 
   if (!values.branchId) {
     throw new Error('เลือกสาขา')
+  }
+
+  if (values.openingBalance !== null && values.openingBalance < 0) {
+    throw new Error('ยอดตั้งต้นบัญชีนี้ต้องไม่ติดลบ')
   }
 
   if (values.accountGroup !== 'bank' && !values.currency) throw new Error('กรอกสกุลเงิน')
@@ -97,6 +102,9 @@ async function resolveAccountCurrencyBalances(values: z.infer<typeof accountMast
     })).filter((entry) => entry.currency)
     : [{ currency: String(values.currency ?? 'THB').trim().toUpperCase(), openingBalance: values.openingBalance ?? 0 }]
   const unique = Array.from(new Map(requested.map((entry) => [entry.currency, entry])).values())
+  if (unique.some((entry) => entry.openingBalance < 0)) {
+    throw new Error('ยอดตั้งต้นบัญชีต้องไม่ติดลบ')
+  }
   const currencyRows = await prisma.currencies.findMany({ select: { code: true }, where: { code: { in: unique.map((entry) => entry.currency) } } })
   const activeCodes = new Set(currencyRows.map((row) => row.code.toUpperCase()))
   if (unique.length === 0) throw new Error('เลือกสกุลเงินอย่างน้อย 1 รายการ')
@@ -268,7 +276,9 @@ export async function POST(request: Request) {
       bankAccountType,
       branchId: values.branchId,
       currency: currencyBalances[0]?.currency ?? values.currency,
-      isFcd: values.isFcd,
+    isFcd: values.isFcd,
+      hasOd: values.hasOd,
+      openingBalance: values.openingBalance,
       odLimit: values.odLimit,
     })
     await assertActiveBankName(values.bankName)

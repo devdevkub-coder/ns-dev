@@ -5,7 +5,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
-import { bankStatementTransferRows, currentActor, documentBranchCode, listDailyAccounts, nextBankStatementDocNos, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { bankStatementTransferRows, currentActor, documentBranchCode, listDailyAccounts, lockDailyAccountBalances, nextBankStatementDocNos, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
@@ -86,36 +86,29 @@ export async function POST(request: Request) {
       throw new Error('บัญชีต้นทางหรือปลายทางไม่ถูกต้อง')
     }
 
-    const allAccounts = await listDailyAccounts()
-    const fromAcc = allAccounts.find((a) => a.id === values.fromAccountId)
-    if (fromAcc) {
-      let oldAmountAndFee = 0
-      if (values.id) {
-        const prevTransfer = await prisma.transfers.findFirst({
-          select: { amount: true, fee: true, bank_fee: true },
-          where: { doc_no: values.id },
-        })
-        if (prevTransfer) {
-          oldAmountAndFee = toNumber(prevTransfer.amount) + toNumber(prevTransfer.fee ?? prevTransfer.bank_fee)
-        }
-      }
-      const transferCost = values.amount + values.fee
-      const available = (fromAcc.balance ?? 0) + oldAmountAndFee + (fromAcc.subtype === 'current' ? (fromAcc.odLimit ?? 0) : 0)
-      if (transferCost > available + 0.01) {
-        throw new Error('ยอดจ่ายเกินยอดเงินคงเหลือและวงเงิน OD ที่ใช้ได้ กรุณาลดจำนวนหรือเพิ่มบัญชีจ่าย')
-      }
-    }
-
     const result = await prisma.$transaction(async (tx) => {
       const existingTransfer = values.id
         ? await findTransferByDocNo(tx, values.id, {
             doc_no: true,
             id: true,
             status: true,
+            from_account_id: true,
           })
         : null
       if (values.id && !existingTransfer) {
         throw new Error('ไม่พบรายการโอนเงิน')
+      }
+      await lockDailyAccountBalances(tx, [fromAccount.id, ...(existingTransfer?.from_account_id ? [existingTransfer.from_account_id] : [])])
+      const fromAcc = (await listDailyAccounts(tx)).find((a) => a.id === values.fromAccountId)
+      if (fromAcc) {
+        const oldTransfer = existingTransfer
+          ? await tx.transfers.findUnique({ select: { amount: true, fee: true, bank_fee: true }, where: { id: existingTransfer.id } })
+          : null
+        const oldAmountAndFee = oldTransfer ? toNumber(oldTransfer.amount) + toNumber(oldTransfer.fee ?? oldTransfer.bank_fee) : 0
+        const transferCost = values.amount + values.fee
+        if (transferCost > (fromAcc.availableToPay ?? 0) + oldAmountAndFee + 0.01) {
+          throw new Error('ยอดจ่ายเกินยอดเงินคงเหลือและวงเงิน OD ที่ใช้ได้ กรุณาลดจำนวนหรือเพิ่มบัญชีจ่าย')
+        }
       }
       const branchCode = documentBranchCode(fromAccount.branchCode)
       if (!fromAccount.branchId || !toAccount.branchId || !branchCode) throw new Error('บัญชีต้นทางหรือปลายทางไม่มีสาขาสำหรับออกเลขรายการโอนเงิน')

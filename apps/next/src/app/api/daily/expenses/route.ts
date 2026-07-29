@@ -5,7 +5,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, hasPermission, requirePermission } from '@/lib/server/auth-context'
 import { REPORT_PAGE_PERMISSIONS } from '@/lib/report-permissions'
-import { currentActor, documentBranchCode, listDailyAccounts, nextBankStatementDocNos, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, documentBranchCode, listDailyAccounts, lockDailyAccountBalances, nextBankStatementDocNos, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { hasLockedPaymentApproval } from '@/lib/server/payment-approval-pending'
 import {
@@ -632,6 +632,7 @@ export async function POST(request: Request) {
 
       if (isPayNow) {
         if (!paymentAccount || !paymentBranchCode) throw new Error('ข้อมูลบัญชีจ่ายไม่ครบถ้วน')
+        await lockDailyAccountBalances(tx, [paymentAccount.id])
         await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('payments.doc_no'))`
         const paymentDocNo = await nextSupplierPaymentDocNo(tx, values.date, paymentBranchCode)
         const voucherId = paymentDocNo
@@ -641,6 +642,12 @@ export async function POST(request: Request) {
         const paymentAmount = roundMoney(netAmount - discount)
         const paymentNetAmount = roundMoney(paymentAmount + bankFee)
         if (paymentAmount <= 0) throw new Error('ยอดจ่ายหลังหักส่วนลดต้องมากกว่า 0')
+        if (account?.accountGroup !== 'virtual') {
+          const paymentAccountBalance = (await listDailyAccounts(tx)).find((row) => row.id === account?.code)
+          if (paymentAccountBalance && paymentNetAmount > (paymentAccountBalance.availableToPay ?? 0) + 0.01) {
+            throw new Error('ยอดจ่ายเกินยอดเงินคงเหลือและวงเงิน OD ที่ใช้ได้ กรุณาลดจำนวนหรือเพิ่มบัญชีจ่าย')
+          }
+        }
 
         const payment = await tx.payments.create({
           data: {

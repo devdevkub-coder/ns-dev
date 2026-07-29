@@ -123,7 +123,7 @@ export function PaymentSplitsSection({
       if (account.subtype === 'current') {
         const balance = account.balance ?? 0
         const normalUsed = Math.min(amount, Math.max(0, balance))
-        const odUsed = Math.max(0, amount - Math.max(0, balance))
+        const odUsed = Math.min(account.odRemaining ?? 0, Math.max(0, amount - Math.max(0, balance)))
         totalNormalBalanceUsed += normalUsed
         totalOdUsed += odUsed
       } else {
@@ -289,9 +289,9 @@ export function PaymentSplitsSection({
                           <span>ยอดใช้ได้รวม</span>
                           <input className="mt-1 w-full bg-transparent p-0 text-right font-semibold text-emerald-700 disabled:opacity-100" disabled type="text" value={formatMoney(splitAccount.availableToPay ?? 0)} />
                         </label>
-                        <label className={`block ${balanceAfter < 0 ? 'text-rose-600' : 'text-slate-600'}`}>
+                        <label className="block text-slate-600">
                           <span>หลังจ่าย คงเหลือจริง</span>
-                          <input className={`mt-1 w-full bg-transparent p-0 text-right font-bold disabled:opacity-100 ${balanceAfter < 0 ? 'text-rose-600' : 'text-slate-600'}`} disabled type="text" value={formatMoney(balanceAfter)} />
+                          <input className="mt-1 w-full bg-transparent p-0 text-right font-bold text-slate-600 disabled:opacity-100" disabled type="text" value={formatMoney(Math.max(0, balanceAfter))} />
                         </label>
                       </div>
                       <div className={`text-xs font-medium ${splitAmount <= (splitAccount.availableToPay ?? 0) ? 'text-emerald-600' : 'text-rose-600'}`}>

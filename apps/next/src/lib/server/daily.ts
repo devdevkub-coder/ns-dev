@@ -152,10 +152,10 @@ export async function nextBankStatementDocNos(date: string, branchCode: string, 
   return Array.from({ length: count }, (_, index) => `${startsWith}${String(startNumber + index).padStart(4, '0')}`)
 }
 
-export async function listDailyAccounts() {
+export async function listDailyAccounts(client: typeof prisma | Prisma.TransactionClient = prisma) {
   const [accounts, statementTotals] = await Promise.all([
     listAllAccounts(),
-    prisma.bank_statement.groupBy({
+    client.bank_statement.groupBy({
       by: ['account_id'],
       _sum: {
         amount_in: true,
@@ -172,15 +172,16 @@ export async function listDailyAccounts() {
   )
 
   return accounts.map((account: AccountReferenceRecord) => {
-    const realBalance = (account.openingBalance == null ? 0 : Number(account.openingBalance)) + (statementTotalByAccountId.get(account.id.toString()) ?? 0)
+    const ledgerBalance = (account.openingBalance == null ? 0 : Number(account.openingBalance)) + (statementTotalByAccountId.get(account.id.toString()) ?? 0)
     const odLimit = account.odLimit == null ? 0 : Number(account.odLimit)
-    const odUsed = Math.max(0, -realBalance)
+    const odUsed = account.subtype === 'current' ? Math.max(0, -ledgerBalance) : 0
     const odRemaining = Math.max(0, odLimit - odUsed)
-    const availableToPay = realBalance + odLimit
+    const balance = account.subtype === 'current' ? Math.max(0, ledgerBalance) : ledgerBalance
+    const availableToPay = balance + odRemaining
 
     return {
       active: account.active,
-      balance: realBalance,
+      balance,
       code: account.accountNo,
       id: account.code,
       name: account.name,
@@ -193,6 +194,12 @@ export async function listDailyAccounts() {
       availableToPay,
     }
   })
+}
+
+export async function lockDailyAccountBalances(tx: Prisma.TransactionClient, accountIds: bigint[]) {
+  for (const accountId of [...new Set(accountIds.map((value) => value.toString()))].sort()) {
+    await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${`daily-account-balance:${accountId}`}))`
+  }
 }
 
 export function bankStatementTransferRows(values: {

@@ -406,13 +406,6 @@ export const navigationItems: NavigationItem[] = [
         label: 'วิธีจ่าย/รับเงิน',
         section: 'master-data',
       },
-      {
-        href: '/master-data/account-subtypes',
-        icon: '🧩',
-        label: 'ประเภทบัญชีธนาคาร',
-        pageTitle: 'ประเภทบัญชีธนาคาร',
-        section: 'master-data',
-      },
     ],
   },
   { href: '/master-data/bank-names', icon: '🏦', label: 'ชื่อธนาคาร', section: 'master-data' },

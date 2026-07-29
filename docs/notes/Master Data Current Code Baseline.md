@@ -37,7 +37,6 @@ updated: 2026-06-11
 | `/master-data/warehouses` | คลัง |
 | `/master-data/accounts` | บัญชีเงินบริษัท |
 | `/master-data/payment-methods` | วิธีจ่าย/รับเงิน |
-| `/master-data/account-subtypes` | ประเภทบัญชีธนาคาร |
 | `/master-data/bank-names` | ชื่อธนาคาร |
 | `/master-data/channels` | ช่องทางขาย |
 | `/master-data/expense-categories` | หมวดค่าใช้จ่าย |

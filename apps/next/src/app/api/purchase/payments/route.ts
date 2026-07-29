@@ -17,7 +17,7 @@ import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference
 import { refreshAdvancePaymentWorkflowStatus } from '@/lib/server/advance-payments'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission, getBranchCodeIntersection } from '@/lib/server/auth-context'
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
-import { currentActor, listDailyAccounts, nextBankStatementDocNos, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, listDailyAccounts, lockDailyAccountBalances, nextBankStatementDocNos, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { refreshExpensePaymentStatus } from '@/lib/server/expense-payment-status'
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import {
@@ -667,17 +667,6 @@ export async function POST(request: Request) {
     if (Math.abs(splitTotal - netAmount) > 0.01) {
       throw new Error('รวมยอดแยกบัญชีต้องเท่ากับยอดสุทธิที่ต้องจ่าย')
     }
-    const allAccounts = await listDailyAccounts()
-    for (const split of paymentSplits) {
-      const account = allAccounts.find((a: (typeof allAccounts)[number]) => a.id === split.accountId)
-      if (account && account.accountGroup !== 'virtual') {
-        const splitAmount = toNumber(split.amount)
-        const available = (account.balance ?? 0) + (account.subtype === 'current' ? (account.odLimit ?? 0) : 0)
-        if (splitAmount > available + 0.01) {
-          throw new Error('ยอดจ่ายเกินยอดเงินคงเหลือและวงเงิน OD ที่ใช้ได้ กรุณาลดจำนวนหรือเพิ่มบัญชีจ่าย')
-        }
-      }
-    }
     const splitAccountCodes = [...new Set(paymentSplits.map((split) => split.accountId).filter(Boolean))]
     const splitAccountReferences = await Promise.all(splitAccountCodes.map(async (code) => [code, await findActiveAccountReferenceByCode(code)] as const))
     const splitAccountByCode = new Map(splitAccountReferences)
@@ -692,6 +681,14 @@ export async function POST(request: Request) {
     const paymentMethod = activePaymentMethod.name
 
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await lockDailyAccountBalances(tx, Array.from(splitAccountByCode.values()).flatMap((account) => account ? [account.id] : []))
+      const allAccounts = await listDailyAccounts(tx)
+      for (const split of paymentSplits) {
+        const account = allAccounts.find((row) => row.id === split.accountId)
+        if (account && account.accountGroup !== 'virtual' && toNumber(split.amount) > (account.availableToPay ?? 0) + 0.01) {
+          throw new Error('ยอดจ่ายเกินยอดเงินคงเหลือและวงเงิน OD ที่ใช้ได้ กรุณาลดจำนวนหรือเพิ่มบัญชีจ่าย')
+        }
+      }
       const txExt = tx as typeof tx & {
         payment_approvals: {
           findMany: (args: unknown) => Promise<PaymentApprovalRecord[]>

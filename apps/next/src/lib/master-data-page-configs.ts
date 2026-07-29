@@ -405,22 +405,6 @@ export const paymentMethodsPageConfig: MasterDataPageConfig = {
   ],
 }
 
-export const accountSubtypesPageConfig: MasterDataPageConfig = {
-  apiPath: '/api/master-data/account-subtypes',
-  createLabel: 'เพิ่มประเภทบัญชีธนาคาร',
-  entityName: 'ประเภทบัญชีธนาคาร',
-  emptyMessage: 'ไม่พบข้อมูลประเภทบัญชีธนาคาร',
-  fields: [
-    { key: 'code', label: 'รหัสประเภทบัญชีธนาคาร' },
-    { key: 'name', label: 'ชื่อ', required: true },
-  ],
-  columns: [
-    { key: 'code', label: 'รหัส' },
-    { key: 'name', label: 'ชื่อ' },
-    statusColumn,
-  ],
-}
-
 export const vatSettingsPageConfig: MasterDataPageConfig = {
   apiPath: '/api/master-data/vat-settings',
   createLabel: 'เพิ่มอัตรา VAT',

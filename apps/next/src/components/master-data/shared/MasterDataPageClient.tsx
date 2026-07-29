@@ -291,6 +291,11 @@ function validateMasterDataForm(
       if (selectedCurrencies.size === 0) errors.accountCurrencyBalances = 'เลือกอย่างน้อย 1 สกุลเงิน'
       if (!selectedCurrencies.has('THB')) errors.accountCurrencyBalances = 'บัญชีธนาคารต้องมี THB เสมอ'
       if (values.isFcd && selectedCurrencies.size < 2) errors.accountCurrencyBalances = 'บัญชี FCD ต้องมี THB และสกุลเงินต่างประเทศอย่างน้อย 1 สกุล'
+      if ((values.accountCurrencyBalances ?? []).some((entry) => entry.openingBalance !== null && entry.openingBalance < 0)) errors.accountCurrencyBalances = 'ยอดตั้งต้นบัญชีธนาคารต้องไม่ติดลบ'
+    }
+
+    if (values.openingBalance !== null && values.openingBalance < 0) {
+      errors.openingBalance = 'ยอดตั้งต้นบัญชีนี้ต้องไม่ติดลบ'
     }
 
     if (values.hasOd && accountSubtype !== 'current') {
