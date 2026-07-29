@@ -26,5 +26,6 @@ describe('ResizableTableHead alignment', () => {
     expect(html).toContain('justify-end')
     expect(html).toContain('text-right')
     expect(html).toContain('p-2 pr-3')
+    expect(html.indexOf('aria-hidden="true"')).toBeLessThan(html.indexOf('ยอดรวม'))
   })
 })
