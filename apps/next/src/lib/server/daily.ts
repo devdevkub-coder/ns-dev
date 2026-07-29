@@ -185,6 +185,7 @@ export async function listDailyAccounts() {
       id: account.code,
       name: account.name,
       type: account.type,
+      accountGroup: account.accountGroup,
       subtype: account.subtype,
       odLimit,
       odUsed,

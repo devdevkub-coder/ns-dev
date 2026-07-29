@@ -146,6 +146,9 @@ async function prepareCustomerReceipt(values: CustomerReceiptFormValues, context
   if (!account) {
     throw new Error('บัญชีรับเงินไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
+  if (account.accountGroup === 'virtual') {
+    throw new Error('บัญชีเจ้าหนี้เงินทดรองจ่ายใช้รับเงินลูกค้าไม่ได้')
+  }
 
   return { account, accountSplits, actor, bankFeeTotal, customerAdvanceLines, discountTotal, grossAmount, netCashIn, salesBillLines: lines, sourceType: values.sourceType, withholdingTaxTotal }
 }

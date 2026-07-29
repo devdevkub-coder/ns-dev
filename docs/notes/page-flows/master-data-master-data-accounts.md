@@ -5,7 +5,7 @@ tags:
   - menu
   - master-data
 status: accepted-baseline
-updated: 2026-07-27
+updated: 2026-07-29
 route: /master-data/accounts
 ---
 
@@ -27,6 +27,35 @@ route: /master-data/accounts
 ## Flow Baseline
 
 company cash/bank account master used by TRF/PMT/RCP/PRET/bank statement
+
+## Canonical Account Model
+
+บัญชีเงินบริษัทเป็น “บัญชีทรัพย์สินที่ใช้รับ/จ่ายเงินจริง” ไม่ใช่วิธีจ่าย/รับเงิน วิธีจ่าย/รับเงินยังอยู่ใน master แยกต่างหาก เพราะใช้ร่วมกับลูกค้าและ supplier เป็นตัวกรองของ use case ก่อนเลือกบัญชีปลายทาง
+
+| Field | Meaning | Rule |
+|---|---|---|
+| `account_group` | ประเภทบัญชี | `cash` เงินสด, `bank` บัญชีธนาคาร หรือ `virtual` บัญชีเจ้าหนี้เงินทดรองจ่าย |
+| `bank_account_type` | ประเภทบัญชีธนาคาร | ใช้เฉพาะ `bank`: `savings` ออมทรัพย์ หรือ `current` กระแสรายวัน |
+| `is_fcd` | บัญชีธนาคารเป็น FCD หรือไม่ | เลือกผ่าน dropdown; ใช้เฉพาะบัญชีธนาคาร และทุกกรณีต้องเลือกสกุลเงินจาก Currency Master โดย FCD ต้องเลือกสกุลเงินต่างประเทศ |
+| `currency` | สกุลเงิน legacy/หลักของบัญชี | ใช้เป็นค่า compatibility ระหว่าง migration; บัญชีธนาคารใช้ `account_currency_balances` เป็น source ของชุดสกุลเงินและยอดแยก |
+| `account_currency_balances` | ชุดสกุลเงินและยอดตั้งต้นของบัญชี | บัญชี FCD ต้องมี THB และเลือกสกุลเงินต่างประเทศเพิ่มได้หลายรายการ โดยแต่ละรายการมียอดตั้งต้นแยกกัน |
+| `od_limit` | วงเงิน OD | ใช้ได้เฉพาะบัญชีกระแสรายวันและไม่ใช่ FCD |
+| `branch_id` | สาขาบริษัทเจ้าของบัญชี | ใช้ scope บัญชีในรายการรับ/จ่ายและรายงาน |
+| `bank_branch` | สาขาของธนาคาร | เป็นข้อมูลธนาคาร ไม่ใช่สาขาบริษัท |
+
+บัญชีเจ้าหนี้เงินทดรองจ่ายเป็นบัญชีเสมือนสำหรับกรณีบุคคลออกค่าใช้จ่ายแทนบริษัทก่อน ไม่ใช่เงินสดหรือบัญชีธนาคารจริง ยอด ledger สามารถติดลบเพื่อแสดงว่าบริษัทค้างคืนผู้ทดรอง แต่หน้ารับเงินลูกค้าและหน้ารายการเดินบัญชีธนาคารจะไม่แสดงบัญชีประเภทนี้
+
+### Create Account Steps
+
+1. เลือก `ประเภทบัญชี`: เงินสด, บัญชีธนาคาร หรือ บัญชีเจ้าหนี้เงินทดรองจ่าย
+2. เลือกสาขาบริษัท ชื่อบัญชี และสกุลเงินจาก Currency Master
+3. ถ้าเป็นบัญชีเจ้าหนี้เงินทดรองจ่าย ให้กำหนดเป็นบัญชีเสมือนกลางของบริษัท ไม่ต้องเลือกผู้ทดรองจ่าย และไม่ต้องกรอกข้อมูลธนาคาร ผู้ที่ออกเงินแทนจะผูกในหน้าเงินกู้กรรมการภายหลัง
+4. ถ้าเป็นบัญชีธนาคาร ให้เลือกประเภทบัญชีธนาคารก่อน: ออมทรัพย์ หรือ กระแสรายวัน
+5. ถ้าเป็นบัญชีธนาคาร ให้เลือก FCD ผ่าน dropdown; non-FCD เลือก THB รายการเดียว ส่วน FCD ต้องเลือก THB และสกุลเงินต่างประเทศเพิ่มอย่างน้อย 1 รายการ พร้อมยอดตั้งต้นแยกแต่ละสกุล
+6. ถ้าเป็นกระแสรายวัน จึงกำหนดวงเงิน OD ได้
+7. ถ้าเป็นบัญชีธนาคาร จึงกรอกธนาคาร สาขาธนาคาร และเลขที่บัญชี
+
+เหตุผลของลำดับนี้คือให้ผู้ใช้เลือก “สิ่งที่บัญชีเป็น” ก่อน “ความสามารถของบัญชี” และทำให้หน้ารับเงิน/จ่ายเงินใช้ account master เป็นตัวกรองได้โดยไม่ผูก payment method เข้ากับบัญชีถาวร
 
 ## Page Responsibilities
 
@@ -67,6 +96,10 @@ company cash/bank account master used by TRF/PMT/RCP/PRET/bank statement
 
 - UI ใช้ business code/name เป็นหลัก ไม่ expose internal id เป็นเลขธุรกิจ
 - create/update ต้อง validate server-side ตาม field type matrix ใน `docs/design.md`
+- เงินสดต้องไม่มีประเภทบัญชีธนาคาร, FCD หรือ OD
+- บัญชีเจ้าหนี้เงินทดรองจ่ายเป็นบัญชีเสมือนกลาง ไม่ผูกผู้ทดรองจ่ายใน master บัญชี และไม่มีข้อมูลธนาคาร, FCD หรือ OD
+- FCD ต้องมีสกุลเงินต่างประเทศ; non-FCD ใช้ THB ตามโครงสร้างปัจจุบัน
+- OD เปิดให้เลือกเฉพาะบัญชีกระแสรายวัน
 - active/inactive ต้องใช้เป็น selection eligibility ใน transaction pages
 - import/export ถ้ามี ต้องใช้ validation ชุดเดียวกับ form/API
 
@@ -96,15 +129,17 @@ company cash/bank account master used by TRF/PMT/RCP/PRET/bank statement
 
 Current code uses branch-scoped account business codes. Bank statement and transaction flows resolve this code to the internal account FK; an unknown or numeric internal id is rejected rather than treated as an unfiltered request.
 
+การปรับโครงสร้างรอบนี้เพิ่ม canonical fields สำหรับแยกเงินสด/ธนาคาร, ประเภทบัญชีธนาคาร, FCD และความสามารถเช็ค โดยคง `payment_methods` เป็น master กลางของช่องทางรับ/จ่ายต่อไป ไม่ได้ทำให้ FCD transaction, FX rate หรือยอดเงินหลายสกุลเงินใน bank statement เสร็จใน batch นี้
+
 ## Implementation Checklist
 
 - [x] Current code accepted as master-data baseline
-- [ ] Verify future form changes against docs/design.md Field Input Decision Matrix
-- [ ] Verify required fields and server validation
+- [x] Verify future form changes against docs/design.md Field Input Decision Matrix
+- [x] Verify required fields and server validation
 - [ ] Verify active/inactive behavior in downstream transaction pages
 - [x] ตารางบัญชีกรองตามสาขาได้ทั้ง desktop และ mobile
 - [ ] Verify import/export if present
-- [ ] Update this page-flow when master schema changes
+- [x] Update this page-flow when master schema changes
 
 ## 2026-07-12 Table consistency checkpoint
 

@@ -53,7 +53,7 @@ async function ensurePendingCustomerReceipts(context: Awaited<ReturnType<typeof 
       tx.accounts.findFirst({
         orderBy: [{ active: 'desc' }, { id: 'asc' }],
         select: { code: true, id: true, name: true },
-        where: { active: true },
+        where: { account_group: { in: ['cash', 'bank'] }, active: true },
       }),
       tx.payment_methods.findFirst({
         orderBy: [{ active: 'desc' }, { id: 'asc' }],
@@ -336,7 +336,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      accounts,
+      accounts: accounts.filter((account) => account.accountGroup !== 'virtual'),
       branches: branchReferences.map((branch) => ({ active: true, code: branch.code, id: branch.code, name: branch.name })),
       bills: bills.map((bill) => ({
         activeReceiptDocNos: [...new Set(bill.customer_receipt_allocations

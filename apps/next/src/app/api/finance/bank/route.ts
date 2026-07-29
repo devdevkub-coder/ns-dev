@@ -126,7 +126,7 @@ export async function GET(request: Request) {
       throw new Error('ไม่พบบัญชีเงินบริษัทตามรหัสบัญชีที่ระบุ')
     }
     const allAccounts = await listActiveAccounts()
-    const accounts = allAccounts.filter((account) => !branch || account.branchCode === branch.code)
+    const accounts = allAccounts.filter((account) => account.accountGroup !== 'virtual' && (!branch || account.branchCode === branch.code))
     if (accountReference && !accounts.some((account) => account.id === accountReference.id)) {
       throw new Error('บัญชีเงินบริษัทไม่อยู่ในสาขาที่เลือกหรือไม่มีสิทธิ์ดูข้อมูล')
     }

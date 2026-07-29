@@ -1,5 +1,14 @@
 # 10 Environment Status
 
+### Company Account Classification And Reimbursement Payable 2026-07-29
+
+- Applied and recorded migration `20260729170000_restructure_company_account_classification.sql` in dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`).
+- Applied and recorded migration `20260729180000_create_account_categories_master.sql` in both environments. The form now reads account categories from `public.account_categories`; seeded categories are cash, bank, and virtual reimbursement payable.
+- Added canonical account classification fields for cash, bank, and virtual reimbursement-payable accounts, including bank type, FCD, cheque capability, and branch/currency index support. Reimbursement payable is a company-level virtual account; the person relationship will be owned by the future director-loan flow.
+- Existing account rows were classified from the current account/payment-method data; no transaction data was changed. The virtual account is excluded from Customer Receipt, bank statement, FCD ledger, and bank reconciliation account options.
+- FCD is selected as an explicit form dropdown; currency remains a Currency Master selection for both FCD and non-FCD accounts. Cheque capability was removed from the company-account model.
+- Added `account_currency_balances` for the first FCD form batch. Existing accounts were backfilled with one balance row from the legacy currency/opening balance; FCD transaction ledger migration remains a later batch.
+
 ## Current Direction
 
 ### Dev/SIT Transaction Reset 2026-07-29

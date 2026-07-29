@@ -1,8 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, type FocusEvent } from 'react'
-import { Plus } from 'lucide-react'
-import { paymentMethodGroupFromValue, resolvePaymentMethodValueForAccount } from '@/lib/account-payment-method'
+import { Plus, X } from 'lucide-react'
 import {
   accountMasterDataFormSchema,
   emptyMasterDataForm,
@@ -13,6 +12,7 @@ import {
   type MasterDataFormValues,
   type MasterDataPageConfig,
   type MasterDataRecord,
+  type AccountCurrencyBalanceValue,
 } from '@/lib/master-data'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
@@ -51,18 +51,19 @@ type MasterDataPageClientProps = {
 
 const pageSizeOptions = [10, 25, 50, 100]
 
-function paymentMethodGroupForFormValue(
-  value: string | null | undefined,
-  paymentMethods: MasterDataRecord[],
-) {
-  return paymentMethodGroupFromValue(value, paymentMethods)
+function emptyFormForConfig(config: MasterDataPageConfig): MasterDataFormValues {
+  if (config.apiPath !== '/api/master-data/accounts') return { ...emptyMasterDataForm }
+  return {
+    ...emptyMasterDataForm,
+    type: 'cash',
+    accountGroup: 'cash',
+    currency: 'THB',
+  }
 }
 
-function recordToForm(record: MasterDataRecord, paymentMethods: MasterDataRecord[]): MasterDataFormValues {
-  const paymentMethodGroup = paymentMethodGroupForFormValue(record.type, paymentMethods)
-  const normalizedSubtype = paymentMethodGroup === 'cash'
-    ? 'cash'
-    : (record.subtype ?? 'savings')
+function recordToForm(record: MasterDataRecord, _paymentMethods: MasterDataRecord[]): MasterDataFormValues {
+  const accountGroup = record.accountGroup ?? (record.type === 'cash' ? 'cash' : record.type === 'virtual' ? 'virtual' : 'bank')
+  const bankAccountType = record.bankAccountType ?? (record.subtype === 'current' ? 'current' : record.subtype === 'savings' ? 'savings' : null)
 
   return {
     id: record.id,
@@ -72,8 +73,11 @@ function recordToForm(record: MasterDataRecord, paymentMethods: MasterDataRecord
     firstName: record.firstName,
     lastName: record.lastName,
     active: record.active,
-    type: resolvePaymentMethodValueForAccount(record, paymentMethods),
-    subtype: normalizedSubtype,
+    type: accountGroup,
+    subtype: bankAccountType,
+    accountGroup,
+    bankAccountType,
+    isFcd: record.isFcd,
     phone: formatPhoneDisplay(record.phone),
     email: record.email,
     note: record.note,
@@ -90,7 +94,9 @@ function recordToForm(record: MasterDataRecord, paymentMethods: MasterDataRecord
     accountNo: record.accountNo,
     accountName: record.accountName,
     currency: record.currency,
+    accountCurrencyBalances: record.accountCurrencyBalances ?? (record.currency ? [{ currency: record.currency, openingBalance: record.openingBalance }] : []),
     openingBalance: record.openingBalance,
+    hasOd: record.hasOd ?? Boolean(record.odLimit && record.odLimit > 0),
     odLimit: record.odLimit,
     branchId: record.branchId,
     address: record.address,
@@ -192,22 +198,39 @@ function validateMasterDataForm(
       errors.name = 'ชื่อบัญชียาวเกินไป'
     }
 
-    const accountTypeGroup = paymentMethodGroupForFormValue(values.type, paymentMethodRows) ?? 'bank'
+    const accountTypeGroup = values.accountGroup
 
-    if (!values.type) {
-      hiddenFieldKeys.add('subtype')
+    if (!values.accountGroup) {
+      hiddenFieldKeys.add('bankAccountType')
       hiddenFieldKeys.add('bankName')
       hiddenFieldKeys.add('bankBranch')
       hiddenFieldKeys.add('accountNo')
+      hiddenFieldKeys.add('isFcd')
+      hiddenFieldKeys.add('accountCurrencyBalances')
+      hiddenFieldKeys.add('hasOd')
       hiddenFieldKeys.add('odLimit')
     } else if (accountTypeGroup === 'cash') {
-      hiddenFieldKeys.add('subtype')
+      hiddenFieldKeys.add('bankAccountType')
       hiddenFieldKeys.add('bankName')
       hiddenFieldKeys.add('bankBranch')
       hiddenFieldKeys.add('accountNo')
+      hiddenFieldKeys.add('isFcd')
+      hiddenFieldKeys.add('accountCurrencyBalances')
+      hiddenFieldKeys.add('hasOd')
       hiddenFieldKeys.add('odLimit')
-    } else if (accountTypeGroup === 'bank' && values.subtype !== 'od') {
+    } else if (accountTypeGroup === 'virtual') {
+      hiddenFieldKeys.add('bankAccountType')
+      hiddenFieldKeys.add('bankName')
+      hiddenFieldKeys.add('bankBranch')
+      hiddenFieldKeys.add('accountNo')
+      hiddenFieldKeys.add('isFcd')
+      hiddenFieldKeys.add('accountCurrencyBalances')
+      hiddenFieldKeys.add('hasOd')
       hiddenFieldKeys.add('odLimit')
+    } else if (accountTypeGroup === 'bank') {
+      if (values.isFcd) hiddenFieldKeys.add('currency')
+      else hiddenFieldKeys.add('accountCurrencyBalances')
+      if (values.bankAccountType !== 'current') hiddenFieldKeys.add('odLimit')
     }
   }
 
@@ -239,39 +262,41 @@ function validateMasterDataForm(
   }
 
   if (config.apiPath === '/api/master-data/accounts') {
-    const accountTypeGroup = paymentMethodGroupForFormValue(values.type, paymentMethodRows) ?? 'bank'
-    const accountSubtype = accountTypeGroup === 'cash' ? 'cash' : values.subtype
-    const currency = String(values.currency ?? '').trim().toUpperCase()
+    const accountTypeGroup = values.accountGroup
+    const accountSubtype = values.bankAccountType
     const odLimit = values.odLimit
 
-    if (!values.currency) {
+    if (accountTypeGroup !== 'bank' && !values.currency) {
       errors.currency = 'กรอกสกุลเงิน'
     }
 
     if (accountTypeGroup === 'bank' && !accountSubtype) {
-      errors.subtype = 'เลือกประเภทบัญชี'
+      errors.bankAccountType = 'เลือกประเภทบัญชีธนาคาร'
     }
 
-    if (accountSubtype === 'cash') {
+    if (accountTypeGroup === 'cash') {
       // no extra bank-account requirement
+    } else if (accountTypeGroup === 'virtual') {
     } else {
       if (!values.bankName) errors.bankName = 'เลือกธนาคาร'
       if (!values.accountNo) errors.accountNo = 'กรอกเลขที่บัญชี'
     }
 
-    if (accountSubtype === 'fcd' && currency === 'THB') {
-      errors.currency = 'บัญชี FCD ต้องใช้สกุลเงินที่ไม่ใช่ THB'
+    if (accountTypeGroup === 'bank' && !values.isFcd && !values.currency) {
+      errors.currency = 'เลือกสกุลเงิน'
     }
 
-    if ((accountSubtype === 'savings' || accountSubtype === 'current' || accountSubtype === 'od') && currency && currency !== 'THB') {
-      errors.currency = 'บัญชีประเภทนี้ต้องใช้สกุลเงิน THB'
+    if (accountTypeGroup === 'bank' && values.isFcd) {
+      const selectedCurrencies = new Set((values.accountCurrencyBalances ?? []).map((entry) => String(entry.currency ?? '').trim().toUpperCase()).filter(Boolean))
+      if (selectedCurrencies.size === 0) errors.accountCurrencyBalances = 'เลือกอย่างน้อย 1 สกุลเงิน'
+      if (!selectedCurrencies.has('THB')) errors.accountCurrencyBalances = 'บัญชีธนาคารต้องมี THB เสมอ'
+      if (values.isFcd && selectedCurrencies.size < 2) errors.accountCurrencyBalances = 'บัญชี FCD ต้องมี THB และสกุลเงินต่างประเทศอย่างน้อย 1 สกุล'
     }
 
-    if (accountSubtype === 'od') {
-      if (odLimit === null || odLimit === undefined || odLimit <= 0) {
-        errors.odLimit = 'กรอกวงเงิน OD มากกว่า 0'
-      }
+    if (values.hasOd && accountSubtype !== 'current') {
+      errors.odLimit = 'วงเงิน OD ใช้ได้เฉพาะบัญชีกระแสรายวัน'
     }
+    if (values.hasOd && (!odLimit || odLimit <= 0)) errors.odLimit = 'กรอกวงเงิน OD มากกว่า 0'
   }
 
   if (config.apiPath === '/api/master-data/directors') {
@@ -787,47 +812,76 @@ type MasterDataFormProps = {
 
 function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsActive, onCancel, onSubmit }: MasterDataFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [form, setForm] = useState<MasterDataFormValues>(() => (record ? recordToForm(record, paymentMethodRows) : emptyMasterDataForm))
+  const [form, setForm] = useState<MasterDataFormValues>(() => (record ? recordToForm(record, paymentMethodRows) : emptyFormForConfig(config)))
 
   useEffect(() => {
-    setForm(record ? recordToForm(record, paymentMethodRows) : emptyMasterDataForm)
+    setForm(record ? recordToForm(record, paymentMethodRows) : emptyFormForConfig(config))
     setErrors({})
-  }, [paymentMethodRows, record])
+  }, [config, paymentMethodRows, record])
 
   function update<K extends keyof MasterDataFormValues>(key: K, value: MasterDataFormValues[K]) {
     setForm((current) => {
       const next = { ...current, [key]: value }
+      const validationNext = next as MasterDataFormValues
       if (config.apiPath === '/api/master-data/accounts') {
-        const typedNext = next as MasterDataFormValues
-        const nextPaymentMethodGroup = paymentMethodGroupForFormValue(typedNext.type, paymentMethodRows)
-        if (key === 'type') {
-          if (nextPaymentMethodGroup === 'cash') {
-            typedNext.subtype = 'cash'
+        const typedNext = validationNext
+        if (key === 'accountGroup') {
+          if (value === 'cash') {
+            typedNext.type = 'cash'
+            typedNext.bankAccountType = null
+            typedNext.subtype = null
             typedNext.bankName = null
             typedNext.bankBranch = null
             typedNext.accountNo = null
+            typedNext.isFcd = false
             typedNext.odLimit = null
+            typedNext.accountCurrencyBalances = []
+          } else if (value === 'virtual') {
+            typedNext.type = 'virtual'
+            typedNext.subtype = 'reimbursement_payable'
+            typedNext.bankAccountType = null
+            typedNext.bankName = null
+            typedNext.bankBranch = null
+            typedNext.accountNo = null
+            typedNext.isFcd = false
+            typedNext.odLimit = null
+            typedNext.accountCurrencyBalances = []
           } else {
-            if (!typedNext.subtype || typedNext.subtype === 'cash') typedNext.subtype = 'savings'
+            typedNext.type = 'bank'
+            if (!typedNext.bankAccountType) typedNext.bankAccountType = 'savings'
+            typedNext.subtype = typedNext.bankAccountType
             if (!typedNext.currency) typedNext.currency = 'THB'
+            if (!typedNext.accountCurrencyBalances?.length) typedNext.accountCurrencyBalances = [{ currency: 'THB', openingBalance: null }]
           }
         }
-        if (key === 'subtype' && nextPaymentMethodGroup === 'bank') {
-          if (value === 'savings' || value === 'current' || value === 'fcd') {
-            if (value === 'savings' || value === 'current') {
-              typedNext.currency = 'THB'
-            }
-            if (value === 'fcd' && typedNext.currency === 'THB') {
-              typedNext.currency = null
-            }
-            if (value !== 'current') {
-              typedNext.odLimit = null
-            }
+        if (key === 'bankAccountType' && (value === 'savings' || value === 'current')) {
+          typedNext.type = 'bank'
+          typedNext.subtype = value
+          if (value !== 'current') {
+            typedNext.hasOd = false
+            typedNext.odLimit = null
           }
+        }
+        if (key === 'hasOd' && value === false) typedNext.odLimit = null
+        if (key === 'isFcd' && value === false) {
+          typedNext.currency = 'THB'
+          typedNext.accountCurrencyBalances = [{ currency: 'THB', openingBalance: null }]
+        }
+        if (key === 'isFcd' && value === true) {
+          typedNext.openingBalance = null
+        }
+        if (key === 'isFcd' && value === true && !(typedNext.accountCurrencyBalances ?? []).some((entry) => entry.currency === 'THB')) {
+          typedNext.accountCurrencyBalances = [{ currency: 'THB', openingBalance: null }, ...(typedNext.accountCurrencyBalances ?? [])]
+        }
+        if (key === 'currency' && typedNext.accountGroup === 'bank' && !typedNext.isFcd && typeof value === 'string') {
+          typedNext.accountCurrencyBalances = [{ currency: value, openingBalance: typedNext.openingBalance }]
+        }
+        if (key === 'openingBalance' && typedNext.accountGroup === 'bank' && !typedNext.isFcd) {
+          typedNext.accountCurrencyBalances = [{ currency: typedNext.currency || 'THB', openingBalance: typeof value === 'number' ? value : null }]
         }
       }
       if (Object.keys(errors).length > 0) {
-        setErrors(validateMasterDataForm(config, next, paymentMethodRows).errors)
+        setErrors(validateMasterDataForm(config, validationNext, paymentMethodRows).errors)
       }
       return next
     })
@@ -847,14 +901,19 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
 
   function isFieldVisible(field: MasterDataField) {
     if (config.apiPath === '/api/master-data/accounts') {
-      const accountTypeGroup = paymentMethodGroupForFormValue(form.type, paymentMethodRows)
-      if (!form.type && ['subtype', 'bankName', 'bankBranch', 'accountNo', 'odLimit'].includes(String(field.key))) {
+      const accountTypeGroup = form.accountGroup
+      if (!form.accountGroup && ['bankAccountType', 'bankName', 'bankBranch', 'accountNo', 'isFcd', 'accountCurrencyBalances', 'hasOd', 'odLimit'].includes(String(field.key))) {
         return false
       }
-      if (accountTypeGroup === 'cash' && ['subtype', 'bankName', 'bankBranch', 'accountNo', 'odLimit'].includes(String(field.key))) {
+      if (accountTypeGroup === 'cash' && ['bankAccountType', 'bankName', 'bankBranch', 'accountNo', 'isFcd', 'accountCurrencyBalances', 'hasOd', 'odLimit'].includes(String(field.key))) {
         return false
       }
-      if (accountTypeGroup === 'bank' && field.key === 'odLimit' && form.subtype !== 'current') {
+      if (accountTypeGroup === 'virtual' && ['bankAccountType', 'bankName', 'bankBranch', 'accountNo', 'isFcd', 'accountCurrencyBalances', 'hasOd', 'odLimit'].includes(String(field.key))) return false
+      if (accountTypeGroup === 'bank' && field.key === 'currency' && form.isFcd) return false
+      if (accountTypeGroup === 'bank' && field.key === 'accountCurrencyBalances' && !form.isFcd) return false
+      if (accountTypeGroup === 'bank' && field.key === 'openingBalance' && form.isFcd) return false
+      if (accountTypeGroup === 'bank' && field.key === 'hasOd' && form.bankAccountType !== 'current') return false
+      if (accountTypeGroup === 'bank' && field.key === 'odLimit' && (form.bankAccountType !== 'current' || !form.hasOd)) {
         return false
       }
     }
@@ -876,22 +935,27 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
 
   function renderField(field: MasterDataField) {
     return (
-      <FormField
-        key={field.key}
-        error={errors[field.key]}
-        field={field}
-        value={form[field.key] as string | number | boolean | null | undefined}
-        onChange={(value) => {
-          const normalized = field.type === 'checkbox'
-            ? value === true || value === 'true'
-            : field.key === 'availableForSale'
-            ? value === 'true'
-            : field.type === 'number'
-              ? parseNumericFieldValue(String(value))
-              : value || null
-          update(field.key, normalized as never)
-        }}
-      />
+      <div className={field.type === 'currency-balances' ? 'md:col-span-3' : undefined} key={field.key}>
+        <FormField
+          error={errors[field.key]}
+          field={field}
+          value={form[field.key] as string | number | boolean | AccountCurrencyBalanceValue[] | null | undefined}
+          onChange={(value) => {
+            const normalized = field.type === 'currency-balances'
+              ? value
+              : field.key === 'isFcd'
+              ? value === true || value === 'true'
+              : field.type === 'checkbox'
+              ? value === true || value === 'true'
+              : field.key === 'availableForSale'
+              ? value === 'true'
+              : field.type === 'number'
+                ? parseNumericFieldValue(String(value))
+                : value || null
+            update(field.key, normalized as never)
+          }}
+        />
+      </div>
     )
   }
 
@@ -918,7 +982,7 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
                 {section.title ? <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">{section.title}</h4> : null}
                 <div className="grid gap-4 md:grid-cols-3">
                   {section.fields.map(renderField)}
-                  {section.title === 'ยอดตั้งต้นและวงเงิน OD' && form.subtype === 'current' && (
+                  {section.title === 'วงเงิน OD' && form.bankAccountType === 'current' && !form.isFcd && (
                     <label className="block">
                       <span className="mb-1.5 block text-xs font-semibold text-slate-600">เงื่อนไขการใช้ OD</span>
                       <input
@@ -951,7 +1015,7 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
                   {formatNumber(typeof (record as any).realBalance === 'number' ? (record as any).realBalance : null)}
                 </div>
               </div>
-              {form.subtype === 'current' && (
+              {form.bankAccountType === 'current' && !form.isFcd && (
                 <>
                   <div className="rounded-xl border border-orange-100 bg-orange-50/50 p-4">
                     <div className="text-xs text-orange-800 font-semibold mb-1">OD ใช้ไป</div>
@@ -970,7 +1034,7 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
               <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
                 <div className="text-xs text-emerald-800 font-semibold mb-1">ยอดที่ใช้จ่ายได้</div>
                 <div className="text-lg font-bold text-emerald-900 tabular-nums">
-                  {formatNumber(form.subtype === 'current' ? (typeof (record as any).availableToPay === 'number' ? (record as any).availableToPay : null) : (typeof (record as any).realBalance === 'number' ? (record as any).realBalance : null))}
+                  {formatNumber(form.bankAccountType === 'current' ? (typeof (record as any).availableToPay === 'number' ? (record as any).availableToPay : null) : (typeof (record as any).realBalance === 'number' ? (record as any).realBalance : null))}
                 </div>
               </div>
             </div>
@@ -988,8 +1052,8 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
 type FormFieldProps = {
   error?: string
   field: MasterDataField
-  value: string | number | boolean | null | undefined
-  onChange: (value: string | boolean) => void
+  value: string | number | boolean | AccountCurrencyBalanceValue[] | null | undefined
+  onChange: (value: string | boolean | AccountCurrencyBalanceValue[]) => void
 }
 
 function FormField({ error, field, value, onChange }: FormFieldProps) {
@@ -1001,6 +1065,70 @@ function FormField({ error, field, value, onChange }: FormFieldProps) {
   const inputType = isEmailField ? 'email' : 'text'
   const inputPlaceholder = isEmailField ? 'example@company.com' : `กรอก${field.label}`
   const [draftValue, setDraftValue] = useState<string | null>(null)
+
+  if (field.type === 'currency-balances') {
+    const selected = Array.isArray(value) ? value : []
+    const options = field.options ?? []
+    return (
+      <fieldset className="p-0">
+        <legend className="mb-2 text-sm font-bold text-slate-800">{field.label}{field.required ? <span className="ml-0.5 text-red-500">*</span> : null}</legend>
+        <div className="space-y-3">
+          {selected.map((entry, index) => {
+            const availableOptions = options.filter((option) => option.value === entry.currency || !selected.some((other, otherIndex) => otherIndex !== index && other.currency === option.value))
+            return (
+              <div key={`${entry.currency}-${index}`} className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
+                <label>
+                  <span className="mb-1 block text-xs font-semibold text-slate-600">สกุลเงิน</span>
+                  <select
+                    aria-label={`สกุลเงินรายการที่ ${index + 1}`}
+                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
+                    disabled={entry.currency === 'THB'}
+                    value={entry.currency}
+                    onChange={(event) => onChange(selected.map((current, currentIndex) => currentIndex === index ? { ...current, currency: event.target.value } : current))}
+                  >
+                    <option value="">เลือกสกุลเงิน</option>
+                    {availableOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span className="mb-1 block text-xs font-semibold text-slate-600">ยอดตั้งต้น</span>
+                  <CurrencyBalanceMoneyInput
+                    ariaLabel={`ยอดตั้งต้นรายการที่ ${index + 1}`}
+                    value={entry.openingBalance}
+                    onChange={(openingBalance) => onChange(selected.map((current, currentIndex) => currentIndex === index ? { ...current, openingBalance } : current))}
+                  />
+                </label>
+                {entry.currency !== 'THB' ? (
+                  <button
+                    aria-label="ลบสกุลเงิน"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-red-600"
+                    title="ลบสกุลเงิน"
+                    type="button"
+                    onClick={() => onChange(selected.filter((_, currentIndex) => currentIndex !== index))}
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                ) : <span className="hidden h-10 w-10 md:block" />}
+              </div>
+            )
+          })}
+        </div>
+        <div className="mt-3">
+          <button
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-blue-600 px-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+            type="button"
+            onClick={() => {
+              onChange([...selected, { currency: '', openingBalance: null }])
+            }}
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            เพิ่มสกุลเงิน
+          </button>
+        </div>
+        {error ? <p className="mt-2 text-xs text-red-700">{error}</p> : null}
+      </fieldset>
+    )
+}
 
   if (field.type === 'select') {
     return (
@@ -1102,6 +1230,45 @@ function FormField({ error, field, value, onChange }: FormFieldProps) {
       )}
       {error ? <span className="mt-1 block text-xs text-red-700">{error}</span> : null}
     </label>
+  )
+}
+
+function CurrencyBalanceMoneyInput({ ariaLabel, onChange, value }: { ariaLabel: string; onChange: (value: number | null) => void; value: number | null }) {
+  const [draftValue, setDraftValue] = useState<string | null>(null)
+  return (
+    <input
+      aria-label={ariaLabel}
+      className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-right text-sm outline-none transition-all focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+      inputMode="decimal"
+      placeholder="0.00"
+      type="text"
+      value={draftValue ?? formatDecimalDisplay(value, 2)}
+      onBlur={(event) => {
+        const nextValue = sanitizeDecimalInput(event.target.value, 2)
+        if (!nextValue.trim() || nextValue.trim() === '.') {
+          setDraftValue(null)
+          onChange(null)
+          return
+        }
+        const parsed = Number(nextValue)
+        if (!Number.isFinite(parsed)) return
+        setDraftValue(null)
+        onChange(Number(parsed.toFixed(2)))
+      }}
+      onChange={(event) => {
+        const nextValue = sanitizeDecimalInput(event.target.value, 2)
+        setDraftValue(nextValue)
+        const parsed = Number(nextValue)
+        onChange(nextValue.trim() && Number.isFinite(parsed) ? parsed : null)
+      }}
+      onFocus={(event) => {
+        setDraftValue(value === null ? '' : formatDecimalDraft(value, 2))
+        requestAnimationFrame(() => {
+          const end = event.target.value.length
+          event.target.setSelectionRange(end, end)
+        })
+      }}
+    />
   )
 }
 

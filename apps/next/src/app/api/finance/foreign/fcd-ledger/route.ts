@@ -70,7 +70,7 @@ export async function GET(request: Request) {
 
     const accounts = allAccounts.filter((account: AccountReferenceRecord) => {
       const currency = displayCurrency(account.currency)
-      return account.type === 'FCD' || (currency !== 'THB' && currency.length > 0)
+      return account.accountGroup === 'bank' && (account.isFcd || (currency !== 'THB' && currency.length > 0))
     })
     const selectedAccount = accounts.find((account: AccountReferenceRecord) => account.id === internalAccountId) ?? accounts[0] ?? null
 

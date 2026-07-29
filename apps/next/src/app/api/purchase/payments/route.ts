@@ -670,7 +670,7 @@ export async function POST(request: Request) {
     const allAccounts = await listDailyAccounts()
     for (const split of paymentSplits) {
       const account = allAccounts.find((a: (typeof allAccounts)[number]) => a.id === split.accountId)
-      if (account) {
+      if (account && account.accountGroup !== 'virtual') {
         const splitAmount = toNumber(split.amount)
         const available = (account.balance ?? 0) + (account.subtype === 'current' ? (account.odLimit ?? 0) : 0)
         if (splitAmount > available + 0.01) {

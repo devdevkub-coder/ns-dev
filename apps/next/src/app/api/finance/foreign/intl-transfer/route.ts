@@ -61,7 +61,7 @@ export async function GET(request: Request) {
         writeBehavior: 'read_form_only_no_bank_statement_mutation',
       },
       filters: {
-        accounts: accounts.map((account: AccountReferenceRecord) => ({
+        accounts: accounts.filter((account: AccountReferenceRecord) => account.accountGroup !== 'virtual').map((account: AccountReferenceRecord) => ({
           code: account.code,
           currency: (account.currency || 'THB').toUpperCase(),
           id: account.code,

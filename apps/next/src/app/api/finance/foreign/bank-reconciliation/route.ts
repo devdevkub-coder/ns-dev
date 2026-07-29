@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const from = url.searchParams.get('from')
     const to = url.searchParams.get('to')
 
-    const accounts = await listActiveAccounts()
+    const accounts = (await listActiveAccounts()).filter((account) => account.accountGroup !== 'virtual')
     const selectedAccount = accounts.find((account) => account.id === internalAccountId) ?? accounts[0] ?? null
 
     const erpRows = selectedAccount ? await prisma.bank_statement.findMany({

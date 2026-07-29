@@ -505,6 +505,9 @@ model webauthn_credentials {
 model accounts {
   name                                          String
   type                                          String
+  account_group                                 String                      @default("bank")
+  bank_account_type                             String?
+  is_fcd                                        Boolean                     @default(false)
   bank_name                                     String?
   account_no                                    String?
   currency                                      String?                     @default("THB")
@@ -522,6 +525,8 @@ model accounts {
   code                                          String                      @unique
   id                                            BigInt                      @id @default(autoincrement())
   branches                                      branches?                   @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  account_categories                            account_categories?         @relation(fields: [account_group], references: [code], onDelete: NoAction, onUpdate: NoAction)
+  account_currency_balances                     account_currency_balances[]
   bank_statement                                bank_statement[]
   customer_receipts                             customer_receipts[]
   expenses                                      expenses[]
@@ -536,6 +541,23 @@ model accounts {
   transfers_transfers_from_account_idToaccounts transfers[]                 @relation("transfers_from_account_idToaccounts")
   transfers_transfers_to_account_idToaccounts   transfers[]                 @relation("transfers_to_account_idToaccounts")
 
+  @@index([branch_id, account_group, currency], map: "idx_accounts_branch_group_currency")
+  @@schema("public")
+}
+
+model account_currency_balances {
+  account_id      BigInt
+  currency_code   String
+  opening_balance Decimal   @default(0) @db.Decimal
+  active          Boolean   @default(true)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+  id              BigInt    @id @default(autoincrement())
+  accounts        accounts  @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  currencies      currencies @relation(fields: [currency_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([account_id, currency_code], map: "uq_account_currency_balances_account_currency")
+  @@index([currency_code], map: "idx_account_currency_balances_currency")
   @@schema("public")
 }
 
@@ -702,6 +724,21 @@ model account_subtypes {
   @@schema("public")
 }
 
+model account_categories {
+  code                  String    @unique
+  name                  String
+  account_group         String
+  active                Boolean   @default(true)
+  sort_order            Int       @default(0)
+  created_at            DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime  @default(now()) @db.Timestamptz(6)
+  accounts              accounts[]
+  id                    BigInt    @id @default(autoincrement())
+
+  @@index([active, sort_order], map: "idx_account_categories_active_sort")
+  @@schema("public")
+}
+
 model bill_swap_history {
   bill_id            BigInt
   swap_date          DateTime? @default(now()) @db.Timestamptz(6)
@@ -774,6 +811,7 @@ model currencies {
   code              String              @unique
   id                BigInt              @id @default(autoincrement())
   customer_advances customer_advances[]
+  account_currency_balances account_currency_balances[]
 
   @@schema("public")
 }

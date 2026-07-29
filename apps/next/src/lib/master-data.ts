@@ -96,9 +96,14 @@ export const masterDataRecordSchema = z.object({
   bankName: nullableString,
   bankBranch: nullableString,
   accountNo: nullableString,
+  accountGroup: nullableString,
+  bankAccountType: nullableString,
+  isFcd: z.boolean().default(false),
   accountName: nullableString,
   currency: nullableString,
+  accountCurrencyBalances: z.array(z.object({ currency: z.string(), openingBalance: nullableNumber })).default([]),
   openingBalance: nullableNumber,
+  hasOd: z.boolean().default(false),
   odLimit: nullableNumber,
   realBalance: nullableNumber,
   odUsed: nullableNumber,
@@ -161,9 +166,14 @@ export const masterDataFormSchema = masterDataRecordSchema
     bankName: true,
     bankBranch: true,
     accountNo: true,
+    accountGroup: true,
+    bankAccountType: true,
+    isFcd: true,
     accountName: true,
     currency: true,
+    accountCurrencyBalances: true,
     openingBalance: true,
+    hasOd: true,
     odLimit: true,
     branchId: true,
     address: true,
@@ -246,8 +256,9 @@ export const accountMasterDataFormSchema = masterDataFormSchema.extend({
 })
 
 export type MasterDataFormValues = z.infer<typeof masterDataFormSchema>
+export type AccountCurrencyBalanceValue = { currency: string; openingBalance: number | null }
 
-export type MasterDataFieldType = 'text' | 'number' | 'select' | 'checkbox'
+export type MasterDataFieldType = 'text' | 'number' | 'select' | 'checkbox' | 'currency-balances'
 export type MasterDataFieldInputFormat = 'money'
 
 export type MasterDataField = {
@@ -307,9 +318,14 @@ export const emptyMasterDataForm: MasterDataFormValues = {
   bankName: null,
   bankBranch: null,
   accountNo: null,
+  accountGroup: null,
+  bankAccountType: null,
+  isFcd: false,
   accountName: null,
   currency: null,
+  accountCurrencyBalances: [],
   openingBalance: null,
+  hasOd: false,
   odLimit: null,
   branchId: null,
   address: null,

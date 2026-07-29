@@ -147,14 +147,17 @@ type BankNameDbRow = {
 }
 
 type AccountReferenceDbRow = {
+  account_group: string | null
   active: boolean | null
   account_no: string | null
   bank: string | null
   bank_name: string | null
+  bank_account_type: string | null
   branches: { code: string; id: bigint; name: string } | null
   code: string
   currency: string | null
   id: bigint
+  is_fcd: boolean
   name: string
   od_limit: { toString: () => string } | number | null
   opening_balance: { toString: () => string } | number | null
@@ -329,16 +332,19 @@ type CachedBankNameRecord = {
 }
 
 type CachedAccountReferenceRecord = {
+  accountGroup: string | null
   active: boolean
   accountNo: string | null
   bank: string | null
   bankName: string | null
+  bankAccountType: string | null
   branchCode: string | null
   branchId: string | null
   branchName: string | null
   code: string
   currency: string | null
   id: string
+  isFcd: boolean
   name: string
   odLimit: string | null
   openingBalance: string | null
@@ -616,16 +622,19 @@ export type BankNameReferenceRecord = {
 }
 
 export type AccountReferenceRecord = {
+  accountGroup: string | null
   active: boolean
   accountNo: string | null
   bank: string | null
   bankName: string | null
+  bankAccountType: string | null
   branchCode: string | null
   branchId: bigint | null
   branchName: string | null
   code: string
   currency: string | null
   id: bigint
+  isFcd: boolean
   name: string
   odLimit: string | null
   openingBalance: string | null
@@ -1108,16 +1117,19 @@ function hydrateBankNameRecord(row: CachedBankNameRecord): BankNameReferenceReco
 
 function hydrateAccountReferenceRecord(row: CachedAccountReferenceRecord): AccountReferenceRecord {
   return {
+    accountGroup: row.accountGroup ?? null,
     active: row.active,
     accountNo: row.accountNo ?? null,
     bank: row.bank ?? null,
     bankName: row.bankName ?? null,
+    bankAccountType: row.bankAccountType ?? null,
     branchCode: row.branchCode ?? null,
     branchId: row.branchId ? BigInt(row.branchId) : null,
     branchName: row.branchName ?? null,
     code: row.code,
     currency: row.currency ?? null,
     id: BigInt(row.id),
+    isFcd: row.isFcd ?? false,
     name: row.name,
     odLimit: row.odLimit ?? null,
     openingBalance: row.openingBalance ?? null,
@@ -1333,16 +1345,19 @@ function dehydrateBankNameRecord(row: BankNameReferenceRecord): CachedBankNameRe
 
 function dehydrateAccountReferenceRecord(row: AccountReferenceRecord): CachedAccountReferenceRecord {
   return {
+    accountGroup: row.accountGroup ?? null,
     active: row.active,
     accountNo: row.accountNo ?? null,
     bank: row.bank ?? null,
     bankName: row.bankName ?? null,
+    bankAccountType: row.bankAccountType ?? null,
     branchCode: row.branchCode ?? null,
     branchId: row.branchId?.toString() ?? null,
     branchName: row.branchName ?? null,
     code: row.code,
     currency: row.currency ?? null,
     id: row.id.toString(),
+    isFcd: row.isFcd ?? false,
     name: row.name,
     odLimit: row.odLimit ?? null,
     openingBalance: row.openingBalance ?? null,
@@ -1899,14 +1914,17 @@ async function listAccountReferences(where: Prisma.accountsWhereInput | undefine
       const rows: AccountReferenceDbRow[] = await prisma.accounts.findMany({
         orderBy: [{ name: 'asc' }, { account_no: 'asc' }],
         select: {
+          account_group: true,
           active: true,
           account_no: true,
           bank: true,
           bank_name: true,
+          bank_account_type: true,
           branches: { select: { code: true, id: true, name: true } },
           code: true,
           currency: true,
           id: true,
+          is_fcd: true,
           name: true,
           od_limit: true,
           opening_balance: true,
@@ -1916,16 +1934,19 @@ async function listAccountReferences(where: Prisma.accountsWhereInput | undefine
         where,
       })
       return rows.map((row) => ({
+        accountGroup: row.account_group ?? null,
         active: row.active ?? true,
         accountNo: row.account_no ?? null,
         bank: row.bank ?? null,
         bankName: row.bank_name ?? null,
+        bankAccountType: row.bank_account_type ?? null,
         branchCode: row.branches?.code ?? null,
         branchId: row.branches?.id ?? null,
         branchName: row.branches?.name ?? null,
         code: requireBusinessCode(row.code, `บัญชีเงิน ${row.id}`),
         currency: row.currency ?? null,
         id: row.id,
+        isFcd: row.is_fcd ?? false,
         name: row.name,
         odLimit: row.od_limit?.toString() ?? null,
         openingBalance: row.opening_balance?.toString() ?? null,
