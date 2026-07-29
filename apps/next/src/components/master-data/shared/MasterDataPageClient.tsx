@@ -62,8 +62,12 @@ function emptyFormForConfig(config: MasterDataPageConfig): MasterDataFormValues 
 }
 
 function recordToForm(record: MasterDataRecord, _paymentMethods: MasterDataRecord[]): MasterDataFormValues {
-  const accountGroup = record.accountGroup ?? (record.type === 'cash' ? 'cash' : record.type === 'virtual' ? 'virtual' : 'bank')
-  const bankAccountType = record.bankAccountType ?? (record.subtype === 'current' ? 'current' : record.subtype === 'savings' ? 'savings' : null)
+  const isCompanyAccount = record.accountGroup === 'cash' || record.accountGroup === 'bank' || record.accountGroup === 'virtual'
+  const accountGroup = isCompanyAccount ? record.accountGroup : null
+  const bankAccountType = isCompanyAccount ? record.bankAccountType : null
+  const primaryCurrency = record.currency
+  const currencyBalances = record.accountCurrencyBalances ?? []
+  const primaryBalance = currencyBalances.find((entry) => entry.currency === primaryCurrency)?.openingBalance ?? record.openingBalance
 
   return {
     id: record.id,
@@ -73,8 +77,8 @@ function recordToForm(record: MasterDataRecord, _paymentMethods: MasterDataRecor
     firstName: record.firstName,
     lastName: record.lastName,
     active: record.active,
-    type: accountGroup,
-    subtype: bankAccountType,
+    type: isCompanyAccount ? accountGroup : record.type,
+    subtype: isCompanyAccount ? bankAccountType : record.subtype,
     accountGroup,
     bankAccountType,
     isFcd: record.isFcd,
@@ -93,9 +97,9 @@ function recordToForm(record: MasterDataRecord, _paymentMethods: MasterDataRecor
     bankBranch: record.bankBranch,
     accountNo: record.accountNo,
     accountName: record.accountName,
-    currency: record.currency,
-    accountCurrencyBalances: record.accountCurrencyBalances ?? (record.currency ? [{ currency: record.currency, openingBalance: record.openingBalance }] : []),
-    openingBalance: record.openingBalance,
+    currency: primaryCurrency,
+    accountCurrencyBalances: currencyBalances.filter((entry) => entry.currency !== primaryCurrency),
+    openingBalance: primaryBalance,
     hasOd: record.hasOd ?? Boolean(record.odLimit && record.odLimit > 0),
     odLimit: record.odLimit,
     branchId: record.branchId,
@@ -228,8 +232,7 @@ function validateMasterDataForm(
       hiddenFieldKeys.add('hasOd')
       hiddenFieldKeys.add('odLimit')
     } else if (accountTypeGroup === 'bank') {
-      if (values.isFcd) hiddenFieldKeys.add('currency')
-      else hiddenFieldKeys.add('accountCurrencyBalances')
+      if (!values.isFcd) hiddenFieldKeys.add('accountCurrencyBalances')
       if (values.bankAccountType !== 'current') hiddenFieldKeys.add('odLimit')
     }
   }
@@ -266,7 +269,7 @@ function validateMasterDataForm(
     const accountSubtype = values.bankAccountType
     const odLimit = values.odLimit
 
-    if (accountTypeGroup !== 'bank' && !values.currency) {
+    if (!values.currency) {
       errors.currency = 'กรอกสกุลเงิน'
     }
 
@@ -287,10 +290,12 @@ function validateMasterDataForm(
     }
 
     if (accountTypeGroup === 'bank' && values.isFcd) {
-      const selectedCurrencies = new Set((values.accountCurrencyBalances ?? []).map((entry) => String(entry.currency ?? '').trim().toUpperCase()).filter(Boolean))
-      if (selectedCurrencies.size === 0) errors.accountCurrencyBalances = 'เลือกอย่างน้อย 1 สกุลเงิน'
-      if (!selectedCurrencies.has('THB')) errors.accountCurrencyBalances = 'บัญชีธนาคารต้องมี THB เสมอ'
-      if (values.isFcd && selectedCurrencies.size < 2) errors.accountCurrencyBalances = 'บัญชี FCD ต้องมี THB และสกุลเงินต่างประเทศอย่างน้อย 1 สกุล'
+      const additionalBalances = values.accountCurrencyBalances ?? []
+      const selectedCurrencies = new Set(additionalBalances.map((entry) => String(entry.currency ?? '').trim().toUpperCase()).filter(Boolean))
+      const primaryCurrency = String(values.currency ?? '').trim().toUpperCase()
+      if (selectedCurrencies.size === 0) errors.accountCurrencyBalances = 'เพิ่มสกุลเงินอย่างน้อย 1 สกุล'
+      if (additionalBalances.some((entry) => !String(entry.currency ?? '').trim())) errors.accountCurrencyBalances = 'เลือกสกุลเงินเพิ่มเติมให้ครบทุกแถว'
+      if (primaryCurrency && selectedCurrencies.has(primaryCurrency)) errors.accountCurrencyBalances = 'สกุลเงินเพิ่มเติมต้องไม่ซ้ำกับสกุลเงินหลัก'
       if ((values.accountCurrencyBalances ?? []).some((entry) => entry.openingBalance !== null && entry.openingBalance < 0)) errors.accountCurrencyBalances = 'ยอดตั้งต้นบัญชีธนาคารต้องไม่ติดลบ'
     }
 
@@ -337,6 +342,9 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
   const [sortKey, setSortKey] = useState<SortKey>(config.columns[0]?.key ?? 'code')
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [branchFilter, setBranchFilter] = useState('')
+  const [accountGroupFilter, setAccountGroupFilter] = useState('')
+  const [fcdFilter, setFcdFilter] = useState<'all' | 'fcd' | 'non-fcd'>('all')
+  const [currencyFilter, setCurrencyFilter] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const resizableColumns = useMemo<Array<ResizableColumnDefinition<TableColumnKey>>>(() => ([
     ...config.columns.map((column) => ({
@@ -394,6 +402,13 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
     const query = search.trim().toLowerCase()
     const rows = records.filter((record) => {
       if (config.apiPath === '/api/master-data/accounts' && branchFilter && record.branchId !== branchFilter) return false
+      if (config.apiPath === '/api/master-data/accounts' && accountGroupFilter && record.accountGroup !== accountGroupFilter) return false
+      if (config.apiPath === '/api/master-data/accounts' && fcdFilter === 'fcd' && !record.isFcd) return false
+      if (config.apiPath === '/api/master-data/accounts' && fcdFilter === 'non-fcd' && record.isFcd) return false
+      if (config.apiPath === '/api/master-data/accounts' && currencyFilter) {
+        const currencies = record.accountCurrencyBalances.map((entry) => entry.currency)
+        if (!currencies.includes(currencyFilter) && record.currency !== currencyFilter) return false
+      }
       if (config.supportsActive !== false) {
         if (activeFilter === 'active' && !record.active) return false
         if (activeFilter === 'inactive' && record.active) return false
@@ -405,7 +420,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
     })
 
     return [...rows].sort((left, right) => compareRecords(left, right, sortKey, sortDirection))
-  }, [records, search, sortDirection, sortKey, activeFilter, branchFilter, config.apiPath, config.supportsActive])
+  }, [records, search, sortDirection, sortKey, activeFilter, branchFilter, accountGroupFilter, fcdFilter, currencyFilter, config.apiPath, config.supportsActive])
 
   const total = filteredRecords.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -417,18 +432,23 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
 
   useEffect(() => {
     setPage(1)
-  }, [search, activeFilter, branchFilter, pageSize])
+  }, [search, activeFilter, branchFilter, accountGroupFilter, fcdFilter, currencyFilter, pageSize])
 
-  const hasFilters = Boolean(search.trim() || branchFilter || (config.supportsActive !== false && activeFilter !== 'all'))
+  const hasFilters = Boolean(search.trim() || branchFilter || accountGroupFilter || fcdFilter !== 'all' || currencyFilter || (config.supportsActive !== false && activeFilter !== 'all'))
   const resetFilters = useCallback(() => {
     setSearch('')
     setActiveFilter('all')
     setBranchFilter('')
+    setAccountGroupFilter('')
+    setFcdFilter('all')
+    setCurrencyFilter('')
     setPage(1)
   }, [])
 
   const isAccountsPage = config.apiPath === '/api/master-data/accounts'
   const branchOptions = fieldOptions.branchId ?? []
+  const accountGroupOptions = fieldOptions.accountGroup ?? []
+  const currencyOptions = fieldOptions.currency ?? []
 
   function openCreateForm() {
     setSelectedRecord(null)
@@ -504,10 +524,25 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
             }}
           />
           {isAccountsPage ? (
-            <Select className="h-9 w-56 text-sm" value={branchFilter} onChange={(event) => { setBranchFilter(event.target.value); setPage(1) }}>
-              <option value="">ทุกสาขา</option>
-              {branchOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </Select>
+            <>
+              <Select className="h-9 w-48 text-sm" value={branchFilter} onChange={(event) => { setBranchFilter(event.target.value); setPage(1) }}>
+                <option value="">ทุกสาขา</option>
+                {branchOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </Select>
+              <Select className="h-9 w-44 text-sm" value={accountGroupFilter} onChange={(event) => setAccountGroupFilter(event.target.value)}>
+                <option value="">ทุกประเภทบัญชี</option>
+                {accountGroupOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </Select>
+              <Select className="h-9 w-36 text-sm" value={fcdFilter} onChange={(event) => setFcdFilter(event.target.value as 'all' | 'fcd' | 'non-fcd')}>
+                <option value="all">FCD ทั้งหมด</option>
+                <option value="fcd">บัญชี FCD</option>
+                <option value="non-fcd">ไม่ใช่ FCD</option>
+              </Select>
+              <Select className="h-9 w-36 text-sm" value={currencyFilter} onChange={(event) => setCurrencyFilter(event.target.value)}>
+                <option value="">ทุกสกุลเงิน</option>
+                {currencyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </Select>
+            </>
           ) : null}
           {hasFilters ? (
             <button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none" type="button" onClick={resetFilters}>
@@ -562,7 +597,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
               className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none"
               onClick={() => setShowMobileFilters(true)}
             >
-              ตัวกรอง {activeFilter !== 'all' || branchFilter ? '(มี)' : ''}
+              ตัวกรอง {activeFilter !== 'all' || branchFilter || accountGroupFilter || fcdFilter !== 'all' || currencyFilter ? '(มี)' : ''}
             </button>
           ) : null}
         </div>
@@ -609,12 +644,36 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
         >
               <div>
                 {isAccountsPage ? (
-                  <div className="mb-4">
-                    <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
-                    <Select className="h-10 w-full text-sm" value={branchFilter} onChange={(event) => { setBranchFilter(event.target.value); setPage(1) }}>
-                      <option value="">ทุกสาขา</option>
-                      {branchOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                    </Select>
+                  <div className="mb-4 grid grid-cols-1 gap-4">
+                    <div>
+                      <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
+                      <Select className="h-10 w-full text-sm" value={branchFilter} onChange={(event) => { setBranchFilter(event.target.value); setPage(1) }}>
+                        <option value="">ทุกสาขา</option>
+                        {branchOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </Select>
+                    </div>
+                    <div>
+                      <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภทบัญชี</span>
+                      <Select className="h-10 w-full text-sm" value={accountGroupFilter} onChange={(event) => setAccountGroupFilter(event.target.value)}>
+                        <option value="">ทุกประเภทบัญชี</option>
+                        {accountGroupOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </Select>
+                    </div>
+                    <div>
+                      <span className="mb-1 block text-xs font-semibold text-slate-600">FCD</span>
+                      <Select className="h-10 w-full text-sm" value={fcdFilter} onChange={(event) => setFcdFilter(event.target.value as 'all' | 'fcd' | 'non-fcd')}>
+                        <option value="all">ทั้งหมด</option>
+                        <option value="fcd">บัญชี FCD</option>
+                        <option value="non-fcd">ไม่ใช่บัญชี FCD</option>
+                      </Select>
+                    </div>
+                    <div>
+                      <span className="mb-1 block text-xs font-semibold text-slate-600">สกุลเงิน</span>
+                      <Select className="h-10 w-full text-sm" value={currencyFilter} onChange={(event) => setCurrencyFilter(event.target.value)}>
+                        <option value="">ทุกสกุลเงิน</option>
+                        {currencyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </Select>
+                    </div>
                   </div>
                 ) : null}
                 <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะการใช้งาน</span>
@@ -856,7 +915,6 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
             if (!typedNext.bankAccountType) typedNext.bankAccountType = 'savings'
             typedNext.subtype = typedNext.bankAccountType
             if (!typedNext.currency) typedNext.currency = 'THB'
-            if (!typedNext.accountCurrencyBalances?.length) typedNext.accountCurrencyBalances = [{ currency: 'THB', openingBalance: null }]
           }
         }
         if (key === 'bankAccountType' && (value === 'savings' || value === 'current')) {
@@ -869,20 +927,10 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
         }
         if (key === 'hasOd' && value === false) typedNext.odLimit = null
         if (key === 'isFcd' && value === false) {
-          typedNext.currency = 'THB'
-          typedNext.accountCurrencyBalances = [{ currency: 'THB', openingBalance: null }]
+          typedNext.accountCurrencyBalances = []
         }
-        if (key === 'isFcd' && value === true) {
-          typedNext.openingBalance = null
-        }
-        if (key === 'isFcd' && value === true && !(typedNext.accountCurrencyBalances ?? []).some((entry) => entry.currency === 'THB')) {
-          typedNext.accountCurrencyBalances = [{ currency: 'THB', openingBalance: null }, ...(typedNext.accountCurrencyBalances ?? [])]
-        }
-        if (key === 'currency' && typedNext.accountGroup === 'bank' && !typedNext.isFcd && typeof value === 'string') {
-          typedNext.accountCurrencyBalances = [{ currency: value, openingBalance: typedNext.openingBalance }]
-        }
-        if (key === 'openingBalance' && typedNext.accountGroup === 'bank' && !typedNext.isFcd) {
-          typedNext.accountCurrencyBalances = [{ currency: typedNext.currency || 'THB', openingBalance: typeof value === 'number' ? value : null }]
+        if (key === 'currency' && typeof value === 'string') {
+          typedNext.accountCurrencyBalances = (typedNext.accountCurrencyBalances ?? []).filter((entry) => entry.currency !== value)
         }
       }
       if (Object.keys(errors).length > 0) {
@@ -914,9 +962,7 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
         return false
       }
       if (accountTypeGroup === 'virtual' && ['bankAccountType', 'bankName', 'bankBranch', 'accountNo', 'isFcd', 'accountCurrencyBalances', 'hasOd', 'odLimit'].includes(String(field.key))) return false
-      if (accountTypeGroup === 'bank' && field.key === 'currency' && form.isFcd) return false
       if (accountTypeGroup === 'bank' && field.key === 'accountCurrencyBalances' && !form.isFcd) return false
-      if (accountTypeGroup === 'bank' && field.key === 'openingBalance' && form.isFcd) return false
       if (accountTypeGroup === 'bank' && field.key === 'hasOd' && form.bankAccountType !== 'current') return false
       if (accountTypeGroup === 'bank' && field.key === 'odLimit' && (form.bankAccountType !== 'current' || !form.hasOd)) {
         return false
@@ -944,6 +990,7 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
         <FormField
           error={errors[field.key]}
           field={field}
+          excludedCurrency={field.type === 'currency-balances' ? form.currency : null}
           value={form[field.key] as string | number | boolean | AccountCurrencyBalanceValue[] | null | undefined}
           onChange={(value) => {
             const normalized = field.type === 'currency-balances'
@@ -983,23 +1030,12 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
         {hasFieldSections ? (
           <div className="space-y-5">
             {fieldSections.map((section, index) => (
-              <section key={`${section.title ?? 'default'}-${index}`} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-                {section.title ? <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">{section.title}</h4> : null}
-                <div className="grid gap-4 md:grid-cols-3">
-                  {section.fields.map(renderField)}
-                  {section.title === 'วงเงิน OD' && form.bankAccountType === 'current' && !form.isFcd && (
-                    <label className="block">
-                      <span className="mb-1.5 block text-xs font-semibold text-slate-600">เงื่อนไขการใช้ OD</span>
-                      <input
-                        className="w-full h-10 rounded-md border px-3 py-2 text-sm outline-none bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed"
-                        disabled
-                        type="text"
-                        value="ใช้เงินคงเหลือปกติก่อน แล้วค่อยใช้ OD"
-                      />
-                    </label>
-                  )}
-                </div>
-              </section>
+                  <section key={`${section.title ?? 'default'}-${index}`} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                    {section.title ? <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">{section.title}</h4> : null}
+                    <div className="grid gap-4 md:grid-cols-3">
+                      {section.fields.map(renderField)}
+                    </div>
+                  </section>
             ))}
           </div>
         ) : (
@@ -1009,45 +1045,6 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
             </div>
           </div>
         )}
-
-        {config.apiPath === '/api/master-data/accounts' && record && (
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">ข้อมูลคำนวณจาก Bank Statement (อ่านอย่างเดียว)</h4>
-            <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
-                <div className="text-xs text-emerald-800 font-semibold mb-1">ยอดคงเหลือจริง</div>
-                <div className="text-lg font-bold text-emerald-900 tabular-nums">
-                  {formatNumber(typeof (record as any).realBalance === 'number' ? (record as any).realBalance : null)}
-                </div>
-              </div>
-              {form.bankAccountType === 'current' && !form.isFcd && (
-                <>
-                  <div className="rounded-xl border border-orange-100 bg-orange-50/50 p-4">
-                    <div className="text-xs text-orange-800 font-semibold mb-1">OD ใช้ไป</div>
-                    <div className="text-lg font-bold text-orange-900 tabular-nums">
-                      {formatNumber(typeof (record as any).odUsed === 'number' ? (record as any).odUsed : null)}
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
-                    <div className="text-xs text-emerald-800 font-semibold mb-1">OD คงเหลือ</div>
-                    <div className="text-lg font-bold text-emerald-900 tabular-nums">
-                      {formatNumber(typeof (record as any).odRemaining === 'number' ? (record as any).odRemaining : null)}
-                    </div>
-                  </div>
-                </>
-              )}
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
-                <div className="text-xs text-emerald-800 font-semibold mb-1">ยอดที่ใช้จ่ายได้</div>
-                <div className="text-lg font-bold text-emerald-900 tabular-nums">
-                  {formatNumber(form.bankAccountType === 'current' ? (typeof (record as any).availableToPay === 'number' ? (record as any).availableToPay : null) : (typeof (record as any).realBalance === 'number' ? (record as any).realBalance : null))}
-                </div>
-              </div>
-            </div>
-            <div className="text-xs text-slate-500 italic mt-1.5">
-              สูตร: ยอดที่ใช้จ่ายได้ = ยอดคงเหลือจริง + วงเงิน OD
-            </div>
-          </section>
-        )}
       </div>
 
     </form>
@@ -1056,12 +1053,13 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
 
 type FormFieldProps = {
   error?: string
+  excludedCurrency?: string | null
   field: MasterDataField
   value: string | number | boolean | AccountCurrencyBalanceValue[] | null | undefined
   onChange: (value: string | boolean | AccountCurrencyBalanceValue[]) => void
 }
 
-function FormField({ error, field, value, onChange }: FormFieldProps) {
+function FormField({ error, excludedCurrency, field, value, onChange }: FormFieldProps) {
   const isEmailField = field.key === 'email'
   const isPhoneField = field.key === 'phone'
   const isAccountNoField = field.key === 'accountNo'
@@ -1079,7 +1077,10 @@ function FormField({ error, field, value, onChange }: FormFieldProps) {
         <legend className="mb-2 text-sm font-bold text-slate-800">{field.label}{field.required ? <span className="ml-0.5 text-red-500">*</span> : null}</legend>
         <div className="space-y-3">
           {selected.map((entry, index) => {
-            const availableOptions = options.filter((option) => option.value === entry.currency || !selected.some((other, otherIndex) => otherIndex !== index && other.currency === option.value))
+            const availableOptions = options.filter((option) => (
+              option.value !== excludedCurrency
+              && (option.value === entry.currency || !selected.some((other, otherIndex) => otherIndex !== index && other.currency === option.value))
+            ))
             return (
               <div key={`${entry.currency}-${index}`} className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
                 <label>
@@ -1087,7 +1088,6 @@ function FormField({ error, field, value, onChange }: FormFieldProps) {
                   <select
                     aria-label={`สกุลเงินรายการที่ ${index + 1}`}
                     className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
-                    disabled={entry.currency === 'THB'}
                     value={entry.currency}
                     onChange={(event) => onChange(selected.map((current, currentIndex) => currentIndex === index ? { ...current, currency: event.target.value } : current))}
                   >
@@ -1103,8 +1103,7 @@ function FormField({ error, field, value, onChange }: FormFieldProps) {
                     onChange={(openingBalance) => onChange(selected.map((current, currentIndex) => currentIndex === index ? { ...current, openingBalance } : current))}
                   />
                 </label>
-                {entry.currency !== 'THB' ? (
-                  <button
+                <button
                     aria-label="ลบสกุลเงิน"
                     className="inline-flex h-10 w-10 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-red-600"
                     title="ลบสกุลเงิน"
@@ -1113,7 +1112,6 @@ function FormField({ error, field, value, onChange }: FormFieldProps) {
                   >
                     <X className="h-4 w-4" aria-hidden="true" />
                   </button>
-                ) : <span className="hidden h-10 w-10 md:block" />}
               </div>
             )
           })}
