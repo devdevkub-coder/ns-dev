@@ -41,8 +41,9 @@ describe('weight-ticket product entry start contract', () => {
 
 describe('weight-ticket mobile product workspace contract', () => {
   it('opens a blank product editor without auto-opening the product dropdown', () => {
-    const addLineSource = formSource.match(/function addLine\(\) \{([\s\S]*?)\n  \}\n\n  function closeMobileProductEditor/)
+    const addLineSource = formSource.match(/function addLine\(\) \{([\s\S]*?)\r?\n  \}\r?\n\r?\n  function closeMobileProductEditor/)
 
+    expect(addLineSource).not.toBeNull()
     expect(addLineSource?.[1]).toContain("setMobileProductView('editor')")
     expect(addLineSource?.[1]).not.toContain('setPendingFocusField')
     expect(formSource).toContain('setPendingFocusField(firstErrorKey)')
@@ -114,7 +115,7 @@ describe('weight-ticket mobile product workspace contract', () => {
   })
 
   it('uses two compact rows for a normal impurity input on mobile', () => {
-    expect(formSource).toContain("? 'grid-cols-1'\n                                  : usesPercentDeduction")
+    expect(formSource).toMatch(/\? 'grid-cols-1'\r?\n\s*: usesPercentDeduction/)
     expect(formSource).toContain("? 'grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1fr)]'")
     expect(formSource).toContain("const mobileImpuritySelectorColumns = usesPercentDeduction ? 'col-span-3 md:col-span-1' : 'col-span-2 md:col-span-1'")
     expect(formSource).toContain('!isOtherProductImpurity && mobileImpuritySelectorColumns')
