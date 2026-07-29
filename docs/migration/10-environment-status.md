@@ -2,11 +2,11 @@
 
 ### Company Account Database Guards 2026-07-30
 
-- Applied migration `20260730100000_enforce_company_account_business_guards.sql` to dev-target (`fhglqymcdmrgbsbadnwr`) through Supabase CLI using a temporary migration-history workdir; the CLI recorded the migration history row. The migration does not write migration history itself.
-- Normalized six legacy `accounts.od_limit` NULL values to canonical zero. No opening balance, account currency, account code, or transaction row was rewritten. Pre-apply backup: `/tmp/ns-erp-dev-before-account-guards-20260729-235547`.
+- Applied migration `20260730100000_enforce_company_account_business_guards.sql` to dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) through Supabase CLI using temporary migration-history workdirs; the CLI recorded the migration history rows. The migration does not write migration history itself.
+- Normalized six legacy `accounts.od_limit` NULL values to canonical zero in each environment. No opening balance, account currency, account code, or transaction row was rewritten. Pre-apply backups: Dev `/tmp/ns-erp-dev-before-account-guards-20260729-235547`; SIT `/tmp/ns-erp-sit-before-account-guards-20260730-001132`.
 - Added account shape/currency constraints and deferred guards for currency cardinality and Bank Statement account eligibility. FCD current accounts may use OD; savings accounts may not. Cash/virtual accounts cannot carry bank/FCD/OD fields or be linked to Bank Statement.
-- Transactional postflight passed: rejected savings+OD, virtual Statement links, non-FCD multi-currency, and conversion of a Statement-linked bank account to virtual; accepted FCD current+OD. All probe transactions were rolled back.
-- SIT and customer UAT have not received this migration yet.
+- Dev transactional postflight passed: rejected savings+OD, virtual Statement links, non-FCD multi-currency, and conversion of a Statement-linked bank account to virtual; accepted FCD current+OD. SIT postflight confirmed all three constraints and all three deferred guards, rejected savings+OD, and accepted FCD current+OD. All probe transactions were rolled back.
+- Customer UAT has not received this migration yet.
 
 ### Company Account Data Normalization 2026-07-30
 
