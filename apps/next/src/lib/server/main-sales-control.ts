@@ -471,11 +471,11 @@ async function buildSalesPlanningSnapshot() {
   }
 }
 
-export async function buildSalesPlan(selectedMonth?: string) {
+export async function buildSalesPlan(selectedMonth?: string, branchCode?: string) {
   const pending = await buildSalesPlanningSnapshot()
   const config = pending.lmeConfig
   const month = /^\d{4}-\d{2}$/.test(selectedMonth ?? '') ? String(selectedMonth) : new Date().toISOString().slice(0, 7)
-  const planRows = await listSalesPlans(month)
+  const planRows = await listSalesPlans(month, branchCode)
   const bestPlanByProduct = new Map<string, { price: number; pct: number }>()
   planRows.forEach((plan) => {
     const key = String(plan.productCode ?? '').trim().toLowerCase()

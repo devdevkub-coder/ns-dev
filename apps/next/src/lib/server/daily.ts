@@ -107,11 +107,14 @@ export async function nextDailyDocNos(
   prefix: string,
   date: string,
   count: number,
+  branchCode: string,
   client: unknown = prisma,
 ) {
   if (count <= 0) return []
   const compactDate = date.slice(2, 4) + date.slice(5, 7)
-  const startsWith = `${prefix}${compactDate}-`
+  const normalizedBranchCode = documentBranchCode(branchCode)
+  if (!normalizedBranchCode) throw new Error(`ไม่พบรหัสสาขาสำหรับออกเลขที่เอกสาร ${prefix}`)
+  const startsWith = `${prefix}${normalizedBranchCode}${compactDate}-`
   const model = dailyDocNoModel(client, table)
   const last = await model.findFirst({
     orderBy: { doc_no: 'desc' },
@@ -122,10 +125,12 @@ export async function nextDailyDocNos(
   return Array.from({ length: count }, (_, index) => `${startsWith}${String(startNumber + index).padStart(4, '0')}`)
 }
 
-export async function nextBankStatementDocNos(date: string, count: number, client: unknown = prisma) {
+export async function nextBankStatementDocNos(date: string, branchCode: string, count: number, client: unknown = prisma) {
   if (count <= 0) return []
   const compactDate = date.slice(2, 4) + date.slice(5, 7)
-  const startsWith = `BST${compactDate}-`
+  const normalizedBranchCode = documentBranchCode(branchCode)
+  if (!normalizedBranchCode) throw new Error('ไม่พบรหัสสาขาสำหรับออกเลข Bank Statement')
+  const startsWith = `BST${normalizedBranchCode}${compactDate}-`
   const model = dailyDocNoModel(client, 'bank_statement')
   const historyModel = (client as { payment_account_splits?: BankStatementHistoryModel }).payment_account_splits
   const [lastStatement, lastPaymentSplit] = await Promise.all([
@@ -196,11 +201,13 @@ export function bankStatementTransferRows(values: {
   docNo: string
   entryDocNos: [string, string]
   fee: number
+  fromBranchId: bigint
   fromAccountId: string
   fromAccountName: string
   id: string
   toAccountId: string
   toAccountName: string
+  toBranchId: bigint
 }): Prisma.bank_statementCreateManyInput[] {
   const fromAccountId = parseInternalBigIntId(values.fromAccountId)
   const toAccountId = parseInternalBigIntId(values.toAccountId)
@@ -210,6 +217,7 @@ export function bankStatementTransferRows(values: {
   return [
     {
       account_id: fromAccountId,
+      branch_id: values.fromBranchId,
       amount_in: 0,
       amount_out: values.amount + values.fee,
       created_by: values.by,
@@ -223,6 +231,7 @@ export function bankStatementTransferRows(values: {
     },
     {
       account_id: toAccountId,
+      branch_id: values.toBranchId,
       amount_in: values.amount,
       amount_out: 0,
       created_by: values.by,

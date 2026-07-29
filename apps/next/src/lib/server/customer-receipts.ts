@@ -285,7 +285,7 @@ async function createCustomerReceiptInTransaction(
     throw new Error('บิลขายที่เลือกต้องอยู่ในสาขาเดียวกัน')
   }
   const docNo = values.docNo ?? await nextDailyDocNo('customer_receipts', RECEIPT_DOC_PREFIX, values.date, tx, branchCode)
-  const bankStatementDocNos = await nextBankStatementDocNos(values.date, accountSplits.length, tx)
+  const bankStatementDocNos = await nextBankStatementDocNos(values.date, branchCode, accountSplits.length, tx)
   const branchId = selectedBranch.id
   const existingReceipt = await tx.customer_receipts.findUnique({
     select: { customer_id: true, id: true, status: true },
@@ -361,6 +361,7 @@ async function createCustomerReceiptInTransaction(
   await tx.bank_statement.createMany({
     data: accountSplits.map((split, index) => ({
       account_id: split.account.id,
+      branch_id: branchId,
       amount_in: split.amount,
       amount_out: 0,
       created_by: actor,
@@ -563,7 +564,8 @@ async function createCustomerAdvanceReceiptInTransaction(
     ? await tx.branches.findUnique({ select: { code: true }, where: { id: branchId } })
     : null
   const docNo = values.docNo ?? await nextDailyDocNo('customer_receipts', RECEIPT_DOC_PREFIX, values.date, tx, documentBranchCode(branch?.code))
-  const bankStatementDocNos = await nextBankStatementDocNos(values.date, accountSplits.length, tx)
+  if (!branch?.code) throw new Error('ไม่พบรหัสสาขาสำหรับออกเลข Bank Statement ของ CADV')
+  const bankStatementDocNos = await nextBankStatementDocNos(values.date, documentBranchCode(branch.code)!, accountSplits.length, tx)
   const existingReceipt = await tx.customer_receipts.findUnique({
     select: { customer_id: true, id: true, source_type: true, status: true },
     where: { doc_no: docNo },
@@ -635,6 +637,7 @@ async function createCustomerAdvanceReceiptInTransaction(
   await tx.bank_statement.createMany({
     data: accountSplits.map((split, index) => ({
       account_id: split.account.id,
+      branch_id: branchId,
       amount_in: split.amount,
       amount_out: 0,
       created_by: actor,
@@ -723,10 +726,14 @@ async function cancelCustomerAdvanceReceiptInTransaction(
     where: { amount_in: { gt: 0 }, ref_id: stringifyBusinessValue(receipt.id), ref_type: RECEIPT_REF_TYPE },
   })
   const bankStatementsToReverse = receiptBankStatements.length > 0 ? receiptBankStatements : [{ account_id: receipt.account_id, amount_in: receipt.net_cash_in }]
-  const reversalBankDocNos = await nextBankStatementDocNos(toDateString(receipt.date), bankStatementsToReverse.length, tx)
+  if (!receipt.branch_id) throw new Error('Receipt Voucher CADV ไม่มีสาขาสำหรับออกเลข Bank Statement')
+  const receiptBranch = await tx.branches.findUnique({ select: { code: true }, where: { id: receipt.branch_id } })
+  if (!receiptBranch?.code) throw new Error('ไม่พบรหัสสาขาสำหรับยกเลิก Bank Statement CADV')
+  const reversalBankDocNos = await nextBankStatementDocNos(toDateString(receipt.date), documentBranchCode(receiptBranch.code)!, bankStatementsToReverse.length, tx)
   await tx.bank_statement.createMany({
     data: bankStatementsToReverse.map((statement, index) => ({
       account_id: statement.account_id,
+      branch_id: receipt.branch_id,
       amount_in: 0,
       amount_out: statement.amount_in,
       created_by: actor,
@@ -892,10 +899,14 @@ async function cancelCustomerReceiptInTransaction(
   const bankStatementsToReverse = receiptBankStatements.length > 0
     ? receiptBankStatements
     : [{ account_id: receipt.account_id, amount_in: receipt.net_cash_in }]
-  const reversalBankDocNos = await nextBankStatementDocNos(toDateString(receipt.date), bankStatementsToReverse.length, tx)
+  if (!receipt.branch_id) throw new Error('Receipt Voucher Customer ไม่มีสาขาสำหรับออกเลข Bank Statement')
+  const receiptBranch = await tx.branches.findUnique({ select: { code: true }, where: { id: receipt.branch_id } })
+  if (!receiptBranch?.code) throw new Error('ไม่พบรหัสสาขาสำหรับยกเลิก Bank Statement Customer')
+  const reversalBankDocNos = await nextBankStatementDocNos(toDateString(receipt.date), documentBranchCode(receiptBranch.code)!, bankStatementsToReverse.length, tx)
   await tx.bank_statement.createMany({
     data: bankStatementsToReverse.map((statement, index) => ({
       account_id: statement.account_id,
+      branch_id: receipt.branch_id,
       amount_in: 0,
       amount_out: statement.amount_in,
       created_by: actor,

@@ -4,11 +4,14 @@ import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { getFinanceBranchCodeIntersection } from '@/lib/server/finance-accounting-branch-scope'
 import { prisma } from '@/lib/server/prisma'
+import { listActiveBranches, listActiveBranchesByCodes } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
 const costSourceSchema = z.object({
+  branchId: z.string().trim().min(1, 'เลือกสาขา'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'วันที่ไม่ถูกต้อง'),
   notes: z.string().trim().max(500, 'หมายเหตุยาวเกินไป').optional().nullable(),
   productId: z.string().trim().min(1, 'เลือกสินค้า'),
@@ -23,8 +26,8 @@ function compactDate(date: string) {
   return date.slice(2, 4) + date.slice(5, 7)
 }
 
-async function nextTradingCostSourceNo(date: string) {
-  const startsWith = `TCS${compactDate(date)}-`
+async function nextTradingCostSourceNo(date: string, branchCode: string) {
+  const startsWith = `TCS${branchCode}${compactDate(date)}-`
   const last = await prisma.trading_cost_sources.findFirst({
     orderBy: { source_no: 'desc' },
     select: { source_no: true },
@@ -68,16 +71,23 @@ export async function GET() {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'finance.cash.view')
+    const allowedBranchCodes = getFinanceBranchCodeIntersection(context)
+    const branches = allowedBranchCodes === null
+      ? await listActiveBranches()
+      : allowedBranchCodes.length > 0
+        ? await listActiveBranchesByCodes(allowedBranchCodes)
+        : []
 
     const [sources, facts] = await Promise.all([
       prisma.trading_cost_sources.findMany({
         include: {
+          branches: { select: { code: true, name: true } },
           products: { select: { code: true, name: true } },
           suppliers: { select: { name: true } },
         },
         orderBy: [{ date: 'desc' }, { source_no: 'desc' }],
         take: 500,
-        where: { status: 'active' },
+        where: { status: 'active', ...(allowedBranchCodes === null ? {} : { branches: { code: { in: allowedBranchCodes } } }) },
       }),
       prisma.trading_allocation_facts.findMany({
         select: { matched_cogs: true, qty: true, trading_cost_source_id: true },
@@ -96,11 +106,14 @@ export async function GET() {
     })
 
     return NextResponse.json({
+      branches: branches.map((branch) => ({ code: branch.code, id: branch.code, name: branch.name })),
       rows: sources.map((source) => {
         const matched = matchedBySourceId.get(source.id.toString()) ?? { amount: 0, qty: 0 }
         const qty = toNumber(source.qty)
         const amount = toNumber(source.total_amount)
         return {
+          branchId: source.branches?.code ?? '',
+          branchName: source.branches?.name ?? '-',
           date: toDateOnly(source.date),
           id: source.id.toString(),
           productCode: source.product_code_snapshot ?? source.products?.code ?? '',
@@ -129,19 +142,28 @@ export async function POST(request: Request) {
     requirePermission(context, 'finance.cash.view')
     const actor = currentActor(context)
     const values = costSourceSchema.parse(await request.json())
+    const allowedBranchCodes = getFinanceBranchCodeIntersection(context)
+    const branches = allowedBranchCodes === null
+      ? await listActiveBranches()
+      : allowedBranchCodes.length > 0
+        ? await listActiveBranchesByCodes(allowedBranchCodes)
+        : []
+    const branch = branches.find((row) => row.code === values.branchId.trim().toUpperCase())
+    if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือไม่มีสิทธิ์ใช้งาน' }, { status: 400 })
     const product = await resolveProduct(values.productId)
     if (!product) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบสินค้า Trading Cost Source' }, { status: 400 })
     const supplier = await resolveSupplier(values.supplierId)
     const unitCost = values.unitCost ?? (values.totalAmount != null ? values.totalAmount / values.qty : 0)
     const totalAmount = values.totalAmount ?? values.qty * unitCost
     if (unitCost <= 0 || totalAmount <= 0) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ต้นทุน Trading Cost Source ต้องมากกว่า 0' }, { status: 400 })
-    const sourceNo = await nextTradingCostSourceNo(values.date)
+    const sourceNo = await nextTradingCostSourceNo(values.date, branch.code)
     const createdAt = new Date()
     const created = await prisma.trading_cost_sources.create({
       data: {
         created_at: createdAt,
         created_by: actor,
         date: normalizeDate(values.date),
+        branch_id: branch.id,
         notes: values.notes ?? null,
         product_code_snapshot: requireBusinessCode(product.code, `สินค้า ${product.id}`),
         product_id: product.id,

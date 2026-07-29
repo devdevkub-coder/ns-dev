@@ -1021,10 +1021,11 @@ export async function POST(request: Request) {
 
       await tx.bank_statement.deleteMany({ where: { ref_id: voucherId, ref_type: 'PMT' } })
       await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('bank_statement.doc_no'))`
-      const statementDocNos = await nextBankStatementDocNos(values.date, paymentSplits.length, tx)
+      const statementDocNos = await nextBankStatementDocNos(values.date, branchCode, paymentSplits.length, tx)
       await tx.bank_statement.createMany({
         data: paymentSplits.map((split, index) => ({
           account_id: (splitAccountByCode.get(split.accountId)?.id as bigint),
+          branch_id: branchId,
           amount_in: 0,
           amount_out: split.amount,
           created_by: actor,

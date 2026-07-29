@@ -50,16 +50,16 @@ const issueLabels: Record<string, { label: string; note: string }> = {
     note: 'ใบสั่งผลิตที่จบงานแล้วต้องไม่มี WIP คงเหลือ',
   },
   input_ledger_mismatch: {
-    label: 'PI ไม่สมดุล',
-    note: 'PI ต้องมี source-out และ WIP-in เท่ากันทั้งจำนวนและมูลค่า',
+    label: 'เบิกวัตถุดิบไม่สมดุล',
+    note: 'event เบิกวัตถุดิบต้องมี source-out และ WIP-in เท่ากันทั้งจำนวนและมูลค่า',
   },
   missing_reversal_ledger: {
     label: 'Reversal ขาด ledger',
-    note: 'รายการ reverse ต้องมี ledger ฝั่งกลับครบ',
+    note: 'รายการชดเชยต้องมี ledger ฝั่งกลับครบ',
   },
   output_ledger_mismatch: {
-    label: 'PO2 ไม่สมดุล',
-    note: 'PO2 ต้องตัด WIP เท่ากับ FG/RM ที่รับรวมกับ loss',
+    label: 'รับผลผลิตไม่สมดุล',
+    note: 'event รับผลผลิตต้องตัด WIP เท่ากับ FG/RM ที่รับรวมกับ loss',
   },
   open_order_movement_mismatch: {
     label: 'Open order movement ไม่ตรง',
@@ -68,6 +68,18 @@ const issueLabels: Record<string, { label: string; note: string }> = {
 }
 
 const refTypeOrder = ['PI', 'PI-REV', 'PO2', 'PO2-REV']
+
+const refTypeLabels: Record<string, string> = {
+  PI: 'เบิกวัตถุดิบ',
+  'PI-REV': 'ย้อนรายการเบิก',
+  'PI-RETURN': 'คืนวัตถุดิบ',
+  PO2: 'รับผลผลิต',
+  'PO2-REV': 'ยกเลิกรับผลผลิต',
+}
+
+function refTypeLabel(refType: string) {
+  return refTypeLabels[refType] ?? refType
+}
 
 function issueLabel(issue: string) {
   return issueLabels[issue]?.label ?? issue
@@ -220,7 +232,7 @@ export function ProductionReconciliationPageClient() {
               key={refType}
               emoji={count > 0 ? '⚠️' : '📄'}
               iconBg={count > 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}
-              label={refType}
+              label={refTypeLabel(refType)}
               tone={count > 0 ? 'amber' : 'slate'}
               value={String(count)}
             />
@@ -369,7 +381,7 @@ export function ProductionReconciliationPageClient() {
                     <div className="font-semibold text-slate-900">{issueLabel(issue.issue)}</div>
                     <div className="mt-0.5 text-xs leading-4 text-slate-500">{issueNote(issue.issue)}</div>
                   </td>
-                  <td className="px-3 py-2 align-top font-semibold text-slate-700 overflow-hidden truncate">{issue.refType || '-'}</td>
+                  <td className="px-3 py-2 align-top font-semibold text-slate-700 overflow-hidden truncate">{issue.refType ? refTypeLabel(issue.refType) : '-'}</td>
                   <td className="px-3 py-2 align-top font-semibold text-slate-900 overflow-hidden truncate">{issue.orderDocNo || '-'}</td>
                   <td className="px-3 py-2 align-top font-mono text-slate-700 overflow-hidden truncate">{issue.docNo || '-'}</td>
                   <td className="px-3 py-2 text-right align-top tabular-nums text-slate-700 overflow-hidden truncate">{formatMoney(issue.expectedQty)}</td>
@@ -392,7 +404,7 @@ export function ProductionReconciliationPageClient() {
             <div key={`${issue.issue}-${issue.refType}-${issue.docNo}-${index}`} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3 animate-fade-in">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <span className="inline-block rounded bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700">{issue.refType || '-'}</span>
+                  <span className="inline-block rounded bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700">{issue.refType ? refTypeLabel(issue.refType) : '-'}</span>
                   <div className="mt-1 font-bold text-slate-900 text-base leading-snug">{issueLabel(issue.issue)}</div>
                 </div>
                 {issue.orderDocNo ? (

@@ -12,7 +12,7 @@ tags:
   - page-flow
 status: draft
 created: 2026-06-11
-updated: 2026-06-13
+updated: 2026-07-29
 ---
 
 # Production Flow / Flow หมวดการผลิต
@@ -93,7 +93,7 @@ Requirement ล่าสุดจาก customer screenshot 2026-06-13:
 |---|---|
 | `ใบสั่งผลิต` | จำนวน production orders ในช่วง filter |
 | `ผลิตได้` | output qty ที่รับเข้า stock จริง ไม่รวม loss |
-| `WIP คงเหลือ` | WIP balance จาก PI/PO2 ledger ไม่ใช่ status count |
+| `WIP คงเหลือ` | WIP balance จาก PO event ledger ไม่ใช่ status count |
 | `Yield %` | `Output Qty / Input Qty * 100` |
 | `Loss %` | `Loss Qty / Input Qty * 100` |
 | `Top 10 สินค้าที่ผลิตมากสุด` | group actual output product rows ที่รับเข้า stock ไม่รวม loss |
@@ -113,11 +113,11 @@ machineUtil.orderCount = count distinct production orders
 machineUtil.outputQty = sum active non-loss output qty
 ```
 
-Dashboard source-of-truth ต้องใช้ production facts ที่ reconcile กับ PI/PO2 stock ledger:
+Dashboard source-of-truth ต้องใช้ production facts ที่ reconcile กับ stock ledger โดยจัดกลุ่มด้วย `PO` และ internal event identity:
 
-- Input จาก active `PI` ledger `WIP_IN`
-- Output จาก active `PO2` ledger `PRODUCTION_OUTPUT_IN` และ `PRODUCTION_OUTPUT_RM_IN`
-- Loss จาก active `PO2` ledger `PRODUCTION_LOSS`
+- Input จาก input event ของ PO และ movement `WIP_IN`
+- Output จาก output event/round ของ PO และ movement `PRODUCTION_OUTPUT_IN` หรือ `PRODUCTION_OUTPUT_RM_IN`
+- Loss จาก output event/round ของ PO และ movement `PRODUCTION_LOSS`
 - WIP จาก `WIP_IN - PRODUCTION_OUTPUT_WIP_OUT - PRODUCTION_LOSS`
 - Top product และ machine output summary จาก actual output product rows/receipts ที่ไม่ใช่ loss
 
@@ -126,11 +126,13 @@ Dashboard source-of-truth ต้องใช้ production facts ที่ recon
 | Step | Document/Action | Meaning | Stock ledger |
 |---|---|---|---|
 | 1 | Create Production Order | เปิดงานผลิต, ระบุ branch, warehouse, target/intended product, machine/line optional | ยังไม่กระทบ stock |
-| 2 | Production Input | เบิกวัตถุดิบเข้า WIP | paired movement `PI`: source stock out + WIP in |
-| 3 | Production Output | รับผลผลิตเป็น FG/RM หรือบันทึก loss | `PO2`: WIP out + destination in หรือ loss |
+| 2 | Production Input | เบิกวัตถุดิบเข้า WIP | input event ภายใน PO: source stock out + WIP in |
+| 3 | Production Output | รับผลผลิตเป็น FG/RM หรือบันทึก loss | output event/round ภายใน PO: WIP out + destination in หรือ loss |
 | 4 | Partial Complete | มี output แล้วแต่ WIP ยังเหลือ | ไม่มี movement เพิ่มเอง; รอ output เพิ่ม |
-| 5 | Complete | จบงานผลิต; ถ้า WIP เหลือ ระบบต้องยืนยันและคืน WIP ที่เหลือกลับคลังต้นทางก่อน | `PI-RETURN` สำหรับ WIP ที่เหลือ แล้วจึงเปลี่ยนเป็น `Completed` |
-| 6 | คืน/Reverse | คืนวัตถุดิบที่ยังอยู่ใน WIP หรือ reverse ผลผลิตที่ผิด | `PI-RETURN` อ้างอิง PI เดิม / `PO2-REV`; ไม่ลบ ledger เดิม |
+| 5 | Complete | จบงานผลิต; ถ้า WIP เหลือ ระบบต้องยืนยันและคืน WIP ที่เหลือกลับคลังต้นทางก่อน | return event ภายใน PO แล้วจึงเปลี่ยนเป็น `Completed` |
+| 6 | คืน/ยกเลิก | คืนวัตถุดิบที่ยังอยู่ใน WIP หรือยกเลิกผลผลิตที่ผิด | return/void event อ้างอิง event เดิม; ไม่ลบ ledger เดิม |
+
+การคืนวัตถุดิบหมายถึงการคืนของจาก WIP กลับเข้าคลังต้นทาง ไม่ใช่การเบิกเข้า WIP. Ledger ต้องเขียนเป็นคู่ `PRODUCTION_INPUT_RETURN_WIP_OUT` และ `PRODUCTION_INPUT_RETURN_STOCK_IN` ใน transaction เดียวกัน โดยอ้าง PO และ return event เดิม. ชื่อ `PI-RETURN` ที่ยังพบในข้อมูลหรือ ref type เก่าเป็น technical/legacy value สำหรับอ่านย้อนหลัง ไม่ใช่เลขเอกสารใหม่.
 
 ### 📢 ข้อตกลงการกรอกข้อมูลคลังสินค้า (Destination Warehouse Redesign - 2026-06-15)
 - **การซ่อนฟิลด์ซ้ำซ้อนใน Step 1 (สร้างใบสั่งผลิต):**
@@ -160,7 +162,7 @@ Status target สำหรับ MVP:
 | `In Production` | มี active input และมี WIP |
 | `Partially Completed` | มี output แล้วแต่ WIP ยังเหลือ |
 | `Completed` | ผู้ใช้ยืนยันจบงานแล้ว และ WIP ถูกใช้หมดหรือคืนกลับคลังต้นทางครบแล้ว |
-| `Cancelled` | ยกเลิกก่อนมี movement หรือหลัง reverse movement ครบ |
+| `Cancelled` | ยกเลิกก่อนมี movement หรือหลัง ledger ชดเชยครบ |
 
 ไม่ใช้ `Draft`, `Pending Approval`, `Approved`, `Closed` ใน MVP. `Closed` จะพิจารณาอีกครั้งเมื่อมี accounting/cost lock.
 
@@ -170,20 +172,20 @@ Status target สำหรับ MVP:
 
 เมื่อเบิกวัตถุดิบเข้า production:
 
-| Ledger row | ref_type | movement_type | Direction |
+| Ledger row | event/ref identity | movement_type | Direction |
 |---|---|---|---|
-| ตัดจากคลังวัตถุดิบ | `PI` | `PRODUCTION_INPUT_OUT` | `qty_out` |
-| รับเข้า WIP | `PI` | `WIP_IN` | `qty_in` |
+| ตัดจากคลังวัตถุดิบ | PO + input event | `PRODUCTION_INPUT_OUT` | `qty_out` |
+| รับเข้า WIP | PO + input event | `WIP_IN` | `qty_in` |
 
 กติกา:
 
 - ต้อง validate stock พร้อมใช้จาก source warehouse ก่อนเบิก
 - source warehouse ควรเป็น RM/FG ตาม policy ที่อนุญาต
 - destination WIP warehouse ต้องเป็นคลัง WIP ของ branch นั้น
-- `PRODUCTION_INPUT_OUT` ใช้ product ของ input line; `WIP_IN` ใช้ target product ของ production order เพื่อให้ WIP bucket reconcile ตามใบสั่งผลิต
+- `PRODUCTION_INPUT_OUT` และ `WIP_IN` ใช้ product ของ input line เดียวกัน เพราะ WIP คือ pool ของวัตถุดิบที่เบิกเข้ามาจริง; สินค้าเป้าหมายของใบสั่งผลิตเป็น intended product เท่านั้น ไม่ใช่ตัวบังคับของ WIP bucket
 - WAC ต้องเป็น WAC ณ วันที่เบิก; ถ้าหาต้นทุนไม่ได้ต้อง reject ไม่ fallback เป็น 0
 - ห้าม stock ติดลบหรือ over-issue ด้วย confirm dialog
-- ห้าม edit/delete ledger เดิม; input ที่ยังอยู่ใน WIP ให้คืนด้วย `PI-RETURN` โดยใช้ประเภทและต้นทุนเดิม
+- ห้าม edit/delete ledger เดิม; input ที่ยังอยู่ใน WIP ให้คืนด้วย return event ภายใน PO โดยใช้ WAC ปัจจุบันของ WIP pool ณ เวลาคืน
 
 ### Production Output
 
@@ -198,14 +200,14 @@ Status target สำหรับ MVP:
 กติกา:
 
 - ทุก output ต้องตัด WIP ก่อน ยกเว้นกรณีที่เป็น note/report เท่านั้น
-- `PRODUCTION_OUTPUT_WIP_OUT`, `PRODUCTION_LOSS`, และ `PRODUCTION_OUTPUT_REVERSE_WIP_IN` ใช้ target product ของ production order เป็น WIP product bucket; destination stock-in/out ใช้ product ของ output line ตามจริง
+- `PRODUCTION_OUTPUT_WIP_OUT`, `PRODUCTION_LOSS`, และ `PRODUCTION_OUTPUT_REVERSE_WIP_IN` ใช้ product ของ source WIP line ตามจริง; destination stock-in/out ใช้ product ของ output line ตามจริง
 - `LOSS` ไม่สร้าง stock-in ปลายทาง
 - output category MVP รับเฉพาะ `FG`, `RM`, `LOSS`
-- output product/grade ต้องเลือกจริงโดย user; ห้าม auto จาก target product
+- output product/grade ต้องเลือกจริงโดย user; ห้าม auto จาก target product. กระบวนการผลิตอาจได้สินค้าอื่นจากสินค้าเป้าหมายที่ระบุไว้ตอนสร้างใบสั่งผลิต และต้องเก็บ actual output product ใน `production_outputs`
 - output ที่ product/grade ต่างจาก input ไม่สร้าง Grade Adjustment อัตโนมัติ; trace อยู่ใน production output เอง
 - การคืน input ไม่เปลี่ยนสถานะแถว `production_inputs` เป็น `returned`; ตาราง input เดิมต้องคงอยู่เพื่อประวัติ และยอดคืน/ยอดคงเหลืออ่านจาก active `production_input_returns`
-- ก่อน complete ผลผลิตและ loss ต้อง reconcile กับ WIP ที่ใช้; หาก WIP คงเหลือ ระบบจะคืนยอดคงเหลือกลับคลังต้นทางก่อนปิดงาน
-- ห้าม edit/delete ledger เดิม; ถ้าผิดต้อง reverse ด้วย `PO2-REV` และต้อง block ถ้า output stock ถูก downstream ใช้แล้ว
+- ก่อนบันทึก ระบบเปรียบเทียบ `ผลผลิตรวม + loss` กับ `WIP ที่ใช้` เพื่อแจ้งความแตกต่างและขอการยืนยัน ไม่ได้บังคับให้ผลผลิตดีเท่ากับวัตถุดิบ เพราะ loss เป็นผลลัพธ์ที่ถูกต้องของกระบวนการผลิต; หาก WIP คงเหลือ ระบบจะคืนยอดคงเหลือกลับคลังต้นทางก่อนปิดงาน
+- ห้าม edit/delete ledger เดิม; ถ้าผลผลิตผิดให้ใช้ `Void ผลผลิต` ซึ่งระบบจะเขียน ledger ชดเชยภายใน และ block ถ้า output stock ถูก downstream ใช้แล้ว
 
 ## Output Category Master
 
@@ -231,7 +233,7 @@ Status target สำหรับ MVP:
 - production report APIs อ่านจาก production tables และคำนวณ WIP/Yield/Cost ใน read model
 - `/production/output-categories` มี master baseline แล้ว
 - ยังไม่มี `POST/PATCH` write flow สำหรับ production order/input/output
-- ยังไม่มี runtime write `stock_ledger.ref_type = PI` หรือ `PO2` ใน Next
+- runtime write ใหม่ต้องอ้าง PO และ internal event identity; ค่า ref type เดิมอ่านย้อนหลังได้ แต่ห้ามใช้เป็นเลขเอกสารใหม่
 - legacy มี production stock movement ครบ แต่ต้องใช้เป็น source material เท่านั้น ไม่ copy พฤติกรรม fallback หรือการลบ ledger เงียบ ๆ
 - DB/API contract สำหรับ write flow อยู่ที่ [[Production Order DB API Design]]
 
@@ -241,42 +243,42 @@ Status target สำหรับ MVP:
 
 ตรวจ flow ตั้งแต่เปิดใบสั่งผลิต -> เบิกเข้า WIP -> ใช้ WIP ผลิต -> รับ FG/RM หรือบันทึก LOSS -> คืน/void -> ledger และ timeline แล้ว พบประเด็นที่ต้องปิดก่อนถือว่า production write flow พร้อมใช้งานจริง:
 
-- ต้องกำหนด WIP ledger dimension ให้เป็น contract เดียวกัน: `WIP_IN` ตอนเบิกใช้สินค้า/คลัง WIP ของใบสั่งผลิต ส่วน `PRODUCTION_OUTPUT_WIP_OUT`, `PRODUCTION_LOSS` และ `PO2-REV` ต้องหัก/คืนด้วย dimension เดียวกัน; รายละเอียดวัตถุดิบต้นทางให้เก็บใน allocation และ history แยก ไม่ใช้แทน WIP product dimension.
+- WIP ledger dimension ใช้สินค้า/ประเภท/คลังต้นทางของ input WIP เป็น contract เดียวกันตั้งแต่ `WIP_IN`, `PRODUCTION_OUTPUT_WIP_OUT`, `PRODUCTION_LOSS` และ return/void events; สินค้าหลักที่ระบุในใบสั่งผลิตเป็น intended product ส่วน actual output อาจมีสินค้าหลักและสินค้าอื่นร่วมกัน จึงต้องเก็บ output product แยกในแต่ละ output line.
 - ต้องแสดงและบันทึก `source_wip_allocations` ในผลผลิตแต่ละรายการและ timeline เพื่อบอกว่าสินค้าใด ประเภทใด คลังต้นทางใด ถูกใช้ไปเท่าไรและต้นทุนเท่าไร; draft ปัจจุบันยังเก็บแหล่ง WIP เป็นชุดระดับฟอร์ม ไม่ได้ผูกกับ output line โดยตรง.
 - ต้องมี integration tests ครอบ input/output/loss/partial output/return/void/idempotency และตรวจสมดุล ledger ต่อเอกสาร; ปัจจุบันมี test ฝั่ง query/UI แต่ยังไม่มีชุด write-flow ที่พิสูจน์ผลกระทบ DB ครบวงจร.
 - ต้องเพิ่ม concurrency guard หรือ row/advisory lock ต่อ production order และ stock scope ก่อนคำนวณ available quantity เพื่อไม่ให้การเบิกหรือใช้ WIP พร้อมกันทำให้ยอดติดลบ.
-- การ void ต้องตรวจ dependency หลังผลผลิต เช่น การขาย/จัดสรร/การเคลื่อนไหวถัดไป และต้องยืนยัน policy ว่าการออก `PO2-REV` เป็นเอกสาร audit ที่ถูกต้อง ไม่ใช่การแก้หรือลบ ledger เดิม.
+- การ void ต้องตรวจ dependency หลังผลผลิต เช่น การขาย/จัดสรร/การเคลื่อนไหวถัดไป; ledger ชดเชยเป็น event ภายใน ไม่ใช่เอกสารหรือ endpoint ที่ผู้ใช้สร้างเอง.
 
-รอบ implementation นี้เพิ่ม advisory lock สำหรับ production order/stock scope, แก้ WIP ledger ให้ใช้สินค้า WIP ของใบสั่งผลิตเป็น dimension เดียวกัน, เพิ่ม source WIP ใน timeline และเมื่อกดจบงานขณะมี WIP ระบบจะแจ้งยืนยันแล้วคืน WIP ที่เหลือกลับคลังต้นทางด้วย `PI-RETURN` ก่อนเปลี่ยนสถานะเป็น `Completed`.
+รอบ implementation นี้เพิ่ม advisory lock สำหรับ production order/stock scope, รองรับ actual output ที่มีสินค้าหลักและสินค้าอื่นร่วมกัน, เพิ่ม source WIP ใน timeline และเมื่อกดจบงานขณะมี WIP ระบบจะแจ้งยืนยันแล้วคืน WIP ที่เหลือกลับคลังต้นทางด้วย return event ภายใน PO ก่อนเปลี่ยนสถานะเป็น `Completed`.
 
-- [ ] Production Order write flow
-- [ ] Simplified status flow: `Open -> In Production -> Partially Completed -> Completed`
-- [ ] Production Input write + paired `PI` stock ledger
-- [ ] Production Output write + `PO2` stock ledger
-- [ ] Reverse input/output policy with append-only reversal
+- [x] Production Order write flow
+- [x] Simplified status flow: `Open -> In Production -> Partially Completed -> Completed`
+- [x] Production Input write + paired PO input-event stock ledger
+- [x] Production Output write + PO output-event stock ledger
+- [x] Reverse input/output policy with append-only reversal
 - [ ] WIP reconciliation report from ledger vs production tables
 - [x] Lock rules after `Completed`
-- [ ] Timeline/status log for production documents
+- [x] Timeline/status log for production documents
 - [ ] Process Cost and cost allocation later phase, not MVP
 
 ## Reconciliation Rules
 
 ต้องมี report/check อย่างน้อย:
 
-- `PI` paired rows ต้อง balance: source out = WIP in
-- `PO2` WIP out ต้องไม่เกิน active WIP
+- Input-event paired rows ต้อง balance: source out = WIP in
+- Output-event WIP out ต้องไม่เกิน active WIP
 - WIP balance = sum(`WIP_IN`) - sum(`PRODUCTION_OUTPUT_WIP_OUT`) - sum(`PRODUCTION_LOSS`)
-- `production_inputs.qty` ต้อง reconcile กับ `stock_ledger.ref_type = PI`
-- `production_outputs.qty` ต้อง reconcile กับ `stock_ledger.ref_type = PO2`
+- `production_inputs.qty` ต้อง reconcile กับ PO input event
+- `production_outputs.qty` ต้อง reconcile กับ PO output event/round
 - Completed order ต้องไม่มี WIP คงเหลือหลังระบบคืน WIP ที่เหลือกลับคลังต้นทางสำเร็จ
 - `LOSS` ต้องแยกจาก saleable stock และไม่เข้า available stock
 - ไม่มี fallback: ถ้า doc no, category, WAC, warehouse, product, stock balance, หรือ status reconcile ไม่ครบ ต้อง reject หรือแก้ data/migration ไม่ใช่ default ค่าแทน
 
 Production report read-model ต้อง reconcile อย่างน้อย:
 
-- `Input Qty/Cost` จาก active `PI` ledger `WIP_IN`
-- `Output Qty/Value` จาก active `PO2` ledger `PRODUCTION_OUTPUT_IN` และ `PRODUCTION_OUTPUT_RM_IN`
-- `Loss Qty/Value` จาก active `PO2` ledger `PRODUCTION_LOSS`
+- `Input Qty/Cost` จาก active PO input event `WIP_IN`
+- `Output Qty/Value` จาก active PO output event `PRODUCTION_OUTPUT_IN` และ `PRODUCTION_OUTPUT_RM_IN`
+- `Loss Qty/Value` จาก active PO output event `PRODUCTION_LOSS`
 - `WIP Qty/Value` จาก `WIP_IN - PRODUCTION_OUTPUT_WIP_OUT - PRODUCTION_LOSS`
 - `Loss Value (บาท)` จาก `Loss Qty * (RM Cost / Input Qty)`
 - `Yield %` จาก `Output Qty / Input Qty * 100`
@@ -285,10 +287,10 @@ Production report read-model ต้อง reconcile อย่างน้อย:
 
 Production refs ต้องปรากฏใน `/stock/ledger` เพราะเป็น movement จริง:
 
-- `PI`
-- `PI-RETURN`
-- `PO2`
-- `PO2-REV`
+- PO input event
+- PO return event
+- PO output event/round
+- PO void event (internal compensation only)
 
 แต่หน้ารายงาน production เป็น read model เท่านั้น ไม่ควรแก้ ledger โดยตรงจาก report page
 
@@ -300,3 +302,17 @@ Production refs ต้องปรากฏใน `/stock/ledger` เพรา�
 - [[Stock Convert Page Flow]]
 - [[Cost Pool]]
 - [[Production Order DB API Design]]
+## Target Contract Override: PO And Internal Production Events 2026-07-28
+
+เอกสารนี้มีรายละเอียดเดิมที่ใช้คำว่า `PI`/`PO2` เป็น document group จากรอบ implementation ก่อนหน้า. สำหรับ flow ใหม่ให้ใช้ decision นี้แทน:
+
+| Topic | Decision |
+|---|---|
+| Business document | `PO<branch><YYMM>-####` เป็นเลขเอกสารการผลิตเพียงตัวเดียว และต้องมีรหัสสาขา |
+| Input/output/return/void | เป็น internal event ภายใต้ PO ไม่สร้างเลขเอกสาร `PI`, `PO2`, `PI-REV`, `PO2-REV` |
+| Output round | รอบรับผลผลิตแสดงเป็น `PO.../01`, `PO.../02`; output lines ทุกแถวใน post เดียวกันใช้ event/round เดียวกัน |
+| Ledger | `ref_no` อ้าง PO, `ref_id` อ้าง event/row id; ledger ยังเขียนทุก stock fact แบบ append-only |
+| Technical ref type | ค่า `PI`, `PI-RETURN`, `PO2`, `PO2-REV` ที่ยังอยู่ใน ledger/report เป็น movement classification ภายใน ไม่ใช่เลขเอกสารหรือ user-facing document |
+| Old data | ไม่ backfill และไม่เพิ่ม fallback; runtime flow ใหม่ใช้ event identity ที่บันทึกใน `event_key`/`output_round` เท่านั้น |
+
+ตัวอย่าง: เปิด PO `PO012607-0001`; เบิกวัตถุดิบเป็น event `PO012607-0001/IN/<event-id>`; รับผลผลิตรอบแรกเป็น `PO012607-0001/01`; หากยกเลิกรอบดังกล่าว ledger ชดเชยยังอ้าง PO และ event เดิม ไม่สร้างเลข reversal ใหม่.

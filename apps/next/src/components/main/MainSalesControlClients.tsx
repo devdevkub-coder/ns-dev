@@ -50,7 +50,7 @@ type LmeConfig = {
 }
 type SalesPlanPayload = {
   customers: Array<{ active: boolean; code: string; id: string; marketScope: 'ต่างประเทศ' | 'ในประเทศ'; name: string }>
-  filters: { channels: { id: string; name: string }[]; metalGroups: string[]; month: string }
+  filters: { branches: { code: string; id: string; name: string }[]; channels: { id: string; name: string }[]; metalGroups: string[]; month: string }
   lmeConfig: LmeConfig
   pendingSaleTable: AnyRow[]
   pendingSaleTotals: Record<string, number>
@@ -61,6 +61,7 @@ type SalesPlanPayload = {
   summary: Record<string, number>
 }
 type SalesPlanDraftForm = {
+  branchCode: string
   channel: string
   containers: string
   customerCode: string
@@ -472,6 +473,7 @@ export function SalesPlanPageClient() {
   const [clearPendingPlansDialog, setClearPendingPlansDialog] = useState<ClearPendingPlansDialogState | null>(null)
   const [selectedPendingPlanIds, setSelectedPendingPlanIds] = useState<string[]>([])
   const [month, setMonth] = useState('')
+  const [planBranchCode, setPlanBranchCode] = useState('')
   const [planFilterGroup, setPlanFilterGroup] = useState('')
   const [planFilterChannel, setPlanFilterChannel] = useState('')
   const [planFilterProductCode, setPlanFilterProductCode] = useState('')
@@ -487,6 +489,7 @@ export function SalesPlanPageClient() {
   const [draftKgPerContainerAutoFilled, setDraftKgPerContainerAutoFilled] = useState(true)
   const [draftLmeCfAutoFilled, setDraftLmeCfAutoFilled] = useState(false)
   const [planDraftForm, setPlanDraftForm] = useState<SalesPlanDraftForm>({
+    branchCode: '',
     channel: '',
     containers: '1',
     customerCode: '',
@@ -516,13 +519,15 @@ export function SalesPlanPageClient() {
   const analysisResize = useResizableColumns('main.sales-plan.analysis.v1', salesPlanAnalysisColumns)
   const remainingResize = useResizableColumns('main.sales-plan.remaining.v2', salesPlanRemainingColumns)
 
-  const loadSalesPlan = async (targetMonth?: string) => {
+  const loadSalesPlan = async (targetMonth?: string, targetBranchCode?: string) => {
     setError(null)
     setIsLoading(true)
     try {
       const activeMonth = targetMonth?.trim() || month || data?.filters.month || new Date().toISOString().slice(0, 7)
       const params = new URLSearchParams()
       if (activeMonth) params.set('month', activeMonth)
+      const activeBranchCode = targetBranchCode ?? planBranchCode
+      if (activeBranchCode) params.set('branchCode', activeBranchCode)
       const payload = await dailyFetchJson<SalesPlanPayload>(`/api/sales-plan${params.toString() ? `?${params.toString()}` : ''}`)
       setData(payload)
       setLmeForm(payload.lmeConfig)
@@ -803,13 +808,15 @@ export function SalesPlanPageClient() {
   }
 
   const currentMonth = new Date().toISOString().slice(0, 7)
-  const hasActivePlanFilters = Boolean(planFilterProductCode || planFilterGroup || planFilterChannel || (month && month !== currentMonth))
+  const hasActivePlanFilters = Boolean(planFilterProductCode || planFilterGroup || planFilterChannel || planBranchCode || (month && month !== currentMonth))
 
   const clearPlanFilters = () => {
     setMonth(currentMonth)
     setPlanFilterGroup('')
     setPlanFilterChannel('')
     setPlanFilterProductCode('')
+    setPlanBranchCode('')
+    void loadSalesPlan(currentMonth, '')
   }
 
   const openMobilePlanFilters = () => {
@@ -948,6 +955,7 @@ export function SalesPlanPageClient() {
 
   function resetPlanDraftForm() {
     setPlanDraftForm({
+      branchCode: planBranchCode,
       channel: '',
       containers: '1',
       customerCode: '',
@@ -1092,6 +1100,7 @@ export function SalesPlanPageClient() {
   async function addDraftPlan() {
     setPlanDraftError(null)
     const nextFieldErrors: SalesPlanDraftFieldErrors = {}
+    if (!planDraftForm.branchCode) nextFieldErrors.branchCode = 'กรุณาเลือกสาขา'
     if (!selectedDraftProduct) {
       nextFieldErrors.productCode = 'กรุณาเลือกสินค้า'
     }
@@ -1105,7 +1114,7 @@ export function SalesPlanPageClient() {
     if (selectedDraftProduct && draftLmeCf <= 0) nextFieldErrors.lmeCf = 'LME cf ต้องมากกว่า 0'
     if (draftSellPct <= 0) nextFieldErrors.sellPctLme = '% LME ต้องมากกว่า 0'
 
-    const firstErrorKey = (['productCode', 'customerCode', 'containers', 'kgPerContainer', 'lmeCf', 'sellPctLme'] as const)
+    const firstErrorKey = (['branchCode', 'productCode', 'customerCode', 'containers', 'kgPerContainer', 'lmeCf', 'sellPctLme'] as const)
       .find((key) => nextFieldErrors[key])
     if (firstErrorKey) {
       setPlanDraftFieldErrors(nextFieldErrors)
@@ -1120,6 +1129,7 @@ export function SalesPlanPageClient() {
         body: JSON.stringify({
           action: 'create-plan',
           plan: {
+            branchCode: planDraftForm.branchCode,
             containers: draftContainers,
             customerCode: planDraftForm.customerCode,
             kgPerContainer: draftKgPerContainer,
@@ -1247,6 +1257,13 @@ export function SalesPlanPageClient() {
               <Select className="h-9 w-full text-sm font-normal" id="sales-plan-filter-channel" value={planFilterChannel} onChange={(event) => setPlanFilterChannel(event.target.value)}>
                 <option value="">ทุกช่องทาง</option>
                 {(data?.filters.channels ?? []).map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
+              </Select>
+            </label>
+            <label className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-xs text-slate-500 dark:text-slate-400" htmlFor="sales-plan-filter-branch">
+              <span>สาขา:</span>
+              <Select className="h-9 w-full text-sm font-normal" id="sales-plan-filter-branch" value={planBranchCode} onChange={(event) => { setPlanBranchCode(event.target.value); setPlanPage(1); void loadSalesPlan(undefined, event.target.value) }}>
+                <option value="">ทุกสาขา</option>
+                {(data?.filters.branches ?? []).map((branch) => <option key={branch.id} value={branch.code}>{branch.code} - {branch.name}</option>)}
               </Select>
             </label>
           </div>
@@ -1382,6 +1399,14 @@ export function SalesPlanPageClient() {
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                 <h4 className="mb-4 border-b border-slate-100 pb-2 text-sm font-bold text-slate-800 dark:border-slate-700 dark:text-slate-100">ข้อมูลแผนขาย</h4>
                 <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                    <span className="mb-1 block">สาขา <span className="text-red-600">*</span></span>
+                    <Select aria-invalid={Boolean(planDraftFieldErrors.branchCode)} className="h-10 w-full text-sm" value={planDraftForm.branchCode} onChange={(event) => { setPlanDraftForm((current) => ({ ...current, branchCode: event.target.value })); clearPlanDraftFieldError('branchCode') }}>
+                      <option value="">เลือกสาขา</option>
+                      {(data?.filters.branches ?? []).map((branch) => <option key={branch.id} value={branch.code}>{branch.code} - {branch.name}</option>)}
+                    </Select>
+                    {planDraftFieldErrors.branchCode ? <p className="mt-1 text-xs font-medium text-red-600" role="alert">{planDraftFieldErrors.branchCode}</p> : null}
+                  </label>
                   <div>
                     <SearchCombobox
                       error={planDraftFieldErrors.productCode}

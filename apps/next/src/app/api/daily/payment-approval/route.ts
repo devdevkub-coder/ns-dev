@@ -8,7 +8,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { refreshAdvancePaymentWorkflowStatus } from '@/lib/server/advance-payments'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { listDailyAccounts, nextBankStatementDocNos, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { documentBranchCode, listDailyAccounts, nextBankStatementDocNos, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { nextPaymentApprovalDocNos } from '@/lib/server/payment-approval-pending'
 import { getActivePaymentMethods, type ActivePaymentMethod } from '@/lib/server/payment-methods'
 import { appendPaymentApprovalStatusLog, PAYMENT_APPROVAL_STATUS_ACTION } from '@/lib/server/payment-history'
@@ -161,16 +161,22 @@ export async function GET(request: Request) {
         },
       }),
       prisma.payment_approvals.findMany({
+        include: {
+          branches: true,
+        },
         orderBy: [{ approved_at: 'desc' }, { created_at: 'desc' }],
         take: 5000,
         where: {
           status: { in: ['approved', 'paid', 'voided'] },
+          ...branchWhere,
         },
       }),
       prisma.petty_advance_returns.findMany({
         include: {
           accounts: true,
-          petty_advances: true,
+          petty_advances: {
+            include: { branches: true },
+          },
         },
         orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
         take: 5000,
@@ -572,8 +578,13 @@ export async function GET(request: Request) {
       ...purchaseBills.map((row) => [row.doc_no, row.branches?.code ?? null] as const),
       ...advancePayments.map((row) => [row.doc_no, row.branches?.code ?? null] as const),
       ...expenses.map((row) => [row.doc_no, row.branches?.code ?? null] as const),
+      ...pettyReturns.map((row) => [row.petty_advances.doc_no, row.petty_advances.branches?.code ?? null] as const),
     ])
-    const attachBranch = <T extends { sourceDocNo: string }>(rows: T[]) => rows.map((row) => ({ ...row, branchId: branchBySourceDocNo.get(row.sourceDocNo) ?? null }))
+    const approvalBranchByDocNo = new Map(approvals.map((approval) => [approval.doc_no, approval.branches?.code ?? null] as const))
+    const attachBranch = <T extends { approvalDisplayDocNo?: string | null; sourceDocNo: string }>(rows: T[]) => rows.map((row) => ({
+      ...row,
+      branchId: row.approvalDisplayDocNo ? approvalBranchByDocNo.get(row.approvalDisplayDocNo) ?? branchBySourceDocNo.get(row.sourceDocNo) ?? null : branchBySourceDocNo.get(row.sourceDocNo) ?? null,
+    }))
     return NextResponse.json({
       apRows: attachBranch([...apRows, ...advanceRows]),
       branches: branches.map((branch) => ({ code: branch.code, id: branch.code, name: branch.name })),
@@ -670,7 +681,7 @@ export async function POST(request: Request) {
         ? await tx.petty_advance_returns.findFirst({
             include: {
               accounts: true,
-              petty_advances: true,
+              petty_advances: { include: { branches: { select: { code: true } } } },
             },
             where: {
               id: BigInt(values.approvalId),
@@ -741,6 +752,7 @@ export async function POST(request: Request) {
               destination_bank_account_id_snapshot: selectedDestination.kind === 'cash' ? null : selectedDestination.id,
               destination_bank_name_snapshot: selectedDestination.kind === 'cash' ? null : selectedDestination.bankName || null,
               destination_payment_method_snapshot: selectedDestination.paymentMethod || null,
+              branch_id: bill.branch_id,
               doc_no: approvalDocNo,
               party_id: bill.suppliers?.code ?? null,
               party_name_snapshot: bill.suppliers?.name ?? null,
@@ -804,6 +816,7 @@ export async function POST(request: Request) {
               destination_bank_account_id_snapshot: selectedDestination.kind === 'cash' ? null : selectedDestination.id,
               destination_bank_name_snapshot: selectedDestination.kind === 'cash' ? null : selectedDestination.bankName || null,
               destination_payment_method_snapshot: selectedDestination.paymentMethod || null,
+              branch_id: advance.branch_id,
               doc_no: approvalDocNo,
               party_id: advance.suppliers?.code ?? null,
               party_name_snapshot: advance.suppliers?.name ?? null,
@@ -875,6 +888,7 @@ export async function POST(request: Request) {
               destination_bank_account_id_snapshot: selectedDestination.id,
               destination_bank_name_snapshot: selectedDestination.bankName || null,
               destination_payment_method_snapshot: selectedDestination.paymentMethod || selectedDestination.label || null,
+              branch_id: expense.branch_id,
               doc_no: approvalDocNo,
               party_id: expense.suppliers?.code ?? null,
               party_name_snapshot: expense.suppliers?.name ?? expense.payee ?? null,
@@ -938,8 +952,10 @@ export async function POST(request: Request) {
         const returnedAmount = toNumber(advance.returned_amount) + returnAmount
         const status = returnedAmount >= toNumber(advance.amount) ? 'closed' : advance.status
         const approvedAt = new Date()
+        const branchCode = documentBranchCode(advance.branches?.code)
+        if (!advance.branch_id || !branchCode) throw new Error('ไม่พบสาขาสำหรับออกเลข PMA คืนเงินสำรองจ่าย')
         await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('payment_approvals.doc_no'))`
-        const approvalDocNos = await nextPaymentApprovalDocNos(tx, normalizeDate(returnDate), '', values.splits.length)
+        const approvalDocNos = await nextPaymentApprovalDocNos(tx, normalizeDate(returnDate), branchCode, values.splits.length)
 
         await tx.petty_advances.update({
           data: {
@@ -964,13 +980,14 @@ export async function POST(request: Request) {
         })
 
         await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('bank_statement.doc_no'))`
-        const statementDocNos = await nextBankStatementDocNos(returnDate, values.splits.length, tx)
+        const statementDocNos = await nextBankStatementDocNos(returnDate, branchCode, values.splits.length, tx)
         await tx.bank_statement.createMany({
           data: values.splits.map((split, index) => {
             const account = accountByCode.get(split.destinationId)
             if (!account) throw new Error('บัญชีรับคืนบางรายการไม่ถูกต้อง')
             return {
               account_id: account.id,
+              branch_id: advance.branch_id,
               amount_in: split.approvedAmount,
               amount_out: 0,
               created_by: actor,
@@ -993,6 +1010,7 @@ export async function POST(request: Request) {
               approved_at: approvedAt,
               approved_amount: split.approvedAmount,
               approved_by: actor,
+              branch_id: advance.branch_id,
               destination_account_no_snapshot: account.account_no ?? null,
               destination_bank_account_id_snapshot: account.code ?? null,
               destination_bank_name_snapshot: account.name,

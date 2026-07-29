@@ -674,11 +674,14 @@ export async function POST(request: Request) {
         })
 
         await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('bank_statement.doc_no'))`
-        const [statementDocNo] = await nextBankStatementDocNos(values.date, 1, tx)
+        const branchCode = documentBranchCode(branch?.code)
+        if (!branch?.id || !branchCode) throw new Error('ไม่พบสาขาสำหรับออกเลข Bank Statement ค่าใช้จ่าย')
+        const [statementDocNo] = await nextBankStatementDocNos(values.date, branchCode, 1, tx)
         if (!statementDocNo) throw new Error('ออกเลข Bank Statement ไม่ได้')
         const bankStatement = await tx.bank_statement.create({
           data: {
             account_id: paymentAccount.id,
+            branch_id: branch.id,
             amount_in: 0,
             amount_out: paymentNetAmount,
             created_by: actor,

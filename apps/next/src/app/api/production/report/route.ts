@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { getAllowedBranchIds } from '@/lib/server/branch-scope'
 import { loadProductionMetrics, summarizeProductionMetrics, summarizeProductionOutputProducts } from '@/lib/server/production-reports'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
@@ -46,6 +47,7 @@ function xlsxResponse(body: Buffer, filename: string) {
     headers: {
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Cache-Control': 'private, no-store',
     },
   })
 }
@@ -55,7 +57,9 @@ export async function GET(request: Request) {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'production.reports.view')
     const url = new URL(request.url)
+    const allowedBranchIds = await getAllowedBranchIds(context)
     const rows = await loadProductionMetrics({
+      allowedBranchIds,
       branchId: url.searchParams.get('branchId') || undefined,
       dateFrom: url.searchParams.get('dateFrom') || undefined,
       dateTo: url.searchParams.get('dateTo') || undefined,
@@ -72,7 +76,7 @@ export async function GET(request: Request) {
       rows,
       summary: summarizeProductionMetrics(rows),
       wipRows: rows.filter((row) => row.wipQty > 0.000001),
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดรายงานการผลิตไม่ได้', 500)

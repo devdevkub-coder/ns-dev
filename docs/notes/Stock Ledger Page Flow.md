@@ -46,7 +46,7 @@ updated: 2026-06-11
 | `GA` | ปรับเกรด/แปลงสินค้า | paired out/in |
 | `ADJ` | นับสต๊อก/ปรับยอด | one-sided gain/loss |
 | `PI`, `PI-RETURN` | เบิกวัตถุดิบเข้า WIP / คืนวัตถุดิบกลับคลังต้นทาง | paired out/in ของสินค้าเดียวกัน; return uses original PI product, cost, and category |
-| `PO2`, `PO2-REV` | รับผลผลิต / reverse output | WIP out + destination in หรือ reverse |
+| `PO2`, `PO2-REV` | รับผลผลิต / ledger ชดเชยจาก void | WIP out + destination in หรือ ledger ชดเชยจาก void |
 
 ## What Must Not Appear
 
@@ -112,7 +112,7 @@ updated: 2026-06-11
 - created by / `วันที่สร้างรายการ`
 - notes และ audit context
 
-ไม่ควรมีปุ่มแก้ไข/ลบ stock movement จาก detail นี้ ถ้าต้อง reverse ให้ทำผ่าน source document หรือ dedicated reversal flow
+ไม่ควรมีปุ่มแก้ไข/ลบ stock movement จาก detail นี้ ถ้าต้องแก้ให้ทำผ่าน source document ด้วย flow คืนหรือ void เท่านั้น
 
 ## API Contract
 
@@ -154,7 +154,7 @@ Export `.xlsx` ต้องใช้ filter เดียวกับหน้า
 
 - มี read/export baseline และ row detail modal แล้ว
 - API ใช้ server-side `q` search, pagination count, aggregate summary, distinct movement types, และ SQL window running balance ต่อ page แทนการโหลดทุก row เข้า Node
-- row detail มี source document links สำหรับ ref type หลักที่ active app มี route: `PB/SB/ST/SC/SC-REV/GA/ADJ/PI/PI-RETURN/PO2/PO2-REV`; `PI-REV` และ `PSALE` เป็น legacy ref type เท่านั้น
+- row detail มี source document links สำหรับ ref type หลักที่ active app มี route: `PB/SB/ST/SC/SC-REV/GA/ADJ/PI/PI-RETURN/PO2/PO2-REV`; `PI-REV` และ `PSALE` เป็น legacy ref type แบบอ่านย้อนหลังเท่านั้น และไม่มี write route
 - list/detail/export แสดง business date และ detail แสดง created context ของ row
 - ต้องคง rule ว่า pending_out ไม่แสดงเป็น ledger row หลังเพิ่ม reservation layer
 - cleanup tools ยังเป็น follow-up/design-dependent และต้องเป็น admin-only flow แยก

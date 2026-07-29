@@ -1,3 +1,35 @@
+# Active Production PO Event Identity Batch 2026-07-28
+
+Objective: ทำให้ `PO` เป็นเลขเอกสารการผลิตเพียงตัวเดียว โดย PO ต้องมีรหัสสาขา; input/output/return/void เป็น event ภายใน PO และรอบรับผลผลิตแสดงเป็น `PO.../01`, `PO.../02` โดยไม่มีเลข `PI`, `PO2`, `PI-REV`, `PO2-REV` และไม่มี fallback.
+
+Plan: `docs/superpowers/plans/2026-07-28-production-event-identity.md`. Batch 1 เพิ่ม contract helper และ unit test ผ่าน `6/6`; Batch 2-4 ปรับ schema/write path/API/UI/ledger reference แล้ว.
+
+Write areas: `apps/next/src/lib/server/production-orders.ts`, production API/UI/report/reconciliation, Prisma schema/migration, stock ledger contracts, production flow notes. ไม่ backfill ข้อมูลเก่า.
+
+Validation: focused production tests `25/25`, full lint `0 errors/6 warnings`, type-check และ production build ผ่าน. `git diff --check` ผ่าน.
+
+Environment/migration checkpoint: แก้ env ให้เหลือชุด canonical ใน `apps/next/.env.local`, `apps/next/.env.sit.local`, `apps/next/.env.uat.local`; ลบ root `.env.local` และ `apps/next/.env` ที่ซ้ำ/เก่า. Migration `20260728110000_add_production_event_identity.sql` apply และ record ใน Dev/SIT แล้ว; postflight ผ่าน 3 columns, 3 indexes และ 1 migration-history row ต่อ environment.
+
+Immediate next task: ใช้ target-specific env ทุกครั้งก่อน run migration/deploy; ยังไม่ push code หรือ deploy จนกว่าจะได้รับคำขอ promotion.
+
+# Active Strict Branch-Coded ADV Batch 2026-07-28
+
+Objective: เอา fallback `00` ออกจากเลข ADV และบังคับใช้รหัสสาขาที่ active เท่านั้น.
+
+Checkpoint: `nextAdvanceDocNo` reject เมื่อ branch code ไม่มี/ผิดรูปแบบ; ไม่มี migration เพิ่มเพราะ `supplier_advance_payments.branch_id` เป็น required อยู่แล้ว. Type-check, lint และ `git diff --check` ต้องผ่านหลังแก้.
+
+# Active Branch-Coded Payment Approval Batch 2026-07-28
+
+Objective: เพิ่ม `branch_id` ใน PMA, ออกเลข `PMA<branch><YYMM>-####`, และกรองตาราง PMA ด้วยสาขาของ PMA โดยตรง โดยไม่ใช้ fallback.
+
+Checkpoint: migration `20260728100000_add_branch_to_payment_approvals.sql` apply/record ใน dev-target กับ SIT แล้ว. แก้ PMA ทุก source และ petty-advance return ให้บังคับสาขา; type-check, lint และ `git diff --check` ผ่าน. ยังไม่ได้ทำ browser UAT หรือ push code.
+
+# Active Branch-Coded Document Flow Batch 2026-07-28
+
+Objective: เพิ่มเลขสาขาในเลขที่เอกสาร BST, TRF, TCS และ SP ให้ flow code บังคับเลือกสาขา โดยไม่ใช้ fallback และไม่ backfill ข้อมูลเก่า.
+
+Checkpoint: implementation และ migration `20260728090000_add_branch_to_bst_trf_tcs_sp.sql` เสร็จแล้วและ apply/record ใน dev-target กับ SIT. Type-check, lint และ `git diff --check` ผ่าน. ยังไม่ได้ทำ browser UAT หรือ push code ตามคำขอในรอบนี้.
+
 # Active Production Dashboard Query Separation Batch 2026-07-23
 
 Objective: แยก query/service ของ `/production/dashboard` ออกจาก shared `production-reports.ts` โดยคง API contract เดิมของหน้าไว้ และแก้ branch scope, WIP scope, aggregation correctness, BigInt serialization, cache header และ test coverage.
@@ -68,6 +100,8 @@ Production output table alignment 2026-07-24: `ผลลัพธ์จากก
 
 Objective: ทำให้การรับผลผลิตเป็น posted movement ที่รับเข้าคลังทันที รองรับการผลิตหลายรอบ และแก้ไขด้วย void/repost โดยไม่แก้ข้อมูล posted เดิม.
 
+Decision correction 2026-07-28: ใบสั่งผลิตมีสินค้าหลักที่ต้องการผลิต แต่ actual output อาจมีสินค้าหลักและสินค้าอื่นร่วมกันได้. WIP ledger ต้องผูกกับสินค้า/ประเภท/คลังต้นทางของวัตถุดิบที่เบิกเข้า WIP ไม่ใช่ target product. การตรวจปริมาณใช้ `ผลผลิตรวม + loss` เทียบกับ WIP ที่ใช้; loss และผลผลิตที่ต่ำกว่าวัตถุดิบเป็นกรณีปกติที่ต้องยืนยันได้ ไม่ใช่ validation error โดยตัวมันเอง. Migration/เอกสารเดิมที่ normalize WIP เป็น target product ต้อง audit ก่อนใช้งานต่อ.
+
 Latest checkpoint 2026-07-24: เพิ่ม advisory lock ระดับใบสั่งผลิตและ stock scope, ป้องกัน WIP source ซ้ำทั้ง draft/final, เพิ่มรายละเอียด source WIP ใน timeline, และเมื่อกดจบงานขณะ WIP เหลือ ระบบถามยืนยันแล้วคืนยอดคงเหลือกลับคลังต้นทางด้วย `PI-RETURN` ใน transaction เดียวกันก่อนตั้ง `Completed`. แก้ UAT bug ที่พยายามเขียนสถานะ input เป็น `returned` ซึ่ง DB ไม่อนุญาต; input คง `active` เพื่อรักษาประวัติ และยอดคืนอ่านจาก `production_input_returns`. Migration `20260724150000_reconcile_production_wip_ledger_product_dimension.sql` ถูก apply และบันทึกใน dev-target. UAT ผ่านกรณีปิดงาน PO2607-0010: dialog แสดง, API สำเร็จ, WIP เป็น 0, stock-in/ledger และ timeline มีรายการคืนอัตโนมัติ. Focused contract test 3/3, type-check, lint, build 323/323 และ diff-check ผ่าน.
 
 SIT DB parity checkpoint 2026-07-24: backed up SIT to `/tmp/ns-erp-sit-before-dev-apply-20260724-155927`, applied the missing production input/output migrations through `20260724150000`, and patched schema parity items that dev already had through direct DDL. Dev-target migration history was also marked for `20260716190000` after confirming the schema was already present and valid. Follow-up parity sync backed up SIT permission/role/history data to `/tmp/ns-erp-sit-before-history-data-sync-20260724-163104`, synced missing permission catalog rows, role grants, role landing defaults, and 12 migration-history versions from dev to SIT, then backed up dev role grants to `/tmp/ns-erp-dev-before-sit-extra-grants-20260724-163251` and copied the 11 SIT-only role grants back to dev. Final comparison found no dev/SIT drift for checked schema catalog, auth seed rows, or migration-history versions/names.
@@ -76,7 +110,7 @@ Completed in this batch: แยกการจบงานออกจากก�
 
 Production input return cost policy 2026-07-24: when different input rounds are pooled in WIP and the original layer cannot be identified, `คืนวัตถุดิบ` uses the current WIP WAC per separate `สินค้า + RM/FG + คลังต้นทาง` pool. The modal shows WIP average cost and estimated return value; paired WIP-out/source-stock-in ledger rows use the same WAC, preserving total inventory value while recalculating destination-warehouse WAC. One return button opens all input documents in the same Pool.
 
-Remaining: ตรวจ unique contract ของเลข PI/PO2 ใน DB, รัน browser UAT flow เพิ่มผลผลิต/void/downstream guard/reconciliation, และพิจารณา migration แยกข้อมูล output เดิมหากพบรายการ source allocation ไม่ครบ.
+Remaining: รัน authenticated browser UAT flow เพิ่มผลผลิต/void/downstream guard/reconciliation และจบงานพร้อมคืน WIP; ตรวจ duplicate/unique contract ของ `production_orders.doc_no` และ event identity แบบ read-only ก่อนเพิ่ม constraint. ไม่ migrate/backfill ข้อมูลทดสอบตามที่ตัดสินใจไว้.
 
 Write areas: `apps/next/src/lib/server/production-orders.ts`, production output route/UI, `docs/notes/page-flows/production-production-orders.md`.
 
@@ -94,7 +128,7 @@ Production WIP source label 2026-07-24: the production form's WIP selector now d
 
 Production output tab order 2026-07-24: moved `ผลลัพธ์จากการผลิต` to the top, followed by `สรุปวัตถุดิบใน WIP` and `ข้อมูลการผลิต`. Runtime behavior and API contracts are unchanged.
 
-Production output result actions 2026-07-24: removed the `ย้อนรายการ` button from the output-result table. The table is read-only in the UI; the existing reversal API remains for controlled backend/permission workflows.
+Production output correction policy 2026-07-28: removed all public `reverse` routes and terminology. Input correction uses `คืนวัตถุดิบ`; posted output correction uses `void` and writes internal append-only compensation events under the same PO. Historical reverse/ref-type values remain read-only for audit and no data migration is performed in this batch.
 
 Production output section layout 2026-07-24: the `ผลผลิต` tab now renders `สรุปวัตถุดิบใน WIP` before the `ข้อมูลการผลิต` entry section. The optional `จบงานหลังรับ` checkbox was removed from the form; output posting and explicit order completion remain separate actions.
 
@@ -112,7 +146,7 @@ Production order date semantics 2026-07-24: create modal no longer accepts `ว�
 
 Production output form 2026-07-24: the output tab now presents WIP summary before the production-entry form and result table. The form selects the WIP source/type, records `sourceWipQty` separately from output quantity, validates loss against the used WIP, and the result table groups output/loss rows by production round. Migration `20260724100000_add_production_output_wip_source` is applied and recorded in dev-target so each new output round stores source product/category/warehouse traceability.
 
-Production Orders review batch 2026-07-23: completed `PO-REV-01`, `02`, `03`, `05`, `06`, `07`, `08`, `09`, `10`, `11`, `12`, `13`, and `14` in `docs/notes/page-flows/production-production-orders.md`. List API uses header/aggregate projection with `include=detail` for movement payloads, dateTo is inclusive, product-code search is supported, action permissions are separated, product stock uses one grouped ledger query, branch-scoped options are filtered, and numeric aggregate sorting happens before pagination. Focused tests 17/17 and type-check pass. Input correction now uses `PI-RETURN` against the original PI, preserves the original RM/FG category and cost, and exposes a new input-return permission. Dev-target migration `20260723173000_add_production_input_returns` is applied; it added `production_inputs.stock_category`, backfilled 7 existing rows, and created the input-return table/indexes. The detail API can now read the PO input payload without the previous `P2022` schema error. Detail modal `ข้อมูลทั่วไป` now shows order creation date/time from `created_at`, and `คลังรับผลผลิต` stays blank until an active output has a destination warehouse; multiple destination warehouses are shown as unique names on separate lines without branch codes or round counts.
+Production Orders review batch 2026-07-23: completed the list/detail, permission, input, return, output, timeline, and reconciliation work recorded in `docs/notes/page-flows/production-production-orders.md`. The current contract is PO-only: input correction uses a return event under the PO, preserves the original RM/FG pool identity and current WIP WAC, and does not create a new reverse document. The detail API can read PO input payloads, and the detail modal shows creation date/time from `created_at`; `คลังรับผลผลิต` stays blank until an active output has a destination warehouse, with multiple destination warehouses shown as unique names without branch codes or round counts.
 After creating an order, the list client now resets to page 1 and requests page 1 explicitly before showing the refreshed table; this does not require restarting the local tmux dev server.
 
 WTI concurrent draft design checkpoint 2026-07-23: ออกแบบให้ WTI รองรับผู้ใช้ 2 คนจาก 2 ตราชั่งเพิ่ม/แก้/ลบสินค้า เต๋า น้ำหนัก รูป และสิ่งเจือปนใน draft เดียวกันด้วย line-level operations + server-side summary + realtime event ต่อเอกสาร; ข้อมูลหัวเอกสารและข้อมูลอื่นยังใช้ปุ่มบันทึกแบบเดิม และปุ่มยกเลิกถามยืนยันเฉพาะ manual changes ที่ยังไม่ถูกบันทึก. Task list อยู่ใน `docs/notes/WTI-WTO Flow.md` ตั้งแต่ `WTI-00` ถึง `WTI-55`; รอบแรกเปิดใช้เฉพาะ WTI แต่ operation/version/event/reconnect contract ต้องออกแบบให้ WTO นำไปใช้ต่อได้. ยังไม่แก้โค้ดหรือ schema; รอผู้ใช้ review/อนุมัติ task list ก่อนทำ implementation plan.

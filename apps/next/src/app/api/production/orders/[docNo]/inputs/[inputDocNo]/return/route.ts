@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor } from '@/lib/server/daily'
-import { assertProductionOrderBranchAccess, ProductionOrderError, reverseProductionInput, reverseProductionInputSchema } from '@/lib/server/production-orders'
+import { assertProductionOrderBranchAccess, ProductionOrderError, returnProductionInput, returnProductionInputSchema } from '@/lib/server/production-orders'
 
 export const runtime = 'nodejs'
 
@@ -15,8 +15,12 @@ export async function POST(request: Request, context: ReturnRouteContext) {
     const { docNo, inputDocNo } = await context.params
     const allowedBranchCodes = getBranchCodeIntersection(auth)
     await assertProductionOrderBranchAccess(docNo, allowedBranchCodes)
-    const values = reverseProductionInputSchema.parse(await request.json())
-    return NextResponse.json(await reverseProductionInput(docNo, inputDocNo, values, currentActor(auth)))
+    const requestValues = await request.json()
+    const values = returnProductionInputSchema.parse({
+      lines: requestValues.lines ?? (requestValues.qty ? [{ inputId: inputDocNo, qty: requestValues.qty }] : []),
+      reason: requestValues.reason,
+    })
+    return NextResponse.json(await returnProductionInput(docNo, values, currentActor(auth)))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     if (caught instanceof ProductionOrderError) return apiErrorResponse(caught, caught.message, caught.status)

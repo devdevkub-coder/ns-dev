@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-07-24
+updated: 2026-07-29
 route: /production/orders
 ---
 
@@ -31,15 +31,15 @@ production order เป็น owner ของ input/WIP/output lifecycle target.
 
 - แสดง/target สร้าง production order
 - กำหนด branch, source warehouse, WIP warehouse, destination warehouse, target/intended product, machine/line optional
-- target issue input เป็น PI และ receive output เป็น PO2
+- target issue input และ receive output เป็น internal events ภายใต้ PO เดียว
 - แสดง status, WIP, yield/loss, RM cost และ timeline
 
 ## Cost Policy
 
 - การเบิกวัตถุดิบเข้า WIP เป็นขั้นตอนก่อนเริ่มผลิตจริง และเก็บต้นทุน snapshot จาก WAC ของคลังต้นทางไว้ใน `production_inputs.unit_cost` / `wac_unit_cost` / `total_cost` เพื่อใช้คำนวณต้นทุนการผลิตและต้นทุนเฉลี่ยของ WIP.
 - การรับผลผลิตหรือ RM เข้า stock ปลายทางใช้ WAC ปัจจุบันของคลังปลายทาง ณ เวลารับ ไม่ใช้ต้นทุน snapshot ของ WIP แทน. ค่า production cost และ stock receipt cost จึงถูกเก็บแยกใน `production_outputs` พร้อม `cost_variance`.
-- การคืนวัตถุดิบออกจาก WIP เป็นการ reverse มูลค่าจาก Pool WIP ที่ post แล้ว ไม่ใช่การระบุคืนล็อตเดิม. เมื่อเบิกเข้ามาหลายรอบด้วยต้นทุนต่างกัน ระบบต้องรวมเป็นมูลค่า/ปริมาณของ Pool เดียวกันตาม `สินค้า + ประเภท RM/FG + คลังต้นทาง` แล้วคำนวณ WAC ของ WIP ณ เวลาคืน (`มูลค่า WIP คงเหลือ / ปริมาณ WIP คงเหลือ`). จำนวนคืนคูณ WAC นี้ใช้เป็นต้นทุน WIP ออกและ stock เข้า เพื่อไม่สร้างหรือทำลายมูลค่ารวม; WAC ของคลังปลายทางจะถูกคำนวณใหม่จากยอดเดิมของคลังนั้น.
-- ปุ่ม `ยกเลิกใบสั่งผลิต` ใช้ action เดียวที่ตรวจ period 7 วันเดิม แล้ว reverse ผลผลิต active ทุกชุดกลับ WIP, คืน RM/FG ที่เหลือจาก WIP กลับคลังต้นทาง และเปลี่ยนสถานะเป็น `Cancelled` ใน transaction เดียวกัน; ถ้าผลผลิตถูกใช้ต่อ, stock ปลายทางไม่พอ, WIP คืนไม่ครบ หรือจบงานเกิน 7 วัน ระบบ reject ทั้งรายการ
+- การคืนวัตถุดิบออกจาก WIP เป็นการคำนวณมูลค่าจาก Pool WIP ที่ post แล้ว ไม่ใช่การระบุคืนล็อตเดิม. เมื่อเบิกเข้ามาหลายรอบด้วยต้นทุนต่างกัน ระบบต้องรวมเป็นมูลค่า/ปริมาณของ Pool เดียวกันตาม `สินค้า + ประเภท RM/FG + คลังต้นทาง` แล้วคำนวณ WAC ของ WIP ณ เวลาคืน (`มูลค่า WIP คงเหลือ / ปริมาณ WIP คงเหลือ`). จำนวนคืนคูณ WAC นี้ใช้เป็นต้นทุน WIP ออกและ stock เข้า เพื่อไม่สร้างหรือทำลายมูลค่ารวม; WAC ของคลังปลายทางจะถูกคำนวณใหม่จากยอดเดิมของคลังนั้น.
+- ปุ่ม `ยกเลิกใบสั่งผลิต` ใช้ action เดียวที่ตรวจ period 7 วันเดิม แล้ว void ผลผลิต active ทุกชุดกลับ WIP, คืน RM/FG ที่เหลือจาก WIP กลับคลังต้นทาง และเปลี่ยนสถานะเป็น `Cancelled` ใน transaction เดียวกัน; ถ้าผลผลิตถูกใช้ต่อ, stock ปลายทางไม่พอ, WIP คืนไม่ครบ หรือจบงานเกิน 7 วัน ระบบ reject ทั้งรายการ
 - ก่อนเกิดผลผลิต ตาราง WIP จะแสดงเฉพาะยอดเบิกสุทธิและต้นทุนเฉลี่ย WIP; `ใช้ไปผลิตแล้ว` เป็นศูนย์. การคืนบางส่วนต้องถูกหักออกจากยอด WIP ทุก read/write path.
 - reconciliation แยกตรวจ production value ที่ไหลออกจาก WIP และ stock receipt value ที่เข้า stock เพื่อไม่ตีความส่วนต่างระหว่างสองฐานต้นทุนเป็น ledger error.
 
@@ -58,8 +58,8 @@ production order เป็น owner ของ input/WIP/output lifecycle target.
 |---|---|---|
 | 1 | เปิดหน้า | GET order list/read model |
 | 2 | สร้าง order target | status `Open`, no stock side effect |
-| 3 | issue input | PI stock-out/input to WIP |
-| 4 | receive output | PO2 output FG/RM/loss; บันทึกแล้วรับเข้าคลังทันทีใน transaction เดียว และสร้างรายการใหม่ได้เมื่อ WIP ยังเหลือ |
+| 3 | issue input | PO input event: stock-out/input to WIP |
+| 4 | receive output | PO output event/round: FG/RM/loss; บันทึกแล้วรับเข้าคลังทันทีใน transaction เดียว และสร้างรอบใหม่ได้เมื่อ WIP ยังเหลือ |
 | 5 | void output | ยกเลิกรายการผลผลิตเดิมได้เมื่อ stock ปลายทางยังไม่ถูกใช้ต่อ ระบบคืน WIP และตัด stock ปลายทางกลับ พร้อมเก็บ audit |
 | 6 | complete | กดแยกจากการรับผลผลิต; ถ้า WIP เหลือ ต้องยืนยันให้คืนกลับคลังต้นทางก่อนปิดงาน |
 
@@ -70,13 +70,10 @@ production order เป็น owner ของ input/WIP/output lifecycle target.
 - `GET /api/production/orders - production order read/list`
 - `POST /api/production/orders` - create order as `Open`, no stock ledger
 - `PATCH /api/production/orders/[docNo]` - update header/cancel/complete actions
-- `POST /api/production/orders/[docNo]/inputs` - create `PI`
-- `POST /api/production/orders/[docNo]/inputs/[inputDocNo]/return` - return against the original PI
-- `POST /api/production/orders/[docNo]/inputs/return` - return with `inputDocNo` in body; the old reverse endpoint is a compatibility alias and does not create `PI-REV`
-- `POST /api/production/orders/[docNo]/outputs` - create `PO2`
-- `POST /api/production/orders/[docNo]/outputs/[outputDocNo]/void` - void ผลผลิตที่รับเข้าคลังแล้ว โดยใช้สิทธิ์ควบคุมรายการเดิมและไม่แก้ข้อมูลเดิมตรง ๆ
-- `POST /api/production/orders/[docNo]/outputs/[outputDocNo]/reverse` - create `PO2-REV`
-- `POST /api/production/orders/[docNo]/outputs/reverse` - create `PO2-REV` with `outputDocNo` in body
+- `POST /api/production/orders/[docNo]/inputs` - create PO input event
+- `POST /api/production/orders/[docNo]/inputs/return` - create PO return event; no reverse alias is exposed
+- `POST /api/production/orders/[docNo]/outputs` - create PO output event/round
+- `POST /api/production/orders/[docNo]/outputs/[outputRef]/void` - void one posted output event with internal compensation ledger rows
 - `GET /api/production/orders/options` - create/input/output form reference data
 - `GET /api/production/orders/product-stock` - selected target product stock preview source
 - `GET /api/production/orders/[docNo]/wip` - active WIP summary
@@ -99,19 +96,19 @@ production order เป็น owner ของ input/WIP/output lifecycle target.
 - missing WAC ต้อง reject ไม่ fallback เป็น 0
 - output/yield/loss ต้อง reconcile กับ active input/WIP
 - ผลผลิตเป็นศูนย์ได้เมื่อสูญเสียทั้งหมด: ถ้า `lines=[]` และ `lossQty` เท่ากับ WIP ที่เลือกใช้ ระบบบันทึก loss อย่างเดียว ไม่ต้องเลือกคลังรับผลผลิต และยังต้องกดจบงานแยกเมื่อ WIP เหลือศูนย์
-- WIP-side stock ledger rows must use the production order target product as the WIP product bucket; input/output source and destination stock rows keep their line product
+- WIP-side stock ledger rows use the source product/category/warehouse of the WIP pool; the production order target product is the primary intended product, while actual output may include that product and other products. Output and destination stock rows use each actual output line product.
 - output ทุกครั้งเป็น posted movement และมีผลต่อ stock/WIP ทันทีหลัง transaction สำเร็จ; ไม่ใช้ Draft ปะปนในตาราง movement
-- ผลผลิตเพิ่มให้บันทึกเป็น PO2 movement ใหม่ ไม่แก้ยอดของ PO2 เดิม
+- ผลผลิตเพิ่มให้บันทึกเป็น output round ใหม่ภายใต้ PO เดิม ไม่แก้ยอด movement เดิม
 - void ตรวจ stock ปลายทางและ cost-pool downstream ก่อนคืน WIP; ถ้าผลผลิตถูกใช้ต่อแล้วให้ reject
 - complete ทำผ่าน action แยกจาก output; ถ้า WIP เหลือ ต้องยืนยันก่อน แล้วระบบคืน WIP ที่เหลือกลับคลังต้นทางด้วย `PI-RETURN` ใน transaction เดียวกันก่อนเปลี่ยนเป็น `Completed`
 - status MVP: `Open`, `In Production`, `Partially Completed`, `Completed`, `Cancelled`
 
 ## Side Effects
 
-- target writes stock ledger refs `PI`/`PO2` และ WIP/yield facts
+- target writes PO/event stock ledger references และ WIP/yield facts
 - output write รับผลผลิตเข้าคลังทันที; การแก้ยอด เช่น 2 เป็น 3 ต้องใช้ void รายการเดิมแล้วสร้างผลผลิตใหม่ หรือเพิ่มผลผลิตใหม่เฉพาะส่วนต่างเมื่อเป็นการผลิตเพิ่มจริง
 - current read baseline ไม่มี write side effect
-- input return writes append-only `PI-RETURN` rows against the original PI; output reverse remains `PO2-REV`. Neither flow hard-deletes or rewrites the original ledger.
+- input return และ output void เขียน append-only event/ledger rows ภายใต้ PO. ทั้งสอง flow ไม่ hard-delete หรือ rewrite ledger เดิม.
 
 ## List View / Filter Semantics
 
@@ -129,7 +126,7 @@ production order เป็น owner ของ input/WIP/output lifecycle target.
 - Dark Mode บน Mobile ใช้ neutral slate surface เดียวกันทุกสถานะ ไม่ย้อมสีพื้นทั้งการ์ด; สี semantic จำกัดอยู่ที่ status, metric value และ Yield ส่วน product/metadata ใช้ลำดับ primary/secondary text. Selected segmented filters ใช้ blue accent ที่เห็นชัด และรายการต้องเว้นพื้นที่ด้านล่างให้พ้น FAB กับ bottom navigation.
 - Mobile toolbar เหลือ search + filter trigger และ empty state ที่เกิดจากตัวกรองมีข้อความตามสาเหตุพร้อมปุ่มล้างตัวกรอง; ค่าใน filter sheet เป็น draft จนกด `ใช้ตัวกรอง` จึงเปลี่ยน list query ส่วน backdrop/Escape ต้องปิดโดยทิ้ง draft. Shared sheet สูงไม่เกิน `80dvh` และใช้ dark scrim ที่ไม่ถูก theme remap เพื่อคง backdrop แบบเดียวกันทั้ง Light/Dark.
 - Excel export ใช้ authorization/filter contract เดียวกับ list และจำกัดผลสูงสุด 10,000 รายการ โดย UI ต้องแจ้งขีดจำกัดนี้ที่ action.
-- การปรับ list view เป็น read-only presentation/query change และไม่เปลี่ยนกฎ create/input/output/reverse/complete หรือ stock side effect.
+- การปรับ list view เป็น read-only presentation/query change และไม่เปลี่ยนกฎ create/input/output/return/void/complete หรือ stock side effect.
 
 ## Modal UX / Theme Baseline
 
@@ -142,7 +139,7 @@ production order เป็น owner ของ input/WIP/output lifecycle target.
 - Form fields ใน create modal ใช้ความสูงมาตรฐาน `h-10` ร่วมกันระหว่าง select และ searchable combobox; ไม่มี date picker สำหรับวันที่ใบสั่งผลิต เพราะระบบกำหนดวันสร้างจากเวลาบันทึก. Filter toolbar ใช้ `h-9` แยกตาม sizing contract ใน `docs/design.md`.
 - Create modal แสดงชื่อ `ใบสั่งผลิตใหม่` โดยไม่ใส่ status badge หรือคำอธิบายสถานะใน title area; `เครื่องจักร` และ `ไลน์ผลิต` เป็น required choice โดยเลือกได้ทั้งรายการจริงหรือ `ไม่มีเครื่องจักร` / `ไม่มีไลน์ผลิต`.
 - KPI และ field labels ใน modal ใช้คำไทยพร้อมหน่วย (`กก.`, `บาท`, `%`) เพื่อแยก quantity, money และอัตราผลได้โดยไม่ต้องเดาจากตัวเลข; KPI card ใช้คำว่า `วัตถุดิบระหว่างผลิต (กก.)` เพื่อสื่อความหมายของยอด WIP ให้ตรงกับผู้ใช้งาน.
-- Browser regression ต้องตรวจ detail/create แบบ read-only ครบ Desktop `1440×1000` และ Mobile `430×932` ใน Light/Dark โดยห้ามกดบันทึก, จบงาน, ยกเลิกใบสั่งผลิต, reverse movement หรือเปลี่ยน business data.
+- Browser regression ต้องตรวจ detail/create แบบ read-only ครบ Desktop `1440×1000` และ Mobile `430×932` ใน Light/Dark โดยห้ามกดบันทึก, จบงาน, ยกเลิกใบสั่งผลิต, void movement หรือเปลี่ยน business data.
 
 ## Current Code Baseline
 
@@ -159,7 +156,7 @@ production order เป็น owner ของ input/WIP/output lifecycle target.
 
 - [x] `PO-REV-01` Fix inclusive date filtering so `dateTo` includes the full business day.
 - [x] `PO-REV-02` Apply the authenticated branch scope to detail, WIP, product-stock, and all production movement endpoints, not only the list endpoint.
-- [x] `PO-REV-03` Define and implement action-level permissions for create, input, output, reverse, complete, cancel, and export. The route checks and role grants are in `20260723140000_production_orders_action_permissions.sql`.
+- [x] `PO-REV-03` Define and implement action-level permissions for create, input, output, input return, void, complete, cancel, and export. The route checks and role grants are in `20260723140000_production_orders_action_permissions.sql`.
 - [ ] `PO-REV-04` Add a database-enforced unique constraint for `production_orders.doc_no` after duplicate-data audit. The Prisma contract and guarded migration are authored, but application is blocked until the dev-target duplicate audit can run.
 
 ### P1 Query and Contract
@@ -180,19 +177,19 @@ production order เป็น owner ของ input/WIP/output lifecycle target.
 
 ### Batch Decision
 
-This implementation batch completes `PO-REV-01`, `PO-REV-02`, `PO-REV-03`, `PO-REV-05`, `PO-REV-06`, `PO-REV-07`, `PO-REV-08`, `PO-REV-09`, `PO-REV-10`, `PO-REV-11`, `PO-REV-12`, `PO-REV-13`, and `PO-REV-14`. The list API now returns header/aggregate rows by default and accepts `include=detail` for movement rows; the UI requests detail only when opening an order. The `summaryScope` response field explicitly identifies current-page summaries. `PO-REV-04` remains pending deployment after duplicate audit. Database access to dev-target was unavailable during this batch, so migrations were authored but not applied.
+This implementation batch completes the accepted production-order list/detail, permissions, input, output, return, void, complete, timeline, and reconciliation contracts. The list API now returns header/aggregate rows by default and accepts `include=detail` for movement rows; the UI requests detail only when opening an order. The `summaryScope` response field explicitly identifies current-page summaries. The remaining DB work is a read-only duplicate/unique audit before production deployment; no old test-data migration is part of this batch.
 
-- create/input/output/reverse write services and APIs are implemented for MVP.
+- create/input/output/return/void write services and APIs are implemented for MVP; there is no public reverse API.
 - ใบสั่งผลิตใหม่ modal now uses explicit required placeholders; `สินค้าที่ผลิต` uses the shared searchable combobox and searches by product code/name.
 - `คลังวัตถุดิบที่เบิก` is selectable only from active warehouses belonging to the selected branch; WIP warehouses are excluded from this list. It is selected when posting an input movement, not while creating the production order. The create form only selects the output warehouse; the server resolves exactly one active WIP warehouse for the selected branch, and missing or duplicate WIP setup blocks save.
 - The create modal does not load a target-product stock preview. Stock preview is limited to the input-movement form after the user selects the product and source warehouse.
 - Input and Output modal product fields now use searchable comboboxes over active product master code/name.
-- Logged-in browser QA passed on 2026-06-12 for full UI click flow: create -> input round 1 -> input round 2 in the same modal -> output round 1 -> output round 2 with loss/complete -> reverse-block -> reconciliation. Result doc: `PO2606-0021`.
-- Stock reconciliation follow-up on 2026-06-12 repaired the WIP-side product dimension for active production ledger rows and hardened runtime WIP-side PI/PO2 writes to use `production_orders.product_id`; source/destination rows remain line-product specific.
+- Logged-in browser QA passed on 2026-06-12 for full UI click flow: create -> input round 1 -> input round 2 in the same modal -> output round 1 -> output round 2 with loss/complete -> void-block -> reconciliation. Result doc: `PO2606-0021`.
+- Stock reconciliation contract: WIP-side event/return/void rows use the source product/category/warehouse of the WIP pool; source and destination rows remain line-product specific. Any migration that normalizes WIP rows to `production_orders.product_id` must be audited against this decision before deployment.
 - Input posting supports multiple raw-material lines in one save: users can add product, source warehouse, stock category, and quantity rows before submitting. The API keeps the existing `lines[]` transaction contract, while each line is validated and stock-costed independently. Separate saves remain available for additional rounds.
-- Production reconciliation is now surfaced in `/production/reconciliation` as a read-only report over active `PI/PO2` facts and stock ledger checks.
+- Production reconciliation is now surfaced in `/production/reconciliation` as a read-only report over active PO events and stock ledger checks.
 - Production order cards/detail metrics now read active input/output/WIP facts from `/api/production/orders`, including `lossQty`, `consumedWipQty`, `wipQty`, `wipValue`, and `yieldPct`.
-- Production report/reconciliation read models now reconcile WIP from active `PI`/`PO2` stock ledger refs and surface `ledgerMismatchQty` when production facts and ledger rows diverge; standalone `/production/wip-report` is retired.
+- Production report/reconciliation read models now reconcile WIP from active PO event references and surface `ledgerMismatchQty` when production facts and ledger rows diverge; standalone `/production/wip-report` is retired.
 
 ## Implementation Checklist
 
@@ -218,7 +215,7 @@ This implementation batch completes `PO-REV-01`, `PO-REV-02`, `PO-REV-03`, `PO-R
 - The input movement panel keeps its card surfaces and applies a direct top margin to the posting card when history is rendered first, so the history table and posting/stock card remain visibly separated even with flex item ordering.
 - Input posting has no movement-level `หมายเหตุ`: the field, request schema, and writes to `production_inputs`/`stock_ledger` are removed. The production-order note and output note remain separate fields; the nullable legacy database columns are retained for existing records.
 - Product combobox options use one line when the product code is already included in the label; the code is not repeated as a second description line.
-- Production order and input document numbers are branch-scoped and use `PO/PI{รหัสสาขา}{YYMM}-{ลำดับ 4 หลัก}`, for example `PO012607-0010` and `PI012607-0005`; the sequence lock and lookup prefix include the branch, and the migration updates historical PO/PI references in their dependent tables together.
+- Production order numbers are branch-scoped and use `PO{รหัสสาขา}{YYMM}-{ลำดับ 4 หลัก}`, for example `PO012607-0010`; input/output/return/void do not create additional user-facing document numbers.
 - The production-order list shows `วันที่เริ่มผลิต` from the first recorded output date, and shows `วันที่สร้างรายการ` from `createdAt` as two lines (Bangkok date first and time second) in both desktop table and mobile card. Orders without output show `-` for the start date.
 - Creating a production order does not select a source raw-material warehouse and does not load the current-stock preview. The source warehouse is selected only when posting an actual input movement; the order stores the destination and WIP warehouses at creation.
 - The `ข้อมูล Stock ปัจจุบันของสินค้าที่จะเบิก` preview no longer has an outer card frame; its heading and divider lead into the framed stock table, avoiding a card nested inside the posting card.
@@ -238,10 +235,12 @@ This implementation batch completes `PO-REV-01`, `PO-REV-02`, `PO-REV-03`, `PO-R
 - The WIP summary also subtracts the quantity currently typed in the visible entry row in real time. This is a client-side preview only; the API validates the final staged lines again when production is saved.
 - Both the new entry row and existing staging rows expose the remaining WIP quantity as `max` and validate typed values against that remaining balance. Over-limit and negative values remain visible for correction, show an error, and cannot be added or saved.
 - Production output uses the same staging pattern: each row adds `สินค้าที่ได้ + คลังรับผลผลิต + จำนวนผลผลิตที่ได้ + สูญเสีย` to `รายการผลผลิตที่เตรียมส่งเข้าคลัง` before submission. After a WIP-use row is added, the WIP summary preview immediately reduces that Pool's remaining quantity and value; this is client preview only until `บันทึกผลผลิต`. The draft table is client-side only; the save posts all staged output rows together with aggregated WIP usage and loss. Only after that transaction succeeds are `production_outputs`, WIP ledger-out, and destination stock ledger-in created. There is no separate send-to-stock step.
+- The production order's target product is an intended product, not a restriction on actual output. Each staged output row must select the actual product received or produced; actual output may be a different product and may contain multiple products. `LOSS` is also a valid result, including loss-only production where output quantity is zero.
+- Quantity validation compares `ผลผลิตรวม + loss` with `WIP ที่ใช้ผลิต`. A difference is shown as a warning requiring explicit confirmation; the system must not reject a valid difference merely because production yield is lower than input. The hard limit remains that each WIP source row cannot consume more than its current available WIP.
 - The production entry controls use the same table layout as WIP input staging. The sections are titled `ตารางรายการวัตถุดิบใน WIP ที่ใช้ผลิต` and `ตารางรายการผลผลิตที่ได้`, with product, receiving warehouse, output quantity, loss quantity, and management columns; the add action is a full-width row inside the table. In the output tab, `รายการผลผลิตที่เตรียมส่งเข้าคลัง` is rendered inside the production form immediately before the output-entry table.
 - Production output validation requires the production date, every WIP source row, and every WIP quantity. Output quantity and loss quantity are a cross-field requirement: at least one must be greater than zero; the receiving warehouse is required only when output quantity is entered. Notes remain optional. The form uses a narrow date field, fixed numeric/action table columns, and a helper line for this conditional requirement.
 - The `รายการผลผลิตที่เตรียมส่งเข้าคลัง` staging state is persisted as one database draft per production order when rows are added, changed, or removed. Reopening the order reloads the draft; it does not affect WIP, stock, or the ledger. The draft is deleted in the same transaction that posts the real production output.
-- The output-result table shows each posted production receipt and exposes `ยกเลิกผลผลิต` only for users with the controlled reversal permission. The action calls the void route, checks downstream stock usage, returns WIP, and records the original movement as reversed; the original output row is never edited or deleted.
+- The output-result table shows each posted production receipt and exposes `ยกเลิกผลผลิต` only for users with the output-write permission. The action calls the void route, checks downstream stock usage, returns WIP, writes internal append-only compensation ledger rows, and records the original movement as reversed; the original output row is never edited or deleted.
 - The production-result table groups output and loss rows by production document and shows production date/time, result product/type, WIP used, output quantity, loss quantity, receiving warehouse, note, and the controlled void action. It does not repeat the internal document number or a redundant status column.
 - Movement posting timestamps display as two lines in the movement table: Bangkok date on the first line and time on the second line.
 - The input movement table's `คลัง` column displays only the warehouse name; the RM/FG stock category remains an internal validation value and is not shown as a bracketed label.
@@ -257,14 +256,14 @@ This implementation batch completes `PO-REV-01`, `PO-REV-02`, `PO-REV-03`, `PO-R
 - The movement input field is labeled `คลังวัตถุดิบที่เบิก` and is scoped to the production order's branch; active WIP warehouses are excluded from the selectable list.
 - The output field `คลังรับผลผลิต` is also filtered to active non-WIP warehouses in the production order's branch; the API revalidates the same branch scope before writing the receipt.
 - In the input movement form, the current-stock preview follows the selected `สินค้า` and `คลังวัตถุดิบที่เบิก`; it does not reuse the production-order target product.
-- Input correction is a business action named `คืนวัตถุดิบ`, not `ย้อนรายการ`: the modal selects a return quantity per original `production_input`, allows partial return, keeps the original PI document number, and writes paired return ledger rows into the persisted source warehouse with the original RM/FG category and original input snapshot cost. It never creates a new reversal document number.
+- Input correction is a business action named `คืนวัตถุดิบ`, not `ย้อนรายการ`: the modal groups the current WIP pool, allows partial return, keeps the PO as the business document, and writes paired return ledger rows into the persisted source warehouse with the original RM/FG category and the current WIP pool WAC. It never creates a new reversal document number.
 - The return modal groups repeated input rows by `สินค้า + ประเภท RM/FG + คลังต้นทาง`, even when their input costs differ. The UI shows the current WIP average cost and estimated return value for each group, then submits one grouped quantity across all input documents in that Pool. The server values the return from the current WIP pool average, not an unidentifiable original input layer; RM and FG remain separate pools. The paired ledger rows use the same WAC, so the return does not change total inventory value.
 - The input-return API requires `production.orders.input_return`; `system_admin` is granted this action together with the other production-order write actions so system administrators do not receive a permission-only 403 when returning WIP.
-- Production-order history uses the saved status-log metadata as the audit summary: an input event shows the PI number, issued quantity, total issued cost, average cost per kg, and expandable per-line product/category/source-warehouse/cost details. The UI resolves the actor to the app user's first/last name or display name; the audit actor identifier remains stored unchanged.
-- Production-order history also renders the persisted `input_returned` event with the returned quantity and production/WIP cost removed, so a return is visible in the timeline rather than only changing the WIP balance. The stock receipt value uses the same original input snapshot cost as the production/WIP reversal.
+- Production-order history uses the saved status-log metadata as the audit summary: an input event shows the PO event identity, issued quantity, total issued cost, average cost per kg, and expandable per-line product/category/source-warehouse/cost details. The UI resolves the actor to the app user's first/last name or display name; the audit actor identifier remains stored unchanged.
+- Production-order history also renders the persisted `input_returned` event with the returned quantity and production/WIP cost removed, so a return is visible in the timeline rather than only changing the WIP balance. The stock receipt value uses the same current WIP pool WAC as the production/WIP reversal.
 - Production-order history persists and displays event-specific details without changing the status-log schema: creation shows product, branch, destination warehouse, shift, machine, and production line; output posting shows WIP used, output quantity, loss, production cost, receipt document, and expandable output lines; output void shows the returned WIP quantity, returned production cost, and original output document. Existing input and return summaries remain visible in the same timeline.
-- Production output rows are staged before save, but the save itself is a posted movement: the result list contains only successful `PO2` movements, while a new production round is represented by a new PO2 document. All staged rows, WIP consumption, stock receipt, ledger, and timeline event commit atomically. Correction uses void/repost semantics instead of mutating a posted quantity.
-- Before posting, the server compares `ผลผลิต + สูญเสีย` with the WIP quantity used. If the quantities differ, the first request stops with a confirmation message showing the difference; only an explicit user confirmation retries with `confirmQuantityVariance=true` and sends the transaction to stock. Cost calculation remains separate from this quantity confirmation.
+- Production output rows are staged before save, but the save itself is a posted movement: the result list contains only successful output events, while a new production round is represented by a new round under the same PO. All staged rows, WIP consumption, stock receipt, ledger, and timeline event commit atomically. Correction uses void/repost semantics instead of mutating a posted quantity.
+- Before posting, the server compares `ผลผลิตรวม + สูญเสีย` with the WIP quantity used. If the quantities differ, the first request stops with a confirmation message showing the difference; only an explicit user confirmation retries with `confirmQuantityVariance=true` and sends the transaction to stock. This is a production-yield confirmation, not a requirement that output equal input. Cost calculation remains separate from this quantity confirmation.
 - Stock categories are stored as `RM`/`FG` snapshots on the input row and displayed as `RM (วัตถุดิบ)` / `FG (สินค้าสำเร็จรูป)`; returned input rows remain visible with status `คืนครบแล้ว` but are excluded from active input, WIP, and production-cost totals. The WIP average cost is calculated separately for each RM/FG pool and is also the valuation basis shown in the return modal.
 - Mobile cards use the same Thai labels and no longer expose the English `Locked` state text. Filters, exports, modal behavior, production lifecycle, API contracts, permissions, database schema, and business data did not change.
 
@@ -277,14 +276,14 @@ This implementation batch completes `PO-REV-01`, `PO-REV-02`, `PO-REV-03`, `PO-R
 
 ## Production Output Posting And Void Task List 2026-07-24
 
-- [x] `OUT-01` Treat each saved production result as a posted `PO2` movement: consume WIP, write production ledger, and receive output stock atomically.
+- [x] `OUT-01` Treat each saved production result as a posted PO output event: consume WIP, write production ledger, and receive output stock atomically.
 - [x] `OUT-02` Keep additional production rounds as new output documents; do not mutate an existing posted quantity for a genuine additional production run.
-- [x] `OUT-03` Remove `completeOrder` from output posting. Completing the production order remains a separate action; if WIP remains, explicit confirmation triggers an automatic `PI-RETURN` back to each original source warehouse before `Completed`.
+- [x] `OUT-03` Remove `completeOrder` from output posting. Completing the production order remains a separate action; if WIP remains, explicit confirmation triggers an automatic PO return event back to each original source warehouse before `Completed`.
 - [x] `OUT-04` Add a dedicated `void` API route for a posted output movement, reusing the guarded reversal transaction and controlled permission.
 - [x] `OUT-05` Add `ยกเลิกผลผลิต` to the output result table with a reason prompt and refresh after success.
 - [x] `OUT-06` Reject duplicate WIP source lines at the server boundary before any stock transaction starts.
 - [x] `OUT-07` Document the difference between additional production, correction, and void so users do not edit posted movement facts directly.
-- [ ] `OUT-08` Audit and enforce the `production_inputs.doc_no` / `production_outputs.doc_no` document-group uniqueness contract before production deployment.
+- [ ] `OUT-08` Audit and enforce the PO/event identity uniqueness contract before production deployment; do not add uniqueness to legacy document-number fields without a clean-data decision.
 - [ ] `OUT-09` Run authenticated browser UAT for additional output, void guard after downstream stock use, WIP restoration, ledger reconciliation, and explicit order completion.
 - [x] `OUT-10` Add client-side output staging rows and require `+ เพิ่มรายการผลผลิต` before posting a non-loss result.
 - [x] `OUT-11` Distribute output-side WIP allocation across multiple staged result rows so WIP is consumed once in total, not once per row.

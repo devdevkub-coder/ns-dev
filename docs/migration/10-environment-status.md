@@ -2,6 +2,25 @@
 
 ## Current Direction
 
+### Strict Branch-Coded Supplier Advance ADV 2026-07-28
+
+- ADV document numbering now rejects a missing/invalid branch code instead of generating a `00` fallback. The selected active branch remains the source of `branch_id` and the `ADV<branch><YYMM>-####` prefix.
+- No new database migration was needed because `supplier_advance_payments.branch_id` is already required and indexed. Existing ADV rows were not rewritten.
+
+### Branch-Coded Payment Approval PMA 2026-07-28
+
+- Applied and recorded `20260728100000_add_branch_to_payment_approvals.sql` directly to dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`).
+- Added nullable `payment_approvals.branch_id` and `idx_payment_approvals_branch_approved_doc`; new PMA splits persist the source branch and PMA list filtering uses the PMA branch snapshot.
+- Removed the PMA `00` branch fallback. Petty-advance-return approvals now require the advance branch before generating PMA/BST numbers.
+- Postflight confirms the column, index, and migration history version `20260728100000` exist in both environments. Existing PMA rows were not backfilled.
+
+### Branch-Coded Document Numbers BST/TRF/TCS/SP 2026-07-28
+
+- Applied and recorded `20260728090000_add_branch_to_bst_trf_tcs_sp.sql` directly to dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) because both environments retain pre-existing migration-history drift.
+- Added nullable `branch_id` and branch-scoped indexes to `bank_statement`, `transfers`, `trading_cost_sources`, and `sales_plans`. Existing rows were not backfilled or rewritten; new flows require a valid active branch.
+- Runtime document generators now require branch code and emit `BST<branch><YYMM>-####`, `TRF<branch><YYMM>-####`, `TCS<branch><YYMM>-####`, and `SP<branch><YYMM>-####`. TCS and Sales Plan forms/API now require branch selection; Sales Plan and Accounts list flows support branch filtering.
+- Postflight confirms all four columns, four indexes, and migration history version `20260728090000` exist in both environments.
+
 ### Petty Advance Branch Migration 2026-07-27
 
 - Applied `20260727150000_add_branch_to_petty_advances.sql` directly to dev-target (`fhglqymcdmrgbsbadnwr`) and SIT (`vbjlkxbytccklhqvxjuu`) because both environments have pre-existing migration-history drift that blocks a blanket `supabase db push`.
@@ -475,3 +494,14 @@ DB schema redesign status:
 - Applied and recorded `20260724110000_add_production_output_wip_allocations.sql` to dev-target. `production_outputs.source_wip_allocations` is now available for multi-source WIP allocation snapshots; no existing business rows were changed.
 - `20260724130000_add_production_output_drafts.sql` has been applied to dev-target using the project database credentials. Postflight confirmed `public.production_output_drafts` exists with the expected order, payload, audit, and timestamp columns; the table is empty and ready for Draft API testing.
 - Applied and recorded `20260724150000_reconcile_production_wip_ledger_product_dimension.sql` to dev-target. Postflight updated 16 output WIP/loss ledger rows and 2 input-return WIP-out rows so the WIP bucket uses the production-order product dimension while preserving the original input product in `source_input_product_id` when it differed.
+# Environment Canonicalization Checkpoint 2026-07-28
+
+Canonical local environment files are now separated by target:
+
+- Dev: `apps/next/.env.local` -> project `fhglqymcdmrgbsbadnwr`
+- SIT: `apps/next/.env.sit.local` -> project `vbjlkxbytccklhqvxjuu`
+- UAT: `apps/next/.env.uat.local` -> project `ekeomeumqjvbhgwyaqwe`
+
+Removed duplicate/stale local files: root `.env.local` and `apps/next/.env`. `.env.example` files remain templates only. Do not source a root env file for active Next or migration commands; load the target-specific file explicitly.
+
+Production event migration `20260728110000_add_production_event_identity` was applied and recorded in both Dev and SIT. Postflight found 3 expected columns, 3 expected indexes, and 1 migration-history row in each environment. No business data was backfilled.

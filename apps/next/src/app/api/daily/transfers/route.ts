@@ -5,7 +5,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
-import { bankStatementTransferRows, currentActor, listDailyAccounts, nextDailyDocNo, nextDailyDocNos, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { bankStatementTransferRows, currentActor, documentBranchCode, listDailyAccounts, nextBankStatementDocNos, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
@@ -117,7 +117,9 @@ export async function POST(request: Request) {
       if (values.id && !existingTransfer) {
         throw new Error('ไม่พบรายการโอนเงิน')
       }
-      const docNo = values.docNo ?? existingTransfer?.doc_no ?? await nextDailyDocNo('transfers', 'TRF', values.date, tx)
+      const branchCode = documentBranchCode(fromAccount.branchCode)
+      if (!fromAccount.branchId || !toAccount.branchId || !branchCode) throw new Error('บัญชีต้นทางหรือปลายทางไม่มีสาขาสำหรับออกเลขรายการโอนเงิน')
+      const docNo = values.docNo ?? existingTransfer?.doc_no ?? await nextDailyDocNo('transfers', 'TRF', values.date, tx, branchCode)
       const transfer = existingTransfer
         ? await tx.transfers.update({
             where: { id: existingTransfer.id },
@@ -128,6 +130,7 @@ export async function POST(request: Request) {
               doc_no: docNo,
               fee: values.fee,
               from_account_id: fromAccount.id,
+              branch_id: fromAccount.branchId,
               notes: values.notes,
               to_account_id: toAccount.id,
               updated_at: new Date(),
@@ -143,6 +146,7 @@ export async function POST(request: Request) {
               doc_no: docNo,
               fee: values.fee,
               from_account_id: fromAccount.id,
+              branch_id: fromAccount.branchId,
               notes: values.notes,
               status: 'active',
               to_account_id: toAccount.id,
@@ -157,7 +161,7 @@ export async function POST(request: Request) {
           ref_type: 'TRF',
         },
       })
-      const statementDocNos = await nextDailyDocNos('bank_statement', 'BST', values.date, 2, tx)
+      const statementDocNos = await nextBankStatementDocNos(values.date, branchCode, 2, tx)
       await tx.bank_statement.createMany({
         data: bankStatementTransferRows({
           amount: values.amount,
@@ -167,10 +171,12 @@ export async function POST(request: Request) {
           entryDocNos: [statementDocNos[0]!, statementDocNos[1]!],
           fee: values.fee,
           fromAccountId: stringifyBusinessValue(fromAccount.id),
+          fromBranchId: fromAccount.branchId,
           fromAccountName: fromAccount.name,
           id: transfer.id.toString(),
           toAccountId: stringifyBusinessValue(toAccount.id),
           toAccountName: toAccount.name,
+          toBranchId: toAccount.branchId,
         }),
       })
 

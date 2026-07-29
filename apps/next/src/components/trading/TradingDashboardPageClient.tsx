@@ -171,6 +171,8 @@ type AgingBuckets = {
   '31+': AgingBucket
 }
 type CostSourceRow = {
+  branchId: string
+  branchName: string
   date: string
   id: string
   productCode: string
@@ -186,9 +188,11 @@ type CostSourceRow = {
   unitCost: number
 }
 type CostSourcesPayload = {
+  branches: Array<{ code: string; id: string; name: string }>
   rows: CostSourceRow[]
 }
 type CostSourceForm = {
+  branchId: string
   date: string
   notes: string
   productId: string
@@ -221,6 +225,7 @@ function searchOptions(options: Option[], allLabel: string): SearchComboboxOptio
 
 function sourceFormDefaults(): CostSourceForm {
   return {
+    branchId: '',
     date: todayDateInput(),
     notes: '',
     productId: '',
@@ -312,6 +317,7 @@ export function TradingDashboardPageClient() {
   const [productId, setProductId] = useState('all')
   const [sourceForm, setSourceForm] = useState<CostSourceForm>(() => sourceFormDefaults())
   const [sourceRows, setSourceRows] = useState<CostSourceRow[]>([])
+  const [sourceBranches, setSourceBranches] = useState<CostSourcesPayload['branches']>([])
   const [sourceError, setSourceError] = useState<string | null>(null)
   const [sourceSaving, setSourceSaving] = useState(false)
   const [sourcesLoading, setSourcesLoading] = useState(false)
@@ -345,6 +351,7 @@ export function TradingDashboardPageClient() {
     setSourcesLoading(true)
     try {
       const payload = await dailyFetchJson<CostSourcesPayload>('/api/trading/cost-sources')
+      setSourceBranches(payload.branches ?? [])
       setSourceRows(payload.rows)
     } catch (caught) {
       setSourceError(caught instanceof Error ? caught.message : 'โหลดต้นทุนซื้อมาขายไปไม่ได้')
@@ -400,6 +407,7 @@ export function TradingDashboardPageClient() {
       await dailyFetchJson<{ sourceNo: string }>('/api/trading/cost-sources', {
         body: JSON.stringify({
           date: sourceForm.date,
+          branchId: sourceForm.branchId,
           notes: sourceForm.notes.trim() || null,
           productId: sourceForm.productId,
           qty: Number(sourceForm.qty),
@@ -522,6 +530,7 @@ export function TradingDashboardPageClient() {
         isSaving={sourceSaving}
         productOptions={sourceProductOptions}
         rows={sourceRows}
+        branchOptions={sourceBranches.map((branch) => ({ id: branch.id, label: `${branch.code} - ${branch.name}`, searchText: `${branch.code} ${branch.name}` }))}
         supplierOptions={sourceSupplierOptions}
         onClose={() => setIsSourceModalOpen(false)}
         onFormChange={setSourceForm}
@@ -544,6 +553,7 @@ function CostSourceModal({
   onSubmit,
   productOptions,
   rows,
+  branchOptions,
   supplierOptions,
 }: {
   error: string | null
@@ -557,6 +567,7 @@ function CostSourceModal({
   onSubmit: () => void
   productOptions: SearchComboboxOption[]
   rows: CostSourceRow[]
+  branchOptions: SearchComboboxOption[]
   supplierOptions: SearchComboboxOption[]
 }) {
   const columnResize = useResizableColumns('trading.dashboard.cost-source.v5', costSourceColumns)
@@ -569,7 +580,7 @@ function CostSourceModal({
     : Number.isFinite(unitCost) && Number.isFinite(qty)
       ? unitCost * qty
       : 0
-  const canSubmit = Boolean(form.date && form.productId && Number(form.qty) > 0 && (Number(form.unitCost) > 0 || Number(form.totalAmount) > 0))
+  const canSubmit = Boolean(form.date && form.branchId && form.productId && Number(form.qty) > 0 && (Number(form.unitCost) > 0 || Number(form.totalAmount) > 0))
   const update = <K extends keyof CostSourceForm>(key: K, value: CostSourceForm[K]) => onFormChange({ ...form, [key]: value })
 
   return (
@@ -603,6 +614,17 @@ function CostSourceModal({
                   placeholder="ค้นหาสินค้า"
                   value={form.productId}
                   onChange={(value) => update('productId', value)}
+                />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <SearchCombobox
+                  inputClassName="h-10 text-sm border-slate-300 rounded-md focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700"
+                  inputId="trading-cost-source-branch"
+                  label="สาขา *"
+                  options={branchOptions}
+                  placeholder="เลือกสาขา"
+                  value={form.branchId}
+                  onChange={(value) => update('branchId', value)}
                 />
               </div>
               <div className="col-span-2">

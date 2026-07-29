@@ -71,7 +71,7 @@ created: 2026-05-16
 - [[Sales Flow]] - flow ขายแบบละเอียด: PO Sell, ใบส่งของ/WTO พร้อม pending_out, บิลขาย Trading จากหลายบิลซื้อหรือรายการ Trading ที่ไม่ตัด stock, Sales Bill, Receipt, เลขเอกสาร, สถานะ, stock/AR effect
 - [[Pending Sale Page Flow]] - removed target-flow note ของหน้า `/sales/stock-issue`: legacy `PSALE` เก็บไว้เป็น reference เท่านั้น; target runtime ใช้ `WTO -> pending_out -> Sales Bill`
 - [[Sales Bills Page Flow]] - contract หน้า `/sales/bills`: สร้าง SB จาก WTO, allocate เข้า PO Sell รายบรรทัด, แยกยอดเกินเป็น Spot Sale, VAT/totals แบบ PB, และหักมัดจำ Customer
-- [[Production Flow]] - canonical flow หมวด `การผลิต`: production order, input, output, process cost, WIP, yield/loss, ref type `PI/PO2`, และสถานะ implementation read baseline
+- [[Production Flow]] - canonical flow หมวด `การผลิต`: PO เดียว, input/output/return/void events, production rounds, WIP, yield/loss, ledger reconciliation และสถานะ implementation
 - [[Daily Cash Flow]] - flow เงินสด/ธนาคารรายวัน โดยเริ่มจาก `/daily/transfer`: field ที่ระบบจัดการเอง, validation, และ paired bank statement side effect
 
 ## Migration Entry Points

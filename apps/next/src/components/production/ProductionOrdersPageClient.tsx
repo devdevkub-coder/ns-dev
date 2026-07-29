@@ -31,6 +31,8 @@ type ProductionMovementRow = {
   createdAt?: string | null
   date: string
   docNo: string
+  eventKey?: string | null
+  outputRound?: number | null
   id?: string
   lotNo: string
   outputType?: string
@@ -575,7 +577,7 @@ export function ProductionOrdersPageClient() {
   async function cancelOrderFromList(row: ProductionOrderRow) {
     const reason = window.prompt('เหตุผลการยกเลิก')?.trim()
     if (!reason) return
-    if (!window.confirm('ระบบจะย้อนผลผลิตกลับ WIP และคืน RM/FG กลับคลังต้นทางให้อัตโนมัติภายในรายการเดียว ต้องการยกเลิกใบสั่งผลิตนี้หรือไม่')) return
+    if (!window.confirm('ระบบจะคืนผลผลิตกลับ WIP และคืน RM/FG กลับคลังต้นทางให้อัตโนมัติภายในรายการเดียว ต้องการยกเลิกใบสั่งผลิตนี้หรือไม่')) return
     setError(null)
     try {
       await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}`, {
@@ -1576,8 +1578,8 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
         netQty: Number(draft.netQty),
         productCode: draft.productCode || row.productCode,
       })).filter((line) => line.netQty > 0)
-      const postOutput = (confirmCostVariance: boolean) => dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}/outputs`, {
-        body: JSON.stringify({ confirmCostVariance, date: outputForm.date, lines, lossQty, notes: outputForm.notes || undefined, sourceWipLines: validSourceWipLines, sourceWipQty: totalSourceWipQty }),
+      const postOutput = (confirmQuantityVariance: boolean) => dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}/outputs`, {
+        body: JSON.stringify({ confirmQuantityVariance, date: outputForm.date, lines, lossQty, notes: outputForm.notes || undefined, sourceWipLines: validSourceWipLines, sourceWipQty: totalSourceWipQty }),
         method: 'POST',
       })
       try {
@@ -1735,7 +1737,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
     if (!row) return
     const reason = action === 'cancel' ? window.prompt('เหตุผลการยกเลิก')?.trim() : undefined
     if (action === 'cancel' && !reason) return
-    if (action === 'cancel' && !window.confirm('ระบบจะย้อนผลผลิตกลับ WIP และคืน RM/FG กลับคลังต้นทางให้อัตโนมัติภายในรายการเดียว ต้องการยกเลิกใบสั่งผลิตนี้หรือไม่')) return
+    if (action === 'cancel' && !window.confirm('ระบบจะคืนผลผลิตกลับ WIP และคืน RM/FG กลับคลังต้นทางให้อัตโนมัติภายในรายการเดียว ต้องการยกเลิกใบสั่งผลิตนี้หรือไม่')) return
     const confirmCloseWithWip = action === 'complete' && rowWipQty > 0.000001
       ? window.confirm(`ยังมี WIP คงเหลือ ${formatMoney(rowWipQty)} กก.\nหากยืนยันจบงาน ระบบจะคืน WIP ที่เหลือกลับคลังต้นทาง ต้องการดำเนินการต่อหรือไม่`)
       : false
@@ -1797,9 +1799,9 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
     })
   }
 
-  async function reverseMovement(kind: 'outputs', docNo: string) {
+  async function voidOutput(docNo: string) {
     if (!row) return
-      const reason = window.prompt('เหตุผลการยกเลิกผลผลิต')?.trim()
+    const reason = window.prompt('เหตุผลการยกเลิกผลผลิต')?.trim()
     if (!reason) return
     await runAction(async () => {
       const endpoint = `/api/production/orders/${encodeURIComponent(row.docNo)}/outputs/${encodeURIComponent(docNo)}/void`
@@ -1972,7 +1974,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
               hideWarehouse
               historyBeforeForm
               onGroupReturn={openInputReturn}
-              onReverse={() => undefined}
+              onVoid={() => undefined}
               form={(
                 <div className="space-y-3 text-sm">
                   <div className="md:col-span-4">
@@ -2055,7 +2057,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
               formTitle="ข้อมูลการผลิต"
               wipRows={row?.inputs ?? []}
               wipSummary={displayWipSummary}
-              onReverse={(docNo) => void reverseMovement('outputs', docNo)}
+              onVoid={(docNo) => void voidOutput(docNo)}
               form={(
                 <div className="grid gap-3 text-sm md:grid-cols-3">
                   <FormField label="วันที่ผลิต *"><DatePickerInput className="max-w-[16rem]" value={outputForm.date} onChange={(date) => setOutputForm((form) => ({ ...form, date }))} /></FormField>
@@ -2359,7 +2361,7 @@ function MovementPanel({
   hideWarehouse = false,
   isSaving,
   onGroupReturn,
-  onReverse,
+  onVoid,
   reversalLabel,
   onSubmit,
   outputResult = false,
@@ -2379,7 +2381,7 @@ function MovementPanel({
   hideWarehouse?: boolean
   isSaving: boolean
   onGroupReturn?: (docNos: string[]) => void
-  onReverse: (docNo: string) => void
+  onVoid: (docNo: string) => void
   reversalLabel: string
   onSubmit: (formElement?: HTMLFormElement) => void
   outputResult?: boolean
@@ -2393,8 +2395,8 @@ function MovementPanel({
   const movementColumnCount = 9 - (hideDate ? 1 : 0) - (hideDocument ? 1 : 0) - (hideTotalValue ? 1 : 0) - (hideWarehouse ? 1 : 0)
   return (
     <div className={`flex flex-col rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm ${historyBeforeForm ? 'space-y-5' : 'space-y-3'}`}>
-      {outputResult ? <ProductionOutputResultTable canVoid={canWrite} onVoid={onReverse} rows={rows} /> : null}
-      {wipSummary ? <WipSummaryTable canWrite={canWrite} onReverse={onGroupReturn ?? (() => undefined)} reversalLabel={reversalLabel} rows={wipRows ?? []} showActions={!outputResult} summary={wipSummary} /> : null}
+      {outputResult ? <ProductionOutputResultTable canVoid={canWrite} onVoid={onVoid} rows={rows} /> : null}
+      {wipSummary ? <WipSummaryTable canWrite={canWrite} onReturn={onGroupReturn ?? (() => undefined)} returnLabel={reversalLabel} rows={wipRows ?? []} showActions={!outputResult} summary={wipSummary} /> : null}
       {canWrite ? (
         <form
           ref={formRef}
@@ -2469,14 +2471,14 @@ function MovementPanel({
                   {!hideTotalValue ? <td className="p-2.5 whitespace-nowrap text-right font-semibold text-slate-800 tabular-nums">{formatMoney(row.totalCost)}</td> : null}
                   <td className="p-2.5 text-center">
                     <span className={`rounded-md px-1.5 py-0.5 text-xs font-bold ${isRowActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                      {isRowActive ? 'ใช้งาน' : isRowReturned ? 'คืนครบแล้ว' : 'ย้อนรายการแล้ว'}
+                      {isRowActive ? 'ใช้งาน' : isRowReturned ? 'คืนครบแล้ว' : 'ยกเลิกแล้ว'}
                     </span>
                   </td>
                   <td className="p-2.5 text-center">
                     {canWrite && isRowActive ? (
                       <TableActionButton
                         label={reversalLabel}
-                        menu={<TableActionMenuItem onSelect={() => onReverse(row.docNo)}>{reversalLabel}</TableActionMenuItem>}
+                        menu={<TableActionMenuItem onSelect={() => onVoid(row.docNo)}>{reversalLabel}</TableActionMenuItem>}
                       />
                     ) : null}
                   </td>
@@ -2507,7 +2509,7 @@ function MovementPanel({
                     <span className="text-sm text-slate-500 font-mono block mt-0.5">{row.productCode}</span>
                   </div>
                   <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${isRowActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                    {isRowActive ? 'ใช้งาน' : isRowReturned ? 'คืนครบแล้ว' : 'ย้อนรายการแล้ว'}
+                    {isRowActive ? 'ใช้งาน' : isRowReturned ? 'คืนครบแล้ว' : 'ยกเลิกแล้ว'}
                   </span>
                 </div>
 
@@ -2537,7 +2539,7 @@ function MovementPanel({
                     <button
                       className="rounded-md border border-slate-300 bg-white px-3 py-1.5 h-9 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                       type="button"
-                      onClick={() => onReverse(row.docNo)}
+                      onClick={() => onVoid(row.docNo)}
                     >
                       {reversalLabel}
                     </button>
@@ -2556,7 +2558,7 @@ function MovementPanel({
   )
 }
 
-function WipSummaryTable({ canWrite, onReverse, reversalLabel, rows, showActions = true, summary }: { canWrite: boolean; onReverse: (docNos: string[]) => void; reversalLabel: string; rows: ProductionMovementRow[]; showActions?: boolean; summary: ProductionWipSummary }) {
+function WipSummaryTable({ canWrite, onReturn, returnLabel, rows, showActions = true, summary }: { canWrite: boolean; onReturn: (docNos: string[]) => void; returnLabel: string; rows: ProductionMovementRow[]; showActions?: boolean; summary: ProductionWipSummary }) {
   const activeDocNos = [...new Set(rows.filter((row) => row.status?.toLowerCase() === 'active').map((row) => row.docNo))]
   const showReturnActions = showActions && canWrite && activeDocNos.length > 0
   const visibleGroups = summary.groups
@@ -2587,7 +2589,7 @@ function WipSummaryTable({ canWrite, onReverse, reversalLabel, rows, showActions
                 <td className={`p-2.5 text-right font-semibold tabular-nums ${group.wipQty < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatMoney(group.wipQty)}</td>
                 <td className={`p-2.5 text-right tabular-nums ${group.wipQty < 0 ? 'text-red-600' : 'text-slate-600'}`}>{formatMoney(group.wipQty * group.avgCost)}</td>
                 <td className="p-2.5 text-right text-slate-600 tabular-nums">{formatMoney(group.avgCost)}</td>
-                {showReturnActions ? <td className="p-2.5 text-center"><button className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" onClick={() => onReverse(group.docNos)}>{reversalLabel}</button></td> : null}
+                {showReturnActions ? <td className="p-2.5 text-center"><button className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" onClick={() => onReturn(group.docNos)}>{returnLabel}</button></td> : null}
               </tr>
             ))}
             <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
@@ -2633,7 +2635,7 @@ function WipSummaryTable({ canWrite, onReverse, reversalLabel, rows, showActions
                 <div className={`mt-0.5 text-right font-semibold tabular-nums ${group.wipQty < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatMoney(group.wipQty)}</div>
               </div>
             </div>
-            {showReturnActions ? <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-2"><button className="min-h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" onClick={() => onReverse(group.docNos)}>{reversalLabel}</button></div> : null}
+            {showReturnActions ? <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-2"><button className="min-h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" onClick={() => onReturn(group.docNos)}>{returnLabel}</button></div> : null}
           </div>
         ))}
         <div className="space-y-3 bg-slate-50 p-3.5">
@@ -2658,6 +2660,7 @@ function ProductionOutputResultTable({ canVoid, onVoid, rows }: { canVoid: boole
       createdAt: string | null | undefined
       date: string
       docNo: string
+      eventKey: string
       lossQty: number
       notes: string | null | undefined
       outputQty: number
@@ -2668,11 +2671,13 @@ function ProductionOutputResultTable({ canVoid, onVoid, rows }: { canVoid: boole
       warehouseName: string
     }>()
     for (const row of rows) {
-      const current = grouped.get(row.docNo) ?? {
+      if (!row.eventKey) continue
+      const current = grouped.get(row.eventKey) ?? {
         categoryCode: '',
         createdAt: row.createdAt,
         date: row.date,
         docNo: row.docNo,
+        eventKey: row.eventKey,
         lossQty: 0,
         notes: row.notes,
         outputQty: 0,
@@ -2693,7 +2698,7 @@ function ProductionOutputResultTable({ canVoid, onVoid, rows }: { canVoid: boole
       }
       current.status = row.status
       current.notes = row.notes ?? current.notes
-      grouped.set(row.docNo, current)
+      grouped.set(row.eventKey, current)
     }
     return [...grouped.values()]
   }, [rows])
@@ -2710,7 +2715,7 @@ function ProductionOutputResultTable({ canVoid, onVoid, rows }: { canVoid: boole
           <tbody className="divide-y divide-slate-200">
             {results.map((result) => {
               const dateTime = formatMovementDateTimeParts(result.createdAt)
-              return <tr key={result.docNo}>
+              return <tr key={result.eventKey}>
                 <td className="p-2.5 text-center"><span className="block truncate font-semibold" title={result.productName}>{result.productName}</span><span className="block truncate font-mono text-xs text-slate-400">{result.productCode}</span></td>
                 <td className="p-2.5 text-center">{result.categoryCode ? stockCategoryLabel(result.categoryCode) : '-'}</td>
                 <td className="p-2.5 text-center">{result.warehouseName || '-'}</td>

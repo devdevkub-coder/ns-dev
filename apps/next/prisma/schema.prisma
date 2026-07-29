@@ -636,12 +636,15 @@ model bank_statement {
   version                Int?                     @default(1)
   id                     BigInt                   @id @default(autoincrement())
   account_id             BigInt?
+  branch_id              BigInt?
   doc_no                 String                   @unique(map: "uq_bank_statement_doc_no")
   accounts               accounts?                @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branches               branches?               @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   customer_receipts      customer_receipts?
   payment_account_splits payment_account_splits[]
 
   @@index([account_id], map: "idx_bank_account")
+  @@index([branch_id], map: "idx_bank_statement_branch")
   @@index([date(sort: Desc)], map: "idx_bank_date")
   @@index([ref_type, ref_id], map: "idx_bank_statement_source", where: raw("((ref_type IS NOT NULL) AND (ref_id IS NOT NULL))"))
   @@schema("public")
@@ -729,12 +732,14 @@ model branches {
   accounts                  accounts[]
   app_user_branch_access    app_user_branch_access[]
   assets                    assets[]
+  bank_statements           bank_statement[]
   company_profiles          company_profiles?
   customer_receipts         customer_receipts[]
   customer_advances         customer_advances[]
   expenses                  expenses[]
   grade_adjustments         grade_adjustments[]
   payments                  payments[]
+  payment_approvals         payment_approvals[]
   petty_advances            petty_advances[]
   production_lines          production_lines[]
   production_machines       production_machines[]
@@ -752,6 +757,8 @@ model branches {
   supplier_advance_payments supplier_advance_payments[]
   supplier_branches         supplier_branches[]
   suppliers                 suppliers[]
+  trading_cost_sources      trading_cost_sources[]
+  transfers                 transfers[]
   warehouses                warehouses[]
   weight_tickets            weight_tickets[]
 
@@ -1485,7 +1492,9 @@ model payment_approvals {
   created_at                           DateTime                       @default(now()) @db.Timestamptz(6)
   updated_at                           DateTime                       @default(now()) @db.Timestamptz(6)
   doc_no                               String?                        @unique(map: "uq_payment_approvals_doc_no", where: raw("(doc_no IS NOT NULL)"))
+  branch_id                            BigInt?
   id                                   BigInt                         @id @default(autoincrement())
+  branches                             branches?                      @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   payment_id                           BigInt?
   payment_allocations                  payment_allocations[]
   payment_approval_status_logs         payment_approval_status_logs[]
@@ -1495,6 +1504,7 @@ model payment_approvals {
   @@index([status], map: "idx_payment_approvals_status")
   @@index([approved_at(sort: Desc)], map: "idx_payment_approvals_approved_at")
   @@index([doc_no], map: "idx_payment_approvals_doc_no")
+  @@index([branch_id, approved_at(sort: Desc), doc_no(sort: Desc)], map: "idx_payment_approvals_branch_approved_doc")
   @@index([source_id, status, doc_no], map: "idx_payment_approvals_purchase_bill_locked", where: raw("((source_type = 'purchase_bill'::text) AND (status = ANY (ARRAY['approved'::text, 'paid'::text])))"))
   @@schema("public")
 }
@@ -1844,6 +1854,7 @@ model production_inputs {
   id                                                           BigInt             @id @default(autoincrement())
   order_id                                                     BigInt?
   product_id                                                   BigInt?
+  event_key                                                    String?
   doc_no                                                       String
   status                                                       String             @default("active")
   source_warehouse_id                                          BigInt?
@@ -1862,6 +1873,7 @@ model production_inputs {
 
   @@index([order_id], map: "idx_pi_order")
   @@index([order_id, status], map: "idx_production_inputs_order_status")
+  @@index([order_id, event_key], map: "idx_production_inputs_order_event")
   @@index([doc_no], map: "idx_production_inputs_doc_no")
   @@index([reversal_doc_no], map: "idx_production_inputs_reversal_doc_no", where: raw("(reversal_doc_no IS NOT NULL)"))
   @@index([status], map: "idx_production_inputs_status")
@@ -2010,6 +2022,8 @@ model production_outputs {
   output_status                String?
   id                           BigInt                        @id @default(autoincrement())
   order_id                     BigInt?
+  event_key                    String?
+  output_round                 Int?
   output_category              BigInt?
   product_id                   BigInt?
   doc_no                       String
@@ -2033,6 +2047,8 @@ model production_outputs {
 
   @@index([order_id], map: "idx_po_order")
   @@index([order_id, status], map: "idx_production_outputs_order_status")
+  @@index([order_id, event_key], map: "idx_production_outputs_order_event")
+  @@unique([order_id, output_round], map: "uq_production_outputs_order_round")
   @@index([doc_no], map: "idx_production_outputs_doc_no")
   @@index([output_category])
   @@index([reversal_doc_no], map: "idx_production_outputs_reversal_doc_no", where: raw("(reversal_doc_no IS NOT NULL)"))
@@ -3900,10 +3916,13 @@ model transfers {
   id                                           BigInt    @id @default(autoincrement())
   from_account_id                              BigInt?
   to_account_id                                BigInt?
+  branch_id                                    BigInt?
   accounts_transfers_from_account_idToaccounts accounts? @relation("transfers_from_account_idToaccounts", fields: [from_account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   accounts_transfers_to_account_idToaccounts   accounts? @relation("transfers_to_account_idToaccounts", fields: [to_account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branches                                     branches? @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([doc_no], map: "idx_transfers_doc_no")
+  @@index([branch_id], map: "idx_transfers_branch")
   @@index([idempotency_key], map: "idx_transfers_idempotency", where: raw("(idempotency_key IS NOT NULL)"))
   @@schema("public")
 }
@@ -4297,6 +4316,7 @@ model trading_cost_sources {
   source_type              String                     @default("SPOT_MANUAL")
   date                     DateTime                   @db.Date
   supplier_id              BigInt?
+  branch_id                BigInt?
   product_id               BigInt?
   product_code_snapshot    String?
   product_name_snapshot    String?
@@ -4313,10 +4333,12 @@ model trading_cost_sources {
   trading_allocation_facts trading_allocation_facts[]
   products                 products?                  @relation(fields: [product_id], references: [id], onUpdate: NoAction)
   suppliers                suppliers?                 @relation(fields: [supplier_id], references: [id], onUpdate: NoAction)
+  branches                 branches?                  @relation(fields: [branch_id], references: [id], onUpdate: NoAction)
 
   @@index([date(sort: Desc), id(sort: Desc)], map: "idx_trading_cost_sources_date")
   @@index([product_id, status, date(sort: Desc)], map: "idx_trading_cost_sources_product_status")
   @@index([supplier_id, status, date(sort: Desc)], map: "idx_trading_cost_sources_supplier_status")
+  @@index([branch_id, status, date(sort: Desc)], map: "idx_trading_cost_sources_branch_status")
   @@schema("public")
 }
 
