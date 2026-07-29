@@ -62,7 +62,10 @@ type OpeningPayload = {
   accounts: { branchCode: string; branchName: string; code: string; currency: string; name: string; odLimit: number; openingBalance: number; type: string }[]
   row: { updatedAt: string; updatedBy: string }
   summary: { apCost: number; apExpense: number; ar: number; netOther: number; stock: number }
+  stock: { cutoffDate: string; goLiveDate: string; items: OpeningStockItem[]; locked: boolean; references: { branches: { code: string; id: string; name: string }[]; products: { code: string; id: string; name: string; status: string | null }[]; suppliers: { code: string; id: string; name: string }[]; warehouses: { branchId: string | null; code: string; id: string; name: string }[] }; summary: { paidValue: number; qty: number; unpaidValue: number; value: number } }
 }
+
+type OpeningStockItem = { applied: boolean; appliedApRefId?: string | null; appliedAt?: string | null; appliedRefId?: string | null; branchId: string; id: string; itemStatus: 'RM' | 'WIP' | 'FG'; linkedBillNo?: string | null; lotNo: string; note?: string | null; paid: boolean; productId: string; qty: number; supplierId?: string | null; unitCost: number; warehouseId: string }
 
 type HistoricalPayload = {
   months: { label: string; month: number; year: number }[]
@@ -499,14 +502,58 @@ export function OpeningBalancePageClient() {
   const accounts = useMemo(() => data?.accounts ?? [], [data?.accounts])
   const { handleSort, sortDirection, sortedRows, sortKey } = useLocalTableSort<OpeningPayload['accounts'][number], OpeningAccountColumnKey>(accounts, getOpeningAccountSortValue)
   const tabs = ['ตั้งค่า', 'เงินสด/ธนาคาร/FCD/OD', 'AR ลูกหนี้', 'AP ต้นทุน', 'AP ค่าใช้จ่าย', 'สต็อก', 'ทรัพย์สินถาวร', 'เงินกู้', 'VAT/WHT', 'อื่นๆ', 'ส่วนทุน/YTD', 'ตรวจงบดุล + ล็อก']
+  const [activeTab, setActiveTab] = useState(tabs[0])
+  const [stockItems, setStockItems] = useState<OpeningStockItem[]>([])
+  const [stockMessage, setStockMessage] = useState<string | null>(null)
+  const [stockError, setStockError] = useState<string | null>(null)
+  const [stockBusy, setStockBusy] = useState(false)
+  useEffect(() => { if (data?.stock.items) setStockItems(data.stock.items) }, [data?.stock.items])
+  function updateStockItem(id: string, patch: Partial<OpeningStockItem>) { setStockItems((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item)); setStockMessage(null); setStockError(null) }
+  async function saveStockItems(items: OpeningStockItem[], successMessage: string) {
+    setStockBusy(true); setStockMessage(null); setStockError(null)
+    try { const payload = await dailyFetchJson<{ stock: OpeningStockItem[] }>('/api/finance-accounting/opening-balance', { body: JSON.stringify({ action: 'save', stockItems: items }), method: 'POST' }); setStockItems(payload.stock); setStockMessage(successMessage) }
+    catch (caught) { setStockError(caught instanceof Error ? caught.message : 'บันทึกรายการยกยอดไม่ได้') } finally { setStockBusy(false) }
+  }
+  async function applyStockItem(item: OpeningStockItem) {
+    if (!item.productId || !item.branchId || !item.warehouseId || item.qty <= 0 || item.unitCost <= 0) { setStockError('กรอกสินค้า สาขา คลัง จำนวน และต้นทุนให้ครบก่อน Apply'); return }
+    if (!item.paid && !item.supplierId) { setStockError('ถ้ายังไม่จ่าย ต้องเลือก Supplier เพื่อสร้าง AP ก่อน Apply'); return }
+    setStockBusy(true); setStockMessage(null); setStockError(null)
+    try { const payload = await dailyFetchJson<{ item: OpeningStockItem }>('/api/finance-accounting/opening-balance', { body: JSON.stringify({ action: 'apply', item }), method: 'POST' }); setStockItems((current) => current.some((candidate) => candidate.id === payload.item.id) ? current.map((candidate) => candidate.id === payload.item.id ? payload.item : candidate) : [...current, payload.item]); setStockMessage(`Apply รายการ ${item.lotNo || 'OPENING'} แล้ว — สร้าง OPENING_STOCK_IN ใน Stock Ledger เรียบร้อย`) }
+    catch (caught) { setStockError(caught instanceof Error ? caught.message : 'Apply ยอดสต็อกไม่ได้') } finally { setStockBusy(false) }
+  }
+  async function unapplyStockItem(item: OpeningStockItem) {
+    setStockBusy(true); setStockMessage(null); setStockError(null)
+    try { await dailyFetchJson('/api/finance-accounting/opening-balance', { body: JSON.stringify({ action: 'unapply', itemId: item.id }), method: 'POST' }); setStockItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, applied: false, appliedAt: null, appliedRefId: null, appliedApRefId: null } : candidate)); setStockMessage('ยกเลิก Apply แล้ว สามารถแก้ไขรายการได้') }
+    catch (caught) { setStockError(caught instanceof Error ? caught.message : 'ยกเลิก Apply ไม่ได้') } finally { setStockBusy(false) }
+  }
+  function addStockItem() { const firstBranch = data?.stock.references.branches[0]; const firstWarehouse = data?.stock.references.warehouses.find((warehouse) => warehouse.branchId === firstBranch?.id); setStockItems((current) => [...current, { applied: false, branchId: firstBranch?.id ?? '', id: `OB-ST-${Date.now()}`, itemStatus: 'RM', lotNo: 'OPENING', paid: true, productId: '', qty: 0, unitCost: 0, warehouseId: firstWarehouse?.id ?? '' }]); setStockMessage(null); setStockError(null) }
+  async function removeStockItem(item: OpeningStockItem) { if (item.applied) { setStockError('รายการนี้ Apply แล้ว ให้กด Unapply ก่อนลบ'); return }; await saveStockItems(stockItems.filter((candidate) => candidate.id !== item.id), 'ลบรายการยกยอดแล้ว') }
+  const stockValue = stockItems.reduce((sum, item) => sum + item.qty * item.unitCost, 0)
+  const stockPaidValue = stockItems.filter((item) => item.paid).reduce((sum, item) => sum + item.qty * item.unitCost, 0)
+  const stockRefs = data?.stock.references
   return (
     <section className="space-y-4">
       {error ? <ErrorBox message={error} /> : null}
-      <Tabs value={tabs[0]} className="gap-0">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-0">
         <TabsList variant="line" className="w-full flex-wrap overflow-x-auto">
           {tabs.map((tab) => <TabsTrigger key={tab} value={tab} variant="line">{tab}</TabsTrigger>)}
         </TabsList>
       </Tabs>
+      {activeTab === 'สต็อก' ? <section className="space-y-4">
+        {stockError ? <ErrorBox message={stockError} /> : null}
+        {stockMessage ? <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{stockMessage}</div> : null}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4"><StatCard label="จำนวนรวม" value={`${formatMoney(stockItems.reduce((sum, item) => sum + item.qty, 0))} กก.`} tone="blue" /><StatCard label="มูลค่ารวม" value={formatMoney(stockValue)} tone="amber" /><StatCard label="จ่ายแล้ว" value={formatMoney(stockPaidValue)} tone="cyan" /><StatCard label="ยังไม่จ่าย" value={formatMoney(stockValue - stockPaidValue)} tone="red" /></div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">ยกยอด ณ วันที่ <b>{data?.stock.cutoffDate || '-'}</b> และเริ่มใช้งานวันที่ <b>{data?.stock.goLiveDate || '-'}</b> · กด Apply ทีละรายการเพื่อสร้าง <b>OPENING_STOCK_IN</b> ใน Stock Ledger · ถ้าไม่ติ๊ก “จ่ายแล้ว” และเลือก Supplier ระบบจะสร้าง AP เจ้าหนี้ยกมาให้อัตโนมัติ</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-bold text-slate-800">📦 Stock Opening — Inventory ยกมา</h2><div className="flex gap-2"><button className="h-9 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white disabled:opacity-50" disabled={stockBusy || data?.stock.locked} onClick={addStockItem} type="button">+ เพิ่มรายการ</button><button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 disabled:opacity-50" disabled={stockBusy || data?.stock.locked} onClick={() => saveStockItems(stockItems, 'บันทึกรายการยกยอดแล้ว')} type="button">{stockBusy ? 'กำลังบันทึก...' : 'บันทึก'}</button></div></div>
+          <div className="overflow-x-auto"><table className="min-w-[1250px] w-full text-xs"><thead className="bg-slate-100 text-left text-slate-600"><tr><th className="p-2">สินค้า</th><th className="p-2">Status</th><th className="p-2">สาขา</th><th className="p-2">คลัง</th><th className="p-2">Lot</th><th className="p-2 text-right">Qty</th><th className="p-2 text-right">WAC/หน่วย</th><th className="p-2 text-right">มูลค่า</th><th className="p-2 text-center">จ่ายแล้ว</th><th className="p-2">Supplier</th><th className="p-2">เลขบิลซื้อ</th><th className="p-2 text-center">สถานะ</th><th className="p-2" /></tr></thead><tbody className="divide-y divide-slate-100">
+            {stockItems.map((item) => { const warehouses = (stockRefs?.warehouses ?? []).filter((warehouse) => warehouse.branchId === item.branchId); return <tr className={item.applied ? 'bg-emerald-50/50' : undefined} key={item.id}>
+              <td className="p-2"><Select className="h-9 min-w-[220px]" disabled={item.applied || stockBusy} value={item.productId} onChange={(event) => updateStockItem(item.id, { productId: event.target.value })}><option value="">เลือกสินค้า</option>{(stockRefs?.products ?? []).map((product) => <option key={product.id} value={product.id}>{product.code} - {product.name}</option>)}</Select></td><td className="p-2"><Select className="h-9" disabled={item.applied || stockBusy} value={item.itemStatus} onChange={(event) => updateStockItem(item.id, { itemStatus: event.target.value as OpeningStockItem['itemStatus'] })}><option value="RM">RM</option><option value="WIP">WIP</option><option value="FG">FG</option></Select></td><td className="p-2"><Select className="h-9" disabled={item.applied || stockBusy} value={item.branchId} onChange={(event) => updateStockItem(item.id, { branchId: event.target.value, warehouseId: '' })}><option value="">เลือกสาขา</option>{(stockRefs?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.code}</option>)}</Select></td><td className="p-2"><Select className="h-9" disabled={item.applied || stockBusy} value={item.warehouseId} onChange={(event) => updateStockItem(item.id, { warehouseId: event.target.value })}><option value="">เลือกคลัง</option>{warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.code} - {warehouse.name}</option>)}</Select></td><td className="p-2"><input className="h-9 w-28 rounded-md border border-slate-300 px-2" disabled={item.applied || stockBusy} value={item.lotNo} onChange={(event) => updateStockItem(item.id, { lotNo: event.target.value })} /></td><td className="p-2"><input className="h-9 w-24 rounded-md border border-slate-300 px-2 text-right" disabled={item.applied || stockBusy} min="0" step="0.001" type="number" value={item.qty || ''} onChange={(event) => updateStockItem(item.id, { qty: Number(event.target.value) || 0 })} /></td><td className="p-2"><input className="h-9 w-24 rounded-md border border-slate-300 px-2 text-right" disabled={item.applied || stockBusy} min="0.01" step="0.01" type="number" value={item.unitCost || ''} onChange={(event) => updateStockItem(item.id, { unitCost: Number(event.target.value) || 0 })} /></td><td className="p-2 text-right font-semibold tabular-nums">{formatMoney(item.qty * item.unitCost)}</td><td className="p-2 text-center"><input checked={item.paid} disabled={item.applied || stockBusy} type="checkbox" onChange={(event) => updateStockItem(item.id, { paid: event.target.checked })} /></td><td className="p-2"><Select className="h-9 min-w-[170px]" disabled={item.applied || item.paid || stockBusy} value={item.supplierId ?? ''} onChange={(event) => updateStockItem(item.id, { supplierId: event.target.value || null })}><option value="">เลือก Supplier</option>{(stockRefs?.suppliers ?? []).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.code} - {supplier.name}</option>)}</Select></td><td className="p-2"><input className="h-9 w-32 rounded-md border border-slate-300 px-2" disabled={item.applied || item.paid || stockBusy} value={item.linkedBillNo ?? ''} onChange={(event) => updateStockItem(item.id, { linkedBillNo: event.target.value || null })} /></td><td className="p-2 text-center">{item.applied ? <span className="rounded bg-emerald-100 px-2 py-1 font-bold text-emerald-700">✓ Applied</span> : <span className="rounded bg-amber-100 px-2 py-1 text-amber-700">Pending</span>}</td><td className="p-2"><div className="flex gap-1">{item.applied ? <button className="rounded bg-slate-100 px-2 py-1 text-slate-700" disabled={stockBusy || data?.stock.locked} onClick={() => unapplyStockItem(item)} type="button">Unapply</button> : <button className="rounded bg-emerald-600 px-2 py-1 font-bold text-white" disabled={stockBusy || data?.stock.locked} onClick={() => applyStockItem(item)} type="button">Apply</button>}<button className="px-1 py-1 text-red-600" disabled={stockBusy || data?.stock.locked || item.applied} onClick={() => removeStockItem(item)} type="button">✕</button></div></td>
+            </tr> })}
+            {!stockItems.length ? <tr><td className="p-8 text-center text-slate-400" colSpan={13}>ยังไม่มีรายการยกยอด กด “+ เพิ่มรายการ” เพื่อเริ่มต้น</td></tr> : null}
+          </tbody></table></div>
+        </div>
+      </section> : null}
+      {activeTab !== 'สต็อก' ? <>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5"><StatCard label="AR" value={formatMoney(data?.summary.ar)} tone="blue" /><StatCard label="AP ต้นทุน" value={formatMoney(data?.summary.apCost)} tone="red" /><StatCard label="AP ค่าใช้จ่าย" value={formatMoney(data?.summary.apExpense)} tone="red" /><StatCard label="สต็อก" value={formatMoney(data?.summary.stock)} tone="amber" /><StatCard label="สุทธิอื่นๆ" value={formatMoney(data?.summary.netOther)} /></div>
       <Panel title="ข้อมูลพื้นฐาน"><div className="grid grid-cols-2 gap-3 text-sm"><ReadField label="วันที่ตัดยอด" value="2026-04-30" /><ReadField label="วันเริ่มใช้งาน" value="2026-05-01" /></div><div className="mt-3 text-xs text-slate-400">อัปเดตล่าสุด: {data?.row.updatedAt || '-'}</div></Panel>
       {/* Desktop Table View */}
@@ -584,6 +631,7 @@ export function OpeningBalancePageClient() {
           </div>
         ))}
       </div>
+      </> : null}
     </section>
   )
 }
