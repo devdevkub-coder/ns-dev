@@ -1381,16 +1381,25 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     if (handledAutoOpenRef.current === autoOpenKey) return
 
     if (mode === 'purchase') {
-      handledAutoOpenRef.current = autoOpenKey
-      const receipt = options.receipts.find((option) => option.id === targetDocNo || option.documentNo === targetDocNo)
-      if (!receipt) {
-        setError(`ไม่พบ WTI ${targetDocNo} หรือเอกสารถูกนำไปเปิดบิลแล้ว`)
-        clearAutoOpenSearchParams()
-        return
-      }
-      openPurchaseFormFromReceipt(receipt)
-      clearAutoOpenSearchParams()
-      return
+      let cancelled = false
+      void loadPurchaseOptions()
+        .then((payload) => {
+          if (cancelled) return
+          handledAutoOpenRef.current = autoOpenKey
+          const receipt = payload?.receipts.find((option) => option.id === targetDocNo || option.documentNo === targetDocNo)
+          if (!receipt) {
+            setError(`ไม่พบ WTI ${targetDocNo} หรือเอกสารถูกนำไปเปิดบิลแล้ว`)
+            clearAutoOpenSearchParams()
+            return
+          }
+          openPurchaseFormFromReceipt(receipt)
+          clearAutoOpenSearchParams()
+        })
+        .catch((caught) => {
+          if (cancelled) return
+          setError(caught instanceof Error ? caught.message : 'โหลดตัวเลือกบิลซื้อไม่ได้')
+        })
+      return () => { cancelled = true }
     }
 
     let cancelled = false
@@ -1416,6 +1425,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     clearAutoOpenSearchParams,
     isLoading,
     loadSalesOptions,
+    loadPurchaseOptions,
     mode,
     openPurchaseFormFromReceipt,
     openSalesFormFromDelivery,

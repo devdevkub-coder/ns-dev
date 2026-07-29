@@ -8,7 +8,9 @@ Immediate next task: ตรวจ SIT runtime smoke หลัง reset แล้
 
 ## Super Admin Authorization Checkpoint 2026-07-29
 
-`system_admin` is now the Super Admin role. The application authorization context treats it as an admin bypass, and migration `20260729100000_promote_system_admin_to_super_admin.sql` updates the role label/flags and backfills every active permission grant in Dev and SIT. Postflight confirms `system_admin = Super Admin`, 122 active permission grants, and `daily.weight_tickets.open_bill` present in both environments. No transaction data changed. The deployed SIT runtime still needs the code commit before the bypass is active in the UI/API.
+`system_admin` is now the Super Admin role. The application authorization context treats it as an admin bypass, and migration `20260729100000_promote_system_admin_to_super_admin.sql` updates the role label/flags and backfills every active permission grant in Dev and SIT. Postflight confirms `system_admin = Super Admin`, 122 active permission grants, and `daily.weight_tickets.open_bill` present in both environments. No transaction data changed.
+
+WTI open-bill handoff fix 2026-07-29: `/purchase/bills?new=1&wti=...` now loads purchase options before resolving the WTI source. Previously the auto-open effect searched the still-empty client option state and showed a false `ไม่พบ WTI` error even when the SIT WTI was `received`, had product summaries, and had no active allocation. What is what: the list button only creates the deep link; the purchase page owns source preload. Why it has to be like this: preload must finish before source lookup so the handoff uses the same option contract as manual WTI selection.
 
 ---
 
