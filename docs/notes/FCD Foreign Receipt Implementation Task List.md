@@ -232,7 +232,7 @@ FCD conversion
 - [x] `FCD-417` ปรับ Top Accounts, composition chart และ net liquidity formula ให้จัดอันดับ/รวมด้วย carrying THB เท่านั้น
 - [x] `FCD-418` ปรับ Cash Position export ให้เป็นยอด THB และเพิ่ม source links ไป Bank/FCD Ledger/AR/AP; native/rate อยู่ใน FCD drilldown ไม่ใช่ aggregate export
 - [x] `FCD-419` แยกสถานะ OD used/available ออกจากยอดหลัก และคำนวณตาม account+currency contract ที่อนุมัติจาก `FCD-008`
-- [ ] `FCD-420` เพิ่ม reconciliation tests ให้ Cash Position THB totals ตรงกับ Bank/FCD projection และ AR/AP source snapshots ณ as-of เดียวกัน
+- [x] `FCD-420` เพิ่ม reconciliation tests ให้ Cash Position THB totals ตรงกับ Bank/FCD projection และ AR/AP source snapshots ณ as-of เดียวกัน: route fixture ยืนยัน account THB projection (รวม FCD carrying THB ครั้งเดียว), AR/AP bill balances และ net exposure ใช้ as-of/branch scope เดียวกัน (2026-07-30)
 
 ## Phase 5: FCD Dashboard And Ledger
 
