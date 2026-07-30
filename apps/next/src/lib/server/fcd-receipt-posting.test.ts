@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { allocateCarryingAmounts, fcdReceiptBankStatementInflow, fcdReceiptBankStatementReversal } from './fcd-receipt-posting'
+import { describe, expect, it, vi } from 'vitest'
+import { allocateCarryingAmounts, fcdReceiptBankStatementInflow, fcdReceiptBankStatementReversal, reverseFcdReceiptAccountSplits } from './fcd-receipt-posting'
 
 describe('allocateCarryingAmounts', () => {
   it('keeps the rounded account split carrying amount reconciled to the receipt total', () => {
@@ -26,5 +26,57 @@ describe('FCD Bank Statement compatibility', () => {
     expect(result.amount_out.toFixed(2)).toBe('3500.00')
     expect(result.book_amount_out.toFixed(2)).toBe('3500.00')
     expect(result.native_amount_out.toFixed(2)).toBe('100.00')
+  })
+})
+
+describe('foreign receipt reversal posting', () => {
+  it('reverses the persisted native, carrying and rate snapshots without looking up a current rate', async () => {
+    const bankStatementCreate = vi.fn().mockResolvedValue({ id: 31n })
+    const ledgerCreate = vi.fn().mockResolvedValue({ id: 41n })
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(undefined),
+      bank_statement: { create: bankStatementCreate },
+      customer_receipt_account_splits: {
+        findMany: vi.fn().mockResolvedValue([{
+          account_id: 7n,
+          carrying_thb_amount: '3512.30',
+          currency_code: 'USD',
+          fcd_ledger_entry_id: 11n,
+          received_native_amount: '100.00',
+        }]),
+      },
+      fcd_ledger_entries: {
+        create: ledgerCreate,
+        findMany: vi.fn().mockResolvedValue([{ bank_statement_id: 22n, fx_rate: '35.123', id: 11n }]),
+      },
+    }
+
+    await expect(reverseFcdReceiptAccountSplits(tx as never, {
+      actor: 'tester@example.com',
+      bankStatementDocNos: ['BST2607-0001'],
+      branchId: 1n,
+      date: '2026-07-30',
+      receiptDocNo: 'RCP2607-0001',
+      receiptId: 42n,
+      sourceEventKey: 'customer-receipt:RCP2607-0001:cancel',
+    })).resolves.toEqual({ created: [{ bankStatementId: 31n, fcdLedgerEntryId: 41n }] })
+
+    expect(bankStatementCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        book_fx_rate: '35.123',
+        native_amount_out: expect.objectContaining({}),
+        reversal_of_id: 22n,
+      }),
+    }))
+    const bankData = bankStatementCreate.mock.calls[0]?.[0].data
+    expect(bankData.native_amount_out.toFixed(2)).toBe('100.00')
+    expect(bankData.book_amount_out.toFixed(2)).toBe('3512.30')
+
+    expect(ledgerCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ fx_rate: '35.123', reversal_of_id: 11n }),
+    }))
+    const ledgerData = ledgerCreate.mock.calls[0]?.[0].data
+    expect(String(ledgerData.native_amount_out)).toBe('100.00')
+    expect(String(ledgerData.carrying_thb_out)).toBe('3512.30')
   })
 })
