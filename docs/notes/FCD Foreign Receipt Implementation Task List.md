@@ -226,12 +226,12 @@ FCD conversion
 - [x] `FCD-411` ตัด fallback `account.currency ?? THB` และห้ามใช้ชื่อ/type บัญชีเดาว่าเป็น FCD; account classification ต้องอ่าน `account_group`, `is_fcd` และ supported currencies จริง
 - [x] `FCD-412` ห้ามรวม native USD/CNY/สกุลอื่นเข้ากับ THB โดยตรง; KPI สภาพคล่องรวมใช้ book/carrying THB เท่านั้น
 - [x] `FCD-413` Cash Position แสดง FCD ด้วย carrying THB เป็นหลักและ link ไป FCD ledger/หน้าแลกเงินเพื่อดู native balance; daily valuation/unrealized ไม่อยู่ในหน้าหลักนี้
-- [ ] `FCD-414` เพิ่ม `asOf`, branch และ account group filters ให้ Cash Position API/UI โดยคง branch permission scope และใช้ transaction facts ณ cutoff จริง; ไม่เพิ่ม currency filter ในหน้ารวม THB
-- [ ] `FCD-415` ปรับตาราง Cash Position ให้แสดงยอดคงเหลือทางบัญชี THB ต่อบัญชี พร้อม FCD indicator และ OD; native/rate/valuation detail ไม่เพิ่มเป็นคอลัมน์หลัก
+- [x] `FCD-414` เพิ่ม `asOf`, branch และ account group filters ให้ Cash Position API/UI โดยคง branch permission scope และใช้ transaction facts ณ cutoff จริง; ไม่เพิ่ม currency filter ในหน้ารวม THB
+- [x] `FCD-415` ปรับตาราง Cash Position ให้แสดงยอดคงเหลือทางบัญชี THB ต่อบัญชี พร้อม FCD indicator และ OD; native/rate/valuation detail ไม่เพิ่มเป็นคอลัมน์หลัก
 - [x] `FCD-416` AR/AP exposure และ net exposure ใน Cash Position เป็น THB จาก `sales_bills.receivable_balance` และ `purchase_bills.payable_balance` โดยตรง ภายใต้ branch scope เดียวกับบัญชีเงิน; ไม่ derive ซ้ำจาก legacy receipts/payments
-- [ ] `FCD-417` ปรับ Top Accounts, composition chart และ net liquidity formula ให้จัดอันดับ/รวมด้วย carrying THB เท่านั้น
-- [ ] `FCD-418` ปรับ Cash Position export ให้เป็นยอด THB และเพิ่ม source links ไป Bank/FCD Ledger/AR/AP; native/rate อยู่ใน FCD drilldown ไม่ใช่ aggregate export
-- [ ] `FCD-419` แยกสถานะ OD used/available ออกจากยอดหลัก และคำนวณตาม account+currency contract ที่อนุมัติจาก `FCD-008`
+- [x] `FCD-417` ปรับ Top Accounts, composition chart และ net liquidity formula ให้จัดอันดับ/รวมด้วย carrying THB เท่านั้น
+- [x] `FCD-418` ปรับ Cash Position export ให้เป็นยอด THB และเพิ่ม source links ไป Bank/FCD Ledger/AR/AP; native/rate อยู่ใน FCD drilldown ไม่ใช่ aggregate export
+- [x] `FCD-419` แยกสถานะ OD used/available ออกจากยอดหลัก และคำนวณตาม account+currency contract ที่อนุมัติจาก `FCD-008`
 - [ ] `FCD-420` เพิ่ม reconciliation tests ให้ Cash Position THB totals ตรงกับ Bank/FCD projection และ AR/AP source snapshots ณ as-of เดียวกัน
 
 ## Phase 5: FCD Dashboard And Ledger
