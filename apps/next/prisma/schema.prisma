@@ -2235,6 +2235,7 @@ model purchase_bills {
   total_cost                        Decimal?                            @db.Decimal
   swap_history                      Json?
   total_commission                  Decimal?                            @default(0) @db.Decimal
+  is_opening                        Boolean?                            @default(false)
   commission_pct                    Decimal?                            @default(0) @db.Decimal
   deduction_qty                     Decimal?                            @default(0) @db.Decimal
   deduction_amount                  Decimal?                            @default(0) @db.Decimal
