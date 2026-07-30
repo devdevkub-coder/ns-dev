@@ -902,6 +902,10 @@ paths:
           in: query
           schema:
             type: string
+        - name: branchCode
+          in: query
+          schema:
+            type: string
         - name: from
           in: query
           schema:
@@ -947,7 +951,7 @@ paths:
             enum: [xlsx]
       responses:
         "200":
-          description: Bank statement payload, including account filter options with opening balances for the selected-account ledger view, or xlsx export when `format=xlsx`.
+          description: Bank statement THB book projection with native currency/rate audit fields. Account Master opening balance is not a statement source. Returns xlsx when `format=xlsx`.
           content:
             application/json:
               schema:
@@ -963,10 +967,30 @@ paths:
     get:
       tags: [Finance]
       operationId: readFinanceCashPosition
-      summary: Read cash position, account balances, and AR/AP exposure
+      summary: Read as-of THB cash position, account balances, and AR/AP exposure
+      parameters:
+        - name: asOf
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: branchId
+          in: query
+          schema:
+            type: string
+        - name: accountGroup
+          in: query
+          schema:
+            type: string
+            enum: [bank, cash, fcd, ALL]
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [xlsx]
       responses:
         "200":
-          description: Cash position aggregation payload.
+          description: THB-only cash position aggregation. FCD native balance/rate is a drilldown concern and is not added to THB totals.
           content:
             application/json:
               schema:
@@ -1094,26 +1118,34 @@ paths:
     get:
       tags: [Finance]
       operationId: listForeignFcdLedger
-      summary: Read derived FCD ledger from FCD accounts and bank statement rows
-      description: Read-only baseline. Does not create an FCD ledger table, mutate bank statement rows, or infer foreign movement from THB amounts when source foreign transaction tables are unavailable.
+      summary: Read persisted FCD ledger per account and currency
+      description: Read-only FCD subledger from `fcd_ledger_entries`. Returns native movement, carrying THB, weighted carrying rate and an optional valuation view from the requested historical rate. It never infers missing native movement or a missing rate from THB facts.
       parameters:
         - name: accountId
           in: query
           schema:
             type: string
-        - name: from
+        - name: currencyCode
+          in: query
+          schema:
+            type: string
+        - name: valuationDate
           in: query
           schema:
             type: string
             format: date
-        - name: to
+        - name: valuationRateType
           in: query
           schema:
             type: string
-            format: date
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [xlsx]
       responses:
         "200":
-          description: FCD account options, selected account, conservative ledger rows, and balances.
+          description: FCD account/currency options, persisted ledger rows, carrying balance and optional valuation.
           content:
             application/json:
               schema:
@@ -1125,8 +1157,8 @@ paths:
     get:
       tags: [Finance]
       operationId: listForeignFxGainLossReport
-      summary: Read realized FX gain/loss report
-      description: Read-only report from `fx_gain_loss`; does not auto-post, reverse, or recalculate gain/loss rows.
+      summary: Read FX gain/loss event report
+      description: Read-only report from persisted FX event facts. AR settlement, FCD conversion (realized) and FCD revaluation (unrealized) remain separate transaction types.
       parameters:
         - name: from
           in: query
@@ -1160,8 +1192,8 @@ paths:
     get:
       tags: [Finance]
       operationId: readForeignBankReconciliation
-      summary: Read bank reconciliation design baseline
-      description: Read-only baseline showing ERP bank statement rows and unavailable imported statement state. Does not import CSV, auto-match, ignore, delete, or mutate reconciliation state.
+      summary: Read ERP Bank Statement reconciliation view
+      description: Read-only view of persisted ERP Bank Statement facts, including native currency, book THB and rate audit fields. CSV import/match/write actions remain unavailable.
       parameters:
         - name: accountId
           in: query
@@ -1180,62 +1212,6 @@ paths:
       responses:
         "200":
           description: Bank reconciliation filters, imported placeholder rows, ERP rows, stats, and design state.
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "403":
-          $ref: "#/components/responses/Forbidden"
-
-  /api/finance/foreign/intl-transfer:
-    get:
-      tags: [Finance]
-      operationId: listForeignIntlTransfer
-      summary: Read international transfer form baseline
-      description: Read/form baseline for ITF. Returns account, beneficiary, purpose, FX reference data, and posted ITF bank rows when present; does not submit to bank, complete, reverse, or mutate bank statements.
-      parameters:
-        - name: from
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: to
-          in: query
-          schema:
-            type: string
-            format: date
-      responses:
-        "200":
-          description: International transfer read/form baseline data.
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "403":
-          $ref: "#/components/responses/Forbidden"
-
-  /api/finance/foreign/overseas-receipt:
-    get:
-      tags: [Finance]
-      operationId: listForeignOverseasReceipt
-      summary: Read overseas receipt form baseline
-      description: Read/form baseline for ORC. Returns customer, bank/FCD account, sales bill, and FX reference data, plus posted ORC bank rows when present; does not approve receipt, post FX gain/loss, reverse, or mutate bank statements.
-      parameters:
-        - name: from
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: to
-          in: query
-          schema:
-            type: string
-            format: date
-      responses:
-        "200":
-          description: Overseas receipt read/form baseline data.
           content:
             application/json:
               schema:
@@ -2099,8 +2075,9 @@ paths:
       summary: List customer receipt queue/history
       description: >
         Returns active receiving accounts, active customers, outstanding Sales Bills
-        with positive receivable balance, active payment methods, and RCP history
-        from the `customer_receipts` header/allocation contract. The queue is
+        or Customer Advances, active payment methods, currency/rate options, and RCP history
+        from the `customer_receipts` header/allocation contract. One RCP has one
+        receipt currency; foreign receipt accounts must be compatible FCD accounts. The queue is
         served through separate indexed outstanding-SB and active-allocation-SB
         query paths, then merged by Sales Bill `doc_no` while preserving the
         response shape.
@@ -2117,11 +2094,11 @@ paths:
       summary: Create customer receipt and allocate AR
       description: >
         Creates one `customer_receipts` header, one or more
-        `customer_receipt_allocations`, compatibility `receipts` line facts,
-        a `bank_statement` money-in row, and Sales Bill balance/status updates
-        in one database transaction. Business references are outward codes/doc
-        numbers only: customer code, account code, payment method code/name,
-        and Sales Bill doc no.
+        `customer_receipt_allocations` for SB or advance allocations for CADV,
+        compatibility `receipts` line facts, and Bank Statement rows in one
+        database transaction. A foreign receipt also writes FCD ledger facts
+        using its persisted native amount and exact-date rate snapshot. SB remains
+        THB and carries settlement FX separately from THB bank fee.
       requestBody:
         $ref: "#/components/requestBodies/JsonBody"
       responses:
@@ -2142,8 +2119,9 @@ paths:
       description: >
         Supports `action = cancel` and `action = replace`. Cancel marks
         receipt/allocation facts cancelled, appends a reversing bank statement
-        row with `ref_type = RCP-CANCEL`, restores Sales Bill received/balance/
-        status values, and appends receipt/SB status logs. Replace uses the
+        row with `ref_type = RCP-CANCEL`, reverses linked FCD ledger/FX facts,
+        restores Sales Bill received/balance/status values, and appends receipt/SB
+        status logs. Replace uses the
         same reversal path and then creates a new RCP from the supplied
         replacement values in the same transaction; the original receipt facts
         are not deleted and no in-place silent mutation is used.
@@ -3471,12 +3449,18 @@ components:
             - $ref: "#/components/schemas/FcdLedgerAccountOption"
         filters:
           type: object
-          required: [accounts]
+          required: [accounts, functionalCurrencyCode, rateTypes]
           properties:
             accounts:
               type: array
               items:
                 $ref: "#/components/schemas/FcdLedgerAccountOption"
+            functionalCurrencyCode:
+              type: string
+            rateTypes:
+              type: array
+              items:
+                type: string
         rows:
           type: array
           items:
@@ -3491,11 +3475,15 @@ components:
               type: string
             foreignBalance:
               type: number
-              description: Conservative foreign balance. In FF4 this includes opening balance only unless source foreign amounts are available.
+              description: Persisted native balance from FCD ledger entries for the selected account and currency.
             rows:
               type: integer
             thbBalance:
               type: number
+              description: Persisted carrying THB balance from FCD ledger entries.
+            valuation:
+              type: object
+              description: Optional historical-rate valuation view; null values mean the requested rate was not found and no fallback was used.
       additionalProperties: true
     FcdLedgerRow:
       type: object
@@ -3509,13 +3497,14 @@ components:
           type: number
         foreignIn:
           type: number
-          description: Zero when source foreign amount is unavailable from active tables.
+          description: Persisted native amount in for this FCD event.
         foreignOut:
           type: number
-          description: Zero when source foreign amount is unavailable from active tables.
+          description: Persisted native amount out for this FCD event.
         fxRate:
           type: number
-          description: Historical FX reference from fx_rates when available, not used to infer foreign movement.
+          nullable: true
+          description: Persisted event rate snapshot when the event has one.
         id:
           type: string
         refNo:

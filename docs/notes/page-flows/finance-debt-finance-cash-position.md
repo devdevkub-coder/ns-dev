@@ -108,15 +108,13 @@ Permission ปัจจุบัน: `finance.cash.view`.
 
 ## Current Code Baseline
 
-- Current API loads accounts, bank rows, SB/RCP, PB/PMT in parallel and builds aggregate in memory.
-- Current API ยังใช้ `opening_balance`, fallback currency เป็น THB, balance เดียวต่อ account และ derive AR/AP จาก legacy receipt/payment maps จึงเป็น baseline ที่ต้องแก้ก่อนรองรับ FCD.
+- Current API uses the persisted Bank Statement/FCD projection through `buildFinanceCashPosition`, and reads AR/AP directly from `sales_bills.receivable_balance` and `purchase_bills.payable_balance`.
+- Account Master and `account_currency_balances` provide selectable capability only; neither is an opening-balance source.
 
 ## Current Gap
 
-- No `asOf` support.
-- No branch/account type filter yet.
-- Need drilldown links to bank/AR/AP.
-- Need account+currency balance projection หลังบ้าน, carrying THB และ THB-only aggregate policy.
+- As-of, branch and account-group filters plus XLSX source links are implemented.
+- Native balance/rate remains intentionally outside this aggregate and is available in FCD drilldown.
 - Need reconciliation tests ให้ summary/table/Bank/FCD/AR/AP ตรงกัน ณ as-of เดียวกัน.
 
 ## Implementation Checklist

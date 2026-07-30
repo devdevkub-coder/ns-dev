@@ -141,6 +141,11 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - PMA/PMT state separation and locks need end-to-end runtime proof.
 - Source links to PB/PMA/PMT/Supplier Advance are available in detail; export/source-link depth can still be expanded later.
 
+## Foreign Receipt Boundary 2026-07-30
+
+- Customer Receipt/FCD is not an AP source. AP table, KPI, detail and export remain THB from `purchase_bills.total_amount`, `paid_amount` and `payable_balance`.
+- AP must not read Customer Receipt native currency, receipt rate, settlement FX or FCD ledger entries. Cash Position receives AP as THB exposure only.
+
 ## Drilldown Scope Hydration 2026-07-17
 
 - What is what: `/finance/ap` accepts outward `from`, `to`, and branch-code `branchId` from a related-report URL and initializes the AP client with them before its first request.
