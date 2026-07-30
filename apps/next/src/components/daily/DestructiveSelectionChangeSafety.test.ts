@@ -111,6 +111,7 @@ describe('destructive selection change safety', () => {
   it('defers destructive receipt selector changes to the confirmation callback', () => {
     const source = readFileSync(new URL('./MoneyMovementPageClient.tsx', import.meta.url), 'utf8')
     const handlers = [
+      ['changeReceiptSourceType', 'applySourceType'],
       ['changeReceiptCurrency', 'applyCurrency'],
       ['changeReceiptDate', 'applyDate'],
       ['changeReceiptBranch', 'applyBranch'],
@@ -140,5 +141,10 @@ describe('destructive selection change safety', () => {
 
       expect(handlerSource, handler).toContain(`if (${lines}[index]?.${field} === docNo) return`)
     }
+
+    const sourceTypeStart = source.indexOf('function changeReceiptSourceType')
+    const sourceTypeNextHandler = source.indexOf('\n  function ', sourceTypeStart + 1)
+    const sourceTypeHandler = source.slice(sourceTypeStart, sourceTypeNextHandler === -1 ? undefined : sourceTypeNextHandler)
+    expect(sourceTypeHandler).toContain('if (receiptForm.sourceType === sourceType) return')
   })
 })

@@ -5,6 +5,7 @@ import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, 
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { reverseFcdRevaluation, postFcdRevaluation } from '@/lib/server/fcd-revaluation-posting'
 import { getFinanceCurrencyPolicy } from '@/lib/server/finance-currency-policy'
+import { FCD_ACTION_PERMISSION } from '@/lib/server/fcd-action-permissions'
 import { findFcdRateSnapshot } from '@/lib/server/fcd-rate-snapshot'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveAccounts } from '@/lib/server/reference-master-cache'
@@ -35,7 +36,7 @@ function requiredActor(context: Awaited<ReturnType<typeof getCurrentAuthContext>
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, FCD_ACTION_PERMISSION.revaluation.view)
     const url = new URL(request.url)
     const requestedCurrency = url.searchParams.get('currencyCode')?.trim().toUpperCase() ?? ''
     const requestedDate = url.searchParams.get('periodEnd')?.trim() ?? ''
@@ -116,7 +117,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, FCD_ACTION_PERMISSION.revaluation.post)
     const values = fcdRevaluationPostSchema.parse(await request.json())
     assertBranchAccess(context, values.branchCode)
     const branch = await prisma.branches.findFirst({ select: { id: true }, where: { active: true, code: values.branchCode } })
@@ -136,7 +137,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, FCD_ACTION_PERMISSION.revaluation.reverse)
     const values = fcdRevaluationReverseSchema.parse(await request.json())
     const original = await prisma.fcd_revaluation_batches.findUnique({ where: { doc_no: values.originalDocNo } })
     if (!original?.branch_id) return noStore({ code: 'NOT_FOUND', error: 'ไม่พบรายการตีมูลค่า FCD' }, { status: 404 })

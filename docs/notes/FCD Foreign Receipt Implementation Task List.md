@@ -78,7 +78,7 @@ FCD conversion
 - [x] `FCD-003` Customer Receipt ขอ suggested rate จาก API ตามวันรับเงิน; ผู้ใช้แก้ rate ได้ก่อนบันทึกและระบบเก็บ rate ที่ใช้จริงเป็น snapshot โดยไม่เพิ่ม global rate policy ใน batch นี้
 - [x] `FCD-004` หาก API ไม่มี rate ผู้ใช้กรอกเองได้; ห้าม fallback ไปใช้ rate ล่าสุดหรือ rate จาก account master
 - [ ] `FCD-005` กำหนด GL account mapping สำหรับ AR settlement gain/loss, revaluation gain/loss, conversion gain/loss, bank fee และ customer overpayment
-- [ ] `FCD-006` กำหนด approval/post/reverse permissions ของ conversion และ revaluation เมื่อเปิด batch นั้น
+- [x] `FCD-006` กำหนดสิทธิ์ action ของ conversion และ revaluation: แยก `view`/`post`/`reverse` ต่อ event type และ route บังคับใช้ตาม HTTP action; ไม่มี `approve` เพราะสอง flow post แบบ atomic และไม่มี approval state ใน batch นี้. Migration copy grant/override เดิมจาก `finance.cash.view` เพื่อไม่ตัดสิทธิ์ตอน rollout แล้วจึงถอนเป็นราย action ได้; apply+record Dev/SIT แล้วและตรวจ permission ครบ 6 รายการ (2026-07-30)
 - [x] `FCD-007` Customer Receipt คงสถานะเดิม `pending`/`active`/`cancelled`; ไม่สร้าง `draft`/`posted`/`reversed` ใน batch รับเงินต่างประเทศนี้
 - [x] `FCD-008` FCD OD เป็นวงเงินต่อบัญชี
 - [ ] `FCD-009` ย้ายตัวอย่าง Debit/Credit ไป batch GL เมื่อระบบมี GL posting engine
@@ -86,7 +86,7 @@ FCD conversion
 ## Open Items Before Their Respective Phase
 
 - `FCD-005` GL account mapping ยังไม่มีในระบบ และไม่ block receipt/BST/FCD ledger batch นี้ เพราะยังไม่สร้าง GL posting engine
-- `FCD-006` สิทธิ์ approve/post/reverse สำหรับ conversion และ revaluation จะกำหนดเมื่อเริ่มสอง flow นั้น; ไม่กระทบ Customer Receipt ที่ใช้สถานะเดิม
+- `FCD-006` ไม่มี approval state สำหรับ conversion/revaluation ใน batch นี้; ใช้สิทธิ์ `view`/`post`/`reverse` แยกต่อ flow เพราะการ post เป็น transaction เดียว. ไม่กระทบ Customer Receipt ที่ใช้สถานะเดิม
 - `FCD-101` ถึง `FCD-144` เป็น schema/reconciliation batch ถัดไป และต้องเสร็จก่อนเปิด foreign receipt write path
 - `FCD-201` ถึง `FCD-211` เป็น service/lock/Decimal batch ถัดไป และต้องเสร็จก่อนเปิด foreign receipt write path
 
@@ -153,7 +153,7 @@ FCD conversion
 - [x] `FCD-206` สร้าง conversion posting service ที่ตัด native balance/ carrying THB และเพิ่ม THB ปลายทางใน transaction เดียว
 - [x] `FCD-207` สร้าง revaluation posting service ที่ snapshot balance/rate และ post unrealized difference แบบ idempotent
 - [x] `FCD-208` สร้าง reversal service ต่อ event type โดยสร้างรายการกลับทิศและห้ามแก้ posted rows
-- [ ] `FCD-209` เพิ่ม concurrent/race-condition tests สำหรับ receipt, conversion และ revaluation account เดียวกัน
+- [x] `FCD-209` เพิ่ม concurrent/race-condition tests สำหรับ receipt, conversion และ revaluation account เดียวกัน: DB verifier สร้าง/ลบ FCD account fixture เองและตรวจ advisory lock ด้วย 2 concurrent transactions; source contract บังคับให้ writer ทั้ง 3 เรียก lock เดียวกัน. รันผ่าน Dev/SIT เมื่อ 2026-07-30 และ postflight ยืนยัน fixture cleanup เหลือ 0 แถวทั้งสอง environment
 - [x] `FCD-210` เพิ่ม reconciliation invariant หลัง post ทุก service: Receipt, Conversion และ Revaluation อ่าน BST/FCD ledger/split/line ที่ persist แล้วตรวจ account, currency, native amount และ carrying THB ใน transaction เดียว; mismatch throw เพื่อ rollback ทั้ง transaction. Focused tests คุม receipt mismatch, conversion pair และ revaluation ที่ห้ามเปลี่ยน native balance (2026-07-30)
 - [x] `FCD-211` เพิ่ม anti-double-count invariant: RCP/BST/FCD ledger/FX event ที่ใช้ source event เดียวกันต้องถูกนับเป็น cash asset เพียงครั้งเดียวใน Bank, Cash Position และ dashboard read models: consumer gate บังคับ dashboard ให้อ่าน cash จาก Bank Statement THB เท่านั้น; Cash Position เก็บ FCD native เป็น audit projection แยกจาก `cashAndBank`; conversion pair ถูก classify เป็น internal transfer (2026-07-30)
 
@@ -206,7 +206,7 @@ FCD conversion
 - [x] `FCD-339` ปรับ cancel-and-reissue ให้ reverse/recreate receipt, allocation, BST, FCD ledger, FX และ rate snapshot ครบ โดยห้ามใช้ current rate แทน snapshot เดิม: cancellation อ่าน receipt split/FCD ledger ต้นทางและสร้าง reversal native/carrying/rate snapshot เดิม; replacement ยกเลิกแล้วสร้างเอกสารใหม่ใน transaction เดียว พร้อม transaction-level test (2026-07-30)
 - [x] `FCD-340` ปรับ search/sort/export/detail adapters ให้แยก named book THB fields ออกจาก optional native audit fields; list/KPI/export ธุรกิจหลักใช้ THB เท่านั้น
 - [x] `FCD-341` เพิ่ม compatibility/read migration plan สำหรับ consumer เก่าของ `receipts.amount/net_amount` โดยให้ค่า THB book amount มีชื่อชัดเจนและไม่เก็บ native USD ลง field THB เดิม: ระบุ owner/meaning/write rule และ anti-double-count boundary ใน FCD data dictionary (2026-07-30)
-- [ ] `FCD-342` เพิ่ม tests ครอบคลุม history table, filters, detail, single/batch print, daily report, LINE payload, cancel และ replacement ของ THB/USD ทั้ง SB และ CADV
+- [x] `FCD-342` เพิ่ม tests ครอบคลุม history table, filters, detail, single/batch print, daily report, LINE payload, cancel และ replacement ของ THB/USD ทั้ง SB และ CADV: history/daily report ใช้ source/currency/branch/account-split filter contract เดียวกัน, print ใช้ THB book values เป็นยอดหลักและ foreign audit เฉพาะ FCD, detail/LINE คง source-specific labels และ replacement เลือก writer ของ SB/CADV ตาม receipt currency (2026-07-30)
 
 ## Phase 4: Bank Statement
 
@@ -294,13 +294,13 @@ FCD conversion
 
 - [x] `FCD-901` unit tests สำหรับ Decimal, weighted carrying rate, settlement FX, conversion FX และ revaluation
 - [x] `FCD-902` API tests สำหรับ validation, permission, idempotency, reversal และ malformed/missing rate: route tests คุม permission/parse failure/cancel boundary, schema/rate tests คุม malformed/missing/manual rate, FCD posting test คุม deterministic idempotency/source-event keys และ reversal ใช้ snapshot เดิม (2026-07-30)
-- [ ] `FCD-903` integration tests สำหรับ THB receipt เดิม, USD receipt, partial receipt, multiple bills, fee, overpayment และ cancellation
-- [ ] `FCD-904` concurrency tests ยืนยันว่า balance ไม่ติดลบ/ไม่ใช้ OD เกิน contract
-- [ ] `FCD-905` reconciliation fixtures ครอบคลุม receipt -> revaluation -> conversion -> reversal
+- [x] `FCD-903` integration tests สำหรับ THB receipt เดิม, USD receipt, partial receipt, multiple bills, fee, overpayment และ cancellation: เรียก customer receipt service จริงด้วย fixture ชั่วคราว; THB receipt/cancel, USD partial + 2 bills + Bank Fee, settlement FX ที่มากกว่า AR และ foreign cancellation ผ่าน Dev/SIT พร้อม cleanup. แก้ foreign receipt transaction timeout สำหรับ multi-bill และ deferred contract ให้ receipt ที่ cancelled ไม่ต้อง reconcile กับ allocation active (2026-07-30)
+- [x] `FCD-904` concurrency tests ยืนยันว่า balance ไม่ติดลบ/ไม่ใช้ OD เกิน contract: integration fixture ตั้ง OD สูงแต่ seed native USD เพียง 100 แล้วแข่งถอน 75 สอง transaction; Dev และ SIT อนุญาตเพียง 1 conversion, native balance เหลือ 25 USD และ postflight fixture cleanup เหลือ 0 แถวใน accounts/FCD ledger/Bank Statement/conversion (2026-07-30)
+- [x] `FCD-905` reconciliation fixtures ครอบคลุม receipt -> revaluation -> conversion -> reversal: integration fixture สร้าง Customer/Sales Bill/FCD/THB account ชั่วคราว, post receipt 100 foreign currency ที่ carrying 3,500, revalue เป็น 3,600, convert 50, reverse conversion/revaluation/receipt และตรวจ native กับ carrying balance กลับเป็น 0; ผ่าน Dev/SIT พร้อม cleanup fixture (2026-07-30)
 - [x] `FCD-906` migration preflight/postflight บน dev-target โดยไม่แก้ legacy-prod-source: ตรวจ read-only เมื่อ 2026-07-30 ทั้ง dev-target และ SIT หลัง transaction reset; แต่ละ environment มี functional-currency policy 1 แถว, FCD ledger/receipt/Bank Statement เป็น 0 แถว และ `supabase/preflight/reconcile_fcd_foreign_events.sql` คืน 0 issue โดยไม่แตะ legacy-prod-source หรือเขียนข้อมูลใด ๆ
 - [x] `FCD-907` lint, type-check, build, focused tests และ `git diff --check` ผ่านเมื่อ 2026-07-30: lint ไม่มี error (warnings เดิม 7 รายการนอกขอบเขต FCD), type-check และ production build ผ่าน; เพิ่ม `Suspense` wrapper ให้ FCD Ledger/Revaluation/Conversion ซึ่งอ่าน query string เพื่อแก้ production prerender failure. Focused FCD/UI contract tests 22/22 ผ่าน
 - [ ] `FCD-908` browser UAT เฉพาะเมื่อร้องขอ ครอบคลุม desktop/mobile และทุก event flow
-- [ ] `FCD-909` promote ตามลำดับ feature branch -> dev -> SIT/UAT หลัง reconciliation ผ่าน
+- [x] `FCD-909` promote ตามลำดับ feature branch -> dev -> SIT/UAT หลัง reconciliation ผ่าน: ทุก FCD checkpoint ถูก commit และ push ไป `new-origin/dev` กับ `sit-origin/main` ตาม target ที่สั่ง; migration `20260730210000`, `20260730220000` apply/record ครบ Dev/SIT. ไม่ promote customer UAT เพราะไม่มีคำสั่ง (2026-07-30)
 
 ## Recommended Implementation Batches
 
