@@ -298,7 +298,7 @@ FCD conversion
 - [ ] `FCD-904` concurrency tests ยืนยันว่า balance ไม่ติดลบ/ไม่ใช้ OD เกิน contract
 - [ ] `FCD-905` reconciliation fixtures ครอบคลุม receipt -> revaluation -> conversion -> reversal
 - [ ] `FCD-906` migration preflight/postflight บน dev-target โดยไม่แก้ legacy-prod-source
-- [ ] `FCD-907` lint, type-check, build, focused tests และ `git diff --check`
+- [x] `FCD-907` lint, type-check, build, focused tests และ `git diff --check` ผ่านเมื่อ 2026-07-30: lint ไม่มี error (warnings เดิม 7 รายการนอกขอบเขต FCD), type-check และ production build ผ่าน; เพิ่ม `Suspense` wrapper ให้ FCD Ledger/Revaluation/Conversion ซึ่งอ่าน query string เพื่อแก้ production prerender failure. Focused FCD/UI contract tests 22/22 ผ่าน
 - [ ] `FCD-908` browser UAT เฉพาะเมื่อร้องขอ ครอบคลุม desktop/mobile และทุก event flow
 - [ ] `FCD-909` promote ตามลำดับ feature branch -> dev -> SIT/UAT หลัง reconciliation ผ่าน
 
