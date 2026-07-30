@@ -8,7 +8,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { refreshAdvancePaymentWorkflowStatus } from '@/lib/server/advance-payments'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { documentBranchCode, listDailyAccounts, nextBankStatementDocNos, normalizeDate, toDailyAccountOption, toDateOnly, toNumber } from '@/lib/server/daily'
+import { assertJsonSafe, documentBranchCode, listDailyAccounts, nextBankStatementDocNos, normalizeDate, toDailyAccountOption, toDateOnly, toNumber } from '@/lib/server/daily'
 import { nextPaymentApprovalDocNos } from '@/lib/server/payment-approval-pending'
 import { getActivePaymentMethods, type ActivePaymentMethod } from '@/lib/server/payment-methods'
 import { appendPaymentApprovalStatusLog, PAYMENT_APPROVAL_STATUS_ACTION } from '@/lib/server/payment-history'
@@ -579,14 +579,17 @@ export async function GET(request: Request) {
       ...row,
       branchId: row.approvalDisplayDocNo ? approvalBranchByDocNo.get(row.approvalDisplayDocNo) ?? branchBySourceDocNo.get(row.sourceDocNo) ?? null : branchBySourceDocNo.get(row.sourceDocNo) ?? null,
     }))
-    return NextResponse.json({
+    const payload = {
       apRows: attachBranch([...apRows, ...advanceRows]),
       branches: branches.map((branch) => ({ code: branch.code, id: branch.code, name: branch.name })),
       expenseRows: attachBranch(expenseRows),
       pettyReturnRows: attachBranch(pettyReturnRows),
-    })
+    }
+    assertJsonSafe(payload, 'payment-approval.GET')
+    return NextResponse.json(payload)
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
+    console.error('[payment-approval] GET failed', caught instanceof Error ? caught.message : caught)
     return apiErrorResponse(caught, 'โหลดรายการอนุมัติจ่ายเงินไม่ได้', 500)
   }
 }
