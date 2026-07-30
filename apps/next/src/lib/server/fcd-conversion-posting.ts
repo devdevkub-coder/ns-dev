@@ -3,6 +3,7 @@ import { BANK_STATEMENT_SOURCE_EVENT_TYPE } from '@/lib/server/bank-statement-ca
 import { documentBranchCode, normalizeDate } from '@/lib/server/daily'
 import { lockFcdAccountCurrency } from '@/lib/server/fcd-balance-lock'
 import { fcdFxRate, fcdMoneyAmount, requireFcdInputMoneyAmount } from '@/lib/server/fcd-money'
+import { assertFcdConversionPostingReconciles } from '@/lib/server/fcd-posting-reconciliation'
 
 type DecimalInput = Prisma.Decimal | number | string
 
@@ -278,6 +279,7 @@ export async function postFcdConversion(tx: Prisma.TransactionClient, input: Fcd
       to_status: 'active',
     },
   })
+  await assertFcdConversionPostingReconciles(tx, conversion.id)
 
   return { docNo, realizedFxDifference: amounts.realizedFxDifference }
 }

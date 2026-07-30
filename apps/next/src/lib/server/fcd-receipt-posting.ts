@@ -2,6 +2,7 @@ import { Prisma } from '../../../generated/prisma/client'
 import { BANK_STATEMENT_SOURCE_EVENT_TYPE } from '@/lib/server/bank-statement-cash-flow'
 import { lockFcdAccountCurrency } from '@/lib/server/fcd-balance-lock'
 import { calculateSettlementBookAmount, fcdFxRate, requireFcdInputMoneyAmount } from '@/lib/server/fcd-money'
+import { assertFcdReceiptPostingReconciles } from '@/lib/server/fcd-posting-reconciliation'
 import { normalizeDate } from '@/lib/server/daily'
 
 type DecimalInput = Prisma.Decimal | number | string
@@ -168,6 +169,7 @@ export async function postFcdReceiptAccountSplits(tx: Prisma.TransactionClient, 
     })
     created.push({ bankStatementId: bankStatement.id, fcdLedgerEntryId: ledgerEntry.id })
   }
+  await assertFcdReceiptPostingReconciles(tx, input.receiptId)
   return { created, totalCarryingThb: calculatedSplits.reduce((total, split) => total.plus(split.carryingThbAmount), new Prisma.Decimal(0)) }
 }
 

@@ -96,9 +96,39 @@ describe('foreign receipt idempotency keys', () => {
           name: 'FCD USD',
         }]),
       },
-      bank_statement: { create: bankStatementCreate },
-      customer_receipt_account_splits: { create: splitCreate },
-      fcd_ledger_entries: { create: ledgerCreate },
+      bank_statement: {
+        create: bankStatementCreate,
+        findMany: vi.fn().mockResolvedValue([{
+          account_id: 7n,
+          amount_in: '3512.30',
+          book_amount_in: '3512.30',
+          id: 31n,
+          movement_currency_code: 'USD',
+          native_amount_in: '100.00',
+        }]),
+      },
+      customer_receipt_account_splits: {
+        create: splitCreate,
+        findMany: vi.fn().mockResolvedValue([{
+          account_id: 7n,
+          bank_statement_id: 31n,
+          carrying_thb_amount: '3512.30',
+          currency_code: 'USD',
+          fcd_ledger_entry_id: 41n,
+          line_no: 1,
+          received_native_amount: '100.00',
+        }]),
+      },
+      fcd_ledger_entries: {
+        create: ledgerCreate,
+        findMany: vi.fn().mockResolvedValue([{
+          account_id: 7n,
+          carrying_thb_in: '3512.30',
+          currency_code: 'USD',
+          id: 41n,
+          native_amount_in: '100.00',
+        }]),
+      },
     }
 
     await postFcdReceiptAccountSplits(tx as never, {

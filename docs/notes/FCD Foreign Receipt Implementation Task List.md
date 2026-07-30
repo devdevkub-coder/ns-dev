@@ -154,7 +154,7 @@ FCD conversion
 - [x] `FCD-207` สร้าง revaluation posting service ที่ snapshot balance/rate และ post unrealized difference แบบ idempotent
 - [x] `FCD-208` สร้าง reversal service ต่อ event type โดยสร้างรายการกลับทิศและห้ามแก้ posted rows
 - [ ] `FCD-209` เพิ่ม concurrent/race-condition tests สำหรับ receipt, conversion และ revaluation account เดียวกัน
-- [ ] `FCD-210` เพิ่ม reconciliation invariant หลัง post ทุก service
+- [x] `FCD-210` เพิ่ม reconciliation invariant หลัง post ทุก service: Receipt, Conversion และ Revaluation อ่าน BST/FCD ledger/split/line ที่ persist แล้วตรวจ account, currency, native amount และ carrying THB ใน transaction เดียว; mismatch throw เพื่อ rollback ทั้ง transaction. Focused tests คุม receipt mismatch, conversion pair และ revaluation ที่ห้ามเปลี่ยน native balance (2026-07-30)
 - [x] `FCD-211` เพิ่ม anti-double-count invariant: RCP/BST/FCD ledger/FX event ที่ใช้ source event เดียวกันต้องถูกนับเป็น cash asset เพียงครั้งเดียวใน Bank, Cash Position และ dashboard read models: consumer gate บังคับ dashboard ให้อ่าน cash จาก Bank Statement THB เท่านั้น; Cash Position เก็บ FCD native เป็น audit projection แยกจาก `cashAndBank`; conversion pair ถูก classify เป็น internal transfer (2026-07-30)
 
 ## Phase 3: Customer Receipt API And Form
