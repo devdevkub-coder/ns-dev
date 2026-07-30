@@ -52,9 +52,9 @@ describe('manual-entry field highlighting contract', () => {
     const costAllocator = source('../dual-costing/CostAllocatorPageClient.tsx')
     const fixedAssets = source('../finance-accounting/FixedAssetsPageClients.tsx')
     const fxRate = source('../finance/foreign/FxRatePageClient.tsx')
-    const intlTransfer = source('../finance/foreign/IntlTransferPageClient.tsx')
+    const fcdConversion = source('../finance/foreign/FcdConversionPageClient.tsx')
+    const fcdRevaluation = source('../finance/foreign/FcdRevaluationPageClient.tsx')
     const salesPlan = source('../main/MainSalesControlClients.tsx')
-    const overseasReceipt = source('../finance/foreign/OverseasReceiptPageClient.tsx')
     const advancePayments = source('../purchase-flow/AdvancePaymentsPageClient.tsx')
 
     expect(dialog).toContain('data-ns-dialog-content={shellMode}')
@@ -69,9 +69,9 @@ describe('manual-entry field highlighting contract', () => {
       costAllocator,
       fixedAssets,
       fxRate,
-      intlTransfer,
+      fcdConversion,
+      fcdRevaluation,
       salesPlan,
-      overseasReceipt,
     ]) {
       expect(businessSurface).toContain('data-ns-field-scope="entry"')
     }

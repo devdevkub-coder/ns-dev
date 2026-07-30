@@ -61,7 +61,7 @@ export function FcdRevaluationPageClient() {
     setSaving(true); setError(null)
     try { await dailyFetchJson('/api/finance/foreign/fcd-revaluations', { body: JSON.stringify({ idempotencyKey: crypto.randomUUID(), originalDocNo: docNo, reversalDate: today() }), headers: { 'Content-Type': 'application/json' }, method: 'PATCH' }); await load() } catch (caught) { setError(caught instanceof Error ? caught.message : 'ยกเลิกรายการตีมูลค่า FCD ไม่ได้') } finally { setSaving(false) }
   }
-  return <section className="space-y-4">
+  return <section className="space-y-4" data-ns-field-scope="entry">
     {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div> : null}
     <div className="grid gap-3 rounded-md border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-3">
       <Field label="วันสิ้นงวด"><DatePickerInput className="h-9 w-full" value={form.periodEnd} onChange={(periodEnd) => setForm({ ...form, periodEnd })} /></Field>
