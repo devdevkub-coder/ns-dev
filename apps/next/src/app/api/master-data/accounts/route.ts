@@ -13,7 +13,7 @@ export const runtime = 'nodejs'
 type AccountRow = Awaited<ReturnType<typeof prisma.accounts.findMany>>[number] & {
   branches?: { code: string; name: string } | null
   account_categories?: { name: string } | null
-  account_currency_balances?: Array<{ currency_code: string; opening_balance: unknown; active: boolean }>
+  account_currency_balances?: Array<{ currency_code: string; active: boolean }>
 }
 
 const accountGroupSchema = z.string().trim().min(1, 'เลือกประเภทบัญชี')
@@ -55,17 +55,12 @@ function validateAccountBusinessRules(values: {
   currency: string | null
   isFcd: boolean
   hasOd: boolean
-  openingBalance: number | null
   odLimit: number | null
 }) {
   const currency = String(values.currency ?? '').trim().toUpperCase()
 
   if (!values.branchId) {
     throw new Error('เลือกสาขา')
-  }
-
-  if (values.openingBalance !== null && values.openingBalance < 0) {
-    throw new Error('ยอดตั้งต้นบัญชีนี้ต้องไม่ติดลบ')
   }
 
   if (values.accountGroup !== 'bank' && !values.currency) throw new Error('กรอกสกุลเงิน')
@@ -98,7 +93,6 @@ async function resolveAccountCurrencyBalances(values: z.infer<typeof accountMast
     accountGroup,
     additionalBalances: values.accountCurrencyBalances ?? [],
     isFcd: values.isFcd,
-    openingBalance: values.openingBalance,
     primaryCurrency: values.currency,
   })
   const currencyRows = await prisma.currencies.findMany({ select: { code: true }, where: { code: { in: unique.map((entry) => entry.currency) } } })
@@ -110,7 +104,7 @@ function mapAccount(row: AccountRow) {
   const outwardId = requireBusinessCode(row.code, `บัญชีเงิน ${row.id}`)
   const odLimit = toNumber(row.od_limit) ?? 0
   const currencyDisplay = Array.from(new Set([
-    ...(row.account_currency_balances ?? []).map((balance) => balance.currency_code),
+    ...(row.account_currency_balances ?? []).filter((balance) => balance.active).map((balance) => balance.currency_code),
     row.currency,
   ].filter((currency): currency is string => Boolean(currency))))
     .sort((left, right) => {
@@ -144,11 +138,9 @@ function mapAccount(row: AccountRow) {
     accountNo: row.account_no,
     currency: row.currency,
     currencyDisplay: currencyDisplay || null,
-    openingBalance: toNumber(row.opening_balance),
     hasOd: odLimit > 0,
-    accountCurrencyBalances: (row.account_currency_balances ?? []).map((balance) => ({
+    accountCurrencyBalances: (row.account_currency_balances ?? []).filter((balance) => balance.active).map((balance) => ({
       currency: balance.currency_code,
-      openingBalance: toNumber(balance.opening_balance as number | null),
     })),
     odLimit,
     ...outwardBranchReference(row.branches, row.branch_id),
@@ -227,7 +219,7 @@ export async function POST(request: Request) {
     const values = accountMasterDataFormSchema.parse(await request.json())
     const existing = values.id
       ? await prisma.accounts.findFirst({
-        select: { code: true, id: true },
+        include: { account_currency_balances: true },
         where: { code: values.id.toUpperCase() },
       })
       : null
@@ -251,7 +243,6 @@ export async function POST(request: Request) {
       currency: values.currency,
     isFcd: values.isFcd,
       hasOd: values.hasOd,
-      openingBalance: values.openingBalance,
       odLimit: values.odLimit,
     })
     await assertActiveBankName(values.bankName)
@@ -261,7 +252,6 @@ export async function POST(request: Request) {
     }
     const code = await resolveAccountCode(branch.code, existing?.code)
     const primaryCurrency = String(values.currency).trim().toUpperCase()
-    const primaryBalance = currencyBalances.find((entry) => entry.currency === primaryCurrency)?.openingBalance ?? 0
     const data = {
       code,
       name: values.name,
@@ -275,19 +265,50 @@ export async function POST(request: Request) {
       bank: accountGroup === 'bank' ? values.bankName || null : null,
       account_no: accountGroup === 'bank' ? values.accountNo || null : null,
       currency: primaryCurrency,
-      opening_balance: primaryBalance,
       od_limit: values.hasOd && bankAccountType === 'current' ? values.odLimit ?? 0 : 0,
       branch_id: branch.id,
       active: values.active,
     }
     const row = existing
-      ? await prisma.accounts.update({
-        where: { id: existing.id },
-        data: { ...data, account_currency_balances: { deleteMany: {}, create: currencyBalances.map((entry) => ({ currency_code: entry.currency, opening_balance: entry.openingBalance })) } },
-        include: { branches: true, account_currency_balances: true },
+      ? await prisma.$transaction(async (transaction) => {
+        const requestedCurrencies = new Set(currencyBalances.map((entry) => entry.currency))
+        const obsoleteBalances = existing.account_currency_balances.filter((entry) => !requestedCurrencies.has(entry.currency_code))
+        const balancesWithOpeningAmount = obsoleteBalances.filter((entry) => (toNumber(entry.opening_balance) ?? 0) !== 0)
+        if (balancesWithOpeningAmount.length > 0) {
+          throw new Error('ไม่สามารถนำสกุลเงินที่มียอดยกมาออกจากบัญชีได้ ให้จัดการผ่านรายการยอดยกมา')
+        }
+
+        if (obsoleteBalances.length > 0) {
+          await transaction.account_currency_balances.updateMany({
+            where: { account_id: existing.id, currency_code: { in: obsoleteBalances.map((entry) => entry.currency_code) } },
+            data: { active: false },
+          })
+        }
+
+        for (const entry of currencyBalances) {
+          const current = existing.account_currency_balances.find((balance) => balance.currency_code === entry.currency)
+          if (current) {
+            if (!current.active) {
+              await transaction.account_currency_balances.update({
+                where: { account_id_currency_code: { account_id: existing.id, currency_code: entry.currency } },
+                data: { active: true },
+              })
+            }
+          } else {
+            await transaction.account_currency_balances.create({
+              data: { account_id: existing.id, currency_code: entry.currency },
+            })
+          }
+        }
+
+        return transaction.accounts.update({
+          where: { id: existing.id },
+          data,
+          include: { branches: true, account_currency_balances: true },
+        })
       })
       : await prisma.accounts.create({
-        data: { ...data, account_currency_balances: { create: currencyBalances.map((entry) => ({ currency_code: entry.currency, opening_balance: entry.openingBalance })) } },
+        data: { ...data, account_currency_balances: { create: currencyBalances.map((entry) => ({ currency_code: entry.currency })) } },
         include: { branches: true, account_currency_balances: true },
       })
     await invalidateAccountReferenceCache()

@@ -67,7 +67,6 @@ function recordToForm(record: MasterDataRecord, _paymentMethods: MasterDataRecor
   const bankAccountType = isCompanyAccount ? record.bankAccountType : null
   const primaryCurrency = record.currency
   const currencyBalances = record.accountCurrencyBalances ?? []
-  const primaryBalance = currencyBalances.find((entry) => entry.currency === primaryCurrency)?.openingBalance ?? record.openingBalance
 
   return {
     id: record.id,
@@ -99,7 +98,7 @@ function recordToForm(record: MasterDataRecord, _paymentMethods: MasterDataRecor
     accountName: record.accountName,
     currency: primaryCurrency,
     accountCurrencyBalances: currencyBalances.filter((entry) => entry.currency !== primaryCurrency),
-    openingBalance: primaryBalance,
+    openingBalance: null,
     hasOd: record.hasOd ?? Boolean(record.odLimit && record.odLimit > 0),
     odLimit: record.odLimit,
     branchId: record.branchId,
@@ -296,11 +295,6 @@ function validateMasterDataForm(
       if (selectedCurrencies.size === 0) errors.accountCurrencyBalances = 'เพิ่มสกุลเงินอย่างน้อย 1 สกุล'
       if (additionalBalances.some((entry) => !String(entry.currency ?? '').trim())) errors.accountCurrencyBalances = 'เลือกสกุลเงินเพิ่มเติมให้ครบทุกแถว'
       if (primaryCurrency && selectedCurrencies.has(primaryCurrency)) errors.accountCurrencyBalances = 'สกุลเงินเพิ่มเติมต้องไม่ซ้ำกับสกุลเงินหลัก'
-      if ((values.accountCurrencyBalances ?? []).some((entry) => entry.openingBalance !== null && entry.openingBalance < 0)) errors.accountCurrencyBalances = 'ยอดตั้งต้นบัญชีธนาคารต้องไม่ติดลบ'
-    }
-
-    if (values.openingBalance !== null && values.openingBalance < 0) {
-      errors.openingBalance = 'ยอดตั้งต้นบัญชีนี้ต้องไม่ติดลบ'
     }
 
     if (values.hasOd && accountSubtype !== 'current') {
@@ -949,7 +943,7 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
     }
 
     setErrors({})
-    await onSubmit(result.values)
+    await onSubmit({ ...form, ...result.values })
   }
 
   function isFieldVisible(field: MasterDataField) {
@@ -985,8 +979,9 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
   const hasFieldSections = fieldSections.some((section) => section.title)
 
   function renderField(field: MasterDataField) {
+    const fieldClassName = field.type === 'currency-balances' ? 'md:col-span-2' : undefined
     return (
-      <div className={field.type === 'currency-balances' ? 'md:col-span-3' : undefined} key={field.key}>
+      <div className={fieldClassName} key={field.key}>
         <FormField
           error={errors[field.key]}
           field={field}
@@ -1073,55 +1068,44 @@ function FormField({ error, excludedCurrency, field, value, onChange }: FormFiel
     const selected = Array.isArray(value) ? value : []
     const options = field.options ?? []
     return (
-      <fieldset className="p-0">
-        <legend className="mb-2 text-sm font-bold text-slate-800">{field.label}{field.required ? <span className="ml-0.5 text-red-500">*</span> : null}</legend>
-        <div className="space-y-3">
+      <fieldset className="max-w-xl p-0">
+        <legend className="mb-1.5 text-xs font-semibold text-slate-600">{field.label}{field.required ? <span className="ml-0.5 text-red-500">*</span> : null}</legend>
+        <div className="space-y-2">
           {selected.map((entry, index) => {
             const availableOptions = options.filter((option) => (
               option.value !== excludedCurrency
               && (option.value === entry.currency || !selected.some((other, otherIndex) => otherIndex !== index && other.currency === option.value))
             ))
             return (
-              <div key={`${entry.currency}-${index}`} className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-                <label>
-                  <span className="mb-1 block text-xs font-semibold text-slate-600">สกุลเงิน</span>
-                  <select
-                    aria-label={`สกุลเงินรายการที่ ${index + 1}`}
-                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
-                    value={entry.currency}
-                    onChange={(event) => onChange(selected.map((current, currentIndex) => currentIndex === index ? { ...current, currency: event.target.value } : current))}
-                  >
-                    <option value="">เลือกสกุลเงิน</option>
-                    {availableOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                </label>
-                <label>
-                  <span className="mb-1 block text-xs font-semibold text-slate-600">ยอดตั้งต้น</span>
-                  <CurrencyBalanceMoneyInput
-                    ariaLabel={`ยอดตั้งต้นรายการที่ ${index + 1}`}
-                    value={entry.openingBalance}
-                    onChange={(openingBalance) => onChange(selected.map((current, currentIndex) => currentIndex === index ? { ...current, openingBalance } : current))}
-                  />
-                </label>
+              <div key={`${entry.currency}-${index}`} className="flex items-center gap-2">
+                <select
+                  aria-label={`สกุลเงินเพิ่มเติมรายการที่ ${index + 1}`}
+                  className="h-10 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
+                  value={entry.currency}
+                  onChange={(event) => onChange(selected.map((current, currentIndex) => currentIndex === index ? { ...current, currency: event.target.value } : current))}
+                >
+                  <option value="">เลือกสกุลเงิน</option>
+                  {availableOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
                 <button
-                    aria-label="ลบสกุลเงิน"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-red-600"
-                    title="ลบสกุลเงิน"
-                    type="button"
-                    onClick={() => onChange(selected.filter((_, currentIndex) => currentIndex !== index))}
-                  >
-                    <X className="h-4 w-4" aria-hidden="true" />
-                  </button>
+                  aria-label="ลบสกุลเงิน"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-500 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600"
+                  title="ลบสกุลเงิน"
+                  type="button"
+                  onClick={() => onChange(selected.filter((_, currentIndex) => currentIndex !== index))}
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
               </div>
             )
           })}
         </div>
-        <div className="mt-3">
+        <div className="mt-2">
           <button
             className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-blue-600 px-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
             type="button"
             onClick={() => {
-              onChange([...selected, { currency: '', openingBalance: null }])
+              onChange([...selected, { currency: '' }])
             }}
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
@@ -1236,44 +1220,6 @@ function FormField({ error, excludedCurrency, field, value, onChange }: FormFiel
   )
 }
 
-function CurrencyBalanceMoneyInput({ ariaLabel, onChange, value }: { ariaLabel: string; onChange: (value: number | null) => void; value: number | null }) {
-  const [draftValue, setDraftValue] = useState<string | null>(null)
-  return (
-    <input
-      aria-label={ariaLabel}
-      className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-right text-sm outline-none transition-all focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-      inputMode="decimal"
-      placeholder="0.00"
-      type="text"
-      value={draftValue ?? formatDecimalDisplay(value, 2)}
-      onBlur={(event) => {
-        const nextValue = sanitizeDecimalInput(event.target.value, 2)
-        if (!nextValue.trim() || nextValue.trim() === '.') {
-          setDraftValue(null)
-          onChange(null)
-          return
-        }
-        const parsed = Number(nextValue)
-        if (!Number.isFinite(parsed)) return
-        setDraftValue(null)
-        onChange(Number(parsed.toFixed(2)))
-      }}
-      onChange={(event) => {
-        const nextValue = sanitizeDecimalInput(event.target.value, 2)
-        setDraftValue(nextValue)
-        const parsed = Number(nextValue)
-        onChange(nextValue.trim() && Number.isFinite(parsed) ? parsed : null)
-      }}
-      onFocus={(event) => {
-        setDraftValue(value === null ? '' : formatDecimalDraft(value, 2))
-        requestAnimationFrame(() => {
-          const end = event.target.value.length
-          event.target.setSelectionRange(end, end)
-        })
-      }}
-    />
-  )
-}
 
 function MatchButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
   const className = active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
