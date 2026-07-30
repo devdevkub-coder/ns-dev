@@ -60,6 +60,18 @@
 - FCD Ledger, FX Gain/Loss และ Bank Reconciliation เป็น foreign audit/drilldown reader; native amount ไม่ถูกนำไป aggregate เป็น THB.
 - ไม่มี reader ใดใช้ `accounts.opening_balance` หรือ `account_currency_balances` เป็นยอดเงินจริง.
 
+## Legacy `receipts` Read Compatibility
+
+`receipts` เป็น compatibility line fact สำหรับ Sales Bill ที่ระบบเดิมยังอ่านอยู่ ไม่ใช่เจ้าของ foreign receipt. จึงใช้ contract นี้ระหว่างย้าย consumer:
+
+| Legacy field | ความหมายที่คงไว้ | Foreign receipt write rule |
+|---|---|---|
+| `receipts.amount` | ยอดรับของ allocation เป็น THB | เขียนจาก `customer_receipt_allocations.receipt_amount`; ห้ามเขียน native USD ลง field นี้ |
+| `receipts.net_amount` | ยอดรับสุทธิของ allocation เป็น THB | เขียนเป็น THB ของบรรทัดเดิม; ห้ามใช้เป็น FCD carrying balance |
+| `receipts.discount`, `withholding_tax`, `bank_fee` | adjustment ของ allocation เป็น THB | อ่าน/เขียนเฉพาะความหมายเดิม; bank fee ระดับ foreign RCP อยู่ที่ `customer_receipts.bank_fee_total` |
+
+Consumer ใหม่ต้องใช้ named fields จาก `customer_receipts` และ allocation (`settlement_book_amount`, `carrying_thb_amount`, `receipt_currency_code`, native amount, rate snapshot) ตามหน้าที่ ไม่ตีความ `amount` หรือ `net_amount` เป็น native amount. Consumer เก่าที่ต้องการยอดธุรกิจหลักอ่าน compatibility THB ต่อได้จนย้ายเสร็จ; list/KPI/export หลักห้ามนำ header RCP มาบวกซ้ำกับ compatibility line หรือ Bank Statement.
+
 ## Event Boundaries
 
 1. Receipt: ปิด SB เป็น THB ณ rate วันรับ; native/carrying เข้า FCD.
