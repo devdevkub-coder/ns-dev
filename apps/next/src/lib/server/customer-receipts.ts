@@ -9,6 +9,7 @@ import { getFinanceCurrencyPolicy } from '@/lib/server/finance-currency-policy'
 import { functionalBankStatementMovement, reverseFunctionalBankStatementInflow } from '@/lib/server/bank-statement-booking'
 import { postFcdReceiptAccountSplits, reverseFcdReceiptAccountSplits } from '@/lib/server/fcd-receipt-posting'
 import { settlementDifferenceReasonForReceipt } from '@/lib/server/customer-receipt-settlement-difference'
+import { currentTransactionDate } from '@/lib/server/transaction-date'
 import { findFcdRateSnapshot } from '@/lib/server/fcd-rate-snapshot'
 import { calculateSettlementBookAmount, fcdFxRate, requireFcdInputMoneyAmount } from '@/lib/server/fcd-money'
 import { Prisma } from '../../../generated/prisma/client'
@@ -80,6 +81,7 @@ type CreateForeignReceiptOptions = {
 }
 
 type CancelReceiptOptions = {
+  reversalDate?: string
   statusLogAction?: string
 }
 
@@ -772,6 +774,7 @@ async function cancelCustomerAdvanceReceiptInTransaction(
   actor: string,
   options: CancelReceiptOptions = {},
 ) {
+  const reversalDate = options.reversalDate ?? await currentTransactionDate(tx)
   const receipt = await tx.customer_receipts.findUnique({
     include: { customer_receipt_advance_allocations: { orderBy: [{ line_no: 'asc' }] } },
     where: { doc_no: docNo },
@@ -789,7 +792,7 @@ async function cancelCustomerAdvanceReceiptInTransaction(
   if (!receipt.branch_id) throw new Error('Receipt Voucher CADV ไม่มีสาขาสำหรับออกเลข Bank Statement')
   const receiptBranch = await tx.branches.findUnique({ select: { code: true }, where: { id: receipt.branch_id } })
   if (!receiptBranch?.code) throw new Error('ไม่พบรหัสสาขาสำหรับยกเลิก Bank Statement CADV')
-  const reversalBankDocNos = await nextBankStatementDocNos(toDateString(receipt.date), documentBranchCode(receiptBranch.code)!, bankStatementsToReverse.length, tx)
+  const reversalBankDocNos = await nextBankStatementDocNos(reversalDate, documentBranchCode(receiptBranch.code)!, bankStatementsToReverse.length, tx)
   await tx.bank_statement.createMany({
     data: bankStatementsToReverse.map((statement, index) => ({
       ...reverseFunctionalBankStatementInflow({
@@ -804,7 +807,7 @@ async function cancelCustomerAdvanceReceiptInTransaction(
       account_id: statement.account_id,
       branch_id: receipt.branch_id,
       created_by: actor,
-      date: receipt.date,
+      date: normalizeDate(reversalDate),
       description: `${receipt.doc_no} - ยกเลิกรับเงิน CADV${bankStatementsToReverse.length > 1 ? ` (split ${index + 1}/${bankStatementsToReverse.length})` : ''}`,
       doc_no: reversalBankDocNos[index]!,
       ref_id: stringifyBusinessValue(receipt.id),
@@ -843,7 +846,7 @@ async function cancelCustomerAdvanceReceiptInTransaction(
       event_key: `customer-receipt.${statusLogAction}.${receipt.doc_no}`,
       from_status: CUSTOMER_RECEIPT_STATUS_ACTIVE,
       gross_amount_snapshot: receipt.gross_amount,
-      meta: { bankStatementDocNos: reversalBankDocNos, reason, sourceType: 'CADV' },
+      meta: { bankStatementDocNos: reversalBankDocNos, reason, reversalDate, sourceType: 'CADV' },
       net_cash_in_snapshot: receipt.net_cash_in,
       note: reason,
       receipt_doc_no: receipt.doc_no,
@@ -862,6 +865,7 @@ async function cancelForeignCustomerAdvanceReceiptInTransaction(
   actor: string,
   options: CancelReceiptOptions = {},
 ) {
+  const reversalDate = options.reversalDate ?? await currentTransactionDate(tx)
   const receipt = await tx.customer_receipts.findUnique({
     include: { customer_receipt_advance_allocations: { orderBy: [{ line_no: 'asc' }] } },
     where: { doc_no: docNo },
@@ -875,12 +879,12 @@ async function cancelForeignCustomerAdvanceReceiptInTransaction(
   if (!branchCode) throw new Error('ไม่พบรหัสสาขาสำหรับยกเลิก Bank Statement CADV ต่างประเทศ')
   const splits = await tx.customer_receipt_account_splits.findMany({ select: { id: true }, where: { receipt_id: receipt.id } })
   if (splits.length === 0) throw new Error('ไม่พบ FCD split สำหรับยกเลิก Receipt Voucher CADV ต่างประเทศ')
-  const reversalBankDocNos = await nextBankStatementDocNos(toDateString(receipt.date), branchCode, splits.length, tx)
+  const reversalBankDocNos = await nextBankStatementDocNos(reversalDate, branchCode, splits.length, tx)
   await reverseFcdReceiptAccountSplits(tx, {
     actor,
     bankStatementDocNos: reversalBankDocNos,
     branchId: receipt.branch_id,
-    date: toDateString(receipt.date),
+    date: reversalDate,
     receiptDocNo: receipt.doc_no,
     receiptId: receipt.id,
     sourceEventKey: `customer-advance-receipt:${receipt.doc_no}:cancel`,
@@ -913,7 +917,7 @@ async function cancelForeignCustomerAdvanceReceiptInTransaction(
       event_key: `customer-receipt.${statusLogAction}.${receipt.doc_no}`,
       from_status: CUSTOMER_RECEIPT_STATUS_ACTIVE,
       gross_amount_snapshot: receipt.gross_amount,
-      meta: { bankStatementDocNos: reversalBankDocNos, reason, sourceType: 'CADV' },
+      meta: { bankStatementDocNos: reversalBankDocNos, reason, reversalDate, sourceType: 'CADV' },
       net_cash_in_snapshot: receipt.net_cash_in,
       note: reason,
       receipt_doc_no: receipt.doc_no,
@@ -939,6 +943,9 @@ async function cancelCustomerReceiptInTransaction(
   if (!normalizedReason) {
     throw new Error('กรุณาระบุเหตุผลการยกเลิก')
   }
+
+  const reversalDate = options.reversalDate ?? await currentTransactionDate(tx)
+  const cancellationOptions = { ...options, reversalDate }
 
   await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('customer_receipts.cancel'))`
   await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('bank_statement.doc_no'))`
@@ -1021,9 +1028,9 @@ async function cancelCustomerReceiptInTransaction(
 
   if (receipt.source_type === 'CADV') {
     if (receipt.receipt_currency_code) {
-      return cancelForeignCustomerAdvanceReceiptInTransaction(tx, receipt.doc_no, normalizedReason, actor, options)
+      return cancelForeignCustomerAdvanceReceiptInTransaction(tx, receipt.doc_no, normalizedReason, actor, cancellationOptions)
     }
-    return cancelCustomerAdvanceReceiptInTransaction(tx, receipt.doc_no, normalizedReason, actor, options)
+    return cancelCustomerAdvanceReceiptInTransaction(tx, receipt.doc_no, normalizedReason, actor, cancellationOptions)
   }
 
   if (!receipt.branch_id) throw new Error('Receipt Voucher Customer ไม่มีสาขาสำหรับออกเลข Bank Statement')
@@ -1043,13 +1050,13 @@ async function cancelCustomerReceiptInTransaction(
   const bankStatementsToReverse = receiptBankStatements
   const reversalCount = receipt.receipt_currency_code ? foreignSplits.length : bankStatementsToReverse.length
   if (reversalCount === 0) throw new Error('ไม่พบรายการรับเงินที่ต้องยกเลิก')
-  const reversalBankDocNos = await nextBankStatementDocNos(toDateString(receipt.date), documentBranchCode(receiptBranch.code)!, reversalCount, tx)
+  const reversalBankDocNos = await nextBankStatementDocNos(reversalDate, documentBranchCode(receiptBranch.code)!, reversalCount, tx)
   if (receipt.receipt_currency_code) {
     await reverseFcdReceiptAccountSplits(tx, {
       actor,
       bankStatementDocNos: reversalBankDocNos,
       branchId: receipt.branch_id,
-      date: toDateString(receipt.date),
+      date: reversalDate,
       receiptDocNo: receipt.doc_no,
       receiptId: receipt.id,
       sourceEventKey: `customer-receipt:${receipt.doc_no}:cancel`,
@@ -1069,7 +1076,7 @@ async function cancelCustomerReceiptInTransaction(
         account_id: statement.account_id,
         branch_id: receipt.branch_id,
         created_by: actor,
-        date: receipt.date,
+        date: normalizeDate(reversalDate),
         description: `${receipt.doc_no} - ยกเลิกรับเงิน Customer${bankStatementsToReverse.length > 1 ? ` (split ${index + 1}/${bankStatementsToReverse.length})` : ''}`,
         doc_no: reversalBankDocNos[index]!,
         ref_id: stringifyBusinessValue(receipt.id),
@@ -1174,6 +1181,7 @@ async function cancelCustomerReceiptInTransaction(
       meta: {
         bankStatementDocNos: reversalBankDocNos,
         reason: normalizedReason,
+        reversalDate,
       },
       net_cash_in_snapshot: receipt.net_cash_in,
       note: normalizedReason,

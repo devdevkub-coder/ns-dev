@@ -93,3 +93,10 @@ Consumer ใหม่ต้องใช้ named fields จาก `customer_rece
 3. Conversion: ถอน native จาก FCD เข้าบัญชี THB; realized FX เปรียบเทียบ THB จริงกับ carrying THB ที่ตัดออก.
 
 ห้ามแก้ Sales Bill เดิมเพื่อสะท้อน revaluation หรือ conversion และห้ามใช้ current/latest rate แทน transaction snapshot ที่หายไป.
+
+## Period And Reversal Contract
+
+- Receipt cancellation/reissue สร้าง FCD/BST reversal ด้วย `current_date` ที่อ่านจาก database ภายใน transaction เดียว ไม่ใช้วันที่ RCP ต้นทาง; วันที่นี้อยู่ใน status-log metadata เพื่อ audit.
+- Conversion และ revaluation reversal รับวันที่ reversal ที่ผ่าน schema validation และ UI ส่งวันที่ดำเนินการปัจจุบัน; original native/carrying/rate snapshot ต้องถูกใช้ซ้ำ.
+- Trigger `fcd_revaluation_period_lock_guard` ปฏิเสธ receipt/conversion economic event ที่ย้อนเข้าวันที่เท่ากับหรือต่ำกว่างวด revaluation ที่ยัง posted. Revaluation/reversal เป็น append-only exception ที่มี source event เฉพาะ.
+- ไม่มี reopen approval workflow หรือ GL period engine ใน batch นี้. หาก action date เองเป็นงวดปิด ระบบต้อง reject; ห้ามแก้ original row หรือเขียนย้อนหลังเงียบ ๆ.

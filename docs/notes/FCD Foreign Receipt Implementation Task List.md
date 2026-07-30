@@ -288,7 +288,7 @@ FCD conversion
 - [x] `FCD-819` audit Main Dashboard, Daily Report และ Owner Daily ว่ายังคง aggregate จาก `bank_statement.amount_in/out` และ exclude internal transfer; ต้องไม่มี `todayBankCashIn || receiptCashIn` หรือ logic ที่นำ receipt mirror มาบวกซ้ำกับ BST
 - [x] `FCD-820` ปรับ Finance Tax ให้ WHT/Bank Fee ของ foreign RCP อ่าน THB settlement/withholding fields ที่ระบุชื่อชัดและเลือก active receipt source เดียว; ห้าม derive ภาษีหรือ fee จาก native amount/rate และห้ามนับ legacy receipt mirror ซ้ำ
 - [x] `FCD-821` replace/retire foreign placeholder readers: FCD Ledger, FX Gain/Loss Report และ Bank Reconciliation ต้องอ่าน persisted FCD/BST/FX event snapshots เท่านั้น; ห้ามสร้าง synthetic opening row, fallback currency THB, derive foreign amount เป็นศูนย์ หรือ lookup current/historical rate เพื่อแทน transaction snapshot ที่หายไป
-- [ ] `FCD-822` กำหนด period/reversal contract สำหรับ cancel-and-reissue, conversion และ revaluation: รายการในงวดปิดแล้วต้อง reverse ในงวดเปิดหรือ reopen/repost ด้วย approval; ห้ามแก้ carrying THB/native balance ในงวดปิดย้อนหลังโดยเงียบ
+- [x] `FCD-822` กำหนด period/reversal contract สำหรับ cancel-and-reissue, conversion และ revaluation: cancellation/reissue ของ RCP ใช้ `current_date` จาก DB transaction เป็น reversal date แทนวันที่เอกสารต้นทาง, conversion/revaluation reversal รับวันที่ดำเนินการผ่าน schema; period-lock trigger ปฏิเสธ economic event ย้อนเข้าปิดงวด และไม่มี reopen workflow จึง reject หาก action date ถูกปิด. ทุก reversal append-only และใช้ original snapshot (2026-07-30)
 
 ## Phase 9: Test And Release Gates
 
