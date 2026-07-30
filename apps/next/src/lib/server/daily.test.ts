@@ -43,4 +43,10 @@ describe('toDailyAccountOption', () => {
     expect(option.id).toBe('ACC01-001')
     expect(() => JSON.stringify(option)).not.toThrow()
   })
+
+  it('rejects BigInt values with the response path', () => {
+    expect(() => daily.assertJsonSafe({ rows: [{ id: 1n }] }, 'payment-approval.GET')).toThrow(
+      'payment-approval.GET.rows[0].id contains BigInt',
+    )
+  })
 })

@@ -212,6 +212,19 @@ export function toDailyAccountOption(account: { code: string | null; name: strin
   }
 }
 
+export function assertJsonSafe(value: unknown, path = 'payload'): void {
+  if (typeof value === 'bigint') {
+    throw new Error(`${path} contains BigInt`)
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertJsonSafe(item, `${path}[${index}]`))
+    return
+  }
+  if (value && typeof value === 'object') {
+    Object.entries(value).forEach(([key, item]) => assertJsonSafe(item, `${path}.${key}`))
+  }
+}
+
 export async function lockDailyAccountBalances(tx: Prisma.TransactionClient, accountIds: bigint[]) {
   for (const accountId of [...new Set(accountIds.map((value) => value.toString()))].sort()) {
     await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${`daily-account-balance:${accountId}`}))`
