@@ -32,4 +32,30 @@ describe('foreign customer receipt dependency reset contract', () => {
       expect(handlerSource).toContain('splits: [newReceiptSplit()]')
     }
   })
+
+  it('keeps source, account, fee and rate contracts separated by receipt currency', () => {
+    expect(source).toContain("const isForeignReceipt = mode === 'receipt'")
+    expect(source).toContain('receiptCurrencyCode !== functionalCurrencyCode')
+    expect(source).toContain("receiptSourceType === 'SB'")
+    expect(source).toContain("receiptSourceType === 'CADV'")
+    expect(source).toContain("account.isFcd === true")
+    expect(source).toContain('account.supportedCurrencies')
+    expect(source).toContain('foreignFcdAccountOptions')
+    expect(source).toContain('Bank Fee ({functionalCurrencyCode})')
+    expect(source).toContain('Settlement FX ({functionalCurrencyCode})')
+    expect(source).toContain("value={receiptForm?.fxRateOverrideReason ?? ''}")
+    expect(source).toContain('ทุกบัญชีต้องรองรับ {receiptCurrencyCode}; ยอดรวมต้องเท่ากับยอดเข้าบัญชี FCD จริง')
+    expect(source).toContain("{receiptSourceType === 'SB' ? <div><span className=\"text-slate-500\">Settlement FX")
+  })
+
+  it('uses the receipt rate API and server-side CADV guard instead of client-side fallback assumptions', () => {
+    expect(source).toContain('/api/sales/receipts/rate?${new URLSearchParams({')
+    expect(source).toContain('currency: receiptCurrencyCode')
+    expect(source).toContain('date: receiptRateDate')
+    expect(source).toContain('rateType: receiptRateType')
+
+    const receiptService = readFileSync(new URL('../../lib/server/customer-receipts.ts', import.meta.url), 'utf8')
+    expect(receiptService).toContain("if (!totalCadVSettlement.eq(settlementBookAmount)) throw new Error('ยอดตัด CADV (THB) ต้องเท่ากับยอด settlement (THB)')")
+    expect(receiptService).toContain("if (!rateWasSuggested && !values.fxRateOverrideReason?.trim()) throw new Error('กรุณาระบุเหตุผลเมื่อกรอกหรือแก้ไขอัตราแลกเปลี่ยน')")
+  })
 })

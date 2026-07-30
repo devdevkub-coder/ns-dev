@@ -169,7 +169,7 @@ FCD conversion
 - [x] `FCD-308` บันทึก foreign receipt แล้วปิด/partial Sales Bill, post Bank Statement และ FCD ledger ใน transaction เดียว
 - [x] `FCD-309` cancel/reverse ต้องคืน AR และ reverse BST/FCD/FX โดยไม่ลบรายการเดิม
 - [x] `FCD-310` เพิ่ม detail/timeline แสดง book amount THB เป็นหลัก และแสดง native amount/rate/FX classification เป็น audit detail เฉพาะ foreign receipt
-- [ ] `FCD-311` คง flow THB เดิมและเพิ่ม regression tests ไม่ให้ behavior เดิมเปลี่ยน
+- [x] `FCD-311` คง flow THB เดิมและเพิ่ม regression tests ไม่ให้ behavior เดิมเปลี่ยน: schema test ยืนยัน RCP สกุล functional currency (THB ใน policy ปัจจุบัน) ยังใช้ flow เดิมโดยไม่ต้องส่ง native/rate fields (2026-07-30)
 
 ### 3.1 Customer Receipt form flow and fields
 
@@ -191,7 +191,7 @@ FCD conversion
 - [x] `FCD-327` เมื่อวันที่, source type, customer, currency หรือ receiving account เปลี่ยน ต้อง invalidate dependent selections และ rate result อย่างชัดเจน แล้วโหลดข้อมูลใหม่จาก source ที่ถูกต้อง: form ล้าง foreign settlement fields ที่ขึ้นกับ source/branch/customer/currency, reset rate lookup และ refetch จาก receipt rate API ตาม request context; มี contract test คุมทุก transition (2026-07-30)
 - [x] `FCD-328` API ต้อง validate source type, currency, FCD capability, native totals, THB allocations, fee และ rate provenance ซ้ำฝั่ง server และคำนวณ derived THB/FX ใหม่ก่อนบันทึก
 - [x] `FCD-329` ปรับ detail, edit/replacement และ printable receipt ให้ใช้ label/หน่วยเดียวกับ create form และอ่าน transaction snapshot เดิม ไม่ดึง current rate มาคำนวณเอกสารเก่า
-- [ ] `FCD-330` เพิ่ม focused tests สำหรับ field visibility ตาม `SB/CADV`, THB/USD account filtering, currency reset, missing/manual/override rate, fee separation, multiple FCD splits และ CADV ที่เกินยอดคงเหลือ
+- [x] `FCD-330` เพิ่ม focused tests สำหรับ field visibility ตาม `SB/CADV`, THB/USD account filtering, currency reset, missing/manual/override rate, fee separation, multiple FCD splits และ CADV ที่เกินยอดคงเหลือ: component/service contract tests คุม conditional source sections, FCD+supported-currency filter, reset transitions, exact-rate lookup/manual override, fee/settlement FX separation, split reconciliation และ CADV settlement guard (2026-07-30)
 
 ### 3.2 Customer Receipt list, detail, print and notification
 
