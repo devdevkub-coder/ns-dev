@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import type { Prisma } from '../../../../../generated/prisma/client'
@@ -8,6 +9,7 @@ import { currentActor, normalizeDate, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveSuppliers, listAllAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
 import { normalizeStockReferenceInput, stockReferenceData } from '@/lib/server/stock'
+import { XLSX, type WorkBook } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
 
@@ -19,12 +21,73 @@ const openingStockItemSchema = z.object({
   warehouseId: z.string().trim().min(1), branchId: z.string().trim().min(1),
 })
 const openingBalanceWriteSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('save'), stockItems: z.array(openingStockItemSchema).max(5000) }),
+  z.object({ action: z.literal('save'), cutoffDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), stockItems: z.array(openingStockItemSchema).max(5000) }),
   z.object({ action: z.literal('apply'), item: openingStockItemSchema }),
   z.object({ action: z.literal('unapply'), itemId: z.string().trim().min(1).max(80) }),
 ])
 type OpeningBalanceData = Record<string, unknown> & { cutoffDate: string; goLiveDate: string; locked: boolean; stockItems: Array<z.infer<typeof openingStockItemSchema>> }
 const defaultOpeningBalanceData: OpeningBalanceData = { cutoffDate: '2026-04-30', goLiveDate: '2026-05-01', locked: false, stockItems: [] }
+
+const openingImportRowSchema = z.object({
+  productName: z.string().trim().min(1),
+  productType: z.string().trim().min(1),
+  warehouseCode: z.string().trim().min(1),
+  quantity: z.number().finite().gt(0),
+  unitCost: z.number().finite().gt(0),
+  sourceTotal: z.number().finite().nonnegative(),
+  productCode: z.string().trim().optional(),
+})
+
+function importText(value: unknown) { return String(value ?? '').trim() }
+function importNumber(value: unknown) { const parsed = typeof value === 'number' ? value : Number(String(value ?? '').replace(/,/g, '').trim()); return Number.isFinite(parsed) ? parsed : NaN }
+function importKey(value: unknown) { return importText(value).replace(/\s+/g, ' ').toLowerCase() }
+function importColumn(headers: unknown[], labels: string[]) { return headers.findIndex((header) => labels.some((label) => importKey(header) === importKey(label))) }
+
+function parseOpeningImportWorkbook(workbook: WorkBook) {
+  const sheet = workbook.SheetNames.map((name) => workbook.Sheets[name]).find((candidate) => {
+    const headers = candidate.rows[0] ?? []
+    return importColumn(headers, ['สินค้า', 'ชื่อสินค้า']) >= 0 && importColumn(headers, ['คลัง', 'คลังสินค้า']) >= 0
+  })
+  if (!sheet) throw new Error('ไม่พบ sheet ที่มีหัวตาราง สินค้า และ คลัง')
+  const headers = sheet.rows[0] ?? []
+  const indexes = {
+    productName: importColumn(headers, ['สินค้า', 'ชื่อสินค้า']), productType: importColumn(headers, ['ประเภท', 'ประเภทสินค้า']),
+    warehouseCode: importColumn(headers, ['คลัง', 'คลังสินค้า']), quantity: importColumn(headers, ['จำนวน', 'ปริมาณ', 'ยอดคงเหลือ']),
+    unitCost: importColumn(headers, ['ราคาเฉลี่ย', 'ราคาต่อหน่วย', 'ต้นทุนต่อหน่วย']), sourceTotal: importColumn(headers, ['มูลค่ารวม', 'มูลค่า']), productCode: importColumn(headers, ['รหัสสินค้า', 'code']),
+  }
+  const required = Object.entries(indexes).filter(([key, index]) => key !== 'productCode' && index < 0).map(([key]) => key)
+  if (required.length) throw new Error(`ขาดคอลัมน์ที่จำเป็น: ${required.join(', ')}`)
+  return sheet.rows.slice(1).filter((row) => row.some((value) => importText(value))).map((row) => ({
+    productCode: indexes.productCode >= 0 ? importText(row[indexes.productCode]) : '', productName: importText(row[indexes.productName]), productType: importText(row[indexes.productType]),
+    warehouseCode: importText(row[indexes.warehouseCode]).toUpperCase(), quantity: importNumber(row[indexes.quantity]), sourceTotal: importNumber(row[indexes.sourceTotal]), unitCost: importNumber(row[indexes.unitCost]),
+  }))
+}
+
+async function resolveOpeningImport(rows: Array<Record<string, unknown>>, branchCode: string) {
+  const branch = await prisma.branches.findFirst({ select: { id: true, code: true }, where: { active: true, code: branchCode } })
+  if (!branch) throw new Error(`ไม่พบสาขา ${branchCode}`)
+  const parsedRows = rows.map((row) => openingImportRowSchema.safeParse(row))
+  const invalidRows = parsedRows.map((parsed, index) => parsed.success ? null : `แถว ${index + 2}: จำนวน/ราคา/มูลค่าไม่ถูกต้อง`).filter(Boolean) as string[]
+  if (invalidRows.length) return { branch, errors: invalidRows, items: [] as Array<z.infer<typeof openingStockItemSchema>>, warnings: [] as string[] }
+  const values = parsedRows.flatMap((parsed) => parsed.success ? [parsed.data] : [])
+  const products = await prisma.products.findMany({ select: { code: true, id: true, name: true, type: true }, where: { active: true, name: { in: [...new Set(values.map((row) => row.productName))] } } })
+  const warehouses = await prisma.warehouses.findMany({ select: { branch_id: true, code: true, id: true, type: true }, where: { active: true, branch_id: branch.id, code: { in: [...new Set(values.map((row) => row.warehouseCode))] } } })
+  const items: Array<z.infer<typeof openingStockItemSchema>> = []
+  const errors: string[] = []
+  const warnings: string[] = []
+  values.forEach((row, index) => {
+    const matches = products.filter((product) => importKey(product.name) === importKey(row.productName) && importKey(product.type) === importKey(row.productType))
+    const product = row.productCode ? matches.find((candidate) => candidate.code.toUpperCase() === row.productCode?.toUpperCase()) : matches.length === 1 ? matches[0] : null
+    const warehouse = warehouses.find((candidate) => candidate.code.toUpperCase() === row.warehouseCode.toUpperCase())
+    if (!product) errors.push(`แถว ${index + 2}: ไม่พบหรือพบสินค้าซ้ำ ${row.productName} / ${row.productType}`)
+    if (!warehouse) errors.push(`แถว ${index + 2}: ไม่พบคลัง ${row.warehouseCode} ในสาขา ${branchCode}`)
+    if (!product || !warehouse) return
+    const calculatedValue = row.quantity * row.unitCost
+    if (Math.abs(calculatedValue - row.sourceTotal) > 0.05) warnings.push(`แถว ${index + 2}: ระบบจะใช้มูลค่า ${calculatedValue.toLocaleString('th-TH')} จากจำนวน × ราคา`)
+    items.push({ applied: false, branchId: branch.id.toString(), id: `OB-IMP-${randomUUID().slice(0, 12).toUpperCase()}`, itemStatus: warehouse.type === 'FG' ? 'FG' : warehouse.type === 'WIP' ? 'WIP' : 'RM', lotNo: 'OPENING', paid: true, productId: product.id.toString(), qty: row.quantity, unitCost: row.unitCost, warehouseId: warehouse.id.toString() })
+  })
+  return { branch, errors, items, warnings }
+}
 function openingBalanceData(value: Prisma.JsonValue | null | undefined): OpeningBalanceData {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return defaultOpeningBalanceData
   const source = value as Record<string, unknown>
@@ -130,6 +193,20 @@ export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'finance.financials.view')
+    if ((request.headers.get('content-type') ?? '').includes('multipart/form-data')) {
+      requirePermission(context, 'finance.opening_balance.manage')
+      const form = await request.formData()
+      const branchCode = importText(form.get('branchCode'))
+      const cutoffDate = importText(form.get('cutoffDate'))
+      const file = form.get('file')
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(cutoffDate)) throw new Error('วันที่ตัดยอดต้องเป็นรูปแบบ YYYY-MM-DD')
+      if (!(file instanceof File)) throw new Error('เลือกไฟล์ Excel ก่อนตรวจสอบ')
+      if (!file.name.toLowerCase().endsWith('.xlsx')) throw new Error('รองรับเฉพาะไฟล์ .xlsx')
+      if (file.size > 10 * 1024 * 1024) throw new Error('ไฟล์ Excel ต้องไม่เกิน 10 MB')
+      const rows = parseOpeningImportWorkbook(await XLSX.read(Buffer.from(await file.arrayBuffer())))
+      const resolved = await resolveOpeningImport(rows, branchCode)
+      return NextResponse.json({ cutoffDate, errors: resolved.errors, items: resolved.items, summary: { errorRows: resolved.errors.length, itemRows: resolved.items.length, totalQty: resolved.items.reduce((sum, item) => sum + item.qty, 0), totalValue: resolved.items.reduce((sum, item) => sum + item.qty * item.unitCost, 0), warnings: resolved.warnings } })
+    }
     const values = openingBalanceWriteSchema.parse(await request.json())
     const existing = await prisma.opening_balance.findFirst({ orderBy: { id: 'asc' } })
     const opening = openingBalanceData(existing?.data)
@@ -140,7 +217,7 @@ export async function POST(request: Request) {
       for (const item of values.stockItems) { const applied = appliedById.get(item.id); if (applied) { const same = JSON.stringify({ ...item, applied: true, appliedRefId: applied.appliedRefId, appliedAt: applied.appliedAt }) === JSON.stringify({ ...applied, applied: true }); if (!same) return NextResponse.json({ error: `รายการ ${item.id} ถูก Apply แล้ว ต้องกด Unapply ก่อนแก้ไข` }, { status: 409 }) } }
       const incomingIds = new Set(values.stockItems.map((item) => item.id))
       const nextItems = [...values.stockItems.map((item) => appliedById.get(item.id) ?? item), ...opening.stockItems.filter((item) => item.applied && !incomingIds.has(item.id))]
-      const nextData = { ...opening, stockItems: nextItems }
+      const nextData = { ...opening, cutoffDate: values.cutoffDate ?? opening.cutoffDate, stockItems: nextItems }
       const saved = existing ? await prisma.opening_balance.update({ data: { data: toJsonData(nextData), updated_at: now, updated_by: actor }, where: { id: existing.id } }) : await prisma.opening_balance.create({ data: { data: toJsonData(nextData), updated_at: now, updated_by: actor } })
       return NextResponse.json({ id: saved.id.toString(), stock: nextItems, summary: stockSummary(nextItems) })
     }

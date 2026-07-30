@@ -41,7 +41,7 @@ updated: 2026-07-29
 | `/finance-accounting/loan-dashboard` | `GET /api/finance-accounting/loan-dashboard` | none | `loans`, `loan_schedules`, `loan_payments` | read-only |
 | `/finance-accounting/asset-overview` | `GET /api/finance-accounting/asset-overview` | `asOf`, `branchId` | `buildCashOthersSummary()` + `buildFinancialDashboard()` | read-only |
 | `/finance-accounting/equity-maint` | `GET /api/finance-accounting/equity-maint` | none | latest `equity` row | write disabled |
-| `/finance-accounting/opening-balance` | `GET/POST /api/finance-accounting/opening-balance` | none | `opening_balance.data.stockItems`, active stock references, `stock_ledger`, shadow `purchase_bills` for unpaid stock | Stock Opening save/apply/unapply enabled; unpaid rows with Supplier auto-create AP; accounting/AR/GL tabs remain read-only |
+| `/finance-accounting/opening-balance` | `GET/POST /api/finance-accounting/opening-balance` | none; Excel multipart import accepts `branchCode`, `cutoffDate`, `.xlsx` | `opening_balance.data.stockItems`, active stock references, `stock_ledger`, shadow `purchase_bills` for unpaid stock | Stock Opening save/apply/unapply enabled; Excel import previews and maps rows into Pending items; unpaid rows with Supplier auto-create AP; accounting/AR/GL tabs remain read-only |
 | `/finance-accounting/accounting-periods` | page/policy UI | none | accounting period policy/readiness state | policy UI; runtime write enforcement deferred |
 | `/finance-accounting/posting-rules` | page/policy UI | none | source-to-account mapping readiness | policy UI; GL posting deferred |
 | `/finance-accounting/historical-data` | `GET /api/finance-accounting/historical-data` | none | `historical_monthly` | save/clear disabled |
@@ -54,7 +54,7 @@ updated: 2026-07-29
 | Cash/working capital planning | Cash Flow Analysis, CF Forecast Calendar, Working Capital, Stock Finance, Profit Leak. These explain cash pressure, inventory/AR/AP days, stock finance risk and margin leakage. |
 | Tax baseline | Tax / VAT / WHT reads transaction tax fields and tax calendar assumptions. It is not a filing ledger and has no filing lock/status today. |
 | Asset baseline | Asset Register creates/maintains asset master, Depreciation posts/reverses monthly depreciation rows, Asset Disposal closes/reverses asset lifecycle using latest NBV, and Asset Overview remains read-only. |
-| Loan/equity/opening/historical | Loan Contracts/Dashboard, Equity, Opening Balance, Historical Data read setup/support tables. Write paths need approval/audit/cutover design before enabling. |
+| Loan/equity/opening/historical | Loan Contracts/Dashboard, Equity, Opening Balance, Historical Data read setup/support tables. Stock Opening is the approved write path; Excel import stages validated rows as Pending before the existing Apply flow creates stock ledger entries. |
 | Period and posting policy | Accounting Periods is the target owner for month/year close states, soft close, lock, and reopen. Posting Rules is the readiness surface for source-to-account mapping before any GL/statutory posting is enabled. |
 
 ## Validation Rules
