@@ -12,6 +12,10 @@ Validation: policy migration plus FCD contract migration `20260730120000_add_fcd
 
 Immediate next task: ทำ FCD-122, Cash Position as-of/filter/export/reconciliation และ consumer/read-model audit ต่อ. `FCD-113` applied/recorded ใน Dev/SIT แล้ว: Account Master ไม่มี currency opening balance และยอดคงเหลือเริ่มจาก Bank Statement/FCD ledger ที่ post เท่านั้น. RCP history/print/LINE ใช้ named THB book amounts; native currency/rate อยู่เฉพาะ foreign audit snapshot. Cash Position อ่าน THB ที่ persist แล้วเท่านั้น; FCD native เป็น projection แยก account+currency ไม่รวมเข้ากับ THB. `/sales/receipts` รองรับ foreign ทั้ง SB และ CADV ตาม snapshot rate/date/type, manual/override reason, FCD split ที่รองรับ currency, และแยก Bank Fee จาก settlement FX. Conversion/revaluation ใช้ append-only reversal และ internal transfer classification เดียวกัน. FX report drilldown เปิด FCD conversion/revaluation ตามเลขเอกสาร และเปิด FCD ledger ตาม account+currency+entry ที่ persist; FX row เก่าเปิด Bank Statement ต้นทางเท่านั้น.
 
+## Form Safety SIT Checkpoint 2026-07-30
+
+`codex/nserp-176-form-safety-sit` adds the shared unsaved-change and destructive-action confirmation contract across the selected form flows, while preserving the current SIT WTI/WTO product-card, picker, sheet-animation, and Escape-close behavior. The receipt source guard treats an empty THB/FCD receipt as blank and still protects genuine foreign-currency/rate data. Focused Vitest `61/61`, workspace lint (0 errors; 10 existing warnings), and workspace type-check pass. The current batch does not yet guard receipt currency/date/customer/branch changes or bill/advance replacement; keep those as follow-up scope rather than claiming system-wide FCD selector coverage.
+
 # Active Dev/SIT Transaction Reset Checkpoint 2026-07-29
 
 Objective: ลบข้อมูล transaction และ derived transaction data ทั้งหมดบน Dev และ SIT เพื่อเริ่มทดสอบ flow code ใหม่ โดยคง master data, auth/permission, settings และ migration history ไว้.
