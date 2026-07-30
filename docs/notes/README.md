@@ -50,6 +50,8 @@
 | Receipt voucher | `Receipt Voucher Page Flow.md` |
 | Customer advance receipt | `Customer Advance Receipt Flow.md` |
 | FCD customer receipt / FX | `Receive Payment From The Customer Via Their FCD Account.md` |
+| FCD implementation task list | `FCD Foreign Receipt Implementation Task List.md` |
+| FCD currency policy | `Finance Currency Policy Contract.md` |
 | Stock ledger DB/API | `Stock Ledger DB API Design.md` |
 | Reference cache | `Reference Master Cache Flow.md` |
 | Printable docs | `Printable Documents.md` |

@@ -12,7 +12,7 @@ tags:
   - page-flow
 status: draft
 created: 2026-06-11
-updated: 2026-06-24
+updated: 2026-07-30
 ---
 
 # Finance AR Page Flow / Flow หน้าลูกหนี้ AR
@@ -178,6 +178,13 @@ Response ควรรวม:
 - Aging ต้องใช้ due date ก่อน credit term fallback
 - Aging ต้องหยุดนับเมื่อยอดค้างเป็น 0
 - Customer advance ที่ allocate เข้า SB ต้องลดยอดลูกหนี้ผ่าน allocation facts ไม่ใช่ string snapshot ระยะยาว
+
+## Foreign Customer Receipt Impact
+
+- Sales Bill, AR allocation, `received_amount`, `receivable_balance`, KPI, table และ AR export ยังคงเป็น THB ทั้งหมด
+- การรับ USD ใช้ settlement THB ณ rate วันรับเงินเพื่อตัด AR; ห้ามเปลี่ยน currency ของ Sales Bill
+- AR detail แสดง reference RCP และยอดตัด AR THB เป็นหลัก ส่วน native USD, rate และ settlement FX เป็น audit detail จาก RCP เมื่อมี
+- USD คงเหลือหลังปิด AR ไม่ใช่ AR อีกต่อไป และต้องไปอยู่ใน FCD ledger/หน้าแลกเงิน
 
 ## Current Implementation / Gap
 

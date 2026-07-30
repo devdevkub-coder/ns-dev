@@ -6,7 +6,7 @@ tags:
   - finance-debt
   - cash-position
 status: accepted-baseline
-updated: 2026-06-11
+updated: 2026-07-30
 route: /finance/cash-position
 ---
 
@@ -41,10 +41,10 @@ Legacy `view-cashPosition`:
 
 ## Page Responsibilities
 
-- อ่าน account balances จาก `accounts` + `bank_statement`.
+- อ่าน account balances ต่อ `account + currency` จาก currency-aware Bank/FCD ledger projection.
 - รวมยอดตาม account type.
-- อ่าน AR exposure จาก `sales_bills` - `receipts`.
-- อ่าน AP exposure จาก `purchase_bills` - `payments`.
+- อ่าน AR exposure THB จาก `sales_bills.receivable_balance`.
+- อ่าน AP exposure THB จาก `purchase_bills.payable_balance`.
 - แสดง near due AR/AP.
 - แสดง account table พร้อม balance.
 - เป็น aggregate/read model เท่านั้น.
@@ -89,8 +89,9 @@ Permission ปัจจุบัน: `finance.cash.view`.
 ## Data Contract
 
 - Account outward id/code = `accounts.code`.
-- Account balance derives from `opening_balance` + `bank_statement` running movement unless row balance exists.
+- Account balance target derives from persisted currency-aware movements ณ as-of; `accounts.opening_balance` ไม่ใช่ source ของยอดยกมา.
 - AR/AP exposure rows use source document `doc_no`.
+- Cash Position ใช้ carrying THB เป็นยอด FCD หลัก; native balance/rate อยู่ใน FCD drilldown และหน้าแลกเงิน.
 - Aggregate page itself has no row-level `created_at`; source drilldowns must expose created date.
 
 ## Validation / Status Rules
@@ -99,7 +100,7 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - AP uses purchase bill cancelled status list.
 - AR due date uses `due_date` or credit term fallback.
 - AP current due date uses bill date in API; target should align with AP page due date policy.
-- Currency/FCD conversion is not finalized; current `balance` display uses stored account/bank statement values.
+- ห้ามรวม native foreign amount เป็น THB; ถ้าไม่มี persisted carrying THB ต้องแสดง unavailable และไม่เดาจาก current rate.
 
 ## Side Effects
 
@@ -107,22 +108,22 @@ Permission ปัจจุบัน: `finance.cash.view`.
 
 ## Current Code Baseline
 
-- Current `apps/next` page/API code is accepted as P1 baseline as of 2026-06-11.
 - Current API loads accounts, bank rows, SB/RCP, PB/PMT in parallel and builds aggregate in memory.
+- Current API ยังใช้ `opening_balance`, fallback currency เป็น THB, balance เดียวต่อ account และ derive AR/AP จาก legacy receipt/payment maps จึงเป็น baseline ที่ต้องแก้ก่อนรองรับ FCD.
 
 ## Current Gap
 
 - No `asOf` support.
-- No branch/account type/currency filter yet.
-- Customer advance / supplier advance inclusion policy remains pending dedicated tables.
+- No branch/account type filter yet.
 - Need drilldown links to bank/AR/AP.
-- Need currency/FCD conversion policy for multi-currency reporting.
+- Need account+currency balance projection หลังบ้าน, carrying THB และ THB-only aggregate policy.
+- Need reconciliation tests ให้ summary/table/Bank/FCD/AR/AP ตรงกัน ณ as-of เดียวกัน.
 
 ## Implementation Checklist
 
 - [x] Verify current Next page/component against this page-flow
 - [x] Verify API route handlers match Current API and status rules above
 - [x] Capture legacy cash position baseline
-- [ ] Define as-of/currency policy
+- [ ] Implement as-of/account+currency policy
 - [ ] Add drilldown links
 - [ ] Reconcile customer advance/supplier advance inclusion

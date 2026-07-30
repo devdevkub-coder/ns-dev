@@ -1,7 +1,7 @@
 import { requireBusinessCode } from '@/lib/business-code'
 import { roundMoney, toBangkokDateOnly, toBangkokEndOfDay, toNumber } from '@/lib/server/daily'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
-import { buildFinanceCashPosition } from '@/lib/server/finance-accounting-cash-position'
+import { buildFinanceCashPosition, summarizeFinanceCashAccounts } from '@/lib/server/finance-accounting-cash-position'
 import { buildCashFlowAnalysis } from '@/lib/server/finance-accounting-cashflow-planning'
 import { buildBalanceSheet, buildPlStatement, FinancialStatementInputError } from '@/lib/server/finance-accounting-statements'
 import { buildStockFinance } from '@/lib/server/finance-accounting-working-capital'
@@ -66,7 +66,7 @@ function sourceState(options?: { branchScoped?: boolean }) {
     limitations: [
       'ยังไม่มี GL close/COA/retained earnings roll-forward จึงเป็น management dashboard เท่านั้น',
       'Cash need/inflow reuses AR/AP/loan schedule forecast source from operational documents',
-      'ยอด FCD ใช้ accounts.opening_balance เท่านั้น เพราะ bank_statement ยังไม่มี foreign amount; แสดงแยกตามสกุลและไม่รวมในยอด/ประมาณการเงินบาท',
+      'ยอดสภาพคล่องใช้ book THB จาก Bank Statement; ยอด native FCD เป็น audit projection แยกสกุลเงินและไม่ถูกนำมาบวกกับ THB',
       ...(options?.branchScoped ? ['ยอด Loan/Equity ระดับบริษัทถูกตัดออกจากผลแบบจำกัดสาขา เพราะแหล่งข้อมูลยังไม่มีมิติสาขาที่ตรวจสอบได้'] : []),
       'No payment, receipt, transfer, financing, reclass, posting, or statutory statement write action is enabled',
     ],
@@ -104,30 +104,24 @@ type CashPositionInput = {
 }
 
 export function classifyFinancialCashAccount(account: {
-  bank: string | null
-  bank_name: string | null
-  currency: string | null
+  accountGroup: string | null
+  isFcd: boolean
   name: string
-  type: string
-}): 'BANK' | 'CASH' | 'FCD' | 'OD' {
-  const description = [account.type, account.name, account.bank_name, account.bank].filter(Boolean).join(' ').toLowerCase()
-  const currency = (account.currency ?? 'THB').trim().toUpperCase()
-  if (currency !== 'THB' || description.includes('fcd') || description.includes('foreign')) return 'FCD'
-  if (description.includes('od')) return 'OD'
-  if (description.includes('cash') || description.includes('เงินสด')) return 'CASH'
-  return 'BANK'
+}): 'BANK' | 'CASH' | 'FCD' {
+  if (account.accountGroup === 'cash') return 'CASH'
+  if (account.accountGroup === 'bank' && account.isFcd) return 'FCD'
+  if (account.accountGroup === 'bank') return 'BANK'
+  throw new Error(`บัญชี ${account.name} ไม่มี account group ที่ใช้ใน Financial Dashboard`)
 }
 
 export function financialDashboardAccountBalance(account: {
-  bank: string | null
-  bank_name: string | null
-  currency: string | null
+  accountGroup: string | null
+  isFcd: boolean
   movement: number
   name: string
-  openingBalance: number
-  type: string
 }) {
-  return account.openingBalance + (classifyFinancialCashAccount(account) === 'FCD' ? 0 : account.movement)
+  classifyFinancialCashAccount(account)
+  return account.movement
 }
 
 export function buildCashPositionSummary(input: CashPositionInput) {
@@ -139,41 +133,13 @@ export function buildCashPositionSummary(input: CashPositionInput) {
 }
 
 export function summarizeFinancialCashAccounts(accounts: Array<{
+  accountGroup: string | null
   balance: number
-  bank: string | null
-  bank_name: string | null
-  currency: string | null
+  isFcd: boolean
   name: string
   odLimit: number
-  type: string
-}>) {
-  const totals = { bankBalance: 0, cashBalance: 0, odLimit: 0, odUsed: 0 }
-  const fcdByCurrency = new Map<string, number>()
-  const unlabelledFcdBalances: Array<{ currency: string; value: number }> = []
-
-  for (const account of accounts) {
-    const kind = classifyFinancialCashAccount(account)
-    if (kind === 'FCD') {
-      const currency = account.currency?.trim().toUpperCase()
-      if (currency) fcdByCurrency.set(currency, (fcdByCurrency.get(currency) ?? 0) + account.balance)
-      else unlabelledFcdBalances.push({ currency: `ไม่ระบุสกุล (${account.name})`, value: account.balance })
-    } else if (kind === 'OD') {
-      totals.odLimit += account.odLimit
-      if (account.balance < 0) totals.odUsed += Math.abs(account.balance)
-      else totals.bankBalance += account.balance
-    } else if (kind === 'CASH') {
-      totals.cashBalance += account.balance
-    } else {
-      totals.bankBalance += account.balance
-    }
-  }
-
-  return {
-    ...buildCashPositionSummary(totals),
-    fcdBalances: [...Array.from(fcdByCurrency, ([currency, value]) => ({ currency, value })), ...unlabelledFcdBalances]
-      .filter((row) => row.value !== 0)
-      .sort((left, right) => left.currency.localeCompare(right.currency, 'en')),
-  }
+}>, fcdBalances: Array<{ currency: string; value: number }> = []) {
+  return summarizeFinanceCashAccounts(accounts, fcdBalances)
 }
 
 function money(value: number) {

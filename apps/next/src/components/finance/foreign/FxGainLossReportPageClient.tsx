@@ -19,6 +19,8 @@ type FxGainLossRow = {
   originalFxRate: number
   originalThbValue: number
   reference: string
+  sourceDocumentHref: string | null
+  sourceLedgerHref: string | null
   settlementFxRate: number
   settlementThbValue: number
   transactionType: string
@@ -265,7 +267,10 @@ export function FxGainLossReportPageClient() {
               <tr key={row.id} className="transition-colors hover:bg-slate-50">
                 <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatDateDisplay(row.date)}</td>
                 <td className="min-w-0 truncate px-3 py-3 text-slate-700">{row.transactionType}</td>
-                <td className="min-w-0 truncate px-3 py-3 font-mono text-xs text-slate-700">{row.reference}</td>
+                <td className="min-w-0 truncate px-3 py-3 font-mono text-xs">
+                  {row.sourceDocumentHref ? <a className="text-blue-700 hover:underline" href={row.sourceDocumentHref}>{row.reference}</a> : <span className="text-slate-700">{row.reference}</span>}
+                  {row.sourceLedgerHref ? <a className="ml-2 text-xs text-slate-500 hover:text-blue-700 hover:underline" href={row.sourceLedgerHref}>Ledger</a> : null}
+                </td>
                 <td className="whitespace-nowrap px-3 py-3 text-slate-600">{row.currency || '-'}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.foreignAmount)}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.originalFxRate)}</td>
@@ -302,7 +307,7 @@ export function FxGainLossReportPageClient() {
             
             <div className="flex justify-between text-sm">
               <span className="font-semibold text-slate-800">{row.transactionType}</span>
-              <span className="font-mono text-blue-600">Ref: {row.reference}</span>
+              <span className="font-mono text-blue-600">Ref: {row.sourceDocumentHref ? <a className="hover:underline" href={row.sourceDocumentHref}>{row.reference}</a> : row.reference}{row.sourceLedgerHref ? <a className="ml-2 text-xs text-slate-500 hover:text-blue-700 hover:underline" href={row.sourceLedgerHref}>Ledger</a> : null}</span>
             </div>
             
             <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100/60 mt-1">

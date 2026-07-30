@@ -1,5 +1,7 @@
 # Receive Payment From The Customer Via Their FCD Account
 
+Implementation checklist: [[FCD Foreign Receipt Implementation Task List]]
+
 ## ภาพรวม
 กรณี `บิลขายออกเป็น THB` แต่ `ลูกค้าจ่ายมาเป็น USD` ในระบบควรแยกเป็น `3 เหตุการณ์บัญชี` อย่างชัดเจน
 
@@ -64,6 +66,79 @@
 - ใช้ `rate วันรับเงิน`
 - เงินที่รับแต่ยังไม่แลก ให้เข้า `FCD`
 - ไม่ต้องรอการแลกเงินจริง
+
+## Approved RCP Form Flow
+
+ลำดับฟอร์มที่อนุมัติสำหรับ `/sales/receipts` คือ:
+
+1. เลือกวันที่รับเงิน
+2. เลือกประเภทเอกสารต้นทางก่อน: `SB` หรือ `CADV`
+3. เลือกสาขาและลูกค้า แล้วเลือกเอกสารต้นทางตามประเภทที่เลือก
+4. เลือกสกุลเงินที่รับจริง โดยหนึ่ง `RCP` รับได้เพียงหนึ่งสกุลเงิน
+5. เลือกวิธีรับเงินและบัญชีรับเงิน
+6. กรอกยอดที่ลูกค้าโอนในสกุลเงินจริง
+7. ถ้าไม่ใช่ `THB` ให้ระบบแสดง suggested rate ของวันที่รับเงิน พร้อมให้แก้ไข rate หรือกรอกเองเมื่อไม่มี rate โดยต้องเก็บ source และเหตุผล
+8. กรอก `Bank Fee (THB)` แยกจากยอดเงินต่างประเทศ
+9. ตรวจ summary แล้วบันทึก
+
+กฎของบัญชีรับเงิน:
+
+- `THB` เลือกบัญชี active ที่รองรับ THB ตาม use case ได้
+- สกุลต่างประเทศเลือกได้เฉพาะบัญชี `FCD` ที่รองรับสกุลนั้น
+- ห้ามแบ่ง RCP สกุลต่างประเทศไปบัญชีปกติ; ถ้ามีหลาย split ทุกบัญชีต้องเป็น FCD และใช้สกุลเดียวกับ RCP
+- เมื่อแก้ไข RCP ต่างประเทศ ระบบต้อง cancel-and-reissue โดยใช้ currency, native split, rate, rate date และ rate type ที่เก็บใน RCP เดิมเป็นฐานของฟอร์มใหม่ ห้ามอ่าน `Bank Statement.amount_in` ซึ่งเป็น THB book amount มาใช้เป็นยอด native และห้ามใช้ current rate แทน snapshot เดิม
+- การเปลี่ยนวันที่, ประเภทเอกสาร, ลูกค้า, สกุลเงิน หรือบัญชี ต้องล้าง dependent state และโหลด rate/options ใหม่จาก source จริง
+
+ความหมายของยอดที่ต้องไม่ปนกัน:
+
+| Field | Currency | Meaning |
+|---|---|---|
+| ยอดที่ลูกค้าโอน | receipt currency | gross native amount ที่ลูกค้าส่ง |
+| ยอดเข้าบัญชี FCD จริง | receipt currency | native amount ที่ธนาคาร credit เข้าบัญชี |
+| Settlement THB | THB | มูลค่าที่ใช้ตัด SB หรือรับ CADV ณ rate วันรับเงิน |
+| Bank Fee | THB | ค่าใช้จ่ายธนาคาร แยกจาก FX |
+| Carrying THB | THB | มูลค่าตามบัญชีของยอด native ที่เข้า FCD |
+
+สำหรับ `SB` ให้คำนวณ `FX gain/loss - AR settlement` จาก settlement THB เทียบยอดตัด AR โดยไม่รวม bank fee เป็น FX. สำหรับ `CADV` ไม่มี AR settlement; ให้บันทึกยอด CADV เป็น THB และเก็บ native/rate/carrying facts ของเงินที่เข้า FCD แยกกัน.
+
+หลังบันทึก ระบบธุรกิจหลักยังอ่านยอด THB เดิมของ Receipt และ Bank Statement (`amount_in/out`) ตาม contract เดิม โดย foreign receipt แปลง USD เป็น THB จาก rate snapshot ก่อนเขียนข้อมูล. ข้อมูล USD และ rate ไม่ใช่ยอดที่นำไปบวกใน AR, Cash Position หรือรายงานรวม แต่ต้องเก็บเป็น FCD subledger/audit เพื่อทราบ native balance และ carrying THB ตอนแลกเงินจริง. `book_amount_*` เป็น mirror/check ของยอด THB สำหรับ write path ใหม่ ไม่ใช่เหตุให้ consumer เดิมต้องเปลี่ยน field. การแลกเงินใช้ยอดรวมแบบ moving weighted average ของบัญชี+สกุลเงิน จึงไม่ต้องให้ผู้ใช้เลือกว่ากำลังแลกเงินจากบิลใด.
+
+## การวัดต้นทุน FCD ที่อนุมัติ
+
+- functional currency ของบริษัทคือ `THB` และต้องอ่านจาก `finance_currency_policies` ที่อ้างอิง Currency Master ไม่ hardcode ใน transaction
+- หน่วยต้นทุนคือ `FCD account + currency` เช่น บัญชี FCD A + USD ไม่ปนกับบัญชีอื่นหรือสกุลอื่น
+- เมื่อรับเงินต่างประเทศ: เพิ่ม native amount และ carrying THB ของยอดเข้าจริงเข้า pool เดียวกัน แล้วคำนวณ weighted carrying rate ใหม่
+- เมื่อแลกเงิน: ตัด carrying THB ออกเท่ากับ native amount ที่ถอน x weighted carrying rate ก่อนรายการ; เปรียบเทียบกับ THB จริงที่ได้รับเพื่อหา FX conversion gain/loss
+- เมื่อ revalue สิ้นงวด: native balance ไม่เปลี่ยน แต่ carrying THB และ weighted carrying rate ของยอดคงเหลือถูกปรับจาก rate สิ้นงวด
+- ยอดเงินคำนวณ/เก็บ/แสดง 2 ตำแหน่ง และ FX rate ใช้ 3 ตำแหน่ง
+
+กฎนี้มีผลเฉพาะการถือ/แลกเงินใน FCD และไม่ย้อนกลับไปเปลี่ยน settlement FX หรือยอด Sales Bill ที่ปิดไปแล้ว.
+
+## Current Code Boundary
+
+ณ 2026-07-30 schema และ write path หลักของ flow ข้างต้นมีแล้ว แต่ consumer ที่เป็น list/print/notification ยังอยู่ระหว่างปรับ:
+
+- Foreign `SB` receipt service เขียน RCP, AR allocation, Bank Statement และ FCD ledger ใน transaction เดียวแล้ว โดยคำนวณ settlement/carrying/bank fee แยกกัน
+- Foreign `CADV` receipt service เขียน RCP, CADV allocation, Bank Statement และ FCD ledger ใน transaction เดียวกัน โดย settlement THB ต้องเท่ากับยอดตัด CADV และไม่สร้าง AR settlement FX หรือ overpayment อัตโนมัติ
+- Conversion ใช้หน้า `/finance/foreign/fcd-conversions`: เลือก FCD account+currency, ยอด native, บัญชี functional-currency ปลายทาง, ยอดเข้าจริงหลัง fee และ bank reference; preview อ่าน native/carrying จาก FCD ledger ก่อน post. Service เขียน FCD out, destination in, conversion line และ internal-transfer marker ใน transaction เดียว; reversal จะ append counter-movements และคง original ledger ไว้
+- Revaluation ใช้หน้า `/finance/foreign/fcd-revaluations`: เลือกงวด/สาขา/account+currency/rate type แล้วระบบค้นหา rate เฉพาะวันสิ้นงวด; ผู้ใช้แก้หรือกรอกเองได้พร้อมเหตุผล. Preview เป็น read-only จนกด post. Service post adjustment เฉพาะ carrying THB, ไม่เปลี่ยน native balance, และป้องกัน post ย้อนงวดเมื่อมี movement งวดถัดไปแล้ว
+- `/finance/foreign/fcd-ledger` แสดง native, carrying THB และ daily valuation view จากวันที่/rate type ที่ผู้ใช้เลือก; ไม่พบ rate จะแสดงว่าไม่มีข้อมูลและไม่ใช้ latest/fallback rate
+- `/finance/foreign/fx-gain-loss-report` รวม `AR settlement`, `FCD Conversion` และ `FCD Revaluation` เป็น transaction type แยกกัน. Conversion เป็น realized FX และ revaluation เป็น unrealized FX; การกรองประเภทไม่รวมสองชนิดโดยปริยาย
+- ฟอร์ม create และ detail แสดง foreign audit ที่ persist แล้ว โดยแยก SB settlement FX ออกจาก CADV อย่างชัดเจน. History/print/LINE notification ยังใช้ field `amount`, `fee`, `net_amount` แบบ THB เดิม จึงต้องเปลี่ยนเป็น named book-amount contract ตาม [[FCD Foreign Receipt Implementation Task List]] ก่อนเปิด foreign receipt ให้ผู้ใช้
+- ยังไม่มี GL posting engine; service เก็บ FX classification/fact ที่ต้องใช้ต่อ แต่ไม่สร้าง GL journal. คำว่า “post” ในสองหน้านี้หมายถึง post เข้า FCD subledger/Bank Statement ไม่ใช่ GL
+
+## Downstream Impact
+
+| Area | Impact |
+|---|---|
+| `/sales/receipts` create | กระทบตรง: เพิ่ม currency, native amount, rate snapshot, FCD account validation และ THB settlement summary |
+| Receipt history/detail/print/LINE | กระทบตรง: list/KPI ใช้ THB; native amount และ rate แสดงเฉพาะ foreign audit detail |
+| `/finance/bank` | กระทบตรง: statement ใช้ book THB เป็นยอดหลัก และเก็บ native/currency/rate เป็น audit/subledger |
+| FCD ledger/dashboard | กระทบตรง: รับ native inflow และ carrying THB จาก RCP |
+| `/finance/ar` | ตาราง/KPI/export หลักยังเป็น THB; detail ของ RCP foreign ต้องแสดง native/rate/settlement FX เพิ่ม |
+| `/finance/ap` | ไม่กระทบจาก Customer Receipt โดยตรง; AP ยังคงเป็น THB |
+| `/finance/cash-position` | กระทบตรง: ใช้ carrying THB ในตาราง/KPI; native balance ไปดูใน FCD ledger/หน้าแลกเงิน |
+| dashboards/reports | ต้อง audit ทุก consumer ของ `customer_receipts`, `receipts`, `bank_statement` และ account balance ไม่ให้ตี native amount เป็น THB |
 
 ## เหตุการณ์ที่ 2: เงิน USD ที่ค้างอยู่ใน FCD
 

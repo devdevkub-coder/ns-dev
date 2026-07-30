@@ -2,6 +2,7 @@ import type { Prisma } from '../../../generated/prisma/client'
 import { parseInternalBigIntId } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { listAllAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
+import { functionalBankStatementMovement } from '@/lib/server/bank-statement-booking'
 
 export function toDateOnly(value: Date | null | undefined) {
   return value ? value.toISOString().slice(0, 10) : ''
@@ -172,7 +173,7 @@ export async function listDailyAccounts(client: typeof prisma | Prisma.Transacti
   )
 
   return accounts.map((account: AccountReferenceRecord) => {
-    const ledgerBalance = (account.openingBalance == null ? 0 : Number(account.openingBalance)) + (statementTotalByAccountId.get(account.id.toString()) ?? 0)
+    const ledgerBalance = statementTotalByAccountId.get(account.id.toString()) ?? 0
     const odLimit = account.odLimit == null ? 0 : Number(account.odLimit)
     const odUsed = account.subtype === 'current' ? Math.max(0, -ledgerBalance) : 0
     const odRemaining = Math.max(0, odLimit - odUsed)
@@ -187,7 +188,9 @@ export async function listDailyAccounts(client: typeof prisma | Prisma.Transacti
       name: account.name,
       type: account.type,
       accountGroup: account.accountGroup,
+      isFcd: account.isFcd,
       subtype: account.subtype,
+      supportedCurrencies: account.supportedCurrencies,
       odLimit,
       odUsed,
       odRemaining,
@@ -209,6 +212,7 @@ export function bankStatementTransferRows(values: {
   docNo: string
   entryDocNos: [string, string]
   fee: number
+  functionalCurrencyCode: string
   fromBranchId: bigint
   fromAccountId: string
   fromAccountName: string
@@ -224,10 +228,16 @@ export function bankStatementTransferRows(values: {
   }
   return [
     {
+      ...functionalBankStatementMovement({
+        amountIn: 0,
+        amountOut: values.amount + values.fee,
+        functionalCurrencyCode: values.functionalCurrencyCode,
+        idempotencyKey: `transfer:${values.docNo}:from`,
+        sourceEventKey: `transfer:${values.docNo}:from`,
+        sourceEventType: 'internal_transfer_source',
+      }),
       account_id: fromAccountId,
       branch_id: values.fromBranchId,
-      amount_in: 0,
-      amount_out: values.amount + values.fee,
       created_by: values.by,
       date: normalizeDate(values.date),
       description: `โอนเข้า ${values.toAccountName}`,
@@ -238,10 +248,16 @@ export function bankStatementTransferRows(values: {
       type: 'โอนระหว่างบัญชี',
     },
     {
+      ...functionalBankStatementMovement({
+        amountIn: values.amount,
+        amountOut: 0,
+        functionalCurrencyCode: values.functionalCurrencyCode,
+        idempotencyKey: `transfer:${values.docNo}:destination`,
+        sourceEventKey: `transfer:${values.docNo}:destination`,
+        sourceEventType: 'internal_transfer_destination',
+      }),
       account_id: toAccountId,
       branch_id: values.toBranchId,
-      amount_in: values.amount,
-      amount_out: 0,
       created_by: values.by,
       date: normalizeDate(values.date),
       description: `รับโอนจาก ${values.fromAccountName}`,

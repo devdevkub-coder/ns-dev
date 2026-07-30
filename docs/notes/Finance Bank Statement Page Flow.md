@@ -13,7 +13,7 @@ tags:
   - page-flow
 status: draft
 created: 2026-06-11
-updated: 2026-06-11
+updated: 2026-07-30
 ---
 
 # Finance Bank Statement Page Flow / Flow หน้า Cash / Bank Statement
@@ -34,8 +34,16 @@ updated: 2026-06-11
 |---|---|---|
 | Statement rows | `bank_statement` | ทุกเงินเข้า/ออกต้องมี `doc_no` เป็น outward key |
 | Account metadata | `accounts` | filter ใช้ `accounts.code` |
-| Opening balance | `accounts.opening_balance` | ใช้ตั้ง running balance เริ่มต้น |
-| Running balance | derived or `bank_statement.balance` | ถ้ามี row balance ให้ใช้ row balance; ถ้าไม่มี derive จาก opening + movement |
+| Running balance | `bank_statement` | ถ้ามี `row.balance` ให้ใช้ row balance; ถ้าไม่มี derive จากรายการ statement ก่อนหน้าและ movement |
+
+## Foreign Movement Contract
+
+Bank Statement ใช้ `book amount THB` เป็นจำนวนหลักสำหรับตาราง, running balance, KPI, chart และ export ทางธุรกิจ. สำหรับรายการ FCD ต้องเก็บ `currency`, `native amount`, `rate snapshot` และ `carrying THB` เพิ่มเป็น transaction audit/subledger แต่ห้ามนำ native USD ไปบวกกับ THB.
+
+- ตารางหลักแสดงเงินเข้า/ออก/running balance เป็น THB
+- row detail ของ foreign movement แสดง native amount, currency, rate และ source RCP/conversion
+- native balance ต่อ account+currency อ่านจาก FCD ledger/projection ไม่ derive จากคอลัมน์ THB เพียงอย่างเดียว
+- ตอน conversion ใช้ native balance และ carrying THB จาก FCD projection ไม่ย้อนกลับไปเลือก Sales Bill
 
 ## Statement Ref Types
 
@@ -105,6 +113,7 @@ updated: 2026-06-11
 - source document link ถ้ามี route รองรับ
 - created by / created at
 - cash flow category
+- foreign audit fields เฉพาะเมื่อ row มี native currency: currency, native amount, rate และ carrying THB
 
 ไม่ควรแก้หรือลบ statement row จาก detail นี้ ถ้าต้อง reverse ให้ทำผ่าน source document หรือ admin reconciliation flow
 
@@ -140,14 +149,16 @@ Response ควรรวม:
 - filter account ต้องใช้ `accounts.code`, ไม่เปิด internal account id
 - duplicate/orphan cleanup ถ้ามี ต้องเป็น admin-only พร้อม backup, audit, rollback และ permission แยก
 - Transfer ต้องสร้าง paired statement rows ผ่าน source flow ไม่ใช่สร้างมือในหน้านี้
+- Summary/running balance ต้องรวมจาก book THB เท่านั้น
 
 ## Current Implementation / Gap
 
 - มี read/export baseline จาก `bank_statement` และ `accounts`
-- running balance ใช้ opening balance + movement หรือ row balance
+- running balance ใช้ statement row ก่อนหน้า + movement หรือ row balance
 - ต้องเพิ่ม/ยืนยัน created-date display ใน list/detail/export
 - source document links ยังต้องทำให้ครบทุก ref type
 - duplicate cleanup ยังควร disabled จนกว่าจะมี reviewed admin flow
+- schema ปัจจุบันยังไม่มี currency/native/book/rate contract ครบ จึงยังใช้ Bank Statement เป็น FCD source ที่ถูกต้องไม่ได้จนกว่าจะทำ migration/posting service
 
 ## Related Notes
 

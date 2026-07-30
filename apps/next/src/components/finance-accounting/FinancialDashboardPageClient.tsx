@@ -111,7 +111,7 @@ export function FinancialDashboardPageClient() {
           <span aria-hidden="true">·</span>
           <span>สาขา: {branchLabel}</span>
           <span aria-hidden="true">·</span>
-          <span>หน่วยหลัก: บาท · FCD แสดงยอดตั้งต้นแยกตามสกุลและยังไม่รวมในยอดบาท/ประมาณการ</span>
+          <span>หน่วยหลัก: บาท · FCD ใช้ carrying THB ในยอดสภาพคล่อง และแสดง native แยกตามสกุล</span>
         </div>
       </div>
 
@@ -216,7 +216,7 @@ function DashboardContent({ data }: { data: Payload }) {
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-b border-slate-100 pb-4 md:grid-cols-4">
           <CompactStat label="เงินสด" value={money(s.cashBalance)} />
           <CompactStat label="ธนาคาร" value={money(s.bankBalance)} />
-          <CompactStat label="FCD (ยอดตั้งต้น · ไม่รวมยอดบาท)" value={fcdSummary(data.fcdBalances)} />
+          <CompactStat label="FCD (native แยกสกุล)" value={fcdSummary(data.fcdBalances)} />
           <CompactStat label="OD" value={odSummary(s)} />
         </div>
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">

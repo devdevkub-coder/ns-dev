@@ -13,6 +13,8 @@ import { nextPaymentApprovalDocNos } from '@/lib/server/payment-approval-pending
 import { getActivePaymentMethods, type ActivePaymentMethod } from '@/lib/server/payment-methods'
 import { appendPaymentApprovalStatusLog, PAYMENT_APPROVAL_STATUS_ACTION } from '@/lib/server/payment-history'
 import { prisma } from '@/lib/server/prisma'
+import { getFinanceCurrencyPolicy } from '@/lib/server/finance-currency-policy'
+import { functionalBankStatementMovement } from '@/lib/server/bank-statement-booking'
 import { listActiveBranches, listActiveBranchesByCodes } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
@@ -604,6 +606,7 @@ export async function POST(request: Request) {
 
     const values = approvalRequestSchema.parse(await request.json())
     const actor = context.appUser?.email ?? context.authUser.email ?? context.authUser.id
+    const currencyPolicy = await getFinanceCurrencyPolicy()
     let selfApproval = false
     const paymentMethods = await getActivePaymentMethods()
 
@@ -986,10 +989,16 @@ export async function POST(request: Request) {
             const account = accountByCode.get(split.destinationId)
             if (!account) throw new Error('บัญชีรับคืนบางรายการไม่ถูกต้อง')
             return {
+              ...functionalBankStatementMovement({
+                amountIn: split.approvedAmount,
+                amountOut: 0,
+                functionalCurrencyCode: currencyPolicy.functionalCurrencyCode,
+                idempotencyKey: `petty-advance-return:${entry.doc_no}:split:${index + 1}`,
+                sourceEventKey: `petty-advance-return:${entry.doc_no}:split:${index + 1}`,
+                sourceEventType: 'petty_advance_return',
+              }),
               account_id: account.id,
               branch_id: advance.branch_id,
-              amount_in: split.approvedAmount,
-              amount_out: 0,
               created_by: actor,
               date: normalizeDate(returnDate),
               description: `คืน ${advance.doc_no} โดย ${advance.recipient_name}${values.splits.length > 1 ? ` (split ${index + 1}/${values.splits.length})` : ''}`,

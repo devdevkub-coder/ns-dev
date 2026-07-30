@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-07-14
+updated: 2026-07-30
 route: /sales/receipts
 ---
 
@@ -65,7 +65,7 @@ RCP รับเงินจาก SB/customer advance และเขียน 
 - ไม่แก้ยอดบิลขายเดิมนอกจาก payment status/paid amount
 - ไม่ใช้ payment supplier PMT แทน receipt
 
-## Customer Advance Integration (Target)
+## Customer Advance Integration
 
 CADV เป็น source request ก่อนเงินเข้า ไม่ใช่ RCP. เมื่อผู้ใช้เลือก CADV ใน Receipt modal ระบบต้องดึง customer, Invoice/Contract, รายการสินค้า และยอดที่ยังต้องรับมาแสดงเป็น reference read-only. ผู้ใช้กรอกวันที่รับเงินจริง, วิธีรับเงิน, บัญชีรับเงิน และยอดรับใน RCP ตามปกติ.
 
@@ -74,6 +74,25 @@ CADV เป็น source request ก่อนเงินเข้า ไม่�
 - cancel/reissue RCP ต้อง reverse allocation และ bank statement ก่อนคำนวณ CADV ใหม่
 - CADV ที่ยังไม่ `received` ห้ามเลือกไปหัก Sales Bill
 - `customer_receipt_allocations` ของ SB และ `customer_receipt_advance_allocations` ของ CADV เป็นคนละ relationship; ห้ามใช้ foreign key/null semantics ปนกัน
+
+## Foreign Currency Extension (Approved Contract)
+
+Foreign Customer Receipt รองรับ write path สำหรับทั้ง `SB` และ `CADV`: header/allocation/split เก็บ receipt currency, native transfer/credit, exact-date rate snapshot และ book THB; Bank Statement และ FCD ledger ถูกเขียนใน transaction เดียวกัน. ห้ามตีความยอด native เป็น THB หรือใช้ rate/account default ใน runtime.
+
+ลำดับฟอร์ม target ต้องเป็น `เลือก SB/CADV -> เลือกเอกสารต้นทาง -> เลือกสกุลเงิน -> เลือกบัญชีรับเงิน -> กรอกยอด native/rate/fee -> ตรวจ summary -> บันทึก`.
+
+- หนึ่ง RCP มีหนึ่ง receipt currency
+- foreign currency รับเข้าได้เฉพาะ FCD account ที่รองรับสกุลนั้น
+- suggested rate อิงวันที่รับเงินและแก้ไขได้; manual/override ต้องเก็บ source และเหตุผล
+- `Bank Fee` เป็น THB และแยกจาก settlement FX
+- SB allocation และ AR balance คงเป็น THB
+- CADV allocation คงเป็น THB และไม่สร้าง AR settlement FX
+- หลังบันทึก list/KPI/report ใช้ book amount THB เป็นยอดหลัก; native amount และ rate อยู่ใน detail/audit ของ foreign RCP
+- history/detail/print/batch print/daily report/LINE ต้องใช้ snapshot ของเอกสาร ไม่ดึง current rate มาคำนวณย้อนหลัง
+- cancel-and-reissue ต้อง reverse receipt, allocation, bank statement, FCD ledger และ FX facts ครบ
+- `SB` คำนวณและเก็บ `AR settlement FX` จาก settlement THB เทียบยอดตัด AR โดยแยก Bank Fee ออก
+- `CADV` ต้องให้ settlement THB เท่ากับยอดตัด CADV, ไม่มี AR settlement FX และไม่สร้าง overpayment อัตโนมัติ
+- Form/detail แสดงยอดหลักเป็น THB และแสดง native/rate เป็น foreign audit. History/print/batch print/LINE ยังต้องเปลี่ยน field contract จากชื่อกว้าง `amount`/`netAmount` เป็น named book THB fields ก่อนเปิด flow ให้ผู้ใช้
 
 ## Lifecycle / Operation Flow
 
@@ -573,7 +592,7 @@ The optimization remains no-fallback/no-hardcode: master data still comes from a
 
 ## Current Gap
 
-Multi-bill receipt allocation DB/API create path, UI picker, cancel/reversal path, and edit via cancel-and-reissue are implemented in the active Next app. Printed RCP detail and customer advance allocation remain future work.
+Multi-bill receipt allocation, CADV receipt allocation, bank-statement posting, cancel/reversal, edit via cancel-and-reissue, print และ LINE notification มี baseline ใน active Next app แล้ว. Foreign receipt ยังไม่ target-complete: schema/API/UI/history/detail/print/report/notification ยังไม่มี currency-aware value objects, rate provenance, FCD ledger posting และ FX event contract ครบ.
 
 ## Implementation Checklist
 

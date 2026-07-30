@@ -273,9 +273,16 @@ export async function POST(request: Request) {
       ? await prisma.$transaction(async (transaction) => {
         const requestedCurrencies = new Set(currencyBalances.map((entry) => entry.currency))
         const obsoleteBalances = existing.account_currency_balances.filter((entry) => !requestedCurrencies.has(entry.currency_code))
-        const balancesWithOpeningAmount = obsoleteBalances.filter((entry) => (toNumber(entry.opening_balance) ?? 0) !== 0)
-        if (balancesWithOpeningAmount.length > 0) {
-          throw new Error('ไม่สามารถนำสกุลเงินที่มียอดยกมาออกจากบัญชีได้ ให้จัดการผ่านรายการยอดยกมา')
+        if (obsoleteBalances.length > 0) {
+          const postedLedgerCount = await transaction.fcd_ledger_entries.count({
+            where: {
+              account_id: existing.id,
+              currency_code: { in: obsoleteBalances.map((entry) => entry.currency_code) },
+            },
+          })
+          if (postedLedgerCount > 0) {
+            throw new Error('ไม่สามารถนำสกุลเงินที่มีรายการ FCD ledger ออกจากบัญชีได้ ให้ reverse หรือปิดยอดรายการก่อน')
+          }
         }
 
         if (obsoleteBalances.length > 0) {

@@ -48,11 +48,17 @@ export async function loadCustomerReceiptLineNotificationSource(
       date: true,
       discount_total: true,
       doc_no: true,
+      carrying_thb_amount: true,
+      customer_transferred_native_amount: true,
+      fx_rate: true,
       gross_amount: true,
       id: true,
       net_cash_in: true,
       notes: true,
       payment_method_name_snapshot: true,
+      receipt_currency_code: true,
+      received_native_amount: true,
+      settlement_book_amount: true,
       status: true,
       withholding_tax_total: true,
     },
@@ -61,21 +67,21 @@ export async function loadCustomerReceiptLineNotificationSource(
 
   const statements = await prisma.bank_statement.findMany({
     where: {
-      amount_in: { gt: 0 },
+      book_amount_in: { gt: 0 },
       ref_id: String(receipt.id),
       ref_type: 'RCP',
     },
     orderBy: [{ doc_no: 'asc' }, { id: 'asc' }],
     select: {
       accounts: { select: { code: true, name: true } },
-      amount_in: true,
+      book_amount_in: true,
     },
   })
   const companyAccounts = statements.length > 0
     ? statements.map((statement) => ({
       accountCode: statement.accounts?.code ?? undefined,
       accountName: statement.accounts?.name ?? '-',
-      amount: toNumber(statement.amount_in),
+      amount: toNumber(statement.book_amount_in),
     }))
     : [{
       accountCode: receipt.account_code_snapshot,
@@ -99,10 +105,18 @@ export async function loadCustomerReceiptLineNotificationSource(
       discount: toNumber(receipt.discount_total),
       documentNo: receipt.doc_no,
       fee: toNumber(receipt.bank_fee_total),
-      netCashIn: toNumber(receipt.net_cash_in),
+      bookAmountThb: toNumber(receipt.gross_amount),
+      bookNetCashInThb: toNumber(receipt.net_cash_in),
+      foreignAudit: receipt.receipt_currency_code ? {
+        carryingBookAmountThb: toNumber(receipt.carrying_thb_amount),
+        currencyCode: receipt.receipt_currency_code,
+        customerTransferredNativeAmount: toNumber(receipt.customer_transferred_native_amount),
+        fxRate: toNumber(receipt.fx_rate),
+        receivedNativeAmount: toNumber(receipt.received_native_amount),
+        settlementBookAmountThb: toNumber(receipt.settlement_book_amount),
+      } : undefined,
       notes: receipt.notes ?? undefined,
       paymentMethod: receipt.payment_method_name_snapshot,
-      receivedAmount: toNumber(receipt.gross_amount),
       status: receipt.status,
       withholdingTax: toNumber(receipt.withholding_tax_total),
     },

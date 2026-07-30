@@ -31,6 +31,8 @@ import {
 import { appendPurchaseBillStatusLog, PURCHASE_BILL_STATUS_ACTION } from '@/lib/server/purchase-bill-history'
 import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jobs'
 import { prisma } from '@/lib/server/prisma'
+import { getFinanceCurrencyPolicy } from '@/lib/server/finance-currency-policy'
+import { functionalBankStatementMovement } from '@/lib/server/bank-statement-booking'
 import { refreshPurchaseBillSettlement } from '@/lib/server/purchase-bill-settlement'
 import { listActiveBranchesByCodes, listActiveSupplierPaymentOptions, listSupplierReferencesByIds } from '@/lib/server/reference-master-cache'
 import { activeWhtRatePercent } from '@/lib/server/tax-settings'
@@ -634,6 +636,7 @@ export async function POST(request: Request) {
     assertPaymentVoucherCreateOnly(values.id)
     assertPaymentVoucherServerGeneratedDocNo(values.docNo)
     const actor = currentActor(context)
+    const currencyPolicy = await getFinanceCurrencyPolicy()
 
     const voucherId = `PMT-${randomUUID()}`
     const paymentDate = normalizeDate(values.date)
@@ -1021,10 +1024,16 @@ export async function POST(request: Request) {
       const statementDocNos = await nextBankStatementDocNos(values.date, branchCode, paymentSplits.length, tx)
       await tx.bank_statement.createMany({
         data: paymentSplits.map((split, index) => ({
+          ...functionalBankStatementMovement({
+            amountIn: 0,
+            amountOut: split.amount,
+            functionalCurrencyCode: currencyPolicy.functionalCurrencyCode,
+            idempotencyKey: `supplier-payment:${docNo}:split:${index + 1}`,
+            sourceEventKey: `supplier-payment:${docNo}:split:${index + 1}`,
+            sourceEventType: 'supplier_payment',
+          }),
           account_id: (splitAccountByCode.get(split.accountId)?.id as bigint),
           branch_id: branchId,
-          amount_in: 0,
-          amount_out: split.amount,
           created_by: actor,
           date: paymentDate,
           description: `${docNo} - จ่ายผู้รับเงิน${paymentSplits.length > 1 ? ` (split ${index + 1}/${paymentSplits.length})` : ''}`,

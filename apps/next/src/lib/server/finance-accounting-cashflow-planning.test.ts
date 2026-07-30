@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   loanPaymentAggregate: vi.fn(),
   loanPaymentFindMany: vi.fn(),
   loanScheduleFindMany: vi.fn(),
+  listActiveBranches: vi.fn(),
   paymentFindMany: vi.fn(),
   purchaseFindMany: vi.fn(),
   salesFindMany: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock('@/lib/server/branch-reference', () => ({ findActiveBranchReferenceByCod
 vi.mock('@/lib/server/finance-accounting-cash-position', () => ({ buildFinanceCashPosition: mocks.buildFinanceCashPosition }))
 vi.mock('@/lib/server/finance-accounting-statements', () => ({ buildPlStatement: mocks.buildPlStatement }))
 vi.mock('@/lib/server/finance-accounting-tax', () => ({ buildTaxVatWht: mocks.buildTaxVatWht }))
+vi.mock('@/lib/server/reference-master-cache', () => ({ listActiveBranches: mocks.listActiveBranches }))
 vi.mock('@/lib/server/prisma', () => ({
   prisma: {
     accounts: { findMany: mocks.accountFindMany },
@@ -49,7 +51,7 @@ const to = new Date('2026-07-17T00:00:00.000Z')
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.findBranch.mockResolvedValue({ code: 'B01', id: 7n, name: 'Bangkok' })
-  mocks.branchFindMany.mockResolvedValue([{ code: 'B01', id: 7n, name: 'Bangkok' }])
+  mocks.listActiveBranches.mockResolvedValue([{ code: 'B01', id: 7n, name: 'Bangkok' }])
   mocks.buildFinanceCashPosition.mockResolvedValue({
     balance: 1_000,
     bankBalance: 1_000,
@@ -154,10 +156,11 @@ beforeEach(() => {
   mocks.buildTaxVatWht.mockResolvedValue({
     taxCalendar: [{ periodLabel: '2026-07', vatDue: '2026-07-22', vatPayable: 40, wC: 0, whtDue: '2026-07-07' }],
   })
-  mocks.customerReceiptFindMany.mockResolvedValue([{ net_cash_in: 300 }])
-  mocks.paymentFindMany.mockResolvedValue([
-    { net_amount: 105, payment_approvals: { source_type: 'purchase_bill' } },
-    { net_amount: 50, payment_approvals: { source_type: 'expense' } },
+  mocks.bankFindMany.mockResolvedValue([
+    { amount_in: 300, amount_out: 0, cash_flow_category: 'OP_IN_CUST_RECEIPT' },
+    { amount_in: 0, amount_out: 105, cash_flow_category: 'OP_OUT_SUPPLIER' },
+    { amount_in: 0, amount_out: 50, cash_flow_category: 'OP_OUT_EXPENSE' },
+    { amount_in: 0, amount_out: 5, cash_flow_category: 'OP_OUT_INTEREST' },
   ])
 })
 
@@ -172,23 +175,26 @@ describe('buildCashFlowAnalysis', () => {
     })
   })
 
-  it('uses canonical net cash and counts each PMT cash movement once', async () => {
-    mocks.customerReceiptFindMany.mockResolvedValue([{ net_cash_in: 240 }])
-    mocks.paymentFindMany.mockResolvedValue([
-      { net_amount: 103, payment_approvals: { source_type: 'purchase_bill' } },
-      { net_amount: 52, payment_approvals: { source_type: 'expense' } },
-      { net_amount: 25, payment_approvals: { source_type: 'advance_payment' } },
+  it('uses Bank Statement THB cash once and excludes internal transfers', async () => {
+    mocks.bankFindMany.mockResolvedValue([
+      { amount_in: 240, amount_out: 0, cash_flow_category: 'OP_IN_CUST_RECEIPT' },
+      { amount_in: 0, amount_out: 103, cash_flow_category: 'OP_OUT_SUPPLIER' },
+      { amount_in: 0, amount_out: 52, cash_flow_category: 'OP_OUT_EXPENSE' },
+      { amount_in: 0, amount_out: 25, cash_flow_category: 'OP_OUT_OTHER' },
+      { amount_in: 0, amount_out: 999, cash_flow_category: 'internal_transfer' },
+      { amount_in: 9_999, amount_out: 0, cash_flow_category: null, source_event_type: 'fcd_conversion_destination' },
+      { amount_in: 0, amount_out: 9_999, cash_flow_category: null, source_event_type: 'fcd_conversion_source' },
     ])
 
     const result = await buildCashFlowAnalysis({ branchId: 'B01', from, to })
 
-    expect(mocks.customerReceiptFindMany).toHaveBeenCalledWith(expect.objectContaining({
-      select: { net_cash_in: true },
-      where: expect.objectContaining({ status: 'active' }),
+    expect(mocks.bankFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      select: { amount_in: true, amount_out: true, cash_flow_category: true, source_event_type: true },
+      where: expect.objectContaining({ accounts: { branch_id: { in: [7n] } } }),
     }))
     expect(result.summary).toMatchObject({
       expensePaidOut: 52,
-      operatingCashFlow: 55,
+      operatingCashFlow: 60,
       otherPaymentsOut: 25,
       paymentRate: 51.5,
       receiptsIn: 240,
@@ -200,14 +206,8 @@ describe('buildCashFlowAnalysis', () => {
     const result = await buildCashFlowAnalysis({ branchId: 'B01', from, to })
 
     expect(mocks.buildPlStatement).toHaveBeenCalledWith({ branchId: 'B01', from, to, transactionMode: 'ALL' })
-    expect(mocks.customerReceiptFindMany).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.bankFindMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ date: expect.objectContaining({ gte: from }) }),
-    }))
-    expect(mocks.paymentFindMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ date: expect.objectContaining({ gte: from }) }),
-    }))
-    expect(mocks.loanPaymentAggregate).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ accounts: { branch_id: { in: [7n] } } }),
     }))
     expect(mocks.loanScheduleFindMany).not.toHaveBeenCalled()
     expect(result.summary).toMatchObject({
@@ -271,7 +271,7 @@ describe('buildCashFlowAnalysis', () => {
   })
 
   it('aggregates only the allowed branches without leaking global tax or loan schedules', async () => {
-    mocks.branchFindMany.mockResolvedValue([
+    mocks.listActiveBranches.mockResolvedValue([
       { code: 'B01', id: 7n, name: 'Bangkok' },
       { code: 'B02', id: 8n, name: 'Rayong' },
     ])
@@ -312,8 +312,7 @@ describe('buildCashFlowAnalysis', () => {
       ...mocks.salesFindMany.mock.calls,
       ...mocks.purchaseFindMany.mock.calls,
       ...mocks.expenseFindMany.mock.calls,
-      ...mocks.customerReceiptFindMany.mock.calls,
-      ...mocks.paymentFindMany.mock.calls,
+      ...mocks.bankFindMany.mock.calls,
       ...mocks.loanScheduleFindMany.mock.calls,
     ]
     expect(calls.some(([args]) => Object.hasOwn(args, 'take'))).toBe(false)

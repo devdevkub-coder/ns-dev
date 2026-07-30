@@ -19,7 +19,6 @@ type AccountOption = {
   currency: string | null
   id: string
   name: string
-  openingBalance: number
   type: string
   subtype?: string | null
   odLimit?: number | null
@@ -33,14 +32,22 @@ type BankRow = {
   bankName: string
   branchName: string
   cashFlowCategory: string
+  bookFxRate: number | null
   date: string
   description: string
   id: string
   movement: number
+  movementCurrencyCode: string
+  nativeAmountIn: number
+  nativeAmountOut: number
   note: string
+  odUsed: number
   refNo: string
   refType: string
+  reversalOfId: string | null
   runningBalance: number
+  sourceEventKey: string
+  sourceEventType: string
   type: string
 }
 
@@ -66,14 +73,14 @@ function compareSortValues(left: string | number, right: string | number) {
 
 function getBankSortValue(row: BankRow, key: BankColumnKey, odLimit: number) {
   if (key === 'description') return `${row.description} ${row.note}`
-  if (key === 'odRemaining') return Math.max(0, odLimit - Math.max(0, -row.runningBalance))
-  if (key === 'odUsed') return Math.max(0, -row.runningBalance)
+  if (key === 'odRemaining') return Math.max(0, odLimit - row.odUsed)
+  if (key === 'odUsed') return row.odUsed
   if (key === 'refNo') return row.refNo || row.refType
   if (key === 'type') return row.type || row.refType
   return row[key]
 }
 
-export function BankStatementPageClient({ initialFilters }: { initialFilters?: { from?: string; to?: string } } = {}) {
+export function BankStatementPageClient({ initialFilters }: { initialFilters?: { from?: string; q?: string; to?: string } } = {}) {
   const latestLoadRequestRef = useRef(0)
   const [accountId, setAccountId] = useState('')
   const [branchCode, setBranchCode] = useState('')
@@ -83,7 +90,7 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
   const [isExporting, setIsExporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [page, setPage] = useState(1)
-  const [q, setQ] = useState('')
+  const [q, setQ] = useState(initialFilters?.q || '')
   const [refType, setRefType] = useState('')
   const [selectedRow, setSelectedRow] = useState<BankRow | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
@@ -172,37 +179,10 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
   const branches = data?.filters.branches ?? []
   const selectedAccount = accounts.find((account) => account.id === accountId) ?? null
   const selectedAccountSummary = data?.byAccount.find((row) => row.accountId === selectedAccount?.id) ?? null
-  const openingBalance = selectedAccount
-    ? data?.rows[0]
-      ? data.rows[0].runningBalance - data.rows[0].movement
-      : selectedAccount.openingBalance
-    : 0
-  const displayRows = selectedAccount
-    ? [
-        {
-          accountName: selectedAccount.name,
-          accountNo: selectedAccount.accountNo ?? '',
-          amountIn: 0,
-          amountOut: 0,
-          bankName: selectedAccount.bankName ?? '',
-          branchName: selectedAccount.branchName,
-          cashFlowCategory: '',
-          date: '-',
-          description: 'Opening Balance',
-          id: `opening-${selectedAccount.id}`,
-          movement: 0,
-          note: '',
-          refNo: '-',
-          refType: '',
-          runningBalance: openingBalance,
-          type: 'ยอดยกมา',
-        },
-        ...(data?.rows ?? []),
-      ]
-    : data?.rows ?? []
+  const displayRows = data?.rows ?? []
   const cashIn = data?.summary.amountIn ?? 0
   const cashOut = data?.summary.amountOut ?? 0
-  const closingBalance = displayRows.at(-1)?.runningBalance ?? selectedAccountSummary?.balance ?? selectedAccount?.openingBalance ?? 0
+  const closingBalance = displayRows.at(-1)?.runningBalance ?? selectedAccountSummary?.balance ?? 0
 
   return (
     <section className="space-y-4">
@@ -279,9 +259,9 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
 
       <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
         <SharedKpiCard icon="🏦" label="บัญชี" note={selectedAccount?.type ?? '-'} tone="slate" value={selectedAccount?.name ?? 'กำลังโหลด'} />
-        <SharedKpiCard icon="📥" label="เงินเข้ารวม" note="บาท" tone={cashIn === 0 ? 'slate' : 'emerald'} value={formatMoney(cashIn)} />
-        <SharedKpiCard icon="📤" label="เงินออกรวม" note="บาท" tone={cashOut === 0 ? 'slate' : 'rose'} value={formatMoney(cashOut)} />
-        <SharedKpiCard icon="💰" label="ยอดคงเหลือ" note="บาท" tone={closingBalance === 0 ? 'slate' : 'blue'} value={formatMoney(closingBalance)} />
+        <SharedKpiCard icon="📥" label="เงินเข้ารวม" note="THB ตามบัญชี" tone={cashIn === 0 ? 'slate' : 'emerald'} value={formatMoney(cashIn)} />
+        <SharedKpiCard icon="📤" label="เงินออกรวม" note="THB ตามบัญชี" tone={cashOut === 0 ? 'slate' : 'rose'} value={formatMoney(cashOut)} />
+        <SharedKpiCard icon="💰" label="ยอดคงเหลือ" note="THB ตามบัญชี" tone={closingBalance === 0 ? 'slate' : 'blue'} value={formatMoney(closingBalance)} />
       </div>
 
       {/* ข้อมูลบัญชีและวงเงิน OD */}
@@ -297,7 +277,7 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
                 </span>
                 {selectedAccount.subtype === 'current' && (selectedAccount.odLimit || 0) > 0 && (
                   <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/10">
-                    OD Enabled
+                    มีวงเงิน OD
                   </span>
                 )}
               </div>
@@ -318,9 +298,8 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
             <div>
               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">สรุปวงเงิน OD</div>
               <div className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-4">
-                {/* 1. ยอดตั้งต้นบัญชี */}
                 <div className="bg-emerald-50/40 border border-emerald-100/60 rounded-xl p-4 sm:p-5 text-right flex flex-col justify-between min-h-[95px]">
-                  <div className="text-xs sm:text-sm text-emerald-800 font-bold text-left">ยอดตั้งต้นบัญชี</div>
+                  <div className="text-xs sm:text-sm text-emerald-800 font-bold text-left">วงเงิน OD</div>
                   <div className="font-mono text-lg sm:text-xl md:text-2xl font-bold text-emerald-700 mt-2">{formatMoney(selectedAccount.odLimit || 0)}</div>
                 </div>
                 {/* 2. ยอดคงเหลือจริง */}
@@ -400,7 +379,7 @@ function ChartPanel({ rows, title, variant }: { rows: BankRow[]; title: string; 
           ? chartRows.map((row) => (
               <div key={`${row.id}-balance`} className="flex min-w-5 flex-1 flex-col items-center justify-end gap-1">
                 <div className={`w-full rounded-md-t ${row.runningBalance >= 0 ? 'bg-blue-500/80' : 'bg-red-500/80'}`} style={{ height: `${Math.max(6, Math.abs(row.runningBalance) / maxBalance * 220)}px` }} title={`${formatDateDisplay(row.date)}: ${formatMoney(row.runningBalance)}`} />
-                <span className="w-full truncate text-center text-xs text-slate-400">{row.date === '-' ? 'ยกมา' : formatDateDisplay(row.date).slice(0, 5)}</span>
+                <span className="w-full truncate text-center text-xs text-slate-400">{formatDateDisplay(row.date).slice(0, 5)}</span>
               </div>
             ))
           : chartRows.map((row) => (
@@ -409,7 +388,7 @@ function ChartPanel({ rows, title, variant }: { rows: BankRow[]; title: string; 
                   <div className="w-full rounded-md-t bg-emerald-500/80" style={{ height: `${row.amountIn > 0 ? Math.max(4, row.amountIn / maxFlow * 110) : 2}px` }} title={`เข้า ${formatMoney(row.amountIn)}`} />
                   <div className="w-full rounded-md-b bg-rose-500/80" style={{ height: `${row.amountOut > 0 ? Math.max(4, row.amountOut / maxFlow * 110) : 2}px` }} title={`ออก ${formatMoney(row.amountOut)}`} />
                 </div>
-                <span className="w-full truncate text-center text-xs text-slate-400">{row.date === '-' ? 'ยกมา' : formatDateDisplay(row.date).slice(0, 5)}</span>
+                <span className="w-full truncate text-center text-xs text-slate-400">{formatDateDisplay(row.date).slice(0, 5)}</span>
               </div>
             ))}
       </div>
@@ -492,9 +471,9 @@ function DetailTable({
               <ResizableTableHead activeSortKey={tableSortKey ?? undefined} direction={tableSortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={changeSort} />
               <ResizableTableHead activeSortKey={tableSortKey ?? undefined} direction={tableSortDirection} label="รายละเอียด" resizeProps={columnResize.getResizeHandleProps('description', 'รายละเอียด')} sortKey="description" onSort={changeSort} />
               <ResizableTableHead activeSortKey={tableSortKey ?? undefined} direction={tableSortDirection} label="อ้างอิง" resizeProps={columnResize.getResizeHandleProps('refNo', 'อ้างอิง')} sortKey="refNo" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="right" direction={tableSortDirection} label="📥 เข้า" resizeProps={columnResize.getResizeHandleProps('amountIn', '📥 เข้า')} sortKey="amountIn" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="right" direction={tableSortDirection} label="📤 ออก" resizeProps={columnResize.getResizeHandleProps('amountOut', '📤 ออก')} sortKey="amountOut" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="right" direction={tableSortDirection} label="💰 ยอดคงเหลือจริง" resizeProps={columnResize.getResizeHandleProps('runningBalance', '💰 ยอดคงเหลือจริง')} sortKey="runningBalance" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="right" direction={tableSortDirection} label="📥 เข้า (THB)" resizeProps={columnResize.getResizeHandleProps('amountIn', '📥 เข้า (THB)')} sortKey="amountIn" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="right" direction={tableSortDirection} label="📤 ออก (THB)" resizeProps={columnResize.getResizeHandleProps('amountOut', '📤 ออก (THB)')} sortKey="amountOut" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="right" direction={tableSortDirection} label="💰 คงเหลือ (THB)" resizeProps={columnResize.getResizeHandleProps('runningBalance', '💰 คงเหลือ (THB)')} sortKey="runningBalance" onSort={changeSort} />
               {hasOd && (
                 <>
                   <ResizableTableHead activeSortKey={tableSortKey ?? undefined} align="right" direction={tableSortDirection} label="OD ใช้ไป" resizeProps={columnResize.getResizeHandleProps('odUsed', 'OD ใช้ไป')} sortKey="odUsed" onSort={changeSort} />
@@ -507,17 +486,16 @@ function DetailTable({
             {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={hasOd ? 9 : 7}>กำลังโหลดข้อมูล</td></tr> : null}
             {!isLoading && sortedRows.length === 0 ? <tr><td className="p-6 text-center text-slate-500" colSpan={hasOd ? 9 : 7}>ไม่มีรายการ</td></tr> : null}
             {!isLoading && sortedRows.map((row) => {
-              const isOpening = row.type === 'ยอดยกมา'
               const runningBalance = row.runningBalance
-              const odUsed = Math.max(0, -runningBalance)
+              const odUsed = row.odUsed
               const odRemaining = Math.max(0, odLimit - odUsed)
               return (
-                <tr key={row.id} className={`border-t border-slate-100 transition hover:bg-yellow-50 ${isOpening ? 'bg-amber-50 font-bold' : ''}`}>
-                  <td className="px-4 py-3.5 font-mono text-xs overflow-hidden truncate">{isOpening ? row.date : formatDateDisplay(row.date)}</td>
-                  <td className="px-4 py-3.5 text-xs overflow-hidden truncate"><span className={`rounded-md px-2 py-0.5 text-xs font-bold ${isOpening ? 'bg-amber-200 text-amber-800' : 'bg-slate-200 text-slate-700'}`}>{row.type || row.refType || '-'}</span></td>
+                <tr key={row.id} className="border-t border-slate-100 transition hover:bg-yellow-50">
+                  <td className="px-4 py-3.5 font-mono text-xs overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
+                  <td className="px-4 py-3.5 text-xs overflow-hidden truncate"><span className="rounded-md bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700">{row.type || row.refType || '-'}</span></td>
                   <td className="p-2 text-xs overflow-hidden truncate">{row.description || row.note || '-'}</td>
                   <td className="px-4 py-3.5 font-mono text-xs text-blue-600 overflow-hidden truncate">
-                    {isOpening ? '-' : <button className="underline-offset-2 hover:underline" type="button" onClick={() => onOpen(row)}>{row.refNo || row.refType || '-'}</button>}
+                    <button className="underline-offset-2 hover:underline" type="button" onClick={() => onOpen(row)}>{row.refNo || row.refType || '-'}</button>
                   </td>
                   <td className={`bg-emerald-50/30 p-2 text-right font-mono overflow-hidden truncate ${row.amountIn > 0 ? 'font-bold text-emerald-700' : 'text-slate-300'}`}>{row.amountIn ? formatMoney(row.amountIn) : '-'}</td>
                   <td className={`bg-rose-50/30 p-2 text-right font-mono overflow-hidden truncate ${row.amountOut > 0 ? 'font-bold text-rose-700' : 'text-slate-300'}`}>{row.amountOut ? formatMoney(row.amountOut) : '-'}</td>
@@ -544,29 +522,26 @@ function DetailTable({
           <div className="py-6 text-center text-slate-400 text-xs">ไม่มีรายการ</div>
         ) : null}
         {!isLoading && sortedRows.map((row) => {
-          const isOpening = row.type === 'ยอดยกมา'
           const runningBalance = row.runningBalance
-          const odUsed = Math.max(0, -runningBalance)
+          const odUsed = row.odUsed
           const odRemaining = Math.max(0, odLimit - odUsed)
           return (
             <div
               key={row.id}
-              className={`rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm space-y-2 text-sm ${isOpening ? 'bg-amber-50/80 border-amber-200' : ''}`}
+              className="space-y-2 rounded-xl border border-slate-100 bg-white p-3.5 text-sm shadow-sm"
             >
               <div className="flex justify-between items-start">
-                <span className="font-mono text-slate-500 text-xs">{isOpening ? row.date : formatDateDisplay(row.date)}</span>
-                <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${isOpening ? 'bg-amber-200 text-amber-800' : 'bg-slate-200 text-slate-700'}`}>
+                <span className="font-mono text-slate-500 text-xs">{formatDateDisplay(row.date)}</span>
+                <span className="rounded-md bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700">
                   {row.type || row.refType || '-'}
                 </span>
               </div>
               
               <div className="text-slate-700 font-medium line-clamp-2">{row.description || row.note || '-'}</div>
               
-              {!isOpening && (
-                <div className="text-slate-600 font-mono text-xs">
-                  อ้างอิง: <button type="button" className="text-blue-600 underline font-semibold" onClick={() => onOpen(row)}>{row.refNo || row.refType || '-'}</button>
-                </div>
-              )}
+              <div className="font-mono text-xs text-slate-600">
+                อ้างอิง: <button type="button" className="font-semibold text-blue-600 underline" onClick={() => onOpen(row)}>{row.refNo || row.refType || '-'}</button>
+              </div>
 
               <div className={`grid ${hasOd ? 'grid-cols-5' : 'grid-cols-3'} gap-2 pt-2 border-t border-slate-100/60 mt-1 text-right text-xs`}>
                 <div>
@@ -634,9 +609,13 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: BankRow }) {
           <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4">
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1.5 border-b border-slate-100">ข้อมูลการเงิน</div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
-              <DetailItem label="เงินเข้า" value={`${formatMoney(row.amountIn)} บาท`} />
-              <DetailItem label="เงินออก" value={`${formatMoney(row.amountOut)} บาท`} />
-              <DetailItem label="คงเหลือ" value={`${formatMoney(row.runningBalance)} บาท`} />
+              <DetailItem label="เงินเข้า (THB)" value={formatMoney(row.amountIn)} />
+              <DetailItem label="เงินออก (THB)" value={formatMoney(row.amountOut)} />
+              <DetailItem label="คงเหลือทางบัญชี (THB)" value={formatMoney(row.runningBalance)} />
+              <DetailItem label="สกุลเงินรายการ" value={row.movementCurrencyCode} />
+              {row.nativeAmountIn > 0 ? <DetailItem label={`เงินเข้า (${row.movementCurrencyCode})`} value={formatMoney(row.nativeAmountIn)} /> : null}
+              {row.nativeAmountOut > 0 ? <DetailItem label={`เงินออก (${row.movementCurrencyCode})`} value={formatMoney(row.nativeAmountOut)} /> : null}
+              {row.bookFxRate != null ? <DetailItem label="Book FX Rate" value={row.bookFxRate.toFixed(3)} /> : null}
             </div>
           </div>
 
@@ -646,6 +625,8 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: BankRow }) {
             <div className="grid grid-cols-1 gap-y-3">
               <DetailItem label="คำอธิบาย" value={row.description || '-'} />
               <DetailItem label="หมายเหตุ" value={row.note || '-'} />
+              <DetailItem label="Source event" value={`${row.sourceEventType} / ${row.sourceEventKey}`} />
+              {row.reversalOfId ? <DetailItem label="Reversal of" value={row.reversalOfId} /> : null}
             </div>
           </div>
         </div>

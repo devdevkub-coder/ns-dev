@@ -61,7 +61,7 @@ describe('Financial Dashboard design contract', () => {
     expect(serverSource).not.toContain('const assets = balanceSheet.summary.totalAssets')
     expect(serverSource).not.toMatch(/\bfcdBalance\b/)
     expect(clientSource).not.toContain('label="เงินสด/ธนาคาร/FCD"')
-    expect(clientSource).toContain('FCD (ยอดตั้งต้น · ไม่รวมยอดบาท)')
+    expect(clientSource).toContain('FCD (native แยกสกุล)')
   })
 
   it('uses a compact mobile filter and keeps the as-of date required', () => {

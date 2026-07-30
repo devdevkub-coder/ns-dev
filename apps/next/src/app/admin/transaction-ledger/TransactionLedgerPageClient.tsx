@@ -22,7 +22,6 @@ const transactionLedgerPayloadSchema = z.object({
     id: z.string(),
     name: z.string(),
     odLimit: z.number(),
-    openingBalance: z.number(),
     type: z.string(),
   })),
   duplicateGroups: z.array(z.object({

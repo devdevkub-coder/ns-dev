@@ -150,6 +150,7 @@ type AccountReferenceDbRow = {
   account_group: string | null
   active: boolean | null
   account_no: string | null
+  account_currency_balances: Array<{ currency_code: string }>
   bank: string | null
   bank_name: string | null
   bank_account_type: string | null
@@ -335,6 +336,7 @@ type CachedAccountReferenceRecord = {
   accountGroup: string | null
   active: boolean
   accountNo: string | null
+  supportedCurrencies: string[]
   bank: string | null
   bankName: string | null
   bankAccountType: string | null
@@ -625,6 +627,7 @@ export type AccountReferenceRecord = {
   accountGroup: string | null
   active: boolean
   accountNo: string | null
+  supportedCurrencies: string[]
   bank: string | null
   bankName: string | null
   bankAccountType: string | null
@@ -728,8 +731,8 @@ const SERVER_CACHE_TTL_MS = 15_000
 const SERVER_CACHE_MAX_ENTRIES = 256
 const REDIS_CACHE_TTL_SECONDS = 300
 const REDIS_SEARCH_CACHE_TTL_SECONDS = 120
-const KEY_ACCOUNTS_ACTIVE = 'reference:accounts:active'
-const KEY_ACCOUNTS_ALL = 'reference:accounts:all'
+const KEY_ACCOUNTS_ACTIVE = 'reference:accounts:active:v2'
+const KEY_ACCOUNTS_ALL = 'reference:accounts:all:v2'
 const KEY_BANK_NAMES_ACTIVE = 'reference:bank-names:active'
 const KEY_BRANCHES_ACTIVE = 'reference:branches:active'
 const KEY_BRANCHES_MASTER_LIST = 'reference:branches:master-list'
@@ -1120,6 +1123,7 @@ function hydrateAccountReferenceRecord(row: CachedAccountReferenceRecord): Accou
     accountGroup: row.accountGroup ?? null,
     active: row.active,
     accountNo: row.accountNo ?? null,
+    supportedCurrencies: [...new Set((row.supportedCurrencies ?? []).map((currency) => currency.trim().toUpperCase()).filter(Boolean))].sort(),
     bank: row.bank ?? null,
     bankName: row.bankName ?? null,
     bankAccountType: row.bankAccountType ?? null,
@@ -1348,6 +1352,7 @@ function dehydrateAccountReferenceRecord(row: AccountReferenceRecord): CachedAcc
     accountGroup: row.accountGroup ?? null,
     active: row.active,
     accountNo: row.accountNo ?? null,
+    supportedCurrencies: row.supportedCurrencies,
     bank: row.bank ?? null,
     bankName: row.bankName ?? null,
     bankAccountType: row.bankAccountType ?? null,
@@ -1917,6 +1922,10 @@ async function listAccountReferences(where: Prisma.accountsWhereInput | undefine
           account_group: true,
           active: true,
           account_no: true,
+          account_currency_balances: {
+            select: { currency_code: true },
+            where: { active: true },
+          },
           bank: true,
           bank_name: true,
           bank_account_type: true,
@@ -1937,6 +1946,7 @@ async function listAccountReferences(where: Prisma.accountsWhereInput | undefine
         accountGroup: row.account_group ?? null,
         active: row.active ?? true,
         accountNo: row.account_no ?? null,
+        supportedCurrencies: [...new Set(row.account_currency_balances.map((balance) => balance.currency_code.trim().toUpperCase()).filter(Boolean))].sort(),
         bank: row.bank ?? null,
         bankName: row.bank_name ?? null,
         bankAccountType: row.bank_account_type ?? null,

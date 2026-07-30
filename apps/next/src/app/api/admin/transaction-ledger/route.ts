@@ -163,13 +163,7 @@ async function ledgerPayload(limit: number) {
     balanceTotals.set(group.account_id, (toNumber(group._sum.amount_in) ?? 0) - (toNumber(group._sum.amount_out) ?? 0))
   }
 
-  const openingBalanceByAccount = new Map<bigint, number>(
-    accounts.map((account: AccountReferenceRecord) => [
-      account.id,
-      account.openingBalance == null ? 0 : Number(account.openingBalance),
-    ] as const),
-  )
-  const runningByAccount = new Map<bigint, number>(openingBalanceByAccount)
+  const runningByAccount = new Map<bigint, number>()
   const runningBalanceById = new Map<bigint, number>()
   for (const row of [...movements].sort((left: MovementRow, right: MovementRow) => {
     const dateOrder = left.date.getTime() - right.date.getTime()
@@ -267,17 +261,15 @@ async function ledgerPayload(limit: number) {
   return {
     accounts: accounts.map((account: AccountReferenceRecord) => {
       const code = account.code
-      const openingBalance = account.openingBalance == null ? 0 : Number(account.openingBalance)
       return {
         accountNo: account.accountNo,
         active: account.active,
-        balance: openingBalance + (balanceTotals.get(account.id) ?? 0),
+        balance: balanceTotals.get(account.id) ?? 0,
         code,
         currency: account.currency ?? 'THB',
         id: code,
         name: account.name,
         odLimit: account.odLimit == null ? 0 : Number(account.odLimit),
-        openingBalance,
         type: account.type,
       }
     }),

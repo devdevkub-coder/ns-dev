@@ -25,6 +25,9 @@ vi.mock('@/lib/server/customer-receipts', () => ({
   createCustomerReceipt: mocks.createCustomerReceipt,
   replaceCustomerReceipt: mocks.replaceCustomerReceipt,
 }))
+vi.mock('@/lib/server/finance-currency-policy', () => ({
+  getFinanceCurrencyPolicy: vi.fn(),
+}))
 vi.mock('@/lib/server/daily', () => ({
   currentActor: vi.fn(() => 'tester@example.com'),
   listDailyAccounts: vi.fn(),

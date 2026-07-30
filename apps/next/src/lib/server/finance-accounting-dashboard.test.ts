@@ -67,12 +67,10 @@ function cashPositionBuilder() {
 }
 
 type CashAccountClassifier = (account: {
-  bank: string | null
-  bank_name: string | null
-  currency: string | null
+  accountGroup: string | null
+  isFcd: boolean
   name: string
-  type: string
-}) => 'BANK' | 'CASH' | 'FCD' | 'OD'
+}) => 'BANK' | 'CASH' | 'FCD'
 
 function cashAccountClassifier() {
   return (dashboard as typeof dashboard & {
@@ -81,14 +79,12 @@ function cashAccountClassifier() {
 }
 
 type CashAccountsSummarizer = (accounts: Array<{
+  accountGroup: string | null
   balance: number
-  bank: string | null
-  bank_name: string | null
-  currency: string | null
+  isFcd: boolean
   name: string
   odLimit: number
-  type: string
-}>) => {
+}>, fcdBalances?: Array<{ currency: string; value: number }>) => {
   bankBalance: number
   cashAndBank: number
   fcdBalances: Array<{ currency: string; value: number }>
@@ -108,13 +104,10 @@ type DateScopeBuilder = (value: Date) => {
 }
 
 type AccountBalanceBuilder = (account: {
-  bank: string | null
-  bank_name: string | null
-  currency: string | null
+  accountGroup: string | null
+  isFcd: boolean
   movement: number
   name: string
-  openingBalance: number
-  type: string
 }) => number
 
 function accountBalanceBuilder() {
@@ -143,44 +136,32 @@ describe('resolveDashboardBranchScope', () => {
 })
 
 describe('summarizeFinancialCashAccounts', () => {
-  it('keeps FCD by currency and counts a positive OD balance as bank cash', () => {
+  it('uses account classification and receives native FCD balances from the ledger projection', () => {
     const summarizeAccounts = cashAccountsSummarizer()
     expect(summarizeAccounts).toBeTypeOf('function')
     const account = (values: Partial<Parameters<CashAccountsSummarizer>[0][number]>) => ({
+      accountGroup: 'bank',
       balance: 0,
-      bank: null,
-      bank_name: null,
-      currency: 'THB',
+      isFcd: false,
       name: 'Bank account',
       odLimit: 0,
-      type: 'bank',
       ...values,
     })
 
     const result = summarizeAccounts?.([
-      account({ balance: 100, currency: 'USD' }),
-      account({ balance: 25, currency: 'USD' }),
-      account({ balance: 200, currency: 'EUR' }),
-      account({ balance: 10, currency: null, name: 'FCD legacy A' }),
-      account({ balance: 20, currency: null, name: 'FCD legacy B' }),
-      account({ balance: 50, name: 'OD positive', odLimit: 500, type: 'OD' }),
-      account({ balance: -100, name: 'OD used', odLimit: 500, type: 'OD' }),
+      account({ accountGroup: 'cash', balance: 300, name: 'Cash' }),
+      account({ balance: 50, name: 'OD positive', odLimit: 500 }),
+      account({ balance: -100, isFcd: true, name: 'FCD OD used', odLimit: 500 }),
       account({ balance: 300 }),
-    ])
+    ], [{ currency: 'EUR', value: 200 }, { currency: 'USD', value: 125 }])
 
     expect(result).toMatchObject({
       bankBalance: 350,
-      cashAndBank: 350,
+      cashAndBank: 650,
       odLimit: 1_000,
       odUsed: 100,
     })
-    expect(result?.fcdBalances).toEqual(expect.arrayContaining([
-      { currency: 'EUR', value: 200 },
-      { currency: 'USD', value: 125 },
-      { currency: 'ไม่ระบุสกุล (FCD legacy A)', value: 10 },
-      { currency: 'ไม่ระบุสกุล (FCD legacy B)', value: 20 },
-    ]))
-    expect(result?.fcdBalances).not.toContainEqual({ currency: 'ไม่ระบุสกุล', value: 30 })
+    expect(result?.fcdBalances).toEqual([{ currency: 'EUR', value: 200 }, { currency: 'USD', value: 125 }])
   })
 })
 
@@ -196,29 +177,26 @@ describe('financialDashboardDateScope', () => {
 })
 
 describe('financialDashboardAccountBalance', () => {
-  it('does not treat THB statement movement as foreign-currency movement', () => {
+  it('uses Book THB movement and does not seed a balance from Account Master', () => {
     const buildBalance = accountBalanceBuilder()
     expect(buildBalance).toBeTypeOf('function')
     const account = {
-      bank: null,
-      bank_name: null,
+      accountGroup: 'bank' as const,
+      isFcd: true,
       movement: 500,
       name: 'Current account',
-      openingBalance: 100,
-      type: 'bank',
     }
 
-    expect(buildBalance?.({ ...account, currency: 'USD' })).toBe(100)
-    expect(buildBalance?.({ ...account, currency: 'THB' })).toBe(600)
+    expect(buildBalance?.(account)).toBe(500)
   })
 })
 
 describe('classifyFinancialCashAccount', () => {
-  it('classifies a foreign-currency account as FCD even without FCD in its name', () => {
+  it('uses account group and isFcd instead of a name or currency guess', () => {
     const classifyAccount = cashAccountClassifier()
     expect(classifyAccount).toBeTypeOf('function')
-    expect(classifyAccount?.({ bank: 'Example Bank', bank_name: null, currency: 'USD', name: 'Current account', type: 'bank' })).toBe('FCD')
-    expect(classifyAccount?.({ bank: 'Example Bank', bank_name: null, currency: 'USD', name: 'OD account', type: 'OD' })).toBe('FCD')
+    expect(classifyAccount?.({ accountGroup: 'bank', isFcd: true, name: 'Current account' })).toBe('FCD')
+    expect(classifyAccount?.({ accountGroup: 'bank', isFcd: false, name: 'OD account' })).toBe('BANK')
   })
 })
 

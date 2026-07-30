@@ -2,6 +2,7 @@ import { bangkokDateRange, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
+import { isInternalBankStatementTransfer } from '@/lib/server/bank-statement-cash-flow'
 import type { DailyReportPayload } from '@/lib/server/dashboard-report-contracts'
 import type { MainDashboardFilter } from '@/lib/server/main-dashboards'
 import { prisma } from '@/lib/server/prisma'
@@ -50,13 +51,11 @@ export async function buildDailyReportDashboard(filter: MainDashboardFilter): Pr
   const purchaseRange = bangkokDateRange(from, to)
   const todayStart = startOfDay(selectedDate)
   const todayEnd = endOfDay(selectedDate)
-  const [purchases, sales, expenses, bankRows, payments, receipts, products, salespersons] = await runBounded([
+  const [purchases, sales, expenses, bankRows, products, salespersons] = await runBounded([
     () => prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: { select: { code: true, name: true } } }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, supplier_id: supplier?.id, date: purchaseRange } }),
     () => prisma.sales_bills.findMany({ include: { customers: { select: { code: true, name: true } } }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, customer_id: customer?.id || undefined, date: { gte: rangeStart, lte: rangeEnd } } }),
     () => prisma.expenses.findMany({ include: { expense_categories: { select: { name: true } } }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 3000, where: { date: { gte: rangeStart, lte: rangeEnd } } }),
-    () => prisma.bank_statement.findMany({ include: { accounts: { select: { name: true, type: true } } }, orderBy: [{ date: 'asc' }], take: 10000, where: { date: { gte: rangeStart, lte: rangeEnd } } }),
-    () => prisma.payments.findMany({ select: { amount: true, net_amount: true }, orderBy: [{ date: 'desc' }], take: 3000, where: { date: { gte: rangeStart, lte: rangeEnd } } }),
-    () => prisma.receipts.findMany({ select: { amount: true, net_amount: true }, orderBy: [{ date: 'desc' }], take: 3000, where: { date: { gte: rangeStart, lte: rangeEnd } } }),
+    () => prisma.bank_statement.findMany({ include: { accounts: { select: { name: true, type: true } } }, orderBy: [{ date: 'asc' }], take: 10000, where: { date: { gte: rangeStart, lte: rangeEnd }, ...(branch ? { accounts: { is: { branch_id: branch.id } } } : {}) } }),
     async () => (await listProductReferences()).filter((row) => row.active).map((row) => ({ code: row.code, id: row.id, metal_group: row.metalGroup, name: row.name })),
     () => listActiveSalespersons(),
   ])
@@ -94,12 +93,13 @@ export async function buildDailyReportDashboard(filter: MainDashboardFilter): Pr
   for (const bill of activeSales) { const label = toDateOnly(bill.date); const row = dailyTrend.get(label) ?? { label, purchase: 0, sales: 0 }; row.sales += toNumber(bill.total_amount); dailyTrend.set(label, row) }
   const expenseByCategory = new Map<string, { amount: number; count: number; name: string }>()
   for (const row of todayExpenses) { const key = row.expense_categories?.name ?? 'ไม่ระบุ'; const current = expenseByCategory.get(key) ?? { amount: 0, count: 0, name: key }; current.amount += toNumber(row.amount); current.count += 1; expenseByCategory.set(key, current) }
-  const cashIn = todayBank.reduce((sum, row) => sum + toNumber(row.amount_in), 0) || receipts.reduce((sum, row) => sum + toNumber(row.net_amount || row.amount), 0)
-  const cashOut = todayBank.reduce((sum, row) => sum + toNumber(row.amount_out), 0) || payments.reduce((sum, row) => sum + toNumber(row.net_amount || row.amount), 0) + todayExpenses.reduce((sum, row) => sum + toNumber(row.amount), 0)
+  const externalTodayBank = todayBank.filter((row) => !isInternalBankStatementTransfer(row))
+  const cashIn = externalTodayBank.reduce((sum, row) => sum + toNumber(row.amount_in), 0)
+  const cashOut = externalTodayBank.reduce((sum, row) => sum + toNumber(row.amount_out), 0)
   const bankByType = new Map<string, { cashIn: number; cashOut: number; label: string }>()
   const bankByAccount = new Map<string, { cashIn: number; cashOut: number; name: string; type: string }>()
   const typeLabel = (value?: string | null) => value === 'PMT' ? 'จ่ายเงิน Supplier' : value === 'RCP' ? 'รับเงินลูกค้า' : value === 'EXP' ? 'ค่าใช้จ่าย' : value === 'TRF' ? 'โอนระหว่างบัญชี' : value || 'อื่นๆ'
-  for (const row of todayBank) { const typeKey = row.ref_type ?? row.type ?? 'OTHER'; const type = bankByType.get(typeKey) ?? { cashIn: 0, cashOut: 0, label: typeLabel(typeKey) }; type.cashIn += toNumber(row.amount_in); type.cashOut += toNumber(row.amount_out); bankByType.set(typeKey, type); const accountKey = row.account_id == null ? 'unknown' : String(row.account_id); const account = bankByAccount.get(accountKey) ?? { cashIn: 0, cashOut: 0, name: row.accounts?.name ?? '-', type: row.accounts?.type ?? '-' }; account.cashIn += toNumber(row.amount_in); account.cashOut += toNumber(row.amount_out); bankByAccount.set(accountKey, account) }
+  for (const row of externalTodayBank) { const typeKey = row.ref_type ?? row.type ?? 'OTHER'; const type = bankByType.get(typeKey) ?? { cashIn: 0, cashOut: 0, label: typeLabel(typeKey) }; type.cashIn += toNumber(row.amount_in); type.cashOut += toNumber(row.amount_out); bankByType.set(typeKey, type); const accountKey = row.account_id == null ? 'unknown' : String(row.account_id); const account = bankByAccount.get(accountKey) ?? { cashIn: 0, cashOut: 0, name: row.accounts?.name ?? '-', type: row.accounts?.type ?? '-' }; account.cashIn += toNumber(row.amount_in); account.cashOut += toNumber(row.amount_out); bankByAccount.set(accountKey, account) }
   const groupBreakdown = Array.from(groupMap.values()).map((row) => ({ buyAmt: row.buyAmt, buyQty: row.buyQty, group: row.group, products: Array.from(row.products.values()).sort((a, b) => b.buyAmt + b.sellAmt - a.buyAmt - a.sellAmt), sellAmt: row.sellAmt, sellQty: row.sellQty })).sort((a, b) => b.buyAmt + b.sellAmt - a.buyAmt - a.sellAmt)
   return {
     filters: { date: dateLabel, from, to },

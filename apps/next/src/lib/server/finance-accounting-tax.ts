@@ -40,9 +40,7 @@ type Payment = Prisma.paymentsGetPayload<{
   include: { suppliers: { select: { name: true } } }
 }>
 
-type Receipt = Prisma.receiptsGetPayload<{
-  include: { customers: { select: { name: true } } }
-}>
+type CustomerReceipt = Prisma.customer_receiptsGetPayload<Record<string, never>>
 
 function periodBounds(year: number, month: number) {
   const start = new Date(year, month - 1, 1)
@@ -109,8 +107,7 @@ async function loadPeriod(filter: TaxFilter) {
       take: 20000,
       where: { ...notCancelledWhere(), ...where },
     }),
-    prisma.receipts.findMany({
-      include: { customers: { select: { name: true } } },
+    prisma.customer_receipts.findMany({
       orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
       take: 20000,
       where: { ...notCancelledWhere(), ...where },
@@ -190,15 +187,17 @@ function expenseWht(rows: Expense[]): TaxItem[] {
   }).filter((item) => item.wht && item.wht > 0)
 }
 
-function receiptWht(rows: Receipt[]): TaxItem[] {
+function receiptWht(rows: CustomerReceipt[]): TaxItem[] {
   return rows.map((receipt) => {
-    const wht = toNumber(receipt.withholding_tax)
+    const wht = toNumber(receipt.withholding_tax_total)
     return {
-      base: toNumber(receipt.amount) + wht + toNumber(receipt.discount),
+      // Receipt settlement is a book-THB fact. Native FCD currency and rate are audit data,
+      // so they must never enter the tax base directly.
+      base: toNumber(receipt.settlement_book_amount) + wht + toNumber(receipt.discount_total),
       date: dateOnly(receipt.date),
       no: receipt.doc_no,
-      party: receipt.customers?.name ?? '-',
-      source: 'receipts',
+      party: receipt.customer_name_snapshot,
+      source: 'customer_receipts',
       wht,
     }
   }).filter((item) => item.wht && item.wht > 0)
@@ -214,7 +213,7 @@ async function monthlySummary(year: number, month: number, branchId?: string) {
   const purchases = purchasesRaw as PurchaseBill[]
   const expenses = expensesRaw as Expense[]
   const payments = paymentsRaw as Payment[]
-  const receipts = receiptsRaw as Receipt[]
+  const receipts = receiptsRaw as CustomerReceipt[]
   const vatOutput = salesVatOutput(sales)
   const vatInput = [...purchaseVatInput(purchases), ...expenseVatInput(expenses)]
   const whtCharged = [...paymentWht(payments), ...expenseWht(expenses)]
@@ -240,7 +239,7 @@ export async function buildTaxVatWht(filter: TaxFilter) {
   const purchases = purchasesRaw as PurchaseBill[]
   const expenses = expensesRaw as Expense[]
   const payments = paymentsRaw as Payment[]
-  const receipts = receiptsRaw as Receipt[]
+  const receipts = receiptsRaw as CustomerReceipt[]
   const vatOutputItems = salesVatOutput(sales)
   const vatInputItems = [...purchaseVatInput(purchases), ...expenseVatInput(expenses)].sort((left, right) => left.date.localeCompare(right.date) || left.no.localeCompare(right.no))
   const whtChargedItems = [...paymentWht(payments), ...expenseWht(expenses)].sort((left, right) => left.date.localeCompare(right.date) || left.no.localeCompare(right.no))
@@ -267,7 +266,7 @@ export async function buildTaxVatWht(filter: TaxFilter) {
       limitations: [
         'ยังไม่มี normalized tax ledger, PP30/PND filing state, approval/locking, หรือ GL payable posting',
         'VAT input ใช้ purchase_bills และ expenses ที่มี VAT amount; เอกสารครบอ้างอิง vat_invoice/tax_invoice fields เท่านั้น',
-        'WHT ใช้ payments/receipts/expenses withholding fields แบบ transaction-derived',
+        'WHT ใช้ payments/customer_receipts/expenses withholding fields แบบ transaction-derived; customer receipt ใช้ยอด settlement THB ที่บันทึกแล้ว',
       ],
       writeActionsEnabled: false,
     },

@@ -1,26 +1,25 @@
 import { NextResponse } from 'next/server'
 import { customerReceiptFormSchema } from '@/lib/daily'
-import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
+import { stringifyBusinessValue } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { cancelCustomerReceipt, createCustomerReceipt, replaceCustomerReceipt } from '@/lib/server/customer-receipts'
-import { currentActor, listDailyAccounts, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { listDailyAccounts, toDateOnly, toNumber } from '@/lib/server/daily'
+import { requireFinanceActor } from '@/lib/server/finance-actor'
 import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jobs'
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import { prisma } from '@/lib/server/prisma'
-import { listActiveBranches, listActiveBranchesByCodes, listActiveCustomers } from '@/lib/server/reference-master-cache'
+import { getFinanceCurrencyPolicy } from '@/lib/server/finance-currency-policy'
+import { listActiveBranches, listActiveBranchesByCodes, listActiveCustomers, listCurrencies } from '@/lib/server/reference-master-cache'
+import { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
 
 const CUSTOMER_RECEIPT_LIST_LIMIT = 5000
 const CANCELLED_RECEIPT_STATUSES = ['cancelled', 'canceled']
 const RECEIPT_QUEUE_STATUSES = ['pending', 'active']
-
-function logReceiptQueueError(context: string, caught: unknown) {
-  const message = caught instanceof Error ? caught.message : String(caught)
-  console.error(`[sales/receipts] ${context}: ${message}`)
-}
+const noStoreHeaders = { 'Cache-Control': 'private, no-store' }
 
 async function notifyCustomerReceiptAfterCommit(documentNo: string, requestedBy: string) {
   try {
@@ -33,147 +32,18 @@ async function notifyCustomerReceiptAfterCommit(documentNo: string, requestedBy:
   }
 }
 
-type PendingReceiptSalesBill = {
-  branch_id: bigint | null
-  branches: { code: string; name: string } | null
-  customer_id: bigint
-  customers: { code: string | null; name: string } | null
-  date: Date
-  doc_no: string
-  id: bigint
-  receivable_balance: unknown
-}
-
-async function ensurePendingCustomerReceipts(context: Awaited<ReturnType<typeof getCurrentAuthContext>>) {
-  const actor = currentActor(context)
-  await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('customer_receipts.doc_no'))`
-
-    const [account, paymentMethod, bills] = await Promise.all([
-      tx.accounts.findFirst({
-        orderBy: [{ active: 'desc' }, { id: 'asc' }],
-        select: { code: true, id: true, name: true },
-        where: { account_group: { in: ['cash', 'bank'] }, active: true },
-      }),
-      tx.payment_methods.findFirst({
-        orderBy: [{ active: 'desc' }, { id: 'asc' }],
-        select: { code: true, id: true, name: true },
-        where: { active: true },
-      }),
-      tx.sales_bills.findMany({
-        orderBy: [{ date: 'asc' }, { id: 'asc' }],
-        select: {
-          branch_id: true,
-          branches: { select: { code: true, name: true } },
-          customer_id: true,
-          customers: { select: { code: true, name: true } },
-          date: true,
-          doc_no: true,
-          id: true,
-          receivable_balance: true,
-        },
-        take: CUSTOMER_RECEIPT_LIST_LIMIT,
-        where: {
-          receivable_balance: { gt: 0 },
-          status: { notIn: ['cancelled', 'canceled'] },
-        },
-      }),
-    ])
-
-    if (!account) throw new Error('ไม่พบบัญชีรับเงิน active สำหรับออกใบรับเงินรอดำเนินการ')
-    if (!paymentMethod) throw new Error('ไม่พบวิธีรับเงิน active สำหรับออกใบรับเงินรอดำเนินการ')
-
-    for (const bill of bills as PendingReceiptSalesBill[]) {
-      try {
-        const activeAllocation = await tx.customer_receipt_allocations.findFirst({
-          select: { id: true },
-          where: {
-            sales_bill_id: bill.id,
-            status: { in: RECEIPT_QUEUE_STATUSES },
-            customer_receipts: { is: { status: { in: RECEIPT_QUEUE_STATUSES } } },
-          },
-        })
-        if (activeAllocation) continue
-        const customerCode = bill.customers?.code?.trim() || stringifyBusinessValue(bill.customer_id)
-        const date = toDateOnly(bill.date)
-        const branchCode = bill.branches?.code?.trim()
-        if (!branchCode) throw new Error(`ไม่พบรหัสสาขาสำหรับบิลขาย ${bill.doc_no}`)
-        const docNo = await nextDailyDocNo('customer_receipts', 'RCP', date, tx, branchCode)
-        const receivableBalance = toNumber(bill.receivable_balance as { toNumber: () => number } | number | null | undefined)
-        const receipt = await tx.customer_receipts.create({
-          data: {
-            account_code_snapshot: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
-            account_id: account.id,
-            account_name_snapshot: account.name,
-            bank_fee_total: 0,
-            branch_id: bill.branch_id,
-            customer_code_snapshot: customerCode,
-            customer_id: bill.customer_id,
-            customer_name_snapshot: bill.customers?.name ?? '-',
-            date: normalizeDate(date),
-            discount_total: 0,
-            doc_no: docNo,
-            gross_amount: receivableBalance,
-            net_cash_in: 0,
-            notes: `สร้างอัตโนมัติจากบิลขาย ${bill.doc_no}`,
-            payment_method_code_snapshot: paymentMethod.code,
-            payment_method_id: paymentMethod.id,
-            payment_method_name_snapshot: paymentMethod.name,
-            status: 'pending',
-            updated_by: actor,
-            withholding_tax_total: 0,
-            created_by: actor,
-          },
-        })
-
-        await tx.customer_receipt_allocations.create({
-          data: {
-            allocated_ar_amount: 0,
-            created_by: actor,
-            customer_code_snapshot: customerCode,
-            discount_amount: 0,
-            line_no: 1,
-            outstanding_after: receivableBalance,
-            outstanding_before: receivableBalance,
-            receipt_amount: 0,
-            receipt_id: receipt.id,
-            sales_bill_doc_no_snapshot: bill.doc_no,
-            sales_bill_id: bill.id,
-            status: 'pending',
-            updated_by: actor,
-            withholding_tax_amount: 0,
-          },
-        })
-
-        await tx.customer_receipt_status_logs.create({
-          data: {
-            action: 'pending_created',
-            created_by: actor,
-            event_key: `customer-receipt.pending-created.${docNo}`,
-            gross_amount_snapshot: receivableBalance,
-            meta: {
-              salesBillDocNo: bill.doc_no,
-              salesBillId: stringifyBusinessValue(bill.id),
-            },
-            net_cash_in_snapshot: 0,
-            note: `สร้างใบรับเงินรอรับเงินจากบิลขาย ${bill.doc_no}`,
-            receipt_doc_no: docNo,
-            receipt_id: receipt.id,
-            to_status: 'pending',
-          },
-        })
-      } catch (caught) {
-        logReceiptQueueError(`skip pending receipt for ${bill.doc_no}`, caught)
-      }
-    }
-  })
-}
-
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, FINANCE_DEBT_PAGE_PERMISSIONS.receipts)
-    const requestedBranchId = new URL(request.url).searchParams.get('branchId')?.trim() || ''
+    const url = new URL(request.url)
+    const requestedBranchId = url.searchParams.get('branchId')?.trim() || ''
+    const requestedSourceType = url.searchParams.get('sourceType')?.trim().toUpperCase() || ''
+    const requestedCurrencyCode = url.searchParams.get('currencyCode')?.trim().toUpperCase() || ''
+    const requestedAccountCode = url.searchParams.get('accountCode')?.trim().toUpperCase() || ''
+    if (requestedSourceType && requestedSourceType !== 'SB' && requestedSourceType !== 'CADV') {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'ประเภทเอกสารรับเงินไม่ถูกต้อง' }, { headers: noStoreHeaders, status: 400 })
+    }
     const allowedBranchCodes = getBranchCodeIntersection(context)
     const branchReferences = allowedBranchCodes === null
       ? await listActiveBranches()
@@ -182,14 +52,31 @@ export async function GET(request: Request) {
       ? branchReferences.find((branch) => branch.code === requestedBranchId || stringifyBusinessValue(branch.id) === requestedBranchId)
       : null
     if (requestedBranchId && !selectedBranch) {
-      return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาที่เลือกไม่ถูกต้องหรือไม่มีสิทธิ์ใช้งาน' }, { status: 400 })
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาที่เลือกไม่ถูกต้องหรือไม่มีสิทธิ์ใช้งาน' }, { headers: noStoreHeaders, status: 400 })
     }
-    try {
-      await ensurePendingCustomerReceipts(context)
-    } catch (caught) {
-      logReceiptQueueError('ensure pending receipts failed', caught)
-    }
-
+    const scopedBranchIds = selectedBranch
+      ? [selectedBranch.id]
+      : allowedBranchCodes === null
+        ? null
+        : branchReferences.map((branch) => branch.id)
+    const scopedBranchWhere = scopedBranchIds === null ? {} : { branch_id: { in: scopedBranchIds } }
+    const [currencyPolicy, matchingSplitReceiptIds] = await Promise.all([
+      getFinanceCurrencyPolicy(),
+      requestedAccountCode
+        ? prisma.customer_receipt_account_splits.findMany({
+            select: { receipt_id: true },
+            where: { account_code_snapshot: requestedAccountCode },
+          }).then((splits) => splits.map((split) => split.receipt_id))
+        : Promise.resolve([] as bigint[]),
+    ])
+    const receiptAccountWhere: Prisma.customer_receiptsWhereInput = requestedAccountCode
+      ? {
+          OR: [
+            { account_code_snapshot: requestedAccountCode },
+            { id: { in: matchingSplitReceiptIds } },
+          ],
+        }
+      : {}
     const salesBillSelect = {
       customer_receipt_allocations: {
         orderBy: [{ created_at: 'desc' }] as any,
@@ -218,9 +105,10 @@ export async function GET(request: Request) {
       total_amount: true,
     }
 
-    const salesBillBranchWhere = selectedBranch ? { branch_id: selectedBranch.id } : {}
-    const [accounts, customers, outstandingBills, allocatedBills, customerAdvances, receipts, paymentMethods] = await Promise.all([
+    const salesBillBranchWhere = scopedBranchWhere
+    const [accounts, currencies, customers, outstandingBills, allocatedBills, customerAdvances, receipts, paymentMethods, fxRateTypes] = await Promise.all([
       listDailyAccounts(),
+      listCurrencies(),
       listActiveCustomers(),
       prisma.sales_bills.findMany({
         select: salesBillSelect,
@@ -258,6 +146,7 @@ export async function GET(request: Request) {
         orderBy: [{ document_date: 'desc' }, { doc_no: 'desc' }],
         take: CUSTOMER_RECEIPT_LIST_LIMIT,
         where: {
+          ...scopedBranchWhere,
           customer_advance_statuses: { code: { in: ['pending_receipt', 'partially_received'] } },
           cancelled_at: null,
         },
@@ -267,6 +156,7 @@ export async function GET(request: Request) {
           account_code_snapshot: true,
           account_name_snapshot: true,
           bank_fee_total: true,
+          carrying_thb_amount: true,
           customer_receipt_allocations: {
             orderBy: [{ line_no: 'asc' }],
             select: {
@@ -287,44 +177,79 @@ export async function GET(request: Request) {
           },
           customer_code_snapshot: true,
           customer_name_snapshot: true,
+          customer_transferred_native_amount: true,
           branch_id: true,
           branches: { select: { code: true } },
           date: true,
           doc_no: true,
           gross_amount: true,
+          fx_rate: true,
+          fx_rate_date: true,
+          fx_rate_overridden: true,
+          fx_rate_source: true,
+          fx_rate_type: true,
           id: true,
           net_cash_in: true,
           notes: true,
           payment_method_name_snapshot: true,
+          receipt_currency_code: true,
+          received_native_amount: true,
+          settlement_book_amount: true,
+          settlement_fx_difference: true,
           source_type: true,
           status: true,
           withholding_tax_total: true,
         },
         orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
         take: CUSTOMER_RECEIPT_LIST_LIMIT,
-        where: { status: { not: 'pending' } },
+        where: {
+          ...scopedBranchWhere,
+          ...(requestedSourceType ? { source_type: requestedSourceType } : {}),
+          ...(requestedCurrencyCode ? {
+            OR: requestedCurrencyCode === currencyPolicy.functionalCurrencyCode
+              ? [{ receipt_currency_code: null }]
+              : [{ receipt_currency_code: requestedCurrencyCode }],
+          } : {}),
+          ...receiptAccountWhere,
+          status: { not: 'pending' },
+        },
       }),
       getActivePaymentMethods(),
+      prisma.fx_rates.findMany({ distinct: ['rate_type'], orderBy: { rate_type: 'asc' }, select: { rate_type: true } }),
     ])
     const bills = [...new Map([...outstandingBills, ...allocatedBills].map((bill) => [bill.doc_no, bill])).values()]
       .sort((left, right) => right.date.getTime() - left.date.getTime())
       .slice(0, CUSTOMER_RECEIPT_LIST_LIMIT)
     const receiptIdStrings = receipts.map((receipt) => stringifyBusinessValue(receipt.id))
-    const receiptBankStatements = receiptIdStrings.length > 0
-      ? await prisma.bank_statement.findMany({
-        orderBy: [{ doc_no: 'asc' }],
-        select: {
-          accounts: { select: { code: true, name: true, type: true } },
-          amount_in: true,
-          ref_id: true,
-        },
-        where: {
-          amount_in: { gt: 0 },
-          ref_id: { in: receiptIdStrings },
-          ref_type: 'RCP',
-        },
-      })
-      : []
+    const [receiptBankStatements, foreignReceiptSplits] = receiptIdStrings.length > 0
+      ? await Promise.all([
+        prisma.bank_statement.findMany({
+          orderBy: [{ doc_no: 'asc' }],
+          select: {
+            accounts: { select: { code: true, name: true, type: true } },
+            book_amount_in: true,
+            ref_id: true,
+          },
+          where: {
+            book_amount_in: { gt: 0 },
+            ref_id: { in: receiptIdStrings },
+            ref_type: 'RCP',
+          },
+        }),
+        prisma.customer_receipt_account_splits.findMany({
+          orderBy: [{ receipt_id: 'asc' }, { line_no: 'asc' }],
+          select: {
+            account_code_snapshot: true,
+            account_name_snapshot: true,
+            currency_code: true,
+            line_no: true,
+            receipt_id: true,
+            received_native_amount: true,
+          },
+          where: { receipt_id: { in: receipts.map((receipt) => receipt.id) } },
+        }),
+      ])
+      : [[], []]
     type ReceiptBankStatement = (typeof receiptBankStatements)[number]
     const bankStatementsByReceiptId = new Map<string, ReceiptBankStatement[]>()
     for (const statement of receiptBankStatements) {
@@ -334,9 +259,26 @@ export async function GET(request: Request) {
       current.push(statement)
       bankStatementsByReceiptId.set(key, current)
     }
+    type ForeignReceiptSplit = (typeof foreignReceiptSplits)[number]
+    const foreignSplitsByReceiptId = new Map<string, ForeignReceiptSplit[]>()
+    for (const split of foreignReceiptSplits) {
+      const key = stringifyBusinessValue(split.receipt_id)
+      const current = foreignSplitsByReceiptId.get(key) ?? []
+      current.push(split)
+      foreignSplitsByReceiptId.set(key, current)
+    }
 
     return NextResponse.json({
       accounts: accounts.filter((account) => account.accountGroup !== 'virtual'),
+      currencies: currencies.map((currency) => ({ code: currency.code, name: currency.name, symbol: currency.symbol })),
+      currencyPolicy: { functionalCurrencyCode: currencyPolicy.functionalCurrencyCode },
+      fxRateTypes: fxRateTypes.map((row) => row.rate_type).filter((rateType) => rateType.trim() !== ''),
+      appliedFilters: {
+        accountCode: requestedAccountCode || null,
+        branchCode: selectedBranch?.code ?? null,
+        currencyCode: requestedCurrencyCode || null,
+        sourceType: requestedSourceType || null,
+      },
       branches: branchReferences.map((branch) => ({ active: true, code: branch.code, id: branch.code, name: branch.name })),
       bills: bills.map((bill) => ({
         activeReceiptDocNos: [...new Set(bill.customer_receipt_allocations
@@ -377,34 +319,45 @@ export async function GET(request: Request) {
       paymentMethods,
       rows: receipts.map((receipt) => {
         const receiptStatements = bankStatementsByReceiptId.get(stringifyBusinessValue(receipt.id)) ?? []
-        const accountSummaries = receiptStatements.length > 0
-          ? receiptStatements.map((statement) => `${statement.accounts?.name ?? '-'} - ${toNumber(statement.amount_in).toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`)
+        const receiptForeignSplits = foreignSplitsByReceiptId.get(stringifyBusinessValue(receipt.id)) ?? []
+        const accountSummaries = receiptForeignSplits.length > 0
+          ? receiptForeignSplits.map((split) => `${split.account_name_snapshot} - ${toNumber(split.received_native_amount).toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 2 })} ${split.currency_code}`)
+          : receiptStatements.length > 0
+          ? receiptStatements.map((statement) => `${statement.accounts?.name ?? '-'} - ${toNumber(statement.book_amount_in).toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 2 })} THB`)
           : [receipt.account_name_snapshot]
         return {
           accountId: receipt.account_code_snapshot,
           accountName: accountSummaries[0] ?? receipt.account_name_snapshot,
-          accountNames: receiptStatements.length > 0
+          accountNames: receiptForeignSplits.length > 0
+            ? receiptForeignSplits.map((split) => split.account_name_snapshot)
+            : receiptStatements.length > 0
             ? receiptStatements.map((statement) => statement.accounts?.name ?? '-')
             : [receipt.account_name_snapshot],
-          accountSplits: receiptStatements.length > 0
+          accountSplits: receiptForeignSplits.length > 0
+            ? receiptForeignSplits.map((split) => ({
+              accountId: split.account_code_snapshot,
+              id: `${receipt.doc_no}-foreign-split-${split.line_no}`,
+              nativeAmount: toNumber(split.received_native_amount),
+            }))
+            : receiptStatements.length > 0
             ? receiptStatements.map((statement, index) => {
               const accountType = statement.accounts?.type ?? ''
               const method = (accountType.toLowerCase().includes('cash') || accountType.includes('เงินสด')) ? 'เงินสด' : 'เงินโอน'
               return {
                 accountId: statement.accounts?.code ?? receipt.account_code_snapshot,
-                amount: toNumber(statement.amount_in),
+                bookAmountThb: toNumber(statement.book_amount_in),
                 method,
                 id: `${receipt.doc_no}-split-${index + 1}`,
               }
-            }).filter((split) => split.accountId && split.amount > 0)
+            }).filter((split) => split.accountId && split.bookAmountThb > 0)
             : [{
               accountId: receipt.account_code_snapshot,
-              amount: toNumber(receipt.net_cash_in),
+              bookAmountThb: toNumber(receipt.net_cash_in),
               method: receipt.payment_method_name_snapshot,
               id: `${receipt.doc_no}-split-1`,
             }],
           accountSummaries,
-          amount: toNumber(receipt.gross_amount),
+          bookAmountThb: toNumber(receipt.gross_amount),
           customerAdvanceDocNos: receipt.customer_receipt_advance_allocations.map((allocation) => allocation.customer_advance_doc_no_snapshot),
           billDocNos: receipt.customer_receipt_allocations.map((allocation) => allocation.sales_bill_doc_no_snapshot),
           billId: receipt.customer_receipt_allocations[0]?.sales_bill_doc_no_snapshot ?? '',
@@ -414,9 +367,24 @@ export async function GET(request: Request) {
           date: toDateOnly(receipt.date),
           docNo: receipt.doc_no,
           fee: toNumber(receipt.bank_fee_total),
+          foreignAudit: receipt.receipt_currency_code
+            ? {
+              carryingBookAmount: toNumber(receipt.carrying_thb_amount),
+              currencyCode: receipt.receipt_currency_code,
+              customerTransferredNativeAmount: toNumber(receipt.customer_transferred_native_amount),
+              fxRate: toNumber(receipt.fx_rate),
+              fxRateDate: receipt.fx_rate_date ? toDateOnly(receipt.fx_rate_date) : '',
+              fxRateOverridden: Boolean(receipt.fx_rate_overridden),
+              fxRateSource: receipt.fx_rate_source,
+              fxRateType: receipt.fx_rate_type ?? '',
+              receivedNativeAmount: toNumber(receipt.received_native_amount),
+              settlementBookAmount: toNumber(receipt.settlement_book_amount),
+              settlementFxDifference: toNumber(receipt.settlement_fx_difference),
+            }
+            : undefined,
           id: receipt.doc_no,
           method: receipt.payment_method_name_snapshot,
-          netAmount: toNumber(receipt.net_cash_in),
+          bookNetCashInThb: toNumber(receipt.net_cash_in),
           notes: receipt.notes ?? '',
           partyName: receipt.customer_name_snapshot,
           customerAdvanceLines: receipt.customer_receipt_advance_allocations.map((allocation) => ({
@@ -436,7 +404,7 @@ export async function GET(request: Request) {
           withholdingTax: toNumber(receipt.withholding_tax_total),
         }
       }),
-    })
+    }, { headers: noStoreHeaders })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดรายการรับเงิน Customer ไม่ได้', 500)
@@ -450,9 +418,9 @@ export async function POST(request: Request) {
 
     const values = customerReceiptFormSchema.parse(await request.json())
     const result = await createCustomerReceipt(values, context)
-    await notifyCustomerReceiptAfterCommit(result.id, currentActor(context))
+    await notifyCustomerReceiptAfterCommit(result.id, requireFinanceActor(context))
 
-    return NextResponse.json(result)
+    return NextResponse.json(result, { headers: noStoreHeaders })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึกรับเงิน Customer ไม่ได้', 400)
@@ -466,15 +434,15 @@ export async function PATCH(request: Request) {
     requirePermission(context, payload.action === 'cancel' ? 'sales.bills.cancel' : 'sales.bills.update')
     if (payload.action === 'cancel') {
       const result = await cancelCustomerReceipt(payload.docNo ?? '', payload.reason ?? '', context)
-      return NextResponse.json(result)
+      return NextResponse.json(result, { headers: noStoreHeaders })
     }
     if (payload.action === 'replace') {
       const values = customerReceiptFormSchema.parse(payload.values)
       const result = await replaceCustomerReceipt(payload.docNo ?? values.id ?? '', values, payload.reason ?? 'แก้ไข Receipt Voucher โดยยกเลิกใบเดิมและออกใบใหม่', context)
-      await notifyCustomerReceiptAfterCommit(result.id, currentActor(context))
-      return NextResponse.json(result)
+      await notifyCustomerReceiptAfterCommit(result.id, requireFinanceActor(context))
+      return NextResponse.json(result, { headers: noStoreHeaders })
     }
-    return NextResponse.json({ code: 'BAD_REQUEST', error: 'action ไม่ถูกต้อง' }, { status: 400 })
+    return NextResponse.json({ code: 'BAD_REQUEST', error: 'action ไม่ถูกต้อง' }, { headers: noStoreHeaders, status: 400 })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'ยกเลิกรับเงิน Customer ไม่ได้', 400)

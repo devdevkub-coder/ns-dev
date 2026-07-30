@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { requireFinanceActor } from '@/lib/server/finance-actor'
 import { fxRateFormSchema } from '@/lib/finance-foreign'
 import { prisma } from '@/lib/server/prisma'
 import { listCurrencies } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
+
+const noStoreHeaders = { 'Cache-Control': 'private, no-store' }
 
 type FxRateRow = Awaited<ReturnType<typeof prisma.fx_rates.findMany>>[number]
 
@@ -97,8 +100,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       filters: {
         currencies: currencies.map((currency) => ({
-          code: (currency.symbol ?? '').trim().toUpperCase(),
-          displayCode: (currency.symbol ?? '').trim().toUpperCase(),
+          code: currency.code,
+          displayCode: currency.code,
           name: currency.name,
           rateToThb: currency.rateToThb == null ? 0 : Number(currency.rateToThb),
           symbol: currency.symbol,
@@ -114,7 +117,7 @@ export async function GET(request: Request) {
         latestPairs: latestByPair.size,
         rows: rows.length,
       },
-    })
+    }, { headers: noStoreHeaders })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลด FX Rate ไม่ได้', 500)
@@ -125,6 +128,7 @@ export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'finance.cash.view')
+    const actor = requireFinanceActor(context)
 
     const values = fxRateFormSchema.parse(await request.json())
     const row = await prisma.fx_rates.upsert({
@@ -136,7 +140,7 @@ export async function POST(request: Request) {
       } },
       create: {
         active: values.active,
-        created_by: currentActor(context),
+        created_by: actor,
         from_currency: values.fromCurrency,
         note: values.note,
         rate: values.rate,
@@ -144,18 +148,18 @@ export async function POST(request: Request) {
         rate_type: values.rateType,
         source: values.source,
         to_currency: values.toCurrency,
-        updated_by: currentActor(context),
+        updated_by: actor,
       },
       update: {
         active: values.active,
         note: values.note,
         rate: values.rate,
         source: values.source,
-        updated_by: currentActor(context),
+        updated_by: actor,
       },
     })
 
-    return NextResponse.json({ row: mapRate(row) })
+    return NextResponse.json({ row: mapRate(row) }, { headers: noStoreHeaders })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึก FX Rate ไม่ได้')
@@ -166,6 +170,7 @@ export async function PATCH(request: Request) {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'finance.cash.view')
+    const actor = requireFinanceActor(context)
 
     const values = fxRateFormSchema.parse(await request.json())
     if (!values.id) return NextResponse.json({ error: 'ระบุรหัส FX Rate' }, { status: 400 })
@@ -195,11 +200,11 @@ export async function PATCH(request: Request) {
         rate_type: values.rateType,
         source: values.source,
         to_currency: values.toCurrency,
-        updated_by: currentActor(context),
+        updated_by: actor,
       },
     })
 
-    return NextResponse.json({ row: mapRate(row) })
+    return NextResponse.json({ row: mapRate(row) }, { headers: noStoreHeaders })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'แก้ไข FX Rate ไม่ได้')

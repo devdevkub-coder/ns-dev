@@ -16,12 +16,13 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const accountId = url.searchParams.get('accountId')
     const accountReference = await findActiveAccountReferenceByCode(accountId)
+    if (accountId && !accountReference) return NextResponse.json({ error: 'ไม่พบบัญชีที่เลือก' }, { status: 400 })
     const internalAccountId = accountReference?.id ?? null
     const from = url.searchParams.get('from')
     const to = url.searchParams.get('to')
 
     const accounts = (await listActiveAccounts()).filter((account) => account.accountGroup !== 'virtual')
-    const selectedAccount = accounts.find((account) => account.id === internalAccountId) ?? accounts[0] ?? null
+    const selectedAccount = internalAccountId == null ? null : accounts.find((account) => account.id === internalAccountId) ?? null
 
     const erpRows = selectedAccount ? await prisma.bank_statement.findMany({
       orderBy: [{ date: 'desc' }, { created_at: 'desc' }, { id: 'desc' }],
@@ -46,8 +47,12 @@ export async function GET(request: Request) {
       erpRows: erpRows.map((row: Awaited<ReturnType<typeof prisma.bank_statement.findMany>>[number]) => ({
         date: toDateOnly(row.date),
         id: row.doc_no,
-        in: toNumber(row.amount_in),
-        out: toNumber(row.amount_out),
+        bookAmountInThb: toNumber(row.book_amount_in),
+        bookAmountOutThb: toNumber(row.book_amount_out),
+        bookFxRate: row.book_fx_rate == null ? null : toNumber(row.book_fx_rate),
+        currencyCode: row.movement_currency_code,
+        nativeAmountIn: toNumber(row.native_amount_in),
+        nativeAmountOut: toNumber(row.native_amount_out),
         refNo: row.ref_no || row.ref_type || '-',
         type: row.ref_type || row.type || '-',
       })),

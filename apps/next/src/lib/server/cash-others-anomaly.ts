@@ -1,7 +1,8 @@
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { buildFinanceCashPosition } from '@/lib/server/finance-accounting-cash-position'
 import { prisma } from '@/lib/server/prisma'
-import { listActiveAccounts, listActiveBranches, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
+import { listActiveBranches } from '@/lib/server/reference-master-cache'
 
 function endOfDay(date: Date) {
   return new Date(`${toDateOnly(date)}T23:59:59.999Z`)
@@ -29,61 +30,18 @@ function marketScope(value?: string | null) {
   return (value ?? '').includes('ต่าง') || (value ?? '').toLowerCase().includes('over') ? 'overseas' : 'domestic'
 }
 
-function cachedMoney(value: string | null) {
-  return value == null ? 0 : Number(value)
-}
-
-type CashAccountReference = Pick<AccountReferenceRecord, 'accountNo' | 'code' | 'currency' | 'id' | 'name' | 'openingBalance' | 'type'>
-
-async function loadCashAccounts(branchIds: bigint[] | null): Promise<CashAccountReference[]> {
-  const accounts = await listActiveAccounts()
-  if (branchIds === null) return accounts
-  const allowed = new Set(branchIds.map((id) => id.toString()))
-  return accounts.filter((account) => account.branchId != null && allowed.has(account.branchId.toString()))
-}
-
 async function accountBalances(asOf: Date, branchIds: bigint[] | null) {
-  const accounts = [...await loadCashAccounts(branchIds)]
-    .sort((left: CashAccountReference, right: CashAccountReference) => {
-      const typeOrder = left.type.localeCompare(right.type)
-      if (typeOrder !== 0) return typeOrder
-      const nameOrder = left.name.localeCompare(right.name)
-      if (nameOrder !== 0) return nameOrder
-      return (left.accountNo ?? '').localeCompare(right.accountNo ?? '')
-    })
-  const accountIds = accounts.map((account: CashAccountReference) => account.id)
-  const bankRows = branchIds !== null
-    ? await prisma.bank_statement.findMany({
-        orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-        take: 60000,
-        where: { accounts: { branch_id: { in: branchIds } }, date: { lte: endOfDay(asOf) } },
-      })
-    : accountIds.length > 0
-    ? await prisma.bank_statement.findMany({
-        orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-        take: 60000,
-        where: { account_id: { in: accountIds }, date: { lte: endOfDay(asOf) } },
-      })
-      : []
-  const balances = new Map<bigint, number>()
-  accounts.forEach((account: CashAccountReference) => balances.set(account.id, cachedMoney(account.openingBalance)))
-  bankRows.forEach((row: (typeof bankRows)[number]) => {
-    if (!row.account_id) return
-    const previous = balances.get(row.account_id) ?? 0
-    balances.set(row.account_id, row.balance === null || row.balance === undefined ? previous + toNumber(row.amount_in) - toNumber(row.amount_out) : toNumber(row.balance))
-  })
-  return accounts.map((account: CashAccountReference) => {
-    const balance = balances.get(account.id) ?? 0
-    const currency = account.currency ?? 'THB'
+  const position = await buildFinanceCashPosition({ asOf, branchIds })
+  return position.accountBalances.map((account) => {
     return {
-      balance,
+      balance: account.balance,
       code: account.code,
-      currency,
-      fxRate: currency === 'THB' ? 1 : 1,
+      currency: account.currency ?? null,
+      fxRate: null,
       id: account.code,
       name: account.name,
-      thbEquivalent: balance,
-      type: account.type,
+      thbEquivalent: account.balance,
+      type: account.accountGroup ?? '-',
     }
   })
 }

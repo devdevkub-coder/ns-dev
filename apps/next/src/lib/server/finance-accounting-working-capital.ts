@@ -2,9 +2,10 @@ import type { Prisma } from '../../../generated/prisma/client'
 import { requireBusinessCode } from '@/lib/business-code'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { buildFinanceCashPosition } from '@/lib/server/finance-accounting-cash-position'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
-import { listActiveAccounts, listActiveBranches, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
+import { listActiveBranches } from '@/lib/server/reference-master-cache'
 
 const CANCELLED_STATUSES = ['cancelled', 'void', 'ยกเลิก']
 const DAY_MS = 86_400_000
@@ -65,10 +66,6 @@ function sourceState(extra: string[] = []) {
   }
 }
 
-function cachedMoney(value: string | null) {
-  return value == null ? 0 : Number(value)
-}
-
 async function listBranches() {
   const branches = await listActiveBranches()
   return branches.map((branch) => {
@@ -78,23 +75,8 @@ async function listBranches() {
 }
 
 async function cashAsOf(asOf: Date, branchId?: bigint | null) {
-  const accounts = (await listActiveAccounts()).filter((account: AccountReferenceRecord) => branchId == null || account.branchId === branchId)
-  const accountIds = accounts.map((account: AccountReferenceRecord) => account.id)
-  const bankRows = accountIds.length === 0
-    ? []
-    : await prisma.bank_statement.findMany({
-      orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-      take: 30000,
-      where: { account_id: { in: accountIds }, date: { lte: endOfDay(asOf) } },
-    })
-  const balances = new Map<bigint, number>()
-  accounts.forEach((account: AccountReferenceRecord) => balances.set(account.id, cachedMoney(account.openingBalance)))
-  bankRows.forEach((row: (typeof bankRows)[number]) => {
-    if (!row.account_id) return
-    const previous = balances.get(row.account_id) ?? 0
-    balances.set(row.account_id, row.balance === null || row.balance === undefined ? previous + toNumber(row.amount_in) - toNumber(row.amount_out) : toNumber(row.balance))
-  })
-  return Array.from(balances.values()).reduce((sum, value) => sum + value, 0)
+  const position = await buildFinanceCashPosition({ asOf, branchIds: branchId == null ? null : [branchId] })
+  return position.cashAndBank
 }
 
 function jsonRows(value: unknown): JsonRecord[] {
@@ -299,13 +281,13 @@ async function profitInputs(filter: ProfitLeakFilter) {
     prisma.production_outputs.findMany({ take: 10000, where: { date, output_type: { in: ['Loss', 'Waste', 'LOSS', 'WASTE'] } } }),
     prisma.fx_gain_loss.findMany({ take: 10000, where: { date } }),
     prisma.payments.findMany({ take: 20000, where: { ...notCancelledWhere(), ...branch, date } }),
-    prisma.receipts.findMany({ take: 20000, where: { ...notCancelledWhere(), ...branch, date } }),
+    prisma.customer_receipts.findMany({ take: 20000, where: { ...notCancelledWhere(), ...branch, date } }),
     listBranches(),
   ])
 }
 
 export async function buildProfitLeak(filter: ProfitLeakFilter) {
-  const [sales, purchases, expenses, loanPayments, stockLossRows, productionLossRows, fxRows, payments, receipts, branches] = await profitInputs(filter)
+  const [sales, purchases, expenses, loanPayments, stockLossRows, productionLossRows, fxRows, payments, customerReceipts, branches] = await profitInputs(filter)
   type ProfitSalesBillRow = (typeof sales)[number]
   type ProfitPurchaseBillRow = (typeof purchases)[number]
   type ExpenseRow = (typeof expenses)[number]
@@ -314,7 +296,7 @@ export async function buildProfitLeak(filter: ProfitLeakFilter) {
   type ProductionLossRow = (typeof productionLossRows)[number]
   type FxRow = (typeof fxRows)[number]
   type PaymentRow = (typeof payments)[number]
-  type ReceiptRow = (typeof receipts)[number]
+  type CustomerReceiptRow = (typeof customerReceipts)[number]
   const negMarginItems = sales.flatMap((bill: ProfitSalesBillRow) => jsonRows(bill.items).map((item, index) => {
     const qty = jsonNumber(item.netWeight, item.weight, item.qty)
     const price = jsonNumber(item.price, item.unitPrice, item.unit_price)
@@ -359,7 +341,8 @@ export async function buildProfitLeak(filter: ProfitLeakFilter) {
   const stockLoss = stockLossRows.reduce((sum: number, row: StockLossRow) => sum + toNumber(row.value_out), 0)
   const productionLoss = productionLossRows.reduce((sum: number, row: ProductionLossRow) => sum + toNumber(row.total_cost), 0)
   const fxLoss = fxRows.reduce((sum: number, row: FxRow) => sum + Math.min(0, toNumber(row.gain_loss)), 0)
-  const bankFee = payments.reduce((sum: number, row: PaymentRow) => sum + toNumber(row.bank_fee) + toNumber(row.fee), 0) + receipts.reduce((sum: number, row: ReceiptRow) => sum + toNumber(row.bank_fee), 0)
+  const bankFee = payments.reduce((sum: number, row: PaymentRow) => sum + toNumber(row.bank_fee) + toNumber(row.fee), 0)
+    + customerReceipts.reduce((sum: number, row: CustomerReceiptRow) => sum + toNumber(row.bank_fee_total), 0)
   const customerMargins = new Map<string, { cost: number; name: string; revenue: number }>()
   sales.forEach((bill: ProfitSalesBillRow) => {
     const key = bill.customers?.code ? requireBusinessCode(bill.customers.code, `ลูกค้าบิลขาย ${bill.id}`) : 'UNKNOWN'

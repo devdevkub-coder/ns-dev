@@ -58,8 +58,8 @@ describe('customer receipt LINE notification source', () => {
   it('loads canonical RCP header, ordered SB allocations, account splits, and routing codes', async () => {
     db.findReceipt.mockResolvedValue(receipt())
     db.findStatements.mockResolvedValue([
-      { accounts: { code: 'BANK-01', name: 'บัญชีรับเงิน 1' }, amount_in: 500 },
-      { accounts: { code: 'BANK-02', name: 'บัญชีรับเงิน 2' }, amount_in: 445 },
+      { accounts: { code: 'BANK-01', name: 'บัญชีรับเงิน 1' }, book_amount_in: 500 },
+      { accounts: { code: 'BANK-02', name: 'บัญชีรับเงิน 2' }, book_amount_in: 445 },
     ])
 
     const loaded = await loadCustomerReceiptLineNotificationSource('RCP2607-0001')
@@ -82,9 +82,9 @@ describe('customer receipt LINE notification source', () => {
         discount: 50,
         documentNo: 'RCP2607-0001',
         fee: 5,
-        netCashIn: 945,
+        bookAmountThb: 1_000,
+        bookNetCashInThb: 945,
         paymentMethod: 'เงินโอน',
-        receivedAmount: 1_000,
         status: 'active',
         withholdingTax: 50,
       },
@@ -115,10 +115,10 @@ describe('customer receipt LINE notification source', () => {
     expect(db.findStatements).toHaveBeenCalledWith(expect.objectContaining({
       select: {
         accounts: { select: { code: true, name: true } },
-        amount_in: true,
+        book_amount_in: true,
       },
       where: {
-        amount_in: { gt: 0 },
+        book_amount_in: { gt: 0 },
         ref_id: '42',
         ref_type: 'RCP',
       },

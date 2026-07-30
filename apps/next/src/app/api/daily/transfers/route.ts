@@ -7,6 +7,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
 import { bankStatementTransferRows, currentActor, documentBranchCode, listDailyAccounts, lockDailyAccountBalances, nextBankStatementDocNos, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { getFinanceCurrencyPolicy } from '@/lib/server/finance-currency-policy'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -78,7 +79,8 @@ export async function POST(request: Request) {
 
     const values = transferFormSchema.parse(await request.json())
     const actor = currentActor(context)
-    const [fromAccount, toAccount] = await Promise.all([
+    const [currencyPolicy, fromAccount, toAccount] = await Promise.all([
+      getFinanceCurrencyPolicy(),
       findActiveAccountReferenceByCode(values.fromAccountId),
       findActiveAccountReferenceByCode(values.toAccountId),
     ])
@@ -163,6 +165,7 @@ export async function POST(request: Request) {
           docNo,
           entryDocNos: [statementDocNos[0]!, statementDocNos[1]!],
           fee: values.fee,
+          functionalCurrencyCode: currencyPolicy.functionalCurrencyCode,
           fromAccountId: stringifyBusinessValue(fromAccount.id),
           fromBranchId: fromAccount.branchId,
           fromAccountName: fromAccount.name,
