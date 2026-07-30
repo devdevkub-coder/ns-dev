@@ -12,6 +12,12 @@ describe('destructive selection change safety', () => {
     })).toBe(false)
     expect(receiptSourceChangeWillDiscardData({
       customerAdvanceLines: [],
+      receiptCurrencyCode: 'THB',
+      salesBillLines: [{ discountAmount: 0, id: null, receiptAmount: 0, salesBillDocNo: '', withholdingTaxAmount: 0 }],
+      splits: [{ accountId: '', amount: 0, id: null, method: '' }],
+    }, 'THB')).toBe(false)
+    expect(receiptSourceChangeWillDiscardData({
+      customerAdvanceLines: [],
       salesBillLines: [{ discountAmount: 0, id: null, receiptAmount: 350, salesBillDocNo: 'SB-001', withholdingTaxAmount: 0 }],
       splits: [{ accountId: '', amount: 0, id: null, method: '' }],
     })).toBe(true)
@@ -25,6 +31,14 @@ describe('destructive selection change safety', () => {
       salesBillLines: [],
       splits: [{ accountId: 'BANK-001', amount: 0, id: null, method: 'transfer' }],
     })).toBe(true)
+    expect(receiptSourceChangeWillDiscardData({
+      customerAdvanceLines: [],
+      fxRate: 34.5,
+      receiptCurrencyCode: 'USD',
+      receivedNativeAmount: 100,
+      salesBillLines: [],
+      splits: [{ accountId: '', amount: 0, id: null, method: '' }],
+    }, 'THB')).toBe(true)
   })
 
   it('protects every existing manual cost-pool allocation', () => {

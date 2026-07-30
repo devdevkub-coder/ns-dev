@@ -321,15 +321,15 @@ export function receiptSourceChangeWillDiscardData(
   const receiptCurrencyCode = receiptForm.receiptCurrencyCode?.trim().toUpperCase()
   const normalizedFunctionalCurrencyCode = functionalCurrencyCode.trim().toUpperCase()
   const hasForeignReceiptData = Boolean(
-    (receiptCurrencyCode && receiptCurrencyCode !== normalizedFunctionalCurrencyCode)
+    (normalizedFunctionalCurrencyCode && receiptCurrencyCode && receiptCurrencyCode !== normalizedFunctionalCurrencyCode)
     || receiptForm.accountId?.trim()
-    || Number(receiptForm.amount) !== 0
-    || Number(receiptForm.customerTransferredNativeAmount) !== 0
-    || Number(receiptForm.fee) !== 0
-    || Number(receiptForm.fxRate) !== 0
+    || Number(receiptForm.amount ?? 0) !== 0
+    || Number(receiptForm.customerTransferredNativeAmount ?? 0) !== 0
+    || Number(receiptForm.fee ?? 0) !== 0
+    || Number(receiptForm.fxRate ?? 0) !== 0
     || receiptForm.fxRateOverrideReason?.trim()
     || receiptForm.fxRateType?.trim()
-    || Number(receiptForm.receivedNativeAmount) !== 0,
+    || Number(receiptForm.receivedNativeAmount ?? 0) !== 0,
   )
   return hasForeignReceiptData
     || (receiptForm.salesBillLines ?? []).some((line) => !isBlankReceiptLine(line))
