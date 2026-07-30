@@ -18,6 +18,12 @@ updated: 2026-07-23
 
 # WTI/WTO Flow / Flow ใบรับ-ส่งของ
 
+## Form exit safety (2026-07-30)
+
+- ฟอร์ม WTI/WTO ใช้ saved-baseline snapshot แทนการเดาว่ามีข้อมูลจาก field ใด field หนึ่ง: ฟอร์มใหม่ที่ยังไม่เปลี่ยนค่าปิดได้ทันที แต่ฟอร์มที่เปลี่ยนจาก baseline ต้องยืนยันก่อนปิดหรือเปลี่ยนหน้า.
+- ทางออกจากฟอร์ม (ปุ่มปิด/กลับ, navigation หลัก, refresh และปิด tab) ใช้ [[Form Safety and Confirmation Policy]]; เลือก `แก้ไขต่อ` ต้องคงข้อมูลเดิมไว้ และเลือก `ละทิ้งการแก้ไข` จึงออกจากฟอร์ม.
+- การยกเลิก WTI/WTO ที่บันทึกแล้วต้องกรอกหมายเหตุและยืนยันอีกครั้งก่อนเรียก API. สถานะเอกสารเปลี่ยนเป็นยกเลิกโดยคงประวัติไว้ ไม่ใช่ลบเอกสารจริง.
+
 เอกสารนี้เป็น canonical flow สำหรับหน้ากลุ่ม `ชั่งสินค้า / รับ-ส่งของ` ในระบบ Next app:
 
 - route สร้าง/แก้ไข: `/daily/weight-tickets`
@@ -1059,6 +1065,17 @@ WeightTicketsPageClient (tab router)
 ส่วน `WeightTicketFormCore` เก็บ implementation ที่เหมือนกันจริง ได้แก่ state lifecycle,
 รายการเต๋า, สูตรน้ำหนัก, attachment state, validation และ save orchestration เพื่อไม่ให้
 business rule ถูกทำสำเนาแล้วเปลี่ยนไม่พร้อมกัน
+
+การลบรูปหลักฐานใช้ `WeightTicketAttachmentGrid` ร่วมกันทุกตำแหน่ง (รูปรถ, รูปเต๋า,
+และรูปสิ่งเจือปน) จึงต้องเปิด confirmation กลางก่อนเปลี่ยน attachment state. เมื่อกด
+`ไม่ลบ` state และรูปที่เห็นต้องคงเดิม; เมื่อกด `ลบรูปภาพ` จึงตัดรูปออกจาก payload ที่จะ
+ถูกบันทึกภายหลัง. การยืนยันนี้ไม่เปลี่ยน API, permission, หรือ contract การบันทึกเอกสาร.
+
+การเปลี่ยนสาขา, สินค้า, สิ่งเจือปน, สินค้าที่ปนมา หรือประเภทการหักที่ทำให้คลัง, เต๋า,
+รายการซื้อเพิ่ม หรือค่าหักที่กรอกแล้วถูกล้าง ต้องเปิด confirmation กลางก่อนเช่นกัน. ถ้ายัง
+ไม่มีข้อมูลย่อยที่ต้องทิ้ง ระบบเปลี่ยนค่าได้ทันที; ถ้ากด `ไม่เปลี่ยน` state เดิมต้องคงอยู่ และ
+ถ้ากดยืนยันจึงเรียก mutation เดิมเพียงครั้งเดียว. กติกานี้ป้องกัน draft สูญหายโดยไม่เปลี่ยน
+payload, permission, timeline หรือ ledger ของ WTI/WTO.
 
 ภายใน product source ยังแยก presentation เป็น `WeightTicketWtiFormSection` และ
 `WeightTicketWtoFormSection`; WTO section เพิ่ม warehouse และ stock availability

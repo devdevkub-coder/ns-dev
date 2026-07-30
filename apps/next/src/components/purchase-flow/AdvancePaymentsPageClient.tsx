@@ -5,6 +5,7 @@ import type React from 'react'
 import type { ButtonHTMLAttributes, Dispatch, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -215,6 +216,7 @@ export function AdvancePaymentsPageClient() {
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [form, setForm] = useState<FormState>(() => emptyForm())
+  const [formBaseline, setFormBaseline] = useState<string | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -293,8 +295,16 @@ export function AdvancePaymentsPageClient() {
     vatRatePercent: 7,
     vatType: form.vatType === 'INCLUDE' ? 'INCLUDE' : 'NONE',
   }), [form.amount, form.vatType])
+  const formSnapshot = useMemo(() => JSON.stringify({
+    form,
+    vehiclePhotoFiles: vehiclePhotoFiles.map((file) => ({ fileName: file.fileName, id: file.id })),
+  }), [form, vehiclePhotoFiles])
+  const isFormDirty = isFormOpen && formBaseline !== null && formBaseline !== formSnapshot
+  const { requestDiscard } = useUnsavedChangesGuard(isFormDirty)
+  const { requestDiscard: requestCancelDiscard } = useUnsavedChangesGuard(isCancelDialogOpen && cancelNote.length > 0)
+  const { requestConfirmation } = useActionConfirmation()
 
-  const closeForm = useCallback(() => {
+  const discardForm = useCallback(() => {
     setEditingAdvanceId(null)
     setEditingAdvanceNo(null)
     setIsFormOpen(false)
@@ -306,13 +316,14 @@ export function AdvancePaymentsPageClient() {
     })
   }, [])
 
+  const closeForm = useCallback(() => {
+    if (isSaving) return
+    requestDiscard(discardForm)
+  }, [discardForm, isSaving, requestDiscard])
+
   const openForm = useCallback(() => {
     const defaultDateTime = currentDateTimeLocalValue()
-    setEditingAdvanceId(null)
-    setEditingAdvanceNo(null)
-    setFieldErrors({})
-    setError(null)
-    setForm(() => ({
+    const nextForm = {
       ...emptyForm(),
       advanceType: 'WAITING_SORT',
       branchId: '',
@@ -321,7 +332,13 @@ export function AdvancePaymentsPageClient() {
       outDate: defaultDateTime,
       paymentMethod: '',
       vatType: 'NONE',
-    }))
+    }
+    setEditingAdvanceId(null)
+    setEditingAdvanceNo(null)
+    setFieldErrors({})
+    setError(null)
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify({ form: nextForm, vehiclePhotoFiles: [] }))
     setIsFormOpen(true)
   }, [])
 
@@ -364,7 +381,7 @@ export function AdvancePaymentsPageClient() {
     setEditingAdvanceNo(row.docNo)
     setFieldErrors({})
     setError(null)
-    setForm({
+    const nextForm = {
       amount: row.vatType === 'INCLUDE'
         ? (row.subtotalAmount ? String(row.subtotalAmount) : '')
         : (row.amount ? String(row.amount) : ''),
@@ -391,14 +408,18 @@ export function AdvancePaymentsPageClient() {
       vatType: row.vatType ?? 'NONE',
       weightIn: String(row.weightIn ?? ''),
       weightOut: String(row.weightOut ?? ''),
-    })
-    setVehiclePhotoFiles(
-      ('vehiclePhotoNames' in row ? row.vehiclePhotoNames : []).map((fileName) => ({
+    }
+    const nextVehiclePhotoFiles = ('vehiclePhotoNames' in row ? row.vehiclePhotoNames : []).map((fileName) => ({
         fileName,
         id: `existing-${fileName}`,
         url: null,
-      })),
-    )
+      }))
+    setForm(nextForm)
+    setVehiclePhotoFiles(nextVehiclePhotoFiles)
+    setFormBaseline(JSON.stringify({
+      form: nextForm,
+      vehiclePhotoFiles: nextVehiclePhotoFiles.map(({ fileName, id }) => ({ fileName, id })),
+    }))
     setIsDetailOpen(false)
     setDetail(null)
     setIsFormOpen(true)
@@ -417,6 +438,10 @@ export function AdvancePaymentsPageClient() {
     setCancelNoteError('')
     setIsCancelDialogOpen(false)
   }, [])
+
+  const requestCloseCancelDialog = useCallback(() => {
+    if (!isSaving) requestCancelDiscard(closeCancelDialog)
+  }, [closeCancelDialog, isSaving, requestCancelDiscard])
 
   const loadDetail = useCallback(async (rowId: string) => {
     setError(null)
@@ -503,6 +528,17 @@ export function AdvancePaymentsPageClient() {
     })
   }, [])
 
+  const requestRemoveVehiclePhoto = useCallback((fileId: string) => {
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ยืนยันลบรูปภาพ',
+      description: 'รูปภาพรถนี้จะถูกนำออกจากรายการที่กำลังกรอก',
+      destructive: true,
+      onConfirm: () => removeVehiclePhoto(fileId),
+      title: 'ลบรูปภาพรถนี้หรือไม่?',
+    })
+  }, [removeVehiclePhoto, requestConfirmation])
+
   const appendVehiclePhotos = useCallback((files: FileList | null) => {
     if (!files || files.length === 0) return
     const additions = Array.from(files).slice(0, 10).map((file) => ({
@@ -547,7 +583,7 @@ export function AdvancePaymentsPageClient() {
         method: editingAdvanceId ? 'PUT' : 'POST',
       })
       setForm(emptyForm())
-      closeForm()
+      discardForm()
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'บันทึกรายการจ่ายเงินล่วงหน้าไม่ได้')
@@ -556,7 +592,7 @@ export function AdvancePaymentsPageClient() {
     }
   }
 
-  const submitCancel = async () => {
+  const submitCancel = () => {
     const row = detail
     if (!row) return
     const note = cancelNote.trim()
@@ -566,6 +602,7 @@ export function AdvancePaymentsPageClient() {
     }
     setError(null)
     setCancelNoteError('')
+    requestConfirmation({ title: 'ยืนยันการยกเลิกรายการ ADV', description: `ต้องการยกเลิกรายการ ADV ${row.docNo} หรือไม่?`, confirmLabel: 'ยืนยันยกเลิก', destructive: true, onConfirm: async () => {
     setIsSaving(true)
     try {
       await dailyFetchJson(`/api/purchase/advance-payments/${row.id}`, {
@@ -578,9 +615,11 @@ export function AdvancePaymentsPageClient() {
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'ยกเลิกรายการ ADV ไม่ได้')
+      throw caught instanceof Error ? caught : new Error('ยกเลิกรายการ ADV ไม่ได้')
     } finally {
       setIsSaving(false)
     }
+    } })
   }
 
   const clearFilters = () => {
@@ -771,7 +810,7 @@ export function AdvancePaymentsPageClient() {
                               ) : (
                                 <span className="min-w-0 flex-1 truncate font-medium text-slate-500" title={file.fileName}>{file.fileName}</span>
                               )}
-                              <button className="shrink-0 text-xs font-semibold text-slate-500 hover:text-red-600" type="button" onClick={() => removeVehiclePhoto(file.id)}>
+                              <button className="shrink-0 text-xs font-semibold text-slate-500 hover:text-red-600" type="button" onClick={() => requestRemoveVehiclePhoto(file.id)}>
                                 ลบ
                               </button>
                             </div>
@@ -1244,8 +1283,7 @@ export function AdvancePaymentsPageClient() {
       </Dialog>
 
       <Dialog open={isCancelDialogOpen} onOpenChange={(open) => {
-        setIsCancelDialogOpen(open)
-        if (!open) closeCancelDialog()
+        if (!open) requestCloseCancelDialog()
       }}>
         <DialogContent hideClose mobileAppShell={false} className="max-w-lg rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 outline-none focus:outline-none" fallbackTitle="ยกเลิกรายการ ADV">
           <DialogHeader>
@@ -1271,7 +1309,7 @@ export function AdvancePaymentsPageClient() {
             {cancelNoteError ? <div className="mt-1 text-xs text-red-600">{cancelNoteError}</div> : null}
           </div>
           <DialogFooter>
-            <Button type="button" variant="secondary" onClick={closeCancelDialog}>ปิด</Button>
+            <Button disabled={isSaving} type="button" variant="secondary" onClick={requestCloseCancelDialog}>ปิด</Button>
             <Button className="bg-red-600 hover:bg-red-700" disabled={isSaving} type="button" onClick={submitCancel}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</Button>
           </DialogFooter>
         </DialogContent>

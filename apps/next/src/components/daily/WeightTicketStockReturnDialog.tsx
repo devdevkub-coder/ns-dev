@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Select } from '@/components/ui/Select'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { formatMoney } from '@/lib/daily'
 import { getErrorMessage } from '@/lib/api-client'
 
@@ -21,6 +22,10 @@ export type StockReturnOption = {
 
 export type StockReturnPayload = {
   options: StockReturnOption[]
+}
+
+function stockReturnSafetySnapshot(qtyByPendingOut: Record<string, string>, reasonByPendingOut: Record<string, string>, salesBillByPendingOut: Record<string, string>) {
+  return JSON.stringify({ qtyByPendingOut, reasonByPendingOut, salesBillByPendingOut })
 }
 
 export function WeightTicketStockReturnDialog({
@@ -41,6 +46,9 @@ export function WeightTicketStockReturnDialog({
   const [qtyByPendingOut, setQtyByPendingOut] = useState<Record<string, string>>({})
   const [reasonByPendingOut, setReasonByPendingOut] = useState<Record<string, string>>({})
   const [salesBillByPendingOut, setSalesBillByPendingOut] = useState<Record<string, string>>({})
+  const [formBaseline, setFormBaseline] = useState('')
+  const isDirty = Boolean(formBaseline) && stockReturnSafetySnapshot(qtyByPendingOut, reasonByPendingOut, salesBillByPendingOut) !== formBaseline
+  const { requestDiscard } = useUnsavedChangesGuard(open && isDirty)
 
   const loadOptions = useCallback(async () => {
     setIsLoading(true)
@@ -50,9 +58,13 @@ export function WeightTicketStockReturnDialog({
       if (!response.ok) throw new Error(await response.text())
       const payload = await response.json() as StockReturnPayload
       setOptions(payload.options)
-      setQtyByPendingOut(Object.fromEntries(payload.options.map((option) => [option.pendingOutKey, String(option.pendingQty)])))
-      setReasonByPendingOut({})
-      setSalesBillByPendingOut(Object.fromEntries(payload.options.map((option) => [option.pendingOutKey, option.salesBillDocNos[0] ?? ''])))
+      const nextQtyByPendingOut = Object.fromEntries(payload.options.map((option) => [option.pendingOutKey, String(option.pendingQty)]))
+      const nextReasonByPendingOut = {}
+      const nextSalesBillByPendingOut = Object.fromEntries(payload.options.map((option) => [option.pendingOutKey, option.salesBillDocNos[0] ?? '']))
+      setQtyByPendingOut(nextQtyByPendingOut)
+      setReasonByPendingOut(nextReasonByPendingOut)
+      setSalesBillByPendingOut(nextSalesBillByPendingOut)
+      setFormBaseline(stockReturnSafetySnapshot(nextQtyByPendingOut, nextReasonByPendingOut, nextSalesBillByPendingOut))
     } catch (caught) {
       setError(getErrorMessage(caught, 'โหลด pending_out สำหรับรับของคืนไม่ได้'))
     } finally {
@@ -110,9 +122,13 @@ export function WeightTicketStockReturnDialog({
     }
   }
 
+  function requestClose() {
+    requestDiscard(onClose)
+  }
+
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => {
-      if (!nextOpen) onClose()
+      if (!nextOpen) requestClose()
     }}>
       <DialogContent hideClose aria-labelledby="wto-stock-return-title" className="max-h-[90vh] max-w-6xl overflow-hidden rounded-md !p-0 flex flex-col bg-slate-900 border-0 shadow-2xl outline-none focus:outline-none">
         <DialogHeader className="rounded-t-md bg-slate-900 px-5 py-4 text-white">
@@ -121,7 +137,7 @@ export function WeightTicketStockReturnDialog({
               <DialogTitle id="wto-stock-return-title" className="truncate text-white">รับของคืนจากใบส่งของ</DialogTitle>
               <DialogDescription className="truncate font-mono text-xs text-slate-300">{ticketDocNo}</DialogDescription>
             </div>
-            <Button className="h-9 shrink-0 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={onClose}>ปิด</Button>
+            <Button className="h-9 shrink-0 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={requestClose}>ปิด</Button>
           </div>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto bg-slate-50 p-4">

@@ -26,6 +26,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { formatDecimalDisplay, formatDecimalDraft, formatPhoneDisplay, sanitizeAccountNoInput, sanitizeDecimalInput } from '@/lib/format'
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { Select } from '@/components/ui/Select'
 import { invalidateClientReferenceRecords, listClientReferenceRecords } from '@/lib/client-reference-cache'
 import { invalidateSalesBillReferencesCache } from '@/lib/sales-bill-options-cache'
@@ -154,6 +155,11 @@ function parseNumericFieldValue(value: string) {
   if (value.trim() === '' || value.trim() === '.') return null
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function formSnapshot(values: MasterDataFormValues) {
+  // MasterDataFormValues is limited to JSON-safe primitives and currency-balance rows.
+  return JSON.stringify(values)
 }
 
 function compareRecords(left: MasterDataRecord, right: MasterDataRecord, key: SortKey, direction: 'asc' | 'desc') {
@@ -323,6 +329,7 @@ function validateMasterDataForm(
 export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
   const [error, setError] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
+  const [formDirty, setFormDirty] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [records, setRecords] = useState<MasterDataRecord[]>([])
@@ -350,6 +357,8 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
     { defaultWidth: 72, key: '__action', minWidth: 64, maxWidth: 88 },
   ]), [config.columns])
   const columnResize = useResizableColumns<TableColumnKey>(`master-data.${config.apiPath}`, resizableColumns)
+  const { requestDiscard } = useUnsavedChangesGuard(formDirty)
+  const { requestConfirmation } = useActionConfirmation()
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -445,14 +454,27 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
   const currencyOptions = fieldOptions.currency ?? []
 
   function openCreateForm() {
+    setFormDirty(false)
     setSelectedRecord(null)
     setFormOpen(true)
   }
 
   function openEditForm(record: MasterDataRecord) {
+    setFormDirty(false)
     setSelectedRecord(record)
     setFormOpen(true)
   }
+
+  const closeForm = useCallback(() => {
+    setFormDirty(false)
+    setFormOpen(false)
+    setSelectedRecord(null)
+  }, [])
+
+  const requestCloseForm = useCallback(() => {
+    if (isSaving) return
+    requestDiscard(closeForm)
+  }, [closeForm, isSaving, requestDiscard])
 
   async function handleSubmit(values: MasterDataFormValues) {
     setIsSaving(true)
@@ -461,11 +483,11 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
       await saveMasterDataRecord(config.apiPath, values)
       invalidateClientReferenceRecords(CLIENT_REFERENCE_MASTER_PATHS)
       invalidateSalesBillReferencesCache()
-      setFormOpen(false)
-      setSelectedRecord(null)
       await loadData()
+      return true
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : `บันทึกข้อมูล${config.entityName}ไม่ได้`)
+      return false
     } finally {
       setIsSaving(false)
     }
@@ -480,7 +502,23 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : `อัปเดตสถานะ${config.entityName}ไม่ได้`)
+      throw caught
     }
+  }
+
+  function requestToggleActive(record: MasterDataRecord) {
+    if (!record.active) {
+      void handleToggleActive(record).catch(() => undefined)
+      return
+    }
+
+    requestConfirmation({
+      confirmLabel: 'ปิดการใช้งาน',
+      description: `ต้องการปิดการใช้งาน${config.entityName} “${record.code} — ${record.name}” ใช่หรือไม่?`,
+      destructive: true,
+      onConfirm: () => handleToggleActive(record),
+      title: `ปิดการใช้งาน${config.entityName}?`,
+    })
   }
 
   function setSort(key: SortKey) {
@@ -680,7 +718,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
         </MobileFilterSheet>
       ) : null}
 
-      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) { setFormOpen(false); setSelectedRecord(null); } }}>
+      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) requestCloseForm() }}>
         <DialogContent className="max-w-4xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
           <MasterDataForm
             config={resolvedConfig}
@@ -688,10 +726,9 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
             paymentMethodRows={fieldOptionRows.type ?? []}
             supportsActive={config.supportsActive !== false}
             record={selectedRecord}
-            onCancel={() => {
-              setFormOpen(false)
-              setSelectedRecord(null)
-            }}
+            onCancel={requestCloseForm}
+            onDirtyChange={setFormDirty}
+            onSaved={closeForm}
             onSubmit={handleSubmit}
           />
         </DialogContent>
@@ -775,7 +812,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
                           <ActiveToggle
                             checked={record.active}
                             label={record.active ? 'ใช้งาน' : 'ปิด'}
-                            onChange={() => void handleToggleActive(record)}
+                            onChange={() => requestToggleActive(record)}
                           />
                         ) : null}
                         {!column.format ? displayRecordValue(record, column.key) : null}
@@ -820,7 +857,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
                       <ActiveToggle
                         checked={record.active}
                         label={record.active ? 'ใช้งาน' : 'ปิด'}
-                        onChange={() => void handleToggleActive(record)}
+                        onChange={() => requestToggleActive(record)}
                       />
                     </div>
                   ) : null}
@@ -865,17 +902,29 @@ type MasterDataFormProps = {
   record: MasterDataRecord | null
   supportsActive: boolean
   onCancel: () => void
-  onSubmit: (values: MasterDataFormValues) => Promise<void>
+  onDirtyChange: (dirty: boolean) => void
+  onSaved: () => void
+  onSubmit: (values: MasterDataFormValues) => Promise<boolean>
 }
 
-function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsActive, onCancel, onSubmit }: MasterDataFormProps) {
+function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsActive, onCancel, onDirtyChange, onSaved, onSubmit }: MasterDataFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<MasterDataFormValues>(() => (record ? recordToForm(record, paymentMethodRows) : emptyFormForConfig(config)))
+  const [baseline, setBaseline] = useState(() => formSnapshot(form))
+  const isDirty = formSnapshot(form) !== baseline
+  const { requestConfirmation } = useActionConfirmation()
 
   useEffect(() => {
-    setForm(record ? recordToForm(record, paymentMethodRows) : emptyFormForConfig(config))
+    const nextForm = record ? recordToForm(record, paymentMethodRows) : emptyFormForConfig(config)
+    setForm(nextForm)
+    setBaseline(formSnapshot(nextForm))
     setErrors({})
   }, [config, paymentMethodRows, record])
+
+  useEffect(() => {
+    onDirtyChange(isDirty)
+    return () => onDirtyChange(false)
+  }, [isDirty, onDirtyChange])
 
   function update<K extends keyof MasterDataFormValues>(key: K, value: MasterDataFormValues[K]) {
     setForm((current) => {
@@ -934,6 +983,21 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
     })
   }
 
+  function requestActiveChange(active: boolean) {
+    if (active) {
+      update('active', active)
+      return
+    }
+
+    requestConfirmation({
+      confirmLabel: 'ปิดการใช้งาน',
+      description: `ต้องการปิดการใช้งาน${config.entityName}เมื่อบันทึกใช่หรือไม่?`,
+      destructive: true,
+      onConfirm: () => update('active', false),
+      title: `ปิดการใช้งาน${config.entityName}?`,
+    })
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const result = validateMasterDataForm(config, form, paymentMethodRows)
@@ -943,7 +1007,11 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
     }
 
     setErrors({})
-    await onSubmit({ ...form, ...result.values })
+    const submittedValues = { ...form, ...result.values }
+    if (await onSubmit(submittedValues)) {
+      setBaseline(formSnapshot(submittedValues))
+      onSaved()
+    }
   }
 
   function isFieldVisible(field: MasterDataField) {
@@ -1011,8 +1079,8 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
       <div data-ns-dialog-header className="flex flex-col gap-3 bg-slate-900 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
         <h3 className="text-lg font-bold text-white">{form.id ? `แก้ไข${config.entityName}` : config.createLabel}</h3>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          {supportsActive ? <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-current" onChange={(checked) => update('active', checked)} /> : null}
-          <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white transition-colors hover:border-rose-700 hover:bg-rose-700 focus:outline-none" type="button" onClick={onCancel}>
+          {supportsActive ? <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-current" onChange={requestActiveChange} /> : null}
+          <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white transition-colors hover:border-rose-700 hover:bg-rose-700 disabled:opacity-60 focus:outline-none" disabled={isSaving} type="button" onClick={onCancel}>
             ยกเลิก
           </button>
           <button className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60 focus:outline-none" disabled={isSaving} type="submit">
@@ -1054,7 +1122,7 @@ type FormFieldProps = {
   onChange: (value: string | boolean | AccountCurrencyBalanceValue[]) => void
 }
 
-function FormField({ error, excludedCurrency, field, value, onChange }: FormFieldProps) {
+export function FormField({ error, excludedCurrency, field, value, onChange }: FormFieldProps) {
   const isEmailField = field.key === 'email'
   const isPhoneField = field.key === 'phone'
   const isAccountNoField = field.key === 'accountNo'
@@ -1063,6 +1131,7 @@ function FormField({ error, excludedCurrency, field, value, onChange }: FormFiel
   const inputType = isEmailField ? 'email' : 'text'
   const inputPlaceholder = isEmailField ? 'example@company.com' : `กรอก${field.label}`
   const [draftValue, setDraftValue] = useState<string | null>(null)
+  const { requestConfirmation } = useActionConfirmation()
 
   if (field.type === 'currency-balances') {
     const selected = Array.isArray(value) ? value : []
@@ -1076,6 +1145,22 @@ function FormField({ error, excludedCurrency, field, value, onChange }: FormFiel
               option.value !== excludedCurrency
               && (option.value === entry.currency || !selected.some((other, otherIndex) => otherIndex !== index && other.currency === option.value))
             ))
+            const removeEntry = () => onChange(selected.filter((_, currentIndex) => currentIndex !== index))
+            const entryHasValues = Boolean(entry.currency)
+            const requestRemoval = () => {
+              if (!entryHasValues) {
+                removeEntry()
+                return
+              }
+
+              requestConfirmation({
+                confirmLabel: 'ลบรายการ',
+                description: 'สกุลเงินของรายการนี้จะถูกนำออกจากแบบฟอร์ม หากมีรายการยอดยกมาระบบจะไม่อนุญาตให้ลบ',
+                destructive: true,
+                onConfirm: removeEntry,
+                title: 'ยืนยันการลบรายการสกุลเงิน?',
+              })
+            }
             return (
               <div key={`${entry.currency}-${index}`} className="flex items-center gap-2">
                 <select
@@ -1092,7 +1177,7 @@ function FormField({ error, excludedCurrency, field, value, onChange }: FormFiel
                   className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-500 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600"
                   title="ลบสกุลเงิน"
                   type="button"
-                  onClick={() => onChange(selected.filter((_, currentIndex) => currentIndex !== index))}
+                  onClick={requestRemoval}
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>

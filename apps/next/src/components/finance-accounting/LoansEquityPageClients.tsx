@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -503,6 +504,7 @@ export function EquityMaintenancePageClient() {
 }
 
 export function OpeningBalancePageClient() {
+  const { requestConfirmation } = useActionConfirmation()
   const { data, error } = useApi<OpeningPayload>('/api/finance-accounting/opening-balance')
   const columnResize = useResizableColumns('finance-accounting.opening-balance.accounts.v1', openingAccountColumns)
   const accounts = useMemo(() => data?.accounts ?? [], [data?.accounts])
@@ -510,6 +512,7 @@ export function OpeningBalancePageClient() {
   const tabs = ['ตั้งค่า', 'เงินสด/ธนาคาร/FCD/OD', 'AR ลูกหนี้', 'AP ต้นทุน', 'AP ค่าใช้จ่าย', 'สต็อก', 'ทรัพย์สินถาวร', 'เงินกู้', 'VAT/WHT', 'อื่นๆ', 'ส่วนทุน/YTD', 'ตรวจงบดุล + ล็อก']
   const [activeTab, setActiveTab] = useState(tabs[0])
   const [stockItems, setStockItems] = useState<OpeningStockItem[]>([])
+  const [stockItemsBaseline, setStockItemsBaseline] = useState<OpeningStockItem[]>([])
   const [stockMessage, setStockMessage] = useState<string | null>(null)
   const [stockError, setStockError] = useState<string | null>(null)
   const [stockBusy, setStockBusy] = useState(false)
@@ -530,13 +533,34 @@ export function OpeningBalancePageClient() {
   const [balanceImportError, setBalanceImportError] = useState<string | null>(null)
   const [balanceImportMessage, setBalanceImportMessage] = useState<string | null>(null)
   const [balanceImportBusy, setBalanceImportBusy] = useState(false)
-  useEffect(() => { if (data?.stock.items) setStockItems(data.stock.items) }, [data?.stock.items])
+  const stockItemsHydratedRef = useRef(false)
+  const stockItemsSnapshot = useMemo(() => JSON.stringify(stockItems), [stockItems])
+  const stockItemsBaselineSnapshot = useMemo(() => JSON.stringify(stockItemsBaseline), [stockItemsBaseline])
+  const stockItemsAreDirty = stockItemsSnapshot !== stockItemsBaselineSnapshot
+  useUnsavedChangesGuard(stockItemsAreDirty)
+  useEffect(() => {
+    if (!data?.stock.items || stockItemsHydratedRef.current) return
+    stockItemsHydratedRef.current = true
+    if (stockItemsSnapshot !== stockItemsBaselineSnapshot) {
+      const serverItemIds = new Set(data.stock.items.map((item) => item.id))
+      setStockItems([...data.stock.items, ...stockItems.filter((item) => !serverItemIds.has(item.id))])
+      setStockItemsBaseline(data.stock.items)
+      return
+    }
+    setStockItems(data.stock.items)
+    setStockItemsBaseline(data.stock.items)
+  }, [data?.stock.items, stockItems, stockItemsBaselineSnapshot, stockItemsSnapshot])
   useEffect(() => { if (data?.stock.cutoffDate) setImportDate(data.stock.cutoffDate); if (!importBranch && data?.stock.references.branches[0]) setImportBranch(data.stock.references.branches[0].code) }, [data?.stock.cutoffDate, data?.stock.references.branches, importBranch])
   function updateStockItem(id: string, patch: Partial<OpeningStockItem>) { setStockItems((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item)); setStockMessage(null); setStockError(null) }
-  async function saveStockItems(items: OpeningStockItem[], successMessage: string, cutoffDate?: string) {
+  async function saveStockItems(
+    items: OpeningStockItem[],
+    successMessage: string,
+    { cutoffDate, rethrow = false }: { cutoffDate?: string; rethrow?: boolean } = {},
+  ) {
+    stockItemsHydratedRef.current = true
     setStockBusy(true); setStockMessage(null); setStockError(null)
-    try { const payload = await dailyFetchJson<{ stock: OpeningStockItem[] }>('/api/finance-accounting/opening-balance', { body: JSON.stringify({ action: 'save', ...(cutoffDate ? { cutoffDate } : {}), stockItems: items }), method: 'POST' }); setStockItems(payload.stock); setStockMessage(successMessage) }
-    catch (caught) { setStockError(caught instanceof Error ? caught.message : 'บันทึกรายการยกยอดไม่ได้') } finally { setStockBusy(false) }
+    try { const payload = await dailyFetchJson<{ stock: OpeningStockItem[] }>('/api/finance-accounting/opening-balance', { body: JSON.stringify({ action: 'save', ...(cutoffDate ? { cutoffDate } : {}), stockItems: items }), method: 'POST' }); setStockItems(payload.stock); setStockItemsBaseline(payload.stock); setStockMessage(successMessage) }
+    catch (caught) { setStockError(caught instanceof Error ? caught.message : 'บันทึกรายการยกยอดไม่ได้'); if (rethrow) throw caught } finally { setStockBusy(false) }
   }
   async function previewStockImport() {
     if (!importFile) { setStockError('เลือกไฟล์ Excel ก่อนตรวจสอบ'); return }
@@ -555,23 +579,50 @@ export function OpeningBalancePageClient() {
     if (!importPreview || importPreview.errors.length) { setStockError('ต้องแก้ไขข้อผิดพลาดในไฟล์ก่อนนำเข้า'); return }
     const existingIds = new Set(stockItems.map((item) => item.id))
     const merged = [...stockItems, ...importPreview.items.filter((item) => !existingIds.has(item.id))]
-    await saveStockItems(merged, `นำเข้า Stock Opening ${importPreview.items.length} รายการแล้ว`, importPreview.cutoffDate)
+    try {
+      await saveStockItems(merged, `นำเข้า Stock Opening ${importPreview.items.length} รายการแล้ว`, { cutoffDate: importPreview.cutoffDate, rethrow: true })
+    } catch {
+      return
+    }
     setImportPreview(null); setImportFile(null)
   }
   async function applyStockItem(item: OpeningStockItem) {
     if (!item.productId || !item.branchId || !item.warehouseId || item.qty <= 0 || item.unitCost <= 0) { setStockError('กรอกสินค้า สาขา คลัง จำนวน และต้นทุนให้ครบก่อน Apply'); return }
     if (!item.paid && !item.supplierId) { setStockError('ถ้ายังไม่จ่าย ต้องเลือก Supplier เพื่อสร้าง AP ก่อน Apply'); return }
+    stockItemsHydratedRef.current = true
     setStockBusy(true); setStockMessage(null); setStockError(null)
-    try { const payload = await dailyFetchJson<{ item: OpeningStockItem }>('/api/finance-accounting/opening-balance', { body: JSON.stringify({ action: 'apply', item }), method: 'POST' }); setStockItems((current) => current.some((candidate) => candidate.id === payload.item.id) ? current.map((candidate) => candidate.id === payload.item.id ? payload.item : candidate) : [...current, payload.item]); setStockMessage(`Apply รายการ ${item.lotNo || 'OPENING'} แล้ว — สร้าง OPENING_STOCK_IN ใน Stock Ledger เรียบร้อย`) }
+    try { const payload = await dailyFetchJson<{ item: OpeningStockItem }>('/api/finance-accounting/opening-balance', { body: JSON.stringify({ action: 'apply', item }), method: 'POST' }); const updateItem = (items: OpeningStockItem[]) => items.some((candidate) => candidate.id === payload.item.id) ? items.map((candidate) => candidate.id === payload.item.id ? payload.item : candidate) : [...items, payload.item]; setStockItems(updateItem); setStockItemsBaseline(updateItem); setStockMessage(`Apply รายการ ${item.lotNo || 'OPENING'} แล้ว — สร้าง OPENING_STOCK_IN ใน Stock Ledger เรียบร้อย`) }
     catch (caught) { setStockError(caught instanceof Error ? caught.message : 'Apply ยอดสต็อกไม่ได้') } finally { setStockBusy(false) }
   }
   async function unapplyStockItem(item: OpeningStockItem) {
+    stockItemsHydratedRef.current = true
     setStockBusy(true); setStockMessage(null); setStockError(null)
-    try { await dailyFetchJson('/api/finance-accounting/opening-balance', { body: JSON.stringify({ action: 'unapply', itemId: item.id }), method: 'POST' }); setStockItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, applied: false, appliedAt: null, appliedRefId: null, appliedApRefId: null } : candidate)); setStockMessage('ยกเลิก Apply แล้ว สามารถแก้ไขรายการได้') }
-    catch (caught) { setStockError(caught instanceof Error ? caught.message : 'ยกเลิก Apply ไม่ได้') } finally { setStockBusy(false) }
+    try { await dailyFetchJson('/api/finance-accounting/opening-balance', { body: JSON.stringify({ action: 'unapply', itemId: item.id }), method: 'POST' }); const updateItem = (items: OpeningStockItem[]) => items.map((candidate) => candidate.id === item.id ? { ...candidate, applied: false, appliedAt: null, appliedRefId: null, appliedApRefId: null } : candidate); setStockItems(updateItem); setStockItemsBaseline(updateItem); setStockMessage('ยกเลิก Apply แล้ว สามารถแก้ไขรายการได้') }
+    catch (caught) { setStockError(caught instanceof Error ? caught.message : 'ยกเลิก Apply ไม่ได้'); throw caught } finally { setStockBusy(false) }
+  }
+  function requestUnapplyStockItem(item: OpeningStockItem) {
+    requestConfirmation({
+      confirmLabel: 'ยืนยัน Unapply',
+      description: `ต้องการ Unapply รายการ ${item.lotNo || 'OPENING'} หรือไม่? ระบบจะนำรายการนี้ออกจาก Stock Ledger และ AP ที่ระบบสร้างไว้`,
+      destructive: true,
+      onConfirm: () => unapplyStockItem(item),
+      title: 'ยืนยันการ Unapply ยอดสต็อก',
+    })
   }
   function addStockItem() { const firstBranch = data?.stock.references.branches[0]; const firstWarehouse = data?.stock.references.warehouses.find((warehouse) => warehouse.branchId === firstBranch?.id); setStockItems((current) => [...current, { applied: false, branchId: firstBranch?.id ?? '', id: `OB-ST-${Date.now()}`, itemStatus: 'RM', lotNo: 'OPENING', paid: true, productId: '', qty: 0, unitCost: 0, warehouseId: firstWarehouse?.id ?? '' }]); setStockMessage(null); setStockError(null) }
-  async function removeStockItem(item: OpeningStockItem) { if (item.applied) { setStockError('รายการนี้ Apply แล้ว ให้กด Unapply ก่อนลบ'); return }; await saveStockItems(stockItems.filter((candidate) => candidate.id !== item.id), 'ลบรายการยกยอดแล้ว') }
+  function requestRemoveStockItem(item: OpeningStockItem) {
+    if (item.applied) {
+      setStockError('รายการนี้ Apply แล้ว ให้กด Unapply ก่อนลบ')
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'ยืนยันลบ',
+      description: `ต้องการลบรายการยกยอด ${item.lotNo || 'OPENING'} หรือไม่?`,
+      destructive: true,
+      onConfirm: () => saveStockItems(stockItems.filter((candidate) => candidate.id !== item.id), 'ลบรายการยกยอดแล้ว', { rethrow: true }),
+      title: 'ยืนยันการลบรายการยกยอด',
+    })
+  }
   const stockValue = stockItems.reduce((sum, item) => sum + item.qty * item.unitCost, 0)
   const stockPaidValue = stockItems.filter((item) => item.paid).reduce((sum, item) => sum + item.qty * item.unitCost, 0)
   const stockRefs = data?.stock.references
@@ -647,7 +698,7 @@ export function OpeningBalancePageClient() {
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-bold text-slate-800">📦 Stock Opening — Inventory ยกมา</h2><div className="flex gap-2"><button className="h-9 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white disabled:opacity-50" disabled={stockBusy || data?.stock.locked} onClick={addStockItem} type="button">+ เพิ่มรายการ</button><button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 disabled:opacity-50" disabled={stockBusy || data?.stock.locked} onClick={() => saveStockItems(stockItems, 'บันทึกรายการยกยอดแล้ว')} type="button">{stockBusy ? 'กำลังบันทึก...' : 'บันทึก'}</button></div></div>
           <div className="overflow-x-auto"><table className="min-w-[1250px] w-full text-xs"><thead className="bg-slate-100 text-left text-slate-600"><tr><th className="p-2">สินค้า</th><th className="p-2">Status</th><th className="p-2">สาขา</th><th className="p-2">คลัง</th><th className="p-2">Lot</th><th className="p-2 text-right">Qty</th><th className="p-2 text-right">WAC/หน่วย</th><th className="p-2 text-right">มูลค่า</th><th className="p-2 text-center">จ่ายแล้ว</th><th className="p-2">Supplier</th><th className="p-2">เลขบิลซื้อ</th><th className="p-2 text-center">สถานะ</th><th className="p-2" /></tr></thead><tbody className="divide-y divide-slate-100">
             {stockItems.map((item) => { const warehouses = (stockRefs?.warehouses ?? []).filter((warehouse) => warehouse.branchId === item.branchId); return <tr className={item.applied ? 'bg-emerald-50/50' : undefined} key={item.id}>
-              <td className="p-2"><Select className="h-9 min-w-[220px]" disabled={item.applied || stockBusy} value={item.productId} onChange={(event) => updateStockItem(item.id, { productId: event.target.value })}><option value="">เลือกสินค้า</option>{(stockRefs?.products ?? []).map((product) => <option key={product.id} value={product.id}>{product.code} - {product.name}</option>)}</Select></td><td className="p-2"><Select className="h-9" disabled={item.applied || stockBusy} value={item.itemStatus} onChange={(event) => updateStockItem(item.id, { itemStatus: event.target.value as OpeningStockItem['itemStatus'] })}><option value="RM">RM</option><option value="WIP">WIP</option><option value="FG">FG</option></Select></td><td className="p-2"><Select className="h-9" disabled={item.applied || stockBusy} value={item.branchId} onChange={(event) => updateStockItem(item.id, { branchId: event.target.value, warehouseId: '' })}><option value="">เลือกสาขา</option>{(stockRefs?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.code}</option>)}</Select></td><td className="p-2"><Select className="h-9" disabled={item.applied || stockBusy} value={item.warehouseId} onChange={(event) => updateStockItem(item.id, { warehouseId: event.target.value })}><option value="">เลือกคลัง</option>{warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.code} - {warehouse.name}</option>)}</Select></td><td className="p-2"><input className="h-9 w-28 rounded-md border border-slate-300 px-2" disabled={item.applied || stockBusy} value={item.lotNo} onChange={(event) => updateStockItem(item.id, { lotNo: event.target.value })} /></td><td className="p-2"><input className="h-9 w-24 rounded-md border border-slate-300 px-2 text-right" disabled={item.applied || stockBusy} min="0" step="0.001" type="number" value={item.qty || ''} onChange={(event) => updateStockItem(item.id, { qty: Number(event.target.value) || 0 })} /></td><td className="p-2"><input className="h-9 w-24 rounded-md border border-slate-300 px-2 text-right" disabled={item.applied || stockBusy} min="0.01" step="0.01" type="number" value={item.unitCost || ''} onChange={(event) => updateStockItem(item.id, { unitCost: Number(event.target.value) || 0 })} /></td><td className="p-2 text-right font-semibold tabular-nums">{formatMoney(item.qty * item.unitCost)}</td><td className="p-2 text-center"><input checked={item.paid} disabled={item.applied || stockBusy} type="checkbox" onChange={(event) => updateStockItem(item.id, { paid: event.target.checked })} /></td><td className="p-2"><Select className="h-9 min-w-[170px]" disabled={item.applied || item.paid || stockBusy} value={item.supplierId ?? ''} onChange={(event) => updateStockItem(item.id, { supplierId: event.target.value || null })}><option value="">เลือก Supplier</option>{(stockRefs?.suppliers ?? []).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.code} - {supplier.name}</option>)}</Select></td><td className="p-2"><input className="h-9 w-32 rounded-md border border-slate-300 px-2" disabled={item.applied || item.paid || stockBusy} value={item.linkedBillNo ?? ''} onChange={(event) => updateStockItem(item.id, { linkedBillNo: event.target.value || null })} /></td><td className="p-2 text-center">{item.applied ? <span className="rounded bg-emerald-100 px-2 py-1 font-bold text-emerald-700">✓ Applied</span> : <span className="rounded bg-amber-100 px-2 py-1 text-amber-700">Pending</span>}</td><td className="p-2"><div className="flex gap-1">{item.applied ? <button className="rounded bg-slate-100 px-2 py-1 text-slate-700" disabled={stockBusy || data?.stock.locked} onClick={() => unapplyStockItem(item)} type="button">Unapply</button> : <button className="rounded bg-emerald-600 px-2 py-1 font-bold text-white" disabled={stockBusy || data?.stock.locked} onClick={() => applyStockItem(item)} type="button">Apply</button>}<button className="px-1 py-1 text-red-600" disabled={stockBusy || data?.stock.locked || item.applied} onClick={() => removeStockItem(item)} type="button">✕</button></div></td>
+              <td className="p-2"><Select className="h-9 min-w-[220px]" disabled={item.applied || stockBusy} value={item.productId} onChange={(event) => updateStockItem(item.id, { productId: event.target.value })}><option value="">เลือกสินค้า</option>{(stockRefs?.products ?? []).map((product) => <option key={product.id} value={product.id}>{product.code} - {product.name}</option>)}</Select></td><td className="p-2"><Select className="h-9" disabled={item.applied || stockBusy} value={item.itemStatus} onChange={(event) => updateStockItem(item.id, { itemStatus: event.target.value as OpeningStockItem['itemStatus'] })}><option value="RM">RM</option><option value="WIP">WIP</option><option value="FG">FG</option></Select></td><td className="p-2"><Select className="h-9" disabled={item.applied || stockBusy} value={item.branchId} onChange={(event) => updateStockItem(item.id, { branchId: event.target.value, warehouseId: '' })}><option value="">เลือกสาขา</option>{(stockRefs?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.code}</option>)}</Select></td><td className="p-2"><Select className="h-9" disabled={item.applied || stockBusy} value={item.warehouseId} onChange={(event) => updateStockItem(item.id, { warehouseId: event.target.value })}><option value="">เลือกคลัง</option>{warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.code} - {warehouse.name}</option>)}</Select></td><td className="p-2"><input className="h-9 w-28 rounded-md border border-slate-300 px-2" disabled={item.applied || stockBusy} value={item.lotNo} onChange={(event) => updateStockItem(item.id, { lotNo: event.target.value })} /></td><td className="p-2"><input className="h-9 w-24 rounded-md border border-slate-300 px-2 text-right" disabled={item.applied || stockBusy} min="0" step="0.001" type="number" value={item.qty || ''} onChange={(event) => updateStockItem(item.id, { qty: Number(event.target.value) || 0 })} /></td><td className="p-2"><input className="h-9 w-24 rounded-md border border-slate-300 px-2 text-right" disabled={item.applied || stockBusy} min="0.01" step="0.01" type="number" value={item.unitCost || ''} onChange={(event) => updateStockItem(item.id, { unitCost: Number(event.target.value) || 0 })} /></td><td className="p-2 text-right font-semibold tabular-nums">{formatMoney(item.qty * item.unitCost)}</td><td className="p-2 text-center"><input checked={item.paid} disabled={item.applied || stockBusy} type="checkbox" onChange={(event) => updateStockItem(item.id, { paid: event.target.checked })} /></td><td className="p-2"><Select className="h-9 min-w-[170px]" disabled={item.applied || item.paid || stockBusy} value={item.supplierId ?? ''} onChange={(event) => updateStockItem(item.id, { supplierId: event.target.value || null })}><option value="">เลือก Supplier</option>{(stockRefs?.suppliers ?? []).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.code} - {supplier.name}</option>)}</Select></td><td className="p-2"><input className="h-9 w-32 rounded-md border border-slate-300 px-2" disabled={item.applied || item.paid || stockBusy} value={item.linkedBillNo ?? ''} onChange={(event) => updateStockItem(item.id, { linkedBillNo: event.target.value || null })} /></td><td className="p-2 text-center">{item.applied ? <span className="rounded bg-emerald-100 px-2 py-1 font-bold text-emerald-700">✓ Applied</span> : <span className="rounded bg-amber-100 px-2 py-1 text-amber-700">Pending</span>}</td><td className="p-2"><div className="flex gap-1">{item.applied ? <button className="rounded bg-slate-100 px-2 py-1 text-slate-700" disabled={stockBusy || data?.stock.locked} onClick={() => requestUnapplyStockItem(item)} type="button">Unapply</button> : <button className="rounded bg-emerald-600 px-2 py-1 font-bold text-white" disabled={stockBusy || data?.stock.locked} onClick={() => applyStockItem(item)} type="button">Apply</button>}<button className="px-1 py-1 text-red-600" disabled={stockBusy || data?.stock.locked || item.applied} onClick={() => requestRemoveStockItem(item)} type="button">✕</button></div></td>
             </tr> })}
             {!stockItems.length ? <tr><td className="p-8 text-center text-slate-400" colSpan={13}>ยังไม่มีรายการยกยอด กด “+ เพิ่มรายการ” เพื่อเริ่มต้น</td></tr> : null}
           </tbody></table></div>

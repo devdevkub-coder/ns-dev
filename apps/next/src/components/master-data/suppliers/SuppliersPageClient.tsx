@@ -19,6 +19,7 @@ import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { FormSelectField } from '@/components/ui/FormSelectField'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PhoneInput } from '@/components/ui/PhoneInput'
@@ -60,6 +61,17 @@ const emptyBankAccount: SupplierBankAccountForm = {
   branchCode: null,
   isPrimary: true,
   active: true,
+}
+
+export function isBlankSupplierBankAccount(
+  account: Pick<SupplierBankAccountForm, 'accountNo' | 'bankAccount' | 'bankName' | 'branchCode' | 'id' | 'paymentMethod'>,
+) {
+  return account.id === null
+    && !account.paymentMethod.trim()
+    && !account.bankName?.trim()
+    && !account.accountNo?.trim()
+    && !account.bankAccount?.trim()
+    && !account.branchCode?.trim()
 }
 
 const emptySupplierForm: SupplierFormValues = {
@@ -221,6 +233,7 @@ export function SuppliersPageClient() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [districts, setDistricts] = useState<ThaiDistrict[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [formDirty, setFormDirty] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
@@ -246,6 +259,8 @@ export function SuppliersPageClient() {
   const [subdistricts, setSubdistricts] = useState<ThaiSubdistrict[]>([])
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const columnResize = useResizableColumns('master-data.suppliers.v5', supplierColumns)
+  const { requestDiscard } = useUnsavedChangesGuard(formDirty)
+  const { requestConfirmation } = useActionConfirmation()
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -356,14 +371,24 @@ export function SuppliersPageClient() {
     setError(null)
     try {
       await saveSupplier(values)
-      setFormOpen(false)
-      setSelectedSupplier(null)
+      closeForm()
       await loadData()
     } catch (caught) {
       setError(getErrorMessage(caught, 'บันทึกข้อมูลผู้ขายไม่ได้'))
     } finally {
       setIsSaving(false)
     }
+  }
+
+  function closeForm() {
+    setFormDirty(false)
+    setFormOpen(false)
+    setSelectedSupplier(null)
+  }
+
+  function requestCloseForm() {
+    if (isSaving) return
+    requestDiscard(closeForm)
   }
 
   async function handleToggleActive(supplier: Supplier, active: boolean) {
@@ -380,6 +405,7 @@ export function SuppliersPageClient() {
       setSuppliers((current) => current.map((row) => row.id === supplier.id ? { ...row, active: supplier.active } : row))
       setSelectedSupplier((current) => current?.id === supplier.id ? { ...current, active: supplier.active } : current)
       setError(getErrorMessage(caught, 'อัปเดตสถานะผู้ขายไม่ได้'))
+      throw caught
     } finally {
       setPendingToggleIds((current) => {
         const next = new Set(current)
@@ -387,6 +413,21 @@ export function SuppliersPageClient() {
         return next
       })
     }
+  }
+
+  function requestToggleActive(supplier: Supplier, active: boolean) {
+    if (active) {
+      void handleToggleActive(supplier, active).catch(() => undefined)
+      return
+    }
+
+    requestConfirmation({
+      confirmLabel: 'ปิดการใช้งาน',
+      description: `ต้องการปิดการใช้งานผู้ขาย “${supplier.code} — ${supplier.name}” ใช่หรือไม่?`,
+      destructive: true,
+      onConfirm: () => handleToggleActive(supplier, active),
+      title: 'ปิดการใช้งานผู้ขาย?',
+    })
   }
 
   async function handleExport() {
@@ -738,22 +779,20 @@ export function SuppliersPageClient() {
         </div>
       ) : null}
 
-      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) { setFormOpen(false); setSelectedSupplier(null); } }}>
+      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) requestCloseForm() }}>
         <DialogContent className="max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
           <SupplierForm
             supplier={selectedSupplier}
             districts={districts}
             isSaving={isSaving}
+            onDirtyChange={setFormDirty}
             bankNames={bankNames}
             paymentMethods={paymentMethods}
             branches={branches}
             provinces={provinces}
             salespersons={salespersons}
             subdistricts={subdistricts}
-            onCancel={() => {
-              setFormOpen(false)
-              setSelectedSupplier(null)
-            }}
+            onCancel={requestCloseForm}
             onSubmit={handleSubmit}
           />
         </DialogContent>
@@ -850,7 +889,7 @@ export function SuppliersPageClient() {
                             checked={supplier.active}
                             disabled={pendingToggleIds.has(supplier.id)}
                             label={supplier.active ? 'ใช้งาน' : 'ปิด'}
-                            onChange={(checked) => void handleToggleActive(supplier, checked)}
+                            onChange={(checked) => requestToggleActive(supplier, checked)}
                           />
                         </TableCell>
                         <TableCell className="text-center text-xs font-semibold text-slate-700">
@@ -893,7 +932,7 @@ export function SuppliersPageClient() {
                         checked={supplier.active}
                         disabled={pendingToggleIds.has(supplier.id)}
                         label={supplier.active ? 'ใช้งาน' : 'ปิด'}
-                        onChange={(checked) => void handleToggleActive(supplier, checked)}
+                        onChange={(checked) => requestToggleActive(supplier, checked)}
                       />
                     </div>
                   </div>
@@ -981,6 +1020,7 @@ type SupplierFormProps = {
   salespersons: MasterDataRecord[]
   subdistricts: ThaiSubdistrict[]
   onCancel: () => void
+  onDirtyChange: (dirty: boolean) => void
   onSubmit: (values: SupplierFormValues) => Promise<void>
 }
 
@@ -1010,14 +1050,23 @@ function CopyAccountButton({ accountKey, accountNo, copied, label, onCopy }: Cop
   )
 }
 
-function SupplierForm({ supplier, bankNames, branches, paymentMethods, districts, isSaving, provinces, salespersons, subdistricts, onCancel, onSubmit }: SupplierFormProps) {
+function SupplierForm({ supplier, bankNames, branches, paymentMethods, districts, isSaving, provinces, salespersons, subdistricts, onCancel, onDirtyChange, onSubmit }: SupplierFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<SupplierFormState>(() => (supplier ? supplierToForm(supplier, paymentMethods) : emptySupplierForm))
+  const { requestConfirmation } = useActionConfirmation()
 
   useEffect(() => {
     setForm(supplier ? supplierToForm(supplier, paymentMethods) : emptySupplierForm)
     setErrors({})
   }, [paymentMethods, supplier])
+
+  const formBaseline = useMemo(() => JSON.stringify(supplier ? supplierToForm(supplier, paymentMethods) : emptySupplierForm), [paymentMethods, supplier])
+  const formSnapshot = useMemo(() => JSON.stringify(form), [form])
+
+  useEffect(() => {
+    onDirtyChange(formBaseline !== formSnapshot)
+    return () => onDirtyChange(false)
+  }, [formBaseline, formSnapshot, onDirtyChange])
 
   const postalCode = form.addressPostalCode?.trim() ?? ''
   const postalSubdistricts = postalCode.length === 5 ? subdistricts.filter((subdistrict) => subdistrict.postalCode === postalCode) : []
@@ -1102,10 +1151,26 @@ function SupplierForm({ supplier, bankNames, branches, paymentMethods, districts
   }
 
   function removeBankAccount(index: number) {
-    setForm((current) => {
-      const bankAccounts = current.bankAccounts.filter((_, accountIndex) => accountIndex !== index)
-      if (!bankAccounts.length) return { ...current, bankAccounts: [{ ...emptyBankAccount }] }
-      return { ...current, bankAccounts }
+    const target = form.bankAccounts[index]
+    if (!target) return
+    const remove = () => {
+      setForm((current) => {
+        const bankAccounts = current.bankAccounts.filter((_, accountIndex) => accountIndex !== index)
+        if (!bankAccounts.length) return { ...current, bankAccounts: [{ ...emptyBankAccount }] }
+        return { ...current, bankAccounts }
+      })
+    }
+    if (isBlankSupplierBankAccount(target)) {
+      remove()
+      return
+    }
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ยืนยันลบบัญชี',
+      description: 'ต้องการลบบัญชีผู้ขายนี้หรือไม่? วิธีจ่าย/รับเงิน ธนาคาร เลขที่บัญชี ชื่อบัญชี และรหัสสาขาจะหายไป',
+      destructive: true,
+      onConfirm: remove,
+      title: 'ยืนยันการลบบัญชีผู้ขาย',
     })
   }
 
@@ -1194,7 +1259,10 @@ function SupplierForm({ supplier, bankNames, branches, paymentMethods, districts
       <div data-ns-dialog-header className="flex flex-col gap-3 bg-slate-900 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
         <h3 className="text-lg font-bold text-white">{form.id ? 'แก้ไขผู้ขาย' : 'เพิ่มผู้ขาย'}</h3>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-current" onChange={(checked) => update('active', checked)} />
+          <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-current" onChange={(active) => {
+            if (active) { update('active', true); return }
+            requestConfirmation({ confirmLabel: 'ปิดการใช้งาน', description: 'ต้องการปิดการใช้งานผู้ขายเมื่อบันทึกใช่หรือไม่?', destructive: true, onConfirm: () => update('active', false), title: 'ปิดการใช้งานผู้ขาย?' })
+          }} />
           <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white transition-colors hover:border-rose-700 hover:bg-rose-700 focus:outline-none" type="button" onClick={onCancel}>
             ยกเลิก
           </button>

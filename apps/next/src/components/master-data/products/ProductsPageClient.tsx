@@ -6,6 +6,7 @@ import { Download, ImagePlus, Plus, Trash2, Upload } from 'lucide-react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -114,6 +115,7 @@ type ProductSubmitPayload = {
 export function ProductsPageClient() {
   const [activeFilter, setActiveFilter] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [formDirty, setFormDirty] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
@@ -132,6 +134,8 @@ export function ProductsPageClient() {
   const [sortKey, setSortKey] = useState<SortKey>('code')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const columnResize = useResizableColumns('master-data.products.v5', productColumns)
+  const { requestDiscard } = useUnsavedChangesGuard(formDirty)
+  const { requestConfirmation } = useActionConfirmation()
 
 
   const loadData = useCallback(async () => {
@@ -281,8 +285,7 @@ export function ProductsPageClient() {
         }
       }
 
-      setFormOpen(false)
-      setSelectedProduct(null)
+      closeForm()
       invalidateSalesBillReferencesCache()
       await loadData()
     } catch (caught) {
@@ -290,6 +293,17 @@ export function ProductsPageClient() {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  function closeForm() {
+    setFormDirty(false)
+    setFormOpen(false)
+    setSelectedProduct(null)
+  }
+
+  function requestCloseForm() {
+    if (isSaving) return
+    requestDiscard(closeForm)
   }
 
   async function handleToggleActive(product: Product, active: boolean) {
@@ -307,6 +321,7 @@ export function ProductsPageClient() {
       setProducts((current) => current.map((row) => row.id === product.id ? { ...row, active: product.active } : row))
       setSelectedProduct((current) => current?.id === product.id ? { ...current, active: product.active } : current)
       setError(getErrorMessage(caught, 'อัปเดตสถานะสินค้าไม่ได้'))
+      throw caught
     } finally {
       setPendingToggleIds((current) => {
         const next = new Set(current)
@@ -314,6 +329,21 @@ export function ProductsPageClient() {
         return next
       })
     }
+  }
+
+  function requestToggleActive(product: Product, active: boolean) {
+    if (active) {
+      void handleToggleActive(product, active).catch(() => undefined)
+      return
+    }
+
+    requestConfirmation({
+      confirmLabel: 'ปิดการใช้งาน',
+      description: `ต้องการปิดการใช้งานสินค้า “${product.code} — ${product.name}” ใช่หรือไม่?`,
+      destructive: true,
+      onConfirm: () => handleToggleActive(product, active),
+      title: 'ปิดการใช้งานสินค้า?',
+    })
   }
 
   async function handleExport() {
@@ -618,17 +648,15 @@ export function ProductsPageClient() {
         </div>
       ) : null}
 
-      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) { setFormOpen(false); setSelectedProduct(null); } }}>
+      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) requestCloseForm() }}>
         <DialogContent className="max-w-4xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
           <ProductForm
             isSaving={isSaving}
+            onDirtyChange={setFormDirty}
             product={selectedProduct}
             productTypes={productTypeOptions}
             productUnits={productUnits}
-            onCancel={() => {
-              setFormOpen(false)
-              setSelectedProduct(null)
-            }}
+            onCancel={requestCloseForm}
             onSubmit={handleSubmit}
           />
         </DialogContent>
@@ -681,7 +709,7 @@ export function ProductsPageClient() {
                           checked={product.active}
                           disabled={pendingToggleIds.has(product.id)}
                           label={product.active ? 'ใช้งาน' : 'ปิด'}
-                          onChange={(checked) => void handleToggleActive(product, checked)}
+                          onChange={(checked) => requestToggleActive(product, checked)}
                         />
                       </TableCell>
                       <TableCell className="text-center text-xs font-semibold text-slate-700">
@@ -740,7 +768,7 @@ export function ProductsPageClient() {
                           checked={product.active}
                           disabled={pendingToggleIds.has(product.id)}
                           label={product.active ? 'ใช้งาน' : 'ปิด'}
-                          onChange={(checked) => void handleToggleActive(product, checked)}
+                          onChange={(checked) => requestToggleActive(product, checked)}
                         />
                       </div>
                     </div>
@@ -781,12 +809,14 @@ type ProductFormProps = {
   productTypes: string[]
   productUnits: MasterDataRecord[]
   onCancel: () => void
+  onDirtyChange: (dirty: boolean) => void
   onSubmit: (payload: ProductSubmitPayload) => Promise<void>
 }
 
-function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, onSubmit }: ProductFormProps) {
+function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, onDirtyChange, onSubmit }: ProductFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<ProductFormValues>(() => (product ? productToForm(product) : emptyProductForm))
+  const { requestConfirmation } = useActionConfirmation()
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null)
   const [previewImageName, setPreviewImageName] = useState('')
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(product?.originalUrl ?? product?.thumbnailUrl ?? null)
@@ -798,6 +828,20 @@ function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, 
     setPreviewImageUrl(product?.originalUrl ?? product?.thumbnailUrl ?? null)
     setErrors({})
   }, [product])
+
+  const formBaseline = useMemo(() => JSON.stringify({
+    form: product ? productToForm(product) : emptyProductForm,
+    imageAction: product?.originalUrl ?? product?.thumbnailUrl ? 'keep' : 'remove',
+  }), [product])
+  const formSnapshot = useMemo(() => JSON.stringify({
+    form,
+    imageAction: pendingImageFile ? 'replace' : previewImageUrl ? 'keep' : 'remove',
+  }), [form, pendingImageFile, previewImageUrl])
+
+  useEffect(() => {
+    onDirtyChange(formBaseline !== formSnapshot)
+    return () => onDirtyChange(false)
+  }, [formBaseline, formSnapshot, onDirtyChange])
 
   function update<K extends keyof ProductFormValues>(key: K, value: ProductFormValues[K]) {
     setForm((current) => ({ ...current, [key]: value }))
@@ -829,6 +873,17 @@ function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, 
     setPreviewImageUrl(null)
   }
 
+  function requestRemoveProductImage() {
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ยืนยันลบรูปภาพ',
+      description: 'รูปสินค้านี้จะถูกนำออกจากแบบฟอร์ม และจะมีผลเมื่อกดบันทึกสินค้า',
+      destructive: true,
+      onConfirm: removeProductImage,
+      title: 'ลบรูปสินค้านี้หรือไม่?',
+    })
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const parsed = productFormSchema.safeParse(form)
@@ -850,7 +905,10 @@ function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, 
       <div data-ns-dialog-header className="flex flex-col gap-3 bg-slate-900 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
         <h3 className="text-lg font-bold text-white">{form.id ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'}</h3>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-current" onChange={(checked) => update('active', checked)} />
+          <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-current" onChange={(active) => {
+            if (active) { update('active', true); return }
+            requestConfirmation({ confirmLabel: 'ปิดการใช้งาน', description: 'ต้องการปิดการใช้งานสินค้าเมื่อบันทึกใช่หรือไม่?', destructive: true, onConfirm: () => update('active', false), title: 'ปิดการใช้งานสินค้า?' })
+          }} />
           <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white transition-colors hover:border-rose-700 hover:bg-rose-700 focus:outline-none" type="button" onClick={onCancel}>
             ยกเลิก
           </button>
@@ -910,7 +968,7 @@ function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, 
                         />
                       </label>
                       {previewImageUrl ? (
-                        <button className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline" type="button" onClick={removeProductImage}>
+                        <button className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline" type="button" onClick={requestRemoveProductImage}>
                           <Trash2 className="h-3.5 w-3.5" />
                           ลบรูปหลัก
                         </button>

@@ -13,6 +13,7 @@ import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 
 type CostSourceColumnKey = 'date' | 'product' | 'remainingAmount' | 'remainingQty' | 'source' | 'supplier'
 type ReadinessColumnKey = 'costPoolQty' | 'costPoolValue' | 'netValue' | 'poBuyAmount' | 'poSellAmount' | 'product' | 'status'
@@ -426,6 +427,12 @@ export function TradingDashboardPageClient() {
     }
   }
 
+  const closeCostSourceModal = () => {
+    setIsSourceModalOpen(false)
+    setSourceError(null)
+    setSourceForm(sourceFormDefaults())
+  }
+
   const clearFilters = () => {
     setBillNo('')
     setCustomerId('all')
@@ -532,7 +539,7 @@ export function TradingDashboardPageClient() {
         rows={sourceRows}
         branchOptions={sourceBranches.map((branch) => ({ id: branch.id, label: `${branch.code} - ${branch.name}`, searchText: `${branch.code} ${branch.name}` }))}
         supplierOptions={sourceSupplierOptions}
-        onClose={() => setIsSourceModalOpen(false)}
+        onClose={closeCostSourceModal}
         onFormChange={setSourceForm}
         onRefresh={loadCostSources}
         onSubmit={submitCostSource}
@@ -582,9 +589,11 @@ function CostSourceModal({
       : 0
   const canSubmit = Boolean(form.date && form.branchId && form.productId && Number(form.qty) > 0 && (Number(form.unitCost) > 0 || Number(form.totalAmount) > 0))
   const update = <K extends keyof CostSourceForm>(key: K, value: CostSourceForm[K]) => onFormChange({ ...form, [key]: value })
+  const { requestDiscard } = useUnsavedChangesGuard(isOpen && JSON.stringify(form) !== JSON.stringify(sourceFormDefaults()))
+  const requestClose = () => requestDiscard(onClose)
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) requestClose() }}>
       <DialogContent className="max-h-[92vh] max-w-5xl overflow-hidden rounded-md border-0 bg-slate-900 !p-0 shadow-2xl outline-none focus:outline-none flex flex-col" fallbackTitle="ต้นทุนซื้อมาขายไป" hideClose>
         <DialogHeader className="shrink-0 rounded-t-md bg-slate-900 px-6 py-4 text-white">
           <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
@@ -594,7 +603,7 @@ function CostSourceModal({
             </div>
             <div className="flex shrink-0 flex-wrap justify-end gap-2">
               <Button className="h-9 border-emerald-600 bg-emerald-600 font-normal text-white hover:border-emerald-700 hover:bg-emerald-700 hover:text-white" disabled={!canSubmit || isSaving} type="button" variant="outline" onClick={onSubmit}>{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
-              <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={onClose}>ปิด</Button>
+              <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={requestClose}>ปิด</Button>
             </div>
           </div>
         </DialogHeader>

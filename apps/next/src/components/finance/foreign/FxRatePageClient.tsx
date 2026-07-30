@@ -6,6 +6,7 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
 import { Select } from '@/components/ui/Select'
 import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
@@ -101,6 +102,7 @@ export function FxRatePageClient() {
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<FormState>(emptyForm)
+  const [formBaseline, setFormBaseline] = useState<string | null>(null)
   const [fromCurrency, setFromCurrency] = useState('all')
   const [fromDate, setFromDate] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -112,6 +114,9 @@ export function FxRatePageClient() {
   const [sortKey, setSortKey] = useState<FxRateColumnKey | null>(null)
   const columnResize = useResizableColumns('finance.foreign.fx-rate.main.v1', fxRateColumns)
   const hasFilters = Boolean(fromDate || toDate || fromCurrency !== 'all' || active !== 'true')
+  const formSnapshot = useMemo(() => JSON.stringify(form), [form])
+  const isFormDirty = showForm && formBaseline !== null && formSnapshot !== formBaseline
+  const { requestDiscard } = useUnsavedChangesGuard(isFormDirty)
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams()
@@ -205,13 +210,15 @@ export function FxRatePageClient() {
   )
 
   function openCreate() {
-    setForm(emptyForm())
+    const nextForm = emptyForm()
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify(nextForm))
     setFieldErrors({})
     setShowForm(true)
   }
 
   function openEdit(row: FxRateRow) {
-    setForm({
+    const nextForm = {
       active: row.active,
       fromCurrency: row.fromCurrency,
       id: row.id,
@@ -221,10 +228,31 @@ export function FxRatePageClient() {
       rateType: row.rateType,
       source: row.source ?? '',
       toCurrency: row.toCurrency,
-    })
+    }
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify(nextForm))
     setFieldErrors({})
     setShowForm(true)
   }
+
+  const closeForm = useCallback(() => {
+    if (isSaving) return
+    requestDiscard(() => {
+      setFormBaseline(null)
+      setShowForm(false)
+    })
+  }, [isSaving, requestDiscard])
+
+  useEffect(() => {
+    if (!showForm) return
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || document.querySelector('[role="dialog"]')) return
+      event.preventDefault()
+      closeForm()
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [closeForm, showForm])
 
   function validateForm() {
     const nextErrors: Record<string, string> = {}
@@ -248,6 +276,7 @@ export function FxRatePageClient() {
         headers: { 'Content-Type': 'application/json' },
         method: form.id ? 'PATCH' : 'POST',
       })
+      setFormBaseline(null)
       setShowForm(false)
       await loadData()
     } catch (caught) {
@@ -458,12 +487,12 @@ export function FxRatePageClient() {
       </div>
 
       {showForm ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-10" onClick={() => setShowForm(false)}>
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-10" onClick={closeForm}>
           <div className="w-full max-w-lg overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" data-ns-field-scope="entry" onClick={(e) => e.stopPropagation()}>
             <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
               <h3 className="font-bold text-white">{form.id ? 'แก้ไข FX Rate' : 'เพิ่ม FX Rate'}</h3>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" type="button" onClick={() => setShowForm(false)}>ยกเลิก</button>
+                <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" disabled={isSaving} type="button" onClick={closeForm}>ยกเลิก</button>
                 <button className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={() => void saveRate()}>{isSaving ? 'กำลังบันทึก' : 'บันทึก'}</button>
               </div>
             </div>

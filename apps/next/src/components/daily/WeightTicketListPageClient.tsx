@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type ButtonHTMLAttributes } from 'react'
+import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, Download, Plus, Printer, RotateCcw, Search, Share2, SquarePen, XCircle } from 'lucide-react'
@@ -11,6 +11,7 @@ import { Card } from '@/components/ui/Card'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -187,6 +188,8 @@ function canReturnWtoStock(ticket: WeightTicketRecord) {
 
 export function WeightTicketListPageClient() {
   const router = useRouter()
+  const { requestConfirmation } = useActionConfirmation()
+  const guardedFormCloseRef = useRef<() => void>(() => {})
   const [tickets, setTickets] = useState<WeightTicketRecord[]>([])
   const [canOpenPurchaseBill, setCanOpenPurchaseBill] = useState(false)
   const [canOpenSalesBill, setCanOpenSalesBill] = useState(false)
@@ -221,6 +224,7 @@ export function WeightTicketListPageClient() {
   const [stockReturnTicket, setStockReturnTicket] = useState<WeightTicketRecord | null>(null)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [successModalMessage, setSuccessModalMessage] = useState('')
+  const { requestDiscard: requestDiscardCancelNote } = useUnsavedChangesGuard(Boolean(cancelTicket && cancelNote.trim()))
 
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
   const safePage = Math.min(page, totalPages)
@@ -337,17 +341,45 @@ export function WeightTicketListPageClient() {
     setSortDir('desc')
   }
 
-  async function handleCancelTicket() {
+  function handleCancelTicket() {
     if (!cancelTicket) return
+    const note = cancelNote.trim()
+    if (!note) {
+      setCancelError('กรุณากรอกเหตุผลการยกเลิก')
+      return
+    }
+
+    setCancelError('')
+    requestConfirmation({
+      confirmLabel: 'ยืนยันยกเลิก',
+      description: `เอกสาร ${cancelTicket.documentNo} จะเปลี่ยนสถานะเป็นยกเลิก และเก็บประวัติการทำรายการไว้`,
+      destructive: true,
+      onConfirm: () => cancelTicketConfirmed(cancelTicket, note),
+      title: 'ยืนยันการยกเลิกเอกสารหรือไม่?',
+    })
+  }
+
+  function closeCancelTicket() {
+    if (isCanceling) return
+    requestDiscardCancelNote(() => {
+      setCancelTicket(null)
+      setCancelNote('')
+      setCancelError('')
+    })
+  }
+
+  async function cancelTicketConfirmed(ticket: WeightTicketRecord, note: string) {
     setIsCanceling(true)
     setCancelError('')
     try {
-      const updated = await cancelWeightTicket(cancelTicket.id, cancelNote)
+      const updated = await cancelWeightTicket(ticket.id, note)
       setTickets((current) => current.map((ticket) => ticket.id === updated.id ? updated : ticket))
       setCancelTicket(null)
       setCancelNote('')
     } catch (caught) {
-      setCancelError(getErrorMessage(caught, 'ยกเลิกใบรับ-ส่งของไม่ได้'))
+      const error = caught instanceof Error ? caught : new Error(getErrorMessage(caught, 'ยกเลิกใบรับ-ส่งของไม่ได้'))
+      setCancelError(error.message)
+      throw error
     } finally {
       setIsCanceling(false)
     }
@@ -913,9 +945,7 @@ export function WeightTicketListPageClient() {
 
       <Dialog open={Boolean(cancelTicket)} onOpenChange={(open) => {
         if (!open) {
-          setCancelTicket(null)
-          setCancelNote('')
-          setCancelError('')
+          closeCancelTicket()
         }
       }}
       >
@@ -956,7 +986,7 @@ export function WeightTicketListPageClient() {
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button type="button" variant="secondary" onClick={() => setCancelTicket(null)}>ปิด</Button>
+            <Button disabled={isCanceling} type="button" variant="secondary" onClick={closeCancelTicket}>ปิด</Button>
             <Button disabled={isCanceling} type="button" variant="outline" onClick={handleCancelTicket}>
               <XCircle className="mr-2 size-4" />
               {isCanceling ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}
@@ -993,7 +1023,7 @@ export function WeightTicketListPageClient() {
 
       {activeForm && (
         <Dialog open onOpenChange={(open) => {
-          if (!open) setActiveForm(null)
+          if (!open) guardedFormCloseRef.current()
         }}>
           <DialogContent hideClose aria-labelledby="weight-ticket-form-title" className="max-h-[95vh] max-w-7xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" data-combobox-portal-root="true">
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-slate-50 p-0">
@@ -1002,6 +1032,7 @@ export function WeightTicketListPageClient() {
                 initialType={activeForm.type}
                 lockType
                 ticketId={activeForm.id}
+                onRequestClose={(requestClose) => { guardedFormCloseRef.current = requestClose }}
                 onClose={() => setActiveForm(null)}
                 onSaveSuccess={() => {
                   setActiveForm(null)

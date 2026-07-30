@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import { Eye, EyeOff, KeyRound, ShieldCheck, UserRound } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { Input } from '@/components/ui/Input'
 import { changePasswordSchema } from '@/lib/auth'
 import { acknowledgePasswordChanged, PASSWORD_UPDATE_ERROR } from '@/lib/auth-client-contract'
@@ -53,6 +54,8 @@ export function ChangePasswordPageClient() {
   const [isLoading, setIsLoading] = useState(false)
   const [isFetchingUser, setIsFetchingUser] = useState(true)
   const [user, setUser] = useState<CurrentUser | null>(null)
+  const hasPasswordDraft = Boolean(currentPassword || password || confirmPassword)
+  useUnsavedChangesGuard(hasPasswordDraft)
   const supabase = getSupabaseClient()
   const isSupabaseReady = Boolean(supabase)
 

@@ -10,6 +10,7 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Select } from '@/components/ui/Select'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ApiError } from '@/lib/api-client'
 import { dailyFetchJson, formatMoney, pettyAdvanceFormSchema, pettyAdvanceReturnFormSchema, todayDateInput, type DailyAccountOption, type PettyAdvanceFormValues } from '@/lib/daily'
@@ -121,11 +122,13 @@ export function DailyPettyAdvancePageClient() {
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<PettyAdvanceFormValues>(emptyForm)
+  const [formBaseline, setFormBaseline] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [detailRow, setDetailRow] = useState<PettyAdvanceRow | null>(null)
   const [returnForm, setReturnForm] = useState({ accountId: '', amount: '', date: todayDateInput(), notes: '' })
+  const [returnFormBaseline, setReturnFormBaseline] = useState<string | null>(null)
   const [returningRow, setReturningRow] = useState<PettyAdvanceRow | null>(null)
   const [recipientOptions, setRecipientOptions] = useState<PettyAdvanceRecipientOption[]>([])
   const [rows, setRows] = useState<PettyAdvanceRow[]>([])
@@ -144,6 +147,12 @@ export function DailyPettyAdvancePageClient() {
   }, [search, status, type])
   const formRef = useRef<HTMLFormElement>(null)
   const columnResize = useResizableColumns('daily.petty-advance.v5', pettyAdvanceColumns)
+  const formSnapshot = useMemo(() => JSON.stringify(form), [form])
+  const hasUnsavedForm = formOpen && formBaseline !== null && formBaseline !== formSnapshot
+  const { requestDiscard } = useUnsavedChangesGuard(hasUnsavedForm)
+  const returnFormSnapshot = useMemo(() => JSON.stringify(returnForm), [returnForm])
+  const hasUnsavedReturnForm = returningRow !== null && returnFormBaseline !== null && returnFormBaseline !== returnFormSnapshot
+  const { requestDiscard: requestReturnFormDiscard } = useUnsavedChangesGuard(hasUnsavedReturnForm)
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -248,13 +257,15 @@ export function DailyPettyAdvancePageClient() {
   }
 
   function openCreateForm() {
-    setForm({ ...emptyForm, date: todayDateInput(), recipientId: '' })
+    const nextForm = { ...emptyForm, date: todayDateInput(), recipientId: '' }
+    setFormBaseline(JSON.stringify(nextForm))
+    setForm(nextForm)
     setFieldErrors({})
     setFormOpen(true)
   }
 
   function openEditForm(row: PettyAdvanceRow) {
-    setForm({
+    const nextForm = {
       accountId: '',
       amount: row.amount,
       branchId: row.branchId,
@@ -266,7 +277,9 @@ export function DailyPettyAdvancePageClient() {
       recipientName: row.recipientName,
       status: row.status,
       type: row.type,
-    })
+    }
+    setFormBaseline(JSON.stringify(nextForm))
+    setForm(nextForm)
     setFieldErrors({})
     setFormOpen(true)
   }
@@ -275,8 +288,52 @@ export function DailyPettyAdvancePageClient() {
     setDetailRow(null)
     setReturningRow(row)
     const defaultAccountId = row.accountId ?? activeAccounts[0]?.id ?? ''
-    setReturnForm({ accountId: defaultAccountId, amount: String(Math.max(0, row.remaining)), date: todayDateInput(), notes: '' })
+    const nextReturnForm = { accountId: defaultAccountId, amount: String(Math.max(0, row.remaining)), date: todayDateInput(), notes: '' }
+    setReturnFormBaseline(JSON.stringify(nextReturnForm))
+    setReturnForm(nextReturnForm)
   }
+
+  const closeForm = useCallback(() => {
+    setFormBaseline(null)
+    setFormOpen(false)
+  }, [])
+
+  const requestCloseForm = useCallback(() => {
+    if (isSaving) return
+    requestDiscard(closeForm)
+  }, [closeForm, isSaving, requestDiscard])
+
+  const closeReturnForm = useCallback(() => {
+    setReturnFormBaseline(null)
+    setReturningRow(null)
+  }, [])
+
+  const requestCloseReturnForm = useCallback(() => {
+    if (isSaving) return
+    requestReturnFormDiscard(closeReturnForm)
+  }, [closeReturnForm, isSaving, requestReturnFormDiscard])
+
+  useEffect(() => {
+    if (!formOpen) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || document.querySelector('[role="dialog"]')) return
+      event.preventDefault()
+      requestCloseForm()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [formOpen, requestCloseForm])
+
+  useEffect(() => {
+    if (!returningRow) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || document.querySelector('[role="dialog"]')) return
+      event.preventDefault()
+      requestCloseReturnForm()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [requestCloseReturnForm, returningRow])
 
   async function saveForm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -296,7 +353,7 @@ export function DailyPettyAdvancePageClient() {
         body: JSON.stringify(parsed.data),
         method: 'POST',
       })
-      setFormOpen(false)
+      closeForm()
       await loadData()
     } catch (caught) {
       if (caught instanceof ApiError && Object.keys(caught.fieldErrors).length > 0) {
@@ -333,7 +390,7 @@ export function DailyPettyAdvancePageClient() {
         body: JSON.stringify(parsed.data),
         method: 'POST',
       })
-      setReturningRow(null)
+      closeReturnForm()
       setReturnForm({ accountId: '', amount: '', date: todayDateInput(), notes: '' })
       await loadData()
     } catch (caught) {
@@ -531,12 +588,12 @@ export function DailyPettyAdvancePageClient() {
       ) : null}
 
       {formOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8" onMouseDown={(event) => { if (event.target === event.currentTarget) requestCloseForm() }}>
           <form ref={formRef} noValidate className="w-full max-w-3xl overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onSubmit={saveForm}>
             <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
               <h3 className="font-bold text-white">{form.id ? 'แก้ไขรายการยืมเงิน' : 'บันทึกรายการยืมเงิน'}</h3>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" type="button" onClick={() => setFormOpen(false)}>ยกเลิก</button>
+                <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" type="button" onClick={requestCloseForm}>ยกเลิก</button>
                 <button className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isSaving} type="submit">{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</button>
               </div>
             </div>
@@ -594,12 +651,12 @@ export function DailyPettyAdvancePageClient() {
       ) : null}
 
       {returningRow ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8" onMouseDown={(event) => { if (event.target === event.currentTarget) requestCloseReturnForm() }}>
           <form noValidate className="w-full max-w-md overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onSubmit={saveReturn}>
             <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4">
               <h3 className="font-bold text-white">คืนเงิน — {returningRow.docNo} / {returningRow.recipientName}</h3>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" type="button" onClick={() => setReturningRow(null)}>ยกเลิก</button>
+                <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700" type="button" onClick={requestCloseReturnForm}>ยกเลิก</button>
                 <button className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60" disabled={isSaving} type="submit">{isSaving ? 'กำลังส่งอนุมัติ...' : 'ส่งอนุมัติคืนเงิน'}</button>
               </div>
             </div>

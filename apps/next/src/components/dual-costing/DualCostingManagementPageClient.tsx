@@ -16,6 +16,7 @@ import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { useActionConfirmation } from '@/components/ui/FormSafetyProvider'
 import {
   DualCostingCountRow,
   DualCostingErrorBox,
@@ -694,6 +695,7 @@ function WaitingAllocationsView() {
 }
 
 function AllocationLedgerView() {
+  const { requestConfirmation } = useActionConfirmation()
   const pageSizeOptions = [10, 25, 50, 100] as const
   const [actionTargetId, setActionTargetId] = useState<string | null>(null)
   const [category, setCategory] = useState('all')
@@ -792,12 +794,11 @@ function AllocationLedgerView() {
 
   useEffect(() => { void loadData() }, [loadData])
 
-  async function handleReverse(row: LedgerRow, editAfterReverse: boolean) {
+  function handleReverse(row: LedgerRow, editAfterReverse: boolean) {
     const message = editAfterReverse
       ? 'แก้ไขข้อมูลรายการนี้หรือไม่? ระบบจะคืนต้นทุนเดิมกลับ Cost Pool แล้วเปิดหน้าจัดสรรต้นทุนใหม่'
       : 'ยกเลิกการจัดสรรรายการนี้หรือไม่? ระบบจะคืนต้นทุนกลับ Cost Pool และเก็บรายการไว้ในสถานะย้อนกลับแล้ว'
-    if (!window.confirm(message)) return
-
+    requestConfirmation({ title: editAfterReverse ? 'ยืนยันการแก้ไขและจัดสรรใหม่' : 'ยืนยันการยกเลิกการจัดสรร', description: message, confirmLabel: editAfterReverse ? 'ยืนยันจัดสรรใหม่' : 'ยืนยันยกเลิก', destructive: true, onConfirm: async () => {
     setActionTargetId(row.dealId)
     setError(null)
     try {
@@ -818,9 +819,12 @@ function AllocationLedgerView() {
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'ดำเนินการกับ Allocation Ledger ไม่สำเร็จ')
+      throw caught
     } finally {
       setActionTargetId(null)
     }
+      },
+    })
   }
 
   function handleLedgerSort(key: LedgerColumnKey) {

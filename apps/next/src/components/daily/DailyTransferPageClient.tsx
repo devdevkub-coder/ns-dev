@@ -12,6 +12,7 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney, todayDateInput, transferFormSchema, type DailyAccountOption, type TransferFormValues } from '@/lib/daily'
 import { firstErrorKeyFromZodIssues, focusFieldError, issueMapFromZodIssues } from '@/lib/form-errors'
@@ -64,6 +65,7 @@ export function DailyTransferPageClient() {
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<TransferFormValues>(emptyForm)
+  const [formBaseline, setFormBaseline] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -82,6 +84,9 @@ export function DailyTransferPageClient() {
   const columnResize = useResizableColumns('daily.transfer.v6', transferColumns)
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const formSnapshot = useMemo(() => JSON.stringify(form), [form])
+  const hasUnsavedForm = formOpen && formBaseline !== null && formBaseline !== formSnapshot
+  const { requestDiscard } = useUnsavedChangesGuard(hasUnsavedForm)
 
   const changeSort = useCallback((nextKey: SortKey) => {
     if (sortKey === nextKey) {
@@ -207,7 +212,9 @@ export function DailyTransferPageClient() {
   }
 
   function openCreateForm() {
-    setForm({ ...emptyForm, date: todayDateInput() })
+    const nextForm = { ...emptyForm, date: todayDateInput() }
+    setFormBaseline(JSON.stringify(nextForm))
+    setForm(nextForm)
     setFieldErrors({})
     setMoneyDrafts({})
     setError(null)
@@ -215,7 +222,7 @@ export function DailyTransferPageClient() {
   }
 
   function openEditForm(row: TransferRow) {
-    setForm({
+    const nextForm = {
       amount: row.amount,
       byPerson: row.byPerson,
       date: row.date,
@@ -225,7 +232,9 @@ export function DailyTransferPageClient() {
       id: row.id,
       notes: row.notes,
       toAccountId: row.toAccountId,
-    })
+    }
+    setFormBaseline(JSON.stringify(nextForm))
+    setForm(nextForm)
     setFieldErrors({})
     setMoneyDrafts({})
     setError(null)
@@ -249,6 +258,27 @@ export function DailyTransferPageClient() {
     setForm((current) => ({ ...current, [key]: value }))
     setFieldErrors((current) => ({ ...current, [key]: '' }))
   }
+
+  const closeForm = useCallback(() => {
+    setFormBaseline(null)
+    setFormOpen(false)
+  }, [])
+
+  const requestCloseForm = useCallback(() => {
+    if (isSaving) return
+    requestDiscard(closeForm)
+  }, [closeForm, isSaving, requestDiscard])
+
+  useEffect(() => {
+    if (!formOpen) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || document.querySelector('[role="dialog"]')) return
+      event.preventDefault()
+      requestCloseForm()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [formOpen, requestCloseForm])
 
   function moneyInputValue(key: string, value: number) {
     if (Object.prototype.hasOwnProperty.call(moneyDrafts, key)) return moneyDrafts[key]
@@ -290,7 +320,7 @@ export function DailyTransferPageClient() {
         body: JSON.stringify(parsed.data),
         method: 'POST',
       })
-      setFormOpen(false)
+      closeForm()
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'บันทึกรายการโอนเงินไม่ได้')
@@ -479,12 +509,12 @@ export function DailyTransferPageClient() {
       </div>
 
       {formOpen ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) requestCloseForm() }}>
           <form noValidate className="mx-auto my-4 w-full max-w-3xl overflow-hidden rounded-md bg-slate-900 shadow-xl animate-in fade-in zoom-in-95 duration-150" onSubmit={saveForm}>
             <div data-ns-dialog-header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
               <h3 className="font-bold text-white">{form.id ? 'แก้ไขรายการโอนเงิน' : 'โอนเงินระหว่างบัญชี'}</h3>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" size="sm" type="button" variant="outline" onClick={() => setFormOpen(false)}>ยกเลิก</Button>
+                <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" size="sm" type="button" variant="outline" onClick={requestCloseForm}>ยกเลิก</Button>
                 <Button className="h-9 bg-emerald-600 font-medium text-white hover:bg-emerald-700" disabled={isSaving} size="sm" type="submit">{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
               </div>
             </div>

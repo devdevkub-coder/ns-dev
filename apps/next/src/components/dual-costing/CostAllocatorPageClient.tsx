@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { Input } from '@/components/ui/Input'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -93,6 +94,16 @@ type PoolColumnKey = 'availableQty' | 'availableValue' | 'counterparty' | 'date'
 type PreviewColumnKey = 'availableQty' | 'counterparty' | 'qtyToUse' | 'sourceNo' | 'sourceType' | 'totalCostUse' | 'unitCost'
 type SortDirection = 'asc' | 'desc'
 
+type AllocatorDraft = {
+  allocationMode: string
+  selectedPoSellId: string
+  selectedProductId: string
+  showPreview: boolean
+  sourceType: string
+  targetCost: number
+  targetCostInput: string
+}
+
 const targetColumns: Array<ResizableColumnDefinition<TargetColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 125 },
   { key: 'date', defaultWidth: 115, minWidth: 100 },
@@ -128,17 +139,26 @@ const previewColumns: Array<ResizableColumnDefinition<PreviewColumnKey>> = [
 export function CostAllocatorPageClient() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const [allocationMode, setAllocationMode] = useState('FIFO')
+  const [allocatorBaseline, setAllocatorBaseline] = useState<AllocatorDraft>(() => ({
+    allocationMode: 'FIFO',
+    selectedPoSellId: searchParams.get('poSellId') ?? '',
+    selectedProductId: searchParams.get('productId') ?? '',
+    showPreview: false,
+    sourceType: searchParams.get('sourceType') ?? 'spot-sell',
+    targetCost: 0,
+    targetCostInput: '0',
+  }))
+  const [allocationMode, setAllocationMode] = useState(allocatorBaseline.allocationMode)
   const [data, setData] = useState<Payload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [selectedPoSellId, setSelectedPoSellId] = useState(searchParams.get('poSellId') ?? '')
-  const [selectedProductId, setSelectedProductId] = useState(searchParams.get('productId') ?? '')
+  const [selectedPoSellId, setSelectedPoSellId] = useState(allocatorBaseline.selectedPoSellId)
+  const [selectedProductId, setSelectedProductId] = useState(allocatorBaseline.selectedProductId)
   const [selectedProductOption, setSelectedProductOption] = useState<SearchComboboxOption | null>(null)
-  const [showPreview, setShowPreview] = useState(false)
-  const [sourceType, setSourceType] = useState(searchParams.get('sourceType') ?? 'spot-sell')
-  const [targetCost, setTargetCost] = useState(0)
-  const [targetCostInput, setTargetCostInput] = useState('0')
+  const [showPreview, setShowPreview] = useState(allocatorBaseline.showPreview)
+  const [sourceType, setSourceType] = useState(allocatorBaseline.sourceType)
+  const [targetCost, setTargetCost] = useState(allocatorBaseline.targetCost)
+  const [targetCostInput, setTargetCostInput] = useState(allocatorBaseline.targetCostInput)
   const [targetCostError, setTargetCostError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [collapsedSections, setCollapsedSections] = useState<Record<'step0' | 'step1' | 'step2' | 'step3' | 'step4', boolean>>({
@@ -160,6 +180,14 @@ export function CostAllocatorPageClient() {
   const targetColumnResize = useResizableColumns('dual-costing.cost-allocator.targets.v1', targetColumns)
   const poolColumnResize = useResizableColumns('dual-costing.cost-allocator.pool.v1', poolColumns)
   const previewColumnResize = useResizableColumns('dual-costing.cost-allocator.preview.v1', previewColumns)
+  const allocatorIsDirty = allocationMode !== allocatorBaseline.allocationMode
+    || selectedPoSellId !== allocatorBaseline.selectedPoSellId
+    || selectedProductId !== allocatorBaseline.selectedProductId
+    || showPreview !== allocatorBaseline.showPreview
+    || sourceType !== allocatorBaseline.sourceType
+    || targetCost !== allocatorBaseline.targetCost
+    || targetCostInput !== allocatorBaseline.targetCostInput
+  useUnsavedChangesGuard(allocatorIsDirty)
 
   useEffect(() => {
     setPage(1)
@@ -322,6 +350,15 @@ export function CostAllocatorPageClient() {
       )
       if (response.success) {
         alert(response.message || 'จัดสรรต้นทุนสำเร็จ')
+        setAllocatorBaseline({
+          allocationMode,
+          selectedPoSellId: '',
+          selectedProductId,
+          showPreview: false,
+          sourceType,
+          targetCost,
+          targetCostInput,
+        })
         setSelectedPoSellId('')
         setShowPreview(false)
         setReloadTrigger((prev) => prev + 1)

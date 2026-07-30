@@ -12,6 +12,7 @@ import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
 import { Select } from '@/components/ui/Select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 
 type AssetRegisterRow = {
   acquisitionType: string
@@ -229,6 +230,9 @@ const blankDisposalForm = (): DisposalFormState => ({
 })
 
 export function AssetRegisterPageClient() {
+  const { requestConfirmation } = useActionConfirmation()
+  const [assetFormBaseline, setAssetFormBaseline] = useState<string | null>(null)
+  const [importFormBaseline, setImportFormBaseline] = useState<string | null>(null)
   const [category, setCategory] = useState('all')
   const [data, setData] = useState<AssetRegisterPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -246,6 +250,9 @@ export function AssetRegisterPageClient() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [sortKey, setSortKey] = useState<AssetRegisterSortKey | null>(null)
   const columnResize = useResizableColumns('finance-accounting.asset-register.main.v1', assetRegisterColumns)
+  const assetFormIsDirty = modal === 'asset' && assetFormBaseline !== null && JSON.stringify(form) !== assetFormBaseline
+  const importFormIsDirty = modal === 'import' && importFormBaseline !== null && JSON.stringify(importRows) !== importFormBaseline
+  const { requestDiscard } = useUnsavedChangesGuard(assetFormIsDirty || importFormIsDirty)
 
   useEffect(() => {
     setPage(1)
@@ -333,18 +340,22 @@ export function AssetRegisterPageClient() {
 
   const openCreate = () => {
     setError(null)
+    setAssetFormBaseline(JSON.stringify(blankAssetForm))
     setForm(blankAssetForm)
     setModal('asset')
   }
 
   const openEdit = (row: AssetRegisterRow) => {
     setError(null)
-    setForm(assetRowToForm(row))
+    const nextForm = assetRowToForm(row)
+    setAssetFormBaseline(JSON.stringify(nextForm))
+    setForm(nextForm)
     setModal('asset')
   }
 
   const openImport = () => {
     setError(null)
+    setImportFormBaseline(JSON.stringify([]))
     setImportRows([])
     setImportPreview(null)
     setModal('import')
@@ -373,6 +384,7 @@ export function AssetRegisterPageClient() {
         method: 'POST',
       })
       setData(result.payload)
+      setAssetFormBaseline(JSON.stringify(form))
       setModal(null)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'บันทึกทะเบียนทรัพย์สินไม่ได้')
@@ -381,8 +393,8 @@ export function AssetRegisterPageClient() {
     }
   }
 
-  const deactivateAsset = async (row: AssetRegisterRow) => {
-    if (!window.confirm(`ปิดใช้งานทรัพย์สิน ${row.code} ?`)) return
+  const deactivateAsset = (row: AssetRegisterRow) => {
+    requestConfirmation({ title: 'ยืนยันการปิดใช้งานทรัพย์สิน', description: `ต้องการปิดใช้งานทรัพย์สิน ${row.code} หรือไม่?`, confirmLabel: 'ยืนยันปิดใช้งาน', destructive: true, onConfirm: async () => {
     setIsSaving(true)
     setError(null)
     try {
@@ -393,9 +405,26 @@ export function AssetRegisterPageClient() {
       setData(result.payload)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'ปิดใช้งานทรัพย์สินไม่ได้')
+      throw caught
     } finally {
       setIsSaving(false)
     }
+      },
+    })
+  }
+
+  const closeAssetForm = () => {
+    if (isSaving) return
+    requestDiscard(() => setModal(null))
+  }
+
+  const closeImportForm = () => {
+    if (isSaving) return
+    requestDiscard(() => {
+      setImportRows([])
+      setImportPreview(null)
+      setModal(null)
+    })
   }
 
   const previewImport = async (rowsToPreview = importRows) => {
@@ -428,6 +457,7 @@ export function AssetRegisterPageClient() {
         method: 'POST',
       })
       setData(result.payload)
+      setImportFormBaseline(JSON.stringify([]))
       setImportRows([])
       setImportPreview(null)
       setModal(null)
@@ -797,7 +827,7 @@ export function AssetRegisterPageClient() {
 
 
       {modal === 'asset' ? (
-        <Modal title={form.id ? `แก้ไขทรัพย์สิน ${form.code}` : 'เพิ่มทรัพย์สิน'}>
+        <Modal title={form.id ? `แก้ไขทรัพย์สิน ${form.code}` : 'เพิ่มทรัพย์สิน'} onDismiss={closeAssetForm}>
           <div className="space-y-4">
             <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
               <h3 className="mb-4 text-sm font-bold text-slate-800">ข้อมูลหลัก</h3>
@@ -842,14 +872,14 @@ export function AssetRegisterPageClient() {
             </section>
           </div>
           <ModalActions>
-            <ActionButton onClick={() => setModal(null)}>ยกเลิก</ActionButton>
+            <ActionButton disabled={isSaving} onClick={closeAssetForm}>ยกเลิก</ActionButton>
             <ActionButton strong disabled={isSaving} onClick={saveAsset}>{isSaving ? 'กำลังบันทึก' : 'บันทึก'}</ActionButton>
           </ModalActions>
         </Modal>
       ) : null}
 
       {modal === 'import' ? (
-        <Modal title="นำเข้าทะเบียนทรัพย์สิน">
+        <Modal title="นำเข้าทะเบียนทรัพย์สิน" onDismiss={closeImportForm}>
           <div className="space-y-3">
             <input
               accept=".csv,.tsv,.txt"
@@ -883,7 +913,7 @@ export function AssetRegisterPageClient() {
             ) : null}
           </div>
           <ModalActions>
-            <ActionButton onClick={() => setModal(null)}>ยกเลิก</ActionButton>
+            <ActionButton disabled={isSaving} onClick={closeImportForm}>ยกเลิก</ActionButton>
             <ActionButton disabled={isSaving || importBlocked} strong onClick={commitImport}>{isSaving ? 'กำลังนำเข้า' : 'ยืนยันนำเข้า'}</ActionButton>
           </ModalActions>
         </Modal>
@@ -894,6 +924,7 @@ export function AssetRegisterPageClient() {
 }
 
 export function DepreciationPageClient() {
+  const { requestConfirmation } = useActionConfirmation()
   const [data, setData] = useState<DepreciationPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -913,6 +944,7 @@ export function DepreciationPageClient() {
   const [historySortDirection, setHistorySortDirection] = useState<SortDirection>('asc')
   const [historySortKey, setHistorySortKey] = useState<DepreciationSortKey | null>(null)
   const columnResize = useResizableColumns('finance-accounting.depreciation.history.v1', depreciationColumns)
+  const { requestDiscard: requestReverseDiscard } = useUnsavedChangesGuard(Boolean(reverseRow) && reverseReason.length > 0)
 
   useEffect(() => {
     setPage(1)
@@ -1022,23 +1054,40 @@ export function DepreciationPageClient() {
     }
   }
 
-  const reverseDepreciation = async () => {
+  const reverseDepreciation = () => {
     if (!reverseRow) return
-    setIsSaving(true)
-    setError(null)
-    try {
-      await dailyFetchJson('/api/finance-accounting/depreciation', {
-        body: JSON.stringify({ action: 'reverse', id: reverseRow.id, periodMonth: month, periodYear: year, reason: reverseReason }),
-        method: 'PATCH',
-      })
-      loadData()
+    requestConfirmation({
+      confirmLabel: 'ยืนยันย้อนกลับ',
+      description: `ต้องการย้อนกลับค่าเสื่อม ${reverseRow.refNo} หรือไม่? ระบบจะบันทึกเหตุผลและย้อนกลับรายการบัญชีที่เกี่ยวข้อง`,
+      destructive: true,
+      onConfirm: async () => {
+        setIsSaving(true)
+        setError(null)
+        try {
+          await dailyFetchJson('/api/finance-accounting/depreciation', {
+            body: JSON.stringify({ action: 'reverse', id: reverseRow.id, periodMonth: month, periodYear: year, reason: reverseReason }),
+            method: 'PATCH',
+          })
+          loadData()
+          setReverseRow(null)
+          setReverseReason('')
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : 'ย้อนกลับค่าเสื่อมราคาไม่ได้')
+          throw caught
+        } finally {
+          setIsSaving(false)
+        }
+      },
+      title: 'ยืนยันการย้อนกลับค่าเสื่อมราคา',
+    })
+  }
+
+  const closeReverseModal = () => {
+    if (isSaving) return
+    requestReverseDiscard(() => {
       setReverseRow(null)
       setReverseReason('')
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'ย้อนกลับค่าเสื่อมราคาไม่ได้')
-    } finally {
-      setIsSaving(false)
-    }
+    })
   }
 
   return (
@@ -1396,7 +1445,7 @@ export function DepreciationPageClient() {
             <Field label="เหตุผลการย้อนกลับ"><textarea className={`${fieldClass} min-h-24`} value={reverseReason} onChange={(event) => setReverseReason(event.target.value)} /></Field>
           </div>
           <ModalActions>
-            <ActionButton onClick={() => setReverseRow(null)}>ยกเลิก</ActionButton>
+            <ActionButton disabled={isSaving} onClick={closeReverseModal}>ยกเลิก</ActionButton>
             <ActionButton disabled={isSaving} strong onClick={reverseDepreciation}>{isSaving ? 'กำลังย้อนกลับ' : 'ยืนยันย้อนกลับ'}</ActionButton>
           </ModalActions>
         </Modal>
@@ -1406,6 +1455,8 @@ export function DepreciationPageClient() {
 }
 
 export function AssetDisposalPageClient() {
+  const { requestConfirmation } = useActionConfirmation()
+  const [disposalFormBaseline, setDisposalFormBaseline] = useState<string | null>(null)
   const [data, setData] = useState<DisposalPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState<DisposalFormState>(blankDisposalForm)
@@ -1419,6 +1470,9 @@ export function AssetDisposalPageClient() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [sortKey, setSortKey] = useState<DisposalSortKey | null>(null)
   const columnResize = useResizableColumns('finance-accounting.asset-disposal.history.v1', disposalColumns)
+  const disposalFormIsDirty = modal === 'create' && disposalFormBaseline !== null && JSON.stringify(form) !== disposalFormBaseline
+  const { requestDiscard } = useUnsavedChangesGuard(disposalFormIsDirty)
+  const { requestDiscard: requestReverseDiscard } = useUnsavedChangesGuard(modal === 'reverse' && reverseReason.length > 0)
 
   useEffect(() => {
     setPage(1)
@@ -1472,7 +1526,9 @@ export function AssetDisposalPageClient() {
   const gainLossPreview = sellingPrice - (selectedAsset?.nbv ?? 0)
 
   const openCreate = () => {
-    setForm(blankDisposalForm())
+    const nextForm = blankDisposalForm()
+    setDisposalFormBaseline(JSON.stringify(nextForm))
+    setForm(nextForm)
     setError(null)
     setModal('create')
   }
@@ -1490,6 +1546,7 @@ export function AssetDisposalPageClient() {
         method: 'POST',
       })
       setData(result.payload)
+      setDisposalFormBaseline(JSON.stringify(form))
       setModal(null)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'บันทึกจำหน่ายทรัพย์สินไม่ได้')
@@ -1504,24 +1561,50 @@ export function AssetDisposalPageClient() {
     setModal('reverse')
   }
 
-  const reverseDisposal = async () => {
-    if (!reverseRow) return
-    setIsSaving(true)
-    setError(null)
-    try {
-      const result = await dailyFetchJson<{ payload: DisposalPayload }>('/api/finance-accounting/asset-disposal', {
-        body: JSON.stringify({ action: 'reverse', id: reverseRow.id, reason: reverseReason }),
-        method: 'PATCH',
-      })
-      setData(result.payload)
+  const closeDisposalForm = () => {
+    if (isSaving) return
+    requestDiscard(() => {
+      setForm(blankDisposalForm())
+      setModal(null)
+    })
+  }
+
+  const closeReverseModal = () => {
+    if (isSaving) return
+    requestReverseDiscard(() => {
       setModal(null)
       setReverseRow(null)
       setReverseReason('')
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'ย้อนกลับรายการจำหน่ายทรัพย์สินไม่ได้')
-    } finally {
-      setIsSaving(false)
-    }
+    })
+  }
+
+  const reverseDisposal = () => {
+    if (!reverseRow) return
+    requestConfirmation({
+      confirmLabel: 'ยืนยันย้อนกลับ',
+      description: `ต้องการย้อนกลับรายการจำหน่าย ${reverseRow.disposalNo} หรือไม่? ระบบจะบันทึกเหตุผลและย้อนกลับรายการบัญชีที่เกี่ยวข้อง`,
+      destructive: true,
+      onConfirm: async () => {
+        setIsSaving(true)
+        setError(null)
+        try {
+          const result = await dailyFetchJson<{ payload: DisposalPayload }>('/api/finance-accounting/asset-disposal', {
+            body: JSON.stringify({ action: 'reverse', id: reverseRow.id, reason: reverseReason }),
+            method: 'PATCH',
+          })
+          setData(result.payload)
+          setModal(null)
+          setReverseRow(null)
+          setReverseReason('')
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : 'ย้อนกลับรายการจำหน่ายทรัพย์สินไม่ได้')
+          throw caught
+        } finally {
+          setIsSaving(false)
+        }
+      },
+      title: 'ยืนยันการย้อนกลับรายการจำหน่าย',
+    })
   }
 
   return (
@@ -1738,7 +1821,7 @@ export function AssetDisposalPageClient() {
 
 
       {modal === 'create' ? (
-        <Modal title="จำหน่ายทรัพย์สิน">
+        <Modal title="จำหน่ายทรัพย์สิน" onDismiss={closeDisposalForm}>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-2">
             <Field label="ทรัพย์สิน"><IdOptionSelect blankLabel="-เลือกทรัพย์สิน-" options={data?.assetOptions ?? []} value={form.assetId} onChange={(value) => updateForm('assetId', value)} /></Field>
             <Field label="วันที่"><input className={fieldClass} type="date" value={form.disposalDate} onChange={(event) => updateForm('disposalDate', event.target.value)} /></Field>
@@ -1765,7 +1848,7 @@ export function AssetDisposalPageClient() {
             </div>
           ) : null}
           <ModalActions>
-            <ActionButton onClick={() => setModal(null)}>ยกเลิก</ActionButton>
+            <ActionButton disabled={isSaving} onClick={closeDisposalForm}>ยกเลิก</ActionButton>
             <ActionButton disabled={isSaving || !form.assetId} strong onClick={saveDisposal}>{isSaving ? 'กำลังบันทึก' : 'บันทึก'}</ActionButton>
           </ModalActions>
         </Modal>
@@ -1781,7 +1864,7 @@ export function AssetDisposalPageClient() {
             <Field label="เหตุผลการย้อนกลับ"><textarea className={`${fieldClass} min-h-24`} value={reverseReason} onChange={(event) => setReverseReason(event.target.value)} /></Field>
           </div>
           <ModalActions>
-            <ActionButton onClick={() => setModal(null)}>ยกเลิก</ActionButton>
+            <ActionButton disabled={isSaving} onClick={closeReverseModal}>ยกเลิก</ActionButton>
             <ActionButton disabled={isSaving} strong onClick={reverseDisposal}>{isSaving ? 'กำลังย้อนกลับ' : 'ยืนยันย้อนกลับ'}</ActionButton>
           </ModalActions>
         </Modal>
@@ -1930,14 +2013,23 @@ function splitDelimitedLine(line: string, delimiter: string) {
   return cells
 }
 
-function Modal({ children, title }: { children: ReactNode; title: string }) {
+function Modal({ children, onDismiss, title }: { children: ReactNode; onDismiss?: () => void; title: string }) {
   const childList = Children.toArray(children)
   const actionElement = childList.find((child) => isValidElement<{ children?: ReactNode }>(child) && child.type === ModalActions)
   const content = childList.filter((child) => !(isValidElement(child) && child.type === ModalActions))
   const actions = isValidElement<{ children?: ReactNode }>(actionElement) ? actionElement.props.children : null
 
+  useEffect(() => {
+    if (!onDismiss) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !document.querySelector('[role="dialog"]')) onDismiss()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onDismiss])
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-0 sm:p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-0 sm:p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onDismiss?.() }}>
       <div className="flex h-[100dvh] max-h-[100dvh] w-full max-w-none flex-col overflow-hidden rounded-none border-0 bg-slate-900 shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:max-w-6xl sm:rounded-md" data-ns-field-scope="entry">
         <div data-ns-dialog-header className="flex shrink-0 flex-wrap items-center justify-between gap-3 bg-slate-900 px-4 py-3 text-white dark:bg-[#0f172a] sm:px-6 sm:py-4">
           <h2 className="min-w-0 truncate text-sm font-semibold text-white">{title}</h2>

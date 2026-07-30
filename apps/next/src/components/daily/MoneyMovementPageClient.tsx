@@ -11,6 +11,7 @@ import { Button as UiButton } from '@/components/ui/Button'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { Input as UiInput } from '@/components/ui/Input'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { CollapsedList } from '@/components/ui/CollapsedList'
@@ -276,6 +277,66 @@ function newCustomerAdvanceReceiptLine(): CustomerAdvanceReceiptLine {
   return { customerAdvanceDocNo: '', id: `CAL-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, receiptAmount: 0 }
 }
 
+export function isBlankCustomerAdvanceReceiptLine(
+  line: Pick<CustomerAdvanceReceiptLine, 'customerAdvanceDocNo' | 'receiptAmount'>,
+) {
+  return !line.customerAdvanceDocNo.trim() && Number(line.receiptAmount) === 0
+}
+
+export function isBlankReceiptLine(
+  line: Pick<ReceiptLine, 'discountAmount' | 'receiptAmount' | 'salesBillDocNo' | 'withholdingTaxAmount'>,
+) {
+  return !line.salesBillDocNo.trim()
+    && Number(line.receiptAmount) === 0
+    && Number(line.discountAmount) === 0
+    && Number(line.withholdingTaxAmount) === 0
+}
+
+export function isBlankPaymentLine(
+  line: Pick<PaymentLine, 'amount' | 'approvalId' | 'billId' | 'billText' | 'discount' | 'fee' | 'supplierId' | 'withholdingTax'>,
+) {
+  return !line.approvalId
+    && !line.billId.trim()
+    && !line.billText?.trim()
+    && !line.supplierId.trim()
+    && Number(line.amount) === 0
+    && Number(line.discount) === 0
+    && Number(line.fee) === 0
+    && Number(line.withholdingTax) === 0
+}
+
+export function isBlankPaymentSplit(split: Pick<PaymentSplit, 'accountId' | 'amount'>) {
+  return !split.accountId.trim() && Number(split.amount) === 0
+}
+
+export function isBlankReceiptSplit(split: Pick<ReceiptSplit, 'accountId' | 'amount' | 'method'>) {
+  return !split.accountId.trim() && !split.method.trim() && Number(split.amount) === 0
+}
+
+export function receiptSourceChangeWillDiscardData(
+  receiptForm: Pick<CustomerReceiptFormValues, 'customerAdvanceLines' | 'salesBillLines' | 'splits'>
+    & Partial<Pick<CustomerReceiptFormValues, 'accountId' | 'amount' | 'customerTransferredNativeAmount' | 'fee' | 'fxRate' | 'fxRateOverrideReason' | 'fxRateType' | 'receiptCurrencyCode' | 'receivedNativeAmount'>>,
+  functionalCurrencyCode = '',
+) {
+  const receiptCurrencyCode = receiptForm.receiptCurrencyCode?.trim().toUpperCase()
+  const normalizedFunctionalCurrencyCode = functionalCurrencyCode.trim().toUpperCase()
+  const hasForeignReceiptData = Boolean(
+    (receiptCurrencyCode && receiptCurrencyCode !== normalizedFunctionalCurrencyCode)
+    || receiptForm.accountId?.trim()
+    || Number(receiptForm.amount) !== 0
+    || Number(receiptForm.customerTransferredNativeAmount) !== 0
+    || Number(receiptForm.fee) !== 0
+    || Number(receiptForm.fxRate) !== 0
+    || receiptForm.fxRateOverrideReason?.trim()
+    || receiptForm.fxRateType?.trim()
+    || Number(receiptForm.receivedNativeAmount) !== 0,
+  )
+  return hasForeignReceiptData
+    || (receiptForm.salesBillLines ?? []).some((line) => !isBlankReceiptLine(line))
+    || (receiptForm.customerAdvanceLines ?? []).some((line) => !isBlankCustomerAdvanceReceiptLine(line))
+    || (receiptForm.splits ?? []).some((split) => !isBlankReceiptSplit(split))
+}
+
 function receiptLineMoneyKey(line: ReceiptLine, index: number, field: 'discountAmount' | 'receiptAmount' | 'withholdingTaxAmount') {
   return `receipt-line:${line.id ?? index}:${field}`
 }
@@ -417,6 +478,15 @@ function initialForm(mode: 'payment' | 'receipt'): MoneyForm {
     ...(mode === 'payment' ? { lines: [newPaymentLine()], splits: [newPaymentSplit()], supplierId: '' } : { branchId: '', customerId: '', sourceType: 'SB', salesBillLines: [newReceiptLine()], customerAdvanceLines: [], splits: [newReceiptSplit()] }),
     withholdingTax: 0,
   } as MoneyForm
+}
+
+function moneyFormSafetySnapshot(form: MoneyForm, functionalCurrencyCode = '') {
+  const receiptForm = form as CustomerReceiptFormValues
+  const receiptCurrencyCode = receiptForm.receiptCurrencyCode?.trim().toUpperCase()
+  if (receiptCurrencyCode && receiptCurrencyCode === functionalCurrencyCode.trim().toUpperCase()) {
+    return JSON.stringify({ ...receiptForm, receiptCurrencyCode: undefined })
+  }
+  return JSON.stringify(form)
 }
 
 function paymentHistoryStatusLabel(status: string | undefined, mode?: 'payment' | 'receipt') {
@@ -1025,6 +1095,7 @@ export function MoneyMovementPageClient({
   const [selectedReceiptIds, setSelectedReceiptIds] = useState<string[]>([])
   const [moneyTab, setMoneyTab] = useState<ReceiptTab>(initialTab)
   const [form, setForm] = useState<MoneyForm>(() => initialForm(mode))
+  const [formBaseline, setFormBaseline] = useState(() => moneyFormSafetySnapshot(initialForm(mode)))
   const [fxRateLookup, setFxRateLookup] = useState<FxRateLookup | null>(null)
   const [isFxRateLoading, setIsFxRateLoading] = useState(false)
   const [isBillLocked, setIsBillLocked] = useState(false)
@@ -1078,6 +1149,13 @@ export function MoneyMovementPageClient({
     : (form as CustomerReceiptFormValues).customerId
   const showEntrySection = !historyOnly && (!showMoneyTabs || moneyTab === 'entry')
   const showHistorySection = !entryOnly && (!showMoneyTabs || moneyTab === 'history')
+  const functionalCurrencyCode = mode === 'receipt' ? (data.currencyPolicy?.functionalCurrencyCode ?? '') : ''
+  const isFormDirty = formOpen && moneyFormSafetySnapshot(form, functionalCurrencyCode) !== formBaseline
+  const { requestDiscard } = useUnsavedChangesGuard(isFormDirty)
+  const { requestDiscard: requestDiscardApprovalReason } = useUnsavedChangesGuard(Boolean(cancelApprovalTarget && cancelApprovalReason.trim()))
+  const { requestDiscard: requestDiscardReceiptReason } = useUnsavedChangesGuard(Boolean(cancelReceiptTarget && cancelReceiptReason.trim()))
+  const { requestDiscard: requestDiscardPaymentReason } = useUnsavedChangesGuard(Boolean(cancelPaymentTarget && cancelPaymentReason.trim()))
+  const { requestConfirmation } = useActionConfirmation()
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -1111,7 +1189,6 @@ export function MoneyMovementPageClient({
   const receiptLines = useMemo(() => (mode === 'receipt' ? (form as CustomerReceiptFormValues).salesBillLines ?? [] : []), [form, mode])
   const customerAdvanceReceiptLines = useMemo(() => (mode === 'receipt' ? (form as CustomerReceiptFormValues).customerAdvanceLines ?? [] : []), [form, mode])
   const receiptSourceType = mode === 'receipt' ? (form as CustomerReceiptFormValues).sourceType : 'SB'
-  const functionalCurrencyCode = mode === 'receipt' ? (data.currencyPolicy?.functionalCurrencyCode ?? '') : ''
   const receiptCurrencyCode = mode === 'receipt'
     ? ((form as CustomerReceiptFormValues).receiptCurrencyCode?.trim().toUpperCase() ?? functionalCurrencyCode)
     : ''
@@ -1527,7 +1604,9 @@ export function MoneyMovementPageClient({
   }, [])
 
   function openForm() {
-    setForm(initialForm(mode))
+    const nextForm = initialForm(mode)
+    setForm(nextForm)
+    setFormBaseline(moneyFormSafetySnapshot(nextForm))
     setMoneyDrafts({})
     setIsBillLocked(false)
     setError(null)
@@ -1537,7 +1616,7 @@ export function MoneyMovementPageClient({
   function openFormForBill(bill: Bill) {
     if (mode === 'receipt') {
       const amount = roundMoney(bill.receivableBalance && bill.receivableBalance > 0 ? bill.receivableBalance : bill.totalAmount)
-      setForm({
+      const nextForm = {
         ...initialForm(mode),
         amount,
         billId: bill.id,
@@ -1550,7 +1629,9 @@ export function MoneyMovementPageClient({
           salesBillDocNo: bill.docNo,
         }],
         splits: [{ ...newReceiptSplit(), amount }],
-      } as MoneyForm)
+      } as MoneyForm
+      setForm(nextForm)
+      setFormBaseline(moneyFormSafetySnapshot(nextForm))
       setMoneyDrafts({})
       setIsBillLocked(true)
       setError(null)
@@ -1562,7 +1643,7 @@ export function MoneyMovementPageClient({
     const settlementAmount = balance > 0 ? balance : bill.totalAmount
     const paymentAmount = roundMoney(settlementAmount)
     const netAmount = roundMoney(paymentAmount)
-    setForm({
+    const nextForm = {
       ...initialForm(mode),
       amount: paymentAmount,
       billId: bill.id,
@@ -1578,7 +1659,9 @@ export function MoneyMovementPageClient({
       method: normalizePaymentMethod(bill.approvalPaymentMethod),
       splits: [{ ...newPaymentSplit(), amount: netAmount }],
       supplierId: bill.supplierId ?? '',
-    } as unknown as MoneyForm)
+    } as unknown as MoneyForm
+    setForm(nextForm)
+    setFormBaseline(moneyFormSafetySnapshot(nextForm))
     setMoneyDrafts({})
     setIsBillLocked(true)
     setError(null)
@@ -1599,7 +1682,7 @@ export function MoneyMovementPageClient({
       salesBillDocNo: line.salesBillDocNo,
       withholdingTaxAmount: line.withholdingTaxAmount,
     }))
-    setForm({
+    const nextForm = {
       ...initialForm(mode),
       accountId: row.accountId,
       amount: receiptBookAmount(row),
@@ -1638,7 +1721,9 @@ export function MoneyMovementPageClient({
         })
         : [{ ...newReceiptSplit(), accountId: row.accountId ?? '', amount: row.foreignAudit ? row.foreignAudit.receivedNativeAmount : receiptBookNetCashIn(row) }],
       withholdingTax: roundMoney(lines.reduce((sum, line) => sum + line.withholdingTaxAmount, 0)),
-    } as MoneyForm)
+    } as MoneyForm
+    setForm(nextForm)
+    setFormBaseline(moneyFormSafetySnapshot(nextForm))
     setMoneyDrafts({})
     setIsBillLocked(false)
     setError(null)
@@ -1658,6 +1743,7 @@ export function MoneyMovementPageClient({
   }
 
   function switchMoneyTab(value: ReceiptTab) {
+    const switchTab = () => {
     setMoneyTab(value)
     setError(null)
     setFormOpen(false)
@@ -1686,6 +1772,17 @@ export function MoneyMovementPageClient({
     if (mode === 'payment' && typeof window !== 'undefined') {
       window.history.replaceState(null, '', value === 'history' ? '/purchase/payments?tab=history' : '/purchase/payments')
     }
+    }
+    if (formOpen && value !== moneyTab) {
+      requestDiscard(switchTab)
+      return
+    }
+    switchTab()
+  }
+
+  function requestCloseForm() {
+    if (isSaving) return
+    requestDiscard(() => setFormOpen(false))
   }
 
   function billSortParts(): { direction: 'asc' | 'desc'; field: PaymentBillSortField } {
@@ -2061,32 +2158,60 @@ export function MoneyMovementPageClient({
 
   function removeCustomerAdvanceReceiptLine(index: number) {
     if (customerAdvanceReceiptLines.length <= 1) return
-    syncCustomerAdvanceReceiptLines(customerAdvanceReceiptLines.filter((_, lineIndex) => lineIndex !== index))
+    const target = customerAdvanceReceiptLines[index]
+    if (!target) return
+    const remove = () => {
+      syncCustomerAdvanceReceiptLines(customerAdvanceReceiptLines.filter((_, lineIndex) => lineIndex !== index))
+    }
+    if (isBlankCustomerAdvanceReceiptLine(target)) {
+      remove()
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'ยืนยันลบรายการ',
+      description: 'ต้องการลบรายการรับเงินจากเงินล่วงหน้าลูกค้านี้หรือไม่? ข้อมูลบิลและยอดรับในแถวนี้จะหายไป',
+      destructive: true,
+      onConfirm: remove,
+      title: 'ยืนยันการลบรายการรับเงินล่วงหน้า',
+    })
   }
 
   function changeReceiptSourceType(sourceType: 'SB' | 'CADV') {
     const receiptForm = form as CustomerReceiptFormValues
-    setError(null)
-    setFxRateLookup(null)
-    setForm({
-      ...receiptForm,
-      accountId: '',
-      amount: 0,
-      branchId: sourceType === 'SB' ? receiptForm.branchId ?? '' : '',
-      billId: null,
-      customerAdvanceLines: sourceType === 'CADV' ? [newCustomerAdvanceReceiptLine()] : [],
-      discount: 0,
-      customerTransferredNativeAmount: undefined,
-      fee: 0,
-      fxRate: undefined,
-      fxRateOverrideReason: null,
-      fxRateType: undefined,
-      receivedNativeAmount: undefined,
-      receiptCurrencyCode: functionalCurrencyCode || undefined,
-      salesBillLines: sourceType === 'SB' ? [newReceiptLine()] : [],
-      sourceType,
-      splits: [newReceiptSplit()],
-      withholdingTax: 0,
+    const applySourceType = () => {
+      setError(null)
+      setFxRateLookup(null)
+      setForm({
+        ...receiptForm,
+        accountId: '',
+        amount: 0,
+        branchId: sourceType === 'SB' ? receiptForm.branchId ?? '' : '',
+        billId: null,
+        customerAdvanceLines: sourceType === 'CADV' ? [newCustomerAdvanceReceiptLine()] : [],
+        discount: 0,
+        customerTransferredNativeAmount: undefined,
+        fee: 0,
+        fxRate: undefined,
+        fxRateOverrideReason: null,
+        fxRateType: undefined,
+        receivedNativeAmount: undefined,
+        receiptCurrencyCode: functionalCurrencyCode || undefined,
+        salesBillLines: sourceType === 'SB' ? [newReceiptLine()] : [],
+        sourceType,
+        splits: [newReceiptSplit()],
+        withholdingTax: 0,
+      })
+    }
+    if (!receiptSourceChangeWillDiscardData(receiptForm, functionalCurrencyCode)) {
+      applySourceType()
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'เปลี่ยนประเภทเอกสาร',
+      description: 'การเปลี่ยนประเภทเอกสารจะล้างรายการรับเงินและการแบ่งชำระที่กรอกไว้ ต้องการดำเนินการต่อหรือไม่?',
+      destructive: true,
+      onConfirm: applySourceType,
+      title: 'ยืนยันการเปลี่ยนประเภทเอกสารรับเงิน',
     })
   }
 
@@ -2163,7 +2288,22 @@ export function MoneyMovementPageClient({
 
   function removeReceiptLine(index: number) {
     if (receiptLines.length <= 1) return
-    syncReceiptLines(receiptLines.filter((_, lineIndex) => lineIndex !== index))
+    const target = receiptLines[index]
+    if (!target) return
+    const remove = () => {
+      syncReceiptLines(receiptLines.filter((_, lineIndex) => lineIndex !== index))
+    }
+    if (isBlankReceiptLine(target)) {
+      remove()
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'ยืนยันลบรายการ',
+      description: 'ต้องการลบรายการรับเงินนี้หรือไม่? ข้อมูลบิล ยอดรับ ส่วนลด และภาษีหัก ณ ที่จ่ายในแถวนี้จะหายไป',
+      destructive: true,
+      onConfirm: remove,
+      title: 'ยืนยันการลบรายการรับเงิน',
+    })
   }
 
   function changeReceiptCustomer(customerId: string) {
@@ -2265,7 +2405,22 @@ export function MoneyMovementPageClient({
 
   function removePaymentLine(index: number) {
     if (paymentLines.length <= 1) return
-    syncPaymentLines(paymentLines.filter((_, lineIndex) => lineIndex !== index))
+    const target = paymentLines[index]
+    if (!target) return
+    const remove = () => {
+      syncPaymentLines(paymentLines.filter((_, lineIndex) => lineIndex !== index))
+    }
+    if (isBlankPaymentLine(target)) {
+      remove()
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'ยืนยันลบรายการ',
+      description: 'ต้องการลบรายการจ่ายเงินนี้หรือไม่? ข้อมูลบิล ผู้รับเงิน และยอดจ่ายในแถวนี้จะหายไป',
+      destructive: true,
+      onConfirm: remove,
+      title: 'ยืนยันการลบรายการจ่ายเงิน',
+    })
   }
 
   function updatePaymentLine(index: number, patch: Partial<PaymentLine>) {
@@ -2310,7 +2465,22 @@ export function MoneyMovementPageClient({
 
   function removePaymentSplit(index: number) {
     if (paymentSplits.length <= 1) return
-    syncPaymentSplits(paymentSplits.filter((_, splitIndex) => splitIndex !== index))
+    const target = paymentSplits[index]
+    if (!target) return
+    const remove = () => {
+      syncPaymentSplits(paymentSplits.filter((_, splitIndex) => splitIndex !== index))
+    }
+    if (isBlankPaymentSplit(target)) {
+      remove()
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'ยืนยันลบช่องทางจ่าย',
+      description: 'ต้องการลบช่องทางจ่ายนี้หรือไม่? บัญชีและยอดเงินในรายการนี้จะหายไป',
+      destructive: true,
+      onConfirm: remove,
+      title: 'ยืนยันการลบช่องทางจ่ายเงิน',
+    })
   }
 
   function updatePaymentSplit(index: number, patch: Partial<PaymentSplit>) {
@@ -2336,7 +2506,22 @@ export function MoneyMovementPageClient({
 
   function removeReceiptSplit(index: number) {
     if (receiptSplits.length <= 1) return
-    syncReceiptSplits(receiptSplits.filter((_, splitIndex) => splitIndex !== index))
+    const target = receiptSplits[index]
+    if (!target) return
+    const remove = () => {
+      syncReceiptSplits(receiptSplits.filter((_, splitIndex) => splitIndex !== index))
+    }
+    if (isBlankReceiptSplit(target)) {
+      remove()
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'ยืนยันลบช่องทางรับ',
+      description: 'ต้องการลบช่องทางรับเงินนี้หรือไม่? วิธีรับเงิน บัญชี และยอดเงินในรายการนี้จะหายไป',
+      destructive: true,
+      onConfirm: remove,
+      title: 'ยืนยันการลบช่องทางรับเงิน',
+    })
   }
 
   function updateReceiptSplit(index: number, patch: Partial<ReceiptSplit>) {
@@ -2519,6 +2704,7 @@ export function MoneyMovementPageClient({
     setError(null)
     try {
       await dailyFetchJson(apiPath, { body: JSON.stringify(parsed.data), method: 'POST' })
+      setFormBaseline(moneyFormSafetySnapshot(form))
       setFormOpen(false)
       await loadData()
     } catch (caught) {
@@ -2555,6 +2741,33 @@ export function MoneyMovementPageClient({
     } finally {
       setIsCancellingApproval(false)
     }
+  }
+
+  function closeCancelReceipt() {
+    if (isCancellingReceipt) return
+    requestDiscardReceiptReason(() => {
+      setCancelReceiptTarget(null)
+      setCancelReceiptReason('')
+      setInvalidCancelReason(null)
+    })
+  }
+
+  function closeCancelPayment() {
+    if (isCancellingPayment) return
+    requestDiscardPaymentReason(() => {
+      setCancelPaymentTarget(null)
+      setCancelPaymentReason('')
+      setInvalidCancelReason(null)
+    })
+  }
+
+  function closeCancelApproval() {
+    if (isCancellingApproval) return
+    requestDiscardApprovalReason(() => {
+      setCancelApprovalTarget(null)
+      setCancelApprovalReason('')
+      setInvalidCancelReason(null)
+    })
   }
 
   async function cancelCustomerReceiptRow() {
@@ -3069,7 +3282,7 @@ export function MoneyMovementPageClient({
 
       {formOpen && showEntrySection ? (
         <Dialog open onOpenChange={(open) => {
-          if (!open && !isSaving) setFormOpen(false)
+          if (!open) requestCloseForm()
         }}>
           <DialogContent className="top-[max(2rem,50%)] max-h-[90vh] max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 shadow-2xl outline-none focus:outline-none" hideClose>
             <form noValidate onSubmit={save} className="flex flex-col max-h-[90vh]">
@@ -3086,7 +3299,7 @@ export function MoneyMovementPageClient({
                   <Check className="h-4 w-4" />
                   {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
                 </UiButton>
-                <UiButton className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={() => setFormOpen(false)}>ยกเลิก</UiButton>
+                <UiButton className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={requestCloseForm}>ยกเลิก</UiButton>
               </div>
               </div>
             </DialogHeader>
@@ -4129,10 +4342,7 @@ export function MoneyMovementPageClient({
 
       {cancelReceiptTarget ? (
         <Dialog open onOpenChange={(open) => {
-          if (!open && !isCancellingReceipt) {
-            setCancelReceiptTarget(null)
-            setInvalidCancelReason(null)
-          }
+          if (!open) closeCancelReceipt()
         }}>
           <DialogContent className="max-w-md rounded-md !p-0 overflow-hidden bg-slate-900 border-0 shadow-2xl outline-none focus:outline-none" hideClose mobileAppShell={false}>
             <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-md">
@@ -4160,7 +4370,7 @@ export function MoneyMovementPageClient({
               </label>
             </div>
             <DialogFooter className="border-t border-slate-200 bg-white px-5 py-4">
-              <UiButton className="font-normal" disabled={isCancellingReceipt} type="button" variant="outline" onClick={() => { setCancelReceiptTarget(null); setInvalidCancelReason(null) }}>ปิด</UiButton>
+              <UiButton className="font-normal" disabled={isCancellingReceipt} type="button" variant="outline" onClick={closeCancelReceipt}>ปิด</UiButton>
               <UiButton className="bg-red-600 text-white hover:bg-red-700 font-normal px-5" disabled={isCancellingReceipt} type="button" variant="default" onClick={cancelCustomerReceiptRow}>ยืนยันยกเลิก</UiButton>
             </DialogFooter>
           </DialogContent>
@@ -4169,10 +4379,7 @@ export function MoneyMovementPageClient({
 
       {cancelPaymentTarget ? (
         <Dialog open onOpenChange={(open) => {
-          if (!open && !isCancellingPayment) {
-            setCancelPaymentTarget(null)
-            setInvalidCancelReason(null)
-          }
+          if (!open) closeCancelPayment()
         }}>
           <DialogContent className="max-w-md rounded-md !p-0 overflow-hidden bg-slate-900 border-0 shadow-2xl outline-none focus:outline-none" hideClose mobileAppShell={false}>
             <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-md">
@@ -4200,7 +4407,7 @@ export function MoneyMovementPageClient({
               </label>
             </div>
             <DialogFooter className="border-t border-slate-200 bg-white px-5 py-4">
-              <UiButton className="font-normal" disabled={isCancellingPayment} type="button" variant="outline" onClick={() => { setCancelPaymentTarget(null); setInvalidCancelReason(null) }}>ปิด</UiButton>
+              <UiButton className="font-normal" disabled={isCancellingPayment} type="button" variant="outline" onClick={closeCancelPayment}>ปิด</UiButton>
               <UiButton className="bg-red-600 text-white hover:bg-red-700 font-normal px-5" disabled={isCancellingPayment} type="button" variant="default" onClick={cancelPaymentRow}>ยืนยันยกเลิก</UiButton>
             </DialogFooter>
           </DialogContent>
@@ -4209,11 +4416,7 @@ export function MoneyMovementPageClient({
 
       {mode === 'payment' && !historyOnly && cancelApprovalTarget ? (
         <Dialog open onOpenChange={(open) => {
-          if (!open && !isCancellingApproval) {
-            setCancelApprovalTarget(null)
-            setCancelApprovalReason('')
-            setInvalidCancelReason(null)
-          }
+          if (!open) closeCancelApproval()
         }}>
           <DialogContent className="max-w-lg rounded-md !p-0 overflow-hidden bg-slate-900 border-0 shadow-2xl outline-none focus:outline-none" hideClose mobileAppShell={false}>
             <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-md">
@@ -4251,11 +4454,7 @@ export function MoneyMovementPageClient({
                 disabled={isCancellingApproval}
                 type="button"
                 variant="outline"
-                onClick={() => {
-                  setCancelApprovalTarget(null)
-                  setCancelApprovalReason('')
-                  setInvalidCancelReason(null)
-                }}
+                onClick={closeCancelApproval}
               >
                 ปิด
               </UiButton>

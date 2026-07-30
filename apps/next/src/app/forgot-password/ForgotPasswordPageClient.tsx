@@ -1,7 +1,8 @@
 'use client'
 
 import { FormEvent, useState } from 'react'
-import Link from 'next/link'
+import { GuardedLink } from '@/components/ui/GuardedLink'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { forgotPasswordSchema } from '@/lib/auth'
 import { getSupabaseClient } from '@/lib/supabase'
 
@@ -12,6 +13,7 @@ export function ForgotPasswordPageClient() {
   const [isLoading, setIsLoading] = useState(false)
   const supabase = getSupabaseClient()
   const isSupabaseReady = Boolean(supabase)
+  useUnsavedChangesGuard(Boolean(identifier))
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -94,9 +96,9 @@ export function ForgotPasswordPageClient() {
           </button>
 
           <div className="text-center">
-            <Link className="text-sm font-medium text-slate-600 hover:underline" href="/login">
+            <GuardedLink className="text-sm font-medium text-slate-600 hover:underline" href="/login">
               กลับไปหน้าเข้าสู่ระบบ
-            </Link>
+            </GuardedLink>
           </div>
         </form>
       </div>

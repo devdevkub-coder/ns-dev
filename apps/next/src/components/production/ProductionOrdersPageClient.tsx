@@ -17,6 +17,7 @@ import { ApiError } from '@/lib/api-client'
 import { formatDateDisplay, sanitizeDecimalInput } from '@/lib/format'
 import { ArrowDownUp, Download, Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import {
   applyMobileFilterDraft,
   createMobileFilterDraft,
@@ -327,6 +328,7 @@ function productionHistoryToneClass(status: string) {
 }
 
 export function ProductionOrdersPageClient() {
+  const { requestConfirmation } = useActionConfirmation()
   const [data, setData] = useState<ProductionOrdersPayload | null>(null)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -577,35 +579,53 @@ export function ProductionOrdersPageClient() {
   async function cancelOrderFromList(row: ProductionOrderRow) {
     const reason = window.prompt('เหตุผลการยกเลิก')?.trim()
     if (!reason) return
-    if (!window.confirm('ระบบจะคืนผลผลิตกลับ WIP และคืน RM/FG กลับคลังต้นทางให้อัตโนมัติภายในรายการเดียว ต้องการยกเลิกใบสั่งผลิตนี้หรือไม่')) return
-    setError(null)
-    try {
-      await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}`, {
-        body: JSON.stringify({ action: 'cancel', reason }),
-        method: 'PATCH',
-      })
-      await loadData(page)
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'ยกเลิกใบสั่งผลิตไม่ได้')
-    }
+    requestConfirmation({
+      confirmLabel: 'ยืนยันยกเลิก',
+      description: 'ระบบจะคืนผลผลิตกลับ WIP และคืน RM/FG กลับคลังต้นทางให้อัตโนมัติภายในรายการเดียว ต้องการยกเลิกใบสั่งผลิตนี้หรือไม่',
+      destructive: true,
+      onConfirm: async () => {
+        setError(null)
+        try {
+          await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}`, {
+            body: JSON.stringify({ action: 'cancel', reason }),
+            method: 'PATCH',
+          })
+          await loadData(page)
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : 'ยกเลิกใบสั่งผลิตไม่ได้')
+          throw caught
+        }
+      },
+      title: 'ยืนยันการยกเลิกใบสั่งผลิตหรือไม่?',
+    })
   }
 
   async function completeOrderFromList(row: ProductionOrderRow) {
     const wipQty = Math.max(0, row.wipQty ?? 0)
-    const confirmCloseWithWip = wipQty > 0.000001
-      ? window.confirm(`ยังมี WIP คงเหลือ ${formatMoney(wipQty)} กก.\nหากยืนยันจบงาน ระบบจะคืน WIP ที่เหลือกลับคลังต้นทาง ต้องการดำเนินการต่อหรือไม่`)
-      : false
-    if (wipQty > 0.000001 && !confirmCloseWithWip) return
-    setError(null)
-    try {
-      await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}`, {
-        body: JSON.stringify({ action: 'complete', confirmCloseWithWip, note: '' }),
-        method: 'PATCH',
-      })
-      await loadData(page)
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'จบงานผลิตไม่ได้')
+    const completeOrder = async (confirmCloseWithWip: boolean, rethrow = false) => {
+      setError(null)
+      try {
+        await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}`, {
+          body: JSON.stringify({ action: 'complete', confirmCloseWithWip, note: '' }),
+          method: 'PATCH',
+        })
+        await loadData(page)
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : 'จบงานผลิตไม่ได้')
+        if (rethrow) throw caught
+      }
     }
+    if (wipQty <= 0.000001) {
+      await completeOrder(false)
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'ยืนยันจบงาน',
+      description: `ยังมี WIP คงเหลือ ${formatMoney(wipQty)} กก.\nหากยืนยันจบงาน ระบบจะคืน WIP ที่เหลือกลับคลังต้นทาง ต้องการดำเนินการต่อหรือไม่`,
+      destructive: true,
+      onConfirm: () => completeOrder(true, true),
+      title: 'ยืนยันการจบงานผลิตหรือไม่?',
+    })
   }
 
   return (
@@ -1150,6 +1170,7 @@ function CountdownTimer({ closedAt }: { closedAt: string | null }) {
 
 
 function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row }: { mode: 'create' | 'detail'; onClose: (refresh?: boolean) => void; onOpenCreated: (docNo: string) => Promise<void>; onRefreshRow: (docNo: string) => Promise<ProductionOrderRow | null>; row: ProductionOrderRow | null }) {
+  const { requestConfirmation } = useActionConfirmation()
   const isCreate = mode === 'create'
   const [options, setOptions] = useState<ProductionOrderOptions>(emptyOptions)
   const [tab, setTab] = useState<'header' | 'input' | 'output' | 'history'>('header')
@@ -1161,6 +1182,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
   const [returnInputDocNos, setReturnInputDocNos] = useState<string[]>([])
   const [returnQuantities, setReturnQuantities] = useState<Record<string, string>>({})
   const [returnReason, setReturnReason] = useState('')
+  const [returnFormBaseline, setReturnFormBaseline] = useState<string | null>(null)
   const [wip, setWip] = useState<WipPayload | null>(null)
   const [createErrors, setCreateErrors] = useState<Record<string, string>>({})
   const [createForm, setCreateForm] = useState({
@@ -1186,6 +1208,14 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
   const outputNetQtyRef = useRef<HTMLInputElement | null>(null)
   const outputLossQtyRef = useRef<HTMLInputElement | null>(null)
   const outputSourceWipQtyRef = useRef<HTMLInputElement | null>(null)
+  const [formBaseline, setFormBaseline] = useState<string | null>(() => JSON.stringify(isCreate
+    ? { createForm }
+    : { inputDrafts, inputForm, outputDrafts, outputForm, outputWipDrafts, showOutputWipEntryRow }
+  ))
+  const [formDefaultsLoaded, setFormDefaultsLoaded] = useState(false)
+  const [outputDraftLoaded, setOutputDraftLoaded] = useState(isCreate)
+  const userEditedFormRef = useRef(false)
+  const [hasUserEditedForm, setHasUserEditedForm] = useState(false)
 
   const inputWarehouseOptions = useMemo(() => {
     if (!row?.branchCode) return []
@@ -1256,6 +1286,59 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
   const canWrite = row
     ? ['Open', 'In Production', 'Partially Completed'].includes(row.status) || isGracePeriodActive(row)
     : false
+  const formSafetySnapshot = useMemo(() => JSON.stringify(isCreate
+    ? { createForm }
+    : { inputDrafts, inputForm, outputDrafts, outputForm, outputWipDrafts, showOutputWipEntryRow }
+  ), [createForm, inputDrafts, inputForm, isCreate, outputDrafts, outputForm, outputWipDrafts, showOutputWipEntryRow])
+  const formSafetySnapshotRef = useRef(formSafetySnapshot)
+  const formSafetyReady = formDefaultsLoaded && (isCreate || outputDraftLoaded)
+
+  useEffect(() => {
+    formSafetySnapshotRef.current = formSafetySnapshot
+  }, [formSafetySnapshot])
+
+  useEffect(() => {
+    if (userEditedFormRef.current) return
+    userEditedFormRef.current = false
+    setHasUserEditedForm(false)
+    setFormBaseline(formSafetySnapshotRef.current)
+    setFormDefaultsLoaded(false)
+    setOutputDraftLoaded(isCreate)
+  }, [isCreate, row?.docNo])
+
+  useEffect(() => {
+    if (!formSafetyReady || userEditedFormRef.current) return
+    setFormBaseline(formSafetySnapshot)
+  }, [formSafetyReady, formSafetySnapshot])
+
+  const isFormDirty = (isCreate || canWrite) && (formSafetyReady || hasUserEditedForm) && formBaseline !== null && formSafetySnapshot !== formBaseline
+  const { requestDiscard } = useUnsavedChangesGuard(isFormDirty)
+  const returnFormSafetySnapshot = useMemo(() => JSON.stringify({ quantities: returnQuantities, reason: returnReason }), [returnQuantities, returnReason])
+  const returnFormIsDirty = returnInputDocNos.length > 0 && returnFormBaseline !== null && returnFormSafetySnapshot !== returnFormBaseline
+  const { requestDiscard: requestReturnDiscard } = useUnsavedChangesGuard(returnFormIsDirty)
+
+  function resetFormSafetyBaseline() {
+    userEditedFormRef.current = false
+    setHasUserEditedForm(false)
+    setFormBaseline(null)
+  }
+
+  function requestModalClose() {
+    if (isSaving) return
+    requestDiscard(() => onClose(false))
+  }
+
+  function resetInputReturnForm() {
+    setReturnInputDocNos([])
+    setReturnQuantities({})
+    setReturnReason('')
+    setReturnFormBaseline(null)
+  }
+
+  function requestInputReturnClose() {
+    if (isSaving) return
+    requestReturnDiscard(resetInputReturnForm)
+  }
   const productSearchOptions = useMemo<SearchComboboxOption[]>(() => options.products.map((product) => ({
     id: product.code,
     label: `${product.code} - ${product.name}`,
@@ -1288,6 +1371,8 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
         setOutputForm((current) => ({ ...current, destinationWarehouseCode: current.destinationWarehouseCode || payload.warehouses.find((warehouse) => warehouse.branchCode === row?.branchCode && warehouse.type?.toUpperCase() !== 'WIP')?.code || '', productCode: current.productCode || payload.products[0]?.code || '' }))
       } catch (caught) {
         if (!cancelled) setError(caught instanceof Error ? caught.message : 'โหลดตัวเลือกไม่ได้')
+      } finally {
+        if (!cancelled) setFormDefaultsLoaded(true)
       }
     }
     void loadOptions()
@@ -1323,6 +1408,8 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
         setOutputForm((form) => ({ ...form, date: payload.draft?.outputForm.date ?? form.date, notes: payload.draft?.outputForm.notes ?? form.notes }))
       } catch (caught) {
         if (!cancelled) setError(caught instanceof Error ? caught.message : 'โหลดร่างผลผลิตไม่ได้')
+      } finally {
+        if (!cancelled) setOutputDraftLoaded(true)
       }
     }
     void loadOutputDraft()
@@ -1414,6 +1501,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
         method: 'POST',
       })
       await onOpenCreated(created.docNo)
+      resetFormSafetyBaseline()
     })
   }
 
@@ -1493,6 +1581,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
       setInputDrafts([])
       setInputForm((form) => ({ ...form, lotNo: '', netQty: '' }))
       setTab('input')
+      resetFormSafetyBaseline()
     })
   }
 
@@ -1515,6 +1604,21 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
       stockStatus: (inputForm.stockStatus || 'RM') as 'RM' | 'FG',
     }])
     setInputForm((form) => ({ ...form, lotNo: '', netQty: '', productCode: '' }))
+  }
+
+  function removeInputDraft(index: number) {
+    setInputDrafts((drafts) => drafts.filter((_draft, draftIndex) => draftIndex !== index))
+  }
+
+  function requestRemoveInputDraft(index: number) {
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ลบรายการ',
+      description: 'รายการวัตถุดิบที่เตรียมเบิกนี้จะถูกนำออกจากรายการที่กำลังแก้ไข',
+      destructive: true,
+      onConfirm: () => removeInputDraft(index),
+      title: 'ยืนยันการลบรายการวัตถุดิบ',
+    })
   }
 
   function persistOutputDraft(nextOutputDrafts: ProductionOutputDraft[], nextOutputWipDrafts: ProductionOutputWipDraft[]) {
@@ -1570,7 +1674,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
       setError('กรุณาระบุน้ำหนักรวม (กก.) หรือ Loss kg อย่างน้อย 1 รายการ')
       return
     }
-    await runAction(async () => {
+    const submitPostedOutput = async (confirmQuantityVariance: boolean) => {
       const lines = outputDrafts.map((draft) => ({
         categoryCode: draft.categoryCode,
         destinationWarehouseCode: draft.destinationWarehouseCode,
@@ -1582,19 +1686,31 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
         body: JSON.stringify({ confirmQuantityVariance, date: outputForm.date, lines, lossQty, notes: outputForm.notes || undefined, sourceWipLines: validSourceWipLines, sourceWipQty: totalSourceWipQty }),
         method: 'POST',
       })
-      try {
-        await postOutput(false)
-      } catch (caught) {
-        if (!(caught instanceof ApiError) || caught.status !== 409 || !caught.message.startsWith('ตรวจพบจำนวนต่างก่อนส่งเข้าคลัง')) throw caught
-        const confirmed = window.confirm(`${caught.message}\n\nยืนยันส่งผลผลิตเข้าคลังหรือไม่?`)
-        if (!confirmed) return
-        await postOutput(true)
-      }
+      await postOutput(confirmQuantityVariance)
       await onRefreshRow(row.docNo)
       setOutputDrafts([])
       setOutputWipDrafts([])
       setOutputForm((form) => ({ ...form, lossQty: '', lotNo: '', netQty: '', notes: '', productCode: '', sourceWipQty: '' }))
       setTab('output')
+      resetFormSafetyBaseline()
+    }
+    await runAction(async () => {
+      try {
+        await submitPostedOutput(false)
+      } catch (caught) {
+        if (!(caught instanceof ApiError) || caught.status !== 409 || !caught.message.startsWith('ตรวจพบจำนวนต่างก่อนส่งเข้าคลัง')) throw caught
+        requestConfirmation({
+          confirmLabel: 'ยืนยันส่งเข้าคลัง',
+          description: `${caught.message}\n\nยืนยันส่งผลผลิตเข้าคลังหรือไม่?`,
+          destructive: true,
+          onConfirm: async () => {
+            await runAction(async () => {
+              await submitPostedOutput(true)
+            }, true)
+          },
+          title: 'ยืนยันการส่งผลผลิตเข้าคลังหรือไม่?',
+        })
+      }
     })
   }
 
@@ -1648,6 +1764,17 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
     setOutputDrafts(nextOutputDrafts)
     persistOutputDraft(nextOutputDrafts, outputWipDrafts)
     setError(null)
+  }
+
+  function requestRemoveOutputDraft(index: number) {
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ลบรายการ',
+      description: 'รายการผลผลิตที่เตรียมส่งเข้าคลังนี้จะถูกนำออกจากแบบร่าง',
+      destructive: true,
+      onConfirm: () => removeOutputDraft(index),
+      title: 'ยืนยันการลบรายการผลผลิต',
+    })
   }
 
   function addOutputWipDraft(formElement?: HTMLFormElement) {
@@ -1727,40 +1854,107 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
     setError(null)
   }
 
+  function requestRemoveOutputWipDraft(id: string) {
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ลบรายการ',
+      description: 'รายการวัตถุดิบใน WIP ที่ใช้ผลิตนี้จะถูกนำออกจากแบบร่าง',
+      destructive: true,
+      onConfirm: () => removeOutputWipDraft(id),
+      title: 'ยืนยันการลบวัตถุดิบใน WIP',
+    })
+  }
+
   function clearOutputWipDraft() {
     if (outputSourceWipQtyRef.current) outputSourceWipQtyRef.current.value = ''
     setOutputForm((form) => ({ ...form, sourceKey: '', sourceWipQty: '' }))
     setShowOutputWipEntryRow(false)
   }
 
+  function requestClearOutputWipDraft() {
+    if (!Boolean(outputForm.sourceKey || outputForm.sourceWipQty)) {
+      clearOutputWipDraft()
+      return
+    }
+    requestConfirmation({
+      cancelLabel: 'แก้ไขต่อ',
+      confirmLabel: 'ล้างข้อมูล',
+      description: 'ข้อมูลวัตถุดิบใน WIP ที่กำลังกรอกจะหายไป',
+      destructive: true,
+      onConfirm: clearOutputWipDraft,
+      title: 'ล้างข้อมูลวัตถุดิบใน WIP หรือไม่?',
+    })
+  }
+
+  function clearOutputEntry() {
+    if (outputNetQtyRef.current) outputNetQtyRef.current.value = ''
+    if (outputLossQtyRef.current) outputLossQtyRef.current.value = ''
+    setOutputForm((form) => ({ ...form, lossQty: '', netQty: '' }))
+  }
+
+  function requestClearOutputEntry() {
+    if (!Boolean(outputForm.lotNo || outputForm.lossQty || outputForm.netQty)) {
+      clearOutputEntry()
+      return
+    }
+    requestConfirmation({
+      cancelLabel: 'แก้ไขต่อ',
+      confirmLabel: 'ล้างข้อมูล',
+      description: 'ข้อมูลผลผลิตที่กำลังกรอกจะหายไป',
+      destructive: true,
+      onConfirm: clearOutputEntry,
+      title: 'ล้างข้อมูลผลผลิตหรือไม่?',
+    })
+  }
+
   async function patchOrder(action: 'cancel' | 'complete') {
     if (!row) return
     const reason = action === 'cancel' ? window.prompt('เหตุผลการยกเลิก')?.trim() : undefined
     if (action === 'cancel' && !reason) return
-    if (action === 'cancel' && !window.confirm('ระบบจะคืนผลผลิตกลับ WIP และคืน RM/FG กลับคลังต้นทางให้อัตโนมัติภายในรายการเดียว ต้องการยกเลิกใบสั่งผลิตนี้หรือไม่')) return
-    const confirmCloseWithWip = action === 'complete' && rowWipQty > 0.000001
-      ? window.confirm(`ยังมี WIP คงเหลือ ${formatMoney(rowWipQty)} กก.\nหากยืนยันจบงาน ระบบจะคืน WIP ที่เหลือกลับคลังต้นทาง ต้องการดำเนินการต่อหรือไม่`)
-      : false
-    if (action === 'complete' && rowWipQty > 0.000001 && !confirmCloseWithWip) return
-    await runAction(async () => {
-      await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}`, {
-        body: JSON.stringify(action === 'complete' ? { action, confirmCloseWithWip, note: '' } : { action, reason }),
-        method: 'PATCH',
+    const patchConfirmedOrder = async (confirmCloseWithWip: boolean, keepConfirmationOpen = false) => {
+      await runAction(async () => {
+        await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}`, {
+          body: JSON.stringify(action === 'complete' ? { action, confirmCloseWithWip, note: '' } : { action, reason }),
+          method: 'PATCH',
+        })
+        await onRefreshRow(row.docNo)
+      }, keepConfirmationOpen)
+    }
+    if (action === 'cancel') {
+      requestConfirmation({
+        confirmLabel: 'ยืนยันยกเลิก',
+        description: 'ระบบจะคืนผลผลิตกลับ WIP และคืน RM/FG กลับคลังต้นทางให้อัตโนมัติภายในรายการเดียว ต้องการยกเลิกใบสั่งผลิตนี้หรือไม่',
+        destructive: true,
+        onConfirm: () => patchConfirmedOrder(false, true),
+        title: 'ยืนยันการยกเลิกใบสั่งผลิตหรือไม่?',
       })
-      await onRefreshRow(row.docNo)
-    })
+      return
+    }
+    if (rowWipQty > 0.000001) {
+      requestConfirmation({
+        confirmLabel: 'ยืนยันจบงาน',
+        description: `ยังมี WIP คงเหลือ ${formatMoney(rowWipQty)} กก.\nหากยืนยันจบงาน ระบบจะคืน WIP ที่เหลือกลับคลังต้นทาง ต้องการดำเนินการต่อหรือไม่`,
+        destructive: true,
+        onConfirm: () => patchConfirmedOrder(true, true),
+        title: 'ยืนยันการจบงานผลิตหรือไม่?',
+      })
+      return
+    }
+    await patchConfirmedOrder(false)
   }
 
   function openInputReturn(docNos: string[]) {
     if (!row) return
     const selectedRows = row.inputs.filter((input) => docNos.includes(input.docNo) && input.status?.toLowerCase() === 'active' && input.id)
     const groups = groupProductionInputReturnRows(selectedRows, row.wipSummary?.groups)
+    const quantities = Object.fromEntries(groups.map((group) => [group.key, '']))
     setReturnInputDocNos(docNos)
     setReturnReason('')
-    setReturnQuantities(Object.fromEntries(groups.map((group) => [group.key, ''])))
+    setReturnQuantities(quantities)
+    setReturnFormBaseline(JSON.stringify({ quantities, reason: '' }))
   }
 
-  async function submitInputReturn() {
+  function submitInputReturn() {
     if (!row || returnInputDocNos.length === 0) return
     const lines: Array<{ inputId: string; qty: number }> = []
     for (const group of returnRows) {
@@ -1782,20 +1976,27 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
       setError('กรุณาระบุจำนวนที่ต้องการคืนอย่างน้อย 1 รายการ')
       return
     }
-    if (!returnReason.trim()) {
+    const reason = returnReason.trim()
+    if (!reason) {
       setError('กรุณาระบุเหตุผลการคืนวัตถุดิบ')
       return
     }
-    await runAction(async () => {
-      await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}/inputs/return`, {
-        body: JSON.stringify({ lines, reason: returnReason.trim() }),
-        method: 'POST',
-      })
-      await onRefreshRow(row.docNo)
-      setReturnInputDocNos([])
-      setReturnQuantities({})
-      setReturnReason('')
-      setTab('input')
+    requestConfirmation({
+      confirmLabel: 'ยืนยันคืนวัตถุดิบ',
+      description: 'ระบบจะคืนวัตถุดิบตามจำนวนที่ระบุกลับเข้าคลังต้นทาง และปรับยอด WIP ตามเหตุผลที่บันทึก ต้องการดำเนินการต่อหรือไม่?',
+      destructive: true,
+      onConfirm: async () => {
+        await runAction(async () => {
+          await dailyFetchJson(`/api/production/orders/${encodeURIComponent(row.docNo)}/inputs/return`, {
+            body: JSON.stringify({ lines, reason }),
+            method: 'POST',
+          })
+          await onRefreshRow(row.docNo)
+          resetInputReturnForm()
+          setTab('input')
+        }, true)
+      },
+      title: 'ยืนยันการคืนวัตถุดิบ',
     })
   }
 
@@ -1803,32 +2004,41 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
     if (!row) return
     const reason = window.prompt('เหตุผลการยกเลิกผลผลิต')?.trim()
     if (!reason) return
-    await runAction(async () => {
-      const endpoint = `/api/production/orders/${encodeURIComponent(row.docNo)}/outputs/${encodeURIComponent(docNo)}/void`
-      await dailyFetchJson(endpoint, {
-        body: JSON.stringify({ date: todayDateInput(), reason }),
-        method: 'POST',
-      })
-      await onRefreshRow(row.docNo)
-      setTab('output')
+    requestConfirmation({
+      confirmLabel: 'ยืนยันย้อนกลับผลผลิต',
+      description: 'ระบบจะย้อนกลับรายการผลผลิตนี้ตามเหตุผลที่ระบุ ต้องการดำเนินการต่อหรือไม่?',
+      destructive: true,
+      onConfirm: async () => {
+        await runAction(async () => {
+          const endpoint = `/api/production/orders/${encodeURIComponent(row.docNo)}/outputs/${encodeURIComponent(docNo)}/void`
+          await dailyFetchJson(endpoint, {
+            body: JSON.stringify({ date: todayDateInput(), reason }),
+            method: 'POST',
+          })
+          await onRefreshRow(row.docNo)
+          setTab('output')
+        }, true)
+      },
+      title: 'ยืนยันการย้อนกลับผลผลิตหรือไม่?',
     })
   }
 
-  async function runAction(action: () => Promise<void>) {
+  async function runAction(action: () => Promise<void>, rethrow = false) {
     setError(null)
     setIsSaving(true)
     try {
       await action()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'บันทึกข้อมูลไม่สำเร็จ')
+      if (rethrow) throw caught
     } finally {
       setIsSaving(false)
     }
   }
 
   return (
-    <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(false) }}>
-      <DialogContent className="w-[calc(100%-2rem)] max-w-7xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 dark:bg-[#0f172a] border-0 outline-none focus:outline-none max-h-[92vh] animate-fade-in" hideClose>
+    <Dialog open={true} onOpenChange={(open) => { if (!open) requestModalClose() }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-7xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 dark:bg-[#0f172a] border-0 outline-none focus:outline-none max-h-[92vh] animate-fade-in" hideClose onChangeCapture={() => { userEditedFormRef.current = true; setHasUserEditedForm(true) }}>
         <DialogHeader className="shrink-0 rounded-none border-b border-slate-800 bg-slate-900 px-4 py-4 text-white dark:border-slate-700 dark:bg-[#0f172a] sm:px-5">
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
             <div className="min-w-0">
@@ -1841,7 +2051,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
               {isCreate ? (
                 <>
-                  <ModalDismissButton onClick={() => onClose(false)} />
+                  <ModalDismissButton disabled={isSaving} onClick={requestModalClose} />
                   <button
                     className="h-11 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50 sm:h-9"
                     disabled={isSaving}
@@ -1859,7 +2069,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                   {canWrite && row.status !== 'Cancelled' ? (
                     <button className="h-11 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-medium text-white hover:border-rose-700 hover:bg-rose-700 disabled:opacity-50 sm:h-9" disabled={isSaving} type="button" onClick={() => void patchOrder('cancel')}>ยกเลิกใบสั่งผลิต</button>
                   ) : null}
-                  <ModalDismissButton onClick={() => onClose(false)} />
+                  <ModalDismissButton disabled={isSaving} onClick={requestModalClose} />
                 </>
               ) : null}
             </div>
@@ -2007,7 +2217,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                               <td className="p-2 text-center">{inputWarehouseOptions.find((warehouse) => warehouse.code === draft.sourceWarehouseCode)?.name ?? draft.sourceWarehouseCode}</td>
                               <td className="p-2 text-right font-semibold tabular-nums">{formatMoney(Number(draft.netQty))}</td>
                               <td className="p-2 text-center">
-                                <button className="text-xs font-semibold text-rose-600 hover:text-rose-700" type="button" onClick={() => setInputDrafts((drafts) => drafts.filter((_, draftIndex) => draftIndex !== index))}>ลบ</button>
+                                <button className="text-xs font-semibold text-rose-600 hover:text-rose-700" type="button" onClick={() => requestRemoveInputDraft(index)}>ลบ</button>
                               </td>
                             </tr>
                           ))}
@@ -2032,7 +2242,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                         setInputForm((form) => ({ ...form, sourceWarehouseCode, stockStatus: inferredStatus }))
                       }}
                     />
-                    <FormField label="น้ำหนักรวม (กก.) *"><input key={`input-net-${row?.inputCount ?? 0}-${inputDrafts.length}`} ref={inputNetQtyRef} id="production-input-net-qty" className={quantityInputClass} defaultValue={inputForm.netQty} inputMode="decimal" min="0" placeholder="0.00" step="0.01" type="number" required aria-required="true" onBlur={formatQuantityInputOnBlur} onInput={sanitizeQuantityInput} onKeyDown={preventQuantityExponent} /></FormField>
+                    <FormField label="น้ำหนักรวม (กก.) *"><input key={`input-net-${row?.inputCount ?? 0}-${inputDrafts.length}`} ref={inputNetQtyRef} id="production-input-net-qty" className={quantityInputClass} defaultValue={inputForm.netQty} inputMode="decimal" min="0" placeholder="0.00" step="0.01" type="number" required aria-required="true" onBlur={(event) => { formatQuantityInputOnBlur(event); const netQty = event.currentTarget.value; setInputForm((form) => ({ ...form, netQty })) }} onInput={(event) => { sanitizeQuantityInput(event); const netQty = event.currentTarget.value; setInputForm((form) => ({ ...form, netQty })) }} onKeyDown={preventQuantityExponent} /></FormField>
                   </div>
                   <div className="flex justify-end">
                     <button className="rounded-md border border-blue-600 bg-white px-4 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50" type="button" onClick={() => addInputDraft(document.getElementById('production-input-product')?.closest('form') as HTMLFormElement | null ?? undefined)}>
@@ -2078,7 +2288,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                                 {draftOptions.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
                               </select></td>
                               <td className="p-2"><input data-output-wip-qty-index={index} aria-label={`น้ำหนักที่ใช้ผลิต รายการที่ ${index + 1}`} className={quantityInputClass} inputMode="decimal" max={getOutputWipAvailableQty(draft.sourceKey, draft.id)} min="0.01" placeholder="0.00" step="0.01" type="number" value={draft.qty} required onChange={(event) => { const value = sanitizeOutputWipQtyInput(event.target.value); const max = getOutputWipAvailableQty(draft.sourceKey, draft.id); updateOutputWipDraft(index, { qty: value }); validateOutputWipQty(value, max) }} onBlur={(event) => { const value = sanitizeOutputWipQtyInput(event.target.value); updateOutputWipDraft(index, { qty: value && Number(value) >= 0 ? Number(value).toFixed(2) : value }); validateOutputWipQty(value, getOutputWipAvailableQty(draft.sourceKey, draft.id)) }} onKeyDown={preventQuantityExponent} /></td>
-                              <td className="p-2 text-center"><button aria-label={`ลบวัตถุดิบใน WIP รายการที่ ${index + 1}`} className="font-semibold text-rose-600 hover:text-rose-700" type="button" onClick={() => removeOutputWipDraft(draft.id)}>ลบ</button></td>
+                              <td className="p-2 text-center"><button aria-label={`ลบวัตถุดิบใน WIP รายการที่ ${index + 1}`} className="font-semibold text-rose-600 hover:text-rose-700" type="button" onClick={() => requestRemoveOutputWipDraft(draft.id)}>ลบ</button></td>
                             </tr>
                           })}
                           {showOutputWipEntryRow ? <tr>
@@ -2092,7 +2302,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                               </select>
                             </td>
                             <td className="p-2"><input data-output-wip-qty-index={outputWipDrafts.length} key={`output-source-wip-${row?.outputCount ?? 0}-${outputWipDrafts.length}`} ref={outputSourceWipQtyRef} id="production-output-source-wip-qty" aria-label="น้ำหนักที่ใช้ผลิต" className={quantityInputClass} max={getOutputWipAvailableQty(outputForm.sourceKey)} min="0.01" value={outputForm.sourceWipQty ?? ''} inputMode="decimal" placeholder="0.00" step="0.01" type="number" required aria-required="true" onChange={(event) => { const value = sanitizeOutputWipQtyInput(event.target.value); const max = getOutputWipAvailableQty(outputForm.sourceKey); setOutputForm((form) => ({ ...form, sourceWipQty: value })); validateOutputWipQty(value, max) }} onBlur={(event) => { const value = sanitizeOutputWipQtyInput(event.target.value); const numericValue = Number(value); setOutputForm((form) => ({ ...form, sourceWipQty: value && Number.isFinite(numericValue) && numericValue >= 0 ? numericValue.toFixed(2) : value })); validateOutputWipQty(value, getOutputWipAvailableQty(outputForm.sourceKey)) }} onKeyDown={preventQuantityExponent} /></td>
-                            <td className="p-2 text-center"><button aria-label="ล้างรายการวัตถุดิบใหม่" className="font-semibold text-rose-600 hover:text-rose-700" type="button" onClick={clearOutputWipDraft}>ลบ</button></td>
+                            <td className="p-2 text-center"><button aria-label="ล้างรายการวัตถุดิบใหม่" className="font-semibold text-rose-600 hover:text-rose-700" type="button" onClick={requestClearOutputWipDraft}>ลบ</button></td>
                           </tr> : null}
                           <tr>
                             <td className="p-2" colSpan={3}>
@@ -2111,7 +2321,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                   </div>
                   <ProductionOutputDraftTable
                     notes={outputForm.notes}
-                    onRemove={removeOutputDraft}
+                    onRemove={requestRemoveOutputDraft}
                     outputDate={outputForm.date}
                     outputDrafts={outputDrafts}
                     outputProductOptions={options.products}
@@ -2128,9 +2338,9 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                           <tr>
                             <td className="p-2"><SearchCombobox hideLabel inputId="production-output-product" label="สินค้าที่ได้ *" options={productSearchOptions} placeholder="พิมพ์รหัส/ชื่อสินค้า..." value={outputForm.productCode} onChange={(productCode) => setOutputForm((form) => ({ ...form, productCode }))} /></td>
                             <td className="p-2"><Select aria-invalid="false" id="production-output-destination-warehouse" name="production-output-destination-warehouse" className="h-10 w-full" required value={outputForm.destinationWarehouseCode} onChange={(event) => setOutputForm((form) => ({ ...form, destinationWarehouseCode: event.target.value }))}><option value="">เลือกคลังรับผลผลิต</option>{outputWarehouseOptions.map((option) => <option key={`${option.code}-${option.id}`} value={option.code}>{option.name}</option>)}</Select></td>
-                            <td className="p-2"><input key={`output-net-${row?.outputCount ?? 0}-${outputDrafts.length}`} ref={outputNetQtyRef} id="production-output-net-qty" aria-label="จำนวนผลผลิตที่ได้ (กก.)" className={quantityInputClass} defaultValue={outputForm.netQty} inputMode="decimal" min="0" placeholder="0.00" step="0.01" type="number" onBlur={formatQuantityInputOnBlur} onInput={sanitizeQuantityInput} onKeyDown={preventQuantityExponent} /></td>
-                            <td className="p-2"><input key={`output-loss-${row?.outputCount ?? 0}-${outputDrafts.length}`} ref={outputLossQtyRef} id="production-output-loss-qty" aria-label="สูญเสียจากการผลิต (กก.)" className={quantityInputClass} defaultValue={outputForm.lossQty} inputMode="decimal" min="0" placeholder="0.00" step="0.01" type="number" onBlur={formatQuantityInputOnBlur} onInput={sanitizeQuantityInput} onKeyDown={preventQuantityExponent} /></td>
-                            <td className="p-2 text-center"><button aria-label="ล้างรายการผลผลิตใหม่" className="font-semibold text-rose-600 hover:text-rose-700" type="button" onClick={() => { if (outputNetQtyRef.current) outputNetQtyRef.current.value = ''; if (outputLossQtyRef.current) outputLossQtyRef.current.value = '' }}>ลบ</button></td>
+                            <td className="p-2"><input key={`output-net-${row?.outputCount ?? 0}-${outputDrafts.length}`} ref={outputNetQtyRef} id="production-output-net-qty" aria-label="จำนวนผลผลิตที่ได้ (กก.)" className={quantityInputClass} defaultValue={outputForm.netQty} inputMode="decimal" min="0" placeholder="0.00" step="0.01" type="number" onBlur={(event) => { formatQuantityInputOnBlur(event); const netQty = event.currentTarget.value; setOutputForm((form) => ({ ...form, netQty })) }} onInput={(event) => { sanitizeQuantityInput(event); const netQty = event.currentTarget.value; setOutputForm((form) => ({ ...form, netQty })) }} onKeyDown={preventQuantityExponent} /></td>
+                            <td className="p-2"><input key={`output-loss-${row?.outputCount ?? 0}-${outputDrafts.length}`} ref={outputLossQtyRef} id="production-output-loss-qty" aria-label="สูญเสียจากการผลิต (กก.)" className={quantityInputClass} defaultValue={outputForm.lossQty} inputMode="decimal" min="0" placeholder="0.00" step="0.01" type="number" onBlur={(event) => { formatQuantityInputOnBlur(event); const lossQty = event.currentTarget.value; setOutputForm((form) => ({ ...form, lossQty })) }} onInput={(event) => { sanitizeQuantityInput(event); const lossQty = event.currentTarget.value; setOutputForm((form) => ({ ...form, lossQty })) }} onKeyDown={preventQuantityExponent} /></td>
+                            <td className="p-2 text-center"><button aria-label="ล้างรายการผลผลิตใหม่" className="font-semibold text-rose-600 hover:text-rose-700" type="button" onClick={requestClearOutputEntry}>ลบ</button></td>
                           </tr>
                           <tr><td className="p-2" colSpan={5}><button className="h-9 rounded-md border border-blue-600 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50" type="button" onClick={() => addOutputDraft(document.getElementById('production-output-net-qty')?.closest('form') as HTMLFormElement | null ?? undefined)}>+ เพิ่มรายการผลผลิต</button></td></tr>
                         </tbody>
@@ -2158,7 +2368,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
         </div>
 
       </DialogContent>
-      <Dialog open={returnInputDocNos.length > 0} onOpenChange={(open) => { if (!open && !isSaving) setReturnInputDocNos([]) }}>
+      <Dialog open={returnInputDocNos.length > 0} onOpenChange={(open) => { if (!open) requestInputReturnClose() }}>
         <DialogContent className="max-h-[90vh] max-w-5xl bg-white" hideClose>
           <DialogHeader>
             <div className="flex items-center justify-between gap-3">
@@ -2166,7 +2376,7 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
                 <DialogTitle>คืนวัตถุดิบ</DialogTitle>
                 <DialogDescription className="mt-1">เลือกจำนวนที่จะคืนเข้าคลังต้นทาง โดยใช้ต้นทุนเฉลี่ยของ WIP ณ เวลาคืน</DialogDescription>
               </div>
-              <ModalDismissButton onClick={() => setReturnInputDocNos([])} />
+              <ModalDismissButton disabled={isSaving} onClick={requestInputReturnClose} />
             </div>
           </DialogHeader>
           <div className="max-h-[65vh] space-y-4 overflow-y-auto bg-slate-50 p-4">
@@ -2209,8 +2419,8 @@ function ProductionOrderModal({ mode, onClose, onOpenCreated, onRefreshRow, row 
             <FormField label="เหตุผลการคืนวัตถุดิบ *"><textarea className="min-h-20 w-full resize-y rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="ระบุเหตุผลการคืนวัตถุดิบ" value={returnReason} onChange={(event) => setReturnReason(event.target.value)} /></FormField>
           </div>
           <DialogFooter>
-            <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50" disabled={isSaving} type="button" onClick={() => setReturnInputDocNos([])}>ยกเลิก</button>
-            <button className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" disabled={isSaving || returnRows.length === 0} type="button" onClick={() => void submitInputReturn()}>{isSaving ? 'กำลังบันทึก...' : 'บันทึกการคืน'}</button>
+            <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50" disabled={isSaving} type="button" onClick={requestInputReturnClose}>ยกเลิก</button>
+            <button className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" disabled={isSaving || returnRows.length === 0} type="button" onClick={submitInputReturn}>{isSaving ? 'กำลังบันทึก...' : 'บันทึกการคืน'}</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2920,10 +3130,11 @@ function Metric({ label, value, tone = 'normal' }: { label: string; tone?: 'norm
   return <SharedKpiCard label={label} tone={tone} value={value} />
 }
 
-function ModalDismissButton({ onClick }: { onClick: () => void }) {
+function ModalDismissButton({ disabled = false, onClick }: { disabled?: boolean; onClick: () => void }) {
   return (
     <button
-      className="h-11 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-medium text-white transition-colors hover:border-rose-700 hover:bg-rose-700 sm:h-9"
+      className="h-11 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-medium text-white transition-colors hover:border-rose-700 hover:bg-rose-700 disabled:opacity-50 sm:h-9"
+      disabled={disabled}
       type="button"
       onClick={onClick}
     >

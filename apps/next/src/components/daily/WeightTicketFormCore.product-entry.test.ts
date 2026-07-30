@@ -8,6 +8,7 @@ import { resolve } from 'node:path'
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { FormSafetyProvider } from '@/components/ui/FormSafetyProvider'
 const mocks = vi.hoisted(() => ({
   cachedWeightTicketReferences: vi.fn(),
   router: {
@@ -136,6 +137,10 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain("isOtherProductImpurity ? 'flex' : 'hidden md:flex'")
     expect(formSource).toContain('ลบสิ่งเจือปน')
   })
+  it('keeps mobile product and impurity removal behind the confirmation guards', () => {
+    expect(formSource).toContain('requestProductRemoval(activeLine.id)')
+    expect(formSource).toContain('requestImpurityRemoval(child.id)')
+  })
 })
 
 const actEnvironment = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -203,7 +208,13 @@ describe('weight-ticket product editor behavior', () => {
 
   async function renderForm() {
     await act(async () => {
-      root.render(React.createElement(WeightTicketFormCore))
+      root.render(
+        React.createElement(
+          FormSafetyProvider,
+          null,
+          React.createElement(WeightTicketFormCore),
+        ),
+      )
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
   }

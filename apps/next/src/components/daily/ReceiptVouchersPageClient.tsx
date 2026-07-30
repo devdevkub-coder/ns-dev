@@ -17,6 +17,7 @@ import { Select } from '@/components/ui/Select'
 import { TableNumberCell } from '@/components/ui/TableNumberCell'
 import { Table, TableBody, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { openReceiptVoucherPrint, openReceiptVoucherPrintWindow, type ReceiptVoucherPrintDocument } from '@/lib/receipt-voucher-print'
@@ -306,6 +307,7 @@ export function ReceiptVouchersPageClient() {
     }
   }
   const [form, setForm] = useState<ReceiptVoucherFormState>(() => blankForm())
+  const [formBaseline, setFormBaseline] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null)
   const [paymentMethodOptions, setPaymentMethodOptions] = useState<PaymentMethodOption[]>([])
@@ -321,6 +323,11 @@ export function ReceiptVouchersPageClient() {
 
   const [sortKey, setSortKey] = useState<ReceiptVoucherColumnKey>('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const formSnapshot = useMemo(() => JSON.stringify(form), [form])
+  const hasUnsavedForm = formMode !== null && formBaseline !== null && formBaseline !== formSnapshot
+  const { requestDiscard } = useUnsavedChangesGuard(hasUnsavedForm)
+  const { requestDiscard: requestDiscardCancelNote } = useUnsavedChangesGuard(Boolean(cancelingRow && cancelNote.trim()))
+  const { requestConfirmation } = useActionConfirmation()
 
   const changeSort = useCallback((nextKey: ReceiptVoucherColumnKey) => {
     if (nextKey === 'action') return
@@ -439,7 +446,9 @@ export function ReceiptVouchersPageClient() {
   }
 
   function openCreateForm() {
-    setForm({ ...blankForm(), payerSignerName: currentActorName })
+    const nextForm = { ...blankForm(), payerSignerName: currentActorName }
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify(nextForm))
     setFormError(null)
     setFormMode('create')
   }
@@ -447,15 +456,23 @@ export function ReceiptVouchersPageClient() {
   function openEditForm(row: ReceiptVoucherRow) {
     if (row.status === 'cancelled') return
     const purchaseBill = purchaseBillOptions.find((bill) => bill.docNo === row.purchaseBillDocNo)
-    setForm({ ...normalizeFormFromRow(row), branchId: row.branchId || purchaseBill?.branchId || '', supplierCode: row.supplierCode || purchaseBill?.sellerCode || '' })
+    const nextForm = { ...normalizeFormFromRow(row), branchId: row.branchId || purchaseBill?.branchId || '', supplierCode: row.supplierCode || purchaseBill?.sellerCode || '' }
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify(nextForm))
     setFormError(null)
     setFormMode('edit')
   }
 
-  function closeForm() {
+  function closeFormNow() {
     if (isSaving) return
     setFormMode(null)
+    setFormBaseline(null)
     setFormError(null)
+  }
+
+  function closeForm() {
+    if (isSaving) return
+    requestDiscard(closeFormNow)
   }
 
   function updateForm(patch: Partial<ReceiptVoucherFormState>) {
@@ -551,6 +568,7 @@ export function ReceiptVouchersPageClient() {
         }),
         method: formMode === 'edit' ? 'PATCH' : 'POST',
       })
+      setFormBaseline(null)
       setFormMode(null)
       await loadData()
     } catch (caught) {
@@ -560,15 +578,16 @@ export function ReceiptVouchersPageClient() {
     }
   }
 
-  async function cancelReceiptVoucher() {
+  function cancelReceiptVoucher() {
     if (!cancelingRow) return
     const note = cancelNote.trim()
     if (!note) {
       setCancelError('กรุณากรอกเหตุผลการยกเลิก')
       return
     }
-    setIsSaving(true)
     setCancelError(null)
+    requestConfirmation({ title: 'ยืนยันการยกเลิกใบสำคัญรับเงิน', description: `ต้องการยกเลิกใบสำคัญรับเงิน ${cancelingRow.docNo} หรือไม่?`, confirmLabel: 'ยืนยันยกเลิก', destructive: true, onConfirm: async () => {
+    setIsSaving(true)
     try {
       await dailyFetchJson('/api/purchase/receipt-vouchers', {
         body: JSON.stringify({ action: 'cancel', docNo: cancelingRow.docNo, note }),
@@ -579,9 +598,11 @@ export function ReceiptVouchersPageClient() {
       await loadData()
     } catch (caught) {
       setCancelError(caught instanceof Error ? caught.message : 'ยกเลิกใบสำคัญรับเงินไม่ได้')
+      throw caught instanceof Error ? caught : new Error('ยกเลิกใบสำคัญรับเงินไม่ได้')
     } finally {
       setIsSaving(false)
     }
+    } })
   }
 
   return (
@@ -867,9 +888,11 @@ export function ReceiptVouchersPageClient() {
           row={cancelingRow}
           onCancel={() => {
             if (isSaving) return
-            setCancelingRow(null)
-            setCancelNote('')
-            setCancelError(null)
+            requestDiscardCancelNote(() => {
+              setCancelingRow(null)
+              setCancelNote('')
+              setCancelError(null)
+            })
           }}
           onConfirm={cancelReceiptVoucher}
           onNoteChange={(value) => {

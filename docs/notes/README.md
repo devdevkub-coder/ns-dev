@@ -36,6 +36,7 @@
 | Tracking 360 | `Tracking 360 Flow.md` | customer/supplier/product tracking baseline |
 | Dual Costing | `Dual Costing Flow.md` | dual costing category baseline |
 | Shared document history rules | `Document Timeline Policy.md` | history/timeline contract |
+| Shared form safety and confirmation | `Form Safety and Confirmation Policy.md` | unsaved-discard and destructive-confirmation contract |
 | Shared reporting rules | `Reporting History Snapshot Policy.md` | history snapshot contract |
 
 ## High-Value Supporting Notes

@@ -1,8 +1,9 @@
 'use client'
 
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { GuardedLink } from '@/components/ui/GuardedLink'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { loginSchema } from '@/lib/auth'
 import { completeBrowserLoginSession } from '@/lib/auth-client-contract'
 import { getSessionSafely, getSupabaseClient } from '@/lib/supabase'
@@ -31,9 +32,18 @@ export function LoginPageClient() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [successfulRedirect, setSuccessfulRedirect] = useState<string | null>(null)
   const hasValidatedExistingSession = useRef(false)
   const supabase = getSupabaseClient()
   const isSupabaseReady = Boolean(supabase)
+  const { hasUnsavedChanges } = useActionConfirmation()
+  const isFormDirty = !successfulRedirect && Boolean(identifier || password)
+  useUnsavedChangesGuard(isFormDirty)
+
+  useEffect(() => {
+    if (!successfulRedirect || hasUnsavedChanges) return
+    window.location.assign(successfulRedirect)
+  }, [hasUnsavedChanges, successfulRedirect])
 
   useEffect(() => {
     if (!supabase || hasValidatedExistingSession.current) return
@@ -107,10 +117,11 @@ export function LoginPageClient() {
       }
 
       await supabase.auth.getSession().catch(() => undefined)
+      setIdentifier('')
       setPassword('')
       const redirectParam = searchParams.get('redirect')
       const redirectPath = redirectParam ? safeRedirectPath(redirectParam) : await resolveDefaultLandingPath()
-      window.location.assign(redirectPath)
+      setSuccessfulRedirect(redirectPath)
     } catch {
       await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
       setError('เชื่อมต่อระบบเข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่')
@@ -195,9 +206,9 @@ export function LoginPageClient() {
           </label>
 
           <div className="text-right">
-            <Link className="text-sm font-medium text-blue-700 hover:underline" href="/forgot-password">
+            <GuardedLink className="text-sm font-medium text-blue-700 hover:underline" href="/forgot-password">
               ลืมรหัสผ่าน?
-            </Link>
+            </GuardedLink>
           </div>
 
           {error ? <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}

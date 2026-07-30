@@ -7,6 +7,7 @@ import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
@@ -219,6 +220,22 @@ function newSplitDraft(optionId: string, amount: number): SplitDraft {
   }
 }
 
+export function isBlankApprovalSplit(
+  split: Pick<SplitDraft, 'amount' | 'destinationId'>,
+  inputDraft: string | undefined,
+  defaultDestination: string,
+) {
+  const baselineDraft = normalizeMoneyDraft(formatDecimalWithGrouping(split.amount))
+  const hasEditedInput = inputDraft !== undefined && inputDraft !== baselineDraft
+  return Number(split.amount) === 0
+    && split.destinationId === defaultDestination
+    && !hasEditedInput
+}
+
+function splitDraftSafetySnapshot(splits: SplitDraft[]) {
+  return JSON.stringify(splits.map(({ amount, destinationId, id }) => ({ amount, destinationId, id })))
+}
+
 function destinationOptionsForRow(row: ApprovalApRow | ApprovalExpenseRow) {
   return 'bankAccounts' in row ? row.bankAccounts : row.destinationOptions
 }
@@ -301,6 +318,7 @@ function SortableHead({
 }
 
 export function PaymentApprovalPageClient() {
+  const { requestConfirmation } = useActionConfirmation()
   const [data, setData] = useState<ApprovalPayload>({ apRows: [], branches: [], expenseRows: [], pettyReturnRows: [] })
   const [detail, setDetail] = useState<ApprovalDetailState | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -319,6 +337,7 @@ export function PaymentApprovalPageClient() {
   const [sortDirection, setSortDirection] = useState<ApprovalSortDirection>('desc')
   const [sortKey, setSortKey] = useState<ApprovalSortKey>('date')
   const [splitDrafts, setSplitDrafts] = useState<SplitDraft[]>([])
+  const [splitDraftBaseline, setSplitDraftBaseline] = useState('')
   const [tab, setTab] = useState<ApprovalTab>('ap')
   const apColumnResize = useResizableColumns('daily.payment-approval.ap.v5', paymentApprovalApColumns)
   const expenseColumnResize = useResizableColumns('daily.payment-approval.expense.v5', paymentApprovalExpenseColumns)
@@ -470,6 +489,11 @@ export function PaymentApprovalPageClient() {
   const currentExpenseDetailRow = detail?.tab === 'expense' || detail?.tab === 'pettyReturn' ? detail.row : null
   const currentSplitRow = detail?.row.approvalStatus === 'pending' ? detail.row : null
   const splitDiff = currentSplitRow ? approvalBalanceForRow(currentSplitRow) - splitTotal : 0
+  const hasEditedSplitInput = splitDrafts.some((split) => {
+    const draft = inputDrafts[split.id]
+    return draft !== undefined && draft !== normalizeMoneyDraft(formatDecimalWithGrouping(split.amount))
+  })
+  const { requestDiscard } = useUnsavedChangesGuard(Boolean(detail) && (splitDraftSafetySnapshot(splitDrafts) !== splitDraftBaseline || hasEditedSplitInput))
   const isDefaultApprovalStatusFilter = approvalStatusFilter.length === defaultApprovalStatusFilter.length
     && defaultApprovalStatusFilter.every((status) => approvalStatusFilter.includes(status))
   const hasCustomFilters = Boolean(branchFilter || search || dateFrom || dateTo || !isDefaultApprovalStatusFilter || sortKey !== 'date' || sortDirection !== 'desc')
@@ -515,9 +539,12 @@ export function PaymentApprovalPageClient() {
     setInputDrafts({})
     setDetail(nextDetail)
     if (nextDetail.row.approvalStatus === 'pending') {
-      setSplitDrafts([newSplitDraft(defaultDestinationId(nextDetail.row), approvalBalanceForRow(nextDetail.row))])
+      const initialSplits = [newSplitDraft(defaultDestinationId(nextDetail.row), approvalBalanceForRow(nextDetail.row))]
+      setSplitDrafts(initialSplits)
+      setSplitDraftBaseline(splitDraftSafetySnapshot(initialSplits))
     } else {
       setSplitDrafts([])
+      setSplitDraftBaseline('[]')
     }
   }
 
@@ -525,6 +552,11 @@ export function PaymentApprovalPageClient() {
     setDetail(null)
     setInputDrafts({})
     setSplitDrafts([])
+    setSplitDraftBaseline('')
+  }
+
+  function requestCloseDetail() {
+    requestDiscard(closeDetail)
   }
 
   function addSplit() {
@@ -533,11 +565,28 @@ export function PaymentApprovalPageClient() {
   }
 
   function removeSplit(splitId: string) {
-    setSplitDrafts((current) => current.length <= 1 ? current : current.filter((split) => split.id !== splitId))
-    setInputDrafts((current) => {
-      const next = { ...current }
-      delete next[splitId]
-      return next
+    if (splitDrafts.length <= 1) return
+    const target = splitDrafts.find((split) => split.id === splitId)
+    if (!target) return
+    const remove = () => {
+      setSplitDrafts((current) => current.length <= 1 ? current : current.filter((split) => split.id !== splitId))
+      setInputDrafts((current) => {
+        const next = { ...current }
+        delete next[splitId]
+        return next
+      })
+    }
+    const defaultDestination = currentSplitRow ? defaultDestinationId(currentSplitRow) : ''
+    if (isBlankApprovalSplit(target, inputDrafts[splitId], defaultDestination)) {
+      remove()
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'ยืนยันลบรายการแบ่งจ่าย',
+      description: 'ต้องการลบรายการแบ่งจ่ายนี้หรือไม่? บัญชีปลายทางและยอดเงินในรายการนี้จะหายไป',
+      destructive: true,
+      onConfirm: remove,
+      title: 'ยืนยันการลบรายการแบ่งจ่าย',
     })
   }
 
@@ -1171,7 +1220,7 @@ export function PaymentApprovalPageClient() {
         )}
       </div>
 
-      <Dialog open={Boolean(detail)} onOpenChange={(open) => { if (!open) closeDetail() }}>
+      <Dialog open={Boolean(detail)} onOpenChange={(open) => { if (!open) requestCloseDetail() }}>
         <DialogContent className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 outline-none focus:outline-none" fallbackTitle="รายละเอียดการอนุมัติ" hideClose>
           <DialogHeader className="p-5 bg-slate-900 text-white shrink-0">
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
@@ -1207,7 +1256,7 @@ export function PaymentApprovalPageClient() {
                     {isSubmittingApproval ? 'กำลังอนุมัติ...' : 'อนุมัติ'}
                   </Button>
                 ) : null}
-                <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={closeDetail}>ปิด</Button>
+                <Button className="h-9 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white" type="button" variant="outline" onClick={requestCloseDetail}>ปิด</Button>
               </div>
             </div>
           </DialogHeader>

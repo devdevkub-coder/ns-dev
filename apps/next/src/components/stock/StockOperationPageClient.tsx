@@ -20,6 +20,7 @@ import { isCostPoolEligibleMetalGroup, stockAdjustReasonLabel, stockAdjustReason
 import type { StatusConvertFormValues, StockAdjustFormValues, StockConvertFormValues, StockCostPoolOption, StockOption } from '@/lib/stock'
 import { z } from 'zod'
 import { ApiError } from '@/lib/api-client'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 
 type Mode = 'adjust' | 'convert' | 'status-convert'
 type Payload = {
@@ -104,6 +105,58 @@ type StockAdjustSnapshot = {
   systemQty: number
   totalValue: number
   unitPricePerKg: number
+}
+
+function statusConvertFormSafetySnapshot(values: StatusConvertFormValues) {
+  return JSON.stringify({
+    date: values.date,
+    fromStatus: values.fromStatus,
+    lotNo: values.lotNo,
+    notes: values.notes,
+    productId: values.productId,
+    qty: values.qty,
+    reason: values.reason,
+    sourceBranchId: values.sourceBranchId,
+    targetBranchId: values.targetBranchId,
+    targetWarehouseId: values.targetWarehouseId,
+    toStatus: values.toStatus,
+    warehouseId: values.warehouseId,
+  })
+}
+
+function stockConvertFormSafetySnapshot(values: StockConvertFormValues) {
+  return JSON.stringify({
+    allocationMethod: values.allocationMethod,
+    branchId: values.branchId,
+    date: values.date,
+    lotNo: values.lotNo,
+    manualAllocations: values.manualAllocations,
+    notes: values.notes,
+    reason: values.reason,
+    sourceProductId: values.sourceProductId,
+    sourceQty: values.sourceQty,
+    targetCostPolicy: values.targetCostPolicy,
+    targetLotNo: values.targetLotNo,
+    targetProductId: values.targetProductId,
+    targetQty: values.targetQty,
+    targetUnitCost: values.targetUnitCost,
+    targetUnitCostReason: values.targetUnitCostReason,
+    warehouseId: values.warehouseId,
+  })
+}
+
+function stockAdjustFormSafetySnapshot(values: StockAdjustFormValues) {
+  return JSON.stringify({
+    branchId: values.branchId,
+    countedQty: values.countedQty,
+    date: values.date,
+    lotNo: values.lotNo,
+    productId: values.productId,
+    reason: values.reason,
+    remark: values.remark,
+    status: values.status,
+    warehouseId: values.warehouseId,
+  })
 }
 
 type StockConvertDetailLine = {
@@ -229,12 +282,14 @@ const detailColumns: Array<ResizableColumnDefinition<string>> = [
 ]
 
 export function StockOperationPageClient({ mode }: { mode: Mode }) {
+  const { requestConfirmation } = useActionConfirmation()
   const meta = config[mode]
   const pathname = usePathname()
   const [data, setData] = useState<Payload>({ reference: { branches: [], products: [], warehouses: [] }, rows: [] })
   const [error, setError] = useState<string | null>(null)
   const [adjustBranchFilter, setAdjustBranchFilter] = useState('')
   const [adjustTypeFilter, setAdjustTypeFilter] = useState('')
+  const [formDirty, setFormDirty] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [fromDateFilter, setFromDateFilter] = useState('')
@@ -300,6 +355,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
   const adjustResize = useResizableColumns('stock.operation.adjust.v5', adjustColumns)
   const columnResize = mode === 'status-convert' ? statusConvertResize : mode === 'convert' ? convertResize : adjustResize
   const [isConvertDetailLoading, setIsConvertDetailLoading] = useState(false)
+  const { requestDiscard } = useUnsavedChangesGuard(formOpen && formDirty)
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -503,10 +559,16 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
     setStatusFlowFilter('')
   }, [])
 
-  const closeForm = useCallback(() => {
+  const discardForm = useCallback(() => {
+    setFormDirty(false)
     setFormOpen(false)
     if (window.location.search.includes('new=1')) window.history.replaceState(null, '', pathname)
   }, [pathname])
+
+  const closeForm = useCallback(() => {
+    if (isSaving) return
+    requestDiscard(discardForm)
+  }, [discardForm, isSaving, requestDiscard])
 
   function toggleStatusConvertSort(nextKey: StatusConvertSortKey) {
     if (statusConvertSortKey === nextKey) {
@@ -539,8 +601,9 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       }
 
       await dailyFetchJson(meta.api, { body: JSON.stringify(values), method: 'POST' })
-      closeForm()
+      discardForm()
       await loadData()
+      return true
     } catch (caught) {
       if (caught instanceof z.ZodError) {
         const messages = caught.errors.map((err) => err.message)
@@ -553,13 +616,14 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       } else {
         setError(caught instanceof Error ? caught.message : 'บันทึกข้อมูลไม่ได้')
       }
+      return false
     } finally {
       setIsSaving(false)
     }
   }
 
-  async function reverseConvert(refNo: string) {
-    if (!window.confirm(`Reverse Grade Adjustment ${refNo} ?`)) return
+  function reverseConvert(refNo: string) {
+    requestConfirmation({ title: 'ยืนยันการย้อนกลับรายการปรับเกรด', description: `ต้องการย้อนกลับรายการปรับเกรด ${refNo} หรือไม่?`, confirmLabel: 'ยืนยันย้อนกลับ', destructive: true, onConfirm: async () => {
     setError(null)
     setIsSaving(true)
     try {
@@ -567,24 +631,36 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Reverse ไม่สำเร็จ')
+      throw caught
     } finally {
       setIsSaving(false)
     }
+      },
+    })
   }
 
   async function reverseStatusConvert(refNo: string) {
     const note = window.prompt(`Reverse Status Convert ${refNo}\nกรอกเหตุผลการ reverse`)
     if (note === null) return
-    setError(null)
-    setIsSaving(true)
-    try {
-      await dailyFetchJson(meta.api, { body: JSON.stringify({ action: 'reverse', note, refNo }), method: 'PATCH' })
-      await loadData()
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Reverse ไม่สำเร็จ')
-    } finally {
-      setIsSaving(false)
-    }
+    requestConfirmation({
+      title: 'ยืนยันการย้อนกลับสถานะรายการ',
+      description: `ต้องการย้อนกลับสถานะรายการ ${refNo} หรือไม่?`,
+      confirmLabel: 'ยืนยันย้อนกลับ',
+      destructive: true,
+      onConfirm: async () => {
+        setError(null)
+        setIsSaving(true)
+        try {
+          await dailyFetchJson(meta.api, { body: JSON.stringify({ action: 'reverse', note, refNo }), method: 'PATCH' })
+          await loadData()
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : 'Reverse ไม่สำเร็จ')
+          throw caught
+        } finally {
+          setIsSaving(false)
+        }
+      },
+    })
   }
 
   async function correctAdjust(row: Record<string, string | number | boolean | null>) {
@@ -1093,7 +1169,6 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       <Dialog
         open={formOpen}
         onOpenChange={(open) => {
-          if (!open && isSaving) return
           if (!open) closeForm()
           else setFormOpen(true)
         }}
@@ -1130,9 +1205,9 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
               </div>
             </div>
           </DialogHeader>
-          {mode === 'status-convert' ? <StatusConvertForm isSaving={isSaving} error={error} reference={data.reference} onCancel={closeForm} onSubmit={submit} /> : null}
-          {mode === 'convert' ? <ConvertForm isSaving={isSaving} error={error} reference={data.reference} onCancel={closeForm} onSubmit={submit} /> : null}
-          {mode === 'adjust' ? <AdjustForm isSaving={isSaving} error={error} reference={data.reference} onCancel={closeForm} onSubmit={submit} /> : null}
+          {mode === 'status-convert' ? <StatusConvertForm isSaving={isSaving} error={error} reference={data.reference} onCancel={closeForm} onDirtyChange={setFormDirty} onSubmit={submit} /> : null}
+          {mode === 'convert' ? <ConvertForm isSaving={isSaving} error={error} reference={data.reference} requestConfirmation={requestConfirmation} onCancel={closeForm} onDirtyChange={setFormDirty} onSubmit={submit} /> : null}
+          {mode === 'adjust' ? <AdjustForm isSaving={isSaving} error={error} reference={data.reference} onCancel={closeForm} onDirtyChange={setFormDirty} onSubmit={submit} /> : null}
         </DialogContent>
       </Dialog>
       <OperationTable
@@ -2067,8 +2142,20 @@ function BranchWarehouseFields({ branchId, reference, setBranchId, setWarehouseI
   </>
 }
 
-function StatusConvertForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onSubmit: (values: StatusConvertFormValues) => void; reference: Payload['reference'] }) {
+function StatusConvertForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onDirtyChange: (dirty: boolean) => void; onSubmit: (values: StatusConvertFormValues) => Promise<boolean>; reference: Payload['reference'] }) {
   const [values, setValues] = useState<StatusConvertFormValues>({ sourceBranchId: '', targetBranchId: '', date: todayDateInput(), docNo: null, fromStatus: 'RM', lotNo: null, notes: null, productId: '', qty: 0, reason: '', toStatus: 'FG', warehouseId: '', targetWarehouseId: '' })
+  const [formBaseline, setFormBaseline] = useState(() => statusConvertFormSafetySnapshot(values))
+  const isFormDirty = statusConvertFormSafetySnapshot(values) !== formBaseline
+
+  useEffect(() => {
+    props.onDirtyChange(isFormDirty)
+    return () => props.onDirtyChange(false)
+  }, [isFormDirty, props.onDirtyChange])
+
+  async function submit() {
+    if (await props.onSubmit(values)) setFormBaseline(statusConvertFormSafetySnapshot(values))
+  }
+
   const activeBranches = props.reference.branches.filter((option) => option.active !== false)
   const sourceWarehouses = props.reference.warehouses.filter((option) => option.active !== false && (!values.sourceBranchId || option.branchId === values.sourceBranchId))
   const targetWarehouses = props.reference.warehouses.filter((option) => option.active !== false && (!values.targetBranchId || option.branchId === values.targetBranchId))
@@ -2122,7 +2209,7 @@ function StatusConvertForm(props: { isSaving: boolean; error?: string | null; on
       }))
   }, [props.reference.products])
 
-  return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={() => props.onSubmit(values)}>
+  return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={submit}>
     <div className="md:col-span-2 grid gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 md:grid-cols-2">
       <div className="w-full">
         <SearchCombobox
@@ -2323,7 +2410,11 @@ function CostPoolPreview({
   )
 }
 
-function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onSubmit: (values: StockConvertFormValues) => void; reference: Payload['reference'] }) {
+export function hasManualAllocationData(manualAllocations: StockConvertFormValues['manualAllocations']) {
+  return manualAllocations.length > 0
+}
+
+function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onDirtyChange: (dirty: boolean) => void; onSubmit: (values: StockConvertFormValues) => Promise<boolean>; reference: Payload['reference']; requestConfirmation: ReturnType<typeof useActionConfirmation>['requestConfirmation'] }) {
   const [values, setValues] = useState<StockConvertFormValues>({
     allocationMethod: 'FIFO',
     branchId: '',
@@ -2343,6 +2434,18 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
     targetUnitCostReason: null,
     warehouseId: '',
   })
+  const [formBaseline, setFormBaseline] = useState(() => stockConvertFormSafetySnapshot(values))
+  const isFormDirty = stockConvertFormSafetySnapshot(values) !== formBaseline
+
+  useEffect(() => {
+    props.onDirtyChange(isFormDirty)
+    return () => props.onDirtyChange(false)
+  }, [isFormDirty, props.onDirtyChange])
+
+  async function submit() {
+    if (await props.onSubmit(values)) setFormBaseline(stockConvertFormSafetySnapshot(values))
+  }
+
   const [productStock, setProductStock] = useState<ProductStockPayload | null>(null)
   const [productStockError, setProductStockError] = useState<string | null>(null)
   const [isStockPreviewLoading, setIsStockPreviewLoading] = useState(false)
@@ -2380,6 +2483,21 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
   function updateManualAllocation(poolEntryId: string, qty: number) {
     const existing = values.manualAllocations.filter((line) => line.poolEntryId !== poolEntryId)
     setValues({ ...values, manualAllocations: qty > 0 ? [...existing, { poolEntryId, qty }] : existing })
+  }
+
+  function changeAllocationMethod(allocationMethod: StockConvertFormValues['allocationMethod']) {
+    const applyAllocationMethod = () => setValues({ ...values, allocationMethod, manualAllocations: [] })
+    if (!hasManualAllocationData(values.manualAllocations)) {
+      applyAllocationMethod()
+      return
+    }
+    props.requestConfirmation({
+      confirmLabel: 'เปลี่ยนวิธีตัดต้นทุน',
+      description: 'การเปลี่ยนวิธีตัดต้นทุนจะล้าง lot ที่เลือกเองไว้ ต้องการดำเนินการต่อหรือไม่?',
+      destructive: true,
+      onConfirm: applyAllocationMethod,
+      title: 'ยืนยันการเปลี่ยนวิธีตัดต้นทุน',
+    })
   }
 
   const productSearchOptions = useMemo<SearchComboboxOption[]>(() => {
@@ -2428,7 +2546,7 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
     return () => { cancelled = true }
   }, [props.reference.branches, props.reference.products, values.branchId, values.sourceProductId])
 
-  return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={() => props.onSubmit(values)}>
+  return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={submit}>
     <div className="md:col-span-2 rounded-xl border border-slate-200 bg-white p-5 shadow-sm grid gap-4 md:grid-cols-2 animate-fade-in">
       <BaseDateDoc values={values} setValues={setValues} />
       <BranchWarehouseFields branchId={values.branchId} reference={props.reference} setBranchId={(branchId) => setValues({ ...values, branchId, warehouseId: '' })} setWarehouseId={(warehouseId) => setValues({ ...values, warehouseId })} warehouseId={values.warehouseId} />
@@ -2453,7 +2571,7 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
               <Select
                 className="mt-1.5 h-10 w-full"
                 value={values.allocationMethod}
-                onChange={(event) => setValues({ ...values, allocationMethod: event.target.value as StockConvertFormValues['allocationMethod'], manualAllocations: [] })}
+                onChange={(event) => changeAllocationMethod(event.target.value as StockConvertFormValues['allocationMethod'])}
               >
                 <option value="FIFO">FIFO (มาก่อน-ออกก่อน)</option>
                 <option value="LIFO">LIFO (มาหลัง-ออกก่อน)</option>
@@ -2537,8 +2655,20 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
   </FormShell>
 }
 
-function AdjustForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onSubmit: (values: StockAdjustFormValues) => void; reference: Payload['reference'] }) {
+function AdjustForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onDirtyChange: (dirty: boolean) => void; onSubmit: (values: StockAdjustFormValues) => Promise<boolean>; reference: Payload['reference'] }) {
   const [values, setValues] = useState<StockAdjustFormValues>({ branchId: '', countedQty: 0, date: todayDateInput(), docNo: null, lotNo: null, productId: '', reason: stockAdjustReasonOptions[0], remark: null, status: 'RM', systemQty: 0, warehouseId: '' })
+  const [formBaseline, setFormBaseline] = useState(() => stockAdjustFormSafetySnapshot(values))
+  const isFormDirty = stockAdjustFormSafetySnapshot(values) !== formBaseline
+
+  useEffect(() => {
+    props.onDirtyChange(isFormDirty)
+    return () => props.onDirtyChange(false)
+  }, [isFormDirty, props.onDirtyChange])
+
+  async function submit() {
+    if (await props.onSubmit(values)) setFormBaseline(stockAdjustFormSafetySnapshot(values))
+  }
+
   const [snapshot, setSnapshot] = useState<StockAdjustSnapshot | null>(null)
   const [snapshotError, setSnapshotError] = useState<string | null>(null)
   const [isSnapshotLoading, setIsSnapshotLoading] = useState(false)
@@ -2593,7 +2723,7 @@ function AdjustForm(props: { isSaving: boolean; error?: string | null; onCancel:
   const totalValue = snapshot?.totalValue ?? values.totalValue ?? 0
   const diffQty = snapshot?.diffQty ?? 0
 
-  return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={() => props.onSubmit(values)}>
+  return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={submit}>
     <div className="grid gap-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm md:col-span-2 md:grid-cols-2">
       <div className="md:col-span-2 border-b border-slate-100 pb-2">
         <h4 className="text-sm font-bold text-slate-800">ข้อมูลการนับจริง</h4>

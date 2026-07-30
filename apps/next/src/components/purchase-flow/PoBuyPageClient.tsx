@@ -10,6 +10,7 @@ import { Button as UiButton } from '@/components/ui/Button'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { Input as UiInput } from '@/components/ui/Input'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
@@ -159,6 +160,10 @@ type PoBuyStatusKey = 'cancelled' | 'open' | 'partial' | 'received' | 'shortClos
 
 function blankItem(): PoBuyFormItem {
   return { productId: '', qty: 0, unitPrice: 0 }
+}
+
+export function isBlankPoBuyItem(item: Pick<PoBuyFormItem, 'productId' | 'qty' | 'unitPrice'>) {
+  return !item.productId.trim() && item.qty === 0 && item.unitPrice === 0
 }
 
 function todayIsoDate() {
@@ -470,6 +475,7 @@ export function PoBuyPageClient() {
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [form, setForm] = useState<PoBuyFormState>(() => blankForm())
+  const [formBaseline, setFormBaseline] = useState<string | null>(null)
   const [fromDate, setFromDate] = useState('')
   const [branchFilter, setBranchFilter] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -514,12 +520,29 @@ export function PoBuyPageClient() {
     const totalCost = subtotal + vatAmount
     return { lineCount: form.items.length, subtotal, totalCost, totalQty, vatAmount, vatRatePercent }
   }, [data?.vatRatePercent, form.hasVat, form.items])
+  const formSnapshot = useMemo(() => JSON.stringify(form), [form])
+  const isFormDirty = showForm && formBaseline !== null && formBaseline !== formSnapshot
+  const { requestDiscard } = useUnsavedChangesGuard(isFormDirty)
+  const { requestConfirmation } = useActionConfirmation()
+
+  const discardForm = () => {
+    setEditingPoId(null)
+    setEditingPoNo(null)
+    setShowForm(false)
+  }
+
+  const closeForm = () => {
+    if (isSaving) return
+    requestDiscard(discardForm)
+  }
 
   const openCreateForm = () => {
     if (!data?.capabilities.create) return
+    const nextForm = blankForm()
     setEditingPoId(null)
     setEditingPoNo(null)
-    setForm(blankForm())
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify(nextForm))
     setFieldErrors({})
     setError(null)
     setShowForm(true)
@@ -527,10 +550,7 @@ export function PoBuyPageClient() {
 
   const openEditForm = (row: PoBuyRow) => {
     if (!data?.capabilities.update) return
-    setEditingPoId(row.id)
-    setEditingPoNo(row.docNo)
-    setSelectedRow(null)
-    setForm({
+    const nextForm = {
       branchId: row.branchId,
       expectedDelivery: row.expectedDelivery,
       hasVat: row.hasVat,
@@ -541,7 +561,12 @@ export function PoBuyPageClient() {
       })),
       notes: row.notes ?? '',
       supplierId: row.supplierId,
-    })
+    }
+    setEditingPoId(row.id)
+    setEditingPoNo(row.docNo)
+    setSelectedRow(null)
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify(nextForm))
     setFieldErrors({})
     setError(null)
     setShowForm(true)
@@ -601,9 +626,26 @@ export function PoBuyPageClient() {
   }
 
   const removeItem = (index: number) => {
-    setForm((current) => current.items.length <= 1
-      ? current
-      : { ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index) })
+    if (form.items.length <= 1) return
+    const target = form.items[index]
+    if (!target) return
+    const remove = () => {
+      setForm((current) => current.items.length <= 1
+        ? current
+        : { ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index) })
+    }
+    if (isBlankPoBuyItem(target)) {
+      remove()
+      return
+    }
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ยืนยันลบรายการ',
+      description: 'ต้องการลบรายการสินค้าใน PO Buy นี้หรือไม่? สินค้า จำนวน และราคาต่อหน่วยในแถวนี้จะหายไป',
+      destructive: true,
+      onConfirm: remove,
+      title: 'ยืนยันการลบรายการ PO Buy',
+    })
   }
 
   const submitForm = async () => {
@@ -623,9 +665,7 @@ export function PoBuyPageClient() {
         body: JSON.stringify(editingPoId ? { ...payload, id: editingPoId } : payload),
         method: editingPoId ? 'PUT' : 'POST',
       })
-      setShowForm(false)
-      setEditingPoId(null)
-      setEditingPoNo(null)
+      discardForm()
       await loadData()
     } catch (caught) {
       if (caught instanceof ApiError && Object.keys(caught.fieldErrors).length > 0) {
@@ -637,7 +677,7 @@ export function PoBuyPageClient() {
     }
   }
 
-  const submitCancel = async () => {
+  const submitCancel = () => {
     if (!cancelingRow) return
     const note = cancelNote.trim()
     if (!note) {
@@ -647,23 +687,33 @@ export function PoBuyPageClient() {
 
     setError(null)
     setCancelNoteError('')
-    setIsSaving(true)
-    try {
-      await dailyFetchJson<{ docNo: string; id: string }>('/api/purchase/po-buy', {
-        body: JSON.stringify({ id: cancelingRow.id, note }),
-        method: 'PATCH',
-      })
-      setCancelingRow(null)
-      setCancelNote('')
-      await loadData()
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'ยกเลิก PO Buy ไม่ได้')
-    } finally {
-      setIsSaving(false)
-    }
+    requestConfirmation({
+      title: 'ยืนยันการยกเลิก PO Buy',
+      description: `ต้องการยกเลิก PO Buy ${cancelingRow.docNo} หรือไม่?`,
+      confirmLabel: 'ยืนยันยกเลิก',
+      destructive: true,
+      onConfirm: async () => {
+        setIsSaving(true)
+        try {
+          await dailyFetchJson<{ docNo: string; id: string }>('/api/purchase/po-buy', {
+            body: JSON.stringify({ id: cancelingRow.id, note }),
+            method: 'PATCH',
+          })
+          setCancelingRow(null)
+          setCancelNote('')
+          await loadData()
+        } catch (caught) {
+          const error = caught instanceof Error ? caught : new Error('ยกเลิก PO Buy ไม่ได้')
+          setError(error.message)
+          throw error
+        } finally {
+          setIsSaving(false)
+        }
+      },
+    })
   }
 
-  const submitShortClose = async () => {
+  const submitShortClose = () => {
     if (!shortClosingRow) return
     const note = shortCloseNote.trim()
     if (!note) {
@@ -673,20 +723,30 @@ export function PoBuyPageClient() {
 
     setError(null)
     setShortCloseNoteError('')
-    setIsSaving(true)
-    try {
-      await dailyFetchJson<{ docNo: string; id: string }>('/api/purchase/po-buy', {
-        body: JSON.stringify({ action: 'shortClose', id: shortClosingRow.id, note }),
-        method: 'PATCH',
-      })
-      setShortClosingRow(null)
-      setShortCloseNote('')
-      await loadData()
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'ปิดรับไม่ครบไม่สำเร็จ')
-    } finally {
-      setIsSaving(false)
-    }
+    requestConfirmation({
+      title: 'ยืนยันการปิดรับไม่ครบ',
+      description: `ต้องการปิดรับ PO Buy ${shortClosingRow.docNo} ไม่ครบหรือไม่?`,
+      confirmLabel: 'ยืนยันปิดรับไม่ครบ',
+      destructive: true,
+      onConfirm: async () => {
+        setIsSaving(true)
+        try {
+          await dailyFetchJson<{ docNo: string; id: string }>('/api/purchase/po-buy', {
+            body: JSON.stringify({ action: 'shortClose', id: shortClosingRow.id, note }),
+            method: 'PATCH',
+          })
+          setShortClosingRow(null)
+          setShortCloseNote('')
+          await loadData()
+        } catch (caught) {
+          const error = caught instanceof Error ? caught : new Error('ปิดรับไม่ครบไม่สำเร็จ')
+          setError(error.message)
+          throw error
+        } finally {
+          setIsSaving(false)
+        }
+      },
+    })
   }
 
   const printPoBuy = async (row: PoBuyRow) => {
@@ -1141,7 +1201,7 @@ export function PoBuyPageClient() {
           products={data?.options.products ?? []}
           suppliers={data?.options.suppliers ?? []}
           onAddItem={addItem}
-          onClose={() => setShowForm(false)}
+          onClose={closeForm}
           onRemoveItem={removeItem}
           onSubmit={submitForm}
           onUpdate={updateForm}
@@ -1303,9 +1363,14 @@ function PoBuyCancelModal({
   onSubmit: () => void
   row: PoBuyRow
 }) {
+  const { requestDiscard } = useUnsavedChangesGuard(note.length > 0)
+  const requestClose = () => {
+    if (!isSaving) requestDiscard(onClose)
+  }
+
   return (
     <Dialog open onOpenChange={(open) => {
-      if (!open && !isSaving) onClose()
+      if (!open) requestClose()
     }}>
       <DialogContent aria-labelledby="po-buy-cancel-title" className="top-auto bottom-0 w-full max-w-lg translate-x-[-50%] translate-y-0 rounded-t-md border-0 bg-slate-900 shadow-2xl !p-0 outline-none focus:outline-none md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-md overflow-hidden" hideClose>
         <DialogHeader className="px-5 py-4 bg-slate-900 text-white flex flex-row items-center rounded-t-md">
@@ -1329,7 +1394,7 @@ function PoBuyCancelModal({
           {error ? <div className="text-xs text-red-600">{error}</div> : null}
         </div>
         <DialogFooter className="bg-white border-t border-slate-100 px-5 py-3.5 flex justify-end gap-2">
-          <UiButton className="font-normal" disabled={isSaving} type="button" variant="outline" onClick={onClose}>ปิด</UiButton>
+          <UiButton className="font-normal" disabled={isSaving} type="button" variant="outline" onClick={requestClose}>ปิด</UiButton>
           <UiButton className="bg-red-600 font-semibold hover:bg-red-700 text-white h-9 px-4 rounded-md transition-colors" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</UiButton>
         </DialogFooter>
       </DialogContent>
@@ -1354,9 +1419,14 @@ function PoBuyShortCloseModal({
   onSubmit: () => void
   row: PoBuyRow
 }) {
+  const { requestDiscard } = useUnsavedChangesGuard(note.length > 0)
+  const requestClose = () => {
+    if (!isSaving) requestDiscard(onClose)
+  }
+
   return (
     <Dialog open onOpenChange={(open) => {
-      if (!open && !isSaving) onClose()
+      if (!open) requestClose()
     }}>
       <DialogContent aria-labelledby="po-buy-short-close-title" className="top-auto bottom-0 w-full max-w-lg translate-x-[-50%] translate-y-0 rounded-t-md border-0 bg-slate-900 shadow-2xl !p-0 outline-none focus:outline-none md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-md overflow-hidden" hideClose>
         <DialogHeader className="px-5 py-4 bg-slate-900 text-white flex flex-row items-center rounded-t-md">
@@ -1380,7 +1450,7 @@ function PoBuyShortCloseModal({
           {error ? <div className="text-xs text-red-600">{error}</div> : null}
         </div>
         <DialogFooter className="bg-white border-t border-slate-100 px-5 py-3.5 flex justify-end gap-2">
-          <UiButton className="font-normal" disabled={isSaving} type="button" variant="outline" onClick={onClose}>ปิด</UiButton>
+          <UiButton className="font-normal" disabled={isSaving} type="button" variant="outline" onClick={requestClose}>ปิด</UiButton>
           <UiButton className="bg-amber-600 font-semibold hover:bg-amber-700 text-white h-9 px-4 rounded-md transition-colors" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังบันทึก...' : 'ยืนยันปิดรับไม่ครบ'}</UiButton>
         </DialogFooter>
       </DialogContent>

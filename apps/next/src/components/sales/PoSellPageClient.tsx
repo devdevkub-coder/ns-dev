@@ -23,6 +23,7 @@ import { TableNumberCell } from '@/components/ui/TableNumberCell'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { CollapsedList } from '@/components/ui/CollapsedList'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 
 type Option = {
   active?: boolean | null
@@ -143,6 +144,16 @@ const blankPoSellItem = (): PoSellFormValues['items'][number] => ({
   tradingCostSourceId: null,
 })
 
+export function isBlankPoSellItem(
+  item: Pick<PoSellFormValues['items'][number], 'discount' | 'note' | 'price' | 'productId' | 'qty'>,
+) {
+  return !item.productId.trim()
+    && item.qty === 0
+    && item.price === 0
+    && item.discount === 0
+    && !item.note?.trim()
+}
+
 const initialPoSellForm = (): PoSellFormValues => ({
   branchId: '',
   channelId: null,
@@ -189,6 +200,7 @@ export function PoSellPageClient() {
   const [editingDocNo, setEditingDocNo] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<PoSellFormValues>(initialPoSellForm())
+  const [formBaseline, setFormBaseline] = useState<string | null>(null)
   const [fromDate, setFromDate] = useState('')
   const [branchFilter, setBranchFilter] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -386,6 +398,10 @@ export function PoSellPageClient() {
   }, [branchFilter, documentStatus, fromDate, matchStatus, search, toDate])
 
   const hasFilters = Boolean(branchFilter || search.trim() || fromDate || toDate || matchStatus !== 'all' || documentStatus !== 'all')
+  const formSnapshot = useMemo(() => JSON.stringify(form), [form])
+  const isFormDirty = showForm && formBaseline !== null && formBaseline !== formSnapshot
+  const { requestDiscard } = useUnsavedChangesGuard(isFormDirty)
+  const { requestConfirmation } = useActionConfirmation()
   const resetFilters = () => {
     setBranchFilter('')
     setSearch('')
@@ -397,8 +413,10 @@ export function PoSellPageClient() {
 
   function openCreateForm() {
     if (!data?.capabilities.create) return
+    const nextForm = initialPoSellForm()
     setEditingDocNo(null)
-    setForm(initialPoSellForm())
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify(nextForm))
     setFieldErrors({})
     setError(null)
     setShowForm(true)
@@ -409,8 +427,7 @@ export function PoSellPageClient() {
       setError(row.editDisabledReason || 'รายการนี้ยังไม่สามารถแก้ไขได้')
       return
     }
-    setEditingDocNo(row.docNo)
-    setForm({
+    const nextForm = {
       branchId: row.branchId ?? '',
       channelId: row.channelId ?? null,
       customerId: row.customerId ?? '',
@@ -426,7 +443,14 @@ export function PoSellPageClient() {
       })) : [blankPoSellItem()],
       note: row.note ?? null,
       salesPlanId: null,
-    })
+    }
+    const nextBaseline = {
+      ...nextForm,
+      channelId: defaultSalesChannelForCustomer(row.customerId ?? '') ?? null,
+    }
+    setEditingDocNo(row.docNo)
+    setForm(nextForm)
+    setFormBaseline(JSON.stringify(nextBaseline))
     setFieldErrors({})
     setError(null)
     setShowForm(true)
@@ -461,7 +485,7 @@ export function PoSellPageClient() {
         if (cancelled) return
         handledSalesPlanQueryRef.current = salesPlanIdFromQuery
         setEditingDocNo(null)
-        setForm({
+        const nextForm = {
           branchId: salesPlanDefaultBranchId ?? '',
           channelId: String(planRow.channelId ?? planRow.channel ?? '') || null,
           customerId: String(planRow.customerId ?? ''),
@@ -475,7 +499,9 @@ export function PoSellPageClient() {
           }],
           note: `สร้างจาก Sales Plan ${String(planRow.planNo ?? salesPlanIdFromQuery)}`,
           salesPlanId: salesPlanIdFromQuery,
-        })
+        }
+        setForm(nextForm)
+        setFormBaseline(JSON.stringify(nextForm))
         setFieldErrors({})
         setShowForm(true)
       })
@@ -547,7 +573,37 @@ export function PoSellPageClient() {
   }
 
   function removeItem(index: number) {
-    setForm((current) => ({ ...current, items: current.items.filter((_item, itemIndex) => itemIndex !== index) }))
+    const target = form.items[index]
+    if (!target) return
+    const remove = () => {
+      setForm((current) => ({ ...current, items: current.items.filter((_item, itemIndex) => itemIndex !== index) }))
+    }
+    if (isBlankPoSellItem(target)) {
+      remove()
+      return
+    }
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ยืนยันลบรายการ',
+      description: 'ต้องการลบรายการสินค้าใน PO Sell นี้หรือไม่? สินค้า จำนวน ราคา ส่วนลด และหมายเหตุในแถวนี้จะหายไป',
+      destructive: true,
+      onConfirm: remove,
+      title: 'ยืนยันการลบรายการ PO Sell',
+    })
+  }
+
+  function discardForm() {
+    if (!editingDocNo && salesPlanIdFromQuery) {
+      handledSalesPlanQueryRef.current = salesPlanIdFromQuery
+      router.replace(pathname, { scroll: false })
+    }
+    setEditingDocNo(null)
+    setShowForm(false)
+  }
+
+  function closeForm() {
+    if (isSaving) return
+    requestDiscard(discardForm)
   }
 
   async function savePoSell() {
@@ -586,7 +642,7 @@ export function PoSellPageClient() {
     }
   }
 
-  async function submitCancel() {
+  function submitCancel() {
     if (!cancelingRow) return
     const note = cancelNote.trim()
     if (!note) {
@@ -594,9 +650,10 @@ export function PoSellPageClient() {
       return
     }
 
-    setIsSaving(true)
     setError(null)
     setCancelNoteError('')
+    requestConfirmation({ title: 'ยืนยันการยกเลิก PO Sell', description: `ต้องการยกเลิก PO Sell ${cancelingRow.docNo} หรือไม่?`, confirmLabel: 'ยืนยันยกเลิก', destructive: true, onConfirm: async () => {
+    setIsSaving(true)
     try {
       await dailyFetchJson<{ docNo: string }>('/api/sales/po-sell', {
         body: JSON.stringify({ action: 'cancel', docNo: cancelingRow.docNo, note }),
@@ -608,12 +665,14 @@ export function PoSellPageClient() {
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'ยกเลิก PO Sell ไม่ได้')
+      throw caught instanceof Error ? caught : new Error('ยกเลิก PO Sell ไม่ได้')
     } finally {
       setIsSaving(false)
     }
+    } })
   }
 
-  async function submitShortClose() {
+  function submitShortClose() {
     if (!shortClosingRow) return
     const note = shortCloseNote.trim()
     if (!note) {
@@ -621,9 +680,10 @@ export function PoSellPageClient() {
       return
     }
 
-    setIsSaving(true)
     setError(null)
     setShortCloseNoteError('')
+    requestConfirmation({ title: 'ยืนยันการปิดส่งไม่ครบ', description: `ต้องการปิดส่ง PO Sell ${shortClosingRow.docNo} ไม่ครบหรือไม่?`, confirmLabel: 'ยืนยันปิดส่งไม่ครบ', destructive: true, onConfirm: async () => {
+    setIsSaving(true)
     try {
       await dailyFetchJson<{ docNo: string }>('/api/sales/po-sell', {
         body: JSON.stringify({ action: 'shortClose', docNo: shortClosingRow.docNo, note }),
@@ -635,9 +695,11 @@ export function PoSellPageClient() {
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'ปิดส่งไม่ครบไม่สำเร็จ')
+      throw caught instanceof Error ? caught : new Error('ปิดส่งไม่ครบไม่สำเร็จ')
     } finally {
       setIsSaving(false)
     }
+    } })
   }
 
   const listControls = (
@@ -989,14 +1051,7 @@ export function PoSellPageClient() {
           vatRatePercent={vatRatePercent}
           totalCost={formTotalCost}
           onAddItem={() => setForm((current) => ({ ...current, items: [...current.items, blankPoSellItem()] }))}
-          onClose={() => {
-            if (!editingDocNo && salesPlanIdFromQuery) {
-              handledSalesPlanQueryRef.current = salesPlanIdFromQuery
-              router.replace(pathname, { scroll: false })
-            }
-            setEditingDocNo(null)
-            setShowForm(false)
-          }}
+          onClose={closeForm}
           onRemoveItem={removeItem}
           onSubmit={savePoSell}
           onUpdate={updateForm}
@@ -1446,9 +1501,14 @@ function PoSellCancelModal({
   onSubmit: () => void
   row: PoSellRow
 }) {
+  const { requestDiscard } = useUnsavedChangesGuard(note.length > 0)
+  const requestClose = () => {
+    if (!isSaving) requestDiscard(onClose)
+  }
+
   return (
     <Dialog open onOpenChange={(open) => {
-      if (!open && !isSaving) onClose()
+      if (!open) requestClose()
     }}>
       <DialogContent aria-labelledby="po-sell-cancel-title" className="top-auto bottom-0 w-full max-w-lg translate-x-[-50%] translate-y-0 rounded-t-md md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-md border-0 bg-slate-900 shadow-2xl !p-0 overflow-hidden outline-none focus:outline-none" hideClose>
         <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-md flex flex-row items-center shrink-0">
@@ -1472,7 +1532,7 @@ function PoSellCancelModal({
           {error ? <div className="text-xs text-red-600">{error}</div> : null}
         </div>
         <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-white flex justify-end gap-2 shrink-0 md:rounded-b-md">
-          <UiButton className="font-normal transition-colors outline-none focus:ring-0" disabled={isSaving} type="button" variant="outline" onClick={onClose}>ปิด</UiButton>
+          <UiButton className="font-normal transition-colors outline-none focus:ring-0" disabled={isSaving} type="button" variant="outline" onClick={requestClose}>ปิด</UiButton>
           <UiButton className="rounded-md bg-red-600 hover:bg-red-700 text-white font-medium transition-colors outline-none focus:ring-0 px-5" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</UiButton>
         </DialogFooter>
       </DialogContent>
@@ -1497,9 +1557,14 @@ function PoSellShortCloseModal({
   onSubmit: () => void
   row: PoSellRow
 }) {
+  const { requestDiscard } = useUnsavedChangesGuard(note.length > 0)
+  const requestClose = () => {
+    if (!isSaving) requestDiscard(onClose)
+  }
+
   return (
     <Dialog open onOpenChange={(open) => {
-      if (!open && !isSaving) onClose()
+      if (!open) requestClose()
     }}>
       <DialogContent aria-labelledby="po-sell-short-close-title" className="top-auto bottom-0 w-full max-w-lg translate-x-[-50%] translate-y-0 rounded-t-md md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-md border-0 bg-slate-900 shadow-2xl !p-0 overflow-hidden outline-none focus:outline-none" hideClose>
         <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-md flex flex-row items-center shrink-0">
@@ -1523,7 +1588,7 @@ function PoSellShortCloseModal({
           {error ? <div className="text-xs text-red-600">{error}</div> : null}
         </div>
         <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-white flex justify-end gap-2 shrink-0 md:rounded-b-md">
-          <UiButton className="font-normal transition-colors outline-none focus:ring-0" disabled={isSaving} type="button" variant="outline" onClick={onClose}>ปิด</UiButton>
+          <UiButton className="font-normal transition-colors outline-none focus:ring-0" disabled={isSaving} type="button" variant="outline" onClick={requestClose}>ปิด</UiButton>
           <UiButton className="rounded-md bg-amber-600 hover:bg-amber-700 text-white font-medium transition-colors outline-none focus:ring-0 px-5" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังบันทึก...' : 'ยืนยันปิดส่งไม่ครบ'}</UiButton>
         </DialogFooter>
       </DialogContent>

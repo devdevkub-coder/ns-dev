@@ -15,6 +15,7 @@ import { Select } from '@/components/ui/Select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { focusFieldError } from '@/lib/form-errors'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 
 type AnyRow = Record<string, number | string | boolean | null | undefined>
 type SortDirection = 'asc' | 'desc'
@@ -460,6 +461,8 @@ function TablePaginationToolbar({
 }
 
 export function SalesPlanPageClient() {
+  const [planDraftBaseline, setPlanDraftBaseline] = useState<string | null>(null)
+  const [lmeFormBaseline, setLmeFormBaseline] = useState<string | null>(null)
   const [data, setData] = useState<SalesPlanPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
@@ -499,6 +502,13 @@ export function SalesPlanPageClient() {
     productCode: '',
     sellPctLme: '',
   })
+  const planDraftIsDirty = isPlanFormOpen && planDraftBaseline !== null && JSON.stringify(planDraftForm) !== planDraftBaseline
+  const { requestDiscard: requestPlanDraftDiscard } = useUnsavedChangesGuard(planDraftIsDirty)
+  const lmeFormSnapshot = useMemo(() => JSON.stringify(lmeForm), [lmeForm])
+  const lmeFormIsDirty = lmeForm !== null && lmeFormBaseline !== null && lmeFormSnapshot !== lmeFormBaseline
+  useUnsavedChangesGuard(lmeFormIsDirty)
+  const lmeFormBaselineRef = useRef<string | null>(null)
+  const lmeFormIsDirtyRef = useRef(false)
   const [planSortKey, setPlanSortKey] = useState<SalesPlanColumnKey | null>(null)
   const [planSortDirection, setPlanSortDirection] = useState<SortDirection>('asc')
   const [analysisSortKey, setAnalysisSortKey] = useState<SalesPlanAnalysisColumnKey | null>(null)
@@ -519,7 +529,20 @@ export function SalesPlanPageClient() {
   const analysisResize = useResizableColumns('main.sales-plan.analysis.v1', salesPlanAnalysisColumns)
   const remainingResize = useResizableColumns('main.sales-plan.remaining.v2', salesPlanRemainingColumns)
 
-  const loadSalesPlan = async (targetMonth?: string, targetBranchCode?: string) => {
+  function setLmeBaseline(nextLmeForm: LmeConfig) {
+    const nextBaseline = JSON.stringify(nextLmeForm)
+    lmeFormBaselineRef.current = nextBaseline
+    lmeFormIsDirtyRef.current = false
+    setLmeForm(nextLmeForm)
+    setLmeFormBaseline(nextBaseline)
+  }
+
+  function setLmeDraft(nextLmeForm: LmeConfig) {
+    lmeFormIsDirtyRef.current = lmeFormBaselineRef.current !== null && JSON.stringify(nextLmeForm) !== lmeFormBaselineRef.current
+    setLmeForm(nextLmeForm)
+  }
+
+  const loadSalesPlan = async (targetMonth?: string, targetBranchCode?: string, resetLmeBaseline = false) => {
     setError(null)
     setIsLoading(true)
     try {
@@ -530,9 +553,11 @@ export function SalesPlanPageClient() {
       if (activeBranchCode) params.set('branchCode', activeBranchCode)
       const payload = await dailyFetchJson<SalesPlanPayload>(`/api/sales-plan${params.toString() ? `?${params.toString()}` : ''}`)
       setData(payload)
-      setLmeForm(payload.lmeConfig)
-      setLmeFxAutoFilled(true)
-      setLmeFieldErrors({})
+      if (resetLmeBaseline || !lmeFormIsDirtyRef.current) {
+        setLmeBaseline(payload.lmeConfig)
+        setLmeFxAutoFilled(true)
+        setLmeFieldErrors({})
+      }
       setMonth(payload.filters.month)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลไม่ได้')
@@ -886,7 +911,7 @@ export function SalesPlanPageClient() {
         return next
       })
     }
-    setLmeForm({
+    setLmeDraft({
       ...lmeForm,
       [key]: numericKeys.has(key) ? Number(value || 0) : value,
       source: lmeForm.source === 'live' ? 'mixed' : 'manual',
@@ -901,7 +926,7 @@ export function SalesPlanPageClient() {
         body: JSON.stringify({ action: 'fetch-live' }),
         method: 'POST',
       })
-      setLmeForm(response.lmeConfig)
+      setLmeDraft(response.lmeConfig)
       setLmeFxAutoFilled(true)
       setLmeFieldErrors({})
     } catch (caught) {
@@ -943,9 +968,9 @@ export function SalesPlanPageClient() {
         }),
         method: 'POST',
       })
-      setLmeForm(response.lmeConfig)
+      setLmeBaseline(response.lmeConfig)
       setLmeFxAutoFilled(true)
-      await loadSalesPlan()
+      await loadSalesPlan(undefined, undefined, true)
     } catch (caught) {
       setFormError(caught instanceof Error ? caught.message : 'บันทึกค่า LME ไม่ได้')
     } finally {
@@ -953,8 +978,8 @@ export function SalesPlanPageClient() {
     }
   }
 
-  function resetPlanDraftForm() {
-    setPlanDraftForm({
+  function initializePlanDraftForm() {
+    const nextForm = {
       branchCode: planBranchCode,
       channel: '',
       containers: '1',
@@ -964,11 +989,17 @@ export function SalesPlanPageClient() {
       lmeCf: '',
       productCode: '',
       sellPctLme: '',
-    })
+    }
+    setPlanDraftBaseline(JSON.stringify(nextForm))
+    setPlanDraftForm(nextForm)
     setDraftKgPerContainerAutoFilled(true)
     setDraftLmeCfAutoFilled(false)
     setPlanDraftFieldErrors({})
     setPlanDraftError(null)
+  }
+
+  function resetPlanDraftForm() {
+    requestPlanDraftDiscard(initializePlanDraftForm)
   }
 
   function clearPlanDraftFieldError(key: SalesPlanDraftFieldKey) {
@@ -987,8 +1018,13 @@ export function SalesPlanPageClient() {
     window.location.assign(`/sales/po-sell?${params.toString()}`)
   }
   function openPlanForm() {
-    resetPlanDraftForm()
+    initializePlanDraftForm()
     setIsPlanFormOpen(true)
+  }
+
+  function closePlanForm() {
+    if (isSavingPlan) return
+    requestPlanDraftDiscard(() => setIsPlanFormOpen(false))
   }
 
   function handleDraftProductChange(productCode: string) {
@@ -1141,7 +1177,7 @@ export function SalesPlanPageClient() {
         }),
         method: 'POST',
       })
-      resetPlanDraftForm()
+      initializePlanDraftForm()
       setIsPlanFormOpen(false)
       await loadSalesPlan()
     } catch (caught) {
@@ -1389,7 +1425,7 @@ export function SalesPlanPageClient() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        <Dialog open={isPlanFormOpen} onOpenChange={setIsPlanFormOpen}>
+        <Dialog open={isPlanFormOpen} onOpenChange={(open) => { if (!open) closePlanForm() }}>
           <DialogContent className="max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 max-h-[90vh] animate-fade-in" fallbackTitle="สร้างแผนขาย" hideClose>
             <DialogHeader className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800">
               <DialogTitle className="text-lg font-bold text-slate-900 dark:text-slate-100">สร้างแผนขาย</DialogTitle>
@@ -1499,7 +1535,7 @@ export function SalesPlanPageClient() {
             </div>
             <DialogFooter className="shrink-0">
               <button className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={resetPlanDraftForm} type="button">ล้างฟอร์ม</button>
-              <button className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={() => setIsPlanFormOpen(false)} type="button">ยกเลิก</button>
+              <button className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" disabled={isSavingPlan} onClick={closePlanForm} type="button">ยกเลิก</button>
               <button className="h-10 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60" disabled={isSavingPlan} onClick={addDraftPlan} type="button">{isSavingPlan ? 'กำลังบันทึก...' : 'เพิ่มเข้าตาราง'}</button>
             </DialogFooter>
           </DialogContent>
