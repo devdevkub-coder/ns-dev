@@ -183,7 +183,8 @@ export async function listDailyAccounts(client: typeof prisma | Prisma.Transacti
     return {
       active: account.active,
       balance,
-      code: account.accountNo,
+      accountNo: account.accountNo,
+      code: account.code,
       id: account.code,
       name: account.name,
       type: account.type,
@@ -199,10 +200,10 @@ export async function listDailyAccounts(client: typeof prisma | Prisma.Transacti
   })
 }
 
-export function toDailyAccountOption(account: { code: string | null; name: string; type: string }) {
+export function toDailyAccountOption(account: { accountNo?: string | null; code: string | null; name: string; type: string }) {
   const code = requireBusinessCode(account.code, 'บัญชีเงิน')
   return {
-    accountNo: code,
+    accountNo: account.accountNo ?? '',
     bankName: account.name,
     id: code,
     isPrimary: false,
