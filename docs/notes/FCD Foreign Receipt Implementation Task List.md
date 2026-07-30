@@ -77,15 +77,15 @@ FCD conversion
 - [x] `FCD-002` ยอดเงิน native และ book amount คำนวณ/เก็บ/แสดงที่ 2 ตำแหน่ง; FX rate ใช้ 3 ตำแหน่ง. คอลัมน์ `fx_rates.rate` เดิมยังเป็น `numeric(18,6)` เพื่อไม่ทำ migration ปัดข้อมูลเดิม แต่ write path ใหม่รับ rate ได้ไม่เกิน 3 ตำแหน่ง และปัดยอดเงินครั้งเดียวเมื่อสร้างรายการ
 - [x] `FCD-003` Customer Receipt ขอ suggested rate จาก API ตามวันรับเงิน; ผู้ใช้แก้ rate ได้ก่อนบันทึกและระบบเก็บ rate ที่ใช้จริงเป็น snapshot โดยไม่เพิ่ม global rate policy ใน batch นี้
 - [x] `FCD-004` หาก API ไม่มี rate ผู้ใช้กรอกเองได้; ห้าม fallback ไปใช้ rate ล่าสุดหรือ rate จาก account master
-- [ ] `FCD-005` กำหนด GL account mapping สำหรับ AR settlement gain/loss, revaluation gain/loss, conversion gain/loss, bank fee และ customer overpayment
+- [x] `FCD-005` ปิดออกจาก active FCD scope: ระบบปัจจุบันไม่มี GL journal engine หรือ requirement ให้ทำ chart-of-account posting; ทบทวนได้เมื่อมีงาน GL แยกต่างหาก
 - [x] `FCD-006` กำหนดสิทธิ์ action ของ conversion และ revaluation: แยก `view`/`post`/`reverse` ต่อ event type และ route บังคับใช้ตาม HTTP action; ไม่มี `approve` เพราะสอง flow post แบบ atomic และไม่มี approval state ใน batch นี้. Migration copy grant/override เดิมจาก `finance.cash.view` เพื่อไม่ตัดสิทธิ์ตอน rollout แล้วจึงถอนเป็นราย action ได้; apply+record Dev/SIT แล้วและตรวจ permission ครบ 6 รายการ (2026-07-30)
 - [x] `FCD-007` Customer Receipt คงสถานะเดิม `pending`/`active`/`cancelled`; ไม่สร้าง `draft`/`posted`/`reversed` ใน batch รับเงินต่างประเทศนี้
 - [x] `FCD-008` FCD OD เป็นวงเงินต่อบัญชี
-- [ ] `FCD-009` ย้ายตัวอย่าง Debit/Credit ไป batch GL เมื่อระบบมี GL posting engine
+- [x] `FCD-009` ปิดออกจาก active FCD scope: ไม่เพิ่ม GL posting เป็น requirement แฝงของ FCD
 
 ## Open Items Before Their Respective Phase
 
-- `FCD-005` GL account mapping ยังไม่มีในระบบ และไม่ block receipt/BST/FCD ledger batch นี้ เพราะยังไม่สร้าง GL posting engine
+- GL account mapping ไม่อยู่ใน FCD scope นี้ เพราะระบบยังไม่มี GL posting engine และยังไม่มี requirement ให้สร้าง; ไม่ใช่ blocker ของ receipt/BST/FCD ledger
 - `FCD-006` ไม่มี approval state สำหรับ conversion/revaluation ใน batch นี้; ใช้สิทธิ์ `view`/`post`/`reverse` แยกต่อ flow เพราะการ post เป็น transaction เดียว. ไม่กระทบ Customer Receipt ที่ใช้สถานะเดิม
 - `FCD-101` ถึง `FCD-144` เป็น schema/reconciliation batch ถัดไป และต้องเสร็จก่อนเปิด foreign receipt write path
 - `FCD-201` ถึง `FCD-211` เป็น service/lock/Decimal batch ถัดไป และต้องเสร็จก่อนเปิด foreign receipt write path
@@ -265,13 +265,13 @@ FCD conversion
 - [x] `FCD-705` ป้องกัน post ซ้ำและรองรับ reverse/repost พร้อม audit trail
 - [x] `FCD-706` period lock ต้องป้องกัน receipt/conversion ย้อนวันที่ที่ทำให้ revaluation ที่ post แล้วเปลี่ยน
 
-## Phase 8: FX Reporting And GL Integration
+## Phase 8: FX Reporting And Release Integration
 
 - [x] `FCD-801` ปรับ FX report ให้แยก AR settlement, FCD revaluation และ FCD conversion
 - [x] `FCD-802` แสดง realized กับ unrealized แยกกันและรวมเฉพาะเมื่อผู้ใช้เลือก
 - [x] `FCD-803` ทุกแถวต้อง drill down ไป source document และ ledger rows ได้
-- [ ] `FCD-804` เพิ่ม posting rule/GL mapping โดยใช้ master/configuration ไม่ hardcode account code
-- [ ] `FCD-805` reconcile GL กับ FX event tables และ carrying THB ของ FCD
+- [x] `FCD-804` ปิดออกจาก FCD scope: ไม่มี GL posting engine หรือ requirement ที่ยืนยันแล้ว
+- [x] `FCD-805` ปิดออกจาก FCD scope: GL reconciliation ทำหลังอนุมัติงาน GL แยกต่างหาก
 - [x] `FCD-806` ปรับ Cash Position/Financial Dashboard ให้ไม่รวม native foreign units เข้ากับ THB โดยตรง
 - [x] `FCD-807` audit `finance-accounting-cash-position` และ Financial Dashboard ให้ใช้ projection ใหม่ แทน `accounts.opening_balance` และการจำแนก FCD จากชื่อ/type/currency fallback
 - [x] `FCD-808` audit Cash Flow Analysis/Forecast ที่รวม `customer_receipts.net_cash_in` ให้ใช้ THB book cash-in ที่ persist ชัดเจน ไม่ใช้ native foreign amount
@@ -313,7 +313,7 @@ FCD conversion
 | E | `FCD-401` ถึง `FCD-507` | BST/Cash Position ใช้ book THB เป็นหลัก และ FCD Ledger เก็บ native+carrying facts สำหรับ drilldown/conversion โดย reconcile กันได้ |
 | F | `FCD-601` ถึง `FCD-609` | conversion post/reverse, internal-transfer exclusion และ realized FX reconcile |
 | G | `FCD-701` ถึง `FCD-706` | month-end revaluation post/reverse และ period lock ผ่าน |
-| H | `FCD-801` ถึง `FCD-909` | reporting/GL/release validation ครบ รวม financial-book projection, internal-transfer และ foreign-reader cutover |
+| H | `FCD-801` ถึง `FCD-909` | reporting/release validation ครบ รวม financial-book projection, internal-transfer และ foreign-reader cutover; ไม่รวม GL ที่ยังไม่มี requirement |
 
 ## Explicit Non-goals For The First Implementation Batch
 
