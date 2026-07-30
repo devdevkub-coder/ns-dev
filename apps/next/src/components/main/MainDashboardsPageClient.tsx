@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { KpiCard as SharedKpiCard, type KpiCardDelta, type KpiCardTone } from '@/components/ui/KpiCard'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
@@ -513,7 +514,7 @@ function DashboardView(props: {
           </div>
           <div>
             <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
-            <Select className="h-9 w-full px-2 text-sm font-medium text-slate-900" value={dashboardBranchId} onChange={(event) => setDashboardBranchId(event.target.value)}><option value="">ทุกสาขา</option>{(data?.filterOptions.branches ?? []).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</Select>
+            <BranchSelectCombobox branches={data?.filterOptions.branches ?? []} className="w-full" controlSize="filter" inputId="main-dashboard-branch-filter" label="" placeholder="ทุกสาขา" value={dashboardBranchId || null} onChange={(value) => setDashboardBranchId(value ?? '')} />
           </div>
           <div>
             <span className="mb-1 block text-xs font-semibold text-slate-600">หมวดสินค้า</span>
@@ -546,7 +547,7 @@ function DashboardView(props: {
             </div>
             <div className="space-y-1">
               <span className="block text-[11px] font-semibold text-slate-500">สาขา</span>
-              <Select className="h-9 w-full px-2 text-sm font-medium text-slate-900" value={dashboardBranchId} onChange={(event) => setDashboardBranchId(event.target.value)}><option value="">ทุกสาขา</option>{(data?.filterOptions.branches ?? []).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</Select>
+              <BranchSelectCombobox branches={data?.filterOptions.branches ?? []} className="w-full" controlSize="filter" inputId="main-dashboard-branch-filter-mobile" label="" placeholder="ทุกสาขา" value={dashboardBranchId || null} onChange={(value) => setDashboardBranchId(value ?? '')} />
             </div>
             <div className="space-y-1">
               <span className="block text-[11px] font-semibold text-slate-500">หมวดสินค้า</span>

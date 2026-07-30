@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { Check, Download, Printer } from 'lucide-react'
 
 import { Button } from '@/components/ui/Button'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
@@ -605,10 +606,16 @@ export function ReceiptVouchersPageClient() {
               <DatePickerInput id="receipt-vouchers-date-from" value={dateFrom} onChange={setDateFrom} />
               <span className="text-slate-400">→</span>
               <DatePickerInput id="receipt-vouchers-date-to" value={dateTo} onChange={setDateTo} />
-              <Select className="h-9 w-auto" value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)}>
-                <option value="">ทุกสาขา</option>
-                {branchOptions.filter((branch) => branch.active).map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
-              </Select>
+              <BranchSelectCombobox
+                branches={branchOptions.filter((branch) => branch.active).map((branch) => ({ id: branch.id, name: `${branch.code} · ${branch.name}` }))}
+                className="w-[12rem]"
+                controlSize="filter"
+                inputId="receipt-vouchers-branch-filter"
+                label=""
+                placeholder="ทุกสาขา"
+                value={branchFilter || null}
+                onChange={(value) => setBranchFilter(value ?? '')}
+              />
             </div>
 
             {hasActiveFilter ? <Button size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้างตัวกรอง</Button> : null}

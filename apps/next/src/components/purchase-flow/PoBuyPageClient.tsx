@@ -800,10 +800,9 @@ export function PoBuyPageClient() {
           <UiInput className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหาเลข PO / ชื่อผู้ขาย / ชื่อสินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <BranchSelectCombobox
             branches={(data?.options.branches ?? []).filter((branch) => branch.active !== false)}
-            className="w-full sm:w-auto"
+            className="w-[12rem]"
             controlSize="filter"
             inputId="po-buy-list-branch-filter"
-            label="สาขา"
             placeholder="ทุกสาขา"
             value={branchFilter}
             onChange={(value) => setBranchFilter(value ?? '')}
@@ -923,8 +922,9 @@ export function PoBuyPageClient() {
               <div>
                 <BranchSelectCombobox
                   branches={(data?.options.branches ?? []).filter((branch) => branch.active !== false)}
+                  className="w-full"
+                  controlSize="filter"
                   inputId="po-buy-list-mobile-branch-filter"
-                  label="สาขา"
                   placeholder="ทุกสาขา"
                   value={branchFilter}
                   onChange={(value) => setBranchFilter(value ?? '')}

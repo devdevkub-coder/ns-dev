@@ -1121,7 +1121,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
               />
               <BranchSelectCombobox
                 branches={data?.branches ?? []}
-                className="w-[10rem]"
+                className="w-[12rem]"
                 controlSize="filter"
                 includeAllOption
                 inputId="admin-users-branch-filter-desktop"

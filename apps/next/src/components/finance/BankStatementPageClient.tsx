@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Download } from 'lucide-react'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
@@ -191,10 +192,7 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         {/* Desktop View */}
         <div className="hidden lg:flex flex-wrap items-center gap-2">
-          <Select className="h-9 w-52 text-sm" value={branchCode} onChange={(event) => changeBranch(event.target.value)}>
-            <option value="">ทุกสาขา</option>
-            {branches.map((branch) => <option key={branch.id} value={branch.code}>{branch.code} - {branch.name}</option>)}
-          </Select>
+          <BranchSelectCombobox branches={branches.map((branch) => ({ id: branch.code, name: `${branch.code} - ${branch.name}` }))} className="w-[12rem]" controlSize="filter" inputId="bank-statement-branch-filter" label="" placeholder="ทุกสาขา" value={branchCode || null} onChange={(value) => changeBranch(value ?? '')} />
           <Select className="h-9 w-64 text-sm" value={accountId} onChange={(event) => { setPage(1); setAccountId(event.target.value) }}>
             <option value="">เลือกบัญชี</option>
             {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.name} ({account.type})</option>)}
@@ -213,10 +211,7 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
         {/* Mobile View (Collapsible Filters) */}
         <div className="block lg:hidden space-y-2.5">
           <div className="flex flex-wrap gap-2">
-            <Select className="h-9 min-w-[160px] flex-1 text-sm text-slate-900" value={branchCode} onChange={(event) => changeBranch(event.target.value)}>
-              <option value="">ทุกสาขา</option>
-              {branches.map((branch) => <option key={branch.id} value={branch.code}>{branch.code} - {branch.name}</option>)}
-            </Select>
+            <BranchSelectCombobox branches={branches.map((branch) => ({ id: branch.code, name: `${branch.code} - ${branch.name}` }))} className="min-w-0 flex-1" controlSize="filter" inputId="bank-statement-branch-filter-mobile" label="" placeholder="ทุกสาขา" value={branchCode || null} onChange={(value) => changeBranch(value ?? '')} />
             <Select className="h-9 min-w-[160px] flex-1 text-sm text-slate-900" value={accountId} onChange={(event) => { setPage(1); setAccountId(event.target.value) }}>
               <option value="">เลือกบัญชี</option>
               {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.name} ({account.type})</option>)}

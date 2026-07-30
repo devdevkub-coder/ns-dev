@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Edit3, Plus, Send, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input } from '@/components/ui/Input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
@@ -367,10 +368,18 @@ export function StockTransferPageClient() {
             onChange={(event) => setTotalQtyFrom(event.target.value)}
           />
           <span className="text-slate-400">→</span>
-          <Select className="h-9 w-auto" value={sourceBranchFilter} onChange={(event) => setSourceBranchFilter(event.target.value)}>
-            <option value="">ทุกสาขาต้นทาง</option>
-            {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
-          </Select>
+          <BranchSelectCombobox
+            allOptionLabel="ทุกสาขาต้นทาง"
+            branches={branchOptions.map((branch) => ({ id: branch.id, name: `${branch.code} · ${branch.name}` }))}
+            className="w-[12rem]"
+            controlSize="filter"
+            includeAllOption
+            inputId="stock-transfer-source-branch-filter"
+            label=""
+            placeholder="ทุกสาขาต้นทาง"
+            value={sourceBranchFilter || null}
+            onChange={(value) => setSourceBranchFilter(value ?? '')}
+          />
           <Input
             className={`h-9 w-[100px] text-right tabular-nums ${numberInputClass}`}
             inputMode="decimal"
@@ -436,10 +445,18 @@ export function StockTransferPageClient() {
         >
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">สาขาต้นทาง</span>
-                <Select className="h-9 w-full" value={sourceBranchFilter} onChange={(event) => setSourceBranchFilter(event.target.value)}>
-                  <option value="">ทุกสาขาต้นทาง</option>
-                  {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
-                </Select>
+                <BranchSelectCombobox
+                  allOptionLabel="ทุกสาขาต้นทาง"
+                  branches={branchOptions.map((branch) => ({ id: branch.id, name: `${branch.code} · ${branch.name}` }))}
+                  className="w-full"
+                  controlSize="filter"
+                  includeAllOption
+                  inputId="stock-transfer-source-branch-filter-mobile"
+                  label=""
+                  placeholder="ทุกสาขาต้นทาง"
+                  value={sourceBranchFilter || null}
+                  onChange={(value) => setSourceBranchFilter(value ?? '')}
+                />
               </div>
 
               <div>

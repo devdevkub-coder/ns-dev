@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Download } from 'lucide-react'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
@@ -733,11 +734,16 @@ export function StockBalancePageClient() {
               <SegmentedButton active={stockTypes.includes('FG')} label="✅ FG" onClick={() => toggleStockType('FG')} />
             </div>
 
-            <span className="ml-4 text-sm text-slate-500">สาขา:</span>
-            <Select className="h-9 w-auto px-2.5 text-sm" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
-              <option value="">ทุกสาขา</option>
-              {data?.reference.branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </Select>
+            <BranchSelectCombobox
+              branches={data?.reference.branches ?? []}
+              className="w-[12rem]"
+              controlSize="filter"
+              inputId="stock-balance-branch-filter"
+              label=""
+              placeholder="ทุกสาขา"
+              value={branchId || null}
+              onChange={(value) => setBranchId(value ?? '')}
+            />
             <button className="ml-auto inline-flex h-9 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm text-white outline-none transition-colors hover:bg-emerald-700 focus:ring-0" type="button" onClick={exportXlsx}>
               <Download className="size-4" aria-hidden="true" />
               ส่งออก Excel
@@ -822,13 +828,19 @@ export function StockBalancePageClient() {
                 </div>
               </div>
 
-              <label className="block">
+              <div className="block">
                 <span className="mb-1 block text-xs text-slate-500">สาขา</span>
-                <Select className="h-9 w-full text-sm" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
-                  <option value="">ทุกสาขา</option>
-                  {data?.reference.branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                </Select>
-              </label>
+                <BranchSelectCombobox
+                  branches={data?.reference.branches ?? []}
+                  className="w-full"
+                  controlSize="filter"
+                  inputId="stock-balance-branch-filter-mobile"
+                  label=""
+                  placeholder="ทุกสาขา"
+                  value={branchId || null}
+                  onChange={(value) => setBranchId(value ?? '')}
+                />
+              </div>
         </MobileFilterSheet>
       ) : null}
 

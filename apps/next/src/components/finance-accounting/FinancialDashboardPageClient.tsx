@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Activity, ArrowDownLeft, ArrowUpRight, Gauge, Package, SlidersHorizontal, Wallet } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { KpiCard as SharedKpiCard, KpiCardGrid, type KpiCardTone } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { Select } from '@/components/ui/Select'
@@ -73,18 +74,7 @@ export function FinancialDashboardPageClient() {
           </div>
           <div className="min-w-0 space-y-1 sm:w-64">
             <label className="block text-xs font-medium text-slate-600" htmlFor="financial-dashboard-branch">สาขา</label>
-            <Select
-              aria-label="สาขา"
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 outline-none focus:border-slate-400 focus:ring-0"
-              id="financial-dashboard-branch"
-              value={branchId}
-              onChange={(event) => setBranchId(event.target.value)}
-            >
-              <option value="">ทุกสาขา</option>
-              {(data?.branches ?? []).map((branch) => (
-                <option key={branch.id} value={branch.id}>{branch.name}</option>
-              ))}
-            </Select>
+            <BranchSelectCombobox branches={data?.branches ?? []} className="w-[12rem]" controlSize="filter" inputId="financial-dashboard-branch" label="" placeholder="ทุกสาขา" value={branchId || null} onChange={(value) => setBranchId(value ?? '')} />
           </div>
         </div>
         <div className="flex items-center justify-between gap-3 lg:hidden">

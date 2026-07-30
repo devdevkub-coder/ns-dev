@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
@@ -647,10 +648,16 @@ export function ProductionOrdersPageClient() {
           <DatePickerInput ariaLabel="วันที่สร้างรายการตั้งแต่" className="w-[130px] !h-9 text-sm" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
           <span className="text-slate-400">→</span>
           <DatePickerInput ariaLabel="วันที่สร้างรายการถึง" className="w-[130px] !h-9 text-sm" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
-          <Select aria-label="กรองตามสาขา" className="h-9 w-40" value={branchCode} onChange={(event) => { setBranchCode(event.target.value); setPage(1) }}>
-            <option value="">ทุกสาขา</option>
-            {(data?.filters.branches ?? []).map((branch) => <option key={branch.code} value={branch.code}>{branch.name}</option>)}
-          </Select>
+          <BranchSelectCombobox
+            branches={(data?.filters.branches ?? []).map((branch) => ({ id: branch.code, name: branch.name }))}
+            className="w-[12rem]"
+            controlSize="filter"
+            inputId="production-orders-branch-filter"
+            label=""
+            placeholder="ทุกสาขา"
+            value={branchCode || null}
+            onChange={(value) => { setBranchCode(value ?? ''); setPage(1) }}
+          />
           {hasActiveFilters ? (
             <button className="h-9 rounded-md bg-slate-100 px-3 text-xs hover:bg-slate-200" type="button" onClick={clearFilters}>
               ล้างตัวกรอง
@@ -748,13 +755,19 @@ export function ProductionOrdersPageClient() {
           onClose={closeMobileFilters}
           title="ตัวกรองใบสั่งผลิต"
         >
-              <label className="block">
+              <div className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
-                <Select className="h-9 w-full" value={mobileFilterDraft?.branchCode ?? branchCode} onChange={(event) => updateMobileFilters({ branchCode: event.target.value })}>
-                  <option value="">ทุกสาขา</option>
-                  {(data?.filters.branches ?? []).map((branch) => <option key={branch.code} value={branch.code}>{branch.name}</option>)}
-                </Select>
-              </label>
+                <BranchSelectCombobox
+                  branches={(data?.filters.branches ?? []).map((branch) => ({ id: branch.code, name: branch.name }))}
+                  className="w-full"
+                  controlSize="filter"
+                  inputId="production-orders-branch-filter-mobile"
+                  label=""
+                  placeholder="ทุกสาขา"
+                  value={(mobileFilterDraft?.branchCode ?? branchCode) || null}
+                  onChange={(value) => updateMobileFilters({ branchCode: value ?? '' })}
+                />
+              </div>
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ช่วงเวลา</span>
                 <div className="flex flex-wrap gap-2">

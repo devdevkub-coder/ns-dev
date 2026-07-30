@@ -3,6 +3,7 @@
 import { Download, Plus, Printer } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent } from 'react'
 import { Button } from '@/components/ui/Button'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { KpiCard as SharedKpiCard, type KpiCardTone } from '@/components/ui/KpiCard'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -1452,14 +1453,20 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                   <option value="">ทุกบัญชี</option>
                   {accounts.filter((account) => account.active).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                 </Select>
-                <Select className="h-9 w-auto" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
-                  <option value="">ทุกสาขา</option>
-                  {branches.filter((branch) => branch.active).map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
-                </Select>
+                <BranchSelectCombobox
+                  branches={branches.filter((branch) => branch.active).map((branch) => ({ id: branch.id, name: `${branch.code} · ${branch.name}` }))}
+                  className="w-[12rem]"
+                  controlSize="filter"
+                  inputId="daily-expense-branch-filter"
+                  label=""
+                  placeholder="ทุกสาขา"
+                  value={branchId || null}
+                  onChange={(value) => setBranchId(value ?? '')}
+                />
               </div>
 
-              {search || dateFrom || dateTo || categoryId || accountId || statusFilter.length > 0 ? (
-                <Button className="h-9" size="sm" type="button" variant="outline" onClick={() => { setSearch(''); setDateFrom(''); setDateTo(''); setCategoryId(''); setAccountId(''); setStatusFilter([]) }}>ล้างตัวกรอง</Button>
+              {search || dateFrom || dateTo || categoryId || accountId || branchId || statusFilter.length > 0 ? (
+                <Button className="h-9" size="sm" type="button" variant="outline" onClick={() => { setSearch(''); setDateFrom(''); setDateTo(''); setCategoryId(''); setAccountId(''); setBranchId(''); setStatusFilter([]) }}>ล้างตัวกรอง</Button>
               ) : null}
             </div>
 
@@ -1505,6 +1512,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       setDateTo('')
                       setCategoryId('')
                       setAccountId('')
+                      setBranchId('')
                       setStatusFilter([])
                       setShowMobileFilters(false)
                     }}
@@ -1547,6 +1555,20 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       {accounts.filter((account) => account.active).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                     </Select>
                   </label>
+
+                  <div>
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
+                    <BranchSelectCombobox
+                      branches={branches.filter((branch) => branch.active).map((branch) => ({ id: branch.id, name: `${branch.code} · ${branch.name}` }))}
+                      className="w-full"
+                      controlSize="filter"
+                      inputId="daily-expense-branch-filter-mobile"
+                      label=""
+                      placeholder="ทุกสาขา"
+                      value={branchId || null}
+                      onChange={(value) => setBranchId(value ?? '')}
+                    />
+                  </div>
 
                   <div>
                     <span className="mb-2 block text-xs font-semibold text-slate-600">สถานะ</span>

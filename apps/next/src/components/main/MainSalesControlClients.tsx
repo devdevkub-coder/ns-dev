@@ -5,6 +5,7 @@ import { AlertTriangle, Calculator, ChevronDown, Download, ExternalLink, LockKey
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay, sanitizeDecimalInput } from '@/lib/format'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
@@ -1261,10 +1262,7 @@ export function SalesPlanPageClient() {
             </label>
             <label className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-xs text-slate-500 dark:text-slate-400" htmlFor="sales-plan-filter-branch">
               <span>สาขา:</span>
-              <Select className="h-9 w-full text-sm font-normal" id="sales-plan-filter-branch" value={planBranchCode} onChange={(event) => { setPlanBranchCode(event.target.value); setPlanPage(1); void loadSalesPlan(undefined, event.target.value) }}>
-                <option value="">ทุกสาขา</option>
-                {(data?.filters.branches ?? []).map((branch) => <option key={branch.id} value={branch.code}>{branch.code} - {branch.name}</option>)}
-              </Select>
+              <BranchSelectCombobox branches={(data?.filters.branches ?? []).map((branch) => ({ id: branch.code, name: `${branch.code} - ${branch.name}` }))} className="w-[12rem]" controlSize="filter" inputId="sales-plan-filter-branch" label="" placeholder="ทุกสาขา" value={planBranchCode || null} onChange={(value) => { const nextValue = value ?? ''; setPlanBranchCode(nextValue); setPlanPage(1); void loadSalesPlan(undefined, nextValue) }} />
             </label>
           </div>
           <div className="grid grid-cols-2 gap-2 lg:flex lg:items-center lg:justify-end">
@@ -2497,10 +2495,7 @@ export function SalesCommissionPageClient() {
             <DatePickerInput className="w-full mt-1" value={to} onChange={setTo} />
           </Field>
           <Field label="สาขา">
-            <Select className="mt-1 h-9 text-xs font-semibold" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
-              <option value="">ทั้งหมด</option>
-              {(data?.filters.branches ?? []).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
-            </Select>
+            <BranchSelectCombobox branches={data?.filters.branches ?? []} className="mt-1 w-full" controlSize="filter" inputId="commission-overview-branch-filter" label="" placeholder="ทั้งหมด" value={branchId || null} onChange={(value) => setBranchId(value ?? '')} />
           </Field>
         </div>
         <div className="mt-3.5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-xs">

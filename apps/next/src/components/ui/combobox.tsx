@@ -289,7 +289,7 @@ function onValueChangeFallback(selectValue: (value: string) => void) {
 export function ComboboxContent({ children, className }: { children: React.ReactNode; className?: string }) {
   const { inputId, open } = useComboboxContext('ComboboxContent')
   if (!open) return null
-  return <div className={className ?? 'absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-xl dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)]'} data-slot="combobox-content" id={inputId ? `${inputId}-options` : undefined} role="listbox">{children}</div>
+  return <div className={className ?? 'absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-xl dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dropdown-surface)]'} data-slot="combobox-content" id={inputId ? `${inputId}-options` : undefined} role="listbox">{children}</div>
 }
 
 export function ComboboxEmpty({ children }: { children: React.ReactNode }) {

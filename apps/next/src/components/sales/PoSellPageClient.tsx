@@ -692,7 +692,7 @@ export function PoSellPageClient() {
             className="w-full sm:w-auto"
             controlSize="filter"
             inputId="po-sell-list-branch-filter"
-            label="สาขา"
+            label=""
             placeholder="ทุกสาขา"
             value={branchFilter}
             onChange={(value) => setBranchFilter(value ?? '')}
@@ -767,6 +767,7 @@ export function PoSellPageClient() {
               <div>
                 <BranchSelectCombobox
                   branches={activeBranches}
+                  controlSize="filter"
                   inputId="po-sell-list-mobile-branch-filter"
                   label="สาขา"
                   placeholder="ทุกสาขา"

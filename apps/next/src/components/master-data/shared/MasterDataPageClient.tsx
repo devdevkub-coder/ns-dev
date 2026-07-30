@@ -15,6 +15,7 @@ import {
   type AccountCurrencyBalanceValue,
 } from '@/lib/master-data'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { Button } from '@/components/ui/Button'
 import { FormSelectField } from '@/components/ui/FormSelectField'
@@ -519,10 +520,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
           />
           {isAccountsPage ? (
             <>
-              <Select className="h-9 w-48 text-sm" value={branchFilter} onChange={(event) => { setBranchFilter(event.target.value); setPage(1) }}>
-                <option value="">ทุกสาขา</option>
-                {branchOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </Select>
+              <BranchSelectCombobox branches={branchOptions.map((option) => ({ id: option.value, name: option.label }))} className="w-[12rem]" controlSize="filter" inputId="master-data-accounts-branch-filter" label="" placeholder="ทุกสาขา" value={branchFilter || null} onChange={(value) => { setBranchFilter(value ?? ''); setPage(1) }} />
               <Select className="h-9 w-44 text-sm" value={accountGroupFilter} onChange={(event) => setAccountGroupFilter(event.target.value)}>
                 <option value="">ทุกประเภทบัญชี</option>
                 {accountGroupOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -641,10 +639,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
                   <div className="mb-4 grid grid-cols-1 gap-4">
                     <div>
                       <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
-                      <Select className="h-10 w-full text-sm" value={branchFilter} onChange={(event) => { setBranchFilter(event.target.value); setPage(1) }}>
-                        <option value="">ทุกสาขา</option>
-                        {branchOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                      </Select>
+                      <BranchSelectCombobox branches={branchOptions.map((option) => ({ id: option.value, name: option.label }))} className="w-full" controlSize="filter" inputId="master-data-accounts-branch-filter-mobile" label="" placeholder="ทุกสาขา" value={branchFilter || null} onChange={(value) => { setBranchFilter(value ?? ''); setPage(1) }} />
                     </div>
                     <div>
                       <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภทบัญชี</span>
