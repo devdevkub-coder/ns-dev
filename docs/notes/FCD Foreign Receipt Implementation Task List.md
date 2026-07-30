@@ -117,7 +117,7 @@ FCD conversion
 
 - [x] `FCD-120` เพิ่ม receipt currency, received native amount, settlement rate, settlement THB และ rate reference ใน receipt header/split ที่เป็นเจ้าของข้อมูลจริง
 - [x] `FCD-121` เพิ่ม allocation snapshot ต่อบิล: AR THB before, settled THB, native amount allocated, settlement FX difference และ difference reason
-- [ ] `FCD-122` แยก bank fee, customer overpayment, discount/credit note และ FX difference เป็นคนละ field/type
+- [x] `FCD-122` แยก bank fee, customer overpayment, discount/credit note และ FX difference เป็นคนละ field/type: Bank Fee อยู่ receipt header, discount อยู่ SB allocation, AR settlement FX เป็น snapshot ของ allocation; RCP ปฏิเสธยอดเกินและให้ customer advance/credit document เป็น owner ของ overpayment/credit note แทนการสร้าง field อัตโนมัติ (2026-07-30)
 - [x] `FCD-123` บังคับผลรวม allocation THB + classified differences ให้ reconcile กับ receipt settlement THB
 - [x] `FCD-124` เก็บ link จาก receipt split ไป Bank Statement และ FCD ledger entry แบบ FK ที่ตรวจย้อนกลับได้
 - [x] `FCD-125` แยกยอดที่ลูกค้าโอนแบบ native currency ออกจากยอด native ที่เข้าบัญชีจริง เพื่อรองรับค่าธรรมเนียมที่ถูกหักก่อนเข้าบัญชีและให้ FCD ledger ตรงกับ Bank Statement
@@ -163,8 +163,8 @@ FCD conversion
 - [x] `FCD-302` เพิ่ม receipt-level currency dropdown จาก Currency Master ก่อน account selection; default เป็น functional currency ที่ resolve จาก source จริง แต่ผู้ใช้เปลี่ยนได้และห้าม hardcode `THB`
 - [x] `FCD-303` แสดงยอดรับจริงและ rate เพื่อคำนวณก่อนบันทึก แต่ใช้มูลค่า THB และยอดปิดบิล THB เป็นผลลัพธ์ทางบัญชีหลัก
 - [x] `FCD-304` รองรับแบ่งยอด native/THB ไปหลาย Sales Bills พร้อม reconciliation ระดับบรรทัด
-- [ ] `FCD-305` บังคับเลือก reason เมื่อมีส่วนต่าง และแสดง field เฉพาะ reason ที่เลือก
-- [ ] `FCD-306` แยก bank fee, overpayment, discount/credit note และ settlement FX ใน request/response
+- [x] `FCD-305` กติกา reason ของ foreign receipt: ผู้ใช้ต้องระบุ reason เฉพาะเมื่อกรอก/แก้ FX rate; ส่วนต่างของ SB ถูก derive เป็น `fx_settlement` เฉพาะเมื่อไม่เป็นศูนย์ และ CADV ต้อง reconcile เป็นศูนย์ จึงไม่เปิดให้ client เลือก reason ของกำไร/ขาดทุนเอง (2026-07-30)
+- [x] `FCD-306` แยก bank fee, overpayment, discount/credit note และ settlement FX ใน request/response: Bank Fee เป็น header THB, discount เป็น SB line, FX เป็น server-derived snapshot; RCP reject overpayment แล้วใช้ advance/credit document ที่เป็น owner ของยอดแทน (2026-07-30)
 - [x] `FCD-307` POST/PATCH ต้อง ignore/reject calculated values จาก client และคำนวณใหม่จาก persisted bill/rate/account data
 - [x] `FCD-308` บันทึก foreign receipt แล้วปิด/partial Sales Bill, post Bank Statement และ FCD ledger ใน transaction เดียว
 - [x] `FCD-309` cancel/reverse ต้องคืน AR และ reverse BST/FCD/FX โดยไม่ลบรายการเดิม

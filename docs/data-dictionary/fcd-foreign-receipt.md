@@ -28,6 +28,20 @@
 | `bank_fee_total` | THB | bank fee แยกจาก settlement FX |
 | `carrying_thb_amount` | THB | carrying value ของ native ที่เข้า FCD |
 
+## Receipt Difference Ownership
+
+`RCP` ไม่รับ `difference reason` จาก client เพราะการจัดประเภทต้องเกิดจาก fact ที่ persist แล้ว:
+
+| เรื่อง | เจ้าของ/กติกา |
+|---|---|
+| AR settlement FX | เฉพาะ `SB`; ระบบคำนวณ `settlement_book_amount - allocated_ar_amount` จาก rate snapshot และตั้ง `fx_settlement` เฉพาะเมื่อผลต่างไม่เป็นศูนย์ |
+| Bank fee | `customer_receipts.bank_fee_total` เป็น THB และ reconcile จากยอด native ที่ลูกค้าโอนกับยอด native ที่เข้า FCD; ห้ามรวมเป็น settlement FX |
+| Discount / credit note | Discount เป็น THB ระดับ SB allocation; credit note เป็นเอกสารของ flow นั้นเอง ไม่ใช่ FX field |
+| Customer overpayment | RCP ปฏิเสธยอดตัด AR/CADV ที่เกินยอดคงเหลือ; ต้องสร้าง/เลือกเอกสารรับล่วงหน้าหรือ credit document ที่เป็นเจ้าของยอดนั้นก่อน จึงไม่มี overpayment field ที่เขียนอัตโนมัติใน RCP |
+| Rate override/manual rate | ผู้ใช้แก้/กรอกได้ แต่ต้องระบุ `fx_rate_override_reason`; เป็นเหตุผลของ rate ไม่ใช่เหตุผลของ FX gain/loss |
+
+สำหรับ `CADV` ยอด settlement THB ต้องเท่ากับยอดตัด CADV ทุกครั้ง จึงไม่มี AR settlement FX หรือ overpayment ที่ RCP สร้างเอง.
+
 ## Bank Statement Foreign Fields
 
 | Field | Meaning |

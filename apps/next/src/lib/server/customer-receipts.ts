@@ -8,6 +8,7 @@ import { prisma } from '@/lib/server/prisma'
 import { getFinanceCurrencyPolicy } from '@/lib/server/finance-currency-policy'
 import { functionalBankStatementMovement, reverseFunctionalBankStatementInflow } from '@/lib/server/bank-statement-booking'
 import { postFcdReceiptAccountSplits, reverseFcdReceiptAccountSplits } from '@/lib/server/fcd-receipt-posting'
+import { settlementDifferenceReasonForReceipt } from '@/lib/server/customer-receipt-settlement-difference'
 import { findFcdRateSnapshot } from '@/lib/server/fcd-rate-snapshot'
 import { calculateSettlementBookAmount, fcdFxRate, requireFcdInputMoneyAmount } from '@/lib/server/fcd-money'
 import { Prisma } from '../../../generated/prisma/client'
@@ -1256,7 +1257,7 @@ async function createForeignCustomerAdvanceReceiptInTransaction(
   const branchCode = documentBranchCode(branch?.code)
   if (!branchCode) throw new Error('ไม่พบรหัสสาขาสำหรับออกเลขที่ Receipt Voucher CADV')
   const totalCadVSettlement = lines.reduce((total, line) => total.plus(line.receiptAmount), new Prisma.Decimal(0))
-  if (!totalCadVSettlement.eq(settlementBookAmount)) throw new Error('ยอดตัด CADV (THB) ต้องเท่ากับยอด settlement (THB)')
+  const settlementDifferenceReason = settlementDifferenceReasonForReceipt('CADV', settlementBookAmount.minus(totalCadVSettlement))
 
   const rawSplits = values.splits?.length ? values.splits : []
   if (rawSplits.length === 0) throw new Error('เลือกบัญชี FCD รับเงินอย่างน้อย 1 รายการ')
@@ -1306,7 +1307,7 @@ async function createForeignCustomerAdvanceReceiptInTransaction(
       received_native_amount: receivedNativeAmount,
       replacement_of_id: options.replacementOfId ?? null,
       settlement_book_amount: settlementBookAmount,
-      settlement_difference_reason: null,
+      settlement_difference_reason: settlementDifferenceReason,
       settlement_fx_difference: 0,
       source_type: 'CADV',
       status: CUSTOMER_RECEIPT_STATUS_ACTIVE,
@@ -1431,6 +1432,7 @@ async function createForeignSalesBillReceiptInTransaction(
   })
   const totalArAmount = allocationInputs.reduce((total, item) => total.plus(item.arAmount), new Prisma.Decimal(0))
   const settlementDifference = settlementBookAmount.minus(totalArAmount)
+  const settlementDifferenceReason = settlementDifferenceReasonForReceipt('SB', settlementDifference)
   const allocationSnapshots = allocateForeignReceiptLines(allocationInputs, customerTransferredNativeAmount, settlementBookAmount)
 
   const exactRate = await findFcdRateSnapshot(tx, { fromCurrency: currencyCode, rateDate: values.date, rateType, toCurrency: functionalCurrencyCode })
@@ -1484,7 +1486,7 @@ async function createForeignSalesBillReceiptInTransaction(
       received_native_amount: receivedNativeAmount,
       replacement_of_id: options.replacementOfId ?? null,
       settlement_book_amount: settlementBookAmount,
-      settlement_difference_reason: 'fx_settlement',
+      settlement_difference_reason: settlementDifferenceReason,
       settlement_fx_difference: settlementDifference,
       source_type: 'SB',
       status: CUSTOMER_RECEIPT_STATUS_ACTIVE,
@@ -1517,7 +1519,7 @@ async function createForeignSalesBillReceiptInTransaction(
       data: { account_id: primaryAccount.id, amount: item.line.receiptAmount, bank_fee: 0, bill_id: bill.id, branch_id: selectedBranch.id, created_by: actor, customer_id: customer.id, date: normalizeDate(values.date), discount: item.line.discountAmount, doc_no: docNo, fee: 0, lines: { customerReceiptId: receipt.id.toString(), lineNo: index + 1, paymentMethodCode: paymentMethod.code, salesBillDocNo: bill.doc_no }, method: paymentMethod.name, net_amount: item.line.receiptAmount, notes: values.notes, status: CUSTOMER_RECEIPT_STATUS_ACTIVE, updated_by: actor, voucher_id: docNo, withholding_tax: item.line.withholdingTaxAmount },
     })
     await tx.customer_receipt_allocations.create({
-      data: { allocated_ar_amount: item.arAmount, created_by: actor, customer_code_snapshot: customer.code, discount_amount: item.line.discountAmount, line_no: index + 1, native_amount_allocated: snapshot.nativeAmount, outstanding_after: outstandingAfter, outstanding_before: outstandingBefore, receipt_amount: item.line.receiptAmount, receipt_id: receipt.id, receipt_line_id: legacyReceipt.id, sales_bill_doc_no_snapshot: bill.doc_no, sales_bill_id: bill.id, settlement_book_amount: snapshot.settlementBookAmount, settlement_difference_reason: 'fx_settlement', settlement_fx_difference: snapshot.settlementBookAmount.minus(item.arAmount), status: CUSTOMER_RECEIPT_STATUS_ACTIVE, updated_by: actor, withholding_tax_amount: item.line.withholdingTaxAmount },
+        data: { allocated_ar_amount: item.arAmount, created_by: actor, customer_code_snapshot: customer.code, discount_amount: item.line.discountAmount, line_no: index + 1, native_amount_allocated: snapshot.nativeAmount, outstanding_after: outstandingAfter, outstanding_before: outstandingBefore, receipt_amount: item.line.receiptAmount, receipt_id: receipt.id, receipt_line_id: legacyReceipt.id, sales_bill_doc_no_snapshot: bill.doc_no, sales_bill_id: bill.id, settlement_book_amount: snapshot.settlementBookAmount, settlement_difference_reason: settlementDifferenceReasonForReceipt('SB', snapshot.settlementBookAmount.minus(item.arAmount)), settlement_fx_difference: snapshot.settlementBookAmount.minus(item.arAmount), status: CUSTOMER_RECEIPT_STATUS_ACTIVE, updated_by: actor, withholding_tax_amount: item.line.withholdingTaxAmount },
     })
     await tx.sales_bills.update({ data: { receivable_balance: outstandingAfter, received_amount: receivedAfter, status: nextStatus, updated_at: new Date(), updated_by: actor }, where: { id: bill.id } })
   }
