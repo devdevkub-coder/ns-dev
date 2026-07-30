@@ -24,6 +24,8 @@ const SALES_BILL_STATUS_OPEN = 'open'
 const SALES_BILL_STATUS_PARTIAL = 'partial'
 const SALES_BILL_STATUS_PAID = 'paid'
 const MONEY_EPSILON = 0.005
+// Foreign multi-bill posting persists linked RCP, BST and FCD facts atomically.
+const CUSTOMER_RECEIPT_TRANSACTION_OPTIONS = { timeout: 30_000 }
 
 type AuthContextForReceipt = {
   appUser: { email: string | null } | null
@@ -1548,11 +1550,11 @@ export async function createCustomerReceipt(values: CustomerReceiptFormValues, c
   if (receiptCurrencyCode !== policy.functionalCurrencyCode) {
     return prisma.$transaction((tx) => values.sourceType === 'CADV'
       ? createForeignCustomerAdvanceReceiptInTransaction(values, context, policy.functionalCurrencyCode, tx)
-      : createForeignSalesBillReceiptInTransaction(values, context, policy.functionalCurrencyCode, tx))
+      : createForeignSalesBillReceiptInTransaction(values, context, policy.functionalCurrencyCode, tx), CUSTOMER_RECEIPT_TRANSACTION_OPTIONS)
   }
 
   const prepared = await prepareCustomerReceipt(values, context)
-  return prisma.$transaction((tx) => createCustomerReceiptInTransaction(values, prepared, policy.functionalCurrencyCode, tx))
+  return prisma.$transaction((tx) => createCustomerReceiptInTransaction(values, prepared, policy.functionalCurrencyCode, tx), CUSTOMER_RECEIPT_TRANSACTION_OPTIONS)
 }
 
 export async function replaceCustomerReceipt(originalDocNo: string, values: CustomerReceiptFormValues, reason: string, context: AuthContextForReceipt) {
@@ -1584,7 +1586,7 @@ export async function replaceCustomerReceipt(originalDocNo: string, values: Cust
         statusLogAction: 'created_from_reissue',
           }))
       return { id: created.id, replacedId: normalizedOriginalDocNo }
-    })
+    }, CUSTOMER_RECEIPT_TRANSACTION_OPTIONS)
   }
 
   const prepared = await prepareCustomerReceipt(replacementValues, context)
@@ -1596,12 +1598,12 @@ export async function replaceCustomerReceipt(originalDocNo: string, values: Cust
       statusLogAction: 'created_from_reissue',
     })
     return { id: created.id, replacedId: normalizedOriginalDocNo }
-  })
+  }, CUSTOMER_RECEIPT_TRANSACTION_OPTIONS)
 }
 
 export async function cancelCustomerReceipt(docNo: string, reason: string, context: AuthContextForReceipt) {
   const actor = requireFinanceActor(context)
-  return prisma.$transaction((tx) => cancelCustomerReceiptInTransaction(tx, docNo, reason, actor))
+  return prisma.$transaction((tx) => cancelCustomerReceiptInTransaction(tx, docNo, reason, actor), CUSTOMER_RECEIPT_TRANSACTION_OPTIONS)
 }
 
 function toDateString(value: Date) {
