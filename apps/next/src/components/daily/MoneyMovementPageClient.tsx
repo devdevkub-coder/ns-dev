@@ -313,23 +313,55 @@ export function isBlankReceiptSplit(split: Pick<ReceiptSplit, 'accountId' | 'amo
   return !split.accountId.trim() && !split.method.trim() && Number(split.amount) === 0
 }
 
+export function receiptForeignSettlementWillDiscardData(
+  receiptForm: Partial<Pick<CustomerReceiptFormValues, 'accountId' | 'customerTransferredNativeAmount' | 'fee' | 'fxRate' | 'fxRateOverrideReason' | 'fxRateType' | 'receivedNativeAmount' | 'splits'>>,
+  options: { includeFxRateType?: boolean } = {},
+) {
+  return Boolean(
+    receiptForm.accountId?.trim()
+    || Number(receiptForm.customerTransferredNativeAmount ?? 0) !== 0
+    || Number(receiptForm.fee ?? 0) !== 0
+    || Number(receiptForm.fxRate ?? 0) !== 0
+    || receiptForm.fxRateOverrideReason?.trim()
+    || (options.includeFxRateType !== false && receiptForm.fxRateType?.trim())
+    || Number(receiptForm.receivedNativeAmount ?? 0) !== 0
+    || (receiptForm.splits ?? []).some((split) => !isBlankReceiptSplit(split)),
+  )
+}
+
+export function receiptDateChangeWillDiscardData(
+  receiptForm: Partial<Pick<CustomerReceiptFormValues, 'fxRate' | 'fxRateOverrideReason'>>,
+) {
+  return Number(receiptForm.fxRate ?? 0) !== 0 || Boolean(receiptForm.fxRateOverrideReason?.trim())
+}
+
+export function receiptLineReplacementWillDiscardData(
+  line: Pick<ReceiptLine, 'discountAmount' | 'id' | 'receiptAmount' | 'salesBillDocNo' | 'withholdingTaxAmount'> | undefined,
+  nextDocNo: string,
+) {
+  return Boolean(line && line.salesBillDocNo !== nextDocNo && !isBlankReceiptLine(line))
+}
+
+export function customerAdvanceLineReplacementWillDiscardData(
+  line: Pick<CustomerAdvanceReceiptLine, 'customerAdvanceDocNo' | 'id' | 'receiptAmount'> | undefined,
+  nextDocNo: string,
+) {
+  return Boolean(line && line.customerAdvanceDocNo !== nextDocNo && !isBlankCustomerAdvanceReceiptLine(line))
+}
+
 export function receiptSourceChangeWillDiscardData(
   receiptForm: Pick<CustomerReceiptFormValues, 'customerAdvanceLines' | 'salesBillLines' | 'splits'>
-    & Partial<Pick<CustomerReceiptFormValues, 'accountId' | 'amount' | 'customerTransferredNativeAmount' | 'fee' | 'fxRate' | 'fxRateOverrideReason' | 'fxRateType' | 'receiptCurrencyCode' | 'receivedNativeAmount'>>,
+    & Partial<Pick<CustomerReceiptFormValues, 'accountId' | 'amount' | 'branchId' | 'customerId' | 'customerTransferredNativeAmount' | 'fee' | 'fxRate' | 'fxRateOverrideReason' | 'fxRateType' | 'receiptCurrencyCode' | 'receivedNativeAmount'>>,
   functionalCurrencyCode = '',
 ) {
   const receiptCurrencyCode = receiptForm.receiptCurrencyCode?.trim().toUpperCase()
   const normalizedFunctionalCurrencyCode = functionalCurrencyCode.trim().toUpperCase()
   const hasForeignReceiptData = Boolean(
     (normalizedFunctionalCurrencyCode && receiptCurrencyCode && receiptCurrencyCode !== normalizedFunctionalCurrencyCode)
-    || receiptForm.accountId?.trim()
+    || receiptForm.branchId?.trim()
+    || receiptForm.customerId?.trim()
     || Number(receiptForm.amount ?? 0) !== 0
-    || Number(receiptForm.customerTransferredNativeAmount ?? 0) !== 0
-    || Number(receiptForm.fee ?? 0) !== 0
-    || Number(receiptForm.fxRate ?? 0) !== 0
-    || receiptForm.fxRateOverrideReason?.trim()
-    || receiptForm.fxRateType?.trim()
-    || Number(receiptForm.receivedNativeAmount ?? 0) !== 0,
+    || receiptForeignSettlementWillDiscardData(receiptForm),
   )
   return hasForeignReceiptData
     || (receiptForm.salesBillLines ?? []).some((line) => !isBlankReceiptLine(line))
@@ -2136,16 +2168,29 @@ export function MoneyMovementPageClient({
   }
 
   function selectCustomerAdvanceLine(index: number, docNo: string) {
-    const advance = customerAdvanceMap.get(docNo)
-    const nextLines = customerAdvanceReceiptLines.map((line, lineIndex) => {
-      if (lineIndex !== index) return line
-      return {
-        ...line,
-        customerAdvanceDocNo: docNo,
-        receiptAmount: advance?.availableAmount ?? 0,
-      }
+    const applyAdvance = () => {
+      const advance = customerAdvanceMap.get(docNo)
+      const nextLines = customerAdvanceReceiptLines.map((line, lineIndex) => {
+        if (lineIndex !== index) return line
+        return {
+          ...line,
+          customerAdvanceDocNo: docNo,
+          receiptAmount: advance?.availableAmount ?? 0,
+        }
+      })
+      syncCustomerAdvanceReceiptLines(nextLines, { customerId: advance?.customerId ?? (form as CustomerReceiptFormValues).customerId })
+    }
+    if (!customerAdvanceLineReplacementWillDiscardData(customerAdvanceReceiptLines[index], docNo)) {
+      applyAdvance()
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'เปลี่ยนเงินล่วงหน้าลูกค้า',
+      description: 'การเปลี่ยนรายการเงินล่วงหน้าจะทับยอดรับในแถวนี้ ต้องการดำเนินการต่อหรือไม่?',
+      destructive: true,
+      onConfirm: applyAdvance,
+      title: 'ยืนยันการเปลี่ยนเงินล่วงหน้าลูกค้า',
     })
-    syncCustomerAdvanceReceiptLines(nextLines, { customerId: advance?.customerId ?? (form as CustomerReceiptFormValues).customerId })
   }
 
   function updateCustomerAdvanceReceiptLine(index: number, patch: Partial<CustomerAdvanceReceiptLine>) {
@@ -2220,33 +2265,61 @@ export function MoneyMovementPageClient({
   function changeReceiptCurrency(currencyCode: string) {
     const nextCurrencyCode = currencyCode.trim().toUpperCase()
     const currentReceipt = form as CustomerReceiptFormValues
-    setError(null)
-    setFxRateLookup(null)
-    setForeignRateReloadNonce((current) => current + 1)
-    setForm({
-      ...currentReceipt,
-      accountId: '',
-      customerTransferredNativeAmount: undefined,
-      fee: 0,
-      fxRate: undefined,
-      fxRateOverrideReason: null,
-      fxRateType: undefined,
-      receivedNativeAmount: undefined,
-      receiptCurrencyCode: nextCurrencyCode,
-      splits: [newReceiptSplit()],
+    if (nextCurrencyCode === receiptCurrencyCode) return
+    const applyCurrency = () => {
+      setError(null)
+      setFxRateLookup(null)
+      setForeignRateReloadNonce((current) => current + 1)
+      setForm({
+        ...currentReceipt,
+        accountId: '',
+        customerTransferredNativeAmount: undefined,
+        fee: 0,
+        fxRate: undefined,
+        fxRateOverrideReason: null,
+        fxRateType: undefined,
+        receivedNativeAmount: undefined,
+        receiptCurrencyCode: nextCurrencyCode,
+        splits: [newReceiptSplit()],
+      })
+    }
+    if (!receiptForeignSettlementWillDiscardData(currentReceipt)) {
+      applyCurrency()
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'เปลี่ยนสกุลเงิน',
+      description: 'การเปลี่ยนสกุลเงินจะล้างบัญชีรับเงิน ยอดรับจริง อัตราแลกเปลี่ยน และการแบ่งรับที่กรอกไว้ ต้องการดำเนินการต่อหรือไม่?',
+      destructive: true,
+      onConfirm: applyCurrency,
+      title: 'ยืนยันการเปลี่ยนสกุลเงินรับเงิน',
     })
   }
 
   function changeReceiptDate(date: string) {
     const currentReceipt = form as CustomerReceiptFormValues
-    setError(null)
-    setFxRateLookup(null)
-    setForeignRateReloadNonce((current) => current + 1)
-    setForm({
-      ...currentReceipt,
-      date,
-      fxRate: isForeignReceipt ? undefined : currentReceipt.fxRate,
-      fxRateOverrideReason: isForeignReceipt ? null : currentReceipt.fxRateOverrideReason,
+    if (date === currentReceipt.date) return
+    const applyDate = () => {
+      setError(null)
+      setFxRateLookup(null)
+      setForeignRateReloadNonce((current) => current + 1)
+      setForm({
+        ...currentReceipt,
+        date,
+        fxRate: isForeignReceipt ? undefined : currentReceipt.fxRate,
+        fxRateOverrideReason: isForeignReceipt ? null : currentReceipt.fxRateOverrideReason,
+      })
+    }
+    if (!isForeignReceipt || !receiptDateChangeWillDiscardData(currentReceipt)) {
+      applyDate()
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'เปลี่ยนวันที่',
+      description: 'การเปลี่ยนวันที่จะล้างอัตราแลกเปลี่ยนที่กรอกหรือดึงมาแล้ว เพื่อคำนวณใหม่ตามวันที่ ต้องการดำเนินการต่อหรือไม่?',
+      destructive: true,
+      onConfirm: applyDate,
+      title: 'ยืนยันการเปลี่ยนวันที่รับเงิน',
     })
   }
 
@@ -2260,6 +2333,8 @@ export function MoneyMovementPageClient({
 
   function changeReceiptBranch(branchId: string | null) {
     const nextBranchId = branchId ?? ''
+    const currentReceipt = form as CustomerReceiptFormValues
+    if (nextBranchId === (currentReceipt.branchId ?? '')) return
     const resetForeignReceiptSettlement = isForeignReceipt
       ? {
           accountId: '',
@@ -2271,28 +2346,60 @@ export function MoneyMovementPageClient({
           splits: [newReceiptSplit()],
         }
       : {}
-    setError(null)
-    setFxRateLookup(null)
-    setForeignRateReloadNonce((current) => current + 1)
     const nextLines = receiptLines.map((line) => {
       const bill = billMap.get(line.salesBillDocNo)
       return bill && bill.branchId !== nextBranchId ? newReceiptLine() : line
     })
-    syncReceiptLines(nextLines, { branchId: nextBranchId, customerId: '', ...resetForeignReceiptSettlement })
+    const willDiscardLine = nextLines.some((line, index) => {
+      const currentLine = receiptLines[index]
+      return Boolean(currentLine && line !== currentLine && !isBlankReceiptLine(currentLine))
+    })
+    const applyBranch = () => {
+      setError(null)
+      setFxRateLookup(null)
+      setForeignRateReloadNonce((current) => current + 1)
+      syncReceiptLines(nextLines, { branchId: nextBranchId, customerId: '', ...resetForeignReceiptSettlement })
+    }
+    if (!currentReceipt.customerId?.trim()
+      && !willDiscardLine
+      && !(isForeignReceipt && receiptForeignSettlementWillDiscardData(currentReceipt, { includeFxRateType: false }))) {
+      applyBranch()
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'เปลี่ยนสาขา',
+      description: 'การเปลี่ยนสาขาจะล้างลูกค้า รายการบิลที่ไม่อยู่ในสาขา และข้อมูลรับเงิน FCD ที่กรอกไว้ ต้องการดำเนินการต่อหรือไม่?',
+      destructive: true,
+      onConfirm: applyBranch,
+      title: 'ยืนยันการเปลี่ยนสาขารับเงิน',
+    })
   }
 
   function selectReceiptLineBill(index: number, docNo: string) {
-    const bill = billMap.get(docNo)
-    if (!bill) {
-      syncReceiptLines(receiptLines.map((line, lineIndex) => lineIndex === index ? { ...line, receiptAmount: 0, salesBillDocNo: docNo } : line))
+    const applyBill = () => {
+      const bill = billMap.get(docNo)
+      if (!bill) {
+        syncReceiptLines(receiptLines.map((line, lineIndex) => lineIndex === index ? { ...line, receiptAmount: 0, salesBillDocNo: docNo } : line))
+        return
+      }
+      const amount = roundMoney(bill.receivableBalance && bill.receivableBalance > 0 ? bill.receivableBalance : bill.totalAmount)
+      syncReceiptLines(receiptLines.map((line, lineIndex) => (
+        lineIndex === index
+          ? { ...line, discountAmount: 0, receiptAmount: amount, salesBillDocNo: bill.docNo, withholdingTaxAmount: 0 }
+          : line
+      )), { customerId: bill.customerId ?? (form as CustomerReceiptFormValues).customerId })
+    }
+    if (!receiptLineReplacementWillDiscardData(receiptLines[index], docNo)) {
+      applyBill()
       return
     }
-    const amount = roundMoney(bill.receivableBalance && bill.receivableBalance > 0 ? bill.receivableBalance : bill.totalAmount)
-    syncReceiptLines(receiptLines.map((line, lineIndex) => (
-      lineIndex === index
-        ? { ...line, discountAmount: 0, receiptAmount: amount, salesBillDocNo: bill.docNo, withholdingTaxAmount: 0 }
-        : line
-    )), { customerId: bill.customerId ?? (form as CustomerReceiptFormValues).customerId })
+    requestConfirmation({
+      confirmLabel: 'เปลี่ยนบิลขาย',
+      description: 'การเปลี่ยนบิลขายจะทับยอดรับ ส่วนลด และภาษีหัก ณ ที่จ่ายในแถวนี้ ต้องการดำเนินการต่อหรือไม่?',
+      destructive: true,
+      onConfirm: applyBill,
+      title: 'ยืนยันการเปลี่ยนบิลขาย',
+    })
   }
 
   function updateReceiptLine(index: number, patch: Partial<ReceiptLine>) {
@@ -2325,6 +2432,8 @@ export function MoneyMovementPageClient({
   }
 
   function changeReceiptCustomer(customerId: string) {
+    const currentReceipt = form as CustomerReceiptFormValues
+    if (customerId === (currentReceipt.customerId ?? '')) return
     const resetForeignReceiptSettlement = isForeignReceipt
       ? {
           accountId: '',
@@ -2336,22 +2445,45 @@ export function MoneyMovementPageClient({
           splits: [newReceiptSplit()],
         }
       : {}
-    setError(null)
-    setFxRateLookup(null)
-    setForeignRateReloadNonce((current) => current + 1)
-    if (receiptSourceType === 'CADV') {
-      const nextLines = customerAdvanceReceiptLines.map((line) => {
-        const advance = customerAdvanceMap.get(line.customerAdvanceDocNo)
-        return advance && advance.customerId !== customerId ? newCustomerAdvanceReceiptLine() : line
-      })
-      syncCustomerAdvanceReceiptLines(nextLines, { customerId, ...resetForeignReceiptSettlement })
-      return
-    }
-    const nextLines = receiptLines.map((line) => {
+    const nextAdvanceLines = customerAdvanceReceiptLines.map((line) => {
+      const advance = customerAdvanceMap.get(line.customerAdvanceDocNo)
+      return advance && advance.customerId !== customerId ? newCustomerAdvanceReceiptLine() : line
+    })
+    const nextBillLines = receiptLines.map((line) => {
       const bill = billMap.get(line.salesBillDocNo)
       return bill && bill.customerId !== customerId ? newReceiptLine() : line
     })
-    syncReceiptLines(nextLines, { customerId, ...resetForeignReceiptSettlement })
+    const willDiscardLine = receiptSourceType === 'CADV'
+      ? nextAdvanceLines.some((line, index) => {
+          const currentLine = customerAdvanceReceiptLines[index]
+          return Boolean(currentLine && line !== currentLine && !isBlankCustomerAdvanceReceiptLine(currentLine))
+        })
+      : nextBillLines.some((line, index) => {
+          const currentLine = receiptLines[index]
+          return Boolean(currentLine && line !== currentLine && !isBlankReceiptLine(currentLine))
+        })
+    const applyCustomer = () => {
+      setError(null)
+      setFxRateLookup(null)
+      setForeignRateReloadNonce((current) => current + 1)
+      if (receiptSourceType === 'CADV') {
+        syncCustomerAdvanceReceiptLines(nextAdvanceLines, { customerId, ...resetForeignReceiptSettlement })
+        return
+      }
+      syncReceiptLines(nextBillLines, { customerId, ...resetForeignReceiptSettlement })
+    }
+    if (!willDiscardLine
+      && !(isForeignReceipt && receiptForeignSettlementWillDiscardData(currentReceipt, { includeFxRateType: false }))) {
+      applyCustomer()
+      return
+    }
+    requestConfirmation({
+      confirmLabel: 'เปลี่ยนลูกค้า',
+      description: 'การเปลี่ยนลูกค้าจะล้างรายการอ้างอิงของลูกค้าเดิมและข้อมูลรับเงิน FCD ที่กรอกไว้ ต้องการดำเนินการต่อหรือไม่?',
+      destructive: true,
+      onConfirm: applyCustomer,
+      title: 'ยืนยันการเปลี่ยนลูกค้ารับเงิน',
+    })
   }
 
   function paymentLineFromBill(bill: Bill): PaymentLine {

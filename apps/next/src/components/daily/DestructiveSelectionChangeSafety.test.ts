@@ -1,6 +1,14 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
-import { receiptSourceChangeWillDiscardData } from './MoneyMovementPageClient'
+import {
+  customerAdvanceLineReplacementWillDiscardData,
+  receiptDateChangeWillDiscardData,
+  receiptForeignSettlementWillDiscardData,
+  receiptLineReplacementWillDiscardData,
+  receiptSourceChangeWillDiscardData,
+} from './MoneyMovementPageClient'
 import { hasManualAllocationData } from '../stock/StockOperationPageClient'
 
 describe('destructive selection change safety', () => {
@@ -45,5 +53,73 @@ describe('destructive selection change safety', () => {
     expect(hasManualAllocationData([])).toBe(false)
     expect(hasManualAllocationData([{ poolEntryId: 'POOL-001', qty: 0 }])).toBe(true)
     expect(hasManualAllocationData([{ poolEntryId: 'POOL-001', qty: 25 }])).toBe(true)
+  })
+
+  it('only confirms receipt selector changes when they discard entered values', () => {
+    expect(receiptForeignSettlementWillDiscardData({
+      accountId: '',
+      customerTransferredNativeAmount: undefined,
+      fee: 0,
+      fxRate: undefined,
+      fxRateOverrideReason: null,
+      fxRateType: undefined,
+      receivedNativeAmount: undefined,
+      splits: [{ accountId: '', amount: 0, id: null, method: '' }],
+    })).toBe(false)
+    expect(receiptForeignSettlementWillDiscardData({
+      accountId: 'FCD-001',
+      customerTransferredNativeAmount: 100,
+      fee: 0,
+      fxRate: 34.5,
+      fxRateOverrideReason: null,
+      fxRateType: 'TT',
+      receivedNativeAmount: 100,
+      splits: [{ accountId: 'FCD-001', amount: 100, id: null, method: 'transfer' }],
+    })).toBe(true)
+    expect(receiptForeignSettlementWillDiscardData({
+      fxRateType: 'TT',
+      splits: [{ accountId: '', amount: 0, id: null, method: '' }],
+    }, { includeFxRateType: false })).toBe(false)
+    expect(receiptDateChangeWillDiscardData({ fxRate: undefined, fxRateOverrideReason: null })).toBe(false)
+    expect(receiptDateChangeWillDiscardData({ fxRate: 34.5, fxRateOverrideReason: null })).toBe(true)
+    expect(receiptLineReplacementWillDiscardData(
+      { discountAmount: 0, id: null, receiptAmount: 100, salesBillDocNo: 'SB-001', withholdingTaxAmount: 0 },
+      'SB-001',
+    )).toBe(false)
+    expect(receiptLineReplacementWillDiscardData(
+      { discountAmount: 0, id: null, receiptAmount: 100, salesBillDocNo: 'SB-001', withholdingTaxAmount: 0 },
+      'SB-002',
+    )).toBe(true)
+    expect(customerAdvanceLineReplacementWillDiscardData(
+      { customerAdvanceDocNo: 'CADV-001', id: null, receiptAmount: 100 },
+      'CADV-001',
+    )).toBe(false)
+    expect(customerAdvanceLineReplacementWillDiscardData(
+      { customerAdvanceDocNo: 'CADV-001', id: null, receiptAmount: 100 },
+      'CADV-002',
+    )).toBe(true)
+  })
+
+  it('defers destructive receipt selector changes to the confirmation callback', () => {
+    const source = readFileSync(new URL('./MoneyMovementPageClient.tsx', import.meta.url), 'utf8')
+    const handlers = [
+      ['changeReceiptCurrency', 'applyCurrency'],
+      ['changeReceiptDate', 'applyDate'],
+      ['changeReceiptBranch', 'applyBranch'],
+      ['changeReceiptCustomer', 'applyCustomer'],
+      ['selectReceiptLineBill', 'applyBill'],
+      ['selectCustomerAdvanceLine', 'applyAdvance'],
+    ] as const
+
+    for (const [handler, apply] of handlers) {
+      const start = source.indexOf(`function ${handler}`)
+      const nextHandler = source.indexOf('\n  function ', start + 1)
+      const handlerSource = source.slice(start, nextHandler === -1 ? undefined : nextHandler)
+
+      expect(start, handler).toBeGreaterThanOrEqual(0)
+      expect(handlerSource, handler).toContain(`const ${apply} = () => {`)
+      expect(handlerSource, handler).toContain('requestConfirmation({')
+      expect(handlerSource, handler).toContain(`onConfirm: ${apply}`)
+    }
   })
 })
