@@ -14,6 +14,13 @@ const thbBankStatementReaders = [
   'src/lib/server/owner-daily-dashboard.ts',
 ]
 
+const dashboardCashReaders = [
+  'src/lib/server/daily-report-dashboard.ts',
+  'src/lib/server/main-calendars.ts',
+  'src/lib/server/main-dashboards.ts',
+  'src/lib/server/owner-daily-dashboard.ts',
+]
+
 const apReaders = [
   'src/app/api/finance/ap/route.ts',
   'src/components/purchase-flow/AccountsPayablePageClient.tsx',
@@ -104,6 +111,22 @@ describe('FCD consumer contract', () => {
     for (const path of thbBankStatementReaders) {
       expect(source(path), path).not.toMatch(/opening_balance/)
     }
+  })
+
+  it('counts a receipt cash event only from Bank Statement in dashboard read models', () => {
+    for (const path of dashboardCashReaders) {
+      const content = source(path)
+      const cashReaderContent = path === 'src/lib/server/main-calendars.ts'
+        ? content.slice(content.indexOf('export async function buildCashFlowCalendar'), content.indexOf('export async function buildBusinessCalendar'))
+        : content
+      expect(cashReaderContent, path).toMatch(/bank_statement/)
+      expect(cashReaderContent, path).not.toMatch(/customer_receipts|\breceipts\b|fcd_ledger_entries/)
+    }
+
+    const cashPosition = source('src/lib/server/finance-accounting-cash-position.ts')
+    expect(cashPosition).toContain('cashAndBank: balance')
+    expect(cashPosition).toContain('fcdBalances: fcdBalances')
+    expect(cashPosition).toContain('included in cashAndBank')
   })
 
   it('keeps AP isolated from Customer Receipt foreign-settlement facts', () => {
