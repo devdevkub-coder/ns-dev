@@ -35,11 +35,13 @@ describe('bangkokDateRange', () => {
 describe('toDailyAccountOption', () => {
   it('exposes the business account code as a JSON-safe option id', () => {
     const option = daily.toDailyAccountOption({
+      accountNo: '1234567890',
       code: 'ACC01-001',
       name: 'บัญชีธนาคารหลัก',
       type: 'bank',
     })
 
+    expect(option.accountNo).toBe('1234567890')
     expect(option.id).toBe('ACC01-001')
     expect(() => JSON.stringify(option)).not.toThrow()
   })
