@@ -24,7 +24,7 @@ export type CostPoolRow = {
   sourceId: string
   sourceLineId: string
   sourceNo: string
-  sourceType: 'PO_Buy' | 'Production' | 'Grade Adjustment' | 'Spot_Buy'
+  sourceType: 'PO_Buy' | 'Production' | 'Grade Adjustment' | 'Spot_Buy' | 'Opening_Purchase' | 'Opening_PO' | 'Opening_Regrade'
   status: 'Available' | 'Fully' | 'Partial'
   totalCost: number
   unitCost: number
@@ -73,6 +73,11 @@ function sourceTypeFromPoolEntry(
 ): CostPoolRow['sourceType'] | null {
   const normalizedSourceType = (sourceType ?? '').trim().toLowerCase()
   const normalizedRefType = (sourceRefType ?? '').trim().toLowerCase()
+  if (normalizedRefType === 'opening_cost_pool') {
+    if (normalizedSourceType === 'opening_purchase') return 'Opening_Purchase'
+    if (normalizedSourceType === 'opening_po') return 'Opening_PO'
+    if (normalizedSourceType === 'opening_regrade') return 'Opening_Regrade'
+  }
   if (normalizedSourceType === 'purchase') return purchaseMeta?.sourceType ?? 'Spot_Buy'
   if (normalizedRefType === 'pob') return 'PO_Buy'
   if (normalizedSourceType === 'po_buy') return 'PO_Buy'
@@ -84,14 +89,15 @@ function sourceTypeFromPoolEntry(
 }
 
 function costTypeFromSourceType(sourceType: CostPoolRow['sourceType']): CostPoolRow['costType'] {
-  if (sourceType === 'PO_Buy' || sourceType === 'Spot_Buy') return 'Purchase'
-  if (sourceType === 'Grade Adjustment') return 'Regrade'
+  if (sourceType === 'PO_Buy' || sourceType === 'Spot_Buy' || sourceType === 'Opening_Purchase' || sourceType === 'Opening_PO') return 'Purchase'
+  if (sourceType === 'Grade Adjustment' || sourceType === 'Opening_Regrade') return 'Regrade'
   return 'Production'
 }
 
 function defaultCounterparty(sourceType: CostPoolRow['sourceType']) {
   if (sourceType === 'Production') return 'Production Output'
   if (sourceType === 'Grade Adjustment') return 'Regrade / Conversion'
+  if (sourceType === 'Opening_Purchase' || sourceType === 'Opening_PO' || sourceType === 'Opening_Regrade') return 'Opening Cost Pool'
   return 'Purchase Receipt'
 }
 

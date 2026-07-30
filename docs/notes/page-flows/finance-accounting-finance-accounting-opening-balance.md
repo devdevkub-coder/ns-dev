@@ -25,13 +25,14 @@ route: /finance-accounting/opening-balance
 
 ## Flow Baseline
 
-Opening Balance cutover setup. The `สต็อก` tab owns the controlled Stock Opening entry flow; the remaining finance/accounting sections stay read-only.
+Opening Balance cutover setup. The `สต็อก` tab owns the controlled Stock Opening entry flow. `AR ลูกหนี้`, `AP ต้นทุน`, and `Cost Pool` expose separate, permission-checked Opening import contracts; the other finance/accounting sections remain read-only.
 
 ## Page Responsibilities
 
 - ใช้ตั้งต้นข้อมูลก่อน Go-Live ตาม cutoff date
 - แท็บ `สต็อก` รองรับสินค้า, RM/WIP/FG, สาขา, คลัง, Lot, Qty และ WAC/หน่วย
 - `Apply` สร้าง `OPENING_STOCK_IN` ใน `stock_ledger`; `Unapply` ลบ opening ledger ของรายการก่อนล็อกยอด
+- `Cost Pool` รองรับการ Preview/ยืนยัน Import จากชีต `COST POOL 13.07` แยก `บิลซื้อ`, `เปิด PO`, และ `ปรับเกรด` โดยเลือกสาขา/คลัง และใช้ยอด `รอขาย` เป็น Opening Cost Pool
 - แสดง report-specific cutoff/as-of/currency/period
 - drilldown ไป source finance/stock/payment/sales/purchase data
 - แสดง read model/report ตาม filter ของหน้า
@@ -42,6 +43,7 @@ Opening Balance cutover setup. The `สต็อก` tab owns the controlled Sto
 ## Non-Responsibilities
 
 - ไม่สร้างบิลซื้อ/ขายหรือรายการบัญชี AR/AP/GL
+- Cost Pool Opening ไม่สร้างบิลซื้อ/ขาย, PO, Stock Ledger, WAC หรือรายการรับ/จ่าย; เขียนเฉพาะ `stock_cost_pool_entries` พร้อม `source_ref_type=OPENING_COST_POOL` และ Audit Log
 - ไม่แก้ `bank_statement` และไม่เปลี่ยนสถานะเอกสารต้นทาง
 - ไม่เปลี่ยนสถานะเอกสารต้นทาง
 - ไม่เป็น source of truth แทนเอกสาร/fact table ต้นทาง
@@ -61,6 +63,7 @@ Opening Balance cutover setup. The `สต็อก` tab owns the controlled Sto
 
 - `GET /api/finance-accounting/opening-balance`
 - `POST /api/finance-accounting/opening-balance` with `action: save | apply | unapply`
+- `POST /api/finance-accounting/opening-balance/cost-pool` รองรับ multipart Preview และ JSON `action: commit`
 
 ### Data Contract
 
@@ -84,6 +87,7 @@ Opening Balance cutover setup. The `สต็อก` tab owns the controlled Sto
 - `save` mutate เฉพาะ `opening_balance.data.stockItems`
 - `apply` สร้าง/ปรับ `stock_ledger` ด้วย `ref_type=OPENING`, `movement_type=OPENING_STOCK_IN`, `is_opening=true`
 - `unapply` ลบ opening ledger ของรายการ; ถ้า opening row ถูกล็อก ทุก stock write ถูกปฏิเสธ
+- Cost Pool Import ตรวจ branch/warehouse scope, product eligibility, duplicate source key, date, quantity และ unit cost ก่อนเขียนแบบ transaction เดียว
 
 ## Current Code Baseline
 
@@ -94,7 +98,7 @@ Opening Balance cutover setup. The `สต็อก` tab owns the controlled Sto
 
 ## Current Gap
 
-Legacy parity is implemented for Stock Opening only. AR/AP, cash, asset, tax, equity, lock/reconciliation and GL sections remain separate future write contracts.
+Legacy parity is implemented for Stock Opening only. AR/AP and Cost Pool are controlled opening-import contracts; cash, asset, tax, equity, lock/reconciliation and GL sections remain separate future write contracts. Cost Pool Opening is an opening snapshot and is intentionally not a PO/grade-adjustment source document.
 
 ## Implementation Checklist
 
@@ -103,4 +107,5 @@ Legacy parity is implemented for Stock Opening only. AR/AP, cash, asset, tax, eq
 - [x] Implement Stock Opening save/apply/unapply path
 - [ ] Define drilldown route/source document links
 - [ ] Confirm export/print and date cutoff behavior
+- [x] Add Cost Pool Opening import with separate source types and transactional preview/commit
 - [ ] Update this file when report formula changes
