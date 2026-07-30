@@ -55,7 +55,32 @@ describe('foreign customer receipt dependency reset contract', () => {
     expect(source).toContain('rateType: receiptRateType')
 
     const receiptService = readFileSync(new URL('../../lib/server/customer-receipts.ts', import.meta.url), 'utf8')
-    expect(receiptService).toContain("if (!totalCadVSettlement.eq(settlementBookAmount)) throw new Error('ยอดตัด CADV (THB) ต้องเท่ากับยอด settlement (THB)')")
+    expect(receiptService).toContain("settlementDifferenceReasonForReceipt('CADV', settlementBookAmount.minus(totalCadVSettlement))")
     expect(receiptService).toContain("if (!rateWasSuggested && !values.fxRateOverrideReason?.trim()) throw new Error('กรุณาระบุเหตุผลเมื่อกรอกหรือแก้ไขอัตราแลกเปลี่ยน')")
+  })
+
+  it('keeps history filters and all receipt print outputs on the THB book contract', () => {
+    expect(source).toContain("const matchesReceiptCurrency = mode !== 'receipt' || !receiptCurrencyFilter || (row.foreignAudit?.currencyCode ?? functionalCurrencyCode) === receiptCurrencyFilter")
+    expect(source).toContain("const matchesReceiptSource = mode !== 'receipt' || !receiptSourceFilter || row.sourceType === receiptSourceFilter")
+    expect(source).toContain('const matchesAccount = matchesMoneyAccountFilter(row, accountFilter)')
+    expect(source).toContain('const matchesBranch = !branchFilter || row.branchId === branchFilter')
+    expect(source).toContain('function buildCustomerReceiptPrintHtml(row: MoneyRow)')
+    expect(source).toContain('function buildBatchReceiptPrintHtml(rows: MoneyRow[])')
+    expect(source).toContain('${buildForeignReceiptAuditPrintHtml(row)}')
+    expect(source).toContain('function buildForeignReceiptAuditPrintHtml(row: MoneyRow)')
+    expect(source).toContain('ยอดรับ (THB)')
+    expect(source).toContain('ข้อมูลต่างประเทศ (audit)')
+    expect(source).toContain('Carrying (THB)')
+  })
+
+  it('renders SB and CADV foreign details without mixing their settlement labels', () => {
+    expect(source).toContain("row.sourceType === 'CADV' ? 'ยอดตัด CADV (THB)' : 'ยอดตัด AR (THB)'")
+    expect(source).toContain("...(row.sourceType === 'SB' ? [['Settlement FX (THB)'")
+    expect(source).toContain("row.sourceType === 'CADV' ? 'รายการรับเงินล่วงหน้า Customer' : 'บิลขายที่รับเงิน'")
+
+    const receiptService = readFileSync(new URL('../../lib/server/customer-receipts.ts', import.meta.url), 'utf8')
+    expect(receiptService).toContain("values.sourceType === 'CADV'\n      ? createForeignCustomerAdvanceReceiptInTransaction")
+    expect(receiptService).toContain("replacementValues.sourceType === 'CADV'\n        ? createForeignCustomerAdvanceReceiptInTransaction")
+    expect(receiptService).toContain("receiptCurrencyCode !== policy.functionalCurrencyCode")
   })
 })

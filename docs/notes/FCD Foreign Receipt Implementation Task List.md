@@ -206,7 +206,7 @@ FCD conversion
 - [x] `FCD-339` ปรับ cancel-and-reissue ให้ reverse/recreate receipt, allocation, BST, FCD ledger, FX และ rate snapshot ครบ โดยห้ามใช้ current rate แทน snapshot เดิม: cancellation อ่าน receipt split/FCD ledger ต้นทางและสร้าง reversal native/carrying/rate snapshot เดิม; replacement ยกเลิกแล้วสร้างเอกสารใหม่ใน transaction เดียว พร้อม transaction-level test (2026-07-30)
 - [x] `FCD-340` ปรับ search/sort/export/detail adapters ให้แยก named book THB fields ออกจาก optional native audit fields; list/KPI/export ธุรกิจหลักใช้ THB เท่านั้น
 - [x] `FCD-341` เพิ่ม compatibility/read migration plan สำหรับ consumer เก่าของ `receipts.amount/net_amount` โดยให้ค่า THB book amount มีชื่อชัดเจนและไม่เก็บ native USD ลง field THB เดิม: ระบุ owner/meaning/write rule และ anti-double-count boundary ใน FCD data dictionary (2026-07-30)
-- [ ] `FCD-342` เพิ่ม tests ครอบคลุม history table, filters, detail, single/batch print, daily report, LINE payload, cancel และ replacement ของ THB/USD ทั้ง SB และ CADV
+- [x] `FCD-342` เพิ่ม tests ครอบคลุม history table, filters, detail, single/batch print, daily report, LINE payload, cancel และ replacement ของ THB/USD ทั้ง SB และ CADV: history/daily report ใช้ source/currency/branch/account-split filter contract เดียวกัน, print ใช้ THB book values เป็นยอดหลักและ foreign audit เฉพาะ FCD, detail/LINE คง source-specific labels และ replacement เลือก writer ของ SB/CADV ตาม receipt currency (2026-07-30)
 
 ## Phase 4: Bank Statement
 

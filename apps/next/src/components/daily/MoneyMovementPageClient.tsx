@@ -761,6 +761,7 @@ function buildCustomerReceiptPrintHtml(row: MoneyRow) {
         <div class="box"><div class="label">ค่าธรรมเนียมธนาคาร</div><div class="value">${escapeHtml(formatMoney(row.fee ?? 0))}</div></div>
         <div class="box"><div class="label">ยอดสุทธิ (THB)</div><div class="value green">${escapeHtml(formatMoney(receiptBookNetCashIn(row)))}</div></div>
       </div>
+      ${buildForeignReceiptAuditPrintHtml(row)}
       <div class="box" style="margin-top:12px"><div class="label">หมายเหตุ</div><div>${escapeHtml(row.notes || '-')}</div></div>
     </div>
   </body></html>`
@@ -823,6 +824,7 @@ function buildBatchReceiptPrintHtml(rows: MoneyRow[]) {
         <div class="box"><div class="label">ค่าธรรมเนียมธนาคาร</div><div class="value">${escapeHtml(formatMoney(row.fee ?? 0))}</div></div>
         <div class="box"><div class="label">ยอดสุทธิ (THB)</div><div class="value green">${escapeHtml(formatMoney(receiptBookNetCashIn(row)))}</div></div>
       </div>
+      ${buildForeignReceiptAuditPrintHtml(row)}
       <div class="box" style="margin-top:12px"><div class="label">หมายเหตุ</div><div>${escapeHtml(row.notes || '-')}</div></div>
     </div>`
   }).join('')
@@ -863,6 +865,22 @@ function buildBatchReceiptPrintHtml(rows: MoneyRow[]) {
     </div>
     ${pagesHtml}
   </body></html>`
+}
+
+function buildForeignReceiptAuditPrintHtml(row: MoneyRow) {
+  if (!row.foreignAudit) return ''
+
+  const foreign = row.foreignAudit
+  const formatNativeAmount = (value: number) => value.toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 2 })
+  return `<div class="box" style="margin-top:12px">
+    <div class="label">ข้อมูลต่างประเทศ (audit)</div>
+    <div class="grid" style="margin:8px 0 0">
+      <div><div class="label">สกุลเงินที่รับจริง</div><div class="value">${escapeHtml(foreign.currencyCode)}</div></div>
+      <div><div class="label">ยอดเข้าบัญชี FCD (${escapeHtml(foreign.currencyCode)})</div><div class="value">${escapeHtml(formatNativeAmount(foreign.receivedNativeAmount))}</div></div>
+      <div><div class="label">อัตราแลกเปลี่ยน</div><div class="value">${escapeHtml(formatFxRate(foreign.fxRate))} (${escapeHtml(foreign.fxRateType)})</div></div>
+      <div><div class="label">Carrying (THB)</div><div class="value">${escapeHtml(formatMoney(foreign.carryingBookAmount))}</div></div>
+    </div>
+  </div>`
 }
 
 function receiptQueueDocNo(bill: Bill) {
@@ -1764,12 +1782,15 @@ export function MoneyMovementPageClient({
           row.notes,
         ].join(' ').toLowerCase()
         const matchesSearch = !query || searchHaystack.includes(query)
-        const matchesAccount = !accountFilter || row.accountId === accountFilter || row.accountName === accountFilter
+        const matchesAccount = matchesMoneyAccountFilter(row, accountFilter)
+        const matchesBranch = !branchFilter || row.branchId === branchFilter
+        const matchesReceiptCurrency = mode !== 'receipt' || !receiptCurrencyFilter || (row.foreignAudit?.currencyCode ?? functionalCurrencyCode) === receiptCurrencyFilter
+        const matchesReceiptSource = mode !== 'receipt' || !receiptSourceFilter || row.sourceType === receiptSourceFilter
         const matchesFrom = row.date >= printDateFrom
         const matchesTo = row.date <= printDateTo
         const matchesPaymentStatus = paymentHistoryStatusFilter === 'all'
           || (paymentHistoryStatusFilter === 'active' ? row.status !== 'cancelled' : row.status === 'cancelled')
-        return matchesSearch && matchesAccount && matchesFrom && matchesTo && matchesPaymentStatus
+        return matchesSearch && matchesAccount && matchesBranch && matchesReceiptCurrency && matchesReceiptSource && matchesFrom && matchesTo && matchesPaymentStatus
       })
       .sort((left, right) => `${left.date}-${left.docNo}`.localeCompare(`${right.date}-${right.docNo}`, 'th'))
   }
