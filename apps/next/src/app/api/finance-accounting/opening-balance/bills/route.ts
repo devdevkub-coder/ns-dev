@@ -20,6 +20,7 @@ function text(value: unknown) { return String(value ?? '').trim() }
 function norm(value: unknown) { return text(value).replace(/\s+/g, ' ').toLowerCase() }
 function number(value: unknown) { const parsed = typeof value === 'number' ? value : Number(text(value).replace(/,/g, '')); return Number.isFinite(parsed) ? parsed : NaN }
 function date(value: unknown) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10)
   if (typeof value === 'number' && Number.isFinite(value)) return new Date(Date.UTC(1899, 11, 30) + value * 86_400_000).toISOString().slice(0, 10)
   const raw = text(value); const match = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
   if (!match) return raw.slice(0, 10)

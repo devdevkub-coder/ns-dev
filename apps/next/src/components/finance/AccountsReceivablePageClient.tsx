@@ -314,47 +314,36 @@ export function AccountsReceivablePageClient({ initialFilters }: { initialFilter
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <SharedKpiCard
-          className="sm:col-span-2 lg:col-span-1"
-          icon="📥"
-          label="ลูกหนี้คงเหลือรวม"
-          note={`${data?.summary.bills ?? 0} บิลค้าง · เกินกำหนด ${formatMoney(overdueAr)} (${overduePercent}%)`}
-          tone="blue"
-          value={formatMoney(totalAr)}
-        />
+      <div className="rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 p-5 text-white shadow">
+        <h1 className="text-2xl font-bold">📥 ลูกหนี้ / Accounts Receivable</h1>
+        <p className="mt-1 text-sm opacity-90">สรุปยอดค้างรับลูกค้า · Aging Buckets · Detail per Bill</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
-          <div className="mb-3 text-sm font-bold text-slate-700">📊 ช่วงอายุหนี้</div>
-          <div className="space-y-2 text-xs">
-            {bucketRows.map((row) => (
-              <div key={row.bucket}>
-                <div className="mb-0.5 flex justify-between"><span className={bucketTextClass(row.bucket)}>{bucketLabel(row.bucket)}</span><b className={row.bucket === '>90' ? 'text-red-600' : ''}>{formatMoney(row.total)}</b></div>
-                <div className="h-3 overflow-hidden rounded-md-full bg-slate-100"><div className={`h-full ${bucketBarClass(row.bucket)}`} style={{ width: percentage(row.total, totalAr) }} /></div>
-              </div>
-            ))}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-cyan-600 to-teal-600 p-6 text-white shadow-lg">
+          <div className="absolute -right-8 -top-8 text-8xl opacity-15">📥</div>
+          <div className="relative">
+            <div className="text-sm uppercase tracking-wider opacity-80">📥 ลูกหนี้คงเหลือรวม</div>
+            <div className="mt-2 text-4xl font-bold">{formatMoney(totalAr)}</div>
+            <div className="mt-1 text-sm opacity-90">{data?.summary.bills ?? 0} บิล · {data?.summary.customers ?? 0} ลูกค้า</div>
+            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/20 pt-4">
+              <div><div className="text-[10px] opacity-75">⚠ เกินกำหนด</div><div className="text-lg font-bold text-amber-200">{formatMoney(overdueAr)}</div><div className="text-[10px] opacity-75">{overduePercent}%</div></div>
+              <div><div className="text-[10px] opacity-75">📋 บิลค้างรับ</div><div className="text-lg font-bold">{data?.summary.bills ?? 0}</div><div className="text-[10px] opacity-75">รายการ</div></div>
+            </div>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
-          <div className="mb-3 text-sm font-bold text-slate-700">👥 Top 5 ลูกหนี้</div>
-          {!isLoading && topCustomers.length === 0 ? <div className="py-4 text-center text-xs text-emerald-600">✅ ไม่มีลูกหนี้</div> : null}
-          <div className="space-y-2">
-            {topCustomers.map((customer, index) => (
-              <div key={customer.customerName} className="text-xs">
-                <div className="mb-0.5 flex items-center gap-2">
-                  <span className="w-4 text-center font-bold text-slate-400">{index + 1}</span>
-                  <span className="flex-1 truncate">{customer.customerName}</span>
-                  <span className="text-slate-400">{customer.bills} บิล</span>
-                  <span className="w-24 text-right font-bold text-blue-700">{formatMoney(customer.total)}</span>
-                </div>
-                <div className="h-1.5 overflow-hidden rounded-md-full bg-slate-100"><div className="h-full bg-gradient-to-r from-blue-400 to-cyan-500" style={{ width: percentage(customer.total, topCustomers[0]?.total ?? 0) }} /></div>
-                {customer.oldest > 0 ? <div className="ml-6 text-xs text-amber-600">⚠ เกินสุด {customer.oldest} วัน</div> : null}
-              </div>
-            ))}
+        <div className="rounded-2xl bg-white p-4 shadow">
+          <div className="mb-3 text-sm font-bold text-slate-700">📊 Aging Buckets</div>
+          <div className="space-y-2 text-xs">
+            {bucketRows.map((row) => <div key={row.bucket}><div className="mb-0.5 flex justify-between"><span className={bucketTextClass(row.bucket)}>{bucketLabel(row.bucket)}</span><b>{formatMoney(row.total)}</b></div><div className="relative h-5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full ${bucketBarClass(row.bucket)}`} style={{ width: percentage(row.total, totalAr) }} /><span className="absolute right-2 top-0 leading-5 text-[10px] font-bold text-slate-700">{row.bills} บิล</span></div></div>)}
           </div>
+        </div>
+
+        <div className="rounded-2xl bg-white p-4 shadow">
+          <div className="mb-3 text-sm font-bold text-slate-700">🏆 Top 5 ลูกหนี้ค้างรับสูงสุด</div>
+          {!isLoading && topCustomers.length === 0 ? <div className="py-4 text-center text-xs text-emerald-600">✅ ไม่มีลูกหนี้</div> : null}
+          <div className="space-y-2">{topCustomers.map((customer, index) => <div key={customer.customerName} className="text-xs"><div className="mb-0.5 flex items-center gap-2"><span className="w-4 text-center font-bold text-slate-400">{index + 1}</span><span className="flex-1 truncate">{customer.customerName}</span><span className="text-slate-400">{customer.bills} บิล</span><span className="w-24 text-right font-bold text-blue-700">{formatMoney(customer.total)}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-gradient-to-r from-blue-400 to-cyan-500" style={{ width: percentage(customer.total, topCustomers[0]?.total ?? 0) }} /></div>{customer.oldest > 0 ? <div className="ml-6 text-xs text-amber-600">⚠ เกินสุด {customer.oldest} วัน</div> : null}</div>)}</div>
         </div>
       </div>
 

@@ -285,45 +285,33 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5 text-sm">
-        <Metric label="ค้างจ่ายรวม" tone="red" value={formatMoney(totalAp)} />
-        <Metric label="อายุหนี้แล้ว" tone="amber" value={formatMoney(overdueAp)} />
-        <Metric label="อายุไม่เกิน 7 วัน" tone="yellow" value={formatMoney(dueIn7)} />
-        <Metric label="บิลค้างจ่าย" value={`${data?.summary.bills ?? 0} ใบ`} />
-        <Metric className="col-span-2 lg:col-span-1" label="ผู้ขายค้างจ่าย" value={`${data?.summary.suppliers ?? 0} ราย`} />
+      <div className="rounded-xl bg-gradient-to-r from-red-600 to-rose-600 p-5 text-white shadow">
+        <h1 className="text-2xl font-bold">📤 เจ้าหนี้ / Accounts Payable</h1>
+        <p className="mt-1 text-sm opacity-90">สรุปยอดค้างจ่าย Supplier · Aging Buckets · Detail per Bill</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5">
-        {bucketRows.map((bucket) => {
-          const isZero = bucket.total === 0
-          const textClass = isZero ? 'text-slate-500' : bucketTextClass(bucket.bucket)
-          return (
-            <div key={`card-${bucket.bucket}`} className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm text-center">
-              <div className={`text-xs font-semibold ${textClass}`}>อายุ {bucketLongLabel(bucket.bucket)}</div>
-              <div className="text-lg font-bold text-slate-900 mt-1 tabular-nums">{formatMoney(bucket.total)}</div>
-              <div className="mt-1 text-xs text-slate-400 font-medium">{bucket.bills} ใบ</div>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-600 via-rose-700 to-pink-800 p-6 text-white shadow-lg">
+          <div className="absolute -right-8 -top-8 text-8xl opacity-15">📤</div>
+          <div className="relative">
+            <div className="text-sm uppercase tracking-wider opacity-80">💸 ค้างจ่าย Supplier รวม</div>
+            <div className="mt-2 text-4xl font-bold">{formatMoney(totalAp)}</div>
+            <div className="mt-1 text-sm opacity-90">{data?.summary.bills ?? 0} บิล · {data?.summary.suppliers ?? 0} Supplier</div>
+            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/20 pt-4">
+              <div><div className="text-[10px] opacity-75">⚠ เกินกำหนด</div><div className="text-lg font-bold text-amber-200">{formatMoney(overdueAp)}</div></div>
+              <div><div className="text-[10px] opacity-75">⏰ ครบใน 7 วัน</div><div className="text-lg font-bold text-yellow-200">{formatMoney(dueIn7)}</div></div>
             </div>
-          )
-        })}
-      </div>
+          </div>
+        </div>
 
-      <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
-        <div className="mb-3 text-sm font-bold text-slate-700">🏆 Top 5 ผู้ขายค้างจ่ายสูงสุด</div>
-        <div className="space-y-1.5">
-          {topSuppliers.map((supplier, index) => (
-            <div key={supplier.supplierName} className="flex items-center gap-2 text-xs">
-              <span className={`w-5 text-center font-bold ${index < 3 ? 'text-red-600' : 'text-slate-400'}`}>{index + 1}</span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-semibold text-slate-700">{supplier.supplierName}</div>
-                <div className="text-xs text-slate-400">{supplier.bills} ใบ · เกินสุด {supplier.oldest} วัน</div>
-              </div>
-              <div className="h-2.5 w-20 rounded-full bg-slate-100 dark:bg-slate-950">
-                <div className="h-2.5 rounded-full bg-red-500" style={{ width: percentage(supplier.total, topSuppliers[0]?.total ?? 0) }} />
-              </div>
-              <div className="w-24 text-right font-bold text-red-700">{formatMoney(supplier.total)}</div>
-            </div>
-          ))}
-          {!isLoading && topSuppliers.length === 0 ? <div className="py-4 text-center text-slate-400">ไม่มีเจ้าหนี้คงค้าง</div> : null}
+        <div className="rounded-2xl bg-white p-4 shadow">
+          <div className="mb-3 text-sm font-bold text-slate-700">📊 Aging Buckets</div>
+          <div className="space-y-2 text-xs">{bucketRows.map((bucket) => <div key={bucket.bucket}><div className="mb-0.5 flex justify-between"><span className={bucketTextClass(bucket.bucket)}>{bucketLongLabel(bucket.bucket)}</span><b>{formatMoney(bucket.total)}</b></div><div className="relative h-5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full ${bucketBarClass(bucket.bucket)}`} style={{ width: percentage(bucket.total, totalAp) }} /><span className="absolute right-2 top-0 leading-5 text-[10px] font-bold text-slate-700">{bucket.bills} บิล</span></div></div>)}</div>
+        </div>
+
+        <div className="rounded-2xl bg-white p-4 shadow">
+          <div className="mb-3 text-sm font-bold text-slate-700">🏆 Top 5 Supplier ค้างจ่ายสูงสุด</div>
+          <div className="space-y-2">{topSuppliers.map((supplier, index) => <div key={supplier.supplierName} className="flex items-center gap-2 text-xs"><span className={`w-5 text-center font-bold ${index < 3 ? 'text-red-600' : 'text-slate-400'}`}>{index + 1}</span><div className="min-w-0 flex-1"><div className="truncate font-semibold text-slate-700">{supplier.supplierName}</div><div className="text-xs text-slate-400">{supplier.bills} ใบ · เกินสุด {supplier.oldest} วัน</div></div><div className="h-2.5 w-20 rounded-full bg-slate-100"><div className="h-2.5 rounded-full bg-red-500" style={{ width: percentage(supplier.total, topSuppliers[0]?.total ?? 0) }} /></div><div className="w-24 text-right font-bold text-red-700">{formatMoney(supplier.total)}</div></div>)}{!isLoading && topSuppliers.length === 0 ? <div className="py-4 text-center text-slate-400">ไม่มีเจ้าหนี้คงค้าง</div> : null}</div>
         </div>
       </div>
 
