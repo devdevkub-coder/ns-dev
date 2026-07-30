@@ -351,7 +351,7 @@ export function customerAdvanceLineReplacementWillDiscardData(
 
 export function receiptSourceChangeWillDiscardData(
   receiptForm: Pick<CustomerReceiptFormValues, 'customerAdvanceLines' | 'salesBillLines' | 'splits'>
-    & Partial<Pick<CustomerReceiptFormValues, 'accountId' | 'amount' | 'branchId' | 'customerId' | 'customerTransferredNativeAmount' | 'fee' | 'fxRate' | 'fxRateOverrideReason' | 'fxRateType' | 'receiptCurrencyCode' | 'receivedNativeAmount'>>,
+    & Partial<Pick<CustomerReceiptFormValues, 'accountId' | 'amount' | 'branchId' | 'customerTransferredNativeAmount' | 'fee' | 'fxRate' | 'fxRateOverrideReason' | 'fxRateType' | 'receiptCurrencyCode' | 'receivedNativeAmount'>>,
   functionalCurrencyCode = '',
 ) {
   const receiptCurrencyCode = receiptForm.receiptCurrencyCode?.trim().toUpperCase()
@@ -359,7 +359,6 @@ export function receiptSourceChangeWillDiscardData(
   const hasForeignReceiptData = Boolean(
     (normalizedFunctionalCurrencyCode && receiptCurrencyCode && receiptCurrencyCode !== normalizedFunctionalCurrencyCode)
     || receiptForm.branchId?.trim()
-    || receiptForm.customerId?.trim()
     || Number(receiptForm.amount ?? 0) !== 0
     || receiptForeignSettlementWillDiscardData(receiptForm),
   )
@@ -2168,6 +2167,7 @@ export function MoneyMovementPageClient({
   }
 
   function selectCustomerAdvanceLine(index: number, docNo: string) {
+    if (customerAdvanceReceiptLines[index]?.customerAdvanceDocNo === docNo) return
     const applyAdvance = () => {
       const advance = customerAdvanceMap.get(docNo)
       const nextLines = customerAdvanceReceiptLines.map((line, lineIndex) => {
@@ -2376,6 +2376,7 @@ export function MoneyMovementPageClient({
   }
 
   function selectReceiptLineBill(index: number, docNo: string) {
+    if (receiptLines[index]?.salesBillDocNo === docNo) return
     const applyBill = () => {
       const bill = billMap.get(docNo)
       if (!bill) {

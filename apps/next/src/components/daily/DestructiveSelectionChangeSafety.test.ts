@@ -13,6 +13,13 @@ import { hasManualAllocationData } from '../stock/StockOperationPageClient'
 
 describe('destructive selection change safety', () => {
   it('allows an untouched receipt form to switch source type but protects populated receipt data', () => {
+    const receiptWithRetainedCustomer = {
+      customerAdvanceLines: [],
+      customerId: 'CUSTOMER-001',
+      salesBillLines: [{ discountAmount: 0, id: null, receiptAmount: 0, salesBillDocNo: '', withholdingTaxAmount: 0 }],
+      splits: [{ accountId: '', amount: 0, id: null, method: '' }],
+    }
+
     expect(receiptSourceChangeWillDiscardData({
       customerAdvanceLines: [],
       salesBillLines: [{ discountAmount: 0, id: null, receiptAmount: 0, salesBillDocNo: '', withholdingTaxAmount: 0 }],
@@ -24,6 +31,7 @@ describe('destructive selection change safety', () => {
       salesBillLines: [{ discountAmount: 0, id: null, receiptAmount: 0, salesBillDocNo: '', withholdingTaxAmount: 0 }],
       splits: [{ accountId: '', amount: 0, id: null, method: '' }],
     }, 'THB')).toBe(false)
+    expect(receiptSourceChangeWillDiscardData(receiptWithRetainedCustomer)).toBe(false)
     expect(receiptSourceChangeWillDiscardData({
       customerAdvanceLines: [],
       salesBillLines: [{ discountAmount: 0, id: null, receiptAmount: 350, salesBillDocNo: 'SB-001', withholdingTaxAmount: 0 }],
@@ -120,6 +128,17 @@ describe('destructive selection change safety', () => {
       expect(handlerSource, handler).toContain(`const ${apply} = () => {`)
       expect(handlerSource, handler).toContain('requestConfirmation({')
       expect(handlerSource, handler).toContain(`onConfirm: ${apply}`)
+    }
+
+    for (const [handler, lines, field] of [
+      ['selectReceiptLineBill', 'receiptLines', 'salesBillDocNo'],
+      ['selectCustomerAdvanceLine', 'customerAdvanceReceiptLines', 'customerAdvanceDocNo'],
+    ] as const) {
+      const start = source.indexOf(`function ${handler}`)
+      const nextHandler = source.indexOf('\n  function ', start + 1)
+      const handlerSource = source.slice(start, nextHandler === -1 ? undefined : nextHandler)
+
+      expect(handlerSource, handler).toContain(`if (${lines}[index]?.${field} === docNo) return`)
     }
   })
 })

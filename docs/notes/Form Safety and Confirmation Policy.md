@@ -42,6 +42,7 @@ updated: 2026-07-30
 - dialog ที่ให้กรอกเหตุผลเพื่อยกเลิก, void, reverse, short-close หรือ deactivate ถือเป็น mini form: เมื่อผู้ใช้พิมพ์แล้ว ปุ่มปิด/backdrop/Escape ต้องผ่าน `requestDiscard`; validation เหตุผลต้องเกิดก่อน final confirmation และ API ต้องเกิดหลัง final confirmation เท่านั้น.
 - `WeightTicketAttachmentGrid` ต้องส่งการลบรูปทุกชนิด (รูปรถ, รูปเต๋า, รูปสิ่งเจือปน) ผ่าน `requestConfirmation`; callback `onRemove` จะทำงานหลังผู้ใช้กด `ลบรูปภาพ` เท่านั้น.
 - Selector ที่ reset ข้อมูลลูกต้องตรวจว่ามีข้อมูลจริงก่อนเรียก updater; เมื่อมีข้อมูลให้ห่อ action เดิมด้วย `requestConfirmation` และเมื่อไม่มีข้อมูลให้ทำ action เดิมทันที.
+- Selector ที่เลือกค่าเดิมอยู่แล้วต้องเป็น no-op: ห้าม reset ค่า manual หรือแสดง confirmation เพราะไม่มีข้อมูลที่จะถูกล้าง.
 
 ## Boundaries
 
