@@ -14,6 +14,11 @@ const thbBankStatementReaders = [
   'src/lib/server/owner-daily-dashboard.ts',
 ]
 
+const apReaders = [
+  'src/app/api/finance/ap/route.ts',
+  'src/components/purchase-flow/AccountsPayablePageClient.tsx',
+]
+
 function source(path: string) {
   return readFileSync(resolve(appRoot, path), 'utf8')
 }
@@ -32,5 +37,14 @@ describe('FCD consumer contract', () => {
     for (const path of thbBankStatementReaders) {
       expect(source(path), path).not.toMatch(/opening_balance/)
     }
+  })
+
+  it('keeps AP isolated from Customer Receipt foreign-settlement facts', () => {
+    for (const path of apReaders) {
+      const content = source(path)
+
+      expect(content, path).not.toMatch(/customer_receipt|receipt_currency|received_native_amount|settlement_fx_difference/)
+    }
+    expect(source(apReaders[0]!)).toContain('purchase_bills')
   })
 })

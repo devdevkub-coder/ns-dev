@@ -278,7 +278,7 @@ FCD conversion
 - [x] `FCD-809` audit Main Dashboard, Owner Daily Dashboard และ Daily Report ให้คงอ่านยอด THB เดิมจาก `bank_statement.amount_in/out`; foreign write path ต้องรับรองว่า mirror กับ `book_amount_*` เสมอ และ native amount ใช้เฉพาะ FCD-specific detail/report ที่ระบุหน่วย
 - [x] `FCD-810` audit Cash Flow Statement, Working Capital, Cash & Others anomaly และ transaction ledger ให้ไม่รวม foreign native movement เป็น THB
 - [x] `FCD-811` ปรับ AR detail drilldown ให้ RCP foreign settlement แสดง receipt currency/native/rate/settlement FX ประกอบ แต่ AR table/KPI/export หลักยังเป็น THB และไม่เพิ่ม currency column ให้ Sales Bill
-- [ ] `FCD-812` ยืนยันว่า AP table/detail/API ไม่เปลี่ยนจาก Customer Receipt; AP ยังคง THB และมีผลเฉพาะเป็น THB exposure input ของ Cash Position
+- [x] `FCD-812` ยืนยันว่า AP table/detail/API ไม่เปลี่ยนจาก Customer Receipt; AP ยังคง THB และมีผลเฉพาะเป็น THB exposure input ของ Cash Position
 - [ ] `FCD-813` audit foreign placeholder APIs/pages (`overseas-receipt`, `fcd-ledger`, `bank-reconciliation`, `fx-gain-loss-report`) ให้ใช้ posting/read contract กลางเดียวกันและ retire endpoint ที่ซ้ำเมื่อ consumer ย้ายครบ
 - [ ] `FCD-814` เพิ่ม consumer inventory test/grep gate สำหรับทุก reader ของ `customer_receipts`, `receipts`, `bank_statement` และ account balances เพื่อไม่ให้มี THB assumption หรือ opening-balance consumer หลุด
 - [ ] `FCD-815` อัปเดต OpenAPI/data dictionary/page-flow docs ของ RCP, AR, AP, Bank, Cash Position, dashboards และ reports ก่อน promote
