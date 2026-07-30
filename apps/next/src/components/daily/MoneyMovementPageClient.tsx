@@ -1098,6 +1098,7 @@ export function MoneyMovementPageClient({
   const [formBaseline, setFormBaseline] = useState(() => moneyFormSafetySnapshot(initialForm(mode)))
   const [fxRateLookup, setFxRateLookup] = useState<FxRateLookup | null>(null)
   const [isFxRateLoading, setIsFxRateLoading] = useState(false)
+  const [foreignRateReloadNonce, setForeignRateReloadNonce] = useState(0)
   const [isBillLocked, setIsBillLocked] = useState(false)
   const [moneyDrafts, setMoneyDrafts] = useState<Record<string, string>>({})
   const [copiedAccountKey, setCopiedAccountKey] = useState<string | null>(null)
@@ -1291,7 +1292,7 @@ export function MoneyMovementPageClient({
     return () => {
       cancelled = true
     }
-  }, [formOpen, isForeignReceipt, mode, receiptCurrencyCode, receiptRateDate, receiptRateType])
+  }, [foreignRateReloadNonce, formOpen, isForeignReceipt, mode, receiptCurrencyCode, receiptRateDate, receiptRateType])
 
   const outstandingBills = useMemo(() => data.bills
     .filter((bill) => (mode === 'payment' ? (bill.payableBalance ?? 0) > 0 : (bill.receivableBalance ?? 0) > 0)), [data.bills, mode])
@@ -2181,6 +2182,7 @@ export function MoneyMovementPageClient({
     const applySourceType = () => {
       setError(null)
       setFxRateLookup(null)
+      setForeignRateReloadNonce((current) => current + 1)
       setForm({
         ...receiptForm,
         accountId: '',
@@ -2220,6 +2222,7 @@ export function MoneyMovementPageClient({
     const currentReceipt = form as CustomerReceiptFormValues
     setError(null)
     setFxRateLookup(null)
+    setForeignRateReloadNonce((current) => current + 1)
     setForm({
       ...currentReceipt,
       accountId: '',
@@ -2238,6 +2241,7 @@ export function MoneyMovementPageClient({
     const currentReceipt = form as CustomerReceiptFormValues
     setError(null)
     setFxRateLookup(null)
+    setForeignRateReloadNonce((current) => current + 1)
     setForm({
       ...currentReceipt,
       date,
@@ -2256,11 +2260,25 @@ export function MoneyMovementPageClient({
 
   function changeReceiptBranch(branchId: string | null) {
     const nextBranchId = branchId ?? ''
+    const resetForeignReceiptSettlement = isForeignReceipt
+      ? {
+          accountId: '',
+          customerTransferredNativeAmount: undefined,
+          fee: 0,
+          fxRate: undefined,
+          fxRateOverrideReason: null,
+          receivedNativeAmount: undefined,
+          splits: [newReceiptSplit()],
+        }
+      : {}
+    setError(null)
+    setFxRateLookup(null)
+    setForeignRateReloadNonce((current) => current + 1)
     const nextLines = receiptLines.map((line) => {
       const bill = billMap.get(line.salesBillDocNo)
       return bill && bill.branchId !== nextBranchId ? newReceiptLine() : line
     })
-    syncReceiptLines(nextLines, { branchId: nextBranchId, customerId: '' })
+    syncReceiptLines(nextLines, { branchId: nextBranchId, customerId: '', ...resetForeignReceiptSettlement })
   }
 
   function selectReceiptLineBill(index: number, docNo: string) {
@@ -2312,10 +2330,15 @@ export function MoneyMovementPageClient({
           accountId: '',
           customerTransferredNativeAmount: undefined,
           fee: 0,
+          fxRate: undefined,
+          fxRateOverrideReason: null,
           receivedNativeAmount: undefined,
           splits: [newReceiptSplit()],
         }
       : {}
+    setError(null)
+    setFxRateLookup(null)
+    setForeignRateReloadNonce((current) => current + 1)
     if (receiptSourceType === 'CADV') {
       const nextLines = customerAdvanceReceiptLines.map((line) => {
         const advance = customerAdvanceMap.get(line.customerAdvanceDocNo)
@@ -2526,6 +2549,10 @@ export function MoneyMovementPageClient({
 
   function updateReceiptSplit(index: number, patch: Partial<ReceiptSplit>) {
     setError(null)
+    if (isForeignReceipt && 'accountId' in patch) {
+      setFxRateLookup(null)
+      setForeignRateReloadNonce((current) => current + 1)
+    }
     syncReceiptSplits(receiptSplits.map((split, splitIndex) => {
       if (splitIndex !== index) return split
       const nextSplit = { ...split, ...patch }

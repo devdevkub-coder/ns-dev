@@ -92,7 +92,7 @@ Foreign Customer Receipt รองรับ write path สำหรับทั�
 - cancel-and-reissue ต้อง reverse receipt, allocation, bank statement, FCD ledger และ FX facts ครบ
 - `SB` คำนวณและเก็บ `AR settlement FX` จาก settlement THB เทียบยอดตัด AR โดยแยก Bank Fee ออก
 - `CADV` ต้องให้ settlement THB เท่ากับยอดตัด CADV, ไม่มี AR settlement FX และไม่สร้าง overpayment อัตโนมัติ
-- Form/detail แสดงยอดหลักเป็น THB และแสดง native/rate เป็น foreign audit. History/print/batch print/LINE ยังต้องเปลี่ยน field contract จากชื่อกว้าง `amount`/`netAmount` เป็น named book THB fields ก่อนเปิด flow ให้ผู้ใช้
+- Form/detail แสดงยอดหลักเป็น THB และแสดง native/rate เป็น foreign audit. History/print/batch print/LINE ใช้ persisted named book-THB snapshot; ห้ามอ่าน current rate หรือแปลง native amount ซ้ำเมื่อ render เอกสารย้อนหลัง
 
 ## Lifecycle / Operation Flow
 
@@ -592,7 +592,7 @@ The optimization remains no-fallback/no-hardcode: master data still comes from a
 
 ## Current Gap
 
-Multi-bill receipt allocation, CADV receipt allocation, bank-statement posting, cancel/reversal, edit via cancel-and-reissue, print และ LINE notification มี baseline ใน active Next app แล้ว. Foreign receipt ยังไม่ target-complete: schema/API/UI/history/detail/print/report/notification ยังไม่มี currency-aware value objects, rate provenance, FCD ledger posting และ FX event contract ครบ.
+Multi-bill receipt allocation, CADV receipt allocation, bank-statement posting, cancel/reversal, edit via cancel-and-reissue, print และ LINE notification มีใน active Next app แล้ว. Foreign receipt ใช้ rate provenance, native/carrying FCD facts และ FX event contract ที่ persist แล้ว; งานที่เหลือคือ reconciliation/integration coverage และ GL posting engine ซึ่งไม่ใช่ RCP write-path.
 
 ## Implementation Checklist
 

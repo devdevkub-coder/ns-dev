@@ -29,6 +29,21 @@ describe('customer receipt source contract', () => {
     expect(result.customerAdvanceLines).toHaveLength(0)
   })
 
+  it('keeps a functional-currency receipt on the legacy THB path without FX inputs', () => {
+    const result = customerReceiptFormSchema.parse({
+      ...baseReceipt,
+      sourceType: 'SB',
+      salesBillLines: [{ salesBillDocNo: 'SB2607-0001', receiptAmount: 1000 }],
+      customerAdvanceLines: [],
+      receiptCurrencyCode: 'THB',
+    })
+
+    expect(result.receiptCurrencyCode).toBe('THB')
+    expect(result.customerTransferredNativeAmount).toBeUndefined()
+    expect(result.fxRate).toBeUndefined()
+    expect(result.receivedNativeAmount).toBeUndefined()
+  })
+
   it('accepts a CADV receipt with customer advance lines only', () => {
     const result = customerReceiptFormSchema.parse({
       ...baseReceipt,

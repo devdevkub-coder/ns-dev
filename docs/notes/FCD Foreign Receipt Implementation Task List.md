@@ -117,7 +117,7 @@ FCD conversion
 
 - [x] `FCD-120` เพิ่ม receipt currency, received native amount, settlement rate, settlement THB และ rate reference ใน receipt header/split ที่เป็นเจ้าของข้อมูลจริง
 - [x] `FCD-121` เพิ่ม allocation snapshot ต่อบิล: AR THB before, settled THB, native amount allocated, settlement FX difference และ difference reason
-- [ ] `FCD-122` แยก bank fee, customer overpayment, discount/credit note และ FX difference เป็นคนละ field/type
+- [x] `FCD-122` แยก bank fee, customer overpayment, discount/credit note และ FX difference เป็นคนละ field/type: Bank Fee อยู่ receipt header, discount อยู่ SB allocation, AR settlement FX เป็น snapshot ของ allocation; RCP ปฏิเสธยอดเกินและให้ customer advance/credit document เป็น owner ของ overpayment/credit note แทนการสร้าง field อัตโนมัติ (2026-07-30)
 - [x] `FCD-123` บังคับผลรวม allocation THB + classified differences ให้ reconcile กับ receipt settlement THB
 - [x] `FCD-124` เก็บ link จาก receipt split ไป Bank Statement และ FCD ledger entry แบบ FK ที่ตรวจย้อนกลับได้
 - [x] `FCD-125` แยกยอดที่ลูกค้าโอนแบบ native currency ออกจากยอด native ที่เข้าบัญชีจริง เพื่อรองรับค่าธรรมเนียมที่ถูกหักก่อนเข้าบัญชีและให้ FCD ledger ตรงกับ Bank Statement
@@ -154,8 +154,8 @@ FCD conversion
 - [x] `FCD-207` สร้าง revaluation posting service ที่ snapshot balance/rate และ post unrealized difference แบบ idempotent
 - [x] `FCD-208` สร้าง reversal service ต่อ event type โดยสร้างรายการกลับทิศและห้ามแก้ posted rows
 - [ ] `FCD-209` เพิ่ม concurrent/race-condition tests สำหรับ receipt, conversion และ revaluation account เดียวกัน
-- [ ] `FCD-210` เพิ่ม reconciliation invariant หลัง post ทุก service
-- [ ] `FCD-211` เพิ่ม anti-double-count invariant: RCP/BST/FCD ledger/FX event ที่ใช้ source event เดียวกันต้องถูกนับเป็น cash asset เพียงครั้งเดียวใน Bank, Cash Position และ dashboard read models
+- [x] `FCD-210` เพิ่ม reconciliation invariant หลัง post ทุก service: Receipt, Conversion และ Revaluation อ่าน BST/FCD ledger/split/line ที่ persist แล้วตรวจ account, currency, native amount และ carrying THB ใน transaction เดียว; mismatch throw เพื่อ rollback ทั้ง transaction. Focused tests คุม receipt mismatch, conversion pair และ revaluation ที่ห้ามเปลี่ยน native balance (2026-07-30)
+- [x] `FCD-211` เพิ่ม anti-double-count invariant: RCP/BST/FCD ledger/FX event ที่ใช้ source event เดียวกันต้องถูกนับเป็น cash asset เพียงครั้งเดียวใน Bank, Cash Position และ dashboard read models: consumer gate บังคับ dashboard ให้อ่าน cash จาก Bank Statement THB เท่านั้น; Cash Position เก็บ FCD native เป็น audit projection แยกจาก `cashAndBank`; conversion pair ถูก classify เป็น internal transfer (2026-07-30)
 
 ## Phase 3: Customer Receipt API And Form
 
@@ -163,13 +163,13 @@ FCD conversion
 - [x] `FCD-302` เพิ่ม receipt-level currency dropdown จาก Currency Master ก่อน account selection; default เป็น functional currency ที่ resolve จาก source จริง แต่ผู้ใช้เปลี่ยนได้และห้าม hardcode `THB`
 - [x] `FCD-303` แสดงยอดรับจริงและ rate เพื่อคำนวณก่อนบันทึก แต่ใช้มูลค่า THB และยอดปิดบิล THB เป็นผลลัพธ์ทางบัญชีหลัก
 - [x] `FCD-304` รองรับแบ่งยอด native/THB ไปหลาย Sales Bills พร้อม reconciliation ระดับบรรทัด
-- [ ] `FCD-305` บังคับเลือก reason เมื่อมีส่วนต่าง และแสดง field เฉพาะ reason ที่เลือก
-- [ ] `FCD-306` แยก bank fee, overpayment, discount/credit note และ settlement FX ใน request/response
+- [x] `FCD-305` กติกา reason ของ foreign receipt: ผู้ใช้ต้องระบุ reason เฉพาะเมื่อกรอก/แก้ FX rate; ส่วนต่างของ SB ถูก derive เป็น `fx_settlement` เฉพาะเมื่อไม่เป็นศูนย์ และ CADV ต้อง reconcile เป็นศูนย์ จึงไม่เปิดให้ client เลือก reason ของกำไร/ขาดทุนเอง (2026-07-30)
+- [x] `FCD-306` แยก bank fee, overpayment, discount/credit note และ settlement FX ใน request/response: Bank Fee เป็น header THB, discount เป็น SB line, FX เป็น server-derived snapshot; RCP reject overpayment แล้วใช้ advance/credit document ที่เป็น owner ของยอดแทน (2026-07-30)
 - [x] `FCD-307` POST/PATCH ต้อง ignore/reject calculated values จาก client และคำนวณใหม่จาก persisted bill/rate/account data
 - [x] `FCD-308` บันทึก foreign receipt แล้วปิด/partial Sales Bill, post Bank Statement และ FCD ledger ใน transaction เดียว
 - [x] `FCD-309` cancel/reverse ต้องคืน AR และ reverse BST/FCD/FX โดยไม่ลบรายการเดิม
 - [x] `FCD-310` เพิ่ม detail/timeline แสดง book amount THB เป็นหลัก และแสดง native amount/rate/FX classification เป็น audit detail เฉพาะ foreign receipt
-- [ ] `FCD-311` คง flow THB เดิมและเพิ่ม regression tests ไม่ให้ behavior เดิมเปลี่ยน
+- [x] `FCD-311` คง flow THB เดิมและเพิ่ม regression tests ไม่ให้ behavior เดิมเปลี่ยน: schema test ยืนยัน RCP สกุล functional currency (THB ใน policy ปัจจุบัน) ยังใช้ flow เดิมโดยไม่ต้องส่ง native/rate fields (2026-07-30)
 
 ### 3.1 Customer Receipt form flow and fields
 
@@ -188,10 +188,10 @@ FCD conversion
 - [x] `FCD-324` คำนวณ SB settlement FX จาก settlement THB ก่อน fee เทียบกับยอดตัด AR ตาม accounting contract และลง bank fee แยก; ห้ามนำ fee ไปรวมเป็น FX difference
 - [x] `FCD-325` บังคับ CADV foreign receipt ให้ settlement THB reconcile กับยอดตัด CADV ตาม contract; ถ้าเกินยอดคงเหลือให้ reject และห้ามสร้าง overpayment/FX classification โดยอัตโนมัติ
 - [x] `FCD-326` รองรับหลายบัญชีรับเฉพาะเมื่อทุก split ใช้ currency เดียวกัน; foreign receipt ทุก split ต้องเป็น FCD และผลรวมยอด native ที่เข้าจริงต้อง reconcile กับ receipt
-- [ ] `FCD-327` เมื่อวันที่, source type, customer, currency หรือ receiving account เปลี่ยน ต้อง invalidate dependent selections และ rate result อย่างชัดเจน แล้วโหลดข้อมูลใหม่จาก source ที่ถูกต้อง
+- [x] `FCD-327` เมื่อวันที่, source type, customer, currency หรือ receiving account เปลี่ยน ต้อง invalidate dependent selections และ rate result อย่างชัดเจน แล้วโหลดข้อมูลใหม่จาก source ที่ถูกต้อง: form ล้าง foreign settlement fields ที่ขึ้นกับ source/branch/customer/currency, reset rate lookup และ refetch จาก receipt rate API ตาม request context; มี contract test คุมทุก transition (2026-07-30)
 - [x] `FCD-328` API ต้อง validate source type, currency, FCD capability, native totals, THB allocations, fee และ rate provenance ซ้ำฝั่ง server และคำนวณ derived THB/FX ใหม่ก่อนบันทึก
 - [x] `FCD-329` ปรับ detail, edit/replacement และ printable receipt ให้ใช้ label/หน่วยเดียวกับ create form และอ่าน transaction snapshot เดิม ไม่ดึง current rate มาคำนวณเอกสารเก่า
-- [ ] `FCD-330` เพิ่ม focused tests สำหรับ field visibility ตาม `SB/CADV`, THB/USD account filtering, currency reset, missing/manual/override rate, fee separation, multiple FCD splits และ CADV ที่เกินยอดคงเหลือ
+- [x] `FCD-330` เพิ่ม focused tests สำหรับ field visibility ตาม `SB/CADV`, THB/USD account filtering, currency reset, missing/manual/override rate, fee separation, multiple FCD splits และ CADV ที่เกินยอดคงเหลือ: component/service contract tests คุม conditional source sections, FCD+supported-currency filter, reset transitions, exact-rate lookup/manual override, fee/settlement FX separation, split reconciliation และ CADV settlement guard (2026-07-30)
 
 ### 3.2 Customer Receipt list, detail, print and notification
 
@@ -203,9 +203,9 @@ FCD conversion
 - [x] `FCD-336` ปรับ printable RCP, batch print และรายงานประจำวันให้รวมและแสดงยอดหลักเป็น THB; native/rate แสดงเป็นข้อมูลอ้างอิงเฉพาะ foreign RCP และห้ามนำ native ไปบวก total
 - [x] `FCD-337` ปรับ KPI ประวัติ RCP ให้รวมเฉพาะ THB book values ที่มี contract เดียวกัน; native totals ไม่อยู่ใน KPI หน้าหลัก
 - [x] `FCD-338` ปรับ LINE Flex RCP ให้แสดง settlement THB เป็นยอดหลัก และแสดง receipt currency/native/rate แบบย่อเฉพาะ foreign receipt โดยไม่เปิดเผยเลขบัญชีเต็ม พร้อมรักษากฎ explicit routing เดิม
-- [ ] `FCD-339` ปรับ cancel-and-reissue ให้ reverse/recreate receipt, allocation, BST, FCD ledger, FX และ rate snapshot ครบ โดยห้ามใช้ current rate แทน snapshot เดิม
+- [x] `FCD-339` ปรับ cancel-and-reissue ให้ reverse/recreate receipt, allocation, BST, FCD ledger, FX และ rate snapshot ครบ โดยห้ามใช้ current rate แทน snapshot เดิม: cancellation อ่าน receipt split/FCD ledger ต้นทางและสร้าง reversal native/carrying/rate snapshot เดิม; replacement ยกเลิกแล้วสร้างเอกสารใหม่ใน transaction เดียว พร้อม transaction-level test (2026-07-30)
 - [x] `FCD-340` ปรับ search/sort/export/detail adapters ให้แยก named book THB fields ออกจาก optional native audit fields; list/KPI/export ธุรกิจหลักใช้ THB เท่านั้น
-- [ ] `FCD-341` เพิ่ม compatibility/read migration plan สำหรับ consumer เก่าของ `receipts.amount/net_amount` โดยให้ค่า THB book amount มีชื่อชัดเจนและไม่เก็บ native USD ลง field THB เดิม
+- [x] `FCD-341` เพิ่ม compatibility/read migration plan สำหรับ consumer เก่าของ `receipts.amount/net_amount` โดยให้ค่า THB book amount มีชื่อชัดเจนและไม่เก็บ native USD ลง field THB เดิม: ระบุ owner/meaning/write rule และ anti-double-count boundary ใน FCD data dictionary (2026-07-30)
 - [ ] `FCD-342` เพิ่ม tests ครอบคลุม history table, filters, detail, single/batch print, daily report, LINE payload, cancel และ replacement ของ THB/USD ทั้ง SB และ CADV
 
 ## Phase 4: Bank Statement
@@ -232,7 +232,7 @@ FCD conversion
 - [x] `FCD-417` ปรับ Top Accounts, composition chart และ net liquidity formula ให้จัดอันดับ/รวมด้วย carrying THB เท่านั้น
 - [x] `FCD-418` ปรับ Cash Position export ให้เป็นยอด THB และเพิ่ม source links ไป Bank/FCD Ledger/AR/AP; native/rate อยู่ใน FCD drilldown ไม่ใช่ aggregate export
 - [x] `FCD-419` แยกสถานะ OD used/available ออกจากยอดหลัก และคำนวณตาม account+currency contract ที่อนุมัติจาก `FCD-008`
-- [ ] `FCD-420` เพิ่ม reconciliation tests ให้ Cash Position THB totals ตรงกับ Bank/FCD projection และ AR/AP source snapshots ณ as-of เดียวกัน
+- [x] `FCD-420` เพิ่ม reconciliation tests ให้ Cash Position THB totals ตรงกับ Bank/FCD projection และ AR/AP source snapshots ณ as-of เดียวกัน: route fixture ยืนยัน account THB projection (รวม FCD carrying THB ครั้งเดียว), AR/AP bill balances และ net exposure ใช้ as-of/branch scope เดียวกัน (2026-07-30)
 
 ## Phase 5: FCD Dashboard And Ledger
 
@@ -280,25 +280,25 @@ FCD conversion
 - [x] `FCD-811` ปรับ AR detail drilldown ให้ RCP foreign settlement แสดง receipt currency/native/rate/settlement FX ประกอบ แต่ AR table/KPI/export หลักยังเป็น THB และไม่เพิ่ม currency column ให้ Sales Bill
 - [x] `FCD-812` ยืนยันว่า AP table/detail/API ไม่เปลี่ยนจาก Customer Receipt; AP ยังคง THB และมีผลเฉพาะเป็น THB exposure input ของ Cash Position
 - [x] `FCD-813` audit foreign placeholder APIs/pages (`overseas-receipt`, `fcd-ledger`, `bank-reconciliation`, `fx-gain-loss-report`) ให้ใช้ posting/read contract กลางเดียวกันและ retire endpoint ที่ซ้ำเมื่อ consumer ย้ายครบ
-- [ ] `FCD-814` เพิ่ม consumer inventory test/grep gate สำหรับทุก reader ของ `customer_receipts`, `receipts`, `bank_statement` และ account balances เพื่อไม่ให้มี THB assumption หรือ opening-balance consumer หลุด
-- [ ] `FCD-815` อัปเดต OpenAPI/data dictionary/page-flow docs ของ RCP, AR, AP, Bank, Cash Position, dashboards และ reports ก่อน promote
+- [x] `FCD-814` เพิ่ม consumer inventory gate สำหรับ direct และ relational reader ของ `customer_receipts`, legacy `receipts`, `bank_statement` และ `account_currency_balances`; reader ใหม่ต้องประกาศว่าเป็น THB projection, foreign audit, account/reference หรือ transactional contract ก่อน test ผ่าน. Customer/Supplier Advance อ่าน `movement_currency_code`, native amount และ `book_fx_rate` ที่ persist แล้ว; ไม่มี fallback currency/rate
+- [x] `FCD-815` อัปเดต OpenAPI/data dictionary/page-flow docs ของ RCP, AR, AP, Bank, Cash Position, dashboards และ reports ก่อน promote: ระบุ THB/native/rate ownership, persisted FCD ledger, as-of Cash Position และ foreign audit boundary; retire legacy foreign endpoint จาก OpenAPI และ validate YAML
 - [x] `FCD-816` สร้าง financial balance projection/service กลางจาก persisted THB movements (`bank_statement.amount_in/out`) แล้ว migrate เฉพาะ reader ที่ยังตั้งต้นจาก cached `accounts.opening_balance`; ห้ามเปลี่ยน legacy reader ให้ต้องอ่าน `book_amount_*` เพื่อรองรับ USD
 - [x] `FCD-817` กำหนด source-event classification กลางสำหรับ FCD RCP, fee, transfer, conversion source/destination, revaluation และ reversal; conversion pair ใหม่ต้อง classify เป็น internal transfer จาก event type จริง แต่คง legacy classifier ของ THB rows ที่มีอยู่
 - [x] `FCD-818` Foreign receipt write path ต้องเขียน THB ที่คำนวณแล้วลง `bank_statement.amount_in/out` และ mirror `book_amount_*` ใน transaction เดียว; dashboard/report เดิมจึงใช้ source THB เดิมได้โดยไม่ fallback/coalesce กับ receipt mirror
 - [x] `FCD-819` audit Main Dashboard, Daily Report และ Owner Daily ว่ายังคง aggregate จาก `bank_statement.amount_in/out` และ exclude internal transfer; ต้องไม่มี `todayBankCashIn || receiptCashIn` หรือ logic ที่นำ receipt mirror มาบวกซ้ำกับ BST
 - [x] `FCD-820` ปรับ Finance Tax ให้ WHT/Bank Fee ของ foreign RCP อ่าน THB settlement/withholding fields ที่ระบุชื่อชัดและเลือก active receipt source เดียว; ห้าม derive ภาษีหรือ fee จาก native amount/rate และห้ามนับ legacy receipt mirror ซ้ำ
 - [x] `FCD-821` replace/retire foreign placeholder readers: FCD Ledger, FX Gain/Loss Report และ Bank Reconciliation ต้องอ่าน persisted FCD/BST/FX event snapshots เท่านั้น; ห้ามสร้าง synthetic opening row, fallback currency THB, derive foreign amount เป็นศูนย์ หรือ lookup current/historical rate เพื่อแทน transaction snapshot ที่หายไป
-- [ ] `FCD-822` กำหนด period/reversal contract สำหรับ cancel-and-reissue, conversion และ revaluation: รายการในงวดปิดแล้วต้อง reverse ในงวดเปิดหรือ reopen/repost ด้วย approval; ห้ามแก้ carrying THB/native balance ในงวดปิดย้อนหลังโดยเงียบ
+- [x] `FCD-822` กำหนด period/reversal contract สำหรับ cancel-and-reissue, conversion และ revaluation: cancellation/reissue ของ RCP ใช้ `current_date` จาก DB transaction เป็น reversal date แทนวันที่เอกสารต้นทาง, conversion/revaluation reversal รับวันที่ดำเนินการผ่าน schema; period-lock trigger ปฏิเสธ economic event ย้อนเข้าปิดงวด และไม่มี reopen workflow จึง reject หาก action date ถูกปิด. ทุก reversal append-only และใช้ original snapshot (2026-07-30)
 
 ## Phase 9: Test And Release Gates
 
 - [x] `FCD-901` unit tests สำหรับ Decimal, weighted carrying rate, settlement FX, conversion FX และ revaluation
-- [ ] `FCD-902` API tests สำหรับ validation, permission, idempotency, reversal และ malformed/missing rate
+- [x] `FCD-902` API tests สำหรับ validation, permission, idempotency, reversal และ malformed/missing rate: route tests คุม permission/parse failure/cancel boundary, schema/rate tests คุม malformed/missing/manual rate, FCD posting test คุม deterministic idempotency/source-event keys และ reversal ใช้ snapshot เดิม (2026-07-30)
 - [ ] `FCD-903` integration tests สำหรับ THB receipt เดิม, USD receipt, partial receipt, multiple bills, fee, overpayment และ cancellation
 - [ ] `FCD-904` concurrency tests ยืนยันว่า balance ไม่ติดลบ/ไม่ใช้ OD เกิน contract
 - [ ] `FCD-905` reconciliation fixtures ครอบคลุม receipt -> revaluation -> conversion -> reversal
-- [ ] `FCD-906` migration preflight/postflight บน dev-target โดยไม่แก้ legacy-prod-source
-- [ ] `FCD-907` lint, type-check, build, focused tests และ `git diff --check`
+- [x] `FCD-906` migration preflight/postflight บน dev-target โดยไม่แก้ legacy-prod-source: ตรวจ read-only เมื่อ 2026-07-30 ทั้ง dev-target และ SIT หลัง transaction reset; แต่ละ environment มี functional-currency policy 1 แถว, FCD ledger/receipt/Bank Statement เป็น 0 แถว และ `supabase/preflight/reconcile_fcd_foreign_events.sql` คืน 0 issue โดยไม่แตะ legacy-prod-source หรือเขียนข้อมูลใด ๆ
+- [x] `FCD-907` lint, type-check, build, focused tests และ `git diff --check` ผ่านเมื่อ 2026-07-30: lint ไม่มี error (warnings เดิม 7 รายการนอกขอบเขต FCD), type-check และ production build ผ่าน; เพิ่ม `Suspense` wrapper ให้ FCD Ledger/Revaluation/Conversion ซึ่งอ่าน query string เพื่อแก้ production prerender failure. Focused FCD/UI contract tests 22/22 ผ่าน
 - [ ] `FCD-908` browser UAT เฉพาะเมื่อร้องขอ ครอบคลุม desktop/mobile และทุก event flow
 - [ ] `FCD-909` promote ตามลำดับ feature branch -> dev -> SIT/UAT หลัง reconciliation ผ่าน
 

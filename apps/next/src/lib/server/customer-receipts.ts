@@ -8,6 +8,8 @@ import { prisma } from '@/lib/server/prisma'
 import { getFinanceCurrencyPolicy } from '@/lib/server/finance-currency-policy'
 import { functionalBankStatementMovement, reverseFunctionalBankStatementInflow } from '@/lib/server/bank-statement-booking'
 import { postFcdReceiptAccountSplits, reverseFcdReceiptAccountSplits } from '@/lib/server/fcd-receipt-posting'
+import { settlementDifferenceReasonForReceipt } from '@/lib/server/customer-receipt-settlement-difference'
+import { currentTransactionDate } from '@/lib/server/transaction-date'
 import { findFcdRateSnapshot } from '@/lib/server/fcd-rate-snapshot'
 import { calculateSettlementBookAmount, fcdFxRate, requireFcdInputMoneyAmount } from '@/lib/server/fcd-money'
 import { Prisma } from '../../../generated/prisma/client'
@@ -79,6 +81,7 @@ type CreateForeignReceiptOptions = {
 }
 
 type CancelReceiptOptions = {
+  reversalDate?: string
   statusLogAction?: string
 }
 
@@ -771,6 +774,7 @@ async function cancelCustomerAdvanceReceiptInTransaction(
   actor: string,
   options: CancelReceiptOptions = {},
 ) {
+  const reversalDate = options.reversalDate ?? await currentTransactionDate(tx)
   const receipt = await tx.customer_receipts.findUnique({
     include: { customer_receipt_advance_allocations: { orderBy: [{ line_no: 'asc' }] } },
     where: { doc_no: docNo },
@@ -788,7 +792,7 @@ async function cancelCustomerAdvanceReceiptInTransaction(
   if (!receipt.branch_id) throw new Error('Receipt Voucher CADV ไม่มีสาขาสำหรับออกเลข Bank Statement')
   const receiptBranch = await tx.branches.findUnique({ select: { code: true }, where: { id: receipt.branch_id } })
   if (!receiptBranch?.code) throw new Error('ไม่พบรหัสสาขาสำหรับยกเลิก Bank Statement CADV')
-  const reversalBankDocNos = await nextBankStatementDocNos(toDateString(receipt.date), documentBranchCode(receiptBranch.code)!, bankStatementsToReverse.length, tx)
+  const reversalBankDocNos = await nextBankStatementDocNos(reversalDate, documentBranchCode(receiptBranch.code)!, bankStatementsToReverse.length, tx)
   await tx.bank_statement.createMany({
     data: bankStatementsToReverse.map((statement, index) => ({
       ...reverseFunctionalBankStatementInflow({
@@ -803,7 +807,7 @@ async function cancelCustomerAdvanceReceiptInTransaction(
       account_id: statement.account_id,
       branch_id: receipt.branch_id,
       created_by: actor,
-      date: receipt.date,
+      date: normalizeDate(reversalDate),
       description: `${receipt.doc_no} - ยกเลิกรับเงิน CADV${bankStatementsToReverse.length > 1 ? ` (split ${index + 1}/${bankStatementsToReverse.length})` : ''}`,
       doc_no: reversalBankDocNos[index]!,
       ref_id: stringifyBusinessValue(receipt.id),
@@ -842,7 +846,7 @@ async function cancelCustomerAdvanceReceiptInTransaction(
       event_key: `customer-receipt.${statusLogAction}.${receipt.doc_no}`,
       from_status: CUSTOMER_RECEIPT_STATUS_ACTIVE,
       gross_amount_snapshot: receipt.gross_amount,
-      meta: { bankStatementDocNos: reversalBankDocNos, reason, sourceType: 'CADV' },
+      meta: { bankStatementDocNos: reversalBankDocNos, reason, reversalDate, sourceType: 'CADV' },
       net_cash_in_snapshot: receipt.net_cash_in,
       note: reason,
       receipt_doc_no: receipt.doc_no,
@@ -861,6 +865,7 @@ async function cancelForeignCustomerAdvanceReceiptInTransaction(
   actor: string,
   options: CancelReceiptOptions = {},
 ) {
+  const reversalDate = options.reversalDate ?? await currentTransactionDate(tx)
   const receipt = await tx.customer_receipts.findUnique({
     include: { customer_receipt_advance_allocations: { orderBy: [{ line_no: 'asc' }] } },
     where: { doc_no: docNo },
@@ -874,12 +879,12 @@ async function cancelForeignCustomerAdvanceReceiptInTransaction(
   if (!branchCode) throw new Error('ไม่พบรหัสสาขาสำหรับยกเลิก Bank Statement CADV ต่างประเทศ')
   const splits = await tx.customer_receipt_account_splits.findMany({ select: { id: true }, where: { receipt_id: receipt.id } })
   if (splits.length === 0) throw new Error('ไม่พบ FCD split สำหรับยกเลิก Receipt Voucher CADV ต่างประเทศ')
-  const reversalBankDocNos = await nextBankStatementDocNos(toDateString(receipt.date), branchCode, splits.length, tx)
+  const reversalBankDocNos = await nextBankStatementDocNos(reversalDate, branchCode, splits.length, tx)
   await reverseFcdReceiptAccountSplits(tx, {
     actor,
     bankStatementDocNos: reversalBankDocNos,
     branchId: receipt.branch_id,
-    date: toDateString(receipt.date),
+    date: reversalDate,
     receiptDocNo: receipt.doc_no,
     receiptId: receipt.id,
     sourceEventKey: `customer-advance-receipt:${receipt.doc_no}:cancel`,
@@ -912,7 +917,7 @@ async function cancelForeignCustomerAdvanceReceiptInTransaction(
       event_key: `customer-receipt.${statusLogAction}.${receipt.doc_no}`,
       from_status: CUSTOMER_RECEIPT_STATUS_ACTIVE,
       gross_amount_snapshot: receipt.gross_amount,
-      meta: { bankStatementDocNos: reversalBankDocNos, reason, sourceType: 'CADV' },
+      meta: { bankStatementDocNos: reversalBankDocNos, reason, reversalDate, sourceType: 'CADV' },
       net_cash_in_snapshot: receipt.net_cash_in,
       note: reason,
       receipt_doc_no: receipt.doc_no,
@@ -938,6 +943,9 @@ async function cancelCustomerReceiptInTransaction(
   if (!normalizedReason) {
     throw new Error('กรุณาระบุเหตุผลการยกเลิก')
   }
+
+  const reversalDate = options.reversalDate ?? await currentTransactionDate(tx)
+  const cancellationOptions = { ...options, reversalDate }
 
   await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('customer_receipts.cancel'))`
   await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('bank_statement.doc_no'))`
@@ -1020,9 +1028,9 @@ async function cancelCustomerReceiptInTransaction(
 
   if (receipt.source_type === 'CADV') {
     if (receipt.receipt_currency_code) {
-      return cancelForeignCustomerAdvanceReceiptInTransaction(tx, receipt.doc_no, normalizedReason, actor, options)
+      return cancelForeignCustomerAdvanceReceiptInTransaction(tx, receipt.doc_no, normalizedReason, actor, cancellationOptions)
     }
-    return cancelCustomerAdvanceReceiptInTransaction(tx, receipt.doc_no, normalizedReason, actor, options)
+    return cancelCustomerAdvanceReceiptInTransaction(tx, receipt.doc_no, normalizedReason, actor, cancellationOptions)
   }
 
   if (!receipt.branch_id) throw new Error('Receipt Voucher Customer ไม่มีสาขาสำหรับออกเลข Bank Statement')
@@ -1042,13 +1050,13 @@ async function cancelCustomerReceiptInTransaction(
   const bankStatementsToReverse = receiptBankStatements
   const reversalCount = receipt.receipt_currency_code ? foreignSplits.length : bankStatementsToReverse.length
   if (reversalCount === 0) throw new Error('ไม่พบรายการรับเงินที่ต้องยกเลิก')
-  const reversalBankDocNos = await nextBankStatementDocNos(toDateString(receipt.date), documentBranchCode(receiptBranch.code)!, reversalCount, tx)
+  const reversalBankDocNos = await nextBankStatementDocNos(reversalDate, documentBranchCode(receiptBranch.code)!, reversalCount, tx)
   if (receipt.receipt_currency_code) {
     await reverseFcdReceiptAccountSplits(tx, {
       actor,
       bankStatementDocNos: reversalBankDocNos,
       branchId: receipt.branch_id,
-      date: toDateString(receipt.date),
+      date: reversalDate,
       receiptDocNo: receipt.doc_no,
       receiptId: receipt.id,
       sourceEventKey: `customer-receipt:${receipt.doc_no}:cancel`,
@@ -1068,7 +1076,7 @@ async function cancelCustomerReceiptInTransaction(
         account_id: statement.account_id,
         branch_id: receipt.branch_id,
         created_by: actor,
-        date: receipt.date,
+        date: normalizeDate(reversalDate),
         description: `${receipt.doc_no} - ยกเลิกรับเงิน Customer${bankStatementsToReverse.length > 1 ? ` (split ${index + 1}/${bankStatementsToReverse.length})` : ''}`,
         doc_no: reversalBankDocNos[index]!,
         ref_id: stringifyBusinessValue(receipt.id),
@@ -1173,6 +1181,7 @@ async function cancelCustomerReceiptInTransaction(
       meta: {
         bankStatementDocNos: reversalBankDocNos,
         reason: normalizedReason,
+        reversalDate,
       },
       net_cash_in_snapshot: receipt.net_cash_in,
       note: normalizedReason,
@@ -1256,7 +1265,7 @@ async function createForeignCustomerAdvanceReceiptInTransaction(
   const branchCode = documentBranchCode(branch?.code)
   if (!branchCode) throw new Error('ไม่พบรหัสสาขาสำหรับออกเลขที่ Receipt Voucher CADV')
   const totalCadVSettlement = lines.reduce((total, line) => total.plus(line.receiptAmount), new Prisma.Decimal(0))
-  if (!totalCadVSettlement.eq(settlementBookAmount)) throw new Error('ยอดตัด CADV (THB) ต้องเท่ากับยอด settlement (THB)')
+  const settlementDifferenceReason = settlementDifferenceReasonForReceipt('CADV', settlementBookAmount.minus(totalCadVSettlement))
 
   const rawSplits = values.splits?.length ? values.splits : []
   if (rawSplits.length === 0) throw new Error('เลือกบัญชี FCD รับเงินอย่างน้อย 1 รายการ')
@@ -1306,7 +1315,7 @@ async function createForeignCustomerAdvanceReceiptInTransaction(
       received_native_amount: receivedNativeAmount,
       replacement_of_id: options.replacementOfId ?? null,
       settlement_book_amount: settlementBookAmount,
-      settlement_difference_reason: null,
+      settlement_difference_reason: settlementDifferenceReason,
       settlement_fx_difference: 0,
       source_type: 'CADV',
       status: CUSTOMER_RECEIPT_STATUS_ACTIVE,
@@ -1431,6 +1440,7 @@ async function createForeignSalesBillReceiptInTransaction(
   })
   const totalArAmount = allocationInputs.reduce((total, item) => total.plus(item.arAmount), new Prisma.Decimal(0))
   const settlementDifference = settlementBookAmount.minus(totalArAmount)
+  const settlementDifferenceReason = settlementDifferenceReasonForReceipt('SB', settlementDifference)
   const allocationSnapshots = allocateForeignReceiptLines(allocationInputs, customerTransferredNativeAmount, settlementBookAmount)
 
   const exactRate = await findFcdRateSnapshot(tx, { fromCurrency: currencyCode, rateDate: values.date, rateType, toCurrency: functionalCurrencyCode })
@@ -1484,7 +1494,7 @@ async function createForeignSalesBillReceiptInTransaction(
       received_native_amount: receivedNativeAmount,
       replacement_of_id: options.replacementOfId ?? null,
       settlement_book_amount: settlementBookAmount,
-      settlement_difference_reason: 'fx_settlement',
+      settlement_difference_reason: settlementDifferenceReason,
       settlement_fx_difference: settlementDifference,
       source_type: 'SB',
       status: CUSTOMER_RECEIPT_STATUS_ACTIVE,
@@ -1517,7 +1527,7 @@ async function createForeignSalesBillReceiptInTransaction(
       data: { account_id: primaryAccount.id, amount: item.line.receiptAmount, bank_fee: 0, bill_id: bill.id, branch_id: selectedBranch.id, created_by: actor, customer_id: customer.id, date: normalizeDate(values.date), discount: item.line.discountAmount, doc_no: docNo, fee: 0, lines: { customerReceiptId: receipt.id.toString(), lineNo: index + 1, paymentMethodCode: paymentMethod.code, salesBillDocNo: bill.doc_no }, method: paymentMethod.name, net_amount: item.line.receiptAmount, notes: values.notes, status: CUSTOMER_RECEIPT_STATUS_ACTIVE, updated_by: actor, voucher_id: docNo, withholding_tax: item.line.withholdingTaxAmount },
     })
     await tx.customer_receipt_allocations.create({
-      data: { allocated_ar_amount: item.arAmount, created_by: actor, customer_code_snapshot: customer.code, discount_amount: item.line.discountAmount, line_no: index + 1, native_amount_allocated: snapshot.nativeAmount, outstanding_after: outstandingAfter, outstanding_before: outstandingBefore, receipt_amount: item.line.receiptAmount, receipt_id: receipt.id, receipt_line_id: legacyReceipt.id, sales_bill_doc_no_snapshot: bill.doc_no, sales_bill_id: bill.id, settlement_book_amount: snapshot.settlementBookAmount, settlement_difference_reason: 'fx_settlement', settlement_fx_difference: snapshot.settlementBookAmount.minus(item.arAmount), status: CUSTOMER_RECEIPT_STATUS_ACTIVE, updated_by: actor, withholding_tax_amount: item.line.withholdingTaxAmount },
+        data: { allocated_ar_amount: item.arAmount, created_by: actor, customer_code_snapshot: customer.code, discount_amount: item.line.discountAmount, line_no: index + 1, native_amount_allocated: snapshot.nativeAmount, outstanding_after: outstandingAfter, outstanding_before: outstandingBefore, receipt_amount: item.line.receiptAmount, receipt_id: receipt.id, receipt_line_id: legacyReceipt.id, sales_bill_doc_no_snapshot: bill.doc_no, sales_bill_id: bill.id, settlement_book_amount: snapshot.settlementBookAmount, settlement_difference_reason: settlementDifferenceReasonForReceipt('SB', snapshot.settlementBookAmount.minus(item.arAmount)), settlement_fx_difference: snapshot.settlementBookAmount.minus(item.arAmount), status: CUSTOMER_RECEIPT_STATUS_ACTIVE, updated_by: actor, withholding_tax_amount: item.line.withholdingTaxAmount },
     })
     await tx.sales_bills.update({ data: { receivable_balance: outstandingAfter, received_amount: receivedAfter, status: nextStatus, updated_at: new Date(), updated_by: actor }, where: { id: bill.id } })
   }

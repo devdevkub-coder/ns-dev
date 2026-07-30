@@ -25,7 +25,7 @@ type CustomerAdvanceRow = {
   date: string
   description: string
   docNo: string
-  fxRate: number
+  fxRate: number | null
   id: string
   remainingAmount: number
   status: string
@@ -76,9 +76,14 @@ const customerAdvanceColumns: Array<ResizableColumnDefinition<CustomerAdvanceCol
   { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
-function compareSortValues(left: string | number, right: string | number) {
+function compareSortValues(left: string | number | null, right: string | number | null) {
+  if (left == null || right == null) return left == null && right == null ? 0 : left == null ? -1 : 1
   if (typeof left === 'number' && typeof right === 'number') return left - right
   return String(left ?? '').localeCompare(String(right ?? ''), 'th', { numeric: true, sensitivity: 'base' })
+}
+
+function formatFxRate(value: number | null) {
+  return value == null ? '-' : value.toFixed(3)
 }
 
 function getCustomerAdvanceSortValue(row: CustomerAdvanceRow, key: CustomerAdvanceSortKey) {
@@ -190,7 +195,7 @@ export function CustomerAdvancePageClient() {
                 <td className="truncate px-4 py-3.5">{row.date}</td>
                 <td className="truncate px-4 py-3.5">{row.customerName}</td>
                 <td className="truncate px-4 py-3.5">{row.currency}</td>
-                <td className="truncate px-4 py-3.5 text-right">{formatMoney(row.fxRate)}</td>
+                <td className="truncate px-4 py-3.5 text-right">{formatFxRate(row.fxRate)}</td>
                 <td className="truncate px-4 py-3.5 text-right">{formatMoney(row.amount)}</td>
                 <td className="truncate px-4 py-3.5 text-right font-medium">{formatMoney(row.amountThb)}</td>
                 <td className="truncate px-4 py-3.5 text-right text-slate-600">{formatMoney(row.usedAmount)}</td>
@@ -234,7 +239,7 @@ export function CustomerAdvancePageClient() {
                 </div>
                 <div>
                   <span className="block font-semibold text-slate-500">สกุลเงิน/Rate: </span>
-                  <span className="text-slate-800">{row.currency} @ {formatMoney(row.fxRate)}</span>
+                  <span className="text-slate-800">{row.currency} @ {formatFxRate(row.fxRate)}</span>
                 </div>
               </div>
               <div className="mt-1 grid grid-cols-3 gap-2 border-t border-slate-100/60 pt-1.5 text-right text-xs">
