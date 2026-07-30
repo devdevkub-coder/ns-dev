@@ -293,7 +293,7 @@ FCD conversion
 ## Phase 9: Test And Release Gates
 
 - [x] `FCD-901` unit tests สำหรับ Decimal, weighted carrying rate, settlement FX, conversion FX และ revaluation
-- [ ] `FCD-902` API tests สำหรับ validation, permission, idempotency, reversal และ malformed/missing rate
+- [x] `FCD-902` API tests สำหรับ validation, permission, idempotency, reversal และ malformed/missing rate: route tests คุม permission/parse failure/cancel boundary, schema/rate tests คุม malformed/missing/manual rate, FCD posting test คุม deterministic idempotency/source-event keys และ reversal ใช้ snapshot เดิม (2026-07-30)
 - [ ] `FCD-903` integration tests สำหรับ THB receipt เดิม, USD receipt, partial receipt, multiple bills, fee, overpayment และ cancellation
 - [ ] `FCD-904` concurrency tests ยืนยันว่า balance ไม่ติดลบ/ไม่ใช้ OD เกิน contract
 - [ ] `FCD-905` reconciliation fixtures ครอบคลุม receipt -> revaluation -> conversion -> reversal

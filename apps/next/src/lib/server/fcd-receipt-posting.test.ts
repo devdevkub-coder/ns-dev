@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { allocateCarryingAmounts, fcdReceiptBankStatementInflow, fcdReceiptBankStatementReversal, reverseFcdReceiptAccountSplits } from './fcd-receipt-posting'
+import { allocateCarryingAmounts, fcdReceiptBankStatementInflow, fcdReceiptBankStatementReversal, postFcdReceiptAccountSplits, reverseFcdReceiptAccountSplits } from './fcd-receipt-posting'
 
 describe('allocateCarryingAmounts', () => {
   it('keeps the rounded account split carrying amount reconciled to the receipt total', () => {
@@ -78,5 +78,53 @@ describe('foreign receipt reversal posting', () => {
     const ledgerData = ledgerCreate.mock.calls[0]?.[0].data
     expect(String(ledgerData.native_amount_out)).toBe('100.00')
     expect(String(ledgerData.carrying_thb_out)).toBe('3512.30')
+  })
+})
+
+describe('foreign receipt idempotency keys', () => {
+  it('derives a stable source and idempotency key for every linked split write', async () => {
+    const bankStatementCreate = vi.fn().mockResolvedValue({ id: 31n })
+    const ledgerCreate = vi.fn().mockResolvedValue({ id: 41n })
+    const splitCreate = vi.fn().mockResolvedValue({ id: 51n })
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(undefined),
+      accounts: {
+        findMany: vi.fn().mockResolvedValue([{
+          account_currency_balances: [{ active: true, currency_code: 'USD' }],
+          code: 'FCD-USD',
+          id: 7n,
+          name: 'FCD USD',
+        }]),
+      },
+      bank_statement: { create: bankStatementCreate },
+      customer_receipt_account_splits: { create: splitCreate },
+      fcd_ledger_entries: { create: ledgerCreate },
+    }
+
+    await postFcdReceiptAccountSplits(tx as never, {
+      actor: 'tester@example.com',
+      bankStatementDocNos: ['BST2607-0001'],
+      branchId: 1n,
+      currencyCode: 'USD',
+      date: '2026-07-30',
+      rate: '35.123',
+      receiptDocNo: 'RCP2607-0001',
+      receiptId: 42n,
+      sourceEventKey: 'customer-receipt:RCP2607-0001',
+      splits: [{ accountCode: 'FCD-USD', nativeAmount: '100.00' }],
+    })
+
+    expect(bankStatementCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      idempotency_key: 'customer-receipt:RCP2607-0001:bank:1',
+      source_event_key: 'customer-receipt:RCP2607-0001:split:1',
+    }) }))
+    expect(ledgerCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      idempotency_key: 'customer-receipt:RCP2607-0001:ledger:1',
+      source_event_key: 'customer-receipt:RCP2607-0001:split:1',
+    }) }))
+    expect(splitCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      bank_statement_id: 31n,
+      fcd_ledger_entry_id: 41n,
+    }) }))
   })
 })
