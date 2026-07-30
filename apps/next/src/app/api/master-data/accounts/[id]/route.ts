@@ -55,7 +55,6 @@ export async function PATCH(request: Request, { params }: MasterDataRouteProps) 
       bankBranch: row.bank_branch,
       accountNo: row.account_no,
       currency: row.currency,
-      openingBalance: toNumber(row.opening_balance),
       odLimit,
       branchId: branch.branchId,
       branchName: branch.branchName,

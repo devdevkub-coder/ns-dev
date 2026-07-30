@@ -102,7 +102,7 @@ export const masterDataRecordSchema = z.object({
   accountName: nullableString,
   currency: nullableString,
   currencyDisplay: nullableString,
-  accountCurrencyBalances: z.array(z.object({ currency: z.string(), openingBalance: nullableNumber })).default([]),
+  accountCurrencyBalances: z.array(z.object({ currency: z.string() })).default([]),
   openingBalance: nullableNumber,
   hasOd: z.boolean().default(false),
   odLimit: nullableNumber,
@@ -248,12 +248,14 @@ export const masterDataFormSchema = masterDataRecordSchema
     unit: optionalBusinessText('หน่วย', 40),
   })
 
-export const accountMasterDataFormSchema = masterDataFormSchema.extend({
-  name: z.string().trim().min(1, 'กรอกชื่อบัญชี').max(180, 'ชื่อบัญชียาวเกินไป'),
-})
+export const accountMasterDataFormSchema = masterDataFormSchema
+  .omit({ openingBalance: true })
+  .extend({
+    name: z.string().trim().min(1, 'กรอกชื่อบัญชี').max(180, 'ชื่อบัญชียาวเกินไป'),
+  })
 
 export type MasterDataFormValues = z.infer<typeof masterDataFormSchema>
-export type AccountCurrencyBalanceValue = { currency: string; openingBalance: number | null }
+export type AccountCurrencyBalanceValue = { currency: string }
 
 export type MasterDataFieldType = 'text' | 'number' | 'select' | 'checkbox' | 'currency-balances'
 export type MasterDataFieldInputFormat = 'money'
