@@ -15,6 +15,8 @@ export const runtime = 'nodejs'
 
 type BankQuery = {
   accountId: string | null
+  accountGroup: string | null
+  bankAccountType: string | null
   branchCode: string | null
   from: string | null
   page: number
@@ -62,6 +64,8 @@ function parseQuery(url: URL): BankQuery {
   const branchCode = url.searchParams.get('branchCode')?.trim().toUpperCase()
   return {
     accountId: url.searchParams.get('accountId') || null,
+    accountGroup: url.searchParams.get('accountGroup') || null,
+    bankAccountType: url.searchParams.get('bankAccountType') || null,
     branchCode: branchCode && branchCode !== 'ALL' ? branchCode : null,
     from: url.searchParams.get('from') || null,
     page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
@@ -134,7 +138,13 @@ export async function GET(request: Request) {
       throw new Error('ไม่พบบัญชีเงินบริษัทตามรหัสบัญชีที่ระบุ')
     }
     const allAccounts = await listActiveAccounts()
-    const accounts = allAccounts.filter((account) => account.accountGroup !== 'virtual' && (!branch || account.branchCode === branch.code))
+    if (query.bankAccountType && query.accountGroup !== 'bank') {
+      throw new Error('ประเภทบัญชีธนาคารใช้ได้เฉพาะประเภทบัญชีบริษัท ธนาคาร')
+    }
+    const accounts = allAccounts.filter((account) => account.accountGroup !== 'virtual'
+      && (!branch || account.branchCode === branch.code)
+      && (!query.accountGroup || account.accountGroup === query.accountGroup)
+      && (!query.bankAccountType || account.bankAccountType === query.bankAccountType))
     if (accountReference && !accounts.some((account) => account.id === accountReference.id)) {
       throw new Error('บัญชีเงินบริษัทไม่อยู่ในสาขาที่เลือกหรือไม่มีสิทธิ์ดูข้อมูล')
     }
@@ -251,7 +261,9 @@ export async function GET(request: Request) {
         branches: visibleBranches.map((row) => ({ code: row.code, id: row.code, name: row.name })),
         accounts: accounts.map((row: AccountReferenceRecord) => ({
           accountNo: row.accountNo,
+          accountGroup: row.accountGroup,
           active: true,
+          bankAccountType: row.bankAccountType,
           bankName: row.bankName,
           branchName: row.branchName ?? '',
           code: row.code,
