@@ -300,7 +300,7 @@ FCD conversion
 - [x] `FCD-906` migration preflight/postflight บน dev-target โดยไม่แก้ legacy-prod-source: ตรวจ read-only เมื่อ 2026-07-30 ทั้ง dev-target และ SIT หลัง transaction reset; แต่ละ environment มี functional-currency policy 1 แถว, FCD ledger/receipt/Bank Statement เป็น 0 แถว และ `supabase/preflight/reconcile_fcd_foreign_events.sql` คืน 0 issue โดยไม่แตะ legacy-prod-source หรือเขียนข้อมูลใด ๆ
 - [x] `FCD-907` lint, type-check, build, focused tests และ `git diff --check` ผ่านเมื่อ 2026-07-30: lint ไม่มี error (warnings เดิม 7 รายการนอกขอบเขต FCD), type-check และ production build ผ่าน; เพิ่ม `Suspense` wrapper ให้ FCD Ledger/Revaluation/Conversion ซึ่งอ่าน query string เพื่อแก้ production prerender failure. Focused FCD/UI contract tests 22/22 ผ่าน
 - [ ] `FCD-908` browser UAT เฉพาะเมื่อร้องขอ ครอบคลุม desktop/mobile และทุก event flow
-- [ ] `FCD-909` promote ตามลำดับ feature branch -> dev -> SIT/UAT หลัง reconciliation ผ่าน
+- [x] `FCD-909` promote ตามลำดับ feature branch -> dev -> SIT/UAT หลัง reconciliation ผ่าน: ทุก FCD checkpoint ถูก commit และ push ไป `new-origin/dev` กับ `sit-origin/main` ตาม target ที่สั่ง; migration `20260730210000`, `20260730220000` apply/record ครบ Dev/SIT. ไม่ promote customer UAT เพราะไม่มีคำสั่ง (2026-07-30)
 
 ## Recommended Implementation Batches
 
