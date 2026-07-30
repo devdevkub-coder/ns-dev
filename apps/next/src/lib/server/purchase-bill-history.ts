@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { Prisma } from '../../../generated/prisma/client'
 
 type DbClient = Prisma.TransactionClient
@@ -28,25 +29,13 @@ async function insertStatusLogs(
 ) {
   if (entries.length === 0) return
 
-  const billIds = [...new Set(entries.map((entry) => entry.purchaseBillId))]
-  const existingCounts = await Promise.all(
-    billIds.map(async (purchaseBillId) => [
-      purchaseBillId,
-      await tx.purchase_bill_status_logs.count({ where: { purchase_bill_id: purchaseBillId } }),
-    ] as const),
-  )
-  const nextSequenceByBillId = new Map(existingCounts)
-
   for (const entry of entries) {
-    const nextSequence = (nextSequenceByBillId.get(entry.purchaseBillId) ?? 0) + 1
-    nextSequenceByBillId.set(entry.purchaseBillId, nextSequence)
-
     await tx.purchase_bill_status_logs.create({
       data: {
         action: entry.action,
         created_at: entry.createdAt ?? new Date(),
         created_by: entry.createdBy ?? null,
-        event_key: `PBLOG-${entry.purchaseBillDocNo}-${String(nextSequence).padStart(4, '0')}`,
+        event_key: `PBLOG-${entry.purchaseBillDocNo}-${randomUUID()}`,
         from_status: entry.fromStatus ?? null,
         ...(entry.meta !== undefined ? { meta: entry.meta } : {}),
         note: entry.note ?? null,

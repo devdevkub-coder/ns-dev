@@ -160,25 +160,13 @@ async function insertStatusLogs(
   }>,
 ) {
   if (entries.length === 0) return
-  const poBuyIds = [...new Set(entries.map((entry) => entry.poBuyId))]
-  const existingCounts = await Promise.all(
-    poBuyIds.map(async (poBuyId) => [
-      poBuyId,
-      await tx.po_buy_status_logs.count({ where: { po_buy_id: poBuyId } }),
-    ] as const),
-  )
-  const nextSequenceByPoId = new Map(existingCounts)
-
   for (const entry of entries) {
-    const nextSequence = (nextSequenceByPoId.get(entry.poBuyId) ?? 0) + 1
-    nextSequenceByPoId.set(entry.poBuyId, nextSequence)
-
     await tx.po_buy_status_logs.create({
       data: {
         action: entry.action,
         created_at: entry.createdAt ?? new Date(),
         created_by: entry.createdBy ?? null,
-        event_key: `POBLOG-${entry.poBuyDocNo}-${String(nextSequence).padStart(4, '0')}`,
+        event_key: `POBLOG-${entry.poBuyDocNo}-${randomUUID()}`,
         from_status: entry.fromStatus ?? null,
         ...(entry.meta !== undefined ? { meta: entry.meta } : {}),
         note: entry.note ?? null,

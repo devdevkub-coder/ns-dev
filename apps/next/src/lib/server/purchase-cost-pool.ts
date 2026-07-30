@@ -169,9 +169,7 @@ export async function syncPurchaseBillCostPoolEntries(
     nextLines.delete(lineKey)
   }
 
-  for (const nextLine of nextLines.values()) {
-    await tx.stock_cost_pool_entries.create({
-      data: {
+  const entriesToCreate = [...nextLines.values()].map((nextLine) => ({
         branch_id: params.branchId,
         created_by: params.actor,
         date: params.date,
@@ -188,7 +186,8 @@ export async function syncPurchaseBillCostPoolEntries(
         status: 'Available',
         unit_cost: nextLine.unitCost,
         warehouse_id: params.warehouseId,
-      },
-    })
+  }))
+  if (entriesToCreate.length > 0) {
+    await tx.stock_cost_pool_entries.createMany({ data: entriesToCreate })
   }
 }
