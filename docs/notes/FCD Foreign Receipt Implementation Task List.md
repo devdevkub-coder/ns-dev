@@ -188,7 +188,7 @@ FCD conversion
 - [x] `FCD-324` คำนวณ SB settlement FX จาก settlement THB ก่อน fee เทียบกับยอดตัด AR ตาม accounting contract และลง bank fee แยก; ห้ามนำ fee ไปรวมเป็น FX difference
 - [x] `FCD-325` บังคับ CADV foreign receipt ให้ settlement THB reconcile กับยอดตัด CADV ตาม contract; ถ้าเกินยอดคงเหลือให้ reject และห้ามสร้าง overpayment/FX classification โดยอัตโนมัติ
 - [x] `FCD-326` รองรับหลายบัญชีรับเฉพาะเมื่อทุก split ใช้ currency เดียวกัน; foreign receipt ทุก split ต้องเป็น FCD และผลรวมยอด native ที่เข้าจริงต้อง reconcile กับ receipt
-- [ ] `FCD-327` เมื่อวันที่, source type, customer, currency หรือ receiving account เปลี่ยน ต้อง invalidate dependent selections และ rate result อย่างชัดเจน แล้วโหลดข้อมูลใหม่จาก source ที่ถูกต้อง
+- [x] `FCD-327` เมื่อวันที่, source type, customer, currency หรือ receiving account เปลี่ยน ต้อง invalidate dependent selections และ rate result อย่างชัดเจน แล้วโหลดข้อมูลใหม่จาก source ที่ถูกต้อง: form ล้าง foreign settlement fields ที่ขึ้นกับ source/branch/customer/currency, reset rate lookup และ refetch จาก receipt rate API ตาม request context; มี contract test คุมทุก transition (2026-07-30)
 - [x] `FCD-328` API ต้อง validate source type, currency, FCD capability, native totals, THB allocations, fee และ rate provenance ซ้ำฝั่ง server และคำนวณ derived THB/FX ใหม่ก่อนบันทึก
 - [x] `FCD-329` ปรับ detail, edit/replacement และ printable receipt ให้ใช้ label/หน่วยเดียวกับ create form และอ่าน transaction snapshot เดิม ไม่ดึง current rate มาคำนวณเอกสารเก่า
 - [ ] `FCD-330` เพิ่ม focused tests สำหรับ field visibility ตาม `SB/CADV`, THB/USD account filtering, currency reset, missing/manual/override rate, fee separation, multiple FCD splits และ CADV ที่เกินยอดคงเหลือ
