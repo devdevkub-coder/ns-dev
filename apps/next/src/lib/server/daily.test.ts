@@ -31,3 +31,16 @@ describe('bangkokDateRange', () => {
     expect(range.lt?.toISOString()).toBe('2026-06-26T17:00:00.000Z')
   })
 })
+
+describe('toDailyAccountOption', () => {
+  it('exposes the business account code as a JSON-safe option id', () => {
+    const option = daily.toDailyAccountOption({
+      code: 'ACC01-001',
+      name: 'บัญชีธนาคารหลัก',
+      type: 'bank',
+    })
+
+    expect(option.id).toBe('ACC01-001')
+    expect(() => JSON.stringify(option)).not.toThrow()
+  })
+})

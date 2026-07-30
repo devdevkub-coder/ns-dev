@@ -8,7 +8,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { refreshAdvancePaymentWorkflowStatus } from '@/lib/server/advance-payments'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { documentBranchCode, listDailyAccounts, nextBankStatementDocNos, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { documentBranchCode, listDailyAccounts, nextBankStatementDocNos, normalizeDate, toDailyAccountOption, toDateOnly, toNumber } from '@/lib/server/daily'
 import { nextPaymentApprovalDocNos } from '@/lib/server/payment-approval-pending'
 import { getActivePaymentMethods, type ActivePaymentMethod } from '@/lib/server/payment-methods'
 import { appendPaymentApprovalStatusLog, PAYMENT_APPROVAL_STATUS_ACTION } from '@/lib/server/payment-history'
@@ -504,15 +504,7 @@ export async function GET(request: Request) {
       return [...pendingRows, ...approvedRows, ...voidedRows]
     })
 
-    const dailyAccountOptions = dailyAccounts.map((account) => ({
-      accountNo: account.code ?? '',
-      bankName: account.name,
-      id: account.id,
-      isPrimary: false,
-      kind: account.type === 'cash' ? 'cash' as const : 'bank' as const,
-      label: [account.type, account.name, account.code ?? ''].filter(Boolean).join(' / '),
-      paymentMethod: account.type,
-    }))
+    const dailyAccountOptions = dailyAccounts.map(toDailyAccountOption)
     const pettyReturnById = new Map(pettyReturns.map((entry) => [entry.id.toString(), entry] as const))
     const pendingPettyReturnRows = pettyReturns
       .filter((entry) => entry.status === 'pending')

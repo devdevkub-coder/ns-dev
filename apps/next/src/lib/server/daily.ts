@@ -1,5 +1,5 @@
 import type { Prisma } from '../../../generated/prisma/client'
-import { parseInternalBigIntId } from '@/lib/business-code'
+import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { listAllAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
 import { functionalBankStatementMovement } from '@/lib/server/bank-statement-booking'
@@ -197,6 +197,19 @@ export async function listDailyAccounts(client: typeof prisma | Prisma.Transacti
       availableToPay,
     }
   })
+}
+
+export function toDailyAccountOption(account: { code: string | null; name: string; type: string }) {
+  const code = requireBusinessCode(account.code, 'บัญชีเงิน')
+  return {
+    accountNo: code,
+    bankName: account.name,
+    id: code,
+    isPrimary: false,
+    kind: account.type === 'cash' ? 'cash' as const : 'bank' as const,
+    label: [account.type, account.name, code].filter(Boolean).join(' / '),
+    paymentMethod: account.type,
+  }
 }
 
 export async function lockDailyAccountBalances(tx: Prisma.TransactionClient, accountIds: bigint[]) {
