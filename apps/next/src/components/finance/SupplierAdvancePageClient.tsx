@@ -22,7 +22,7 @@ type SupplierAdvanceRow = {
   date: string
   description: string
   docNo: string
-  fxRate: number
+  fxRate: number | null
   id: string
   remainingAmount: number
   status: string
@@ -75,9 +75,14 @@ const supplierAdvanceColumns: Array<ResizableColumnDefinition<SupplierAdvanceCol
   { key: 'status', defaultWidth: 110, minWidth: 95 },
 ]
 
-function compareSortValues(left: string | number, right: string | number) {
+function compareSortValues(left: string | number | null, right: string | number | null) {
+  if (left == null || right == null) return left == null && right == null ? 0 : left == null ? -1 : 1
   if (typeof left === 'number' && typeof right === 'number') return left - right
   return String(left ?? '').localeCompare(String(right ?? ''), 'th', { numeric: true, sensitivity: 'base' })
+}
+
+function formatFxRate(value: number | null) {
+  return value == null ? '-' : value.toFixed(3)
 }
 
 function getSupplierAdvanceSortValue(row: SupplierAdvanceRow, key: SupplierAdvanceSortKey) {
@@ -184,7 +189,7 @@ export function SupplierAdvancePageClient() {
                 <td className="px-4 py-3.5 overflow-hidden truncate">{row.date}</td>
                 <td className="px-4 py-3.5 overflow-hidden truncate">{row.supplierName}</td>
                 <td className="px-4 py-3.5 overflow-hidden truncate">{row.currency}</td>
-                <td className="px-4 py-3.5 text-right overflow-hidden truncate">{formatMoney(row.fxRate)}</td>
+                <td className="px-4 py-3.5 text-right overflow-hidden truncate">{formatFxRate(row.fxRate)}</td>
                 <td className="px-4 py-3.5 text-right overflow-hidden truncate">{formatMoney(row.amount)}</td>
                 <td className="px-4 py-3.5 text-right font-medium overflow-hidden truncate">{formatMoney(row.amountThb)}</td>
                 <td className="px-4 py-3.5 text-right text-slate-600 overflow-hidden truncate">{formatMoney(row.usedAmount)}</td>
@@ -226,7 +231,7 @@ export function SupplierAdvancePageClient() {
                 </div>
                 <div>
                   <span className="font-semibold text-slate-500 block">สกุลเงิน/Rate: </span>
-                  <span className="text-slate-800">{row.currency} @ {formatMoney(row.fxRate)}</span>
+                  <span className="text-slate-800">{row.currency} @ {formatFxRate(row.fxRate)}</span>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2 pt-1.5 border-t border-slate-100/60 mt-1 text-right text-xs">
