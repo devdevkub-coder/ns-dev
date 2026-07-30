@@ -5,6 +5,7 @@ import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, 
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { postFcdConversion, reverseFcdConversion } from '@/lib/server/fcd-conversion-posting'
 import { getFinanceCurrencyPolicy } from '@/lib/server/finance-currency-policy'
+import { FCD_ACTION_PERMISSION } from '@/lib/server/fcd-action-permissions'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveAccounts } from '@/lib/server/reference-master-cache'
 
@@ -34,7 +35,7 @@ function requiredActor(context: Awaited<ReturnType<typeof getCurrentAuthContext>
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, FCD_ACTION_PERMISSION.conversion.view)
     const docNo = new URL(request.url).searchParams.get('docNo')?.trim() ?? ''
     const [policy, accounts, branches, rows] = await Promise.all([
       getFinanceCurrencyPolicy(),
@@ -106,7 +107,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, FCD_ACTION_PERMISSION.conversion.post)
     const values = fcdConversionPostSchema.parse(await request.json())
     assertBranchAccess(context, values.branchCode)
     const branch = await prisma.branches.findFirst({ select: { id: true }, where: { active: true, code: values.branchCode } })
@@ -126,7 +127,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, FCD_ACTION_PERMISSION.conversion.reverse)
     const values = fcdConversionReverseSchema.parse(await request.json())
     const original = await prisma.fcd_conversions.findUnique({ where: { doc_no: values.originalDocNo } })
     if (!original) return noStore({ code: 'NOT_FOUND', error: 'ไม่พบรายการแลกเงิน FCD' }, { status: 404 })

@@ -42,6 +42,7 @@ const directFactConsumerKind = {
   'src/lib/server/customer-receipts.ts': 'transactional-writer',
   'src/lib/server/daily-report-dashboard.ts': 'thb-reader',
   'src/lib/server/daily.ts': 'transactional-writer',
+  'src/lib/server/fcd-posting-reconciliation.ts': 'transactional-writer',
   'src/lib/server/finance-accounting-cash-position.ts': 'thb-reader',
   'src/lib/server/finance-accounting-cashflow-planning.ts': 'thb-reader',
   'src/lib/server/finance-accounting-statements.ts': 'thb-reader',

@@ -78,7 +78,7 @@ FCD conversion
 - [x] `FCD-003` Customer Receipt ขอ suggested rate จาก API ตามวันรับเงิน; ผู้ใช้แก้ rate ได้ก่อนบันทึกและระบบเก็บ rate ที่ใช้จริงเป็น snapshot โดยไม่เพิ่ม global rate policy ใน batch นี้
 - [x] `FCD-004` หาก API ไม่มี rate ผู้ใช้กรอกเองได้; ห้าม fallback ไปใช้ rate ล่าสุดหรือ rate จาก account master
 - [ ] `FCD-005` กำหนด GL account mapping สำหรับ AR settlement gain/loss, revaluation gain/loss, conversion gain/loss, bank fee และ customer overpayment
-- [ ] `FCD-006` กำหนด approval/post/reverse permissions ของ conversion และ revaluation เมื่อเปิด batch นั้น
+- [x] `FCD-006` กำหนดสิทธิ์ action ของ conversion และ revaluation: แยก `view`/`post`/`reverse` ต่อ event type และ route บังคับใช้ตาม HTTP action; ไม่มี `approve` เพราะสอง flow post แบบ atomic และไม่มี approval state ใน batch นี้. Migration copy grant/override เดิมจาก `finance.cash.view` เพื่อไม่ตัดสิทธิ์ตอน rollout แล้วจึงถอนเป็นราย action ได้; apply+record Dev/SIT แล้วและตรวจ permission ครบ 6 รายการ (2026-07-30)
 - [x] `FCD-007` Customer Receipt คงสถานะเดิม `pending`/`active`/`cancelled`; ไม่สร้าง `draft`/`posted`/`reversed` ใน batch รับเงินต่างประเทศนี้
 - [x] `FCD-008` FCD OD เป็นวงเงินต่อบัญชี
 - [ ] `FCD-009` ย้ายตัวอย่าง Debit/Credit ไป batch GL เมื่อระบบมี GL posting engine
@@ -86,7 +86,7 @@ FCD conversion
 ## Open Items Before Their Respective Phase
 
 - `FCD-005` GL account mapping ยังไม่มีในระบบ และไม่ block receipt/BST/FCD ledger batch นี้ เพราะยังไม่สร้าง GL posting engine
-- `FCD-006` สิทธิ์ approve/post/reverse สำหรับ conversion และ revaluation จะกำหนดเมื่อเริ่มสอง flow นั้น; ไม่กระทบ Customer Receipt ที่ใช้สถานะเดิม
+- `FCD-006` ไม่มี approval state สำหรับ conversion/revaluation ใน batch นี้; ใช้สิทธิ์ `view`/`post`/`reverse` แยกต่อ flow เพราะการ post เป็น transaction เดียว. ไม่กระทบ Customer Receipt ที่ใช้สถานะเดิม
 - `FCD-101` ถึง `FCD-144` เป็น schema/reconciliation batch ถัดไป และต้องเสร็จก่อนเปิด foreign receipt write path
 - `FCD-201` ถึง `FCD-211` เป็น service/lock/Decimal batch ถัดไป และต้องเสร็จก่อนเปิด foreign receipt write path
 
