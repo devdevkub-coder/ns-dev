@@ -31,7 +31,17 @@ type ArRow = {
   date: string
   drilldown?: {
     customerAdvances: Array<{ allocatedAmount: number; docNo: string; href: string; outstandingAfter: number; outstandingBefore: number; status: string }>
-    receipts: Array<{ allocatedArAmount: number; date: string; docNo: string; href: string; netCashIn: number; outstandingAfter: number; outstandingBefore: number; status: string }>
+    receipts: Array<{
+      allocatedArAmount: number
+      date: string
+      docNo: string
+      foreignAudit: { currencyCode: string; fxRate: number; receivedNativeAmount: number; settlementBookAmount: number; settlementFxDifference: number } | null
+      href: string
+      netCashIn: number
+      outstandingAfter: number
+      outstandingBefore: number
+      status: string
+    }>
     salesBill: { docNo: string; href: string; sourceOfTruth: string }
   }
   docNo: string
@@ -930,7 +940,9 @@ function TraceSection({
           rows={receipts.map((receipt) => ({
             amount: `${formatMoney(receipt.allocatedArAmount)} บาท`,
             href: receipt.href,
-            meta: `${formatDateDisplay(receipt.date)} · ${receipt.status}`,
+            meta: receipt.foreignAudit
+              ? `${formatDateDisplay(receipt.date)} · ${receipt.status} · ${formatMoney(receipt.foreignAudit.receivedNativeAmount)} ${receipt.foreignAudit.currencyCode} @ ${receipt.foreignAudit.fxRate.toFixed(3)} · Settlement FX ${formatMoney(receipt.foreignAudit.settlementFxDifference)} บาท`
+              : `${formatDateDisplay(receipt.date)} · ${receipt.status}`,
             title: receipt.docNo,
           }))}
           title="Receipt / RCP"

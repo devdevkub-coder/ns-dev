@@ -281,7 +281,17 @@ export async function GET(request: Request) {
           prisma.customer_receipt_allocations.findMany({
             include: {
               customer_receipts: {
-                select: { date: true, doc_no: true, net_cash_in: true, status: true },
+                select: {
+                  date: true,
+                  doc_no: true,
+                  fx_rate: true,
+                  net_cash_in: true,
+                  receipt_currency_code: true,
+                  received_native_amount: true,
+                  settlement_book_amount: true,
+                  settlement_fx_difference: true,
+                  status: true,
+                },
               },
             },
             orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
@@ -328,6 +338,15 @@ export async function GET(request: Request) {
             netCashIn: toNumber(allocation.customer_receipts.net_cash_in),
             outstandingAfter: toNumber(allocation.outstanding_after),
             outstandingBefore: toNumber(allocation.outstanding_before),
+            foreignAudit: allocation.customer_receipts.receipt_currency_code
+              ? {
+                  currencyCode: allocation.customer_receipts.receipt_currency_code,
+                  fxRate: toNumber(allocation.customer_receipts.fx_rate),
+                  receivedNativeAmount: toNumber(allocation.customer_receipts.received_native_amount),
+                  settlementBookAmount: toNumber(allocation.customer_receipts.settlement_book_amount),
+                  settlementFxDifference: toNumber(allocation.customer_receipts.settlement_fx_difference),
+                }
+              : null,
             status: allocation.customer_receipts.status,
           })),
           salesBill: {
