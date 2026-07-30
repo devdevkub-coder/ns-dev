@@ -66,6 +66,12 @@ type OpeningPayload = {
 }
 
 type OpeningStockItem = { applied: boolean; appliedApRefId?: string | null; appliedAt?: string | null; appliedRefId?: string | null; branchId: string; id: string; itemStatus: 'RM' | 'WIP' | 'FG'; linkedBillNo?: string | null; lotNo: string; note?: string | null; paid: boolean; productId: string; qty: number; supplierId?: string | null; unitCost: number; warehouseId: string }
+type OpeningImportPreview = { cutoffDate: string; errors: string[]; items: OpeningStockItem[]; summary: { errorRows: number; itemRows: number; totalQty: number; totalValue: number; warnings: string[] } }
+
+type OpeningBillImportRow = { contractNo?: string; date: string; docNo: string; error?: string; lineAmount: number; partyName: string; productCode: string; productName: string; productType?: string; quantity: number; status: 'error' | 'ready'; totalAmount: number; vatAmount: number; unitPrice: number; warning?: string }
+type OpeningBillImportPreview = { branchCode: string; importType: 'purchase' | 'sales'; rows: OpeningBillImportRow[]; summary: { billCount: number; errorRows: number; inputRows: number; readyRows: number; totalValue: number } }
+type OpeningPartyBalanceImportRow = { date: string; docNo: string; partyName: string; totalAmount: number; outstandingAmount: number; vatAmount: number; error?: string; status: 'error' | 'ready' }
+type OpeningPartyBalanceImportPreview = { branchCode: string; importType: 'receivable' | 'payable'; rows: OpeningPartyBalanceImportRow[]; summary: { errorRows: number; inputRows: number; readyRows: number; totalValue: number } }
 
 type HistoricalPayload = {
   months: { label: string; month: number; year: number }[]
@@ -507,12 +513,50 @@ export function OpeningBalancePageClient() {
   const [stockMessage, setStockMessage] = useState<string | null>(null)
   const [stockError, setStockError] = useState<string | null>(null)
   const [stockBusy, setStockBusy] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importDate, setImportDate] = useState('2026-04-30')
+  const [importBranch, setImportBranch] = useState('')
+  const [importPreview, setImportPreview] = useState<OpeningImportPreview | null>(null)
+  const [importBusy, setImportBusy] = useState(false)
+  const [billImportBranch, setBillImportBranch] = useState('')
+  const [billImportType, setBillImportType] = useState<'purchase' | 'sales'>('purchase')
+  const [billImportFile, setBillImportFile] = useState<File | null>(null)
+  const [billImportPreview, setBillImportPreview] = useState<OpeningBillImportPreview | null>(null)
+  const [billImportError, setBillImportError] = useState<string | null>(null)
+  const [billImportMessage, setBillImportMessage] = useState<string | null>(null)
+  const [billImportBusy, setBillImportBusy] = useState(false)
+  const [balanceImportFile, setBalanceImportFile] = useState<File | null>(null)
+  const [balanceImportPreview, setBalanceImportPreview] = useState<OpeningPartyBalanceImportPreview | null>(null)
+  const [balanceImportError, setBalanceImportError] = useState<string | null>(null)
+  const [balanceImportMessage, setBalanceImportMessage] = useState<string | null>(null)
+  const [balanceImportBusy, setBalanceImportBusy] = useState(false)
   useEffect(() => { if (data?.stock.items) setStockItems(data.stock.items) }, [data?.stock.items])
+  useEffect(() => { if (data?.stock.cutoffDate) setImportDate(data.stock.cutoffDate); if (!importBranch && data?.stock.references.branches[0]) setImportBranch(data.stock.references.branches[0].code) }, [data?.stock.cutoffDate, data?.stock.references.branches, importBranch])
   function updateStockItem(id: string, patch: Partial<OpeningStockItem>) { setStockItems((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item)); setStockMessage(null); setStockError(null) }
-  async function saveStockItems(items: OpeningStockItem[], successMessage: string) {
+  async function saveStockItems(items: OpeningStockItem[], successMessage: string, cutoffDate?: string) {
     setStockBusy(true); setStockMessage(null); setStockError(null)
-    try { const payload = await dailyFetchJson<{ stock: OpeningStockItem[] }>('/api/finance-accounting/opening-balance', { body: JSON.stringify({ action: 'save', stockItems: items }), method: 'POST' }); setStockItems(payload.stock); setStockMessage(successMessage) }
+    try { const payload = await dailyFetchJson<{ stock: OpeningStockItem[] }>('/api/finance-accounting/opening-balance', { body: JSON.stringify({ action: 'save', ...(cutoffDate ? { cutoffDate } : {}), stockItems: items }), method: 'POST' }); setStockItems(payload.stock); setStockMessage(successMessage) }
     catch (caught) { setStockError(caught instanceof Error ? caught.message : 'บันทึกรายการยกยอดไม่ได้') } finally { setStockBusy(false) }
+  }
+  async function previewStockImport() {
+    if (!importFile) { setStockError('เลือกไฟล์ Excel ก่อนตรวจสอบ'); return }
+    if (!importBranch) { setStockError('เลือกสาขาก่อนตรวจสอบไฟล์'); return }
+    setImportBusy(true); setStockMessage(null); setStockError(null); setImportPreview(null)
+    try {
+      const form = new FormData()
+      form.append('branchCode', importBranch); form.append('cutoffDate', importDate); form.append('file', importFile)
+      const response = await fetch('/api/finance-accounting/opening-balance', { body: form, method: 'POST' })
+      const payload = await response.json() as OpeningImportPreview & { error?: string }
+      if (!response.ok) throw new Error(payload.error || 'ตรวจสอบไฟล์นำเข้าไม่ได้')
+      setImportPreview(payload); setStockMessage(payload.errors.length ? 'ตรวจสอบไฟล์แล้ว พบรายการที่ต้องแก้ไข' : 'ตรวจสอบไฟล์ผ่าน สามารถนำเข้ารายการ Pending ได้')
+    } catch (caught) { setStockError(caught instanceof Error ? caught.message : 'ตรวจสอบไฟล์นำเข้าไม่ได้') } finally { setImportBusy(false) }
+  }
+  async function saveImportedStock() {
+    if (!importPreview || importPreview.errors.length) { setStockError('ต้องแก้ไขข้อผิดพลาดในไฟล์ก่อนนำเข้า'); return }
+    const existingIds = new Set(stockItems.map((item) => item.id))
+    const merged = [...stockItems, ...importPreview.items.filter((item) => !existingIds.has(item.id))]
+    await saveStockItems(merged, `นำเข้า Stock Opening ${importPreview.items.length} รายการแล้ว`, importPreview.cutoffDate)
+    setImportPreview(null); setImportFile(null)
   }
   async function applyStockItem(item: OpeningStockItem) {
     if (!item.productId || !item.branchId || !item.warehouseId || item.qty <= 0 || item.unitCost <= 0) { setStockError('กรอกสินค้า สาขา คลัง จำนวน และต้นทุนให้ครบก่อน Apply'); return }
@@ -531,10 +575,50 @@ export function OpeningBalancePageClient() {
   const stockValue = stockItems.reduce((sum, item) => sum + item.qty * item.unitCost, 0)
   const stockPaidValue = stockItems.filter((item) => item.paid).reduce((sum, item) => sum + item.qty * item.unitCost, 0)
   const stockRefs = data?.stock.references
+  async function previewOpeningBillImport() {
+    setBillImportError(null); setBillImportMessage(null); setBillImportPreview(null)
+    if (!billImportBranch || !billImportFile) { setBillImportError('เลือกสาขาและไฟล์ Excel บิลก่อนตรวจสอบ'); return }
+    setBillImportBusy(true)
+    try {
+      const form = new FormData(); form.set('branchCode', billImportBranch); form.set('importType', billImportType); form.set('file', billImportFile)
+      const response = await fetch('/api/finance-accounting/opening-balance/bills', { body: form, method: 'POST' }); const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error ?? 'อ่านไฟล์บิลไม่สำเร็จ')
+      setBillImportPreview(payload as OpeningBillImportPreview)
+    } catch (caught) { setBillImportError(caught instanceof Error ? caught.message : 'อ่านไฟล์บิลไม่สำเร็จ') } finally { setBillImportBusy(false) }
+  }
+  async function commitOpeningBillImport() {
+    if (!billImportPreview || billImportPreview.summary.errorRows > 0) return
+    setBillImportError(null); setBillImportMessage(null); setBillImportBusy(true)
+    try {
+      const response = await fetch('/api/finance-accounting/opening-balance/bills', { body: JSON.stringify({ action: 'commit', branchCode: billImportPreview.branchCode, importType: billImportPreview.importType, rows: billImportPreview.rows }), headers: { 'Content-Type': 'application/json' }, method: 'POST' }); const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error ?? 'ยืนยันนำเข้าบิลไม่สำเร็จ')
+      setBillImportMessage(`นำเข้าสำเร็จ ${payload.billCount} บิล ${formatMoney(payload.inputRows)} รายการ`); setBillImportPreview(null); setBillImportFile(null)
+    } catch (caught) { setBillImportError(caught instanceof Error ? caught.message : 'ยืนยันนำเข้าบิลไม่สำเร็จ') } finally { setBillImportBusy(false) }
+  }
+  async function previewOpeningPartyBalanceImport() {
+    setBalanceImportError(null); setBalanceImportMessage(null); setBalanceImportPreview(null)
+    if (!billImportBranch || !balanceImportFile) { setBalanceImportError('เลือกสาขาและไฟล์ Excel ลูกหนี้/เจ้าหนี้ก่อนตรวจสอบ'); return }
+    setBalanceImportBusy(true)
+    try {
+      const form = new FormData(); form.set('branchCode', billImportBranch); form.set('importType', billImportType === 'purchase' ? 'payable' : 'receivable'); form.set('file', balanceImportFile)
+      const response = await fetch('/api/finance-accounting/opening-balance/balances', { body: form, method: 'POST' }); const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error ?? 'อ่านไฟล์ยอดคงค้างไม่สำเร็จ')
+      setBalanceImportPreview(payload as OpeningPartyBalanceImportPreview)
+    } catch (caught) { setBalanceImportError(caught instanceof Error ? caught.message : 'อ่านไฟล์ยอดคงค้างไม่สำเร็จ') } finally { setBalanceImportBusy(false) }
+  }
+  async function commitOpeningPartyBalanceImport() {
+    if (!balanceImportPreview || balanceImportPreview.summary.errorRows > 0) return
+    setBalanceImportError(null); setBalanceImportMessage(null); setBalanceImportBusy(true)
+    try {
+      const response = await fetch('/api/finance-accounting/opening-balance/balances', { body: JSON.stringify({ action: 'commit', branchCode: balanceImportPreview.branchCode, importType: balanceImportPreview.importType, rows: balanceImportPreview.rows }), headers: { 'Content-Type': 'application/json' }, method: 'POST' }); const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error ?? 'ยืนยันนำเข้ายอดคงค้างไม่สำเร็จ')
+      setBalanceImportMessage(`นำเข้าสำเร็จ ${payload.inputRows} รายการ`); setBalanceImportPreview(null); setBalanceImportFile(null)
+    } catch (caught) { setBalanceImportError(caught instanceof Error ? caught.message : 'ยืนยันนำเข้ายอดคงค้างไม่สำเร็จ') } finally { setBalanceImportBusy(false) }
+  }
   return (
     <section className="space-y-4">
       {error ? <ErrorBox message={error} /> : null}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-0">
+      <Tabs value={activeTab} onValueChange={(value) => { setActiveTab(value); if (value === 'AP ต้นทุน') setBillImportType('purchase'); if (value === 'AR ลูกหนี้') setBillImportType('sales') }} className="gap-0">
         <TabsList variant="line" className="w-full flex-wrap overflow-x-auto">
           {tabs.map((tab) => <TabsTrigger key={tab} value={tab} variant="line">{tab}</TabsTrigger>)}
         </TabsList>
@@ -542,6 +626,22 @@ export function OpeningBalancePageClient() {
       {activeTab === 'สต็อก' ? <section className="space-y-4">
         {stockError ? <ErrorBox message={stockError} /> : null}
         {stockMessage ? <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{stockMessage}</div> : null}
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
+          <div className="mb-2 text-sm font-bold text-blue-900">นำเข้า Stock Opening จาก Excel</div>
+          <div className="mb-3 text-xs text-blue-800">ระบบจะตรวจสอบสินค้า/ประเภท/คลังกับ Master ก่อนสร้างรายการ Pending ในตารางด้านล่าง จากนั้นกด Apply ตาม flow เดิมเพื่อบันทึกเข้า Stock Ledger</div>
+          <div className="grid gap-3 md:grid-cols-[180px_180px_1fr_auto] md:items-end">
+            <label className="text-xs font-semibold text-slate-700">สาขา<Select className="mt-1 h-9 w-full" value={importBranch} onChange={(event) => setImportBranch(event.target.value)}><option value="">เลือกสาขา</option>{(stockRefs?.branches ?? []).map((branch) => <option key={branch.id} value={branch.code}>{branch.code} - {branch.name}</option>)}</Select></label>
+            <label className="text-xs font-semibold text-slate-700">วันที่ยกยอด<input className="mt-1 h-9 w-full rounded-md border border-slate-300 px-2" type="date" value={importDate} onChange={(event) => setImportDate(event.target.value)} /></label>
+            <label className="text-xs font-semibold text-slate-700">ไฟล์ Excel (.xlsx)<input className="mt-1 block h-9 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs" accept=".xlsx" type="file" onChange={(event) => { setImportFile(event.target.files?.[0] ?? null); setImportPreview(null) }} /></label>
+            <button className="h-9 rounded-md bg-blue-600 px-3 text-sm font-semibold text-white disabled:opacity-50" disabled={importBusy || stockBusy || data?.stock.locked} onClick={previewStockImport} type="button">{importBusy ? 'กำลังตรวจสอบ...' : 'ตรวจสอบไฟล์'}</button>
+          </div>
+          {importPreview ? <div className="mt-3 rounded-md border border-slate-200 bg-white p-3 text-xs">
+            <div className="flex flex-wrap gap-x-5 gap-y-1 font-semibold text-slate-700"><span>แถวที่นำเข้าได้: {importPreview.summary.itemRows}</span><span>จำนวนรวม: {importPreview.summary.totalQty.toLocaleString('th-TH')}</span><span>มูลค่า: {formatMoney(importPreview.summary.totalValue)}</span><span className={importPreview.errors.length ? 'text-red-700' : 'text-emerald-700'}>ข้อผิดพลาด: {importPreview.summary.errorRows}</span></div>
+            {importPreview.errors.length ? <div className="mt-2 space-y-1 text-red-700">{importPreview.errors.slice(0, 20).map((message) => <div key={message}>• {message}</div>)}{importPreview.errors.length > 20 ? <div>และอีก {importPreview.errors.length - 20} รายการ</div> : null}</div> : null}
+            {importPreview.summary.warnings.length ? <div className="mt-2 space-y-1 text-amber-700">{importPreview.summary.warnings.slice(0, 10).map((message) => <div key={message}>• {message}</div>)}</div> : null}
+            <button className="mt-3 h-9 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white disabled:opacity-50" disabled={importBusy || stockBusy || importPreview.errors.length > 0 || data?.stock.locked} onClick={saveImportedStock} type="button">นำเข้ารายการเข้าตาราง</button>
+          </div> : null}
+        </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4"><StatCard label="จำนวนรวม" value={`${formatMoney(stockItems.reduce((sum, item) => sum + item.qty, 0))} กก.`} tone="blue" /><StatCard label="มูลค่ารวม" value={formatMoney(stockValue)} tone="amber" /><StatCard label="จ่ายแล้ว" value={formatMoney(stockPaidValue)} tone="cyan" /><StatCard label="ยังไม่จ่าย" value={formatMoney(stockValue - stockPaidValue)} tone="red" /></div>
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">ยกยอด ณ วันที่ <b>{data?.stock.cutoffDate || '-'}</b> และเริ่มใช้งานวันที่ <b>{data?.stock.goLiveDate || '-'}</b> · กด Apply ทีละรายการเพื่อสร้าง <b>OPENING_STOCK_IN</b> ใน Stock Ledger · ถ้าไม่ติ๊ก “จ่ายแล้ว” และเลือก Supplier ระบบจะสร้าง AP เจ้าหนี้ยกมาให้อัตโนมัติ</div>
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-bold text-slate-800">📦 Stock Opening — Inventory ยกมา</h2><div className="flex gap-2"><button className="h-9 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white disabled:opacity-50" disabled={stockBusy || data?.stock.locked} onClick={addStockItem} type="button">+ เพิ่มรายการ</button><button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 disabled:opacity-50" disabled={stockBusy || data?.stock.locked} onClick={() => saveStockItems(stockItems, 'บันทึกรายการยกยอดแล้ว')} type="button">{stockBusy ? 'กำลังบันทึก...' : 'บันทึก'}</button></div></div>
@@ -556,6 +656,29 @@ export function OpeningBalancePageClient() {
       {activeTab !== 'สต็อก' ? <>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5"><StatCard label="AR" value={formatMoney(data?.summary.ar)} tone="blue" /><StatCard label="AP ต้นทุน" value={formatMoney(data?.summary.apCost)} tone="red" /><StatCard label="AP ค่าใช้จ่าย" value={formatMoney(data?.summary.apExpense)} tone="red" /><StatCard label="สต็อก" value={formatMoney(data?.summary.stock)} tone="amber" /><StatCard label="สุทธิอื่นๆ" value={formatMoney(data?.summary.netOther)} /></div>
       <Panel title="ข้อมูลพื้นฐาน"><div className="grid grid-cols-2 gap-3 text-sm"><ReadField label="วันที่ตัดยอด" value="2026-04-30" /><ReadField label="วันเริ่มใช้งาน" value="2026-05-01" /></div><div className="mt-3 text-xs text-slate-400">อัปเดตล่าสุด: {data?.row.updatedAt || '-'}</div></Panel>
+      {activeTab === 'AP ต้นทุน' || activeTab === 'AR ลูกหนี้' ? <>
+        <div className="grid grid-cols-2 gap-2.5 text-sm sm:gap-4 lg:grid-cols-3">
+          <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-5"><div className={`flex size-10 shrink-0 items-center justify-center rounded-full text-xl sm:size-12 ${billImportType === 'purchase' ? 'bg-red-100' : 'bg-blue-100'}`}>{billImportType === 'purchase' ? '📤' : '📥'}</div><div><div className={`text-xs ${billImportType === 'purchase' ? 'text-red-600' : 'text-blue-600'}`}>{billImportType === 'purchase' ? 'AP ต้นทุนคงเหลือ' : 'AR ลูกหนี้คงเหลือ'}</div><div className="font-bold tabular-nums text-slate-900">{formatMoney(billImportType === 'purchase' ? data?.summary.apCost : data?.summary.ar)}</div></div></div>
+          <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-5"><div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl sm:size-12">🔎</div><div><div className="text-xs text-slate-600">ขั้นตอน</div><div className="font-bold text-slate-900">ตรวจสอบก่อนยืนยัน</div></div></div>
+          <div className="col-span-2 flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-5 lg:col-span-1"><div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xl sm:size-12">🧾</div><div><div className="text-xs text-emerald-600">เอกสารที่รองรับ</div><div className="font-bold text-slate-900">{billImportType === 'purchase' ? 'บิลซื้อ / เจ้าหนี้' : 'บิลขาย / ลูกหนี้'}</div></div></div>
+        </div>
+      <Panel title={`นำเข้า Opening ${billImportType === 'purchase' ? 'บิลซื้อ (AP)' : 'บิลขาย (AR)'} จาก Excel`}>
+        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs leading-5 text-blue-900">แท็บนี้ใช้สำหรับนำเข้า {billImportType === 'purchase' ? 'บิลซื้อ' : 'บิลขาย'} โดยเฉพาะ บิลที่ยืนยันจะถูกบันทึกเป็นเอกสารย้อนหลังสถานะ Opening และไม่สร้าง Stock Ledger หรือรายการรับเงิน/จ่ายเงินซ้ำอัตโนมัติ</div>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <label className="text-xs font-semibold text-slate-600">สาขา<select className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm font-normal" value={billImportBranch} onChange={(event) => setBillImportBranch(event.target.value)}><option value="">เลือกสาขา</option>{(data?.stock.references.branches ?? []).map((branch) => <option key={branch.code} value={branch.code}>{branch.code} - {branch.name}</option>)}</select></label>
+          <label className="text-xs font-semibold text-slate-600 md:col-span-2">ไฟล์ Excel (.xlsx)<input className="mt-1 block h-9 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-normal" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" type="file" onChange={(event) => { setBillImportFile(event.target.files?.[0] ?? null); setBillImportPreview(null) }} /></label>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2"><button className="h-9 rounded-md bg-slate-800 px-4 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={billImportBusy || !billImportBranch || !billImportFile} onClick={() => void previewOpeningBillImport()} type="button">{billImportBusy ? 'กำลังตรวจสอบ...' : 'ตรวจสอบไฟล์บิล'}</button>{billImportPreview ? <button className="h-9 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={billImportBusy || billImportPreview.summary.errorRows > 0} onClick={() => void commitOpeningBillImport()} type="button">ยืนยันนำเข้าบิล</button> : null}{billImportError ? <span className="text-sm font-semibold text-red-700">{billImportError}</span> : null}{billImportMessage ? <span className="text-sm font-semibold text-emerald-700">{billImportMessage}</span> : null}</div>
+        {billImportPreview ? <div className="mt-4 overflow-x-auto rounded-md border border-slate-200"><div className="grid min-w-[720px] grid-cols-4 gap-2 border-b border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"><span>จำนวนบิล <b>{billImportPreview.summary.billCount}</b></span><span>พร้อมนำเข้า <b>{billImportPreview.summary.readyRows}</b></span><span>ผิดพลาด <b className={billImportPreview.summary.errorRows ? 'text-red-700' : ''}>{billImportPreview.summary.errorRows}</b></span><span>มูลค่ารวม <b>{formatMoney(billImportPreview.summary.totalValue)} บาท</b></span></div><table className="min-w-[720px] w-full text-xs"><thead className="bg-slate-100 text-left"><tr><th className="p-2">เลขที่</th><th className="p-2">วันที่</th><th className="p-2">คู่ค้า</th><th className="p-2">สินค้า</th><th className="p-2 text-right">จำนวน</th><th className="p-2 text-right">รวม</th><th className="p-2">ผลตรวจ</th></tr></thead><tbody>{billImportPreview.rows.slice(0, 100).map((row, index) => <tr key={`${row.docNo}-${row.productName}-${index}`} className="border-t border-slate-100"><td className="p-2">{row.docNo}</td><td className="p-2">{row.date}</td><td className="p-2">{row.partyName}</td><td className="p-2">{row.productName}<div className="text-[10px] text-slate-500">{row.productCode || 'ไม่พบรหัส'}</div></td><td className="p-2 text-right">{formatMoney(row.quantity)}</td><td className="p-2 text-right">{formatMoney(row.totalAmount)}</td><td className={`p-2 ${row.status === 'error' ? 'font-semibold text-red-700' : 'text-emerald-700'}`}>{row.error ?? row.warning ?? 'พร้อมนำเข้า'}</td></tr>)}</tbody></table></div> : null}
+      </Panel>
+      <Panel title={`นำเข้า Opening ${billImportType === 'purchase' ? 'เจ้าหนี้คงค้าง' : 'ลูกหนี้คงค้าง'} จาก Excel`}>
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">ใช้กับชีต <b>{billImportType === 'purchase' ? 'เจ้าหนี้ 13.07' : 'ลูกหนี้ 13.07'}</b> สำหรับยอดคงค้างที่ไม่มีรายละเอียดบิล ห้ามนำเข้าเลขที่เอกสารซ้ำกับบิลซื้อ/บิลขาย</div>
+        <div className="mt-3 grid gap-3 md:grid-cols-3"><div className="text-xs font-semibold text-slate-600"><span className="block">สาขา</span><div className="mt-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal">{billImportBranch || 'เลือกสาขาจากส่วน Import บิลด้านบน'}</div></div><label className="text-xs font-semibold text-slate-600 md:col-span-2">ไฟล์ Excel (.xlsx)<input className="mt-1 block h-9 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-normal" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" type="file" onChange={(event) => { setBalanceImportFile(event.target.files?.[0] ?? null); setBalanceImportPreview(null) }} /></label></div>
+        <div className="mt-3 flex flex-wrap items-center gap-2"><button className="h-9 rounded-md bg-slate-800 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={balanceImportBusy || !billImportBranch || !balanceImportFile} onClick={() => void previewOpeningPartyBalanceImport()} type="button">{balanceImportBusy ? 'กำลังตรวจสอบ...' : 'ตรวจสอบยอดคงค้าง'}</button>{balanceImportPreview ? <button className="h-9 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={balanceImportBusy || balanceImportPreview.summary.errorRows > 0} onClick={() => void commitOpeningPartyBalanceImport()} type="button">ยืนยันนำเข้ายอดคงค้าง</button> : null}{balanceImportError ? <span className="text-sm font-semibold text-red-700">{balanceImportError}</span> : null}{balanceImportMessage ? <span className="text-sm font-semibold text-emerald-700">{balanceImportMessage}</span> : null}</div>
+        {balanceImportPreview ? <div className="mt-4 overflow-x-auto rounded-md border border-slate-200"><div className="grid min-w-[620px] grid-cols-4 gap-2 border-b border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"><span>รายการ <b>{balanceImportPreview.summary.inputRows}</b></span><span>พร้อมนำเข้า <b>{balanceImportPreview.summary.readyRows}</b></span><span>ผิดพลาด <b className={balanceImportPreview.summary.errorRows ? 'text-red-700' : ''}>{balanceImportPreview.summary.errorRows}</b></span><span>ยอดค้างรวม <b>{formatMoney(balanceImportPreview.summary.totalValue)}</b></span></div><table className="min-w-[620px] w-full text-xs"><thead className="bg-slate-100 text-left"><tr><th className="p-2">เลขที่</th><th className="p-2">วันที่</th><th className="p-2">คู่ค้า</th><th className="p-2 text-right">ยอดรวม</th><th className="p-2 text-right">ยอดค้าง</th><th className="p-2">ผลตรวจ</th></tr></thead><tbody>{balanceImportPreview.rows.slice(0, 100).map((row, index) => <tr key={`${row.docNo}-${index}`} className="border-t border-slate-100"><td className="p-2">{row.docNo}</td><td className="p-2">{row.date}</td><td className="p-2">{row.partyName}</td><td className="p-2 text-right">{formatMoney(row.totalAmount)}</td><td className="p-2 text-right">{formatMoney(row.outstandingAmount)}</td><td className={`p-2 ${row.status === 'error' ? 'font-semibold text-red-700' : 'text-emerald-700'}`}>{row.error ?? 'พร้อมนำเข้า'}</td></tr>)}</tbody></table></div> : null}
+      </Panel>
+      </> : null}
+      {activeTab !== 'AR ลูกหนี้' && activeTab !== 'AP ต้นทุน' ? <>
       {/* Desktop Table View */}
       <div className="hidden lg:block">
         <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
@@ -631,6 +754,7 @@ export function OpeningBalancePageClient() {
           </div>
         ))}
       </div>
+      </> : null}
       </> : null}
     </section>
   )
