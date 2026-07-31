@@ -522,3 +522,4 @@ Design/API รายละเอียดอยู่ที่ [[Stock Ledger DB
 - [ ] อนุญาตเพิ่ม stock manual lines เฉพาะ Trading ตาม rule
 - [ ] แยก allocation rules สำหรับ `SB -> PB`, `SB -> stock`, และ `SB -> PO Sell`
 - [ ] กำหนด COGS/FIFO rule และ stock-ledger side effects ของ Trading SB
+- [x] กำหนด payment lifecycle ของ `sales_bills` เป็น `unreceived` / `partial` / `received` / `cancelled` จาก AR facts; cancel RCP ที่คืนยอดเต็มต้องกลับเป็น `unreceived` และ reader reject ค่านอก contract โดยไม่มี fallback
