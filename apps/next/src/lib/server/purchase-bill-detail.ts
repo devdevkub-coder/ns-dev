@@ -1,4 +1,4 @@
-import { PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS } from '@/lib/purchase-bill-status'
+import { purchaseBillStatusText } from '@/lib/purchase-bill-status'
 import { supplierAdvanceVatTypeLabel } from '@/lib/purchase-advance'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
@@ -213,13 +213,7 @@ type PurchaseBillDetailRow = Prisma.purchase_billsGetPayload<{
 }>
 
 function purchaseBillStatusLabel(status: string | null | undefined) {
-  const normalized = String(status ?? '').toLowerCase()
-  if (normalized === 'unpaid') return 'ยังไม่ชำระเงิน'
-  if (normalized === 'partial') return 'ชำระเงินบางส่วน'
-  if (normalized === 'paid') return 'เสร็จสิ้น'
-  if (normalized === 'cancelled') return 'ยกเลิก'
-  if (normalized === PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS) return 'ยกเลิก/เปลี่ยน Supplier'
-  return status ?? '-'
+  return purchaseBillStatusText(status)
 }
 
 function purchaseBillHistoryActionLabel(action: string | null | undefined) {

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { parseInternalBigIntId } from '@/lib/business-code'
+import { PURCHASE_BILL_STATUS } from '@/lib/purchase-bill-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toNumber } from '@/lib/server/daily'
@@ -120,7 +121,7 @@ async function syncOpeningStockAp(tx: Prisma.TransactionClient, item: z.infer<ty
   const billData = {
     branch_id: branchId, created_by: actor, date: normalizeDate(cutoffDate), doc_no: docNo, has_vat: false,
     note: `${notes} · ${product.name} (${item.qty} × ${item.unitCost})`, notes, paid_amount: 0, payable_balance: amount,
-    purchase_source: 'OPENING_STOCK', purchase_type: 'เครดิต', status: 'unpaid', subtotal: amount, supplier_id: supplier.id,
+    purchase_source: 'OPENING_STOCK', purchase_type: 'เครดิต', status: PURCHASE_BILL_STATUS.UNPAID, subtotal: amount, supplier_id: supplier.id,
     supplier_name_snapshot: supplier.name, supplier_tax_id_snapshot: supplier.tax_id, supplier_address_snapshot: supplier.address,
     supplier_phone_snapshot: supplier.phone, total_amount: amount, transaction_mode: 'TRADING', updated_at: new Date(), updated_by: actor,
     warehouse_id: warehouseId,

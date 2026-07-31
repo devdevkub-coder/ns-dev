@@ -101,6 +101,7 @@ PB เป็นจุดตั้งเจ้าหนี้และเป็�
 - อัปเดต WTI usage/status เป็นออกบิลแล้ว
 - อัปเดต POB remaining/status ตาม allocation
 - สร้าง/ปรับ PB payable status สำหรับ Payment Flow
+- `purchase_bills.status` รับได้เฉพาะ `unpaid`, `partial`, `paid`, `cancelled`, และ `cancelled_supplier_swap`; ทุก writer ใช้ contract กลาง และ reader ต้อง reject ค่า status ที่ว่างหรือไม่อยู่ในชุดนี้ ห้าม default หรือ map ค่าเก่า เช่น `open` เป็นสถานะใหม่
 - cancel/supplier swap ต้อง reverse/release allocation, ADV, WTI usage และ stock ledger ตาม append/reversal policy
 
 ## Current Code Baseline

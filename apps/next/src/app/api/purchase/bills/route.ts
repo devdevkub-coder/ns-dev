@@ -7,6 +7,9 @@ import { calculatePurchaseBillPostAdvanceTotals, calculateSupplierAdvanceAllocat
 import {
   PURCHASE_BILL_CANCELLED_STATUSES,
   PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS,
+  PURCHASE_BILL_STATUS,
+  type PurchaseBillStatus,
+  requirePurchaseBillStatus,
   isPurchaseBillCancelledStatus,
 } from '@/lib/purchase-bill-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
@@ -440,7 +443,7 @@ function billJson(row: PurchaseBillRow, paymentDocNos: string[] = []) {
     receiptDocNos,
     refNo: row.ref_no ?? '',
     salesId: stringifyBusinessValue(row.sales_id),
-    status: row.status ?? 'unpaid',
+    status: requirePurchaseBillStatus(row.status, row.doc_no),
     supplierId: row.suppliers?.code ?? '',
     supplierName: row.supplier_name_snapshot ?? '-',
     totalAmount: toNumber(row.total_amount),
@@ -2078,14 +2081,14 @@ function derivePurchasePaymentWorkflowStatus(params: {
   isCancelled: boolean
   paymentSettledAmount: number
   payableBalance: number
-  status: string | null | undefined
+  status: PurchaseBillStatus
 }): PurchasePaymentWorkflowStatus {
   if (params.isCancelled) {
     return params.status === PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS
       ? PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS
       : 'cancelled'
   }
-  if (params.payableBalance <= 0.01 || String(params.status ?? '').toLowerCase() === 'paid') return 'paid'
+  if (params.payableBalance <= 0.01 || params.status === PURCHASE_BILL_STATUS.PAID) return 'paid'
   if (params.paymentSettledAmount > 0.01) return 'partial_paid'
   if (params.hasActiveApproval) return 'pending_payment'
   return 'pending_approval'
@@ -2253,7 +2256,8 @@ async function rowsPayload(
     const approvalDocNos = activeApprovalDocNosByBillId.get(billId) ?? []
     const hasActiveApproval = activeApprovalBillIds.has(billId)
     const hasActivePayment = activePaymentBillIds.has(row.id)
-    const isCancelled = String(row.status ?? '').toLowerCase().includes('cancel')
+    const purchaseBillStatus = requirePurchaseBillStatus(row.status, row.doc_no)
+    const isCancelled = isPurchaseBillCancelledStatus(purchaseBillStatus, row.doc_no)
     const paymentSettledAmount = paymentSettledAmountByBillId.get(row.id) ?? 0
     const payableBalance = toNumber(row.payable_balance)
     const paymentWorkflowStatus = derivePurchasePaymentWorkflowStatus({
@@ -2261,7 +2265,7 @@ async function rowsPayload(
       isCancelled,
       paymentSettledAmount,
       payableBalance,
-      status: row.status,
+      status: purchaseBillStatus,
     })
     const lockedReason = purchaseBillLockedReason({
       hasActiveApproval,
@@ -2503,7 +2507,7 @@ export async function POST(request: Request) {
               purchase_source: purchaseSource,
               ref_no: values.refNo,
               sales_id: supplierSalesId,
-              status: 'unpaid',
+              status: PURCHASE_BILL_STATUS.UNPAID,
               subtotal: totals.subtotal,
               supplier_id: supplier.id,
               ...supplierSnapshotFields(supplier),
@@ -2718,7 +2722,7 @@ export async function PATCH(request: Request) {
             cancelled_at: cancelledAt,
             cancelled_by: actor,
             payable_balance: 0,
-            status: 'cancelled',
+            status: PURCHASE_BILL_STATUS.CANCELLED,
             updated_at: cancelledAt,
             updated_by: actor,
           },
@@ -2786,14 +2790,14 @@ export async function PATCH(request: Request) {
           note: values.note,
           purchaseBillDocNo: bill.doc_no,
           purchaseBillId: bill.id,
-          toStatus: 'cancelled',
+          toStatus: PURCHASE_BILL_STATUS.CANCELLED,
         })
         return bill
       }, { timeout: PURCHASE_BILL_WRITE_TRANSACTION_TIMEOUT_MS })
 
       schedulePurchaseBillProfitCostProjection(cancelledBill.id)
 
-      return NextResponse.json({ docNo: cancelledBill.doc_no, id: cancelledBill.doc_no, status: 'cancelled' })
+      return NextResponse.json({ docNo: cancelledBill.doc_no, id: cancelledBill.doc_no, status: PURCHASE_BILL_STATUS.CANCELLED })
     }
 
     if (raw?.action === 'supplier_swap') {
@@ -2831,7 +2835,7 @@ export async function PATCH(request: Request) {
       ])
 
       if (!existingBill) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลรับซื้อ' }, { status: 404 })
-      if (isPurchaseBillCancelledStatus(existingBill.status)) {
+      if (isPurchaseBillCancelledStatus(existingBill.status, existingBill.doc_no)) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'เปลี่ยน Supplier ไม่ได้ เพราะบิลนี้ถูกยกเลิกแล้ว' }, { status: 400 })
       }
       const activePaidAmount = payments.reduce((sum, payment) => sum + toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount), 0)
@@ -3018,7 +3022,7 @@ export async function PATCH(request: Request) {
                 purchase_source: purchaseSource,
                 ref_no: values.refNo,
                 sales_id: supplierSalesId,
-                status: 'unpaid',
+                status: PURCHASE_BILL_STATUS.UNPAID,
                 subtotal: totals.subtotal,
                 supplier_id: supplier.id,
                 ...supplierSnapshotFields(supplier),

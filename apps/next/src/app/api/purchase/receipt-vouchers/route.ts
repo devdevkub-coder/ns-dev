@@ -7,7 +7,7 @@ import { currentActor, documentBranchCode, normalizeDate, toDateOnly, toNumber }
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranches, listActiveSupplierPaymentOptions, listActiveSuppliers } from '@/lib/server/reference-master-cache'
-import { isPurchaseBillCancelledStatus, PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
+import { isPurchaseBillCancelledStatus } from '@/lib/purchase-bill-status'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -376,7 +376,7 @@ async function buildVoucherWriteData(
     })
     : null
   if (values.purchaseBillDocNo && !purchaseBill) throw new Error('ไม่พบบิลซื้อที่เลือก')
-  if (purchaseBill && isPurchaseBillCancelledStatus(purchaseBill.status as (typeof PURCHASE_BILL_CANCELLED_STATUSES)[number] | null)) {
+  if (purchaseBill && isPurchaseBillCancelledStatus(purchaseBill.status, purchaseBill.doc_no)) {
     throw new Error('บิลซื้อที่เลือกถูกยกเลิกแล้ว')
   }
   if (purchaseBill && values.supplierCode && purchaseBill.suppliers?.code !== values.supplierCode) {

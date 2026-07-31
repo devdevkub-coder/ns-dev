@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { parseInternalBigIntId, requireBusinessCode, requireDocumentNo, stringifyBusinessValue } from '@/lib/business-code'
 import { supplierPaymentFormSchema } from '@/lib/daily'
+import { requirePurchaseBillStatus } from '@/lib/purchase-bill-status'
 import {
   assertCompatiblePaymentDestinations,
   assertCompatiblePaymentRecipients,
@@ -1161,7 +1162,7 @@ export async function POST(request: Request) {
           note: values.notes ?? null,
           purchaseBillDocNo: lineBill.doc_no,
           purchaseBillId: lineBill.id,
-          toStatus: refreshedBill?.status ?? lineBill.status ?? 'unpaid',
+          toStatus: requirePurchaseBillStatus(refreshedBill?.status ?? lineBill.status, lineBill.doc_no),
         })
       }
 
