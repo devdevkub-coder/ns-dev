@@ -43,7 +43,7 @@ type WorkingPayload = {
     trend: 'better' | 'same' | 'worse'
   }
 }
-type StockProduct = { ageDays: number; code: string; daysSinceSale: number; id: string; marginPotential: number; metalGroup: string; name: string; qty: number; status: string; stdPrice: number; value: number; wac: number }
+type StockProduct = { ageDays: number; code: string; daysSinceSale: number; id: string; metalGroup: string; name: string; qty: number; status: string; value: number; wac: number }
 type StockPayload = {
   aging: { count: number; key: string; value: number }[]
   branches: BranchRow[]
@@ -52,8 +52,16 @@ type StockPayload = {
   products: StockProduct[]
   slowMoving: StockProduct[]
   sourceState: SourceState
-  summary: { itemCount: number; marginPotential: number; paidValue: number; totalQty: number; totalValue: number; unpaidValue: number }
+  summary: { itemCount: number; totalQty: number; totalValue: number; weightedAvgCost: number }
   topProducts: StockProduct[]
+}
+type StockHistoryPoint = { date: string; qty: number; refreshedAt: string | null; value: number; wac: number }
+type StockHistoryPayload = {
+  branches: BranchRow[]
+  filters: { branchId: string; from: string; to: string }
+  points: StockHistoryPoint[]
+  sourceState: SourceState
+  summary: { maxValue: number; maxWac: number; minValue: number; minWac: number; refreshedAt: string | null }
 }
 type ProfitPayload = {
   branches: BranchRow[]
@@ -68,8 +76,8 @@ type ProfitPayload = {
   summary: { bankFee: number; fxLoss: number; interestExpense: number; negTotal: number; outlierCount: number; productionLoss: number; stockLoss: number; totalLeak: number }
 }
 
-type StockProductColumnKey = 'code' | 'name' | 'metalGroup' | 'qty' | 'wac' | 'value' | 'ageDays' | 'stdPrice' | 'marginPotential'
-type SlowMovingColumnKey = 'code' | 'name' | 'metalGroup' | 'qty' | 'wac' | 'value' | 'daysSinceSale' | 'stdPrice' | 'marginPotential'
+type StockProductColumnKey = 'code' | 'name' | 'metalGroup' | 'qty' | 'wac' | 'value' | 'ageDays'
+type SlowMovingColumnKey = 'code' | 'name' | 'metalGroup' | 'qty' | 'wac' | 'value' | 'daysSinceSale'
 type StockTableTab = 'products' | 'slowMoving'
 type StockTableScopeFilterProps = {
   asOf: string
@@ -90,8 +98,6 @@ const stockProductColumns: Array<ResizableColumnDefinition<StockProductColumnKey
   { defaultWidth: 95, key: 'wac', minWidth: 80 },
   { defaultWidth: 110, key: 'value', minWidth: 90 },
   { defaultWidth: 105, key: 'ageDays', minWidth: 85 },
-  { defaultWidth: 110, key: 'stdPrice', minWidth: 80 },
-  { defaultWidth: 115, key: 'marginPotential', minWidth: 90 },
 ]
 
 const slowMovingColumns: Array<ResizableColumnDefinition<SlowMovingColumnKey>> = [
@@ -102,8 +108,6 @@ const slowMovingColumns: Array<ResizableColumnDefinition<SlowMovingColumnKey>> =
   { defaultWidth: 95, key: 'wac', minWidth: 80 },
   { defaultWidth: 115, key: 'value', minWidth: 90 },
   { defaultWidth: 130, key: 'daysSinceSale', minWidth: 100 },
-  { defaultWidth: 115, key: 'stdPrice', minWidth: 85 },
-  { defaultWidth: 120, key: 'marginPotential', minWidth: 95 },
 ]
 
 type NegMarginColumnKey = 'date' | 'docNo' | 'customer' | 'productName' | 'qty' | 'price' | 'unitCost' | 'loss'
@@ -175,6 +179,13 @@ function monthStart() {
 
 function localDateInputValue(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function addDaysInputValue(value: string, days: number) {
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  date.setDate(date.getDate() + days)
+  return localDateInputValue(date)
 }
 
 export function WorkingCapitalPageClient() {
@@ -352,8 +363,11 @@ export function WorkingCapitalPageClient() {
 export function StockFinancePageClient() {
   const [asOf, setAsOf] = useState(today())
   const [branchId, setBranchId] = useState('')
+  const historyFrom = useMemo(() => addDaysInputValue(asOf, -89), [asOf])
   const url = useMemo(() => `/api/finance-accounting/stock-finance?asOf=${asOf}${branchId ? `&branchId=${branchId}` : ''}`, [asOf, branchId])
+  const historyUrl = useMemo(() => `/api/finance-accounting/stock-finance/history?from=${historyFrom}&to=${asOf}${branchId ? `&branchId=${branchId}` : ''}`, [asOf, branchId, historyFrom])
   const { data, error, isLoading } = useApi<StockPayload>(url)
+  const { data: historyData, error: historyError, isLoading: isHistoryLoading } = useApi<StockHistoryPayload>(historyUrl)
   const total = Math.max(data?.summary.totalValue ?? 0, 1)
   const oldStock = data?.aging.find((row) => row.key === '90+')
   const stockStatusRows = [
@@ -368,12 +382,12 @@ export function StockFinancePageClient() {
   const topProducts = data?.topProducts ?? []
   const visibleTopProducts = showAllTopProducts ? topProducts : topProducts.slice(0, 5)
   const canToggleTopProducts = topProducts.length > 5
-  const opportunityValue = data?.summary.marginPotential ?? 0
   const oldStockPct = percent(oldStock?.value ?? 0, total)
 
   return (
     <section className="space-y-4">
       {error ? <ErrorBox message={error} /> : null}
+      {historyError ? <ErrorBox message={historyError} /> : null}
 
       <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
         <DateInput label="ณ วันที่" value={asOf} onChange={setAsOf} />
@@ -450,9 +464,9 @@ export function StockFinancePageClient() {
                 <span>WAC ตามตัวกรองปัจจุบัน</span>
               </div>
               <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <Mini label="จ่ายแล้ว" value={money(data?.summary.paidValue)} />
-                <Mini label="ยังไม่จ่าย" value={money(data?.summary.unpaidValue)} />
-                <Mini label="โอกาสกำไร" value={money(opportunityValue)} />
+                <Mini label="จำนวนคงเหลือ" value={money(data?.summary.totalQty)} />
+                <Mini label="WAC ถ่วงน้ำหนัก" value={money(data?.summary.weightedAvgCost)} />
+                <Mini label="รายการสินค้า" value={`${data?.summary.itemCount ?? 0}`} />
               </div>
             </div>
             <div className="rounded-md border border-amber-100 bg-amber-50/40 px-4 py-3 text-xs text-amber-800 lg:w-[220px]">
@@ -488,6 +502,8 @@ export function StockFinancePageClient() {
           </div>
         </Panel>
       </div>
+
+      <StockFinanceHistoryPanel isLoading={isHistoryLoading} points={historyData?.points ?? []} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Panel title="อายุสต็อกตามมูลค่า">{(data?.aging ?? []).map((row) => <AgingBar key={row.key} row={row} total={total} />)}</Panel>
@@ -685,6 +701,21 @@ function useApi<T>(url: string) {
 function money(value?: number) {
   const amount = value ?? 0
   return amount < 0 ? `(${formatMoney(Math.abs(amount))})` : formatMoney(amount)
+}
+
+function compactMoney(value: number) {
+  const abs = Math.abs(value)
+  if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
+  if (abs >= 1_000) return `${(value / 1_000).toFixed(0)}K`
+  return value.toFixed(0)
+}
+
+function shortDateLabel(value: string) {
+  return value.slice(5)
+}
+
+function Legend({ color, text }: { color: string; text: string }) {
+  return <span className="inline-flex items-center gap-1.5"><span className={`h-2.5 w-2.5 rounded-full ${color}`} />{text}</span>
 }
 
 function percent(value: number, total: number) {
@@ -906,6 +937,84 @@ function Donut({ colors, displayTotal, total, values }: { colors: string[]; disp
   return <svg viewBox="0 0 200 200" className="mx-auto h-36 w-36 shrink-0">{segments.map((segment, index) => <circle key={`${index}-${segment.value}`} cx="100" cy="100" fill="none" r="70" stroke={colors[index % colors.length]} strokeDasharray={`${segment.dash} 440`} strokeDashoffset={-segment.offset} strokeWidth="36" transform="rotate(-90 100 100)" />)}<text x="100" y="98" textAnchor="middle" fontSize="12" fill="#64748b">รวม</text><text x="100" y="115" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#1e293b">{money(centerTotal)}</text></svg>
 }
 
+function StockFinanceHistoryPanel({ isLoading, points }: { isLoading: boolean; points: StockHistoryPoint[] }) {
+  return (
+    <Panel title="ประวัติต้นทุนเฉลี่ยและมูลค่าสต็อก">
+      <StockFinanceHistoryChart isLoading={isLoading} points={points} />
+    </Panel>
+  )
+}
+
+function StockFinanceHistoryChart({ isLoading, points }: { isLoading: boolean; points: StockHistoryPoint[] }) {
+  const width = 760
+  const height = 280
+  const padding = { bottom: 36, left: 76, right: 76, top: 20 }
+  const chartWidth = width - padding.left - padding.right
+  const chartHeight = height - padding.top - padding.bottom
+  const valueMax = Math.max(1, ...points.map((point) => Math.abs(point.value))) * 1.1
+  const wacMax = Math.max(1, ...points.map((point) => Math.abs(point.wac))) * 1.1
+  const labelEvery = Math.max(1, Math.ceil(points.length / 7))
+  const xFor = (index: number) => padding.left + (points.length <= 1 ? chartWidth / 2 : (chartWidth / (points.length - 1)) * index)
+  const yValue = (value: number) => padding.top + chartHeight - (value / valueMax) * chartHeight
+  const yWac = (value: number) => padding.top + chartHeight - (value / wacMax) * chartHeight
+  const valuePath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${xFor(index)} ${yValue(point.value)}`).join(' ')
+  const wacPath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${xFor(index)} ${yWac(point.wac)}`).join(' ')
+  const valueTicks = Array.from({ length: 4 }, (_, index) => valueMax - (valueMax / 3) * index)
+  const wacTicks = Array.from({ length: 4 }, (_, index) => wacMax - (wacMax / 3) * index)
+
+  if (isLoading && points.length === 0) {
+    return <div className="flex h-72 items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">กำลังโหลดประวัติ</div>
+  }
+
+  if (points.length === 0) {
+    return <div className="flex h-72 items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">ไม่มีประวัติ Stock Finance ตามเงื่อนไขนี้</div>
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap gap-4">
+          <Legend color="bg-amber-500" text="มูลค่าสต็อก" />
+          <Legend color="bg-blue-500" text="WAC ถ่วงน้ำหนัก" />
+        </div>
+        <div className="font-medium text-slate-500">{points[0]?.date} - {points.at(-1)?.date}</div>
+      </div>
+      <div className="overflow-x-auto rounded-md bg-white p-2">
+        <svg aria-label="กราฟประวัติต้นทุนเฉลี่ยและมูลค่าสต็อก" className="h-[280px] min-w-[720px] w-full overflow-visible" preserveAspectRatio="none" role="img" viewBox={`0 0 ${width} ${height}`}>
+          <rect fill="#f8fafc" height={chartHeight} rx="8" width={chartWidth} x={padding.left} y={padding.top} />
+          {valueTicks.map((tick, index) => (
+            <g key={`value-${index}`}>
+              <line stroke="#e2e8f0" x1={padding.left} x2={padding.left + chartWidth} y1={yValue(tick)} y2={yValue(tick)} />
+              <text fill="#64748b" fontSize="11" textAnchor="end" x={padding.left - 8} y={yValue(tick) + 4}>{compactMoney(tick)}</text>
+            </g>
+          ))}
+          {wacTicks.map((tick, index) => (
+            <text fill="#2563eb" fontSize="11" key={`wac-${index}`} textAnchor="start" x={padding.left + chartWidth + 8} y={yWac(tick) + 4}>{compactMoney(tick)}</text>
+          ))}
+          <path d={valuePath} fill="none" stroke="#f59e0b" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
+          <path d={wacPath} fill="none" stroke="#2563eb" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
+          {points.map((point, index) => {
+            const x = xFor(index)
+            return (
+              <g key={point.date}>
+                <circle cx={x} cy={yValue(point.value)} fill="#f59e0b" r="3.5">
+                  <title>{`${point.date} มูลค่า ${money(point.value)}`}</title>
+                </circle>
+                <circle cx={x} cy={yWac(point.wac)} fill="#2563eb" r="3.5">
+                  <title>{`${point.date} WAC ${money(point.wac)}`}</title>
+                </circle>
+                {(points.length <= 8 || index % labelEvery === 0) ? (
+                  <text fill="#64748b" fontSize="11" textAnchor="middle" x={x} y={height - 10}>{shortDateLabel(point.date)}</text>
+                ) : null}
+              </g>
+            )
+          })}
+        </svg>
+      </div>
+    </div>
+  )
+}
+
 function AgingBar({ row, total }: { row: { count: number; key: string; value: number }; total: number }) {
   const isRisk = row.key === '90+'
   const isWatch = row.key.includes('60')
@@ -1041,7 +1150,7 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
     } else {
       setSortKey(key)
-      setSortDirection(key === 'value' || key === 'daysSinceSale' || key === 'marginPotential' ? 'desc' : 'asc')
+      setSortDirection(key === 'value' || key === 'daysSinceSale' ? 'desc' : 'asc')
     }
   }
 
@@ -1239,12 +1348,10 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
               <ResizableTableHead align="right" label="WAC" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="wac" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('wac', 'WAC')} />
               <ResizableTableHead align="right" label="มูลค่า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="value" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('value', 'มูลค่า')} />
               <ResizableTableHead align="right" label="ครั้งสุดท้ายขาย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="daysSinceSale" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('daysSinceSale', 'ครั้งสุดท้ายขาย')} />
-              <ResizableTableHead align="right" label="ราคามาตรฐาน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="stdPrice" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('stdPrice', 'ราคามาตรฐาน')} />
-              <ResizableTableHead align="right" label="โอกาสกำไร" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="marginPotential" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('marginPotential', 'โอกาสกำไร')} />
             </tr>
           </thead>
           <tbody>
-            {isLoading && !totalRows ? <tr><td className="py-8 text-center text-slate-400" colSpan={9}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading && !totalRows ? <tr><td className="py-8 text-center text-slate-400" colSpan={7}>กำลังโหลดข้อมูล</td></tr> : null}
             {pagedRows.map((row) => (
               <tr className="border-t border-slate-100 transition hover:bg-slate-50/50" key={row.id}>
                 <Td mono className="font-bold text-slate-700">{row.code}</Td>
@@ -1254,11 +1361,9 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
                 <Td align="right">{money(row.wac)}</Td>
                 <Td align="right" className="font-bold text-slate-900">{money(row.value)}</Td>
                 <Td align="right" className={row.daysSinceSale >= 9999 ? 'text-slate-600' : stockAgeTextClass(row.daysSinceSale)}>{lastSaleText(row.daysSinceSale)}</Td>
-                <Td align="right">{money(row.stdPrice)}</Td>
-                <Td align="right" className={row.marginPotential < 0 ? 'font-semibold text-red-700' : 'font-semibold text-emerald-700'}>{money(row.marginPotential)}</Td>
               </tr>
             ))}
-            {!isLoading && !totalRows ? <tr><td className="py-8 text-center text-slate-400" colSpan={9}>ไม่มี Slow Moving ตามเงื่อนไขนี้</td></tr> : null}
+            {!isLoading && !totalRows ? <tr><td className="py-8 text-center text-slate-400" colSpan={7}>ไม่มี Slow Moving ตามเงื่อนไขนี้</td></tr> : null}
           </tbody>
         </table>
       </div>
@@ -1283,8 +1388,6 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
                 <div><span className="text-slate-400">มูลค่า:</span> <span className="font-bold text-slate-900">{money(row.value)}</span></div>
                 <div><span className="text-slate-400">WAC:</span> <span className="font-medium text-slate-600">{money(row.wac)}</span></div>
                 <div><span className="text-slate-400">ครั้งสุดท้ายขาย:</span> <span className={row.daysSinceSale >= 9999 ? 'font-semibold text-slate-700' : `font-semibold ${stockAgeTextClass(row.daysSinceSale)}`}>{lastSaleText(row.daysSinceSale)}</span></div>
-                <div><span className="text-slate-400">ราคามาตรฐาน:</span> <span className="font-medium text-slate-600">{money(row.stdPrice)}</span></div>
-                <div><span className="text-slate-400">โอกาสกำไร:</span> <span className={row.marginPotential < 0 ? 'font-bold text-red-700' : 'font-bold text-emerald-700'}>{money(row.marginPotential)}</span></div>
               </div>
             </div>
           ))
@@ -1310,7 +1413,7 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
     } else {
       setSortKey(key)
-      setSortDirection(key === 'value' || key === 'ageDays' || key === 'marginPotential' ? 'desc' : 'asc')
+      setSortDirection(key === 'value' || key === 'ageDays' ? 'desc' : 'asc')
     }
   }
 
@@ -1554,12 +1657,10 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
               <ResizableTableHead align="right" label="WAC" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="wac" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('wac', 'WAC')} />
               <ResizableTableHead align="right" label="มูลค่า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="value" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('value', 'มูลค่า')} />
               <ResizableTableHead align="right" label="อายุสต็อก" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="ageDays" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('ageDays', 'อายุสต็อก')} />
-              <ResizableTableHead align="right" label="ราคามาตรฐาน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="stdPrice" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('stdPrice', 'ราคามาตรฐาน')} />
-              <ResizableTableHead align="right" label="โอกาสกำไร" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="marginPotential" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('marginPotential', 'โอกาสกำไร')} />
             </tr>
           </thead>
           <tbody>
-            {isLoading && !totalRows ? <tr><td className="py-8 text-center text-slate-400" colSpan={9}>กำลังโหลดข้อมูล</td></tr> : null}
+            {isLoading && !totalRows ? <tr><td className="py-8 text-center text-slate-400" colSpan={7}>กำลังโหลดข้อมูล</td></tr> : null}
             {pagedRows.map((row) => (
               <tr className="border-t border-slate-100 hover:bg-slate-50/50 transition" key={row.id}>
                 <Td mono className="font-bold text-amber-700">{row.code}</Td>
@@ -1569,11 +1670,9 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
                 <Td align="right">{money(row.wac)}</Td>
                 <Td align="right" className="font-bold text-slate-900">{money(row.value)}</Td>
                 <Td align="right" className={stockAgeTextClass(row.ageDays)}>{row.ageDays} วัน</Td>
-                <Td align="right">{money(row.stdPrice)}</Td>
-                <Td align="right" className="text-emerald-700 font-semibold">{money(row.marginPotential)}</Td>
               </tr>
             ))}
-            {!isLoading && !totalRows ? <tr><td className="py-8 text-center text-slate-400" colSpan={9}>ไม่พบ Stock ตามตัวกรองนี้</td></tr> : null}
+            {!isLoading && !totalRows ? <tr><td className="py-8 text-center text-slate-400" colSpan={7}>ไม่พบ Stock ตามตัวกรองนี้</td></tr> : null}
           </tbody>
         </table>
       </div>
@@ -1598,9 +1697,7 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
                 <div><span className="text-slate-400">จำนวน:</span> <span className="font-semibold text-slate-800">{money(row.qty)} กก.</span></div>
                 <div><span className="text-slate-400">มูลค่าสต็อก:</span> <span className="font-bold text-slate-900">{money(row.value)}</span></div>
                 <div><span className="text-slate-400">WAC:</span> <span className="font-medium text-slate-600">{money(row.wac)}</span></div>
-                <div><span className="text-slate-400">ราคามาตรฐาน:</span> <span className="font-medium text-slate-600">{money(row.stdPrice)}</span></div>
                 <div><span className="text-slate-400">อายุ Stock:</span> <span className={`font-semibold ${stockAgeTextClass(row.ageDays)}`}>{row.ageDays} วัน</span></div>
-                <div><span className="text-slate-400">โอกาสกำไร:</span> <span className="font-bold text-emerald-700">{money(row.marginPotential)}</span></div>
               </div>
             </div>
           ))

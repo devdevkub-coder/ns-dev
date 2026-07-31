@@ -3805,6 +3805,39 @@ model stock_ledger {
   @@schema("public")
 }
 
+model report_stock_finance_daily_snapshots {
+  id                           BigInt    @id @default(autoincrement())
+  snapshot_date                DateTime  @db.Date
+  branch_id                    BigInt
+  warehouse_id                 BigInt?
+  product_id                   BigInt
+  lot_no                       String?
+  output_category              String
+  not_available_for_sale       Boolean
+  qty                          Decimal   @db.Decimal(18, 3)
+  value                        Decimal   @db.Decimal(18, 2)
+  wac                          Decimal?  @db.Decimal(18, 8)
+  source_ledger_max_updated_at DateTime? @db.Timestamptz(6)
+  source_ledger_rows_count     Int
+  refreshed_at                 DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([snapshot_date, branch_id], map: "idx_report_stock_finance_daily_snapshots_date_branch")
+  @@index([product_id, snapshot_date], map: "idx_report_stock_finance_daily_snapshots_product_date")
+  @@schema("public")
+}
+
+model report_stock_finance_snapshot_invalidations {
+  id               BigInt    @id @default(autoincrement())
+  affected_date    DateTime  @db.Date
+  branch_id        BigInt?
+  source_ledger_id BigInt?
+  reason           String
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  resolved_at      DateTime? @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
 model supplier_advance_allocations {
   allocated_amount                 Decimal                            @db.Decimal(18, 2)
   allocated_subtotal_amount        Decimal                            @default(0) @db.Decimal(18, 2)

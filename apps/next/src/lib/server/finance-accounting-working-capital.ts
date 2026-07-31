@@ -1,16 +1,18 @@
-import type { Prisma } from '../../../generated/prisma/client'
-import { requireBusinessCode } from '@/lib/business-code'
+import { Prisma } from '../../../generated/prisma/client'
+import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
-import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { toBangkokDateOnly, toNumber } from '@/lib/server/daily'
+import { FinancialStatementInputError } from '@/lib/server/finance-accounting-statements'
 import { buildFinanceCashPosition } from '@/lib/server/finance-accounting-cash-position'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
-import { listActiveBranches } from '@/lib/server/reference-master-cache'
+import { listActiveBranches, listActiveBranchesByCodes } from '@/lib/server/reference-master-cache'
 
 const CANCELLED_STATUSES = ['cancelled', 'void', 'ยกเลิก']
 const DAY_MS = 86_400_000
 
 export type PeriodDaysFilter = {
+  allowedBranchCodes?: string[] | null
   asOf: Date
   branchId?: string
   periodDays: number
@@ -23,10 +25,17 @@ export type ProfitLeakFilter = {
   to: Date
 }
 
+export type StockFinanceHistoryFilter = {
+  allowedBranchCodes?: string[] | null
+  branchId?: string
+  from: Date
+  to: Date
+}
+
 type JsonRecord = Record<string, unknown>
 
 function dateOnly(date: Date) {
-  return toDateOnly(date)
+  return toBangkokDateOnly(date)
 }
 
 function endOfDay(date: Date) {
@@ -74,6 +83,58 @@ async function listBranches() {
   })
 }
 
+async function listScopedBranches(allowedBranchCodes?: string[] | null) {
+  const branches = allowedBranchCodes === undefined || allowedBranchCodes === null
+    ? await listActiveBranches()
+    : await listActiveBranchesByCodes(allowedBranchCodes)
+  return branches.map((branch) => {
+    const code = requireBusinessCode(branch.code, `สาขา ${branch.id}`)
+    return { code, id: code, name: branch.name }
+  })
+}
+
+async function resolveStockBranchIds(filter: Pick<PeriodDaysFilter, 'allowedBranchCodes' | 'branchId'>) {
+  const selectedBranch = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
+  if (filter.branchId && !selectedBranch) {
+    throw new FinancialStatementInputError(`ไม่พบสาขาที่ใช้งาน: ${filter.branchId}`)
+  }
+
+  if (filter.allowedBranchCodes === undefined || filter.allowedBranchCodes === null) {
+    return selectedBranch ? [selectedBranch.id] : null
+  }
+
+  if (!filter.allowedBranchCodes.length) return []
+
+  const allowedBranches = await listActiveBranchesByCodes(filter.allowedBranchCodes)
+  const allowedIds = allowedBranches.map((branch) => parseInternalBigIntId(branch.id)).filter((id): id is bigint => id !== null)
+  if (selectedBranch) {
+    return allowedIds.some((id) => id === selectedBranch.id) ? [selectedBranch.id] : []
+  }
+  return allowedIds
+}
+
+function stockBranchSql(branchIds: bigint[] | null) {
+  return branchIds == null
+    ? Prisma.sql`TRUE`
+    : branchIds.length === 0
+      ? Prisma.sql`FALSE`
+      : Prisma.sql`snap.branch_id IN (${Prisma.join(branchIds)})`
+}
+
+function stockFinanceSourceState() {
+  return {
+    basis: 'Stock Finance reads stock_ledger movements up to the selected as-of date, grouped by stock balance dimensions before product/status summary.',
+    limitations: [
+      'WAC = stock value as of date / stock quantity as of date from the same stock_ledger cutoff.',
+      'Stock balances are first grouped by product, branch, warehouse, lot, output category, and not-available-for-sale flag.',
+      'Paid/unpaid stock value and price-opportunity are not shown because this page has no approved source-of-truth linkage for those facts.',
+      'Pending-out stock_holds is outside WAC and is not included in this operational stock value report.',
+      'No financing, reclass, stock adjustment, production loss posting, payment, receipt, or GL write is enabled.',
+    ],
+    writeActionsEnabled: false,
+  }
+}
+
 async function cashAsOf(asOf: Date, branchId?: bigint | null) {
   const position = await buildFinanceCashPosition({ asOf, branchIds: branchId == null ? null : [branchId] })
   return position.cashAndBank
@@ -99,46 +160,96 @@ function jsonString(...values: unknown[]) {
   return ''
 }
 
-async function stockSnapshot(asOf: Date, branchId?: bigint | null) {
-  const rows = await prisma.stock_ledger.findMany({
-    include: { products: { select: { code: true, metal_group: true, name: true, std_price: true } } },
-    orderBy: [{ date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-    take: 50000,
-    where: { ...branchWhere(branchId), date: { lte: endOfDay(asOf) } },
-  })
-  const byProduct = new Map<string, { ageDays: number; code: string; daysSinceSale: number; id: string; metalGroup: string; name: string; qty: number; status: string; stdPrice: number; value: number }>()
-  let paidValue = 0
-  let unpaidValue = 0
-  rows.forEach((row: (typeof rows)[number]) => {
-    const productId = row.product_id == null ? 'UNKNOWN' : String(row.product_id)
-    const current = byProduct.get(productId) ?? {
-      ageDays: 0,
-      code: row.products?.code ?? '',
-      daysSinceSale: 9999,
-      id: row.products?.code ?? '',
-      metalGroup: row.products?.metal_group ?? '-',
-      name: row.products?.name ?? '-',
-      qty: 0,
-      status: row.output_category ?? 'OTHER',
-      stdPrice: toNumber(row.products?.std_price),
-      value: 0,
+type StockSnapshotRow = {
+  age_date: Date | null
+  code: string | null
+  days_since_sale_date: Date | null
+  metal_group: string | null
+  name: string | null
+  product_id: bigint | null
+  qty: Prisma.Decimal | number | null
+  status: string | null
+  value: Prisma.Decimal | number | null
+}
+
+async function stockSnapshot(asOf: Date, branchIds?: bigint[] | null) {
+  if (branchIds && branchIds.length === 0) {
+    return { products: [], totalQty: 0, totalValue: 0 }
+  }
+
+  const branchFilter = branchIds == null
+    ? Prisma.sql`TRUE`
+    : Prisma.sql`sl.branch_id IN (${Prisma.join(branchIds)})`
+  const rows = await prisma.$queryRaw<StockSnapshotRow[]>`
+    WITH ledger_scope AS (
+      SELECT
+        sl.product_id,
+        sl.branch_id,
+        sl.warehouse_id,
+        sl.lot_no,
+        COALESCE(sl.output_category, 'OTHER') AS status,
+        COALESCE(sl.not_available_for_sale, false) AS not_available_for_sale,
+        sl.date,
+        COALESCE(sl.qty_in, 0)::numeric AS qty_in,
+        COALESCE(sl.qty_out, 0)::numeric AS qty_out,
+        COALESCE(sl.value_in, 0)::numeric AS value_in,
+        COALESCE(sl.value_out, 0)::numeric AS value_out
+      FROM stock_ledger sl
+      WHERE sl.date <= ${endOfDay(asOf)}
+        AND ${branchFilter}
+    ),
+    bucket_balance AS (
+      SELECT
+        product_id,
+        branch_id,
+        warehouse_id,
+        lot_no,
+        status,
+        not_available_for_sale,
+        SUM(qty_in - qty_out) AS qty,
+        SUM(value_in - value_out) AS value,
+        MAX(CASE WHEN qty_in > 0 THEN date END) AS last_in_date,
+        MAX(CASE WHEN qty_out > 0 THEN date END) AS last_out_date
+      FROM ledger_scope
+      GROUP BY product_id, branch_id, warehouse_id, lot_no, status, not_available_for_sale
+      HAVING ABS(SUM(qty_in - qty_out)) > 0.001 OR ABS(SUM(value_in - value_out)) > 0.01
+    )
+    SELECT
+      bb.product_id,
+      p.code,
+      p.name,
+      p.metal_group,
+      bb.status,
+      SUM(bb.qty) AS qty,
+      SUM(bb.value) AS value,
+      MAX(bb.last_in_date) AS age_date,
+      MAX(bb.last_out_date) AS days_since_sale_date
+    FROM bucket_balance bb
+    LEFT JOIN products p ON p.id = bb.product_id
+    GROUP BY bb.product_id, p.code, p.name, p.metal_group, bb.status
+    ORDER BY SUM(bb.value) DESC
+  `
+  const products = rows.map((row) => {
+    const code = row.code ?? ''
+    const status = row.status ?? 'OTHER'
+    const qty = toNumber(row.qty)
+    const value = toNumber(row.value)
+    return {
+      ageDays: row.age_date ? Math.max(0, Math.floor((asOf.getTime() - row.age_date.getTime()) / DAY_MS)) : 0,
+      code,
+      daysSinceSale: row.days_since_sale_date ? Math.max(0, Math.floor((asOf.getTime() - row.days_since_sale_date.getTime()) / DAY_MS)) : 9999,
+      id: `${row.product_id == null ? 'UNKNOWN' : String(row.product_id)}:${status}`,
+      metalGroup: row.metal_group ?? '-',
+      name: row.name ?? '-',
+      qty,
+      status,
+      value,
     }
-    current.qty += toNumber(row.qty_in) - toNumber(row.qty_out)
-    const netValue = toNumber(row.value_in) - toNumber(row.value_out)
-    current.value += netValue
-    if (row.paid) paidValue += netValue
-    else unpaidValue += netValue
-    if (toNumber(row.qty_in) > 0) current.ageDays = Math.max(current.ageDays, Math.max(0, Math.floor((asOf.getTime() - row.date.getTime()) / DAY_MS)))
-    if (toNumber(row.qty_out) > 0) current.daysSinceSale = Math.min(current.daysSinceSale, Math.max(0, Math.floor((asOf.getTime() - row.date.getTime()) / DAY_MS)))
-    byProduct.set(productId, current)
   })
-  const products = Array.from(byProduct.values()).filter((row) => Math.abs(row.qty) > 0.001 || Math.abs(row.value) > 0.01)
   return {
-    paidValue: Math.max(0, paidValue),
     products,
     totalQty: products.reduce((sum, row) => sum + row.qty, 0),
     totalValue: products.reduce((sum, row) => sum + row.value, 0),
-    unpaidValue: Math.max(0, unpaidValue),
   }
 }
 
@@ -153,7 +264,7 @@ async function workingInputs(filter: PeriodDaysFilter) {
     prisma.sales_bills.findMany({ include: { customers: { select: { name: true } } }, take: 20000, where: { ...notCancelledWhere(), ...branch, date: { lte: to } } }),
     prisma.purchase_bills.findMany({ include: { suppliers: { select: { name: true } } }, take: 20000, where: { ...notCancelledWhere(), ...branch, date: { lte: to } } }),
     prisma.loan_schedules.findMany({ take: 10000, where: { due_date: { gte: filter.asOf, lte: addDays(filter.asOf, 365) }, payment_status: { not: 'Paid' } } }),
-    stockSnapshot(filter.asOf, branchRef?.id ?? null),
+    stockSnapshot(filter.asOf, branchRef?.id ? [branchRef.id] : null),
     cashAsOf(filter.asOf, branchRef?.id ?? null),
     listBranches(),
   ])
@@ -222,10 +333,10 @@ export async function buildWorkingCapital(filter: PeriodDaysFilter) {
 }
 
 export async function buildStockFinance(filter: PeriodDaysFilter) {
-  const branchRef = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
-  const stock = await stockSnapshot(filter.asOf, branchRef?.id ?? null)
-  const branches = await listBranches()
-  const totalValue = Math.max(0, stock.totalValue)
+  const branchIds = await resolveStockBranchIds(filter)
+  const stock = await stockSnapshot(filter.asOf, branchIds)
+  const branches = await listScopedBranches(filter.allowedBranchCodes)
+  const totalValue = stock.totalValue
   const byStatus = stock.products.reduce<Record<string, number>>((acc, row) => {
     const key = ['RM', 'WIP', 'FG'].includes(row.status) ? row.status : 'OTHER'
     acc[key] = (acc[key] ?? 0) + row.value
@@ -244,7 +355,6 @@ export async function buildStockFinance(filter: PeriodDaysFilter) {
   })
   const productRows = stock.products.map((row) => ({
     ...row,
-    marginPotential: (row.stdPrice - (row.qty > 0 ? row.value / row.qty : 0)) * row.qty,
     wac: row.qty > 0 ? row.value / row.qty : 0,
   }))
   const productsByValue = [...productRows].sort((left, right) => right.value - left.value)
@@ -255,16 +365,94 @@ export async function buildStockFinance(filter: PeriodDaysFilter) {
     filters: { asOf: dateOnly(filter.asOf), branchId: filter.branchId ?? 'ALL' },
     products: productsByValue,
     slowMoving: productsByValue.filter((row) => row.daysSinceSale > 60).slice(0, 15),
-    sourceState: sourceState(['Paid/unpaid stock is approximated from current positive stock value until bill-level settlement linkage is finalized.']),
+    sourceState: stockFinanceSourceState(),
     summary: {
       itemCount: productRows.length,
-      marginPotential: productRows.reduce((sum: number, row: (typeof productRows)[number]) => sum + row.marginPotential, 0),
-      paidValue: stock.paidValue,
       totalQty: stock.totalQty,
       totalValue,
-      unpaidValue: stock.unpaidValue,
+      weightedAvgCost: stock.totalQty > 0 ? stock.totalValue / stock.totalQty : 0,
     },
     topProducts: productsByValue.slice(0, 10),
+  }
+}
+
+type StockFinanceHistoryRow = {
+  refreshed_at: Date | null
+  snapshot_date: Date
+  total_qty: Prisma.Decimal | number | null
+  total_value: Prisma.Decimal | number | null
+  wac: Prisma.Decimal | number | null
+}
+
+async function refreshStockFinanceDailySnapshots(from: Date, to: Date, branchIds: bigint[] | null) {
+  if (branchIds?.length === 0) return
+  const branchArraySql = branchIds == null
+    ? Prisma.sql`NULL::bigint[]`
+    : Prisma.sql`ARRAY[${Prisma.join(branchIds)}]::bigint[]`
+  await prisma.$executeRaw`
+    select public.rebuild_stock_finance_daily_snapshots(
+      ${dateOnly(from)}::date,
+      ${dateOnly(to)}::date,
+      ${branchArraySql}
+    )
+  `
+}
+
+export async function buildStockFinanceHistory(filter: StockFinanceHistoryFilter) {
+  if (Number.isNaN(filter.from.getTime()) || Number.isNaN(filter.to.getTime()) || filter.from > filter.to) {
+    throw new FinancialStatementInputError('ช่วงวันที่ประวัติ Stock Finance ไม่ถูกต้อง')
+  }
+
+  const branchIds = await resolveStockBranchIds(filter)
+  await refreshStockFinanceDailySnapshots(filter.from, filter.to, branchIds)
+
+  const branchFilter = stockBranchSql(branchIds)
+  const rows = await prisma.$queryRaw<StockFinanceHistoryRow[]>`
+    with days as (
+      select generate_series(${dateOnly(filter.from)}::date, ${dateOnly(filter.to)}::date, interval '1 day')::date as snapshot_date
+    ),
+    daily as (
+      select
+        snap.snapshot_date,
+        sum(snap.qty) as total_qty,
+        sum(snap.value) as total_value,
+        max(snap.refreshed_at) as refreshed_at
+      from public.report_stock_finance_daily_snapshots snap
+      where snap.snapshot_date between ${dateOnly(filter.from)}::date and ${dateOnly(filter.to)}::date
+        and ${branchFilter}
+      group by snap.snapshot_date
+    )
+    select
+      days.snapshot_date,
+      coalesce(daily.total_qty, 0) as total_qty,
+      coalesce(daily.total_value, 0) as total_value,
+      case when coalesce(daily.total_qty, 0) <> 0 then daily.total_value / daily.total_qty else 0 end as wac,
+      daily.refreshed_at
+    from days
+    left join daily on daily.snapshot_date = days.snapshot_date
+    order by days.snapshot_date asc
+  `
+  const points = rows.map((row) => ({
+    date: dateOnly(row.snapshot_date),
+    qty: toNumber(row.total_qty),
+    refreshedAt: row.refreshed_at?.toISOString() ?? null,
+    value: toNumber(row.total_value),
+    wac: toNumber(row.wac),
+  }))
+  const values = points.map((point) => point.value)
+  const wacValues = points.map((point) => point.wac)
+  return {
+    branches: await listScopedBranches(filter.allowedBranchCodes),
+    filters: { branchId: filter.branchId ?? 'ALL', from: dateOnly(filter.from), to: dateOnly(filter.to) },
+    points,
+    sourceState: stockFinanceSourceState(),
+    summary: {
+      maxValue: Math.max(0, ...values),
+      maxWac: Math.max(0, ...wacValues),
+      minValue: Math.min(0, ...values),
+      minWac: Math.min(0, ...wacValues),
+      refreshedAt: points.map((point) => point.refreshedAt).filter(Boolean).at(-1) ?? null,
+    },
   }
 }
 
