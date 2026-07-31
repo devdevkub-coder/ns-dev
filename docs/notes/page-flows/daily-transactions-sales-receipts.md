@@ -294,7 +294,7 @@ Desktop queue table ใช้ความกว้างทุกคอลัม
 3. บันทึกรายการบิลใน `customer_receipt_allocations`
 4. สร้าง `bank_statement` เงินเข้า ตามบัญชีรับเงินแต่ละแถว
 5. ปรับยอด `received_amount` และ `receivable_balance` ของ `sales_bills`
-6. ปรับสถานะบิลขายเป็น partial/paid ตามยอดค้างที่เหลือ
+6. ปรับสถานะบิลขายจาก source-of-truth เดียว: `unreceived` เมื่อยังไม่ตัด AR, `partial` เมื่อตัดบางส่วน, และ `received` เมื่อตัดครบ
 7. เพิ่ม log ใน `customer_receipt_status_logs`
 8. เพิ่ม timeline/log ของ Sales Bill ตาม document policy
 
@@ -484,7 +484,7 @@ Cancel contract:
 }
 ```
 
-Cancel does not delete the original receipt, allocation, or bank facts. It marks `customer_receipts`, allocation rows, and compatibility `receipts` rows as `cancelled`, appends a reversing `bank_statement` money-out row with `ref_type = RCP-CANCEL`, restores `sales_bills.received_amount` / `receivable_balance`, recalculates SB status, and appends receipt/SB status logs.
+Cancel does not delete the original receipt, allocation, or bank facts. It marks `customer_receipts`, allocation rows, and compatibility `receipts` rows as `cancelled`, appends a reversing `bank_statement` money-out row with `ref_type = RCP-CANCEL`, restores `sales_bills.received_amount` / `receivable_balance`, recalculates SB status, and appends receipt/SB status logs. When a cancellation restores the full AR balance, the SB status must be persisted as `unreceived`; it must not write or translate a legacy `open`/`paid` value.
 
 Edit contract uses cancel-and-reissue, not silent in-place mutation. The UI can submit an existing `id` through `POST /api/sales/receipts`, or API callers can use:
 

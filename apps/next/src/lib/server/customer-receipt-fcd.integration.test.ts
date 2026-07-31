@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { cancelCustomerReceipt, createCustomerReceipt } from './customer-receipts'
 import { prisma } from './prisma'
+import { SALES_BILL_STATUS } from './sales-bill-history'
 
 vi.mock('server-only', () => ({}))
 
@@ -81,7 +82,7 @@ describe.runIf(enabled)('customer receipt foreign integration', () => {
         { account_id: fcdAccount.id, currency_code: functionalCurrencyCode },
         { account_id: fcdAccount.id, currency_code: foreignCurrencyCode },
       ] })
-      await tx.sales_bills.createMany({ data: Object.entries({ thb: 100, partial: 3500, multiOne: 875, multiTwo: 875, fxGain: 3400 }).map(([key, total]) => ({ branch_id: branch.id, customer_id: customer.id, date: new Date('2026-07-30'), doc_no: billDocNos[key]!, receivable_balance: total, received_amount: 0, status: 'open', total_amount: total, updated_by: actor })) })
+      await tx.sales_bills.createMany({ data: Object.entries({ thb: 100, partial: 3500, multiOne: 875, multiTwo: 875, fxGain: 3400 }).map(([key, total]) => ({ branch_id: branch.id, customer_id: customer.id, date: new Date('2026-07-30'), doc_no: billDocNos[key]!, receivable_balance: total, received_amount: 0, status: SALES_BILL_STATUS.UNRECEIVED, total_amount: total, updated_by: actor })) })
     })
   })
 
@@ -117,6 +118,7 @@ describe.runIf(enabled)('customer receipt foreign integration', () => {
     ])
     expect(receipt?.status).toBe('cancelled')
     expect(Number(bill?.receivable_balance)).toBe(100)
+    expect(bill?.status).toBe(SALES_BILL_STATUS.UNRECEIVED)
     expect(statements).toHaveLength(2)
   }, 60_000)
 
@@ -152,7 +154,9 @@ describe.runIf(enabled)('customer receipt foreign integration', () => {
     ])
     expect(cancelledReceipt?.status).toBe('cancelled')
     expect(Number(restoredPartial?.receivable_balance)).toBe(3500)
+    expect(restoredPartial?.status).toBe(SALES_BILL_STATUS.UNRECEIVED)
     expect(restoredMultiBills.every((bill) => Number(bill.receivable_balance) === 875)).toBe(true)
+    expect(restoredMultiBills.every((bill) => bill.status === SALES_BILL_STATUS.UNRECEIVED)).toBe(true)
     expect(Number(ledgerTotals._sum.native_amount_in ?? 0) - Number(ledgerTotals._sum.native_amount_out ?? 0)).toBe(100)
   }, 60_000)
 })

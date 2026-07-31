@@ -7,7 +7,7 @@ import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/
 import { refreshCustomerAdvanceAllocation } from '@/lib/server/customer-advance-settlement'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranchesByCodes } from '@/lib/server/reference-master-cache'
-import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
+import { appendSalesBillStatusLog, SALES_BILL_STATUS, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { getSalesBillDetail } from '@/lib/server/sales-bill-detail'
 import { activeSalesReceiptCount, isSalesBillActiveForCancel } from '@/lib/server/sales-bill-cancel-policy'
 import { reversePoSellUsage } from '@/lib/server/sales-bill-po-sell-reversal'
@@ -295,7 +295,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           cancelled_at: cancelledAt,
           cancelled_by: actor,
           receivable_balance: 0,
-          status: 'cancelled',
+          status: SALES_BILL_STATUS.CANCELLED,
           updated_at: cancelledAt,
           updated_by: actor,
         },
@@ -310,7 +310,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         meta: { reason: 'sales_bill_cancel' },
         note: values.note,
         salesBillId: updated.id,
-        toStatus: 'cancelled',
+        toStatus: SALES_BILL_STATUS.CANCELLED,
       })
 
       return updated

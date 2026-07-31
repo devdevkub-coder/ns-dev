@@ -12,6 +12,7 @@ import { settlementDifferenceReasonForReceipt } from '@/lib/server/customer-rece
 import { currentTransactionDate } from '@/lib/server/transaction-date'
 import { findFcdRateSnapshot } from '@/lib/server/fcd-rate-snapshot'
 import { calculateSettlementBookAmount, fcdFxRate, requireFcdInputMoneyAmount } from '@/lib/server/fcd-money'
+import { SALES_BILL_STATUS } from '@/lib/server/sales-bill-history'
 import { Prisma } from '../../../generated/prisma/client'
 
 const RECEIPT_DOC_PREFIX = 'RCP'
@@ -20,9 +21,6 @@ const RECEIPT_CANCEL_REF_TYPE = 'RCP-CANCEL'
 const CUSTOMER_RECEIPT_STATUS_ACTIVE = 'active'
 const CUSTOMER_RECEIPT_STATUS_CANCELLED = 'cancelled'
 const CUSTOMER_RECEIPT_STATUS_PENDING = 'pending'
-const SALES_BILL_STATUS_OPEN = 'open'
-const SALES_BILL_STATUS_PARTIAL = 'partial'
-const SALES_BILL_STATUS_PAID = 'paid'
 const MONEY_EPSILON = 0.005
 // Foreign multi-bill posting persists linked RCP, BST and FCD facts atomically.
 const CUSTOMER_RECEIPT_TRANSACTION_OPTIONS = { timeout: 30_000 }
@@ -455,7 +453,7 @@ async function createCustomerReceiptInTransaction(
     const outstandingBefore = roundMoney(toNumber(bill.receivable_balance))
     const outstandingAfter = roundMoney(outstandingBefore - allocatedArAmount)
     const receivedAfter = roundMoney(toNumber(bill.received_amount) + allocatedArAmount)
-    const nextStatus = outstandingAfter <= MONEY_EPSILON ? SALES_BILL_STATUS_PAID : SALES_BILL_STATUS_PARTIAL
+    const nextStatus = outstandingAfter <= MONEY_EPSILON ? SALES_BILL_STATUS.RECEIVED : SALES_BILL_STATUS.PARTIAL
 
     const legacyReceiptLine = await tx.receipts.create({
       data: {
@@ -1098,10 +1096,10 @@ async function cancelCustomerReceiptInTransaction(
     const outstandingAfter = roundMoney(toNumber(bill.receivable_balance) + allocatedArAmount)
     const totalAmount = roundMoney(toNumber(bill.total_amount))
     const nextStatus = receivedAfter <= MONEY_EPSILON
-      ? SALES_BILL_STATUS_OPEN
+      ? SALES_BILL_STATUS.UNRECEIVED
       : outstandingAfter <= MONEY_EPSILON || receivedAfter >= totalAmount
-        ? SALES_BILL_STATUS_PAID
-        : SALES_BILL_STATUS_PARTIAL
+        ? SALES_BILL_STATUS.RECEIVED
+        : SALES_BILL_STATUS.PARTIAL
 
     await tx.customer_receipt_allocations.update({
       data: {
@@ -1524,7 +1522,7 @@ async function createForeignSalesBillReceiptInTransaction(
     const outstandingBefore = decimalReceiptMoney(toNumber(bill.receivable_balance), 'ยอดค้างรับ')
     const outstandingAfter = outstandingBefore.minus(item.arAmount)
     const receivedAfter = decimalReceiptMoney(toNumber(bill.received_amount), 'ยอดรับแล้ว').plus(item.arAmount)
-    const nextStatus = outstandingAfter.lte(0) ? SALES_BILL_STATUS_PAID : SALES_BILL_STATUS_PARTIAL
+    const nextStatus = outstandingAfter.lte(0) ? SALES_BILL_STATUS.RECEIVED : SALES_BILL_STATUS.PARTIAL
     const legacyReceipt = await tx.receipts.create({
       data: { account_id: primaryAccount.id, amount: item.line.receiptAmount, bank_fee: 0, bill_id: bill.id, branch_id: selectedBranch.id, created_by: actor, customer_id: customer.id, date: normalizeDate(values.date), discount: item.line.discountAmount, doc_no: docNo, fee: 0, lines: { customerReceiptId: receipt.id.toString(), lineNo: index + 1, paymentMethodCode: paymentMethod.code, salesBillDocNo: bill.doc_no }, method: paymentMethod.name, net_amount: item.line.receiptAmount, notes: values.notes, status: CUSTOMER_RECEIPT_STATUS_ACTIVE, updated_by: actor, voucher_id: docNo, withholding_tax: item.line.withholdingTaxAmount },
     })

@@ -14,7 +14,7 @@ import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jo
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSalesChannelReferenceByCode } from '@/lib/server/sales-channel-reference'
 import { activeSalesReceiptCount, activeSalesReceiptCountByBillId, isSalesBillActiveForCancel, salesBillCancelState } from '@/lib/server/sales-bill-cancel-policy'
-import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
+import { appendSalesBillStatusLog, SALES_BILL_STATUS, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { appendPoSellAllocationLogs, PO_SELL_ALLOCATION_ACTION } from '@/lib/server/po-sell-allocation-history'
 import { salesBillLineFactsForBills, type SalesBillLineFactRow } from '@/lib/server/sales-bill-line-facts'
 import { consumeActiveWtoPendingOut, releaseConsumedWtoPendingOutForSalesBill, reopenConsumedWtoPendingOutForSalesBill, WtoPendingOutError } from '@/lib/server/stock-holds'
@@ -204,7 +204,7 @@ function billJson(row: SalesBillRow, activeReceiptCount = 0, lineCount?: number)
     receivableBalance: toNumber(row.receivable_balance),
     receivedAmount: toNumber(row.received_amount),
     refNo: row.ref_no ?? '',
-    status: row.status ?? 'open',
+    status: row.status,
     subtotal: toNumber(row.subtotal),
     totalAmount: toNumber(row.total_amount),
     transactionMode: row.transaction_mode ?? 'STOCK',
@@ -1893,7 +1893,7 @@ export async function POST(request: Request) {
     const settledTotals = customerAdvanceAllocation
       ? applyCustomerAdvanceToSalesTotals(values, vatRatePercent, customerAdvanceAllocation.allocatedSubtotalAmount)
       : totals
-    const salesBillStatus = settledTotals.totalAmount <= 0.01 ? 'received' : 'unreceived'
+    const salesBillStatus = settledTotals.totalAmount <= 0.01 ? SALES_BILL_STATUS.RECEIVED : SALES_BILL_STATUS.UNRECEIVED
 
     const productByCode = new Map(products.map((product) => [requireBusinessCode(product.code, `สินค้า ${product.id}`), product]))
     const parsedProductIds = requestedProductCodes.map((productCode) => productByCode.get(productCode)?.id ?? null)
@@ -3097,7 +3097,7 @@ export async function PATCH(request: Request) {
         ? applyCustomerAdvanceToSalesTotals(values, vatRatePercent, customerAdvanceAllocation.allocatedSubtotalAmount)
         : totals
       const customerAdvanceApplied = customerAdvanceAllocation?.allocatedTotalAmount ?? 0
-      const salesBillStatus = settledTotals.totalAmount <= 0.01 ? 'received' : 'unreceived'
+      const salesBillStatus = settledTotals.totalAmount <= 0.01 ? SALES_BILL_STATUS.RECEIVED : SALES_BILL_STATUS.UNRECEIVED
       await prisma.$transaction(async (tx) => {
         let stockCostDelta = 0
         let activeSalesBillLines = bill.sales_bill_lines
@@ -3691,7 +3691,7 @@ export async function PATCH(request: Request) {
       // 1. Mark status to cancelled and clear balances
       await tx.sales_bills.update({
         data: {
-          status: 'cancelled',
+          status: SALES_BILL_STATUS.CANCELLED,
           receivable_balance: 0,
           received_amount: 0,
           paid_amount: 0,
@@ -3845,7 +3845,7 @@ export async function PATCH(request: Request) {
         },
         note: reason,
         salesBillId: bill.id,
-        toStatus: 'cancelled',
+        toStatus: SALES_BILL_STATUS.CANCELLED,
       })
 
       if (isStockBill) {

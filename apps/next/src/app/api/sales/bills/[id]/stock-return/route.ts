@@ -241,6 +241,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         })
       }
 
+      if (!bill.status) throw new Error(`Sales Bill ${bill.doc_no} ไม่มีสถานะสำหรับบันทึกประวัติ`)
+
       await appendSalesBillStatusLog(tx, {
         action: SALES_BILL_STATUS_ACTION.STATUS_SYNCED,
         actor,
@@ -256,7 +258,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         },
         note: values.reason ?? values.note ?? 'รับของคืนจาก WTO',
         salesBillId: bill.id,
-        toStatus: bill.status ?? 'open',
+        toStatus: bill.status,
       })
 
       return {
