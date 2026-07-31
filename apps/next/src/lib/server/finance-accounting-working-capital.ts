@@ -1,7 +1,7 @@
 import { Prisma } from '../../../generated/prisma/client'
 import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
-import { toBangkokDateOnly, toNumber } from '@/lib/server/daily'
+import { toBangkokDateOnly, toBangkokEndOfDay, toNumber } from '@/lib/server/daily'
 import { FinancialStatementInputError } from '@/lib/server/finance-accounting-statements'
 import { buildFinanceCashPosition } from '@/lib/server/finance-accounting-cash-position'
 import { prisma } from '@/lib/server/prisma'
@@ -39,9 +39,7 @@ function dateOnly(date: Date) {
 }
 
 function endOfDay(date: Date) {
-  const next = new Date(date)
-  next.setHours(23, 59, 59, 999)
-  return next
+  return toBangkokEndOfDay(date)
 }
 
 function addDays(date: Date, days: number) {
