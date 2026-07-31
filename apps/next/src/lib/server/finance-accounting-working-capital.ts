@@ -10,6 +10,9 @@ import { listActiveBranches, listActiveBranchesByCodes } from '@/lib/server/refe
 
 const CANCELLED_STATUSES = ['cancelled', 'void', 'ยกเลิก']
 const DAY_MS = 86_400_000
+const STOCK_FINANCE_OUTPUT_CATEGORIES = ['RM', 'WIP', 'FG'] as const
+
+type StockFinanceOutputCategory = (typeof STOCK_FINANCE_OUTPUT_CATEGORIES)[number]
 
 export type PeriodDaysFilter = {
   allowedBranchCodes?: string[] | null
@@ -170,6 +173,11 @@ type StockSnapshotRow = {
   value: Prisma.Decimal | number | null
 }
 
+function requireStockFinanceOutputCategory(value: string | null): StockFinanceOutputCategory {
+  if (value === 'RM' || value === 'WIP' || value === 'FG') return value
+  throw new FinancialStatementInputError('stock_ledger.output_category ต้องเป็น RM, WIP หรือ FG')
+}
+
 async function stockSnapshot(asOf: Date, branchIds?: bigint[] | null) {
   if (branchIds && branchIds.length === 0) {
     return { products: [], totalQty: 0, totalValue: 0 }
@@ -185,13 +193,13 @@ async function stockSnapshot(asOf: Date, branchIds?: bigint[] | null) {
         sl.branch_id,
         sl.warehouse_id,
         sl.lot_no,
-        COALESCE(sl.output_category, 'OTHER') AS status,
-        COALESCE(sl.not_available_for_sale, false) AS not_available_for_sale,
+        sl.output_category AS status,
+        sl.not_available_for_sale,
         sl.date,
-        COALESCE(sl.qty_in, 0)::numeric AS qty_in,
-        COALESCE(sl.qty_out, 0)::numeric AS qty_out,
-        COALESCE(sl.value_in, 0)::numeric AS value_in,
-        COALESCE(sl.value_out, 0)::numeric AS value_out
+        sl.qty_in::numeric AS qty_in,
+        sl.qty_out::numeric AS qty_out,
+        sl.value_in::numeric AS value_in,
+        sl.value_out::numeric AS value_out
       FROM stock_ledger sl
       WHERE sl.date <= ${endOfDay(asOf)}
         AND ${branchFilter}
@@ -229,7 +237,7 @@ async function stockSnapshot(asOf: Date, branchIds?: bigint[] | null) {
   `
   const products = rows.map((row) => {
     const code = row.code ?? ''
-    const status = row.status ?? 'OTHER'
+    const status = requireStockFinanceOutputCategory(row.status)
     const qty = toNumber(row.qty)
     const value = toNumber(row.value)
     return {
@@ -335,11 +343,10 @@ export async function buildStockFinance(filter: PeriodDaysFilter) {
   const stock = await stockSnapshot(filter.asOf, branchIds)
   const branches = await listScopedBranches(filter.allowedBranchCodes)
   const totalValue = stock.totalValue
-  const byStatus = stock.products.reduce<Record<string, number>>((acc, row) => {
-    const key = ['RM', 'WIP', 'FG'].includes(row.status) ? row.status : 'OTHER'
-    acc[key] = (acc[key] ?? 0) + row.value
+  const byStatus = stock.products.reduce<Record<StockFinanceOutputCategory, number>>((acc, row) => {
+    acc[row.status] += row.value
     return acc
-  }, { FG: 0, OTHER: 0, RM: 0, WIP: 0 })
+  }, { FG: 0, RM: 0, WIP: 0 })
   const aging = [
     { count: 0, key: '0-30', value: 0 },
     { count: 0, key: '31-60', value: 0 },
@@ -382,14 +389,52 @@ type StockFinanceHistoryRow = {
   wac: Prisma.Decimal | number | null
 }
 
+type StockFinanceRefreshPlanRow = {
+  rebuild_from: Date | null
+}
+
 async function refreshStockFinanceDailySnapshots(from: Date, to: Date, branchIds: bigint[] | null) {
   if (branchIds?.length === 0) return
   const branchArraySql = branchIds == null
     ? Prisma.sql`NULL::bigint[]`
     : Prisma.sql`ARRAY[${Prisma.join(branchIds)}]::bigint[]`
+  const [plan] = await prisma.$queryRaw<StockFinanceRefreshPlanRow[]>`
+    with invalidated as (
+      select min(inv.affected_date) as snapshot_date
+      from public.report_stock_finance_snapshot_invalidations inv
+      where inv.resolved_at is null
+        and inv.affected_date <= ${dateOnly(to)}::date
+        and (${branchArraySql} is null or inv.branch_id = any(${branchArraySql}))
+    ),
+    scoped_branches as (
+      select distinct sl.branch_id
+      from public.stock_ledger sl
+      where sl.date < ((${dateOnly(to)}::date + 1)::timestamp at time zone 'Asia/Bangkok')
+        and (${branchArraySql} is null or sl.branch_id = any(${branchArraySql}))
+    ),
+    missing as (
+      select min(days.snapshot_at::date) as snapshot_date
+      from generate_series(${dateOnly(from)}::date, ${dateOnly(to)}::date, interval '1 day') as days(snapshot_at)
+      cross join scoped_branches branch
+      where not exists (
+        select 1
+        from public.report_stock_finance_daily_snapshot_refreshes refresh
+        where refresh.snapshot_date = days.snapshot_at::date
+          and refresh.branch_id = branch.branch_id
+      )
+    )
+    select min(snapshot_date) as rebuild_from
+    from (
+      select snapshot_date from invalidated
+      union all
+      select snapshot_date from missing
+    ) candidates
+    where snapshot_date is not null
+  `
+  if (!plan?.rebuild_from) return
   await prisma.$executeRaw`
     select public.rebuild_stock_finance_daily_snapshots(
-      ${dateOnly(from)}::date,
+      ${dateOnly(plan.rebuild_from)}::date,
       ${dateOnly(to)}::date,
       ${branchArraySql}
     )

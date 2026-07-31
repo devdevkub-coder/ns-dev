@@ -76,6 +76,14 @@ describe('GET /api/finance-accounting/stock-finance', () => {
     expect(mocks.buildStockFinance).not.toHaveBeenCalled()
   })
 
+  it('requires an as-of date instead of using today', async () => {
+    const response = await GET(new NextRequest('http://localhost/api/finance-accounting/stock-finance'))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ error: 'ณ วันที่ต้องอยู่ในรูปแบบ YYYY-MM-DD' })
+    expect(mocks.buildStockFinance).not.toHaveBeenCalled()
+  })
+
   it('returns builder input errors with the original status', async () => {
     mocks.buildStockFinance.mockRejectedValue(new FinancialStatementInputError('ไม่พบสาขาที่ใช้งาน: MISSING'))
 

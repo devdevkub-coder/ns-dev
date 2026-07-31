@@ -12,6 +12,7 @@ import { Select } from '@/components/ui/Select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { STOCK_FINANCE_HISTORY_DAYS } from '@/lib/stock-finance'
 
 type BranchRow = { code: string; id: string; name: string }
 type SourceState = { basis: string; limitations: string[]; writeActionsEnabled: false }
@@ -363,7 +364,7 @@ export function WorkingCapitalPageClient() {
 export function StockFinancePageClient() {
   const [asOf, setAsOf] = useState(today())
   const [branchId, setBranchId] = useState('')
-  const historyFrom = useMemo(() => addDaysInputValue(asOf, -89), [asOf])
+  const historyFrom = useMemo(() => addDaysInputValue(asOf, -(STOCK_FINANCE_HISTORY_DAYS - 1)), [asOf])
   const url = useMemo(() => `/api/finance-accounting/stock-finance?asOf=${asOf}${branchId ? `&branchId=${branchId}` : ''}`, [asOf, branchId])
   const historyUrl = useMemo(() => `/api/finance-accounting/stock-finance/history?from=${historyFrom}&to=${asOf}${branchId ? `&branchId=${branchId}` : ''}`, [asOf, branchId, historyFrom])
   const { data, error, isLoading } = useApi<StockPayload>(url)
@@ -374,7 +375,6 @@ export function StockFinancePageClient() {
     { color: 'bg-blue-500', key: 'RM', label: 'วัตถุดิบรอผลิต', value: data?.byStatus.RM ?? 0 },
     { color: 'bg-amber-500', key: 'WIP', label: 'ระหว่างผลิต', value: data?.byStatus.WIP ?? 0 },
     { color: 'bg-emerald-500', key: 'FG', label: 'พร้อมขาย', value: data?.byStatus.FG ?? 0 },
-    { color: 'bg-slate-400', key: 'อื่นๆ', label: 'สถานะอื่น', value: data?.byStatus.OTHER ?? 0 },
   ]
   const [showAllTopProducts, setShowAllTopProducts] = useState(false)
   const [stockTableTab, setStockTableTab] = useState<StockTableTab>('products')

@@ -92,7 +92,7 @@ finance/accounting read model: Stock Finance Analysis
 - ปรับหน้า `/finance-accounting/stock-finance` แบบ presentation-only โดยไม่เปลี่ยน API, formula, cutoff, หรือ permission
 - ลำดับการอ่านหน้าจอคือ ภาพรวมมูลค่าสต็อก -> สถานะสต็อกตามการผลิต -> อายุสต็อก/สินค้าอันดับสูงสุด -> insight การเงิน -> สินค้าหมุนช้า
 - การ์ดภาพรวมต้องให้ `มูลค่าสต็อกรวม`, `จ่ายแล้ว`, `ยังไม่จ่าย`, `โอกาสกำไร`, และ `เงินจม 90+ วัน` อ่านได้ทันทีเพื่อใช้ตัดสินใจด้าน working capital
-- `RM/WIP/FG/อื่นๆ` เป็นสถานะสต็อกตามการผลิต ไม่ใช่สถานะเอกสาร และยังใช้ค่าจาก read model เดิม
+- `RM/WIP/FG` เป็นประเภทสต็อกตามการผลิต ไม่ใช่สถานะเอกสาร; `stock_ledger.output_category` ต้องเป็นหนึ่งในสามค่านี้เท่านั้น และห้ามใช้รหัสคลังหรือ bucket `อื่นๆ` แทนข้อมูลผิด
 - `อายุสต็อก` ต้องเน้นช่วงเสี่ยง เช่น `90+ วัน` ให้เห็นชัด แต่ไม่เปลี่ยนเงื่อนไขการคำนวณฝั่ง server
 - ตารางสินค้าหมุนช้ายังคงเป็น read-only Top 15 ที่ไม่ขายเกิน 60 วัน และใช้สำหรับตรวจรายการที่ควรเร่งระบายหรือทบทวนราคา
 
@@ -118,6 +118,7 @@ finance/accounting read model: Stock Finance Analysis
   - เลือกสาขาเดี่ยว = แสดงเฉพาะสาขานั้น และ API ต้องตอบ 403 ถ้าสาขาไม่อยู่ในสิทธิ์ผู้ใช้
   - ผู้ใช้ที่มีสิทธิ์ 2 สาขาจะเห็น dropdown เฉพาะ 2 สาขานั้น และมุมมองรวมจะรวมแค่ 2 สาขานั้น
 - Source of truth ของตัวเลข stock/WAC คือ `stock_ledger` ตาม cutoff `asOf`; API เป็น L5 business fact และต้องส่ง `Cache-Control: private, no-store`
+- `asOf` เป็น required API input รูปแบบ `YYYY-MM-DD`; API ห้ามเลือกวันปัจจุบันแทนเมื่อผู้เรียกไม่ส่งค่า
 - ก่อนสรุปเป็น product/status rows ต้อง aggregate จาก `stock_ledger` ด้วย stock balance dimensions: `product_id`, `branch_id`, `warehouse_id`, `lot_no`, `output_category`, และ `not_available_for_sale`
 - สูตร WAC ของหน้า: `stock value as of date / stock quantity as of date` โดยใช้ cutoff เดียวกันจาก `stock_ledger`
 - `pending_out` จาก `stock_holds` ไม่รวมใน WAC ของหน้านี้ เพราะเป็น hold/reservation fact แยกจาก stock valuation
@@ -128,16 +129,18 @@ finance/accounting read model: Stock Finance Analysis
 
 - เพิ่ม daily snapshot read model สำหรับกราฟประวัติ WAC/มูลค่าสต็อก:
   - `public.report_stock_finance_daily_snapshots` เก็บ snapshot ระดับ `snapshot_date + branch + warehouse + product + lot + output_category + not_available_for_sale`
+  - `public.report_stock_finance_daily_snapshot_refreshes` บันทึกว่าแต่ละ `snapshot_date + branch` ถูก refresh แล้ว แม้ยอดวันนั้นเป็นศูนย์และไม่มี detail snapshot row
   - `public.report_stock_finance_snapshot_invalidations` เก็บ invalidation จาก `stock_ledger`
   - trigger `trg_stock_ledger_mark_stock_finance_snapshot_invalidated` mark วันที่กระทบเมื่อ `stock_ledger` insert/update/delete
   - function `public.rebuild_stock_finance_daily_snapshots(p_from, p_to, p_branch_ids)` rebuild snapshot จาก `stock_ledger` เท่านั้น
 - Migration `20260731062542_create_stock_finance_daily_snapshots.sql` ถูก apply/record บน SIT `vbjlkxbytccklhqvxjuu` เท่านั้นตามคำสั่ง; ไม่ apply dev-target
-- `GET /api/finance-accounting/stock-finance/history` refresh snapshot ช่วงวันที่ที่ขอแล้วอ่านกราฟจาก snapshot table; ไม่อ่าน current-state ย้อนแทนอดีต
+- `GET /api/finance-accounting/stock-finance/history` ตรวจเฉพาะวันที่/สาขาที่ยังไม่เคย refresh หรือมี invalidation แล้ว rebuild ตั้งแต่วันกระทบถึง cutoff; ไม่ rebuild ทุกครั้งที่เปิดกราฟ และไม่อ่าน current-state ย้อนแทนอดีต
 - history API ใช้ permission/scope เดียวกับหน้าหลัก:
   - `ทุกสาขา` รวมเฉพาะ effective branch scope
   - เลือกสาขาเดี่ยวต้องอยู่ใน scope
   - response เป็น L5 business fact และใช้ `Cache-Control: private, no-store`
 - หาก `stock_ledger` มี row ที่ขาด `branch_id` หรือ `product_id` ในช่วงที่ต้อง rebuild ให้ fail closed เพราะ snapshot grain ต้องมีสอง dimension นี้; ห้ามสร้าง bucket UNKNOWN เพื่อกลบข้อมูลผิด
+- `stock_ledger.date`, `output_category`, `not_available_for_sale`, `qty_in`, `qty_out`, `value_in`, และ `value_out` เป็น required facts; หากค่าใดไม่ตรง contract ให้ rebuild fail closed แล้วแก้ที่ ledger/migration ก่อนสร้าง snapshot ใหม่
 - กราฟบนหน้าแสดง 90 วันย้อนหลังจาก `asOf` ปัจจุบัน และเปลี่ยนตามตัวกรองสาขาเดียวกับ summary/table
 - กราฟคงอยู่บนหน้า Stock Finance; SVG ต้องรักษา aspect ratio และจำกัดความกว้างบนจอใหญ่เพื่อไม่ให้เส้น/แกนถูกยืดตาม panel. หน้าจอแคบใช้ horizontal scroll โดยไม่บีบกราฟหรือป้ายแกน
 

@@ -5,11 +5,13 @@ import { bangkokDateStart, toBangkokDateOnly } from '@/lib/server/daily'
 import { getFinanceBranchCodeIntersection } from '@/lib/server/finance-accounting-branch-scope'
 import { FinancialStatementInputError } from '@/lib/server/finance-accounting-statements'
 import { buildStockFinance } from '@/lib/server/finance-accounting-working-capital'
+import { STOCK_FINANCE_HISTORY_DAYS } from '@/lib/stock-finance'
 
 export const runtime = 'nodejs'
 
-function parseDateOnly(value: string | null, fallback: string) {
-  const dateOnly = value?.trim() || fallback
+function parseDateOnly(value: string | null) {
+  const dateOnly = value?.trim()
+  if (!dateOnly) throw new FinancialStatementInputError('ณ วันที่ต้องอยู่ในรูปแบบ YYYY-MM-DD')
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
     throw new FinancialStatementInputError('ณ วันที่ต้องอยู่ในรูปแบบ YYYY-MM-DD')
   }
@@ -36,9 +38,9 @@ export async function GET(request: NextRequest) {
 
     const payload = await buildStockFinance({
       allowedBranchCodes,
-      asOf: parseDateOnly(params.get('asOf'), toBangkokDateOnly(new Date())),
+      asOf: parseDateOnly(params.get('asOf')),
       branchId,
-      periodDays: 90,
+      periodDays: STOCK_FINANCE_HISTORY_DAYS,
     })
 
     return NextResponse.json(payload, { headers: { 'Cache-Control': 'private, no-store' } })
