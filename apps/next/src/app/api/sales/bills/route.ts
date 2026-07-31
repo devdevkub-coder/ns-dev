@@ -14,7 +14,7 @@ import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jo
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSalesChannelReferenceByCode } from '@/lib/server/sales-channel-reference'
 import { activeSalesReceiptCount, activeSalesReceiptCountByBillId, isSalesBillActiveForCancel, salesBillCancelState } from '@/lib/server/sales-bill-cancel-policy'
-import { appendSalesBillStatusLog, SALES_BILL_STATUS, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
+import { appendSalesBillStatusLog, requireSalesBillStatus, SALES_BILL_STATUS, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { appendPoSellAllocationLogs, PO_SELL_ALLOCATION_ACTION } from '@/lib/server/po-sell-allocation-history'
 import { salesBillLineFactsForBills, type SalesBillLineFactRow } from '@/lib/server/sales-bill-line-facts'
 import { consumeActiveWtoPendingOut, releaseConsumedWtoPendingOutForSalesBill, reopenConsumedWtoPendingOutForSalesBill, WtoPendingOutError } from '@/lib/server/stock-holds'
@@ -204,7 +204,7 @@ function billJson(row: SalesBillRow, activeReceiptCount = 0, lineCount?: number)
     receivableBalance: toNumber(row.receivable_balance),
     receivedAmount: toNumber(row.received_amount),
     refNo: row.ref_no ?? '',
-    status: row.status,
+    status: requireSalesBillStatus(row.status, row.doc_no),
     subtotal: toNumber(row.subtotal),
     totalAmount: toNumber(row.total_amount),
     transactionMode: row.transaction_mode ?? 'STOCK',

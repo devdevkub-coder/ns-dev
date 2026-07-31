@@ -484,7 +484,7 @@ Cancel contract:
 }
 ```
 
-Cancel does not delete the original receipt, allocation, or bank facts. It marks `customer_receipts`, allocation rows, and compatibility `receipts` rows as `cancelled`, appends a reversing `bank_statement` money-out row with `ref_type = RCP-CANCEL`, restores `sales_bills.received_amount` / `receivable_balance`, recalculates SB status, and appends receipt/SB status logs. When a cancellation restores the full AR balance, the SB status must be persisted as `unreceived`; it must not write or translate a legacy `open`/`paid` value.
+Cancel does not delete the original receipt, allocation, or bank facts. It marks `customer_receipts`, allocation rows, and compatibility `receipts` rows as `cancelled`, appends a reversing `bank_statement` money-out row with `ref_type = RCP-CANCEL`, restores `sales_bills.received_amount` / `receivable_balance`, recalculates SB status, and appends receipt/SB status logs. When a cancellation restores the full AR balance, the SB status is persisted as `unreceived`.
 
 Edit contract uses cancel-and-reissue, not silent in-place mutation. The UI can submit an existing `id` through `POST /api/sales/receipts`, or API callers can use:
 

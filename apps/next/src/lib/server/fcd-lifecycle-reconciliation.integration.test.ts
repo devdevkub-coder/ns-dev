@@ -4,6 +4,7 @@ import { postFcdConversion, reverseFcdConversion } from './fcd-conversion-postin
 import { postFcdReceiptAccountSplits, reverseFcdReceiptAccountSplits } from './fcd-receipt-posting'
 import { postFcdRevaluation, reverseFcdRevaluation } from './fcd-revaluation-posting'
 import { prisma } from './prisma'
+import { SALES_BILL_STATUS } from './sales-bill-history'
 
 const enabled = process.env.FCD_WRITE_INTEGRATION_TEST === '1'
 const actor = `fcd-lifecycle-test:${randomUUID()}`
@@ -56,7 +57,7 @@ describe.runIf(enabled)('FCD receipt lifecycle reconciliation integration', () =
         { account_id: fcdAccount.id, currency_code: functionalCurrencyCode },
         { account_id: thbAccount.id, currency_code: functionalCurrencyCode },
       ] })
-      const bill = await tx.sales_bills.create({ data: { branch_id: branch.id, customer_id: fixtureCustomer.id, date: new Date('2026-07-01'), doc_no: `SBL${suffix}`, receivable_balance: 3500, received_amount: 0, status: 'open', total_amount: 3500, updated_by: actor } })
+      const bill = await tx.sales_bills.create({ data: { branch_id: branch.id, customer_id: fixtureCustomer.id, date: new Date('2026-07-01'), doc_no: `SBL${suffix}`, receivable_balance: 3500, received_amount: 0, status: SALES_BILL_STATUS.UNRECEIVED, total_amount: 3500, updated_by: actor } })
       salesBillId = bill.id
       const receipt = await tx.customer_receipts.create({ data: {
         account_code_snapshot: fcdAccount.code, account_id: fcdAccount.id, account_name_snapshot: fcdAccount.name, bank_fee_total: 0, branch_id: branch.id, carrying_thb_amount: 3500, created_by: actor, customer_code_snapshot: fixtureCustomer.code, customer_id: fixtureCustomer.id, customer_name_snapshot: fixtureCustomer.name, customer_transferred_native_amount: 100, date: new Date('2026-07-01'), discount_total: 0, doc_no: receiptDocNo, fx_rate: 35, fx_rate_date: new Date('2026-07-01'), fx_rate_overridden: true, fx_rate_override_reason: 'integration fixture', fx_rate_type: 'integration', gross_amount: 3500, net_cash_in: 3500, payment_method_code_snapshot: fixtureMethod.code, payment_method_id: fixtureMethod.id, payment_method_name_snapshot: fixtureMethod.name, receipt_currency_code: foreignCurrencyCode, received_native_amount: 100, settlement_book_amount: 3500, settlement_fx_difference: 0, source_type: 'SB', status: 'active', updated_by: actor, withholding_tax_total: 0,

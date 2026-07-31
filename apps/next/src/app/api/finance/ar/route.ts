@@ -10,6 +10,7 @@ import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-ref
 import { normalizeDate, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import { getFinanceBranchCodeIntersection } from '@/lib/server/finance-accounting-branch-scope'
 import { prisma } from '@/lib/server/prisma'
+import { requireSalesBillStatus } from '@/lib/server/sales-bill-history'
 import {
   listActiveBranches,
   listActiveBranchesByCodes,
@@ -192,7 +193,7 @@ export async function GET(request: Request) {
           refNo: bill.ref_no ?? '',
           salesBillId: bill.id.toString(),
           sourceOfTruth: 'sales_bills',
-          status: bill.status ?? 'open',
+          status: requireSalesBillStatus(bill.status, bill.doc_no),
           totalAmount,
           transactionMode: bill.transaction_mode ?? 'STOCK',
           vatInvoiceNo: bill.vat_invoice_no ?? '',
@@ -357,7 +358,7 @@ export async function GET(request: Request) {
         },
       }
     })
-    const statuses = Array.from(new Set(bills.map((bill) => bill.status ?? 'open'))).sort()
+    const statuses = Array.from(new Set(bills.map((bill) => requireSalesBillStatus(bill.status, bill.doc_no)))).sort()
 
     return NextResponse.json({
       byBucket,

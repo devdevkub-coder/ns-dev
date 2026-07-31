@@ -138,10 +138,8 @@ function salesBillStatusLabel(status: string | null | undefined) {
     case 'partial':
       return 'รับเงินบางส่วน'
     case 'received':
-    case 'paid':
       return 'รับเงินครบแล้ว'
     case 'cancelled':
-    case 'canceled':
       return 'ยกเลิก'
     default:
       return status ?? '-'

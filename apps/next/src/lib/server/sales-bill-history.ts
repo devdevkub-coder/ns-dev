@@ -13,6 +13,15 @@ export const SALES_BILL_STATUS = {
 
 export type SalesBillStatus = typeof SALES_BILL_STATUS[keyof typeof SALES_BILL_STATUS]
 
+const SALES_BILL_STATUS_VALUES = new Set<string>(Object.values(SALES_BILL_STATUS))
+
+export function requireSalesBillStatus(status: string | null | undefined, docNo: string): SalesBillStatus {
+  if (!status || !SALES_BILL_STATUS_VALUES.has(status)) {
+    throw new Error(`Sales Bill ${docNo} มีสถานะไม่ถูกต้อง`)
+  }
+  return status as SalesBillStatus
+}
+
 export const SALES_BILL_STATUS_ACTION = {
   ALLOCATION_CORRECTED: 'allocation_corrected',
   CANCELLED: 'cancelled',

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { SALES_BILL_STATUS } from '@/lib/server/sales-bill-history'
 
 const mocks = vi.hoisted(() => ({
   buildFinanceCashPosition: vi.fn(),
@@ -45,7 +46,7 @@ beforeEach(() => {
     cashAndBank: 1_019,
   })
   mocks.salesBillFindMany.mockResolvedValue([
-    { credit_term: 0, customers: { credit_term: 0, name: 'Customer A' }, date: new Date('2026-07-30T00:00:00.000Z'), doc_no: 'SB-1', due_date: null, receivable_balance: 500, status: 'open' },
+    { credit_term: 0, customers: { credit_term: 0, name: 'Customer A' }, date: new Date('2026-07-30T00:00:00.000Z'), doc_no: 'SB-1', due_date: null, receivable_balance: 500, status: SALES_BILL_STATUS.UNRECEIVED },
   ])
   mocks.purchaseBillFindMany.mockResolvedValue([
     { date: new Date('2026-07-30T00:00:00.000Z'), doc_no: 'PB-1', payable_balance: 250, status: 'open', suppliers: { name: 'Supplier A' } },

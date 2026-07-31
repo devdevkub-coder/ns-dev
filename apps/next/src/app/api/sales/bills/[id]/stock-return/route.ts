@@ -6,7 +6,7 @@ import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, 
 import { currentActor, normalizeDate, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranchesByCodes } from '@/lib/server/reference-master-cache'
-import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
+import { appendSalesBillStatusLog, requireSalesBillStatus, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { closeActiveWtoPendingOutForSalesBillReturn, WtoPendingOutError } from '@/lib/server/stock-holds'
 import { appendWtoPendingOutEventsForHoldKeys } from '@/lib/server/weight-ticket-pending-out-events'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
@@ -241,8 +241,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         })
       }
 
-      if (!bill.status) throw new Error(`Sales Bill ${bill.doc_no} ไม่มีสถานะสำหรับบันทึกประวัติ`)
-
       await appendSalesBillStatusLog(tx, {
         action: SALES_BILL_STATUS_ACTION.STATUS_SYNCED,
         actor,
@@ -258,7 +256,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         },
         note: values.reason ?? values.note ?? 'รับของคืนจาก WTO',
         salesBillId: bill.id,
-        toStatus: bill.status,
+        toStatus: requireSalesBillStatus(bill.status, bill.doc_no),
       })
 
       return {
