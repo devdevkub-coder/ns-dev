@@ -1556,10 +1556,12 @@ function weightTicketOptionJson(
     const usedQty = usageMap.get(receiptSummaryUsageKey(row.id, summary.id)) ?? 0
     const netWeight = toNumber(summary.net_weight)
     const remainingWeight = Math.max(0, netWeight - usedQty)
+    const remainingRatio = netWeight > 0 ? remainingWeight / netWeight : 0
     const productCode = summary.product_id != null ? (productCodeById.get(summary.product_id) ?? '') : ''
     return {
+      baseWeight: (toNumber(summary.gross_weight) - toNumber(summary.container_deduction_weight)) * remainingRatio,
       billedWeight: toNumber(summary.billed_weight),
-      deductWeight: toNumber(summary.deduct_weight),
+      deductWeight: toNumber(summary.deduct_weight) * remainingRatio,
       grossWeight: toNumber(summary.gross_weight),
       hasMixedDeductionProfiles: summary.has_mixed_deduction_profiles ?? false,
       id: `${row.doc_no}:${productCode}:${summary.line_count ?? 0}`,
@@ -1572,7 +1574,6 @@ function weightTicketOptionJson(
         const outwardLineId = outwardLineIdByInternalLineId.get(bridge.weight_ticket_line_id)
         return outwardLineId ? [outwardLineId] : []
       }),
-      totalDeductWeight: toNumber(summary.container_deduction_weight) + toNumber(summary.deduct_weight),
     }
   }).filter((summary) => summary.remainingWeight > 0.0001)
 

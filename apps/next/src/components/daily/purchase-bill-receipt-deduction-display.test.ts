@@ -11,10 +11,12 @@ const pageSource = readFileSync(
   'utf8',
 ).replaceAll('\r\n', '\n')
 
-describe('purchase bill receipt deduction display', () => {
-  it('shows the combined container and impurity deduction from the WTI summary', () => {
-    expect(purchaseRouteSource).toContain('totalDeductWeight: toNumber(summary.container_deduction_weight) + toNumber(summary.deduct_weight)')
-    expect(pageSource).toContain('totalDeductWeight: number')
-    expect(pageSource).toContain('formatMoney(sourceSummary?.totalDeductWeight ?? sourceSummary?.deductWeight ?? item.deductWeight)')
+describe('purchase bill receipt weight display', () => {
+  it('starts from WTI weight after container deduction and keeps impurity deduction separate', () => {
+    expect(purchaseRouteSource).toContain('baseWeight: (toNumber(summary.gross_weight) - toNumber(summary.container_deduction_weight)) * remainingRatio')
+    expect(purchaseRouteSource).toContain('deductWeight: toNumber(summary.deduct_weight) * remainingRatio')
+    expect(pageSource).toContain('baseWeight: number')
+    expect(pageSource).toContain('formatMoney(sourceSummary?.baseWeight ?? item.grossWeight)')
+    expect(pageSource).toContain('formatMoney(sourceSummary?.deductWeight ?? item.deductWeight)')
   })
 })
