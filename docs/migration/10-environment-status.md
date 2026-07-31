@@ -1,5 +1,23 @@
 # 10 Environment Status
 
+### Customer Receipt Payment Method Simplification 2026-07-31
+
+- Migration `20260731130000_limit_active_payment_methods_to_cash_and_bank_transfer.sql` is prepared to retain only the configured active `cash` and `bank` methods: `PM-001` and `PM-002`. It deactivates cheque, PromptPay, FCD transfer, and international transfer master rows without changing historical receipt snapshots.
+- Customer Receipt reads only active Payment Method Master rows. Functional-currency receipts therefore offer cash and bank transfer; foreign receipts filter the same source to the bank method, then enforce an FCD account that supports the selected currency. No runtime method-name or method-code condition is introduced.
+
+### Customer Receipt Google Finance Rate And Rate-Type Retirement 2026-07-31
+
+- Applied and recorded `20260731120000_remove_customer_receipt_fx_rate_type_requirement.sql` on SIT (`vbjlkxbytccklhqvxjuu`) through the non-pooling PostgreSQL connection. It supersedes the former foreign-receipt `fx_rate_type` requirement while retaining the deferred reconciliation guard for native amount, settlement THB, carrying THB, FCD split, and allocation facts.
+- No transaction data was changed or backfilled. Preflight found the migration absent and the former rate-type constraint present; postflight confirmed the migration history row exists and the obsolete constraint is removed.
+- Foreign RCP now obtains a suggested current-day USD/THB rate from the shared Google Finance service, shows the quote timestamp, and allows the user to enter or amend the rate before saving. There is no default rate or provider fallback; a missing quote requires manual input.
+
+### Customer Receipt Single-Native-Amount Contract 2026-07-31
+
+- Applied and recorded `20260731110000_simplify_foreign_customer_receipt_native_amount.sql` on SIT (`vbjlkxbytccklhqvxjuu`) through the non-pooling PostgreSQL connection. A blanket `supabase db push` was not used because SIT has known migration-history drift.
+- Preflight found `0` active foreign receipts and `0` active headers with unequal `customer_transferred_native_amount` and `received_native_amount`; no transaction data was backfilled or rewritten.
+- The deferred receipt guard now requires the two persisted native columns to be equal for new active foreign RCPs. It derives carrying THB as settlement THB minus Bank Fee, reconciles FCD splits to the one native amount, and permits both `SB` and `CADV` source types.
+- Postflight confirmed the history row, native-equality guard, CADV branch, and `0` active foreign receipts. Customer UAT was not changed.
+
 ### Dev/SIT Product Image Schema And Migration-History Reconciliation 2026-07-30
 
 - Applied and recorded `20260730190000_reconcile_legacy_product_image_names_schema.sql` in dev-target and SIT. It verifies that any remaining `public.products.image_names` values are empty before dropping the legacy column; Dev had the column with zero legacy values, while SIT already had no column. Postflight confirms the column is absent in both environments.

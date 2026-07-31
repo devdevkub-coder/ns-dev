@@ -302,9 +302,8 @@ export function PlStatementPageClient({ initialFilters }: { initialFilters?: { b
   const operatingProfit = displayData?.summary.operatingProfit ?? 0
   const netProfitBeforeTax = displayData?.summary.netProfitBeforeTax ?? 0
   const cogs = displayData?.summary.cogs ?? 0
-  const opex = (displayData?.summary.expenses ?? 0) + (displayData?.summary.depreciation ?? 0)
+  const opex = (displayData?.summary.expenses ?? 0) + (displayData?.summary.depreciation ?? 0) - (displayData?.summary.fxNet ?? 0)
   const interest = displayData?.summary.interest ?? 0
-  const fxNet = displayData?.summary.fxNet ?? 0
   const stockRevenue = displayData?.split.stock.revenue ?? 0
   const stockCogs = displayData?.split.stock.cogs ?? 0
   const tradingRevenue = displayData?.split.trading.revenue ?? 0
@@ -574,7 +573,7 @@ export function PlStatementPageClient({ initialFilters }: { initialFilters?: { b
 
       <div className="grid grid-cols-1 gap-4">
         <AnalysisPanel subtitle={isDealView ? 'มุมมองผู้บริหาร: แทนต้นทุน WAC ด้วย Deal Cost จาก Cost Allocator สำหรับรายการที่จับคู่ได้ (ไม่ใช่งบจริง)' : `เริ่มจากรายได้ แล้วหักต้นทุนและค่าใช้จ่ายเพื่อให้เห็นว่ากำไรหายไปตรงไหน (${activeBasis})`} title="องค์ประกอบกำไรก่อนภาษี">
-          <Waterfall legacyRed rows={[['Revenue (รายได้)', revenue], [isDealView ? '-Deal Cost (ต้นทุนตามดีล)' : '-COGS (ต้นทุนขาย)', -cogs], ['= GP (กำไรขั้นต้น)', grossProfit], ['-Operating Expenses', -opex], ['-Interest', -interest], ['FX Gain/(Loss)', fxNet], ['Asset Disposal Gain/(Loss)', displayData.summary.assetDisposalNet], ['= NP (กำไรก่อนภาษี)', netProfitBeforeTax]]} />
+          <Waterfall legacyRed rows={[['Revenue (รายได้)', revenue], [isDealView ? '-Deal Cost (ต้นทุนตามดีล)' : '-COGS (ต้นทุนขาย)', -cogs], ['= GP (กำไรขั้นต้น)', grossProfit], ['-Operating Expenses (สุทธิ FX)', -opex], ['-Interest', -interest], ['Asset Disposal Gain/(Loss)', displayData.summary.assetDisposalNet], ['= NP (กำไรก่อนภาษี)', netProfitBeforeTax]]} />
         </AnalysisPanel>
       </div>
 

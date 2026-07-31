@@ -41,7 +41,6 @@ describe('customer receipt source contract', () => {
     expect(result.receiptCurrencyCode).toBe('THB')
     expect(result.customerTransferredNativeAmount).toBeUndefined()
     expect(result.fxRate).toBeUndefined()
-    expect(result.receivedNativeAmount).toBeUndefined()
   })
 
   it('accepts a CADV receipt with customer advance lines only', () => {
@@ -75,33 +74,47 @@ describe('customer receipt source contract', () => {
     })).toThrow()
   })
 
-  it('accepts a foreign receipt rate with three decimal places', () => {
+  it('accepts a foreign receipt rate with two decimal places', () => {
     const result = customerReceiptFormSchema.parse({
       ...baseReceipt,
       sourceType: 'SB',
       receiptCurrencyCode: 'USD',
       customerTransferredNativeAmount: 100,
-      receivedNativeAmount: 100,
-      fxRate: 35.125,
-      fxRateType: 'TT Selling',
-      salesBillLines: [{ salesBillDocNo: 'SB2607-0001', receiptAmount: 3512.5 }],
+      fxRate: 35.12,
+      salesBillLines: [{ salesBillDocNo: 'SB2607-0001', receiptAmount: 3512 }],
       customerAdvanceLines: [],
     })
 
-    expect(result.fxRate).toBe(35.125)
+    expect(result.fxRate).toBe(35.12)
   })
 
-  it('rejects a foreign receipt rate with more than three decimal places', () => {
+  it('rejects a foreign receipt rate with more than two decimal places', () => {
     expect(() => customerReceiptFormSchema.parse({
       ...baseReceipt,
       sourceType: 'SB',
       receiptCurrencyCode: 'USD',
       customerTransferredNativeAmount: 100,
-      receivedNativeAmount: 100,
-      fxRate: 35.1234,
-      fxRateType: 'TT Selling',
-      salesBillLines: [{ salesBillDocNo: 'SB2607-0001', receiptAmount: 3512.34 }],
+      fxRate: 35.123,
+      salesBillLines: [{ salesBillDocNo: 'SB2607-0001', receiptAmount: 3512.3 }],
       customerAdvanceLines: [],
-    })).toThrow('อัตราแลกเปลี่ยนต้องมีทศนิยมไม่เกิน 3 ตำแหน่ง')
+    })).toThrow('อัตราแลกเปลี่ยนต้องมีทศนิยมไม่เกิน 2 ตำแหน่ง')
+  })
+
+  it('does not expose the retired second native amount or FX override reason', () => {
+    const result = customerReceiptFormSchema.parse({
+      ...baseReceipt,
+      sourceType: 'SB',
+      receiptCurrencyCode: 'USD',
+      customerTransferredNativeAmount: 100,
+      receivedNativeAmount: 99,
+      fxRate: 35.12,
+      fxRateOverrideReason: 'ไม่ควรรับ field นี้',
+      salesBillLines: [{ salesBillDocNo: 'SB2607-0001', receiptAmount: 3512.3 }],
+      customerAdvanceLines: [],
+    })
+
+    expect(result).not.toHaveProperty('receivedNativeAmount')
+    expect(result).not.toHaveProperty('fxRateOverrideReason')
+    expect(result).not.toHaveProperty('fxRateType')
   })
 })

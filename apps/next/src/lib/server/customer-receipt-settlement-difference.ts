@@ -17,5 +17,8 @@ export function settlementDifferenceReasonForReceipt(sourceType: 'SB' | 'CADV', 
     }
     return null
   }
+  if (settlementDifference.lt(0)) {
+    throw new Error('มูลค่าเงินที่รับตามอัตราแลกเปลี่ยนต่ำกว่ายอดรับ THB ต้องบันทึกเป็นการรับบางส่วน ไม่ใช่ขาดทุน FX')
+  }
   return settlementDifference.eq(0) ? null : CUSTOMER_RECEIPT_SETTLEMENT_DIFFERENCE_REASON.AR_SETTLEMENT_FX
 }

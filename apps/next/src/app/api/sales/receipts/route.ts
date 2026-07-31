@@ -107,7 +107,7 @@ export async function GET(request: Request) {
     }
 
     const salesBillBranchWhere = scopedBranchWhere
-    const [accounts, currencies, customers, outstandingBills, allocatedBills, customerAdvances, receipts, paymentMethods, fxRateTypes] = await Promise.all([
+    const [accounts, currencies, customers, outstandingBills, allocatedBills, customerAdvances, receipts, paymentMethods] = await Promise.all([
       listDailyAccounts(),
       listCurrencies(),
       listActiveCustomers(),
@@ -186,9 +186,6 @@ export async function GET(request: Request) {
           gross_amount: true,
           fx_rate: true,
           fx_rate_date: true,
-          fx_rate_overridden: true,
-          fx_rate_source: true,
-          fx_rate_type: true,
           id: true,
           net_cash_in: true,
           notes: true,
@@ -216,7 +213,6 @@ export async function GET(request: Request) {
         },
       }),
       getActivePaymentMethods(),
-      prisma.fx_rates.findMany({ distinct: ['rate_type'], orderBy: { rate_type: 'asc' }, select: { rate_type: true } }),
     ])
     const bills = [...new Map([...outstandingBills, ...allocatedBills].map((bill) => [bill.doc_no, bill])).values()]
       .sort((left, right) => right.date.getTime() - left.date.getTime())
@@ -273,7 +269,6 @@ export async function GET(request: Request) {
       accounts: accounts.filter((account) => account.accountGroup !== 'virtual'),
       currencies: currencies.map((currency) => ({ code: currency.code, name: currency.name, symbol: currency.symbol })),
       currencyPolicy: { functionalCurrencyCode: currencyPolicy.functionalCurrencyCode },
-      fxRateTypes: fxRateTypes.map((row) => row.rate_type).filter((rateType) => rateType.trim() !== ''),
       appliedFilters: {
         accountCode: requestedAccountCode || null,
         branchCode: selectedBranch?.code ?? null,
@@ -372,13 +367,9 @@ export async function GET(request: Request) {
             ? {
               carryingBookAmount: toNumber(receipt.carrying_thb_amount),
               currencyCode: receipt.receipt_currency_code,
-              customerTransferredNativeAmount: toNumber(receipt.customer_transferred_native_amount),
               fxRate: toNumber(receipt.fx_rate),
               fxRateDate: receipt.fx_rate_date ? toDateOnly(receipt.fx_rate_date) : '',
-              fxRateOverridden: Boolean(receipt.fx_rate_overridden),
-              fxRateSource: receipt.fx_rate_source,
-              fxRateType: receipt.fx_rate_type ?? '',
-              receivedNativeAmount: toNumber(receipt.received_native_amount),
+              nativeAmount: toNumber(receipt.customer_transferred_native_amount),
               settlementBookAmount: toNumber(receipt.settlement_book_amount),
               settlementFxDifference: toNumber(receipt.settlement_fx_difference),
             }

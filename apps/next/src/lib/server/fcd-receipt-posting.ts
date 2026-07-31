@@ -1,7 +1,7 @@
 import { Prisma } from '../../../generated/prisma/client'
 import { BANK_STATEMENT_SOURCE_EVENT_TYPE } from '@/lib/server/bank-statement-cash-flow'
 import { lockFcdAccountCurrency } from '@/lib/server/fcd-balance-lock'
-import { calculateSettlementBookAmount, fcdFxRate, requireFcdInputMoneyAmount } from '@/lib/server/fcd-money'
+import { fcdFxRate, requireFcdInputMoneyAmount } from '@/lib/server/fcd-money'
 import { assertFcdReceiptPostingReconciles } from '@/lib/server/fcd-posting-reconciliation'
 import { normalizeDate } from '@/lib/server/daily'
 
@@ -15,6 +15,7 @@ export type FcdReceiptSplitInput = {
 export type FcdReceiptPostingInput = {
   actor: string
   branchId: bigint
+  carryingThbAmount: DecimalInput
   currencyCode: string
   date: string
   receiptDocNo: string
@@ -31,17 +32,18 @@ function normalizedCode(value: string, label: string) {
   return code
 }
 
-function allocateCarryingAmounts(splits: FcdReceiptSplitInput[], rate: DecimalInput) {
+export function allocateCarryingAmounts(splits: FcdReceiptSplitInput[], totalCarryingInput: DecimalInput) {
   if (splits.length === 0) throw new Error('ต้องมีบัญชี FCD อย่างน้อย 1 รายการ')
   const totalNative = splits.reduce((total, split) => total.plus(requireFcdInputMoneyAmount(split.nativeAmount)), new Prisma.Decimal(0))
   if (totalNative.lte(0)) throw new Error('ยอดเข้าบัญชี FCD ต้องมากกว่า 0')
-  const totalCarrying = calculateSettlementBookAmount(totalNative, rate)
+  const totalCarrying = requireFcdInputMoneyAmount(totalCarryingInput)
+  if (totalCarrying.lte(0)) throw new Error('มูลค่าตามบัญชี FCD ต้องมากกว่า 0')
   let remainingCarrying = totalCarrying
   return splits.map((split, index) => {
     const nativeAmount = requireFcdInputMoneyAmount(split.nativeAmount)
     const carryingThbAmount = index === splits.length - 1
       ? remainingCarrying
-      : calculateSettlementBookAmount(nativeAmount, rate)
+      : totalCarrying.mul(nativeAmount).div(totalNative).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
     remainingCarrying = remainingCarrying.minus(carryingThbAmount)
     return { carryingThbAmount, nativeAmount }
   })
@@ -94,7 +96,7 @@ export async function postFcdReceiptAccountSplits(tx: Prisma.TransactionClient, 
         where: { active: true, currency_code: currencyCode },
       },
     },
-    where: { active: true, code: { in: splitCodes }, is_fcd: true },
+    where: { active: true, account_group: 'bank', code: { in: splitCodes }, is_fcd: true },
   })
   if (accounts.length !== splitCodes.length) {
     throw new Error(`บัญชีรับเงินต่างประเทศต้องเป็นบัญชี FCD ที่ active และรองรับ ${currencyCode}`)
@@ -109,7 +111,7 @@ export async function postFcdReceiptAccountSplits(tx: Prisma.TransactionClient, 
     await lockFcdAccountCurrency(tx, account!.id, currencyCode)
   }
 
-  const calculatedSplits = allocateCarryingAmounts(input.splits, rate)
+  const calculatedSplits = allocateCarryingAmounts(input.splits, input.carryingThbAmount)
   const created = [] as Array<{ bankStatementId: bigint; fcdLedgerEntryId: bigint }>
   for (const [index, split] of input.splits.entries()) {
     const account = orderedAccounts[index]!
@@ -245,5 +247,3 @@ export async function reverseFcdReceiptAccountSplits(tx: Prisma.TransactionClien
   }
   return { created }
 }
-
-export { allocateCarryingAmounts }

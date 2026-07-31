@@ -137,11 +137,11 @@ describe('customer receipt API boundary', () => {
 
   it('rejects malformed foreign rate input before it can reach the writer', async () => {
     mocks.customerReceiptParse.mockImplementationOnce(() => {
-      throw new Error('อัตราแลกเปลี่ยนต้องมีทศนิยมไม่เกิน 3 ตำแหน่ง')
+      throw new Error('อัตราแลกเปลี่ยนต้องมีทศนิยมไม่เกิน 2 ตำแหน่ง')
     })
 
     const response = await POST(new Request('http://localhost/api/sales/receipts', {
-      body: JSON.stringify({ fxRate: 35.1234, receiptCurrencyCode: 'USD' }),
+      body: JSON.stringify({ fxRate: 35.123, receiptCurrencyCode: 'USD' }),
       headers: { 'content-type': 'application/json' },
       method: 'POST',
     }))
@@ -153,11 +153,9 @@ describe('customer receipt API boundary', () => {
   it('passes the foreign rate snapshot through unchanged for server-side validation and idempotent posting', async () => {
     const values = {
       customerId: 'CUS-001',
-      fxRate: 35.123,
-      fxRateOverrideReason: 'ยืนยันกับธนาคาร',
-      fxRateType: 'TT Selling',
+      customerTransferredNativeAmount: 100,
+      fxRate: 35.12,
       receiptCurrencyCode: 'USD',
-      receivedNativeAmount: 100,
     }
     mocks.customerReceiptParse.mockReturnValueOnce(values)
 

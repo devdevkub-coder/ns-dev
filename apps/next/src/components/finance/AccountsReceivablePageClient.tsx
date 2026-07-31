@@ -36,7 +36,7 @@ type ArRow = {
       allocatedArAmount: number
       date: string
       docNo: string
-      foreignAudit: { currencyCode: string; fxRate: number; receivedNativeAmount: number; settlementBookAmount: number; settlementFxDifference: number } | null
+      foreignAudit: { currencyCode: string; fxRate: number; nativeAmount: number; settlementBookAmount: number; settlementFxDifference: number } | null
       href: string
       netCashIn: number
       outstandingAfter: number
@@ -936,7 +936,7 @@ function TraceSection({
             amount: `${formatMoney(receipt.allocatedArAmount)} บาท`,
             href: receipt.href,
             meta: receipt.foreignAudit
-              ? `${formatDateDisplay(receipt.date)} · ${receipt.status} · ${formatMoney(receipt.foreignAudit.receivedNativeAmount)} ${receipt.foreignAudit.currencyCode} @ ${receipt.foreignAudit.fxRate.toFixed(3)} · Settlement FX ${formatMoney(receipt.foreignAudit.settlementFxDifference)} บาท`
+              ? `${formatDateDisplay(receipt.date)} · ${receipt.status} · ${formatMoney(receipt.foreignAudit.nativeAmount)} ${receipt.foreignAudit.currencyCode} @ ${receipt.foreignAudit.fxRate.toFixed(3)} · Settlement FX ${formatMoney(receipt.foreignAudit.settlementFxDifference)} บาท`
               : `${formatDateDisplay(receipt.date)} · ${receipt.status}`,
             title: receipt.docNo,
           }))}

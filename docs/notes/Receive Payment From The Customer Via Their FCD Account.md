@@ -37,7 +37,7 @@ Implementation checklist: [[FCD Foreign Receipt Implementation Task List]]
 - `บิลอ้างอิง`
 - `สกุลเงินบิล`
 - `สกุลเงินที่รับจริง`
-- `จำนวนเงินที่รับจริง` เช่น `100 USD`
+- `ยอดที่ลูกค้าโอน` เช่น `100 USD`
 - `อัตราแลกเปลี่ยนวันที่รับเงิน`
 - `มูลค่าเงินบาทที่ใช้ปิดบิล`
 - `ส่วนต่างจากบิล`
@@ -75,33 +75,49 @@ Implementation checklist: [[FCD Foreign Receipt Implementation Task List]]
 2. เลือกประเภทเอกสารต้นทางก่อน: `SB` หรือ `CADV`
 3. เลือกสาขาและลูกค้า แล้วเลือกเอกสารต้นทางตามประเภทที่เลือก
 4. เลือกสกุลเงินที่รับจริง โดยหนึ่ง `RCP` รับได้เพียงหนึ่งสกุลเงิน
-5. เลือกวิธีรับเงินและบัญชีรับเงิน
-6. กรอกยอดที่ลูกค้าโอนในสกุลเงินจริง
-7. ถ้าไม่ใช่ `THB` ให้ระบบแสดง suggested rate ของวันที่รับเงิน พร้อมให้แก้ไข rate หรือกรอกเองเมื่อไม่มี rate โดยต้องเก็บ source และเหตุผล
+5. เลือกวิธีรับเงินและบัญชีรับเงิน แล้วกรอกยอดที่ลูกค้าโอนในช่องจำนวนเงินหลังบัญชีรับ; ถ้าแบ่งรับหลายบัญชี ผลรวมทุกแถวคือยอดที่ลูกค้าโอน
+6. ฟอร์มต้องไม่มีช่องยอดที่ลูกค้าโอนซ้ำด้านบน; native amount ของ RCP อ่านจากผลรวมบัญชีรับเพียงแหล่งเดียว
+7. ถ้าไม่ใช่ `THB` ให้ระบบดึง `USD/THB` ล่าสุดจาก Google Finance เมื่อวันที่รับเงินเป็นวันปัจจุบัน, แสดงเวลา quote ใต้ช่อง rate และให้ผู้ใช้แก้ไขหรือกรอกเองได้เสมอ; วันที่อื่นหรือดึงไม่ได้ให้กรอก rate เอง
 8. กรอก `Bank Fee (THB)` แยกจากยอดเงินต่างประเทศ
 9. ตรวจ summary แล้วบันทึก
 
 กฎของบัญชีรับเงิน:
 
-- `THB` เลือกบัญชี active ที่รองรับ THB ตาม use case ได้
-- สกุลต่างประเทศเลือกได้เฉพาะบัญชี `FCD` ที่รองรับสกุลนั้น
+- สกุล functional เลือกวิธีรับเงินจาก Payment Method Master ที่ active: `เงินสด` หรือ `เงินโอน`; จากนั้นเลือกบัญชี active ที่รองรับสกุลนั้นตามชนิดของวิธีรับเงิน
+- สกุลต่างประเทศเลือกได้เฉพาะ `เงินโอน`; จากนั้นเลือกได้เฉพาะบัญชี `FCD` ที่รองรับสกุลนั้น
+- สกุลต่างประเทศใช้ section บัญชีรับเงินเดียวกับสกุล functional แต่ส่ง option บัญชีเข้า component เฉพาะ FCD และส่งวิธีรับเงินกลุ่ม `bank` จาก master; service ตรวจซ้ำว่า foreign receipt ใช้วิธีรับเงินประเภทธนาคาร
+- การกรองบัญชีใช้ `accounts.account_group` (`cash` หรือ `bank`) เป็น contract เดียวกันทั้ง UI และ server; `accounts.type` เป็นข้อความที่ legacy data อาจใช้แสดง เช่น `เงินสด (Cash)` จึงห้ามใช้ตัดสินชนิดบัญชี
 - ห้ามแบ่ง RCP สกุลต่างประเทศไปบัญชีปกติ; ถ้ามีหลาย split ทุกบัญชีต้องเป็น FCD และใช้สกุลเดียวกับ RCP
-- เมื่อแก้ไข RCP ต่างประเทศ ระบบต้อง cancel-and-reissue โดยใช้ currency, native split, rate, rate date และ rate type ที่เก็บใน RCP เดิมเป็นฐานของฟอร์มใหม่ ห้ามอ่าน `Bank Statement.amount_in` ซึ่งเป็น THB book amount มาใช้เป็นยอด native และห้ามใช้ current rate แทน snapshot เดิม
+- เมื่อแก้ไข RCP ต่างประเทศ ระบบต้อง cancel-and-reissue โดยใช้ currency, native split, rate และ rate date ที่เก็บใน RCP เดิมเป็นฐานของฟอร์มใหม่ ห้ามอ่าน `Bank Statement.amount_in` ซึ่งเป็น THB book amount มาใช้เป็นยอด native และห้ามใช้ current rate แทน snapshot เดิม
 - การเปลี่ยนวันที่, ประเภทเอกสาร, ลูกค้า, สกุลเงิน หรือบัญชี ต้องล้าง dependent state และโหลด rate/options ใหม่จาก source จริง
+
+Layout ของ foreign receipt รวม `สกุลเงินที่รับจริง`, `rate`, วิธีรับเงิน, บัญชี FCD, ยอดในแต่ละ split และ Bank Fee ไว้ใน section `บัญชี FCD ที่รับเงิน` เดียวกัน. `ยอดที่ลูกค้าโอน` ไม่มีช่องกรอกแยก แต่คำนวณจากผลรวมยอดหลังบัญชี FCD ทุกแถว เพื่อไม่ให้มี native amount สองแหล่ง. ถัดจากช่องยอด foreign ของแต่ละบัญชีแสดงมูลค่า functional currency จาก `ยอดแถวนั้น x rate` ในรูป `≈ 33,390.00 THB` โดยเป็นข้อมูลอ่านอย่างเดียว; ใช้ `≈` เพราะมีการแปลงสกุลเงินและปัดทศนิยม. Footer ของ section แสดงเฉพาะยอดเข้า FCD, ยอดตัดลูกหนี้, ยอดลูกหนี้คงเหลือพร้อมสถานะ และมูลค่าตามบัญชี FCD; แสดงกำไร FX เฉพาะเมื่อมากกว่า 0. ไม่แสดงยอดลูกค้าโอน/ผลต่าง reconciliation ซ้ำ เพราะ native amount มาจากผลรวม split แหล่งเดียว. สำหรับ Sales Bill กำไร FX คือส่วนบวกของ `Settlement THB - เงินสดที่ใช้ปิดบิล`; ไม่ใช่ยอดเงินรับล่วงหน้าอัตโนมัติและห้ามนำส่วนลดไปหักซ้ำในสูตร FX.
+
+ส่วนลดของ Sales Bill กรอกครั้งเดียวที่ section บัญชีรับเงินทั้งสกุล functional และ foreign; ไม่แสดงช่องส่วนลดซ้ำในแต่ละบิลขาย. ก่อนบันทึก client กระจายยอดส่วนลดรวมไปยังบิลตามลำดับรายการและลด `ยอดเงินสดที่ต้องรับ` ของแต่ละบิลก่อน โดย `ยอดตัดลูกหนี้ = เงินสดที่ใช้ปิดบิล + ส่วนลด + ภาษีหัก ณ ที่จ่าย`. ถ้า Settlement THB ต่ำกว่ายอดเงินสดที่ต้องรับ ให้ตัดลูกหนี้เท่าที่รับได้และเหลือยอดลูกหนี้คงเหลือ; ส่วนขาดไม่ใช่ FX loss.
 
 ความหมายของยอดที่ต้องไม่ปนกัน:
 
 | Field | Currency | Meaning |
 |---|---|---|
-| ยอดที่ลูกค้าโอน | receipt currency | gross native amount ที่ลูกค้าส่ง |
-| ยอดเข้าบัญชี FCD จริง | receipt currency | native amount ที่ธนาคาร credit เข้าบัญชี |
-| Settlement THB | THB | มูลค่าที่ใช้ตัด SB หรือรับ CADV ณ rate วันรับเงิน |
+| ยอดที่ลูกค้าโอน | receipt currency | ผลรวมยอดในแถวบัญชี FCD ที่รับ เป็น canonical native amount เพียงแหล่งเดียวของ RCP และยอด native ที่เข้า FCD |
+| Settlement THB | THB | `ยอดที่ลูกค้าโอน x rate วันรับเงิน` |
+| เงินสดที่ใช้ปิดบิล | THB | ไม่เกินยอดเงินสดที่ต้องรับหลังใช้ส่วนลด; ถ้ารับไม่ครบใช้ Settlement THB เท่าที่มี |
+| ยอดตัดลูกหนี้ | THB | `เงินสดที่ใช้ปิดบิล + ส่วนลด + ภาษีหัก ณ ที่จ่าย` |
+| กำไร FX จากการปิดบิล | THB | `max(0, Settlement THB - เงินสดที่ใช้ปิดบิล)` |
 | Bank Fee | THB | ค่าใช้จ่ายธนาคาร แยกจาก FX |
-| Carrying THB | THB | มูลค่าตามบัญชีของยอด native ที่เข้า FCD |
+| ยอดที่บันทึกเข้า FCD | receipt currency | native amount ที่เพิ่มใน FCD subledger เช่น `1,000.00 USD` |
+| Carrying THB | THB | `Settlement THB - Bank Fee`; มูลค่าตามบัญชีของยอด native ใน FCD ไม่ใช่ยอดเงินที่บันทึกแทน USD |
 
-สำหรับ `SB` ให้คำนวณ `FX gain/loss - AR settlement` จาก settlement THB เทียบยอดตัด AR โดยไม่รวม bank fee เป็น FX. สำหรับ `CADV` ไม่มี AR settlement; ให้บันทึกยอด CADV เป็น THB และเก็บ native/rate/carrying facts ของเงินที่เข้า FCD แยกกัน.
+สำหรับ `SB` ให้คำนวณ `FX gain - AR settlement` จาก Settlement THB เทียบเงินสดที่ใช้ปิดบิล โดยไม่รวมส่วนลด, ภาษีหัก ณ ที่จ่าย หรือ Bank Fee เป็น FX. ถ้า Settlement THB ต่ำกว่าเงินสดที่ต้องรับ ให้เป็น partial receipt และไม่สร้าง FX loss. สำหรับ `CADV` ไม่มี AR settlement; ให้บันทึกยอด CADV เป็น THB และเก็บ native/rate/carrying facts ของเงินที่เข้า FCD แยกกัน.
 
-หลังบันทึก ระบบธุรกิจหลักยังอ่านยอด THB เดิมของ Receipt และ Bank Statement (`amount_in/out`) ตาม contract เดิม โดย foreign receipt แปลง USD เป็น THB จาก rate snapshot ก่อนเขียนข้อมูล. ข้อมูล USD และ rate ไม่ใช่ยอดที่นำไปบวกใน AR, Cash Position หรือรายงานรวม แต่ต้องเก็บเป็น FCD subledger/audit เพื่อทราบ native balance และ carrying THB ตอนแลกเงินจริง. `book_amount_*` เป็น mirror/check ของยอด THB สำหรับ write path ใหม่ ไม่ใช่เหตุให้ consumer เดิมต้องเปลี่ยน field. การแลกเงินใช้ยอดรวมแบบ moving weighted average ของบัญชี+สกุลเงิน จึงไม่ต้องให้ผู้ใช้เลือกว่ากำลังแลกเงินจากบิลใด.
+## Live Rate API
+
+- `GET /api/finance/foreign/live-fx-rate?currency=USD&date=YYYY-MM-DD` เป็น API กลางสำหรับ quote ล่าสุดจาก Google Finance ใน scope ปัจจุบัน
+- API ไม่มี default rate และไม่มี provider สำรอง: เมื่อ Google Finance อ่านไม่ได้ หรือวันที่รับเงินไม่ใช่วันปัจจุบัน จะตอบ `manual_required` เพื่อให้ผู้ใช้กรอก rate เอง
+- API ตอบ `quotedAt` เมื่อ Google Finance ส่งเวลา quote มา; ฟอร์มแสดงเวลานี้ใต้ช่อง rate แต่ rate ที่บันทึกเป็น transaction snapshot ของ RCP เสมอ
+- Sale Plan ยังใช้ implementation เดิมใน batch นี้; จะย้ายมาเรียก API/service กลางภายหลังโดยไม่เปลี่ยน flow ของ RCP
+
+หลังบันทึก ระบบธุรกิจหลักยังอ่านยอด THB เดิมของ Receipt และ Bank Statement (`amount_in/out`) ตาม contract เดิม โดย foreign receipt แปลง USD เป็น THB จาก rate snapshot ก่อนเขียนข้อมูล. `Settlement THB` ใช้ปิดบิล ส่วน `Carrying THB` หลังหัก Bank Fee เป็นยอดที่เขียนเข้าบัญชี FCD/BST เพียงครั้งเดียว. ข้อมูล USD และ rate ไม่ใช่ยอดที่นำไปบวกใน AR, Cash Position หรือรายงานรวม แต่ต้องเก็บเป็น FCD subledger/audit เพื่อทราบ native balance และ carrying THB ตอนแลกเงินจริง. `book_amount_*` เป็น mirror/check ของยอด THB สำหรับ write path ใหม่ ไม่ใช่เหตุให้ consumer เดิมต้องเปลี่ยน field. การแลกเงินใช้ยอดรวมแบบ moving weighted average ของบัญชี+สกุลเงิน จึงไม่ต้องให้ผู้ใช้เลือกว่ากำลังแลกเงินจากบิลใด.
 
 ## การวัดต้นทุน FCD ที่อนุมัติ
 
@@ -110,7 +126,7 @@ Implementation checklist: [[FCD Foreign Receipt Implementation Task List]]
 - เมื่อรับเงินต่างประเทศ: เพิ่ม native amount และ carrying THB ของยอดเข้าจริงเข้า pool เดียวกัน แล้วคำนวณ weighted carrying rate ใหม่
 - เมื่อแลกเงิน: ตัด carrying THB ออกเท่ากับ native amount ที่ถอน x weighted carrying rate ก่อนรายการ; เปรียบเทียบกับ THB จริงที่ได้รับเพื่อหา FX conversion gain/loss
 - เมื่อ revalue สิ้นงวด: native balance ไม่เปลี่ยน แต่ carrying THB และ weighted carrying rate ของยอดคงเหลือถูกปรับจาก rate สิ้นงวด
-- ยอดเงินคำนวณ/เก็บ/แสดง 2 ตำแหน่ง และ FX rate ใช้ 3 ตำแหน่ง
+- ยอดเงินและ FX rate ของ Customer Receipt คำนวณ/เก็บ/แสดง 2 ตำแหน่ง; DB decimal เดิมรองรับได้มากกว่าโดยไม่ต้องเปลี่ยน schema แต่ write path ของ RCP รับไม่เกิน 2 ตำแหน่ง
 
 กฎนี้มีผลเฉพาะการถือ/แลกเงินใน FCD และไม่ย้อนกลับไปเปลี่ยน settlement FX หรือยอด Sales Bill ที่ปิดไปแล้ว.
 

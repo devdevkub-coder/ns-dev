@@ -38,7 +38,7 @@ const positiveMoney = (label: string) => money(label).gt(0, `${label}ต้อ�
 const positiveFxRate = z.coerce.number({ invalid_type_error: 'อัตราแลกเปลี่ยนต้องเป็นตัวเลข' })
   .finite('อัตราแลกเปลี่ยนต้องเป็นตัวเลข')
   .gt(0, 'อัตราแลกเปลี่ยนต้องมากกว่า 0')
-  .refine((value) => Number.isInteger(value * 1000), 'อัตราแลกเปลี่ยนต้องมีทศนิยมไม่เกิน 3 ตำแหน่ง')
+  .refine((value) => Math.abs((value * 100) - Math.round(value * 100)) < 1e-8, 'อัตราแลกเปลี่ยนต้องมีทศนิยมไม่เกิน 2 ตำแหน่ง')
 
 export const transferFormSchema = z.object({
   id: optionalSafeId('รหัสรายการ'),
@@ -215,10 +215,7 @@ export const customerReceiptFormSchema = z.object({
   fee: money('ค่าธรรมเนียม').default(0),
   receiptCurrencyCode: z.string().trim().min(3, 'รหัสสกุลเงินไม่ถูกต้อง').max(6, 'รหัสสกุลเงินไม่ถูกต้อง').regex(/^[A-Za-z0-9]+$/, 'รหัสสกุลเงินไม่ถูกต้อง').transform((value) => value.toUpperCase()).optional(),
   customerTransferredNativeAmount: money('ยอดที่ลูกค้าโอน').optional(),
-  receivedNativeAmount: positiveMoney('ยอดเข้าบัญชีจริง').optional(),
   fxRate: positiveFxRate.optional(),
-  fxRateType: z.string().trim().min(1, 'ประเภทอัตราแลกเปลี่ยน').max(60, 'ประเภทอัตราแลกเปลี่ยนยาวเกินไป').optional(),
-  fxRateOverrideReason: optionalGeneralText('เหตุผลแก้ไขอัตราแลกเปลี่ยน', 500),
   method: z.string().trim().min(1, 'เลือกวิธีรับเงิน').max(80, 'วิธีรับเงินยาวเกินไป').regex(businessTextPattern, 'วิธีรับเงินมีรูปแบบไม่ถูกต้อง'),
   notes: optionalGeneralText('หมายเหตุ', 500),
   salesBillLines: z.array(customerReceiptLineFormSchema).default([]),

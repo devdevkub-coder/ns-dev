@@ -57,7 +57,6 @@ export async function loadCustomerReceiptLineNotificationSource(
       notes: true,
       payment_method_name_snapshot: true,
       receipt_currency_code: true,
-      received_native_amount: true,
       settlement_book_amount: true,
       status: true,
       withholding_tax_total: true,
@@ -110,9 +109,8 @@ export async function loadCustomerReceiptLineNotificationSource(
       foreignAudit: receipt.receipt_currency_code ? {
         carryingBookAmountThb: toNumber(receipt.carrying_thb_amount),
         currencyCode: receipt.receipt_currency_code,
-        customerTransferredNativeAmount: toNumber(receipt.customer_transferred_native_amount),
         fxRate: toNumber(receipt.fx_rate),
-        receivedNativeAmount: toNumber(receipt.received_native_amount),
+        nativeAmount: toNumber(receipt.customer_transferred_native_amount),
         settlementBookAmountThb: toNumber(receipt.settlement_book_amount),
       } : undefined,
       notes: receipt.notes ?? undefined,

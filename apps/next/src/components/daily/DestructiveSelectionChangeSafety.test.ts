@@ -49,9 +49,9 @@ describe('destructive selection change safety', () => {
     })).toBe(true)
     expect(receiptSourceChangeWillDiscardData({
       customerAdvanceLines: [],
+      customerTransferredNativeAmount: 100,
       fxRate: 34.5,
       receiptCurrencyCode: 'USD',
-      receivedNativeAmount: 100,
       salesBillLines: [],
       splits: [{ accountId: '', amount: 0, id: null, method: '' }],
     }, 'THB')).toBe(true)
@@ -69,9 +69,6 @@ describe('destructive selection change safety', () => {
       customerTransferredNativeAmount: undefined,
       fee: 0,
       fxRate: undefined,
-      fxRateOverrideReason: null,
-      fxRateType: undefined,
-      receivedNativeAmount: undefined,
       splits: [{ accountId: '', amount: 0, id: null, method: '' }],
     })).toBe(false)
     expect(receiptForeignSettlementWillDiscardData({
@@ -79,17 +76,10 @@ describe('destructive selection change safety', () => {
       customerTransferredNativeAmount: 100,
       fee: 0,
       fxRate: 34.5,
-      fxRateOverrideReason: null,
-      fxRateType: 'TT',
-      receivedNativeAmount: 100,
       splits: [{ accountId: 'FCD-001', amount: 100, id: null, method: 'transfer' }],
     })).toBe(true)
-    expect(receiptForeignSettlementWillDiscardData({
-      fxRateType: 'TT',
-      splits: [{ accountId: '', amount: 0, id: null, method: '' }],
-    }, { includeFxRateType: false })).toBe(false)
-    expect(receiptDateChangeWillDiscardData({ fxRate: undefined, fxRateOverrideReason: null })).toBe(false)
-    expect(receiptDateChangeWillDiscardData({ fxRate: 34.5, fxRateOverrideReason: null })).toBe(true)
+    expect(receiptDateChangeWillDiscardData({ fxRate: undefined })).toBe(false)
+    expect(receiptDateChangeWillDiscardData({ fxRate: 34.5 })).toBe(true)
     expect(receiptLineReplacementWillDiscardData(
       { discountAmount: 0, id: null, receiptAmount: 100, salesBillDocNo: 'SB-001', withholdingTaxAmount: 0 },
       'SB-001',

@@ -35,13 +35,10 @@ function values(overrides: Partial<CustomerReceiptValues>): CustomerReceiptValue
     discount: 0,
     fee: 0,
     fxRate: undefined,
-    fxRateOverrideReason: null,
-    fxRateType: undefined,
     id: null,
     method: paymentMethodCode,
     notes: null,
     receiptCurrencyCode: functionalCurrencyCode,
-    receivedNativeAmount: undefined,
     salesBillLines: [],
     sourceType: 'SB',
     splits: [],
@@ -90,6 +87,7 @@ describe.runIf(enabled)('customer receipt foreign integration', () => {
     await prisma.$transaction(async (tx) => {
       const receiptIds = (await tx.customer_receipts.findMany({ select: { id: true }, where: { created_by: actor } })).map((row) => row.id)
       const conversionIds = (await tx.fcd_conversions.findMany({ select: { id: true }, where: { created_by: actor } })).map((row) => row.id)
+      await tx.fx_gain_loss.deleteMany({ where: { notes: { contains: suffix } } })
       await tx.customer_receipt_account_splits.deleteMany({ where: { receipt_id: { in: receiptIds } } })
       await tx.customer_receipt_allocations.deleteMany({ where: { receipt_id: { in: receiptIds } } })
       await tx.customer_receipt_status_logs.deleteMany({ where: { created_by: actor } })
@@ -123,27 +121,29 @@ describe.runIf(enabled)('customer receipt foreign integration', () => {
   }, 60_000)
 
   it('posts USD partial and multiple-bill receipt, applies THB bank fee, and records settlement FX separately', async () => {
-    const partialAndMulti = await createCustomerReceipt(values({ accountId: fcdAccountCode, amount: 3500, customerTransferredNativeAmount: 100, docNo: `RCPF${suffix}`, fee: 35, fxRate: 35, fxRateOverrideReason: 'integration fixture', fxRateType: 'integration', receiptCurrencyCode: foreignCurrencyCode, receivedNativeAmount: 99, salesBillLines: [
+    const partialAndMulti = await createCustomerReceipt(values({ accountId: fcdAccountCode, amount: 3500, customerTransferredNativeAmount: 100, docNo: `RCPF${suffix}`, fee: 35, fxRate: 35, receiptCurrencyCode: foreignCurrencyCode, salesBillLines: [
       { discountAmount: 0, id: null, receiptAmount: 1750, salesBillDocNo: billDocNos.partial!, withholdingTaxAmount: 0 },
       { discountAmount: 0, id: null, receiptAmount: 875, salesBillDocNo: billDocNos.multiOne!, withholdingTaxAmount: 0 },
       { discountAmount: 0, id: null, receiptAmount: 875, salesBillDocNo: billDocNos.multiTwo!, withholdingTaxAmount: 0 },
-    ], splits: [{ accountId: fcdAccountCode, amount: 99, id: null, method: paymentMethodCode }] }), context)
-    const fxGain = await createCustomerReceipt(values({ accountId: fcdAccountCode, amount: 3400, customerTransferredNativeAmount: 100, docNo: `RCPG${suffix}`, fxRate: 35, fxRateOverrideReason: 'integration fixture', fxRateType: 'integration', receiptCurrencyCode: foreignCurrencyCode, receivedNativeAmount: 100, salesBillLines: [{ discountAmount: 0, id: null, receiptAmount: 3400, salesBillDocNo: billDocNos.fxGain!, withholdingTaxAmount: 0 }], splits: [{ accountId: fcdAccountCode, amount: 100, id: null, method: paymentMethodCode }] }), context)
-    const [receipt, gainReceipt, partialBill, multiBills, splits] = await Promise.all([
+    ], splits: [{ accountId: fcdAccountCode, amount: 100, id: null, method: paymentMethodCode }] }), context)
+    const fxGain = await createCustomerReceipt(values({ accountId: fcdAccountCode, amount: 3300, customerTransferredNativeAmount: 100, discount: 100, docNo: `RCPG${suffix}`, fxRate: 35, receiptCurrencyCode: foreignCurrencyCode, salesBillLines: [{ discountAmount: 100, id: null, receiptAmount: 3300, salesBillDocNo: billDocNos.fxGain!, withholdingTaxAmount: 0 }], splits: [{ accountId: fcdAccountCode, amount: 100, id: null, method: paymentMethodCode }] }), context)
+    const [receipt, gainReceipt, partialBill, multiBills, splits, fxFacts] = await Promise.all([
       prisma.customer_receipts.findUnique({ where: { doc_no: partialAndMulti.id } }),
       prisma.customer_receipts.findUnique({ where: { doc_no: fxGain.id } }),
       prisma.sales_bills.findUnique({ where: { doc_no: billDocNos.partial! } }),
       prisma.sales_bills.findMany({ where: { doc_no: { in: [billDocNos.multiOne!, billDocNos.multiTwo!] } } }),
       prisma.customer_receipt_account_splits.findMany({ where: { receipt_id: { in: (await prisma.customer_receipts.findMany({ select: { id: true }, where: { doc_no: { in: [partialAndMulti.id, fxGain.id] } } })).map((row) => row.id) } } }),
+      prisma.fx_gain_loss.findMany({ where: { notes: fxGain.id, ref_type: 'RCP' } }),
     ])
     expect(Number(receipt?.bank_fee_total)).toBe(35)
     expect(Number(receipt?.customer_transferred_native_amount)).toBe(100)
-    expect(Number(receipt?.received_native_amount)).toBe(99)
+    expect(Number(receipt?.received_native_amount)).toBe(100)
     expect(Number(receipt?.carrying_thb_amount)).toBe(3465)
     expect(Number(partialBill?.receivable_balance)).toBe(1750)
     expect(multiBills.every((bill) => Number(bill.receivable_balance) === 0)).toBe(true)
-    expect(Number(gainReceipt?.settlement_fx_difference)).toBe(100)
+    expect(Number(gainReceipt?.settlement_fx_difference)).toBe(200)
     expect(gainReceipt?.settlement_difference_reason).toBe('fx_settlement')
+    expect(fxFacts.map((row) => Number(row.gain_loss))).toEqual([200])
     expect(splits).toHaveLength(2)
     await cancelCustomerReceipt(partialAndMulti.id, 'integration foreign cancellation', context)
     const [cancelledReceipt, restoredPartial, restoredMultiBills, ledgerTotals] = await Promise.all([

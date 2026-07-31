@@ -211,15 +211,14 @@ describe('buildCustomerReceiptLineFlexMessage', () => {
       foreignAudit: {
         carryingBookAmountThb: 3_500,
         currencyCode: 'USD',
-        customerTransferredNativeAmount: 100,
         fxRate: 35.125,
-        receivedNativeAmount: 99.5,
+        nativeAmount: 100,
         settlementBookAmountThb: 3_512.5,
       },
     }), 'https://erp.example.com/sales/receipts'))
 
     expect(serialized).toContain('ยอดรับ (THB)')
-    expect(serialized).toContain('รับจริง (USD)')
+    expect(serialized).toContain('ยอดที่ลูกค้าโอน (USD)')
     expect(serialized).toContain('35.125')
     expect(serialized).not.toContain('1234567890')
   })

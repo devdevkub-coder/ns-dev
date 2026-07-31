@@ -573,9 +573,9 @@ export async function buildPlStatement(filter: PeriodFilter) {
   const fxNet = sumDetails(fxDetails)
   const assetDisposalNet = sumDetails(assetDisposalDetails)
   const grossProfit = revenue - cogs
-  const operatingExpenses = expensesTotal + depreciation
+  const operatingExpenses = expensesTotal + depreciation - fxNet
   const operatingProfit = grossProfit - operatingExpenses
-  const netProfitBeforeTax = operatingProfit - interest + fxNet + assetDisposalNet
+  const netProfitBeforeTax = operatingProfit - interest + assetDisposalNet
   const stockBills = salesBills.filter((bill) => bill.transaction_mode !== 'TRADING')
   const tradingBills = salesBills.filter((bill) => bill.transaction_mode === 'TRADING')
   const stockRevenue = stockBills.reduce((sum, bill) => sum + billRevenueAmount(bill), 0)
@@ -586,8 +586,8 @@ export async function buildPlStatement(filter: PeriodFilter) {
   const tradingCogsDeal = tradingBills.reduce((sum, bill) => sum + (billCostMap.get(String(bill.id))?.deal ?? billWacCostAmount(bill)), 0)
   const grossProfitWac = revenue - cogsWac
   const grossProfitDeal = revenue - cogsDeal
-  const netProfitBeforeTaxWac = grossProfitWac - operatingExpenses - interest + fxNet + assetDisposalNet
-  const netProfitBeforeTaxDeal = grossProfitDeal - operatingExpenses - interest + fxNet + assetDisposalNet
+  const netProfitBeforeTaxWac = grossProfitWac - operatingExpenses - interest + assetDisposalNet
+  const netProfitBeforeTaxDeal = grossProfitDeal - operatingExpenses - interest + assetDisposalNet
   const dualReplacedCount = Array.from(billCostMap.values()).filter((row) => row.replaced).length
   const historicalBaseline = groupHistoricalBaseline(historicalMonthly)
 
@@ -606,10 +606,10 @@ export async function buildPlStatement(filter: PeriodFilter) {
       moneyLine('กำไรขั้นต้น', 'กำไรขั้นต้น (Gross Profit)', grossProfit, undefined, 'total'),
       moneyLine('ค่าใช้จ่ายดำเนินงาน', 'ค่าใช้จ่ายดำเนินงาน (Operating Expenses)', -expensesTotal, expenseDetails, 'bad'),
       moneyLine('ค่าใช้จ่ายดำเนินงาน', 'ค่าเสื่อมราคา (Depreciation Expense)', -depreciation, depreciationDetails, 'bad', 1),
+      moneyLine('ค่าใช้จ่ายดำเนินงาน', 'กำไร/(ขาดทุน) อัตราแลกเปลี่ยนที่รับรู้แล้ว', fxNet, fxDetails, fxNet >= 0 ? 'good' : 'bad', 1),
       moneyLine('ค่าใช้จ่ายดำเนินงาน', 'รวมค่าใช้จ่ายดำเนินงาน', -operatingExpenses, undefined, 'total'),
       moneyLine('กำไรจากการดำเนินงาน', 'กำไรจากการดำเนินงาน (Operating Profit)', operatingProfit, undefined, 'total'),
       moneyLine('ต้นทุนทางการเงิน', 'ดอกเบี้ยจ่าย (Interest Expense)', -interest, interestDetails, 'bad'),
-      moneyLine('ต้นทุนทางการเงิน', 'กำไร/(ขาดทุน) อัตราแลกเปลี่ยนที่รับรู้แล้ว', fxNet, fxDetails, fxNet >= 0 ? 'good' : 'bad'),
       moneyLine('รายได้และค่าใช้จ่ายอื่น', 'กำไร/(ขาดทุน) จากการจำหน่ายทรัพย์สิน', assetDisposalNet, assetDisposalDetails, assetDisposalNet >= 0 ? 'good' : 'bad'),
       moneyLine('กำไรก่อนภาษี', 'กำไรก่อนภาษี (Profit Before Tax)', netProfitBeforeTax, undefined, 'total'),
     ],

@@ -285,10 +285,10 @@ export async function GET(request: Request) {
                 select: {
                   date: true,
                   doc_no: true,
+                  customer_transferred_native_amount: true,
                   fx_rate: true,
                   net_cash_in: true,
                   receipt_currency_code: true,
-                  received_native_amount: true,
                   settlement_book_amount: true,
                   settlement_fx_difference: true,
                   status: true,
@@ -343,7 +343,7 @@ export async function GET(request: Request) {
               ? {
                   currencyCode: allocation.customer_receipts.receipt_currency_code,
                   fxRate: toNumber(allocation.customer_receipts.fx_rate),
-                  receivedNativeAmount: toNumber(allocation.customer_receipts.received_native_amount),
+                  nativeAmount: toNumber(allocation.customer_receipts.customer_transferred_native_amount),
                   settlementBookAmount: toNumber(allocation.customer_receipts.settlement_book_amount),
                   settlementFxDifference: toNumber(allocation.customer_receipts.settlement_fx_difference),
                 }

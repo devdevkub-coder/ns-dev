@@ -6,7 +6,7 @@ const source = readFileSync(new URL('./MoneyMovementPageClient.tsx', import.meta
 describe('foreign customer receipt dependency reset contract', () => {
   it('reloads the exact rate lookup when a context input changes', () => {
     expect(source).toContain("const [foreignRateReloadNonce, setForeignRateReloadNonce] = useState(0)")
-    expect(source).toContain('[foreignRateReloadNonce, formOpen, isForeignReceipt, mode, receiptCurrencyCode, receiptRateDate, receiptRateType]')
+    expect(source).toContain('[foreignRateReloadNonce, form.id, formOpen, isForeignReceipt, mode, receiptCurrencyCode, receiptRateDate]')
 
     for (const handler of ['changeReceiptSourceType', 'changeReceiptCurrency', 'changeReceiptDate', 'changeReceiptBranch', 'changeReceiptCustomer', 'updateReceiptSplit']) {
       const handlerStart = source.indexOf(`function ${handler}`)
@@ -26,9 +26,7 @@ describe('foreign customer receipt dependency reset contract', () => {
     for (const handlerSource of [branchSource, customerSource]) {
       expect(handlerSource).toContain("accountId: ''")
       expect(handlerSource).toContain('customerTransferredNativeAmount: undefined')
-      expect(handlerSource).toContain('receivedNativeAmount: undefined')
       expect(handlerSource).toContain('fxRate: undefined')
-      expect(handlerSource).toContain('fxRateOverrideReason: null')
       expect(handlerSource).toContain('splits: [newReceiptSplit()]')
     }
   })
@@ -38,26 +36,54 @@ describe('foreign customer receipt dependency reset contract', () => {
     expect(source).toContain('receiptCurrencyCode !== functionalCurrencyCode')
     expect(source).toContain("receiptSourceType === 'SB'")
     expect(source).toContain("receiptSourceType === 'CADV'")
+    expect(source).toContain("account.accountGroup === 'cash' || account.accountGroup === 'bank'")
+    expect(source).toContain("account.accountGroup === 'bank'")
     expect(source).toContain("account.isFcd === true")
     expect(source).toContain('account.supportedCurrencies')
-    expect(source).toContain('foreignFcdAccountOptions')
-    expect(source).toContain('Bank Fee ({functionalCurrencyCode})')
-    expect(source).toContain('Settlement FX ({functionalCurrencyCode})')
-    expect(source).toContain("value={receiptForm?.fxRateOverrideReason ?? ''}")
-    expect(source).toContain('ทุกบัญชีต้องรองรับ {receiptCurrencyCode}; ยอดรวมต้องเท่ากับยอดเข้าบัญชี FCD จริง')
-    expect(source).toContain("{receiptSourceType === 'SB' ? <div><span className=\"text-slate-500\">Settlement FX")
+    expect(source).toContain('activeAccounts={isForeignReceipt ? foreignFcdAccounts : functionalReceiptAccounts}')
+    expect(source).toContain("const foreignReceiptPaymentMethods = useMemo(() => paymentMethods.filter((method) => method.type === 'bank')")
+    expect(source).toContain('netTargetLabel={isForeignReceipt ? `🎯 ยอดที่ลูกค้าโอน (${receiptCurrencyCode})`')
+    expect(source).toContain('discountLabel={`ส่วนลด (${functionalCurrencyCode})`}')
+    expect(source).toContain('feeLabel={`ค่าธรรมเนียมธนาคาร (${functionalCurrencyCode})`}')
+    expect(source).toContain('กำไร FX จากการปิดบิล')
+    expect(source).toContain('ยอดลูกหนี้ก่อนตัด')
+    expect(source).toContain('ยอดเงินสดที่ต้องรับ')
+    expect(source).toContain('ยอดลูกหนี้คงเหลือ')
+    expect(source).toContain('`💰 ยอดที่บันทึกเข้า FCD (${receiptCurrencyCode})`')
+    expect(source).toContain('มูลค่าตามบัญชี FCD ({functionalCurrencyCode})')
+    expect(source).toContain("? 'รับบางส่วน'")
+    expect(source).toContain('splitAmountHelper={isForeignReceipt ?')
+    expect(source).toContain('equalSplitFieldWidths={isForeignReceipt}')
+    expect(source).toContain('`≈ ${formatMoney(splitBookAmount)} ${functionalCurrencyCode}`')
+    expect(source).toContain('calculateCustomerReceiptSettlement')
+    expect(source).not.toContain('capReceiptLinesToSettlement')
+    expect(source).toContain('const foreignReceiptAmount = isForeignReceipt ? roundMoney(receiptSplitTotal) : 0')
+    expect(source).toContain('customerTransferredNativeAmount: isForeign ? transferredNativeAmount : undefined')
+    expect(source).not.toContain("moneyInputValue('receipt-customer-transferred-native'")
+    expect(source).not.toContain("value={receiptForm?.fxRateOverrideReason ?? ''}")
+    expect(source).not.toContain('receipt-received-native')
+    expect(source).toContain('ทุกบัญชีต้องเป็น FCD และรองรับ ${receiptCurrencyCode}')
+    expect(source).toContain('calculationSummary={isForeignReceipt ?')
+    expect(source).toContain("showDiscount={receiptSourceType === 'SB'}")
+    expect(source).toContain('showReconciliationSummary={!isForeignReceipt}')
+    expect(source).toContain("receiptSourceType === 'SB' ? <div className=\"rounded-md border border-slate-200 bg-slate-50/50 p-4\">")
   })
 
   it('uses the receipt rate API and server-side CADV guard instead of client-side fallback assumptions', () => {
-    expect(source).toContain('/api/sales/receipts/rate?${new URLSearchParams({')
+    expect(source).toContain('/api/finance/foreign/live-fx-rate?${new URLSearchParams({')
     expect(source).toContain('currency: receiptCurrencyCode')
     expect(source).toContain('date: receiptRateDate')
-    expect(source).toContain('rateType: receiptRateType')
+    expect(source).not.toContain('rateType: receiptRateType')
+    expect(source).toContain('Rate ล่าสุดจาก Google Finance')
 
     const receiptService = readFileSync(new URL('../../lib/server/customer-receipts.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+    expect(receiptService).toContain('function customerReceiptFxRate(value: number)')
+    expect(receiptService).toContain('อัตราแลกเปลี่ยนต้องมีทศนิยมไม่เกิน 2 ตำแหน่ง')
     expect(receiptService).toContain("settlementDifferenceReasonForReceipt('CADV', settlementBookAmount.minus(totalCadVSettlement))")
     expect(receiptService).toContain('settlement_difference_reason: settlementDifferenceReason')
-    expect(receiptService).toContain("if (!rateWasSuggested && !values.fxRateOverrideReason?.trim()) throw new Error('กรุณาระบุเหตุผลเมื่อกรอกหรือแก้ไขอัตราแลกเปลี่ยน')")
+    expect(receiptService).toContain('const carryingThbAmount = settlementBookAmount.minus(bankFeeTotal)')
+    expect(receiptService).not.toContain('fxRateOverrideReason')
+    expect(receiptService).toContain("paymentMethod.type !== 'bank'")
   })
 
   it('keeps history filters and all receipt print outputs on the THB book contract', () => {
@@ -75,7 +101,7 @@ describe('foreign customer receipt dependency reset contract', () => {
   })
 
   it('renders SB and CADV foreign details without mixing their settlement labels', () => {
-    expect(source).toContain("row.sourceType === 'CADV' ? 'ยอดตัด CADV (THB)' : 'ยอดตัด AR (THB)'")
+    expect(source).toContain("row.sourceType === 'CADV' ? 'ยอดตัดเงินรับล่วงหน้า (THB)' : 'ยอดตัดลูกหนี้ (THB)'")
     expect(source).toContain("...(row.sourceType === 'SB' ? [['Settlement FX (THB)'")
     expect(source).toContain("row.sourceType === 'CADV' ? 'รายการรับเงินล่วงหน้า Customer' : 'บิลขายที่รับเงิน'")
 

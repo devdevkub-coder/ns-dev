@@ -120,7 +120,7 @@ describe('buildPlStatement', () => {
       grossProfit: 400,
       interest: 20,
       netProfitBeforeTax: 220,
-      operatingProfit: 250,
+      operatingProfit: 240,
       revenue: 1000,
     })
     expect(payload.sections.at(-1)).toMatchObject({
@@ -134,8 +134,8 @@ describe('buildPlStatement', () => {
     })
     expect(payload.sections[3]?.details?.[0]).toMatchObject({ href: '/daily/expense/EXP-001', sourceType: 'expense' })
     expect(payload.sections[4]?.details?.[0]).toMatchObject({ href: '/finance-accounting/depreciation', sourceType: 'depreciation' })
-    expect(payload.sections[7]?.details?.[0]).toMatchObject({ href: '/finance-accounting/loan-contracts', sourceType: 'loan_payment' })
-    expect(payload.sections[8]?.details?.[0]).toMatchObject({ href: '/finance/foreign/fx-gain-loss-report', sourceType: 'fx_gain_loss' })
+    expect(payload.sections[5]?.details?.[0]).toMatchObject({ href: '/finance/foreign/fx-gain-loss-report', sourceType: 'fx_gain_loss' })
+    expect(payload.sections[8]?.details?.[0]).toMatchObject({ href: '/finance-accounting/loan-contracts', sourceType: 'loan_payment' })
   })
 
   it.each([

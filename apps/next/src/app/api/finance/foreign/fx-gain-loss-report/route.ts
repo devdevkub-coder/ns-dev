@@ -9,6 +9,9 @@ export const runtime = 'nodejs'
 type FxGainLossRow = Awaited<ReturnType<typeof prisma.fx_gain_loss.findMany>>[number]
 type StatementReference = { docNo: string; referenceNo: string }
 
+const AR_SETTLEMENT_REF_TYPE = 'RCP'
+const AR_SETTLEMENT_LABEL = 'AR Settlement'
+
 function mapRow(row: FxGainLossRow, referenceBySource: Map<string, StatementReference>) {
   const foreignAmount = toNumber(row.amount_fc)
   const originalFxRate = toNumber(row.rate_book)
@@ -35,7 +38,7 @@ function mapRow(row: FxGainLossRow, referenceBySource: Map<string, StatementRefe
     sourceRefId: outwardReference,
     settlementFxRate,
     settlementThbValue: foreignAmount * settlementFxRate,
-    transactionType: row.ref_type || 'FX Gain/Loss',
+    transactionType: row.ref_type === AR_SETTLEMENT_REF_TYPE ? AR_SETTLEMENT_LABEL : row.ref_type || 'FX Gain/Loss',
   }
 }
 
@@ -49,13 +52,14 @@ export async function GET(request: Request) {
     const to = url.searchParams.get('to')
     const currency = url.searchParams.get('currency')?.trim().toUpperCase()
     const refType = url.searchParams.get('refType')?.trim()
+    const persistedRefType = refType === AR_SETTLEMENT_LABEL ? AR_SETTLEMENT_REF_TYPE : refType
 
     const rows = await prisma.fx_gain_loss.findMany({
       orderBy: [{ date: 'desc' }, { created_at: 'desc' }, { id: 'desc' }],
       take: 5000,
       where: {
         ...(currency && currency !== 'ALL' ? { currency } : {}),
-        ...(refType && refType !== 'all' ? { ref_type: refType } : {}),
+        ...(persistedRefType && persistedRefType !== 'all' ? { ref_type: persistedRefType } : {}),
         ...(from || to ? {
           date: {
             ...(from ? { gte: normalizeDate(from) } : {}),

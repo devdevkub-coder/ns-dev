@@ -22,9 +22,8 @@ export type CustomerReceiptLineFlexData = {
   foreignAudit?: {
     carryingBookAmountThb: number
     currencyCode: string
-    customerTransferredNativeAmount: number
     fxRate: number
-    receivedNativeAmount: number
+    nativeAmount: number
     settlementBookAmountThb: number
   }
   notes?: string
@@ -204,7 +203,7 @@ export function buildCustomerReceiptLineFlexMessage(input: CustomerReceiptLineFl
     ...(!sameMoney(allocatedArTotal, input.bookAmountThb) ? [detailRow('ยอดตัดลูกหนี้ (THB)', money(allocatedArTotal), true)] : []),
     ...(hasMoney(input.fee) ? [detailRow('ค่าธรรมเนียม', money(input.fee))] : []),
     detailRow('เงินเข้าสุทธิ (THB)', money(input.bookNetCashInThb), true),
-    ...(input.foreignAudit ? [detailRow(`รับจริง (${input.foreignAudit.currencyCode})`, number(input.foreignAudit.receivedNativeAmount)), detailRow('อัตราแลกเปลี่ยน', fxRate(input.foreignAudit.fxRate))] : []),
+    ...(input.foreignAudit ? [detailRow(`ยอดที่ลูกค้าโอน (${input.foreignAudit.currencyCode})`, number(input.foreignAudit.nativeAmount)), detailRow('อัตราแลกเปลี่ยน', fxRate(input.foreignAudit.fxRate))] : []),
     ...(notes ? [detailRow('หมายเหตุ', notes)] : []),
   ]
 

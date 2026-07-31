@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { paymentMethodGroupFromValue, type PaymentMethodGroup } from '@/lib/account-payment-method'
 import { Button as UiButton } from '@/components/ui/Button'
 import { Input as UiInput } from '@/components/ui/Input'
@@ -47,19 +47,29 @@ type PaymentSplitLike = {
 }
 
 export function PaymentSplitsSection({
+  accountLabel,
   activeAccounts,
   addButtonLabel = '+ เพิ่มบัญชี',
   afterLabel = '📊 หลังจ่าย',
   amountLabel = '➖ จ่าย',
   balanceMode = 'subtract',
+  calculationSummary,
+  discountLabel = 'Discount',
+  feeLabel = 'Bank Fee',
   form,
   formNetAmount,
+  introContent,
+  equalSplitFieldWidths = false,
   moneyInputValue,
   netTargetLabel = '🎯 ยอดสุทธิที่ต้องจ่าย',
   paymentSplits,
   paymentSplitTotal,
   sectionHelp = 'เลือกได้หลายบัญชี กรณีวงเงินเต็ม → split',
   sectionTitle = '💳 บัญชีจ่าย *',
+  showDiscount = true,
+  showReconciliationSummary = true,
+  showSplitBalancePreview = true,
+  splitAmountHelper,
   totalLabel = '💰 รวมแยกบัญชี',
   onAddPaymentSplit,
   onChangeMoneyInput,
@@ -73,19 +83,29 @@ export function PaymentSplitsSection({
   onMethodChange,
   methodDisabled,
 }: {
+  accountLabel?: (account: DailyAccountOption) => string
   activeAccounts: DailyAccountOption[]
   addButtonLabel?: string
   afterLabel?: string
   amountLabel?: string
   balanceMode?: 'add' | 'subtract'
+  calculationSummary?: ReactNode
+  discountLabel?: string
+  feeLabel?: string
   form: MoneyFormLike
   formNetAmount: number
+  introContent?: ReactNode
+  equalSplitFieldWidths?: boolean
   moneyInputValue: (key: string, value: number) => string
   netTargetLabel?: string
   paymentSplits: PaymentSplitLike[]
   paymentSplitTotal: number
   sectionHelp?: string
   sectionTitle?: string
+  showDiscount?: boolean
+  showReconciliationSummary?: boolean
+  showSplitBalancePreview?: boolean
+  splitAmountHelper?: (split: PaymentSplitLike, splitIndex: number) => ReactNode
   totalLabel?: string
   onAddPaymentSplit: () => void
   onChangeMoneyInput: (key: string, rawValue: string, onValue: (value: number) => void) => void
@@ -102,7 +122,7 @@ export function PaymentSplitsSection({
   const formDiscountKey = 'payment-form-discount'
   const formFeeKey = 'payment-form-fee'
 
-  const getAccountLabel = (account: DailyAccountOption) => {
+  const getAccountLabel = accountLabel ?? ((account: DailyAccountOption) => {
     if (account.subtype === 'current') {
       const odLimit = account.odLimit ?? 0
       const odRemaining = account.odRemaining ?? 0
@@ -110,7 +130,7 @@ export function PaymentSplitsSection({
       return `${account.name} (คงเหลือจริง ${formatMoney(account.balance ?? 0)} / OD คงเหลือ ${formatMoney(odRemaining)} / ใช้ได้รวม ${formatMoney(available)})`
     }
     return `${account.name} (คงเหลือจริง ${formatMoney(account.balance ?? 0)})`
-  }
+  })
 
   // Calculate summary values for the entire document
   let totalNormalBalanceUsed = 0
@@ -156,6 +176,8 @@ export function PaymentSplitsSection({
         </UiButton>
       </div>
 
+      {introContent ? <div className="mb-3 border-y border-blue-100 py-3">{introContent}</div> : null}
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Left Side: Splits List */}
         <div className={showSummaryCard ? "lg:col-span-8 space-y-2" : "lg:col-span-12 space-y-2"}>
@@ -172,18 +194,19 @@ export function PaymentSplitsSection({
               : !split.method || !splitMethodGroup
               ? []
               : activeAccounts.filter((account) => {
-                  const accountGroup = paymentMethodGroupFromValue(account.type, paymentMethods) ??
-                    (String(account.type ?? '').toLowerCase().includes('cash') || String(account.type ?? '').includes('เงินสด') ? 'cash' : 'bank')
-                  return accountGroup === splitMethodGroup
+                  return account.accountGroup === splitMethodGroup
                 })
 
             return (
-              <div key={split.id ?? splitIndex} className="grid grid-cols-12 items-center gap-2 rounded-xl border border-slate-200 bg-white p-2">
-                <div className="col-span-1 text-center text-xs font-bold text-slate-500">#{splitIndex + 1}</div>
+              <div
+                key={split.id ?? splitIndex}
+                className={`grid gap-2 rounded-xl border border-slate-200 bg-white p-2 ${equalSplitFieldWidths && paymentMethods ? 'grid-cols-[40px_190px_280px_350px_40px] items-start justify-start' : 'grid-cols-12 items-center'}`}
+              >
+                <div className={equalSplitFieldWidths && paymentMethods ? 'text-center text-xs font-bold text-slate-500' : 'col-span-1 text-center text-xs font-bold text-slate-500'}>#{splitIndex + 1}</div>
 
                 {paymentMethods ? (
                   <>
-                    <div className="col-span-3">
+                    <div className={equalSplitFieldWidths ? '' : 'col-span-3'}>
                       <UiSelect
                         disabled={methodDisabled}
                         className="h-9 w-full rounded-md border border-slate-300 disabled:bg-slate-100 disabled:opacity-80 px-2 py-1.5 text-sm bg-white"
@@ -197,7 +220,7 @@ export function PaymentSplitsSection({
                         ))}
                       </UiSelect>
                     </div>
-                    <div className="col-span-4">
+                    <div className={equalSplitFieldWidths ? '' : 'col-span-4'}>
                       <UiSelect
                         disabled={!split.method || methodDisabled}
                         className="h-9 w-full rounded-md border border-slate-300 disabled:bg-slate-100 disabled:opacity-80 px-2 py-1.5 text-sm bg-white"
@@ -213,10 +236,10 @@ export function PaymentSplitsSection({
                         ))}
                       </UiSelect>
                     </div>
-                    <div className="col-span-3">
+                    <div className={equalSplitFieldWidths ? 'grid grid-cols-[150px_minmax(0,1fr)] items-center gap-2' : 'col-span-3'}>
                       <UiInput
                         disabled={methodDisabled}
-                        className="h-9 w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"
+                        className={`h-9 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm ${equalSplitFieldWidths ? 'w-[150px] flex-none tabular-nums' : 'w-full'}`}
                         inputMode="decimal"
                         placeholder={paymentSplits.length === 1 ? formatMoney(formNetAmount) : 'จำนวนเงิน'}
                         type="text"
@@ -225,6 +248,7 @@ export function PaymentSplitsSection({
                         onChange={(event) => onChangeMoneyInput(splitAmountKey, event.target.value, (amount) => onUpdatePaymentSplit(splitIndex, { amount }))}
                         onFocus={() => onStartMoneyInput(splitAmountKey, splitAmount)}
                       />
+                      {splitAmountHelper ? <div className="min-w-0 whitespace-nowrap text-right text-xs font-semibold text-slate-600">{splitAmountHelper(split, splitIndex)}</div> : null}
                     </div>
                   </>
                 ) : (
@@ -261,7 +285,7 @@ export function PaymentSplitsSection({
                   </>
                 )}
 
-                <div className="col-span-1 text-center">
+                <div className={equalSplitFieldWidths && paymentMethods ? 'text-center' : 'col-span-1 text-center'}>
                   <UiButton
                     className="h-8 w-8 px-0 font-bold text-red-500 hover:text-red-700 disabled:text-slate-300"
                     disabled={paymentSplits.length <= 1 || methodDisabled}
@@ -273,7 +297,7 @@ export function PaymentSplitsSection({
                     ×
                   </UiButton>
                 </div>
-                {split.accountId ? (
+                {showSplitBalancePreview && split.accountId ? (
                   splitAccount?.subtype === 'current' && balanceMode === 'subtract' ? (
                     <div className="col-span-12 pl-2 space-y-2 border-t border-slate-100 pt-2 text-xs">
                       <div className="grid grid-cols-4 gap-2">
@@ -357,8 +381,8 @@ export function PaymentSplitsSection({
       </div>
 
       <div className="mt-2 flex flex-wrap items-end justify-end gap-3 border-t border-slate-200 pt-2">
-        <label className="block min-w-32 text-left text-xs font-medium text-slate-600">
-          <span>Discount</span>
+        {showDiscount ? <label className="block min-w-32 text-left text-xs font-medium text-slate-600">
+          <span>{discountLabel}</span>
           <UiInput
             disabled={methodDisabled}
             className="mt-1 h-9 w-full px-2 py-1 text-right"
@@ -369,9 +393,9 @@ export function PaymentSplitsSection({
             onChange={(event) => onChangeMoneyInput(formDiscountKey, event.target.value, (discount) => onUpdatePaymentForm({ discount }))}
             onFocus={() => onStartMoneyInput(formDiscountKey, Number(form.discount) || 0)}
           />
-        </label>
+        </label> : null}
         <label className="block min-w-32 text-left text-xs font-medium text-slate-600">
-          <span>Bank Fee</span>
+          <span>{feeLabel}</span>
           <UiInput
             disabled={methodDisabled}
             className="mt-1 h-9 w-full px-2 py-1 text-right"
@@ -384,7 +408,7 @@ export function PaymentSplitsSection({
           />
         </label>
       </div>
-      {!showSummaryCard && (
+      {!showSummaryCard && showReconciliationSummary && (
         <div className="mt-2 grid grid-cols-3 gap-2 border-t border-slate-200 pt-2 text-sm">
           <div className="rounded-md bg-slate-100 p-2">
             <div className="text-xs text-slate-600">{totalLabel}</div>
@@ -400,6 +424,7 @@ export function PaymentSplitsSection({
           </div>
         </div>
       )}
+      {calculationSummary ? <div className="mt-2 border-t border-slate-200 pt-3">{calculationSummary}</div> : null}
     </div>
   )
 }

@@ -6,10 +6,20 @@ describe('allocateCarryingAmounts', () => {
     const result = allocateCarryingAmounts([
       { accountCode: 'FCD-1', nativeAmount: '33.33' },
       { accountCode: 'FCD-2', nativeAmount: '66.67' },
-    ], '35.123')
+    ], '3512.30')
 
     expect(result.map((split) => split.carryingThbAmount.toFixed(2))).toEqual(['1170.65', '2341.65'])
     expect(result.reduce((sum, split) => sum.plus(split.carryingThbAmount), result[0]!.carryingThbAmount.minus(result[0]!.carryingThbAmount)).toFixed(2)).toBe('3512.30')
+  })
+
+  it('allocates persisted carrying THB after a Bank Fee without changing the native FCD total', () => {
+    const result = allocateCarryingAmounts([
+      { accountCode: 'FCD-1', nativeAmount: '40.00' },
+      { accountCode: 'FCD-2', nativeAmount: '60.00' },
+    ], '3465.00')
+
+    expect(result.map((split) => split.carryingThbAmount.toFixed(2))).toEqual(['1386.00', '2079.00'])
+    expect(result.reduce((sum, split) => sum.plus(split.carryingThbAmount), result[0]!.carryingThbAmount.minus(result[0]!.carryingThbAmount)).toFixed(2)).toBe('3465.00')
   })
 })
 
@@ -137,6 +147,7 @@ describe('foreign receipt idempotency keys', () => {
       branchId: 1n,
       currencyCode: 'USD',
       date: '2026-07-30',
+      carryingThbAmount: '3512.30',
       rate: '35.123',
       receiptDocNo: 'RCP2607-0001',
       receiptId: 42n,
