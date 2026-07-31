@@ -7,7 +7,7 @@ import { currentActor, documentBranchCode, normalizeDate, toDateOnly, toNumber }
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranches, listActiveSupplierPaymentOptions, listActiveSuppliers } from '@/lib/server/reference-master-cache'
-import { isPurchaseBillCancelledStatus } from '@/lib/purchase-bill-status'
+import { isPurchaseBillCancelledStatus, PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
