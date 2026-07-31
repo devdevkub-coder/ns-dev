@@ -1,4 +1,5 @@
 import { Prisma } from '../../../generated/prisma/client'
+import { isPurchaseBillActiveStatus } from '@/lib/purchase-bill-status'
 import { toNumber } from '@/lib/server/daily'
 
 const COST_EPSILON = 0.0001
@@ -47,7 +48,7 @@ export async function syncPurchaseBillCostPoolEntries(
   })
   type ExistingEntry = typeof existingEntries[number]
 
-  const shouldKeepActive = params.transactionMode === 'STOCK' && !String(bill.status ?? '').toLowerCase().includes('cancel')
+  const shouldKeepActive = params.transactionMode === 'STOCK' && isPurchaseBillActiveStatus(bill.status, bill.doc_no)
   const activeItems = shouldKeepActive
     ? await tx.purchase_bill_items.findMany({
       orderBy: { line_no: 'asc' },

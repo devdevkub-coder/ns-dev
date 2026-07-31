@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { parseInternalBigIntId, requireBusinessCode, requireDocumentNo, stringifyBusinessValue } from '@/lib/business-code'
 import { supplierPaymentFormSchema } from '@/lib/daily'
-import { requirePurchaseBillStatus } from '@/lib/purchase-bill-status'
+import { isPurchaseBillCancelledStatus, requirePurchaseBillStatus } from '@/lib/purchase-bill-status'
 import {
   assertCompatiblePaymentDestinations,
   assertCompatiblePaymentRecipients,
@@ -231,11 +231,11 @@ async function nextSupplierPaymentDocNo(tx: Prisma.TransactionClient, date: stri
 
 async function refreshPurchaseBillPaymentStatus(tx: Prisma.TransactionClient, billId: bigint, actor: string) {
   const bill = await tx.purchase_bills.findUnique({
-    select: { id: true, status: true },
+    select: { doc_no: true, id: true, status: true },
     where: { id: billId },
   })
   if (!bill) throw new Error('ไม่พบบิลซื้อที่ต้องการตัดชำระ')
-  if (String(bill.status ?? '').toLowerCase().includes('cancel')) {
+  if (isPurchaseBillCancelledStatus(bill.status, bill.doc_no)) {
     throw new Error('ตัดชำระไม่ได้ เพราะบิลซื้อถูกยกเลิกแล้ว')
   }
   await refreshPurchaseBillSettlement(tx, billId, actor)

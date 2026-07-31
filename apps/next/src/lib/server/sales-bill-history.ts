@@ -22,6 +22,25 @@ export function requireSalesBillStatus(status: string | null | undefined, docNo:
   return status as SalesBillStatus
 }
 
+export function isSalesBillCancelledStatus(status: string | null | undefined, docNo: string) {
+  return requireSalesBillStatus(status, docNo) === SALES_BILL_STATUS.CANCELLED
+}
+
+export function isSalesBillActiveStatus(status: string | null | undefined, docNo: string) {
+  return !isSalesBillCancelledStatus(status, docNo)
+}
+
+export function salesBillStatusText(status: string | null | undefined) {
+  const canonical = requireSalesBillStatus(status, 'status')
+  const labels: Record<SalesBillStatus, string> = {
+    [SALES_BILL_STATUS.UNRECEIVED]: 'ยังไม่รับเงิน',
+    [SALES_BILL_STATUS.PARTIAL]: 'รับเงินบางส่วน',
+    [SALES_BILL_STATUS.RECEIVED]: 'รับเงินครบแล้ว',
+    [SALES_BILL_STATUS.CANCELLED]: 'ยกเลิก',
+  }
+  return labels[canonical]
+}
+
 export const SALES_BILL_STATUS_ACTION = {
   ALLOCATION_CORRECTED: 'allocation_corrected',
   CANCELLED: 'cancelled',

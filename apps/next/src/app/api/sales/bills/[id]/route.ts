@@ -116,7 +116,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         where: { doc_no: billRef, ...scopedSalesBillWhere(branchScope.ids) },
       })
       if (!bill) throw new Error('ไม่พบบิลขายที่ต้องการยกเลิก')
-      if (!isSalesBillActiveForCancel(bill.status)) throw new Error('บิลขายนี้ถูกยกเลิกแล้ว')
+      if (!isSalesBillActiveForCancel(bill.status, bill.doc_no)) throw new Error('บิลขายนี้ถูกยกเลิกแล้ว')
 
       const activeReceiptCount = await activeSalesReceiptCount(tx, bill.id)
       if (activeReceiptCount > 0) {

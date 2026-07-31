@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { Prisma } from '../../../generated/prisma/client'
 import { parseInternalBigIntId, stringifyBusinessValue } from '@/lib/business-code'
+import { isPurchaseBillActiveStatus } from '@/lib/purchase-bill-status'
 import { toNumber } from '@/lib/server/daily'
 import { syncPoBuyCostPoolEntries } from '@/lib/server/po-buy-cost-pool'
 
@@ -316,7 +317,7 @@ export async function reconcilePoBuys(
     tx.purchase_bill_po_allocations.findMany({
       include: {
         purchase_bill_items: { select: { product_id: true } },
-        purchase_bills: { select: { status: true } },
+        purchase_bills: { select: { doc_no: true, status: true } },
       },
       where: {
         allocation_status: 'active',
@@ -326,7 +327,7 @@ export async function reconcilePoBuys(
     }),
   ])
 
-  const activeAllocations = allocations.filter((allocation) => !String(allocation.purchase_bills.status ?? '').toLowerCase().includes('cancel'))
+  const activeAllocations = allocations.filter((allocation) => isPurchaseBillActiveStatus(allocation.purchase_bills.status, allocation.purchase_bills.doc_no))
   const allocationsByPo = new Map<bigint, { amount: number; qtyByProduct: Map<string, number> }>()
   activeAllocations.forEach((allocation) => {
     const current = allocationsByPo.get(allocation.po_buy_id) ?? { amount: 0, qtyByProduct: new Map<string, number>() }

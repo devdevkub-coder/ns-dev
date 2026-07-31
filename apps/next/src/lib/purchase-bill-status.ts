@@ -31,6 +31,10 @@ export function isPurchaseBillCancelledStatus(status: string | null | undefined,
   return PURCHASE_BILL_CANCELLED_STATUSES.includes(canonicalStatus as PurchaseBillCancelledStatus)
 }
 
+export function isPurchaseBillActiveStatus(status: string | null | undefined, docNo: string) {
+  return !isPurchaseBillCancelledStatus(status, docNo)
+}
+
 export function purchaseBillStatusText(status: string | null | undefined) {
   const normalized = requirePurchaseBillStatus(status, 'status')
   const labels: Record<PurchaseBillStatus, string> = {

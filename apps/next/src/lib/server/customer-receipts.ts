@@ -12,7 +12,7 @@ import { settlementDifferenceReasonForReceipt } from '@/lib/server/customer-rece
 import { currentTransactionDate } from '@/lib/server/transaction-date'
 import { findFcdRateSnapshot } from '@/lib/server/fcd-rate-snapshot'
 import { calculateSettlementBookAmount, fcdFxRate, requireFcdInputMoneyAmount } from '@/lib/server/fcd-money'
-import { SALES_BILL_STATUS } from '@/lib/server/sales-bill-history'
+import { isSalesBillCancelledStatus, SALES_BILL_STATUS } from '@/lib/server/sales-bill-history'
 import { Prisma } from '../../../generated/prisma/client'
 
 const RECEIPT_DOC_PREFIX = 'RCP'
@@ -312,7 +312,7 @@ async function createCustomerReceiptInTransaction(
     if (bill.branch_id !== selectedBranch.id) {
       throw new Error(`บิลขาย ${line.salesBillDocNo} ไม่อยู่ในสาขาที่เลือก`)
     }
-    if (String(bill.status ?? '').toLowerCase() === 'cancelled') {
+    if (isSalesBillCancelledStatus(bill.status, bill.doc_no)) {
       throw new Error(`บิลขาย ${line.salesBillDocNo} ถูกยกเลิกแล้ว`)
     }
 
@@ -1432,7 +1432,7 @@ async function createForeignSalesBillReceiptInTransaction(
     const bill = billByDocNo.get(line.salesBillDocNo)
     if (!bill) throw new Error(`ไม่พบบิลขาย ${line.salesBillDocNo}`)
     if (bill.customer_id !== customer.id || bill.branch_id !== selectedBranch.id) throw new Error(`บิลขาย ${line.salesBillDocNo} ไม่ตรงกับลูกค้าหรือสาขาที่เลือก`)
-    if (String(bill.status ?? '').toLowerCase() === 'cancelled') throw new Error(`บิลขาย ${line.salesBillDocNo} ถูกยกเลิกแล้ว`)
+    if (isSalesBillCancelledStatus(bill.status, bill.doc_no)) throw new Error(`บิลขาย ${line.salesBillDocNo} ถูกยกเลิกแล้ว`)
     const arAmount = decimalReceiptMoney(line.receiptAmount + line.discountAmount + line.withholdingTaxAmount, 'ยอดตัด AR')
     const outstanding = decimalReceiptMoney(toNumber(bill.receivable_balance), 'ยอดค้างรับ')
     if (arAmount.gt(outstanding)) throw new Error(`ยอดตัด AR ของบิลขาย ${line.salesBillDocNo} เกินยอดค้างรับ`)

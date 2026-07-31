@@ -12,6 +12,7 @@ import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import { prisma } from '@/lib/server/prisma'
 import { getFinanceCurrencyPolicy } from '@/lib/server/finance-currency-policy'
 import { listActiveBranches, listActiveBranchesByCodes, listActiveCustomers, listCurrencies } from '@/lib/server/reference-master-cache'
+import { SALES_BILL_STATUS } from '@/lib/server/sales-bill-history'
 import { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -117,7 +118,7 @@ export async function GET(request: Request) {
         where: {
           ...salesBillBranchWhere,
           receivable_balance: { gt: 0 },
-          status: { notIn: ['cancelled', 'canceled'] },
+          status: { in: [SALES_BILL_STATUS.UNRECEIVED, SALES_BILL_STATUS.PARTIAL] },
         },
       }),
       prisma.sales_bills.findMany({

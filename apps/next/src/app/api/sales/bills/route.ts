@@ -9,13 +9,14 @@ import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-referen
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { currentActor, documentBranchCode, nextDailyDocNo, normalizeDate, roundMoney, toDateOnly, toNumber } from '@/lib/server/daily'
 import { requireBusinessCode } from '@/lib/business-code'
+import { requirePurchaseBillStatus } from '@/lib/purchase-bill-status'
 import { derivePoSellFulfillmentStatus, isInactivePoSellStatus, PO_SELL_STATUS, requirePoSellStatus } from '@/lib/po-sell-status'
 import { isCustomerEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jobs'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSalesChannelReferenceByCode } from '@/lib/server/sales-channel-reference'
 import { activeSalesReceiptCount, activeSalesReceiptCountByBillId, isSalesBillActiveForCancel, salesBillCancelState } from '@/lib/server/sales-bill-cancel-policy'
-import { appendSalesBillStatusLog, requireSalesBillStatus, SALES_BILL_STATUS, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
+import { appendSalesBillStatusLog, isSalesBillActiveStatus, requireSalesBillStatus, salesBillStatusText, SALES_BILL_STATUS, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { appendPoSellAllocationLogs, PO_SELL_ALLOCATION_ACTION } from '@/lib/server/po-sell-allocation-history'
 import { salesBillLineFactsForBills, type SalesBillLineFactRow } from '@/lib/server/sales-bill-line-facts'
 import { consumeActiveWtoPendingOut, releaseConsumedWtoPendingOutForSalesBill, reopenConsumedWtoPendingOutForSalesBill, WtoPendingOutError } from '@/lib/server/stock-holds'
@@ -176,9 +177,9 @@ function parseBillQuery(url: URL, includePaging = true): BillQuery {
 }
 
 function billJson(row: SalesBillRow, activeReceiptCount = 0, lineCount?: number) {
-  const cancelState = salesBillCancelState(row.status, activeReceiptCount)
-  const canEdit = isSalesBillActiveForCancel(row.status) && activeReceiptCount === 0
-  const editLockedReason = !isSalesBillActiveForCancel(row.status)
+  const cancelState = salesBillCancelState(row.status, row.doc_no, activeReceiptCount)
+  const canEdit = isSalesBillActiveForCancel(row.status, row.doc_no) && activeReceiptCount === 0
+  const editLockedReason = !isSalesBillActiveForCancel(row.status, row.doc_no)
     ? 'บิลขายนี้ถูกยกเลิกแล้ว'
     : activeReceiptCount > 0
       ? 'แก้ไขบิลขายไม่ได้ เพราะมีรายการรับเงิน Customer แล้ว'
@@ -832,7 +833,11 @@ async function buildDeliveryTicketUsageMap(tickets: DeliveryTicketOptionRow[]) {
       sba.weight_ticket_id
     from public.sales_bill_source_allocations sba
     join public.sales_bills sb on sb.id = sba.sales_bill_id
-    where lower(coalesce(sb.status, '')) not in ('cancelled', 'void', 'voided')
+    where sb.status in (${Prisma.join([
+      SALES_BILL_STATUS.UNRECEIVED,
+      SALES_BILL_STATUS.PARTIAL,
+      SALES_BILL_STATUS.RECEIVED,
+    ])})
       and sba.status = 'active'
       and sba.source_type = 'WTO'
       and sba.weight_ticket_id in (${Prisma.join(ticketIds)})
@@ -1396,7 +1401,7 @@ export async function salesOptionsPayload(scope: Awaited<ReturnType<typeof sales
       take: 500,
       where: {
         ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
-        status: { notIn: ['cancelled', 'Cancelled', 'void', 'voided', 'reversed'] },
+        status: { in: [SALES_BILL_STATUS.UNRECEIVED, SALES_BILL_STATUS.PARTIAL, SALES_BILL_STATUS.RECEIVED] },
         transaction_mode: 'TRADING',
       },
     }),
@@ -1570,7 +1575,7 @@ export async function salesOptionsPayload(scope: Awaited<ReturnType<typeof sales
         remainingAmount,
         remainingQty,
         sourceLineNo: item.line_no,
-        status: bill.status ?? 'active',
+        status: requirePurchaseBillStatus(bill.status, bill.doc_no),
         supplier_id: null,
         supplier_name: supplierName,
         unitPrice: qty > 0 ? amount / qty : 0,
@@ -1646,17 +1651,6 @@ export async function salesOptionsPayload(scope: Awaited<ReturnType<typeof sales
   }
 }
 
-function salesBillStatusLabel(status?: string | null) {
-  if (!status) return '-'
-  const labels: Record<string, string> = {
-    open: 'เปิด',
-    closed: 'ปิด',
-    paid: 'ชำระแล้ว',
-    cancelled: 'ยกเลิก',
-  }
-  return labels[status.toLowerCase()] ?? status
-}
-
 async function buildWorkbook(summaryRows: any[], lineRows: SalesBillLineFactRow[]) {
   const summaryData = summaryRows.map((row) => ({
     'เลขที่': row.docNo,
@@ -1664,7 +1658,7 @@ async function buildWorkbook(summaryRows: any[], lineRows: SalesBillLineFactRow[
     'วันที่': row.date,
     'ลูกค้า': row.customerName,
     'ประเภท': row.transactionMode,
-    'สถานะ': salesBillStatusLabel(row.status),
+    'สถานะ': salesBillStatusText(row.status),
     'จำนวนรายการ': row.itemCount,
     'ยอดรวม': row.totalAmount,
     'รับชำระแล้ว': row.receivedAmount,
@@ -1967,7 +1961,7 @@ export async function POST(request: Request) {
         where: {
           branch_id: branch.id,
           doc_no: { in: sourceDocNos },
-          status: { notIn: ['cancelled', 'Cancelled', 'void', 'voided', 'reversed'] },
+          status: { in: [SALES_BILL_STATUS.UNRECEIVED, SALES_BILL_STATUS.PARTIAL, SALES_BILL_STATUS.RECEIVED] },
           transaction_mode: 'TRADING',
         },
       })
@@ -2776,7 +2770,7 @@ export async function PATCH(request: Request) {
         where: { doc_no: values.id, ...scopedBranchWhere(branchScope.ids) },
       })
       if (!bill) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลขาย' }, { status: 404 })
-      if (String(bill.status ?? '').toLowerCase().includes('cancel')) {
+      if (!isSalesBillActiveStatus(bill.status, bill.doc_no)) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะบิลขายนี้ถูกยกเลิกแล้ว' }, { status: 400 })
       }
       const activeReceiptsCount = (await activeSalesReceiptCountByBillId(prisma, [bill.id])).get(bill.id) ?? 0

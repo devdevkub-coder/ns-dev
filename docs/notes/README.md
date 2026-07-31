@@ -44,6 +44,7 @@
 | Topic | Note |
 |---|---|
 | Purchase bill details | `Purchase Bills Page Flow.md` |
+| Purchase and sales bill status | `Bill Status Contract.md` |
 | Sales bill details | `Sales Bills Page Flow.md` |
 | PO Buy | `PO Buy Page Flow.md` |
 | PO Sell | `PO Sell Flow.md` |

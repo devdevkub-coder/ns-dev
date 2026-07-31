@@ -1,4 +1,4 @@
-import { purchaseBillStatusText } from '@/lib/purchase-bill-status'
+import { purchaseBillStatusText, requirePurchaseBillStatus } from '@/lib/purchase-bill-status'
 import { supplierAdvanceVatTypeLabel } from '@/lib/purchase-advance'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
@@ -574,7 +574,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
       createdAt: log.created_at.toISOString(),
       details,
       id: log.event_key ?? `purchase-bill-status:${log.id}`,
-      status: log.to_status ?? '',
+      status: requirePurchaseBillStatus(log.to_status, bill.doc_no),
       statusLabel: purchaseBillStatusLabel(log.to_status),
       title: purchaseBillHistoryActionLabel(log.action),
       tone: purchaseBillHistoryTone(log.action),
@@ -609,7 +609,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     payableBalance: toNumber(bill.payable_balance),
     productSummaries,
     receiptDocNos,
-    status: bill.status ?? '',
+    status: requirePurchaseBillStatus(bill.status, bill.doc_no),
     statusLabel: purchaseBillStatusLabel(bill.status),
     subtotal: toNumber(bill.subtotal),
     supplierAddress: bill.supplier_address_snapshot ?? '-',

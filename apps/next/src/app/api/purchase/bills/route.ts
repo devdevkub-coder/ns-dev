@@ -2034,7 +2034,6 @@ function parseBillQuery(url: URL, includePaging = true): BillQuery {
     statuses: url.searchParams.get('status')
       ?.split(',')
       .map((value) => value.trim().toLowerCase())
-      .map((value) => value === 'open' ? 'unpaid' : value)
       .filter(Boolean) || undefined,
   }
 }
@@ -2696,7 +2695,7 @@ export async function PATCH(request: Request) {
       ])
 
       if (!existingBill) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลรับซื้อ' }, { status: 404 })
-      if (String(existingBill.status ?? '').toLowerCase().includes('cancel')) {
+      if (isPurchaseBillCancelledStatus(existingBill.status, existingBill.doc_no)) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'บิลนี้ถูกยกเลิกแล้ว' }, { status: 400 })
       }
       const paidAmount = payments.reduce((sum, payment) => sum + toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount), 0)
@@ -3217,7 +3216,7 @@ export async function PATCH(request: Request) {
     ])
 
     if (!existingBill) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลรับซื้อ' }, { status: 404 })
-    if (String(existingBill.status ?? '').toLowerCase().includes('cancel')) {
+    if (isPurchaseBillCancelledStatus(existingBill.status, existingBill.doc_no)) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะบิลนี้ถูกยกเลิกแล้ว' }, { status: 400 })
     }
     const activePaidAmount = payments.reduce((sum, payment) => sum + toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount), 0)
