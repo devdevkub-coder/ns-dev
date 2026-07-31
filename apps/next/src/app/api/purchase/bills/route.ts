@@ -1572,6 +1572,7 @@ function weightTicketOptionJson(
         const outwardLineId = outwardLineIdByInternalLineId.get(bridge.weight_ticket_line_id)
         return outwardLineId ? [outwardLineId] : []
       }),
+      totalDeductWeight: toNumber(summary.container_deduction_weight) + toNumber(summary.deduct_weight),
     }
   }).filter((summary) => summary.remainingWeight > 0.0001)
 

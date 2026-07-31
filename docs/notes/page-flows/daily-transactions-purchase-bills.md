@@ -93,7 +93,7 @@ PB เป็นจุดตั้งเจ้าหนี้และเป็�
 - Stock PB เขียน `stock_ledger.ref_type = PB` เป็น stock-in
 - Stock PB ทำให้ qty/value เข้า stock และ WAC ปัจจุบันเปลี่ยนตามราคาซื้อของบิลนั้น
 - Trading PB ไม่เขียน stock ledger และไม่กระทบ Stock On Hand/WAC
-- Stock PB ที่มาจาก WTI ต้องแสดง `นน.ก่อนหัก` ใน detail/print เป็นน้ำหนักหลังหักภาชนะแล้ว (`allocated gross - container deduction ตามสัดส่วน allocation`) จากนั้นจึงแสดง `นน.หัก` และ `นน.สุทธิ`; เช่น gross 970 หักภาชนะ 36 ได้ 934 และหักสินค้า/สิ่งเจือปน 37 ได้สุทธิ 897
+- Stock PB ที่มาจาก WTI ต้องแสดง `น้ำหนักรวม` จาก WTI พร้อม `หัก` ที่รวม `หักภาชนะ + หักสิ่งเจือปน` และ `น้ำหนักสุทธิ` ตาม WTI; เช่น gross 970 หักภาชนะ 36 และหักสินค้า/สิ่งเจือปน 37 จะแสดงหัก 73 และสุทธิ 897. การเปลี่ยนนี้เป็น display contract เท่านั้น ไม่เปลี่ยน qty ที่จัดสรรหรือข้อมูล allocation ที่บันทึก
 - Stock PB remark ต่อรายการต้องมาจากข้อมูลหักสิ่งเจือปนของ WTI product summary เดียวกัน เช่น `- 1. ฝุ่น 12 กก.` และถ้าสิ่งเจือปนนั้นซื้อกลับเป็นสินค้าอื่นต้องต่อท้าย `ซื้อเป็น <ชื่อสินค้า>`; ถ้ามีหมายเหตุรายเต๋าให้แสดงต่อท้ายเป็นลำดับถัดไปหลังรายการสิ่งเจือปน
 - edit/cancel/supplier swap ของ Stock PB ใช้ append-only reversal (`PB-EDIT-REV` หรือ `PB-CANCEL`) และไม่ delete/rebuild ledger เดิม
 - cancel ของ Stock PB ต้อง reverse ด้วย unit cost/value เดิมของ PB แล้วให้ WAC ปัจจุบันคำนวณใหม่จาก ledger ที่เหลือ; ถ้า stock พร้อมใช้ไม่พอสำหรับ reverse ต้อง block หรือใช้ correction/approval flow แยก

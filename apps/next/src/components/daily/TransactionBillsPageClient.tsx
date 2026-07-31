@@ -327,6 +327,7 @@ type ReceiptOption = {
     productName: string
     remainingWeight: number
     sourceLineIds: string[]
+    totalDeductWeight: number
   }>
   partyName: string
   status: string
@@ -1411,6 +1412,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         productName: activeProducts.find((product) => product.id === item.productId)?.name ?? item.productId,
         remainingWeight: item.qty,
         sourceLineIds: item.receiptLineIds,
+        totalDeductWeight: item.deductWeight,
       })
     })
     return {
@@ -2343,6 +2345,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         productName,
         remainingWeight: item.qty,
         sourceLineIds: item.receiptLineIds,
+        totalDeductWeight: item.deductWeight,
       })
     })
 
@@ -3924,7 +3927,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                     {isFirstRowOfSummary ? <span>{formatMoney(sourceSummary?.grossWeight ?? item.grossWeight)}</span> : null}
                                   </div>
                                 </td>
-                                <td className="p-2 text-right tabular-nums text-slate-700">{isFirstRowOfSummary ? formatMoney(sourceSummary?.deductWeight ?? item.deductWeight) : ''}</td>
+                                <td className="p-2 text-right tabular-nums text-slate-700">{isFirstRowOfSummary ? formatMoney(sourceSummary?.totalDeductWeight ?? sourceSummary?.deductWeight ?? item.deductWeight) : ''}</td>
                                 <td className="p-2 text-right tabular-nums text-slate-900">{isFirstRowOfSummary ? formatMoney(sourceSummary?.remainingWeight ?? sourceSummary?.netWeight ?? item.qty) : ''}</td>
                                 <td className="p-2 text-right">
                                   <InlineDecimalInput
