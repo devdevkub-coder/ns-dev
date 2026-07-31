@@ -2368,6 +2368,16 @@ model product_types {
   @@schema("public")
 }
 
+model document_number_counters {
+  document_type String
+  period_key    String
+  last_number   Int
+  updated_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([document_type, period_key])
+  @@schema("public")
+}
+
 model purchase_bills {
   doc_no                            String                              @unique(map: "uq_purchase_bills_doc_no")
   ref_no                            String?

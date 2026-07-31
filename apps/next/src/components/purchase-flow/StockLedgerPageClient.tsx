@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/Dialog'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { AlertTriangle, Download, RotateCcw, Search } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -200,10 +201,7 @@ export function StockLedgerPageClient() {
           </div>
           <label className="flex min-w-0 items-center gap-2 lg:col-span-3">
             <span className="shrink-0 text-xs font-semibold text-slate-600">สาขา</span>
-            <Select className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
-              <option value="">ทุกสาขา</option>
-              {(data?.reference.branches ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </Select>
+            <BranchSelectCombobox branches={data?.reference.branches ?? []} className="min-w-0 flex-1" controlSize="filter" inputId="stock-ledger-branch-filter" label="" placeholder="ทุกสาขา" value={branchId || null} onChange={(value) => { setPage(1); setBranchId(value ?? '') }} />
           </label>
         </div>
 
@@ -338,10 +336,7 @@ export function StockLedgerPageClient() {
 
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
-                <Select className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
-                  <option value="">ทุกสาขา</option>
-                  {(data?.reference.branches ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                </Select>
+                <BranchSelectCombobox branches={data?.reference.branches ?? []} className="w-full" controlSize="filter" inputId="stock-ledger-branch-filter-mobile" label="" placeholder="ทุกสาขา" value={branchId || null} onChange={(value) => { setPage(1); setBranchId(value ?? '') }} />
               </label>
 
               <label className="block">

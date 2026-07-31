@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -159,10 +160,7 @@ export function CashPositionPageClient() {
 
       <div className="flex flex-wrap items-end gap-2 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
         <DatePickerInput ariaLabel="ณ วันที่" className="w-36" value={asOf} onChange={setAsOf} />
-        <Select aria-label="สาขา" className="h-9 w-48 text-sm" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
-          <option value="ALL">ทุกสาขาที่มีสิทธิ์</option>
-          {(data?.filters.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-        </Select>
+        <BranchSelectCombobox allOptionLabel="ทุกสาขาที่มีสิทธิ์" branches={data?.filters.branches ?? []} className="w-[12rem]" controlSize="filter" includeAllOption inputId="cash-position-branch-filter" label="" placeholder="ทุกสาขาที่มีสิทธิ์" value={branchId === 'ALL' ? null : branchId} onChange={(value) => setBranchId(value ?? 'ALL')} />
         <Select aria-label="กลุ่มบัญชี" className="h-9 w-40 text-sm" value={accountGroup} onChange={(event) => setAccountGroup(event.target.value)}>
           <option value="ALL">ทุกบัญชีเงิน</option>
           <option value="cash">เงินสด</option>

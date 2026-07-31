@@ -759,7 +759,7 @@ export function PaymentApprovalPageClient() {
         <SharedKpiCard icon={<FileCheck2 className="size-4 sm:size-5" />} label="อนุมัติ / รอ / ยกเลิก" tone="amber" value={`${summary.approvedCount} / ${summary.pendingCount} / ${summary.voidedCount}`} />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm">
+      <div className="rounded-xl border border-slate-200/60 bg-white shadow-sm">
         <Tabs className="gap-0" value={tab} onValueChange={(value) => setTab(value as ApprovalTab)}>
           <TabsList className="w-full flex-nowrap overflow-x-auto" variant="line">
             <TabsTrigger value="ap" variant="line">
@@ -781,7 +781,7 @@ export function PaymentApprovalPageClient() {
         <div className="hidden space-y-3 border-b border-slate-100 p-4 lg:block">
           <div className="flex flex-wrap items-center gap-2">
             <Input className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหาเลขที่ / ชื่อ / ช่องทางจ่าย..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-            <BranchSelectCombobox branches={data.branches} inputId="payment-approval-branch-filter" label="สาขา" placeholder="ทุกสาขา" value={branchFilter || null} onChange={(value) => setBranchFilter(value ?? '')} />
+            <BranchSelectCombobox branches={data.branches} className="w-[12rem]" controlSize="filter" inputId="payment-approval-branch-filter" placeholder="ทุกสาขา" value={branchFilter || null} onChange={(value) => setBranchFilter(value ?? '')} />
             <label className="text-xs text-slate-500">วันที่:</label>
             <DatePickerInput id="payment-approval-date-from" value={dateFrom} onChange={setDateFrom} />
             <span className="text-slate-400">→</span>
@@ -872,7 +872,7 @@ export function PaymentApprovalPageClient() {
           )}
         >
               <div>
-                <BranchSelectCombobox branches={data.branches} inputId="payment-approval-mobile-branch-filter" label="สาขา" placeholder="ทุกสาขา" value={branchFilter || null} onChange={(value) => setBranchFilter(value ?? '')} />
+                <BranchSelectCombobox branches={data.branches} className="w-full" controlSize="filter" inputId="payment-approval-mobile-branch-filter" placeholder="ทุกสาขา" value={branchFilter || null} onChange={(value) => setBranchFilter(value ?? '')} />
               </div>
 
               <div>

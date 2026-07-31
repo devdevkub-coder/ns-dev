@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Download } from 'lucide-react'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
@@ -11,8 +12,10 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Select } from '@/components/ui/Select'
 
 type AccountOption = {
+  accountGroup: string | null
   accountNo: string | null
   active: boolean | null
+  bankAccountType: string | null
   bankName: string | null
   branchName: string
   code: string | null
@@ -59,6 +62,18 @@ type BankPayload = {
   summary: { accounts: number; amountIn: number; amountOut: number; netMovement: number; rows: number }
 }
 
+const companyAccountTypeOptions = [
+  { label: 'ทุกประเภทบัญชีบริษัท', value: '' },
+  { label: 'เงินสด', value: 'cash' },
+  { label: 'ธนาคาร', value: 'bank' },
+]
+
+const bankAccountTypeOptions = [
+  { label: 'ทุกประเภทบัญชีธนาคาร', value: '' },
+  { label: 'ออมทรัพย์', value: 'savings' },
+  { label: 'กระแสรายวัน', value: 'current' },
+]
+
 type BankColumnKey = 'amountIn' | 'amountOut' | 'date' | 'description' | 'odRemaining' | 'odUsed' | 'refNo' | 'runningBalance' | 'type'
 type SortDirection = 'asc' | 'desc'
 
@@ -69,6 +84,13 @@ function currentMonthStart() {
 function compareSortValues(left: string | number, right: string | number) {
   if (typeof left === 'number' && typeof right === 'number') return left - right
   return String(left ?? '').localeCompare(String(right ?? ''), 'th', { numeric: true, sensitivity: 'base' })
+}
+
+function bankAccountOptionLabel(account: AccountOption) {
+  const accountNo = account.accountNo || '-'
+  const bank = account.bankName || '-'
+  const branch = account.branchName || '-'
+  return `${accountNo} · ${account.name} · ${bank} · ${branch}`
 }
 
 function getBankSortValue(row: BankRow, key: BankColumnKey, odLimit: number) {
@@ -83,6 +105,8 @@ function getBankSortValue(row: BankRow, key: BankColumnKey, odLimit: number) {
 export function BankStatementPageClient({ initialFilters }: { initialFilters?: { from?: string; q?: string; to?: string } } = {}) {
   const latestLoadRequestRef = useRef(0)
   const [accountId, setAccountId] = useState('')
+  const [accountGroup, setAccountGroup] = useState('')
+  const [bankAccountType, setBankAccountType] = useState('')
   const [branchCode, setBranchCode] = useState('')
   const [data, setData] = useState<BankPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -107,13 +131,15 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
     })
     if (branchCode) params.set('branchCode', branchCode)
     if (accountId) params.set('accountId', accountId)
+    if (accountGroup) params.set('accountGroup', accountGroup)
+    if (bankAccountType) params.set('bankAccountType', bankAccountType)
     if (from) params.set('from', from)
     if (q.trim()) params.set('q', q.trim())
     if (refType) params.set('refType', refType)
     if (to) params.set('to', to)
     if (type) params.set('type', type)
     return params
-  }, [accountId, branchCode, from, page, q, refType, sortDirection, to, type])
+  }, [accountGroup, accountId, bankAccountType, branchCode, from, page, q, refType, sortDirection, to, type])
 
   const loadData = useCallback(async () => {
     const requestId = latestLoadRequestRef.current + 1
@@ -145,6 +171,21 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
 
   function changeBranch(value: string) {
     setBranchCode(value)
+    setAccountId('')
+    setData(null)
+    setPage(1)
+  }
+
+  function changeAccountGroup(value: string) {
+    setAccountGroup(value)
+    setBankAccountType('')
+    setAccountId('')
+    setData(null)
+    setPage(1)
+  }
+
+  function changeBankAccountType(value: string) {
+    setBankAccountType(value)
     setAccountId('')
     setData(null)
     setPage(1)
@@ -191,13 +232,18 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         {/* Desktop View */}
         <div className="hidden lg:flex flex-wrap items-center gap-2">
-          <Select className="h-9 w-52 text-sm" value={branchCode} onChange={(event) => changeBranch(event.target.value)}>
-            <option value="">ทุกสาขา</option>
-            {branches.map((branch) => <option key={branch.id} value={branch.code}>{branch.code} - {branch.name}</option>)}
+          <BranchSelectCombobox branches={branches.map((branch) => ({ id: branch.code, name: `${branch.code} - ${branch.name}` }))} className="w-[12rem]" controlSize="filter" inputId="bank-statement-branch-filter" label="" placeholder="ทุกสาขา" value={branchCode || null} onChange={(value) => changeBranch(value ?? '')} />
+          <Select className="h-9 w-48 text-sm" value={accountGroup} onChange={(event) => changeAccountGroup(event.target.value)}>
+            {companyAccountTypeOptions.map((option) => <option key={option.value || 'all'} value={option.value}>{option.label}</option>)}
           </Select>
+          {accountGroup === 'bank' ? (
+            <Select className="h-9 w-52 text-sm" value={bankAccountType} onChange={(event) => changeBankAccountType(event.target.value)}>
+              {bankAccountTypeOptions.map((option) => <option key={option.value || 'all'} value={option.value}>{option.label}</option>)}
+            </Select>
+          ) : null}
           <Select className="h-9 w-64 text-sm" value={accountId} onChange={(event) => { setPage(1); setAccountId(event.target.value) }}>
             <option value="">เลือกบัญชี</option>
-            {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.name} ({account.type})</option>)}
+            {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{bankAccountOptionLabel(account)}</option>)}
           </Select>
           <DatePickerInput className="h-9 w-[130px]" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
           <span className="text-xs text-slate-400">→</span>
@@ -213,13 +259,18 @@ export function BankStatementPageClient({ initialFilters }: { initialFilters?: {
         {/* Mobile View (Collapsible Filters) */}
         <div className="block lg:hidden space-y-2.5">
           <div className="flex flex-wrap gap-2">
-            <Select className="h-9 min-w-[160px] flex-1 text-sm text-slate-900" value={branchCode} onChange={(event) => changeBranch(event.target.value)}>
-              <option value="">ทุกสาขา</option>
-              {branches.map((branch) => <option key={branch.id} value={branch.code}>{branch.code} - {branch.name}</option>)}
+            <BranchSelectCombobox branches={branches.map((branch) => ({ id: branch.code, name: `${branch.code} - ${branch.name}` }))} className="min-w-0 flex-1" controlSize="filter" inputId="bank-statement-branch-filter-mobile" label="" placeholder="ทุกสาขา" value={branchCode || null} onChange={(value) => changeBranch(value ?? '')} />
+            <Select className="h-9 min-w-[180px] flex-1 text-sm text-slate-900" value={accountGroup} onChange={(event) => changeAccountGroup(event.target.value)}>
+              {companyAccountTypeOptions.map((option) => <option key={option.value || 'all'} value={option.value}>{option.label}</option>)}
             </Select>
+            {accountGroup === 'bank' ? (
+              <Select className="h-9 min-w-[200px] flex-1 text-sm text-slate-900" value={bankAccountType} onChange={(event) => changeBankAccountType(event.target.value)}>
+                {bankAccountTypeOptions.map((option) => <option key={option.value || 'all'} value={option.value}>{option.label}</option>)}
+              </Select>
+            ) : null}
             <Select className="h-9 min-w-[160px] flex-1 text-sm text-slate-900" value={accountId} onChange={(event) => { setPage(1); setAccountId(event.target.value) }}>
               <option value="">เลือกบัญชี</option>
-              {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.name} ({account.type})</option>)}
+              {(data?.filters.accounts ?? []).map((account) => <option key={account.id} value={account.id}>{bankAccountOptionLabel(account)}</option>)}
             </Select>
             <button
               className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${

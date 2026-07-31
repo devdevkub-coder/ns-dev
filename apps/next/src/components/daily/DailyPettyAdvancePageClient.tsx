@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
@@ -448,11 +449,16 @@ export function DailyPettyAdvancePageClient() {
         {/* Desktop Filters */}
         <div className="mt-3 space-y-2 hidden lg:block">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-slate-500 w-14 inline-block shrink-0">สาขา:</span>
-            <Select className="h-9 w-auto" value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)}>
-              <option value="">ทุกสาขา</option>
-              {branches.filter((branch) => branch.active).map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
-            </Select>
+            <BranchSelectCombobox
+              branches={branches.filter((branch) => branch.active).map((branch) => ({ id: branch.id, name: `${branch.code} · ${branch.name}` }))}
+              className="w-[12rem]"
+              controlSize="filter"
+              inputId="petty-advance-branch-filter"
+              label=""
+              placeholder="ทุกสาขา"
+              value={branchFilter || null}
+              onChange={(value) => setBranchFilter(value ?? '')}
+            />
             <span className="text-xs text-slate-500 w-14 inline-block shrink-0">ประเภท:</span>
             <SegmentFilterButton active={!type} label="ทุกประเภท" onClick={() => setType('')} />
             <SegmentFilterButton active={type === 'DIRECTOR_LOAN'} label="กู้กรรมการ" onClick={() => setType(type === 'DIRECTOR_LOAN' ? '' : 'DIRECTOR_LOAN')} />

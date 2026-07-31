@@ -761,6 +761,9 @@ function statusLabel(status: string) {
 function sourceLabel(type: string) {
   if (type === 'PO_Buy') return 'PO ซื้อ'
   if (type === 'Spot_Buy') return 'ซื้อสด'
+  if (type === 'Opening_Purchase') return 'Opening บิลซื้อ'
+  if (type === 'Opening_PO') return 'Opening PO'
+  if (type === 'Opening_Regrade') return 'Opening ปรับเกรด'
   if (type === 'Production') return 'การผลิต'
   if (type === 'Regrade' || type === 'Grade Adjustment') return 'ปรับเกรด / แปรสภาพ'
   return type

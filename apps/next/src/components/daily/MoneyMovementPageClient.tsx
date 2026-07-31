@@ -3074,7 +3074,7 @@ export function MoneyMovementPageClient({
                 className="w-full sm:w-auto"
                 controlSize="filter"
                 inputId="receipt-queue-branch-filter"
-                label="สาขา"
+                label=""
                 placeholder="ทุกสาขา"
                 value={branchFilter}
                 onChange={(value) => setBranchFilter(value ?? '')}
@@ -4074,7 +4074,7 @@ export function MoneyMovementPageClient({
                     className="w-auto min-w-[180px]"
                     controlSize="filter"
                     inputId="receipt-history-branch-filter"
-                    label="สาขา"
+                    label=""
                     placeholder="ทุกสาขา"
                     value={branchFilter}
                     onChange={(value) => setBranchFilter(value ?? '')}
@@ -4194,6 +4194,7 @@ export function MoneyMovementPageClient({
                       </label>
                       <BranchSelectCombobox
                         branches={(data.branches ?? []).filter((branch) => branch.active)}
+                        controlSize="filter"
                         inputId="receipt-history-mobile-branch-filter"
                         label="สาขา"
                         placeholder="ทุกสาขา"

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
@@ -361,10 +362,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
-            <Select className="h-9 px-3 py-2 text-sm" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
-              <option value="">ทุกสาขา</option>
-              {(data?.filters.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </Select>
+            <BranchSelectCombobox branches={data?.filters.branches ?? []} className="w-[12rem]" controlSize="filter" inputId="accounts-payable-branch-filter" label="" placeholder="ทุกสาขา" value={branchId || null} onChange={(value) => { setPage(1); setBranchId(value ?? '') }} />
             
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-slate-500">สถานะ:</span>
@@ -455,10 +453,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
                 <option value="61-90">61-90 วัน</option>
                 <option value=">90">&gt;90 วัน</option>
               </Select>
-              <Select className="h-9 w-full px-3 py-2 text-sm" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
-                <option value="">ทุกสาขา</option>
-                {(data?.filters.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-              </Select>
+              <BranchSelectCombobox branches={data?.filters.branches ?? []} className="w-full" controlSize="filter" inputId="accounts-payable-branch-filter-mobile" label="" placeholder="ทุกสาขา" value={branchId || null} onChange={(value) => { setPage(1); setBranchId(value ?? '') }} />
               <div className="space-y-1">
                 <span className="block text-xs font-semibold text-slate-600">สถานะ</span>
                 <div aria-label="กรองสถานะเจ้าหนี้" className="flex flex-wrap gap-2" role="group">

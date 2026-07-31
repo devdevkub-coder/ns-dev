@@ -1,5 +1,5 @@
 import type { Prisma } from '../../../generated/prisma/client'
-import { parseInternalBigIntId } from '@/lib/business-code'
+import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { listAllAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
 import { functionalBankStatementMovement } from '@/lib/server/bank-statement-booking'
@@ -183,7 +183,8 @@ export async function listDailyAccounts(client: typeof prisma | Prisma.Transacti
     return {
       active: account.active,
       balance,
-      code: account.accountNo,
+      accountNo: account.accountNo,
+      code: account.code,
       id: account.code,
       name: account.name,
       type: account.type,
@@ -197,6 +198,32 @@ export async function listDailyAccounts(client: typeof prisma | Prisma.Transacti
       availableToPay,
     }
   })
+}
+
+export function toDailyAccountOption(account: { accountNo?: string | null; code: string | null; name: string; type: string }) {
+  const code = requireBusinessCode(account.code, 'บัญชีเงิน')
+  return {
+    accountNo: account.accountNo ?? '',
+    bankName: account.name,
+    id: code,
+    isPrimary: false,
+    kind: account.type === 'cash' ? 'cash' as const : 'bank' as const,
+    label: [account.type, account.name, code].filter(Boolean).join(' / '),
+    paymentMethod: account.type,
+  }
+}
+
+export function assertJsonSafe(value: unknown, path = 'payload'): void {
+  if (typeof value === 'bigint') {
+    throw new Error(`${path} contains BigInt`)
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertJsonSafe(item, `${path}[${index}]`))
+    return
+  }
+  if (value && typeof value === 'object') {
+    Object.entries(value).forEach(([key, item]) => assertJsonSafe(item, `${path}.${key}`))
+  }
 }
 
 export async function lockDailyAccountBalances(tx: Prisma.TransactionClient, accountIds: bigint[]) {

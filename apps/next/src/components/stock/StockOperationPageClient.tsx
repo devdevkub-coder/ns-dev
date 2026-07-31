@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { usePathname } from 'next/navigation'
 import { Plus } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
@@ -730,10 +731,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-          <Select className="h-9 w-auto" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
-            <option value="">ทุกสาขา</option>
-            {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-          </Select>
+          <BranchSelectCombobox branches={data.reference.branches} className="w-[12rem]" controlSize="filter" inputId="stock-operation-branch-filter" label="" placeholder="ทุกสาขา" value={adjustBranchFilter || null} onChange={(value) => setAdjustBranchFilter(value ?? '')} />
           {mode === 'convert' ? (
             <>
               <Select className="h-9 w-auto" value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>
@@ -915,10 +913,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
         >
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
-                <Select className="h-9 w-full" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
-                  <option value="">ทุกสาขา</option>
-                  {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-                </Select>
+                <BranchSelectCombobox branches={data.reference.branches} className="w-full" controlSize="filter" inputId="stock-operation-branch-filter-mobile" label="" placeholder="ทุกสาขา" value={adjustBranchFilter || null} onChange={(value) => setAdjustBranchFilter(value ?? '')} />
               </label>
               {mode === 'convert' ? (
                 <>

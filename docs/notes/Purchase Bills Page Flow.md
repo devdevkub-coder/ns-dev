@@ -12,7 +12,7 @@ tags:
   - supplier-swap
 status: draft
 created: 2026-06-08
-updated: 2026-07-06
+updated: 2026-07-30
 ---
 
 # Purchase Bills Page Flow / Flow หน้า `/purchase/bills`
@@ -78,6 +78,18 @@ updated: 2026-07-06
 - detail/print ต้องยังแสดงเอกสารยกเลิกได้เพื่อ audit แต่ไม่เปิด action ที่กระทบ allocation หรือ payment
 
 ## API / DB Optimization Snapshot
+
+### Write Consistency And Latency Contract (2026-07-30)
+
+การกด `บันทึก` ของ PB ยังคง flow เดิม: สร้าง PB, allocation WTI/PO, update stock/Cost Pool, ADV settlement, และสถานะ AP ต้องสำเร็จหรือ rollback พร้อมกันใน transaction เดียว. การปรับรอบนี้เปลี่ยนเฉพาะกลไกภายในเพื่อไม่ให้ transaction ยาวจากงานซ้ำหรือ report read model:
+
+- ก่อนเขียน allocation ระบบ lock `PB`, `PO Buy`, และ `WTI` ที่เกี่ยวข้องตามลำดับเดียวกัน แล้วอ่านยอดล่าสุดและ validate ซ้ำใน transaction; ถ้าต้นทางกำลังถูกทำรายการอยู่ จะ reject ให้ผู้ใช้ลองใหม่แทนการรอนานหรือเสี่ยงตัดยอดซ้ำ
+- DB trigger บน `purchase_bill_receipt_allocations` lock summary ของ WTI และ reject เมื่อยอด active allocation เกิน `net_weight`; จึงเป็น guard สุดท้ายแม้มี write path อื่นเรียก DB โดยตรง
+- `PO Buy` reconcile ทำเพียงครั้งหลัง allocation ไม่ทำ pre-reconcile แยกก่อนสร้าง PB เพราะข้อมูลนั้นอาจ stale ก่อน transaction หลักเริ่ม
+- รายการ PB และ Cost Pool ที่สร้างใหม่เขียนแบบ batch; status event ใช้ UUID ไม่ใช้ `count + 1` จึงไม่มี race ของ event key
+- PB create/edit/cancel/supplier swap มี transaction budget สูงสุด 10 วินาทีตาม SLA หน้านี้; ไม่ขยายเป็น timeout ยาวเพื่อกลบ query หรือ lock ที่ผิดปกติ
+- เลข PB ยังเป็น `PB{branch}{YYMM}-NNNN` เหมือนเดิม แต่จองเลขผ่าน counter ที่ atomic และสั้นก่อน transaction หลัก ไม่ถือ monthly lock ตลอดการสร้างบิล. หาก transaction หลังจองเลข rollback เลขอาจข้ามได้ แต่ไม่มี PB/stock/allocation ที่ค้างจากเลขนั้น
+- Profit & Cost เป็น derived reporting read model จึง project หลัง response ด้วย `after()`. PB/PO/WTI/stock/AP ไม่รอ report และ report failure ไม่ rollback เอกสารหลัก; การ rebuild report ใช้ facts จาก PB ที่ commit แล้ว
 
 อัปเดตล่าสุด 2026-06-12 สำหรับ dev-target:
 
