@@ -21,7 +21,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลรับซื้อที่ต้องการ' }, { status: 404 })
     }
 
-    return NextResponse.json(detail)
+    return NextResponse.json(detail, {
+      headers: { 'Cache-Control': 'private, no-store, max-age=0, must-revalidate' },
+    })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดรายละเอียดบิลรับซื้อไม่ได้', 500)

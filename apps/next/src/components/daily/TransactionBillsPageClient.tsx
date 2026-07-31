@@ -61,6 +61,7 @@ type BillRow = {
   subtotal?: number
   items?: Array<Partial<PurchaseBillFormValues['items'][number]> & {
     amount?: number
+    lineNo?: number
     netAmount?: number
     netWeight?: number
     productCode?: string
@@ -2270,12 +2271,18 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     }
   }
 
-  function purchaseFormFromRow(row: BillRow): PurchaseBillFormValues {
-    const items = (row.items?.length ? row.items : []).map((item) => ({
+  function purchaseFormFromRow(row: BillRow, detail?: PurchaseBillDetail): PurchaseBillFormValues {
+    const items = (row.items?.length ? row.items : []).map((item, index) => ({
       deductWeight: Number(item.deductWeight ?? 0),
       discount: 0,
       displayName: item.displayName ?? null,
-      grossWeight: Number(item.grossWeight ?? item.qty ?? ('netWeight' in item ? item.netWeight : 0) ?? 0),
+      grossWeight: Number(
+        detail?.allocationRows.find((allocation) => allocation.lineNo === item.lineNo)?.grossWeight
+        ?? item.grossWeight
+        ?? item.qty
+        ?? ('netWeight' in item ? item.netWeight : 0)
+        ?? 0,
+      ),
       lotNo: item.lotNo ?? null,
       note: item.note ?? null,
       poBuyId: item.poBuyId ?? null,
@@ -2378,21 +2385,33 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     }
   }
 
-  function openEditPurchaseForm(row: BillRow) {
+  async function openEditPurchaseForm(row: BillRow) {
     if (row.canEdit === false) {
       setError(row.lockedReason ?? 'บิลนี้ยังแก้ไขไม่ได้')
       return
     }
-    setEditingBillId(row.id)
-    setSupplierSwapMode(false)
-    setSupplierSwapSupplierId('')
-    const nextForm = purchaseFormFromRow(row)
-    setLockedReceiptSnapshot(receiptSnapshotFromPurchaseForm(row, nextForm))
-    setForm(nextForm)
-    setPurchaseFormBaseline(JSON.stringify({ form: nextForm, supplierSwapMode: false, supplierSwapSupplierId: '' }))
-    setFieldErrors({})
+    const docNo = row.docNo || row.id
+    setIsDetailLoading(true)
     setError(null)
-    setShowForm(true)
+    try {
+      const [detail] = await Promise.all([
+        dailyFetchJson<PurchaseBillDetail>(`/api/purchase/bills/${encodeURIComponent(docNo)}`),
+        loadPurchaseOptions(),
+      ])
+      setEditingBillId(row.id)
+      setSupplierSwapMode(false)
+      setSupplierSwapSupplierId('')
+      const nextForm = purchaseFormFromRow(row, detail)
+      setLockedReceiptSnapshot(receiptSnapshotFromPurchaseForm(row, nextForm))
+      setForm(nextForm)
+      setPurchaseFormBaseline(JSON.stringify({ form: nextForm, supplierSwapMode: false, supplierSwapSupplierId: '' }))
+      setFieldErrors({})
+      setShowForm(true)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลบิลรับซื้อเพื่อแก้ไขไม่ได้')
+    } finally {
+      setIsDetailLoading(false)
+    }
   }
 
   function openCancelPurchaseBill(row: BillRow) {
@@ -3595,7 +3614,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <TableActionButton mobileLabel menu={(
                   <>
                     {mode === 'purchase' ? <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onSelect={() => void printPurchaseBill(row)}>พิมพ์</TableActionMenuItem> : null}
-                    {mode === 'purchase' && row.canEdit !== false ? <TableActionMenuItem onSelect={() => openEditPurchaseForm(row)}>แก้ไข</TableActionMenuItem> : null}
+                    {mode === 'purchase' && row.canEdit !== false ? <TableActionMenuItem disabled={isDetailLoading} onSelect={() => void openEditPurchaseForm(row)}>แก้ไข</TableActionMenuItem> : null}
                     {mode === 'purchase' && row.canEdit !== false ? <TableActionMenuItem onSelect={() => openCancelPurchaseBill(row)}>ยกเลิก</TableActionMenuItem> : null}
                     {mode === 'sales' ? <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onSelect={() => void printSalesBill(row)}>พิมพ์</TableActionMenuItem> : null}
                     {mode === 'sales' && row.canEdit !== false ? <TableActionMenuItem disabled={isDetailLoading} onSelect={() => void openEditSalesForm(row)}>แก้ไข</TableActionMenuItem> : null}
@@ -3685,7 +3704,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     <TableActionButton menu={(
                       <>
                         <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onSelect={() => void printPurchaseBill(row)}>พิมพ์</TableActionMenuItem>
-                        {row.canEdit !== false ? <TableActionMenuItem onSelect={() => openEditPurchaseForm(row)}>แก้ไข</TableActionMenuItem> : null}
+                        {row.canEdit !== false ? <TableActionMenuItem disabled={isDetailLoading} onSelect={() => void openEditPurchaseForm(row)}>แก้ไข</TableActionMenuItem> : null}
                         {row.canEdit !== false ? <TableActionMenuItem onSelect={() => openCancelPurchaseBill(row)}>ยกเลิก</TableActionMenuItem> : null}
                       </>
                     )} />

@@ -383,6 +383,7 @@ function billItemJson(row: PurchaseBillRow['purchase_bill_items'][number]) {
     discount: toNumber(row.discount),
     displayName: row.display_name,
     grossWeight: toNumber(row.gross_weight),
+    lineNo: row.line_no,
     lotNo: row.lot_no,
     note: row.note,
     poBuyId: typeof snapshot.poBuyId === 'string' ? snapshot.poBuyId : '',

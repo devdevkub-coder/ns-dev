@@ -19,4 +19,10 @@ describe('purchase bill receipt weight display', () => {
     expect(pageSource).toContain('formatMoney(sourceSummary?.baseWeight ?? item.grossWeight)')
     expect(pageSource).toContain('formatMoney(sourceSummary?.deductWeight ?? item.deductWeight)')
   })
+
+  it('uses the canonical allocation weight when reopening an existing PB for editing', () => {
+    expect(pageSource).toContain('function purchaseFormFromRow(row: BillRow, detail?: PurchaseBillDetail)')
+    expect(pageSource).toContain('detail?.allocationRows.find((allocation) => allocation.lineNo === item.lineNo)?.grossWeight')
+    expect(pageSource).toContain('dailyFetchJson<PurchaseBillDetail>(`/api/purchase/bills/${encodeURIComponent(docNo)}`)')
+  })
 })
