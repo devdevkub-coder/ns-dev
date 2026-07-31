@@ -2,6 +2,7 @@ import type { Prisma } from '../../../generated/prisma/client'
 import { outwardCustomerReference } from '@/lib/server/customer-reference'
 import { requireBusinessCode } from '@/lib/business-code'
 import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
+import { PO_SELL_STATUS, requirePoSellStatus } from '@/lib/po-sell-status'
 import { bangkokDateRange, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import { getSalesPlanLmeConfigAutoRefresh, type SalesPlanLmeConfig } from './sales-plan-lme'
 import { prisma } from '@/lib/server/prisma'
@@ -144,8 +145,9 @@ function activeStatus(status?: string | null) {
   return !['cancelled', 'void', 'reversed'].includes((status ?? '').toLowerCase())
 }
 
-function activePoSellStatus(status?: string | null) {
-  return activeStatus(status) && !['canceled', 'closed', 'completed', 'fully matched', 'received', 'short closed'].includes((status ?? '').toLowerCase())
+function activePoSellStatus(status: string | null | undefined, docNo: string) {
+  const canonical = requirePoSellStatus(status, docNo)
+  return canonical === PO_SELL_STATUS.OPEN || canonical === PO_SELL_STATUS.PARTIALLY_FULFILLED
 }
 
 async function productsContext() {
@@ -246,7 +248,7 @@ async function buildSalesPlanningSnapshot() {
     return productAgg.get(key)!
   }
 
-  poSells.filter((po: (typeof poSells)[number]) => activePoSellStatus(po.status)).forEach((po: (typeof poSells)[number]) => {
+  poSells.filter((po: (typeof poSells)[number]) => activePoSellStatus(po.status, po.doc_no)).forEach((po: (typeof poSells)[number]) => {
     poSellItems(po, byKey).forEach((item) => {
       const qty = item.qty
       const remaining = Math.max(0, item.remainingQty)
@@ -334,7 +336,7 @@ async function buildSalesPlanningSnapshot() {
   })
 
   const poSellOpenByProduct = new Map<string, number>()
-  poSells.filter((po: (typeof poSells)[number]) => activePoSellStatus(po.status)).forEach((po: (typeof poSells)[number]) => {
+  poSells.filter((po: (typeof poSells)[number]) => activePoSellStatus(po.status, po.doc_no)).forEach((po: (typeof poSells)[number]) => {
     poSellItems(po, byKey).forEach((item) => {
       if (!item.product?.id && !item.productId) return
       const key = item.product ? String(item.product.id) : item.productId

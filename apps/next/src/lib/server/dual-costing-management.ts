@@ -1,4 +1,5 @@
 import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { PO_SELL_STATUS } from '@/lib/po-sell-status'
 import { buildDualCostingMatchIdMap } from '@/lib/server/dual-costing-match-id'
 import { getDualCostingBranch } from '@/lib/server/dual-costing-branch'
 import { prisma } from '@/lib/server/prisma'
@@ -160,13 +161,13 @@ export async function buildDualCostingManagement() {
       take: 5000,
       where: {
         branch_id: branch.id,
-        NOT: {
-          status: {
-            in: [
-              'Cancelled', 'cancelled', 'Canceled', 'canceled', 'Short Closed', 'short closed'
-            ]
-          }
-        }
+        status: {
+          in: [
+            PO_SELL_STATUS.OPEN,
+            PO_SELL_STATUS.PARTIALLY_FULFILLED,
+            PO_SELL_STATUS.COMPLETED,
+          ],
+        },
       }
     }),
     prisma.production_orders.findMany({

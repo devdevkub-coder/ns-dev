@@ -106,16 +106,13 @@ If the PO Sell appears only on `/sales/po-sell` but not on the downstream read m
 
 | Business Status | Raw / Current Status | Meaning | Should Be Active In Downstream Lists |
 |---|---|---|---|
-| `เปิดอยู่` | `Open` | Created, not cancelled/closed, still available for delivery/billing/matching | Yes |
-| `รอออก/รอเปิดบิลบางส่วน` | target follow-up | Some WTO pending_out exists, not fully billed | Yes |
-| `รอออก/รอเปิดบิลครบ` | target follow-up | Full quantity has WTO pending_out, not fully billed | Yes, but no further WTO beyond remaining |
-| `ออกบิลบางส่วน` | target follow-up | Some sales bill quantity posted | Yes for remaining quantity |
-| `ออกบิลแล้ว` | target follow-up | Fully billed | No active outstanding |
-| `ปิดส่งไม่ครบ` | target follow-up | Manually closed short with reason | No active outstanding |
-| `ยกเลิก` | `Cancelled` / `cancelled` | Cancelled without deleting | No |
-| `ปิดแล้ว` | `Completed` / `Closed` | Closed in legacy confirm-close path | No |
+| `เปิดอยู่` | `Open` | Created and fully unfulfilled | Yes |
+| `ออกบิลบางส่วน` | `Partially Fulfilled` | A Sales Bill has consumed some, but not all, of the PO quantity | Yes, for the remaining quantity |
+| `ออกบิลแล้ว` | `Completed` | A Sales Bill has consumed the full PO quantity | No |
+| `ปิดส่งไม่ครบ` | `Short Closed` | Manually closed short with reason | No |
+| `ยกเลิก` | `Cancelled` | Cancelled without deleting | No |
 
-Current Next implementation normalizes raw PO Sell status into a separate document-status filter/display (`เปิดอยู่`, `ยกเลิก`, `ปิดแล้ว`) and keeps match status as a separate allocation/matching state. The full Thai PO Sell status lifecycle from `Sales Flow.md` is still a target integration contract and should not be faked in the table without source facts.
+`po_sells.status` is the canonical header fact. On every Sales Bill create, edit, cancellation, and reversal, the server derives it from `remaining_qty` and the original `qty`: full remaining becomes `Open`, partial remaining becomes `Partially Fulfilled`, and zero remaining becomes `Completed`. `Cancelled` and `Short Closed` are manual terminal states and are preserved. Readers reject missing or legacy status values instead of defaulting or normalizing them. Match status remains independent from fulfillment status.
 
 ## Match Status Contract
 

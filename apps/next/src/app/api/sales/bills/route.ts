@@ -9,6 +9,7 @@ import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-referen
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { currentActor, documentBranchCode, nextDailyDocNo, normalizeDate, roundMoney, toDateOnly, toNumber } from '@/lib/server/daily'
 import { requireBusinessCode } from '@/lib/business-code'
+import { derivePoSellFulfillmentStatus, isInactivePoSellStatus, PO_SELL_STATUS, requirePoSellStatus } from '@/lib/po-sell-status'
 import { isCustomerEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jobs'
 import { prisma } from '@/lib/server/prisma'
@@ -1023,7 +1024,7 @@ type PoSellSnapshotItem = {
 type PoSellForAllocation = {
   branch_id?: bigint | null
   customer_id?: bigint | null
-  doc_no?: string | null
+  doc_no: string
   id?: bigint
   items: unknown
   qty: unknown
@@ -1052,11 +1053,6 @@ function poSellSnapshotItems(items: unknown): PoSellSnapshotItem[] {
   return Array.isArray(items)
     ? items.filter((item): item is PoSellSnapshotItem => typeof item === 'object' && item !== null && !Array.isArray(item))
     : []
-}
-
-function isInactivePoSellStatus(status: string | null | undefined) {
-  const normalized = (status ?? '').trim().toLowerCase()
-  return ['cancelled', 'canceled', 'closed', 'completed', 'fully matched', 'received', 'short closed', 'void'].includes(normalized)
 }
 
 function allocatePoSellForSalesBill(poSell: PoSellForAllocation, billItems: SalesItemSnapshot[]) {
@@ -1377,7 +1373,7 @@ export async function salesOptionsPayload(scope: Awaited<ReturnType<typeof sales
       take: 500,
       where: {
         ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
-        status: { notIn: ['cancelled', 'canceled', 'closed', 'completed', 'fully matched', 'received', 'short closed', 'void', 'Cancelled', 'Canceled', 'Closed', 'Completed', 'Short Closed'] },
+        status: { in: [PO_SELL_STATUS.OPEN, PO_SELL_STATUS.PARTIALLY_FULFILLED] },
       },
     }),
     prisma.purchase_bills.findMany({
@@ -1545,7 +1541,7 @@ export async function salesOptionsPayload(scope: Awaited<ReturnType<typeof sales
           product_id: productCode || null,
           remainingAmount: jsonNumber(item.totalRevenue) || jsonNumber(po.remaining_amount),
           remainingQty,
-          status: po.status ?? 'Open',
+          status: requirePoSellStatus(po.status, po.doc_no),
           unit: typeof item.unit === 'string' ? item.unit : null,
           unitPrice,
         }]
@@ -1872,7 +1868,7 @@ export async function POST(request: Request) {
     const missingPoSell = requestedPoSellDocNos.find((docNo) => !poSellByDocNo.has(docNo))
     if (missingPoSell) return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบ PO Sell ${missingPoSell}` }, { status: 400 })
     for (const poSell of poSells) {
-      if (isInactivePoSellStatus(poSell.status)) return NextResponse.json({ code: 'BAD_REQUEST', error: `PO Sell ${poSell.doc_no} ถูกปิดหรือยกเลิกแล้ว` }, { status: 400 })
+      if (isInactivePoSellStatus(poSell.status, poSell.doc_no)) return NextResponse.json({ code: 'BAD_REQUEST', error: `PO Sell ${poSell.doc_no} ถูกปิดหรือยกเลิกแล้ว` }, { status: 400 })
       if (poSell.customer_id && poSell.customer_id !== customer.id) return NextResponse.json({ code: 'BAD_REQUEST', error: `Customer ของบิลขายไม่ตรงกับ PO Sell ${poSell.doc_no}` }, { status: 400 })
       if (poSell.branch_id && branch?.id && poSell.branch_id !== branch.id) return NextResponse.json({ code: 'BAD_REQUEST', error: `สาขาของบิลขายไม่ตรงกับ PO Sell ${poSell.doc_no}` }, { status: 400 })
     }
@@ -2346,7 +2342,12 @@ export async function POST(request: Request) {
             cut_amount: { increment: allocation.usedAmount },
             remaining_amount: allocation.remainingAmount,
             remaining_qty: allocation.remainingQty,
-            status: allocation.remainingQty <= 0.001 ? 'Completed' : poSell.status ?? 'Open',
+            status: derivePoSellFulfillmentStatus({
+              currentStatus: poSell.status,
+              docNo: poSell.doc_no,
+              remainingQty: allocation.remainingQty,
+              totalQty: jsonNumber(poSell.qty),
+            }),
             updated_at: createdAt,
             updated_by: actor,
           },
@@ -2685,7 +2686,7 @@ function poSellRowsByDocNoAfterRelease(
   poSells: PoSellForAllocation[],
   activeAllocations: ActiveSalesBillPoAllocation[],
 ) {
-  const poSellByDocNo = new Map(poSells.map((poSell) => [String(poSell.doc_no ?? ''), poSell] as const))
+  const poSellByDocNo = new Map(poSells.map((poSell) => [poSell.doc_no, poSell] as const))
   const allocationsByDocNo = new Map<string, ActiveSalesBillPoAllocation[]>()
   activeAllocations.forEach((allocation) => {
     if (!allocation.po_sell_doc_no || allocation.allocation_type !== 'PO_SELL' || allocation.po_sell_id == null) return
@@ -2703,7 +2704,12 @@ function poSellRowsByDocNoAfterRelease(
       items: released.items ?? poSell.items,
       remaining_amount: released.remainingAmount,
       remaining_qty: released.remainingQty,
-      status: released.remainingQty <= 0.001 ? poSell.status : 'Open',
+      status: derivePoSellFulfillmentStatus({
+        currentStatus: poSell.status,
+        docNo: poSell.doc_no,
+        remainingQty: released.remainingQty,
+        totalQty: jsonNumber(poSell.qty),
+      }),
     })
   })
 
@@ -2958,7 +2964,7 @@ export async function PATCH(request: Request) {
       const missingPoSell = requestedPoSellDocNos.find((docNo) => !poSellByDocNoRaw.has(docNo))
       if (missingPoSell) return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบ PO Sell ${missingPoSell}` }, { status: 400 })
       for (const poSell of poSells) {
-        if (isInactivePoSellStatus(poSell.status) && !bill.sales_bill_po_sell_allocations.some((allocation) => allocation.po_sell_id === poSell.id)) {
+        if (isInactivePoSellStatus(poSell.status, poSell.doc_no) && !bill.sales_bill_po_sell_allocations.some((allocation) => allocation.po_sell_id === poSell.id)) {
           return NextResponse.json({ code: 'BAD_REQUEST', error: `PO Sell ${poSell.doc_no} ถูกปิดหรือยกเลิกแล้ว` }, { status: 400 })
         }
         if (poSell.customer_id && poSell.customer_id !== customer.id) return NextResponse.json({ code: 'BAD_REQUEST', error: `Customer ของบิลขายไม่ตรงกับ PO Sell ${poSell.doc_no}` }, { status: 400 })
@@ -3422,7 +3428,12 @@ export async function PATCH(request: Request) {
               cut_amount: { decrement: released.restoredAmount },
               remaining_amount: released.remainingAmount,
               remaining_qty: released.remainingQty,
-              status: 'Open',
+              status: derivePoSellFulfillmentStatus({
+                currentStatus: poSell.status,
+                docNo: poSell.doc_no,
+                remainingQty: released.remainingQty,
+                totalQty: jsonNumber(poSell.qty),
+              }),
               updated_at: createdAt,
               updated_by: actor,
             },
@@ -3603,7 +3614,12 @@ export async function PATCH(request: Request) {
               cut_amount: { increment: allocation.usedAmount },
               remaining_amount: allocation.remainingAmount,
               remaining_qty: allocation.remainingQty,
-              status: allocation.remainingQty <= 0.001 ? 'Completed' : 'Open',
+              status: derivePoSellFulfillmentStatus({
+                currentStatus: poSell.status,
+                docNo: poSell.doc_no,
+                remainingQty: allocation.remainingQty,
+                totalQty: jsonNumber(poSell.qty),
+              }),
               updated_at: createdAt,
               updated_by: actor,
             },
@@ -3745,7 +3761,12 @@ export async function PATCH(request: Request) {
             cut_amount: { decrement: revertResult.restoredAmount },
             remaining_amount: revertResult.remainingAmount,
             remaining_qty: revertResult.remainingQty,
-            status: 'Open',
+            status: derivePoSellFulfillmentStatus({
+              currentStatus: poSell.status,
+              docNo: poSell.doc_no,
+              remainingQty: revertResult.remainingQty,
+              totalQty: jsonNumber(poSell.qty),
+            }),
             updated_at: createdAt,
             updated_by: actor,
           },
