@@ -278,17 +278,17 @@ FCD conversion
 - [x] `FCD-RCP-FX-04` ปรับ client calculation ให้ Settlement THB ที่ต่ำกว่ายอดเงินสดที่ต้องรับเป็น partial receipt: ตัดลูกหนี้ตามเงินรับจริงรวมส่วนลด/ภาษีที่เกี่ยวข้อง แสดง `ยอดลูกหนี้คงเหลือ` และไม่แสดง FX loss จากยอดที่ยังไม่รับ
 - [x] `FCD-RCP-FX-05` ปรับการกระจายยอดรับหลายบิลให้ใช้ยอดเงินสดที่รับจริงเป็นฐาน กระจายอย่าง deterministic และ reconcile เศษปัดที่บรรทัดสุดท้าย โดยไม่รวมส่วนลดหรือภาษีซ้ำใน cash allocation
 - [x] `FCD-RCP-FX-06` ปรับ summary ใน section บัญชีรับเงินให้แสดงยอด AR ก่อนตัด, ส่วนลด, ภาษีหัก ณ ที่จ่าย, ยอดเงินสดที่ต้องรับ, ยอดตัดลูกหนี้, ยอดลูกหนี้คงเหลือ, Settlement THB, Bank Fee, ยอด native ที่บันทึกเข้า FCD, มูลค่าตามบัญชี FCD เป็น THB และกำไร FX จากการปิดบิลโดยไม่ปนหน่วยหรือซ้ำความหมาย
-- [ ] `FCD-RCP-FX-07` ปรับ server-side calculation ให้คำนวณ Settlement THB, cash applied, AR settled, AR remaining, carrying THB, Bank Fee และ FX gain ใหม่จาก persisted inputs; ห้ามเชื่อค่าคำนวณ derived จาก client
-- [ ] `FCD-RCP-FX-08` เพิ่ม server guard ให้ผลรวม native split เท่ากับ canonical native receipt และ reject payload ที่หน่วยเงิน/account capability/rate ไม่ตรง contract; Settlement ที่ต่ำกว่า cash required ต้องเข้า partial path ไม่ใช่สร้าง FX loss
-- [ ] `FCD-RCP-FX-09` เพิ่ม migration/DB guard ให้ foreign SB receipt reconcile ตาม `cash applied + FX gain = Settlement THB` โดยส่วนลดและภาษีหัก ณ ที่จ่ายอยู่ฝั่ง AR settlement แยกต่างหาก; ห้าม hardcode account, currency หรือ rate
-- [ ] `FCD-RCP-FX-10` บันทึก FX fact ประเภท `AR Settlement` หนึ่งครั้งต่อ receipt พร้อม `branch_id`, receipt reference, rate snapshot และยอด THB เพื่อให้ audit และรายงานตามสาขาได้
-- [ ] `FCD-RCP-FX-11` ปรับ P&L ให้ FX gain ประเภท `AR Settlement` ลดค่าใช้จ่ายดำเนินงานในฐานะ contra expense และยืนยันว่าไม่ถูกนับซ้ำในรายได้อื่นหรือส่วนสรุป FX อีกตำแหน่ง
-- [ ] `FCD-RCP-FX-12` ปรับ FX gain/loss report และ receipt detail ให้แสดงประเภท `AR Settlement`, เอกสารต้นทาง, native amount, rate, Settlement THB, cash applied และกำไร FX ที่ drill down ตรวจสอบได้
-- [ ] `FCD-RCP-FX-13` ปรับ cancel/replacement ให้ reverse FX fact, AR settlement, FCD ledger และ Bank Statement ครบหนึ่งครั้งใน transaction เดียว โดยไม่ derive ยอดใหม่จาก current rate
-- [ ] `FCD-RCP-FX-14` ตรวจผลกระทบและป้องกันยอดซ้ำใน Sales Bill/AR, Receipt list/detail/print, Bank Statement, FCD ledger, Cash Position และ P&L; AP/Supplier Payment ต้องไม่เปลี่ยน
-- [ ] `FCD-RCP-FX-15` เพิ่ม focused tests ครอบคลุม full receipt, partial receipt, discount, withholding tax, Bank Fee, multi-bill allocation, split reconciliation, positive FX gain, cancel/replacement, branch-filtered P&L และ anti-double-count
-- [ ] `FCD-RCP-FX-16` อัปเดต flow note และ data dictionary ให้แยก native receipt, Settlement THB, cash applied, AR settled, AR remaining, carrying THB, Bank Fee และ AR Settlement FX พร้อมระบุ owner/หน่วย/สูตรของแต่ละค่า
-- [ ] `FCD-RCP-FX-17` รัน focused tests, lint, type-check, build และ `git diff --check`; apply migration และทำ browser/UAT หรือ promotion เฉพาะเมื่อได้รับคำสั่งหลัง code validation ผ่าน
+- [x] `FCD-RCP-FX-07` server คำนวณ Settlement THB, cash applied, AR settled, AR remaining, carrying THB, Bank Fee และ FX gain จากยอดบิลที่ persist แล้ว; ไม่ใช้ `receiptAmount` ที่ client คำนวณเป็น source of truth
+- [x] `FCD-RCP-FX-08` server guard ยังคงบังคับ native split/account/rate/currency contract เดิม และ Settlement ที่ต่ำกว่า cash required ถูกจัดสรรเป็น partial receipt; ไม่สร้าง FX loss
+- [x] `FCD-RCP-FX-09` migration `20260731160000_enforce_foreign_ar_settlement_fx_fact.sql` เพิ่ม deferred reconciliation `cash applied + FX gain = Settlement THB` และแยก AR discount/WHT; ไม่มี account/currency/rate hardcode
+- [x] `FCD-RCP-FX-10` บันทึก `fx_gain_loss` ประเภท `RCP` หนึ่ง positive fact ต่อ receipt พร้อม `branch_id`, receipt reference, native amount และ rate snapshot; database มี partial unique index ป้องกัน positive fact ซ้ำ
+- [x] `FCD-RCP-FX-11` P&L อ่าน FX fact ตาม branch scope และแสดงเป็น contra operating expense เพียงตำแหน่งเดียว
+- [x] `FCD-RCP-FX-12` FX report และ Receipt detail แสดง `AR Settlement`, receipt reference, branch, native/rate, Settlement THB, cash applied, AR settled และ FX gain จาก persisted snapshot
+- [x] `FCD-RCP-FX-13` cancel/replacement reverse AR, FCD ledger, Bank Statement และ FX fact ใน transaction เดียวจาก receipt snapshot; integration test ยืนยัน positive/reversal FX net เป็นศูนย์
+- [x] `FCD-RCP-FX-14` audit consumer ยืนยันว่า THB read model อ่าน Bank Statement/Cash Position ตามเดิม, FCD audit แยก, P&L อ่าน FX fact ครั้งเดียว และ AP ไม่อ่าน foreign customer receipt fact
+- [x] `FCD-RCP-FX-15` focused unit/consumer/P&L tests และ dev-target write integration test ครอบคลุม partial/multi-bill/discount/fee/FX/cancel/branch scope/anti-double-count
+- [x] `FCD-RCP-FX-16` อัปเดต flow note และ data dictionary ด้วย owner, หน่วย และสูตร native receipt, Settlement THB, cash applied, AR settled, AR remaining, carrying THB, Bank Fee และ AR Settlement FX
+- [x] `FCD-RCP-FX-17` focused tests `33/33`, dev-target write integration `2/2`, lint, type-check, build และ `git diff --check` ผ่าน; migration applied/recorded บน dev-target. Browser/UAT และ SIT promotion ยังเป็นคำสั่งแยก
 
 #### Scope exclusions for this follow-up
 

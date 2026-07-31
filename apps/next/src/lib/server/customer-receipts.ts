@@ -122,6 +122,30 @@ function allocateForeignReceiptLines<T extends { receiptCashAmount: Prisma.Decim
   })
 }
 
+function deriveForeignSalesBillCashAllocations<T extends {
+  discountAmount: Prisma.Decimal
+  outstandingAmount: Prisma.Decimal
+  withholdingTaxAmount: Prisma.Decimal
+}>(lines: T[], settlementBookAmount: Prisma.Decimal) {
+  const cashRequiredTotal = lines.reduce(
+    (total, line) => total.plus(Prisma.Decimal.max(0, line.outstandingAmount.minus(line.discountAmount).minus(line.withholdingTaxAmount))),
+    new Prisma.Decimal(0),
+  )
+  const cashAvailable = Prisma.Decimal.max(0, settlementBookAmount)
+  let remainingCash = Prisma.Decimal.min(cashAvailable, cashRequiredTotal)
+
+  return lines.map((line, index) => {
+    const cashRequiredAmount = Prisma.Decimal.max(0, line.outstandingAmount.minus(line.discountAmount).minus(line.withholdingTaxAmount))
+    const receiptCashAmount = index === lines.length - 1 || cashRequiredTotal.lte(cashAvailable)
+      ? cashRequiredAmount
+      : cashAvailable.mul(cashRequiredAmount).div(cashRequiredTotal).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+    const appliedCashAmount = Prisma.Decimal.min(receiptCashAmount, remainingCash)
+    remainingCash = remainingCash.minus(appliedCashAmount)
+    const arAmount = appliedCashAmount.plus(line.discountAmount).plus(line.withholdingTaxAmount)
+    return { arAmount, cashRequiredAmount, receiptCashAmount: appliedCashAmount }
+  })
+}
+
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }
@@ -1192,6 +1216,7 @@ async function cancelCustomerReceiptInTransaction(
     await tx.fx_gain_loss.create({
       data: {
         amount_fc: nativeAmount,
+        branch_id: receipt.branch_id,
         currency: receipt.receipt_currency_code,
         date: normalizeDate(reversalDate),
         gain_loss: settlementFxDifference.negated(),
@@ -1448,16 +1473,21 @@ async function createForeignSalesBillReceiptInTransaction(
   })
   const billByDocNo = new Map(bills.map((bill) => [bill.doc_no, bill]))
   if (bills.length !== billDocNos.length) throw new Error('ไม่พบบิลขายบางรายการ')
-  const allocationInputs = lines.map((line) => {
+  const allocationBaseInputs = lines.map((line) => {
     const bill = billByDocNo.get(line.salesBillDocNo)
     if (!bill) throw new Error(`ไม่พบบิลขาย ${line.salesBillDocNo}`)
     if (bill.customer_id !== customer.id || bill.branch_id !== selectedBranch.id) throw new Error(`บิลขาย ${line.salesBillDocNo} ไม่ตรงกับลูกค้าหรือสาขาที่เลือก`)
     if (isSalesBillCancelledStatus(bill.status, bill.doc_no)) throw new Error(`บิลขาย ${line.salesBillDocNo} ถูกยกเลิกแล้ว`)
-    const arAmount = decimalReceiptMoney(line.receiptAmount + line.discountAmount + line.withholdingTaxAmount, 'ยอดตัด AR')
+    const discountAmount = decimalReceiptMoney(line.discountAmount, 'ส่วนลด')
+    const withholdingTaxAmount = decimalReceiptMoney(line.withholdingTaxAmount, 'ภาษีหัก ณ ที่จ่าย')
     const outstanding = decimalReceiptMoney(toNumber(bill.receivable_balance), 'ยอดค้างรับ')
-    if (arAmount.gt(outstanding)) throw new Error(`ยอดตัด AR ของบิลขาย ${line.salesBillDocNo} เกินยอดค้างรับ`)
-    return { arAmount, bill, line, receiptCashAmount: decimalReceiptMoney(line.receiptAmount, 'ยอดรับ') }
+    if (discountAmount.plus(withholdingTaxAmount).gt(outstanding)) {
+      throw new Error(`ส่วนลดและภาษีหัก ณ ที่จ่ายของบิลขาย ${line.salesBillDocNo} เกินยอดค้างรับ`)
+    }
+    return { bill, discountAmount, line, outstandingAmount: outstanding, withholdingTaxAmount }
   })
+  const calculatedCashAllocations = deriveForeignSalesBillCashAllocations(allocationBaseInputs, settlementBookAmount)
+  const allocationInputs = allocationBaseInputs.map((item, index) => ({ ...item, ...calculatedCashAllocations[index]! }))
   const totalArAmount = allocationInputs.reduce((total, item) => total.plus(item.arAmount), new Prisma.Decimal(0))
   const totalReceiptCashAmount = allocationInputs.reduce((total, item) => total.plus(item.receiptCashAmount), new Prisma.Decimal(0))
   const settlementDifference = settlementBookAmount.minus(totalReceiptCashAmount)
@@ -1489,7 +1519,7 @@ async function createForeignSalesBillReceiptInTransaction(
       customer_name_snapshot: customer.name,
       customer_transferred_native_amount: customerTransferredNativeAmount,
       date: normalizeDate(values.date),
-      discount_total: allocationInputs.reduce((total, item) => total.plus(decimalReceiptMoney(item.line.discountAmount, 'ส่วนลด')), new Prisma.Decimal(0)),
+      discount_total: allocationInputs.reduce((total, item) => total.plus(item.discountAmount), new Prisma.Decimal(0)),
       doc_no: docNo,
       fx_rate: rate,
       fx_rate_date: normalizeDate(values.date),
@@ -1514,13 +1544,14 @@ async function createForeignSalesBillReceiptInTransaction(
       source_type: 'SB',
       status: CUSTOMER_RECEIPT_STATUS_ACTIVE,
       updated_by: actor,
-      withholding_tax_total: allocationInputs.reduce((total, item) => total.plus(decimalReceiptMoney(item.line.withholdingTaxAmount, 'ภาษีหัก ณ ที่จ่าย')), new Prisma.Decimal(0)),
+      withholding_tax_total: allocationInputs.reduce((total, item) => total.plus(item.withholdingTaxAmount), new Prisma.Decimal(0)),
     },
   })
   if (settlementDifference.gt(0)) {
     await tx.fx_gain_loss.create({
       data: {
         amount_fc: customerTransferredNativeAmount,
+        branch_id: selectedBranch.id,
         currency: currencyCode,
         date: normalizeDate(values.date),
         gain_loss: settlementDifference,
@@ -1555,10 +1586,10 @@ async function createForeignSalesBillReceiptInTransaction(
     const receivedAfter = decimalReceiptMoney(toNumber(bill.received_amount), 'ยอดรับแล้ว').plus(item.arAmount)
     const nextStatus = outstandingAfter.lte(0) ? SALES_BILL_STATUS.RECEIVED : SALES_BILL_STATUS.PARTIAL
     const legacyReceipt = await tx.receipts.create({
-      data: { account_id: primaryAccount.id, amount: item.line.receiptAmount, bank_fee: 0, bill_id: bill.id, branch_id: selectedBranch.id, created_by: actor, customer_id: customer.id, date: normalizeDate(values.date), discount: item.line.discountAmount, doc_no: docNo, fee: 0, lines: { customerReceiptId: receipt.id.toString(), lineNo: index + 1, paymentMethodCode: paymentMethod.code, salesBillDocNo: bill.doc_no }, method: paymentMethod.name, net_amount: item.line.receiptAmount, notes: values.notes, status: CUSTOMER_RECEIPT_STATUS_ACTIVE, updated_by: actor, voucher_id: docNo, withholding_tax: item.line.withholdingTaxAmount },
+      data: { account_id: primaryAccount.id, amount: item.receiptCashAmount, bank_fee: 0, bill_id: bill.id, branch_id: selectedBranch.id, created_by: actor, customer_id: customer.id, date: normalizeDate(values.date), discount: item.discountAmount, doc_no: docNo, fee: 0, lines: { customerReceiptId: receipt.id.toString(), lineNo: index + 1, paymentMethodCode: paymentMethod.code, salesBillDocNo: bill.doc_no }, method: paymentMethod.name, net_amount: item.receiptCashAmount, notes: values.notes, status: CUSTOMER_RECEIPT_STATUS_ACTIVE, updated_by: actor, voucher_id: docNo, withholding_tax: item.withholdingTaxAmount },
     })
     await tx.customer_receipt_allocations.create({
-        data: { allocated_ar_amount: item.arAmount, created_by: actor, customer_code_snapshot: customer.code, discount_amount: item.line.discountAmount, line_no: index + 1, native_amount_allocated: snapshot.nativeAmount, outstanding_after: outstandingAfter, outstanding_before: outstandingBefore, receipt_amount: item.line.receiptAmount, receipt_id: receipt.id, receipt_line_id: legacyReceipt.id, sales_bill_doc_no_snapshot: bill.doc_no, sales_bill_id: bill.id, settlement_book_amount: snapshot.settlementBookAmount, settlement_difference_reason: settlementDifferenceReasonForReceipt('SB', snapshot.settlementBookAmount.minus(item.receiptCashAmount)), settlement_fx_difference: snapshot.settlementBookAmount.minus(item.receiptCashAmount), status: CUSTOMER_RECEIPT_STATUS_ACTIVE, updated_by: actor, withholding_tax_amount: item.line.withholdingTaxAmount },
+        data: { allocated_ar_amount: item.arAmount, created_by: actor, customer_code_snapshot: customer.code, discount_amount: item.discountAmount, line_no: index + 1, native_amount_allocated: snapshot.nativeAmount, outstanding_after: outstandingAfter, outstanding_before: outstandingBefore, receipt_amount: item.receiptCashAmount, receipt_id: receipt.id, receipt_line_id: legacyReceipt.id, sales_bill_doc_no_snapshot: bill.doc_no, sales_bill_id: bill.id, settlement_book_amount: snapshot.settlementBookAmount, settlement_difference_reason: settlementDifferenceReasonForReceipt('SB', snapshot.settlementBookAmount.minus(item.receiptCashAmount)), settlement_fx_difference: snapshot.settlementBookAmount.minus(item.receiptCashAmount), status: CUSTOMER_RECEIPT_STATUS_ACTIVE, updated_by: actor, withholding_tax_amount: item.withholdingTaxAmount },
     })
     await tx.sales_bills.update({ data: { receivable_balance: outstandingAfter, received_amount: receivedAfter, status: nextStatus, updated_at: new Date(), updated_by: actor }, where: { id: bill.id } })
   }

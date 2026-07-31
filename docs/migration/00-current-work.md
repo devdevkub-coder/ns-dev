@@ -1,10 +1,12 @@
-# Active Foreign Receipt Discount And Partial Settlement Follow-up 2026-07-31
+# Foreign Receipt Settlement FX Follow-up 2026-07-31
 
-Objective: แก้ RCP ต่างประเทศให้ส่วนลดลดเงินสดที่ต้องรับก่อนตัดลูกหนี้, เงินรับเกินยอดเงินสดที่ใช้ปิดบิลเป็นกำไร FX และเงินรับไม่ครบเป็น partial receipt โดยไม่ให้ rate ชั่วคราวเขียนทับยอดบิลใน form state.
+Objective: ให้ foreign SB receipt คำนวณ cash applied/AR settlement/FX gain จาก facts ที่ persist แล้ว, แยก FX fact ตามสาขา และคง THB consumer เดิมโดยไม่สร้าง GL, fallback หรือ hardcode.
 
-Checkpoint: เพิ่ม pure calculation contract และ client summary แล้ว; foreign SB derive เงินสดที่ต้องรับจากยอดลูกหนี้คงเหลือหลังส่วนลด/ภาษี โดยไม่ใช้ค่าที่ rate ชั่วคราวเคยเขียนทับ และ payload ใช้ derived cash allocation ตาม Settlement THB. UI แยกยอด native ที่บันทึกเข้า FCD ออกจากมูลค่าตามบัญชี THB. ช่อง native amount ของ foreign RCP เหลือจุดกรอกเดียวหลังบัญชี FCD และใช้ผลรวม split เป็น `customerTransferredNativeAmount`; ไม่มีช่องยอดที่ลูกค้าโอนซ้ำด้านบน. Focused tests `12/12` และ type-check ผ่านหลังแก้จุดนี้; production build ของ batch ก่อนหน้าผ่านและยังไม่ได้ทำ browser UAT. งาน server/DB/P&L/report/cancellation ที่เหลือติดตามใน `FCD-RCP-FX-07` ถึง `FCD-RCP-FX-17` ของ task list.
+Checkpoint: `FCD-RCP-FX-07` ถึง `FCD-RCP-FX-16` เสร็จแล้ว. Migration `20260731160000_enforce_foreign_ar_settlement_fx_fact.sql` applied และ recorded บน dev-target: เพิ่ม `fx_gain_loss.branch_id`, positive AR-settlement FX fact หนึ่งครั้งต่อ RCP, และ deferred reconciliation `cash applied + FX gain = Settlement THB`. Server, receipt detail, FX report และ P&L ใช้ persisted snapshot เดียวกัน; cancel append reversal fact พร้อมคืน AR/FCD/BST ใน transaction เดียว. ไม่มีการแก้ Sales Bill currency, CADV, AP, conversion, revaluation หรือเพิ่ม GL.
 
-Immediate next task: ทำ server/DB/P&L batch แยกตาม task list โดยไม่เพิ่ม GL, fallback หรือ hardcode; browser UAT ทำเมื่อได้รับคำสั่งแยก.
+Validation: focused unit/consumer/P&L tests `33/33`, dev-target write integration `2/2`, lint, type-check, build และ `git diff --check` ผ่าน. Browser UAT และ SIT promotion ยังไม่ได้ทำใน batch นี้.
+
+Immediate next task: review/commit batch นี้; promote code และ apply migration บน SIT หรือทำ browser UAT เฉพาะเมื่อได้รับคำสั่งแยก.
 
 # Active FCD Foreign Receipt Batch 2026-07-30
 

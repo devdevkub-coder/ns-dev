@@ -947,6 +947,7 @@ model branches {
   stock_transfers_from      stock_transfers[]           @relation("stock_transfers_from_branch_idTobranches")
   stock_transfers_to        stock_transfers[]           @relation("stock_transfers_to_branch_idTobranches")
   supplier_advance_payments supplier_advance_payments[]
+  fx_gain_loss              fx_gain_loss[]
   supplier_branches         supplier_branches[]
   suppliers                 suppliers[]
   trading_cost_sources      trading_cost_sources[]
@@ -1258,6 +1259,7 @@ model expenses {
 }
 
 model fx_gain_loss {
+  branch_id       BigInt?
   date            DateTime  @db.Date
   ref_type        String?
   ref_id          String?
@@ -1269,7 +1271,9 @@ model fx_gain_loss {
   notes           String?
   created_at      DateTime? @default(now()) @db.Timestamptz(6)
   id              BigInt    @id @default(autoincrement())
+  branches        branches? @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  @@index([branch_id, date], map: "idx_fx_gain_loss_branch_date")
   @@schema("public")
 }
 

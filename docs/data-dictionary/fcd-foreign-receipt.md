@@ -2,7 +2,7 @@
 
 ## Scope
 
-เอกสารนี้กำหนดข้อมูลที่ใช้เมื่อ Sales Bill เป็น THB แต่รับเงินเป็นสกุลต่างประเทศเข้า FCD. ยอดเงินเก็บและแสดง 2 ตำแหน่ง; FX rate เก็บและแสดง 3 ตำแหน่ง. Functional currency อ่านจาก `finance_currency_policies` ที่อ้างอิง Currency Master เท่านั้น.
+เอกสารนี้กำหนดข้อมูลที่ใช้เมื่อ Sales Bill เป็น THB แต่รับเงินเป็นสกุลต่างประเทศเข้า FCD. ยอดเงินและ FX rate ของ Customer Receipt เก็บและแสดง 2 ตำแหน่ง. Functional currency อ่านจาก `finance_currency_policies` ที่อ้างอิง Currency Master เท่านั้น.
 
 ## Fact Ownership
 
@@ -12,7 +12,7 @@
 | `customer_receipt_allocations` | Receipt allocation | ตัด AR ของ SB เป็น THB; CADV ใช้ advance allocation แยก |
 | `bank_statement` | THB cash/bank projection | `amount_in/out` คือยอด THB ที่ list/dashboard/report ใช้; `book_amount_*` เป็น mirror/check ของ write path ใหม่ |
 | `fcd_ledger_entries` | FCD subledger | native movement และ carrying THB ต่อ `account + currency`; ใช้ดูยอด FCD, revalue และ conversion |
-| `fx_gain_loss` | FX event report | แยก `AR settlement`, `FCD revaluation`, `FCD conversion` เพื่อ audit |
+| `fx_gain_loss` | FX event report | เก็บ fact `AR Settlement` หนึ่งครั้งต่อ RCP ที่มีกำไร FX พร้อม `branch_id`, rate และยอด native; แยกจาก `FCD revaluation` และ `FCD conversion` |
 | `account_currency_balances` | Account capability master | ระบุสกุลที่บัญชีรองรับ ไม่ใช่ยอดคงเหลือหรือยอดยกมา |
 
 ## Customer Receipt Foreign Snapshot
@@ -22,11 +22,14 @@
 | `receipt_currency_code` | code | สกุลที่ RCP รับจริง; RCP หนึ่งใบมีหนึ่งสกุล |
 | `received_native_amount` | receipt currency | ยอดที่ลูกค้าโอนก่อน fee |
 | `customer_transferred_native_amount` | receipt currency | ยอด native ที่ยืนยันจากลูกค้า/ธนาคารตาม receipt contract |
-| `fx_rate`, `fx_rate_date`, `fx_rate_type`, `fx_rate_source` | rate/date/text | rate snapshot วันรับเงิน; lookup จาก API แล้วแก้/กรอกเองได้พร้อมเหตุผล |
+| `fx_rate`, `fx_rate_date`, `fx_rate_type`, `fx_rate_source` | rate/date/text | rate snapshot วันรับเงิน; lookup จาก API แล้วผู้ใช้แก้/กรอกเองได้ โดย RCP ไม่บังคับ rate type หรือเหตุผล override |
 | `settlement_book_amount` | THB | มูลค่าที่ใช้ปิด SB หรือรับ CADV ณ rate snapshot |
 | `settlement_fx_difference` | THB | FX gain/loss ของ AR settlement เท่านั้น; CADV ต้องไม่สร้างค่าอัตโนมัติ |
 | `bank_fee_total` | THB | bank fee แยกจาก settlement FX |
 | `carrying_thb_amount` | THB | carrying value ของ native ที่เข้า FCD |
+| `customer_receipt_allocations.receipt_amount` | THB | เงินสดที่ใช้ตัดลูกหนี้ของแต่ละ SB; server คำนวณจากยอดค้างจริง, ส่วนลด, ภาษีหัก ณ ที่จ่าย และ Settlement THB |
+| `customer_receipt_allocations.allocated_ar_amount` | THB | ยอดตัดลูกหนี้ = เงินสดตัดลูกหนี้ + ส่วนลด + ภาษีหัก ณ ที่จ่าย |
+| `customer_receipt_allocations.outstanding_after` | THB | ยอดลูกหนี้คงเหลือของบิลหลัง allocation ณ เวลา post |
 
 ## Receipt Difference Ownership
 
@@ -34,11 +37,11 @@
 
 | เรื่อง | เจ้าของ/กติกา |
 |---|---|
-| AR settlement FX | เฉพาะ `SB`; ระบบคำนวณ `settlement_book_amount - allocated_ar_amount` จาก rate snapshot และตั้ง `fx_settlement` เฉพาะเมื่อผลต่างไม่เป็นศูนย์ |
-| Bank fee | `customer_receipts.bank_fee_total` เป็น THB และ reconcile จากยอด native ที่ลูกค้าโอนกับยอด native ที่เข้า FCD; ห้ามรวมเป็น settlement FX |
+| AR settlement FX | เฉพาะ `SB`; ระบบคำนวณ `settlement_book_amount - เงินสดตัดลูกหนี้` จาก rate snapshot และตั้ง `fx_settlement` เฉพาะเมื่อผลต่างเป็นบวก; ส่วนต่างบวกเป็น `fx_gain_loss` ประเภท `RCP` หนึ่ง fact ต่อ receipt |
+| Bank fee | `customer_receipts.bank_fee_total` เป็น THB; `carrying_thb_amount = settlement_book_amount - bank_fee_total` และห้ามรวม fee เป็น settlement FX |
 | Discount / credit note | Discount เป็น THB ระดับ SB allocation; credit note เป็นเอกสารของ flow นั้นเอง ไม่ใช่ FX field |
 | Customer overpayment | RCP ปฏิเสธยอดตัด AR/CADV ที่เกินยอดคงเหลือ; ต้องสร้าง/เลือกเอกสารรับล่วงหน้าหรือ credit document ที่เป็นเจ้าของยอดนั้นก่อน จึงไม่มี overpayment field ที่เขียนอัตโนมัติใน RCP |
-| Rate override/manual rate | ผู้ใช้แก้/กรอกได้ แต่ต้องระบุ `fx_rate_override_reason`; เป็นเหตุผลของ rate ไม่ใช่เหตุผลของ FX gain/loss |
+| Rate override/manual rate | ผู้ใช้แก้/กรอกได้; rate ที่ใช้ถูกเก็บเป็น snapshot ของ receipt และไม่ใช้ current rate ตอนอ่านหรือยกเลิกเอกสาร |
 
 สำหรับ `CADV` ยอด settlement THB ต้องเท่ากับยอดตัด CADV ทุกครั้ง จึงไม่มี AR settlement FX หรือ overpayment ที่ RCP สร้างเอง.
 
