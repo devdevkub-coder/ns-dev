@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   derivePoSellFulfillmentStatus,
+  isActivePoSellStatus,
   isInactivePoSellStatus,
   PO_SELL_STATUS,
   requirePoSellStatus,
@@ -22,6 +23,8 @@ describe('PO Sell status contract', () => {
       remainingQty: 100,
       totalQty: 100,
     })).toBe(PO_SELL_STATUS.CANCELLED)
+    expect(isActivePoSellStatus(PO_SELL_STATUS.PARTIALLY_FULFILLED, 'POS2607-0001')).toBe(true)
+    expect(isActivePoSellStatus(PO_SELL_STATUS.COMPLETED, 'POS2607-0001')).toBe(false)
     expect(isInactivePoSellStatus(PO_SELL_STATUS.SHORT_CLOSED, 'POS2607-0001')).toBe(true)
   })
 

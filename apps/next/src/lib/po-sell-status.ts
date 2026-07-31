@@ -21,6 +21,11 @@ export function isInactivePoSellStatus(status: string | null | undefined, docNo:
   return canonical === PO_SELL_STATUS.CANCELLED || canonical === PO_SELL_STATUS.COMPLETED || canonical === PO_SELL_STATUS.SHORT_CLOSED
 }
 
+export function isActivePoSellStatus(status: string | null | undefined, docNo: string) {
+  const canonical = requirePoSellStatus(status, docNo)
+  return canonical === PO_SELL_STATUS.OPEN || canonical === PO_SELL_STATUS.PARTIALLY_FULFILLED
+}
+
 export function poSellStatusText(status: string | null | undefined) {
   const canonical = requirePoSellStatus(status, 'status')
   const labels: Record<PoSellStatus, string> = {
