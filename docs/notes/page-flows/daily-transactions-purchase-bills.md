@@ -132,6 +132,10 @@ PB เป็นจุดตั้งเจ้าหนี้และเป็�
 
 The `/purchase/bills` list now left-aligns the `ผู้ขาย` header to match its left-aligned body. What is what: this is the existing Supplier name column. Why it has to be like this: party names scan as text and the header must follow the same geometry as its values; numeric, status, and action columns remain unchanged, with no effect on bill calculations, APIs, permissions, database schema, or DB state.
 
+## 2026-07-31 WTI open-bill freshness checkpoint
+
+When a user chooses `เปิดบิลซื้อ` from a WTI row, `/purchase/bills?new=1&wti=<docNo>` reads the purchase-bill options directly from the server and does not use the browser option cache. WTI create/edit, confirm, and cancel also invalidate the Purchase Bill option cache after their writes succeed. What is what: the WTI option list determines whether the linked document can populate the Stock PB form. WTI eligibility, status, and remaining allocation are L5 business facts; their source of truth is the database through `/api/purchase/bills/options`, and they must not be served from cache for the WTI-to-PB transition. Why it has to be like this: a newly confirmed WTI is a current transaction fact, so a five-minute cached option list could incorrectly report that the WTI was missing or already billed. Normal Purchase Bill option loading may still use its scoped short-lived client cache; only the WTI-to-PB transition requires a fresh read.
+
 ## 2026-07-23 Purchase list center-alignment checkpoint
 
 The `/purchase/bills` desktop list now centers every visible header/body column except `ยอดรวม` and `ค้างชำระ`, which stay right-aligned as monetary facts. What is what: this changes only the Purchase Bill list table geometry; `ยอดรวม` remains the bill total and `ค้างชำระ` remains the payable balance used by Payment Flow. Why it has to be like this: the requested office scanning pattern groups document identifiers, dates, supplier, status, source docs, payment docs, updater, and actions around the column center while preserving right alignment for money comparison. This does not change calculations, filters, APIs, permissions, database schema, or DB state.

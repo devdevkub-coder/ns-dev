@@ -1121,9 +1121,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     void loadData()
   }, [loadData])
 
-  const loadPurchaseOptions = useCallback(async () => {
+  const loadPurchaseOptions = useCallback(async ({ bypassCache = false }: { bypassCache?: boolean } = {}) => {
     if (mode !== 'purchase') return null
-    if (!purchaseOptionsRequestRef.current) {
+    if (bypassCache) {
+      purchaseOptionsRequestRef.current = dailyFetchJson<PurchasePayload>('/api/purchase/bills/options')
+    } else if (!purchaseOptionsRequestRef.current) {
       purchaseOptionsRequestRef.current = cachedPurchaseBillOptions<PurchasePayload>('/api/purchase/bills/options')
     }
     const payload = await purchaseOptionsRequestRef.current
@@ -1622,7 +1624,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 
     if (mode === 'purchase') {
       let cancelled = false
-      void loadPurchaseOptions()
+      void loadPurchaseOptions({ bypassCache: true })
         .then((payload) => {
           if (cancelled) return
           handledAutoOpenRef.current = autoOpenKey
