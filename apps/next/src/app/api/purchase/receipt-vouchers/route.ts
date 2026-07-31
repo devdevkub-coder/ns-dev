@@ -7,7 +7,7 @@ import { currentActor, documentBranchCode, normalizeDate, toDateOnly, toNumber }
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import { prisma } from '@/lib/server/prisma'
 import { listActiveBranches, listActiveSupplierPaymentOptions, listActiveSuppliers } from '@/lib/server/reference-master-cache'
-import { isPurchaseBillCancelledStatus, PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
+import { isPurchaseBillCancelledStatus, PURCHASE_BILL_ACTIVE_STATUSES } from '@/lib/purchase-bill-status'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -482,7 +482,7 @@ export async function GET(request: Request) {
         },
         take: 5000,
         where: {
-          status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] },
+          status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] },
           doc_no: { notIn: referencedBillDocNos },
           ...(url.searchParams.get('branchId') ? { branches: { code: url.searchParams.get('branchId')! } } : {}),
         },

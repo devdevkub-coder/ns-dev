@@ -17,6 +17,12 @@ export const PURCHASE_BILL_CANCELLED_STATUSES = [
   PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS,
 ] as const
 
+export const PURCHASE_BILL_ACTIVE_STATUSES = [
+  PURCHASE_BILL_STATUS.UNPAID,
+  PURCHASE_BILL_STATUS.PARTIAL,
+  PURCHASE_BILL_STATUS.PAID,
+] as const
+
 export type PurchaseBillCancelledStatus = typeof PURCHASE_BILL_CANCELLED_STATUSES[number]
 
 export function requirePurchaseBillStatus(status: string | null | undefined, docNo: string): PurchaseBillStatus {

@@ -1,7 +1,7 @@
 import type { Prisma } from '../../../generated/prisma/client'
 import { outwardCustomerReference } from '@/lib/server/customer-reference'
 import { requireBusinessCode } from '@/lib/business-code'
-import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
+import { PURCHASE_BILL_ACTIVE_STATUSES } from '@/lib/purchase-bill-status'
 import { isActivePoSellStatus } from '@/lib/po-sell-status'
 import { bangkokDateRange, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import { getSalesPlanLmeConfigAutoRefresh, type SalesPlanLmeConfig } from './sales-plan-lme'
@@ -207,7 +207,7 @@ async function buildSalesPlanningSnapshot() {
     listActiveCustomers(),
     listActiveSalesChannels(),
     prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 10000, where: { NOT: { status: { in: ['Cancelled', 'cancelled'] } } } }),
-    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } } }, orderBy: [{ date: 'desc' }], take: 10000, where: { status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] } } }),
+    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } } }, orderBy: [{ date: 'desc' }], take: 10000, where: { status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] } } }),
     listActiveWarehousesByBranch(SALES_PLAN_SAMUT_SAKHON_BRANCH_CODE),
   ])
   const samutSakhonWarehouseIds = new Set<bigint>(samutSakhonWarehouses.map((warehouse: (typeof samutSakhonWarehouses)[number]) => warehouse.id))
@@ -589,7 +589,7 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
 
   const currentWhere: Prisma.purchase_billsWhereInput = {
     date: bangkokDateRange(from, to),
-    status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] }
+    status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] }
   }
   if (filters?.branchId) {
     currentWhere.branch_id = BigInt(filters.branchId)
@@ -597,7 +597,7 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
 
   const annualWhere: Prisma.purchase_billsWhereInput = {
     date: bangkokDateRange(`${year}-01-01`, `${year}-12-31`),
-    status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] }
+    status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] }
   }
   if (filters?.branchId) {
     annualWhere.branch_id = BigInt(filters.branchId)

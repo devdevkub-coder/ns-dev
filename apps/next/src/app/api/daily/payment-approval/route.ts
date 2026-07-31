@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { paymentMethodGroupFromValue, resolvePaymentMethodName } from '@/lib/account-payment-method'
 import { requireBusinessCode, requireDocumentNo } from '@/lib/business-code'
 import { supplierAdvanceTypeLabel, supplierAdvanceVatTypeLabel } from '@/lib/purchase-advance'
-import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
+import { PURCHASE_BILL_ACTIVE_STATUSES } from '@/lib/purchase-bill-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { refreshAdvancePaymentWorkflowStatus } from '@/lib/server/advance-payments'
@@ -111,7 +111,7 @@ export async function GET(request: Request) {
         orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
         take: 5000,
         where: {
-          status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] },
+          status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] },
           ...branchWhere,
         },
       }),
@@ -624,7 +624,7 @@ export async function POST(request: Request) {
         },
         where: {
           ...(values.sourceType === 'purchase_bill' ? { doc_no: sourceDocNo } : { id: BigInt(-1) }),
-          status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] },
+          status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] },
         },
       })
       if (values.sourceType === 'purchase_bill' && bills.length !== 1) throw new Error('ไม่พบบิลซื้อที่ต้องการอนุมัติ หรือบิลถูกยกเลิกแล้ว')

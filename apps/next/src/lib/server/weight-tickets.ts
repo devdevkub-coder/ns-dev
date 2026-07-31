@@ -1,5 +1,7 @@
 import { Prisma } from '../../../generated/prisma/client'
 import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
+import { PURCHASE_BILL_ACTIVE_STATUSES } from '@/lib/purchase-bill-status'
+import { SALES_BILL_STATUS } from '@/lib/server/sales-bill-history'
 import {
   appendImpurityProductMeta,
   calculateWeightTicketLineTotals,
@@ -614,7 +616,7 @@ export async function getWeightTicketUsageCountsByTicketIds(
            , pbra.weight_ticket_id
       from public.purchase_bill_receipt_allocations pbra
       join public.purchase_bills pb on pb.id = pbra.purchase_bill_id
-      where lower(coalesce(pb.status, '')) not in ('cancelled', 'cancelled_supplier_swap')
+      where pb.status in (${Prisma.join(PURCHASE_BILL_ACTIVE_STATUSES)})
         and pbra.allocation_status = 'active'
         and pbra.weight_ticket_id in (${Prisma.join(uniqueTicketIds)})
       group by pbra.weight_ticket_id
@@ -625,7 +627,7 @@ export async function getWeightTicketUsageCountsByTicketIds(
            , sba.weight_ticket_id
       from public.sales_bill_source_allocations sba
       join public.sales_bills sb on sb.id = sba.sales_bill_id
-      where lower(coalesce(sb.status, '')) not in ('cancelled', 'void', 'voided')
+      where sb.status in (${Prisma.join([SALES_BILL_STATUS.UNRECEIVED, SALES_BILL_STATUS.PARTIAL, SALES_BILL_STATUS.RECEIVED])})
         and sba.status = 'active'
         and sba.source_type = 'WTO'
         and sba.weight_ticket_id in (${Prisma.join(uniqueTicketIds)})
@@ -677,7 +679,7 @@ export async function getWeightTicketDownstreamAllocations(tx: Prisma.Transactio
       join public.weight_tickets wt on wt.id = pbra.weight_ticket_id
       left join public.products products on products.id = pbi.product_id
       left join public.products summary_products on summary_products.id = wts.product_id
-      where lower(coalesce(pb.status, '')) not in ('cancelled', 'cancelled_supplier_swap')
+      where pb.status in (${Prisma.join(PURCHASE_BILL_ACTIVE_STATUSES)})
         and pbra.allocation_status = 'active'
         and pbi.item_status = 'active'
         and pbra.weight_ticket_id = ${ticketId}
@@ -704,7 +706,7 @@ export async function getWeightTicketDownstreamAllocations(tx: Prisma.Transactio
       from public.sales_bill_source_allocations sba
       join public.sales_bills sb on sb.id = sba.sales_bill_id
       join public.weight_tickets wt on wt.id = sba.weight_ticket_id
-      where lower(coalesce(sb.status, '')) not in ('cancelled', 'void', 'voided')
+      where sb.status in (${Prisma.join([SALES_BILL_STATUS.UNRECEIVED, SALES_BILL_STATUS.PARTIAL, SALES_BILL_STATUS.RECEIVED])})
         and sba.status = 'active'
         and sba.source_type = 'WTO'
         and sba.weight_ticket_id = ${ticketId}

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
+import { PURCHASE_BILL_ACTIVE_STATUSES } from '@/lib/purchase-bill-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { getAllowedBranchIds } from '@/lib/server/branch-scope'
@@ -101,7 +101,7 @@ export async function GET(request: Request) {
       prisma.purchase_bills.findMany({
         include: { suppliers: { select: { id: true, name: true } } },
         take: 10000,
-        where: { ...branchWhere, status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] } },
+        where: { ...branchWhere, status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] } },
       }),
     ])
 

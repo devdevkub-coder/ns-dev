@@ -5,7 +5,7 @@ import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } fr
 import { purchaseBillCancelSchema, purchaseBillFormSchema, type PurchaseBillFormValues } from '@/lib/purchase-bill'
 import { calculatePurchaseBillPostAdvanceTotals, calculateSupplierAdvanceAllocation, calculateSupplierAdvancePaidBaseCapacity } from '@/lib/purchase-advance'
 import {
-  PURCHASE_BILL_CANCELLED_STATUSES,
+  PURCHASE_BILL_ACTIVE_STATUSES,
   PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS,
   PURCHASE_BILL_STATUS,
   type PurchaseBillStatus,
@@ -1276,7 +1276,7 @@ async function buildWeightTicketUsageMap(tickets: WeightTicketOptionRow[]) {
       allocation_status: PURCHASE_BILL_ACTIVE_ALLOCATION_STATUS,
       weight_ticket_id: { in: ticketIds },
       purchase_bills: {
-        status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] },
+        status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] },
       },
     },
   })
@@ -1344,7 +1344,7 @@ async function loadReceiptAvailability(reader: ReceiptAvailabilityReader, ticket
       allocation_status: PURCHASE_BILL_ACTIVE_ALLOCATION_STATUS,
       weight_ticket_id: ticket.id,
       purchase_bills: {
-        status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] },
+        status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] },
       },
     },
   })
@@ -1630,7 +1630,7 @@ async function refreshWeightTicketStatuses(
       allocation_status: PURCHASE_BILL_ACTIVE_ALLOCATION_STATUS,
       weight_ticket_id: { in: uniqueTicketIds },
       purchase_bills: {
-        status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] },
+        status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] },
       },
     },
   })

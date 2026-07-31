@@ -1,4 +1,6 @@
 import { Prisma } from '../../../generated/prisma/client'
+import { PURCHASE_BILL_ACTIVE_STATUSES } from '@/lib/purchase-bill-status'
+import { SALES_BILL_STATUS } from '@/lib/server/sales-bill-history'
 import type { ProfitCostAppliedFilter, ProfitCostTableQuery } from './profit-cost-report-contract'
 import { decimalString, serializeProfitCostAppliedFilter } from './profit-cost-report-contract'
 import { prisma } from './prisma'
@@ -21,7 +23,8 @@ type SummarySqlRow = {
 
 type BalanceSqlRow = { ap: NumericText; ar: NumericText }
 
-const cancelledStatuses = Prisma.sql`('cancelled', 'canceled', 'void', 'voided', 'reversed')`
+const purchaseBillActiveStatuses = Prisma.join(PURCHASE_BILL_ACTIVE_STATUSES)
+const salesBillActiveStatuses = Prisma.join([SALES_BILL_STATUS.UNRECEIVED, SALES_BILL_STATUS.PARTIAL, SALES_BILL_STATUS.RECEIVED])
 
 function branchScopeSql(filter: ProfitCostReaderFilter, branchColumn = Prisma.sql`fact.branch_id`) {
   if (filter.branchId != null) return Prisma.sql`and ${branchColumn} = ${filter.branchId}`
@@ -134,15 +137,13 @@ export async function readProfitCostSummary(filter: ProfitCostReaderFilter) {
       select
         coalesce((select sum(pb.payable_balance) from public.purchase_bills pb
           where (pb.created_at at time zone 'Asia/Bangkok')::date between ${filter.from}::date and ${filter.to}::date
-            and lower(coalesce(pb.status, '')) not in ${cancelledStatuses}
-            and lower(coalesce(pb.status, '')) <> 'draft'
+            and pb.status in (${purchaseBillActiveStatuses})
             ${branchScopeSql(filter, Prisma.sql`pb.branch_id`)}
             ${filter.supplierId != null ? Prisma.sql`and pb.supplier_id = ${filter.supplierId}` : Prisma.empty}
             ${filter.purchaseChannelId != null ? Prisma.sql`and pb.purchase_channel_id = ${filter.purchaseChannelId}` : Prisma.empty}), 0)::text as ap,
         coalesce((select sum(sb.receivable_balance) from public.sales_bills sb
           where sb.date between ${filter.from}::date and ${filter.to}::date
-            and lower(coalesce(sb.status, '')) not in ${cancelledStatuses}
-            and lower(coalesce(sb.status, '')) <> 'draft'
+            and sb.status in (${salesBillActiveStatuses})
             ${branchScopeSql(filter, Prisma.sql`sb.branch_id`)}
             ${filter.customerId != null ? Prisma.sql`and sb.customer_id = ${filter.customerId}` : Prisma.empty}
             ${filter.salesChannelId != null ? Prisma.sql`and sb.channel_id = ${filter.salesChannelId}` : Prisma.empty}), 0)::text as ar
@@ -363,12 +364,12 @@ export async function readProfitCostDimension(
         0::numeric buy_qty, 0::numeric buy_amount,
         coalesce((select sum(pb.paid_amount) from public.purchase_bills pb
           where pb.supplier_id = supplier.id and (pb.created_at at time zone 'Asia/Bangkok')::date between ${query.from}::date and ${query.to}::date
-            and lower(coalesce(pb.status, '')) not in ${cancelledStatuses} and lower(coalesce(pb.status, '')) <> 'draft'
+            and pb.status in (${purchaseBillActiveStatuses})
             ${branchScopeSql(query, Prisma.sql`pb.branch_id`)}
             ${query.purchaseChannelId != null ? Prisma.sql`and pb.purchase_channel_id = ${query.purchaseChannelId}` : Prisma.empty}), 0) paid,
         coalesce((select sum(pb.payable_balance) from public.purchase_bills pb
           where pb.supplier_id = supplier.id and (pb.created_at at time zone 'Asia/Bangkok')::date between ${query.from}::date and ${query.to}::date
-            and lower(coalesce(pb.status, '')) not in ${cancelledStatuses} and lower(coalesce(pb.status, '')) <> 'draft'
+            and pb.status in (${purchaseBillActiveStatuses})
             ${branchScopeSql(query, Prisma.sql`pb.branch_id`)}
             ${query.purchaseChannelId != null ? Prisma.sql`and pb.purchase_channel_id = ${query.purchaseChannelId}` : Prisma.empty}), 0) payable,
         0::numeric received, 0::numeric receivable
@@ -386,12 +387,12 @@ export async function readProfitCostDimension(
         0::numeric buy_qty, 0::numeric buy_amount, 0::numeric paid, 0::numeric payable,
         coalesce((select sum(coalesce(sb.received_amount, sb.paid_amount, 0)) from public.sales_bills sb
           where sb.customer_id = customer.id and sb.date between ${query.from}::date and ${query.to}::date
-            and lower(coalesce(sb.status, '')) not in ${cancelledStatuses} and lower(coalesce(sb.status, '')) <> 'draft'
+            and sb.status in (${salesBillActiveStatuses})
             ${branchScopeSql(query, Prisma.sql`sb.branch_id`)}
             ${query.salesChannelId != null ? Prisma.sql`and sb.channel_id = ${query.salesChannelId}` : Prisma.empty}), 0) received,
         coalesce((select sum(sb.receivable_balance) from public.sales_bills sb
           where sb.customer_id = customer.id and sb.date between ${query.from}::date and ${query.to}::date
-            and lower(coalesce(sb.status, '')) not in ${cancelledStatuses} and lower(coalesce(sb.status, '')) <> 'draft'
+            and sb.status in (${salesBillActiveStatuses})
             ${branchScopeSql(query, Prisma.sql`sb.branch_id`)}
             ${query.salesChannelId != null ? Prisma.sql`and sb.channel_id = ${query.salesChannelId}` : Prisma.empty}), 0) receivable
       from public.report_profit_cost_facts fact
