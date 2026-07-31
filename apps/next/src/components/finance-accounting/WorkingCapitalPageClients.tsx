@@ -980,7 +980,13 @@ function StockFinanceHistoryChart({ isLoading, points }: { isLoading: boolean; p
         <div className="font-medium text-slate-500">{points[0]?.date} - {points.at(-1)?.date}</div>
       </div>
       <div className="overflow-x-auto rounded-md bg-white p-2">
-        <svg aria-label="กราฟประวัติต้นทุนเฉลี่ยและมูลค่าสต็อก" className="h-[280px] min-w-[720px] w-full overflow-visible" preserveAspectRatio="none" role="img" viewBox={`0 0 ${width} ${height}`}>
+        <svg
+          aria-label="กราฟประวัติต้นทุนเฉลี่ยและมูลค่าสต็อก"
+          className="mx-auto block aspect-[19/7] min-w-[720px] w-full max-w-[1120px] overflow-visible"
+          preserveAspectRatio="xMidYMid meet"
+          role="img"
+          viewBox={`0 0 ${width} ${height}`}
+        >
           <rect fill="#f8fafc" height={chartHeight} rx="8" width={chartWidth} x={padding.left} y={padding.top} />
           {valueTicks.map((tick, index) => (
             <g key={`value-${index}`}>

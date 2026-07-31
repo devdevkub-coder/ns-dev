@@ -139,6 +139,7 @@ finance/accounting read model: Stock Finance Analysis
   - response เป็น L5 business fact และใช้ `Cache-Control: private, no-store`
 - หาก `stock_ledger` มี row ที่ขาด `branch_id` หรือ `product_id` ในช่วงที่ต้อง rebuild ให้ fail closed เพราะ snapshot grain ต้องมีสอง dimension นี้; ห้ามสร้าง bucket UNKNOWN เพื่อกลบข้อมูลผิด
 - กราฟบนหน้าแสดง 90 วันย้อนหลังจาก `asOf` ปัจจุบัน และเปลี่ยนตามตัวกรองสาขาเดียวกับ summary/table
+- กราฟคงอยู่บนหน้า Stock Finance; SVG ต้องรักษา aspect ratio และจำกัดความกว้างบนจอใหญ่เพื่อไม่ให้เส้น/แกนถูกยืดตาม panel. หน้าจอแคบใช้ horizontal scroll โดยไม่บีบกราฟหรือป้ายแกน
 
 ## Current Gap
 
