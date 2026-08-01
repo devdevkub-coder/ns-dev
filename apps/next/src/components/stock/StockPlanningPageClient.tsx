@@ -1,14 +1,18 @@
 'use client'
 
-import { Fragment, useEffect, useMemo, useState } from 'react'
-import { CalendarDays, ChevronDown, ChevronRight, Download, RefreshCw, SlidersHorizontal } from 'lucide-react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { CalendarDays, ChevronDown, ChevronRight, Download, SlidersHorizontal } from 'lucide-react'
 
+import { Button } from '@/components/ui/Button'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { SegmentedFilterButton } from '@/components/ui/SegmentedFilterButton'
 import { Select } from '@/components/ui/Select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 
 type Row = {
@@ -72,7 +76,49 @@ type MobileFilterDraft = {
   product: string
 }
 
+type PlanningView = 'overview' | 'purchase' | 'calendar'
+
+type PlanningColumnResize = ReturnType<typeof useResizableColumns<string>>
+
 const pageSizeOptions = [10, 25] as const
+const overviewColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'product', defaultWidth: 250, minWidth: 210 },
+  { key: 'group', defaultWidth: 150, minWidth: 120 },
+  { key: 'stockNow', defaultWidth: 160, minWidth: 145 },
+  { key: 'buyComing', defaultWidth: 175, minWidth: 155 },
+  { key: 'sellPending', defaultWidth: 175, minWidth: 155 },
+  { key: 'finalBalance', defaultWidth: 165, minWidth: 145 },
+  { key: 'shortage', defaultWidth: 160, minWidth: 145 },
+  { key: 'poCount', defaultWidth: 105, minWidth: 90 },
+  { key: 'urgency', defaultWidth: 120, minWidth: 105 },
+]
+const purchaseColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'product', defaultWidth: 250, minWidth: 210 },
+  { key: 'stockNow', defaultWidth: 155, minWidth: 140 },
+  { key: 'shortage', defaultWidth: 165, minWidth: 145 },
+  { key: 'buyBudget', defaultWidth: 190, minWidth: 170 },
+  { key: 'potentialMargin', defaultWidth: 190, minWidth: 170 },
+  { key: 'firstShortage', defaultWidth: 250, minWidth: 220 },
+]
+const detailColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'poSell', defaultWidth: 150, minWidth: 130 },
+  { key: 'customer', defaultWidth: 220, minWidth: 180 },
+  { key: 'deliveryDate', defaultWidth: 145, minWidth: 130 },
+  { key: 'duration', defaultWidth: 120, minWidth: 105 },
+  { key: 'remainingQty', defaultWidth: 145, minWidth: 130 },
+  { key: 'availableQty', defaultWidth: 155, minWidth: 140 },
+  { key: 'shortage', defaultWidth: 165, minWidth: 145 },
+  { key: 'urgency', defaultWidth: 120, minWidth: 105 },
+]
+const calendarDayColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'poSell', defaultWidth: 150, minWidth: 130 },
+  { key: 'product', defaultWidth: 250, minWidth: 210 },
+  { key: 'customer', defaultWidth: 220, minWidth: 180 },
+  { key: 'remainingQty', defaultWidth: 145, minWidth: 130 },
+  { key: 'availableQty', defaultWidth: 155, minWidth: 140 },
+  { key: 'shortage', defaultWidth: 165, minWidth: 145 },
+  { key: 'urgency', defaultWidth: 120, minWidth: 105 },
+]
 const urgencyRank: Record<PlanRow['urgency'], number> = {
   overdue: 0,
   critical: 1,
@@ -136,7 +182,7 @@ export function StockPlanningPageClient() {
   const [stock, setStock] = useState<StockRow[]>([])
   const [group, setGroup] = useState('')
   const [product, setProduct] = useState('')
-  const [view, setView] = useState<'table' | 'calendar'>('table')
+  const [view, setView] = useState<PlanningView>('overview')
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7))
   const [selectedDate, setSelectedDate] = useState('')
   const [expanded, setExpanded] = useState('')
@@ -147,8 +193,15 @@ export function StockPlanningPageClient() {
   const [exporting, setExporting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const loadInFlightRef = useRef(false)
+  const overviewColumnResize = useResizableColumns('stock.planning.overview.v1', overviewColumns)
+  const purchaseColumnResize = useResizableColumns('stock.planning.purchase.v1', purchaseColumns)
+  const detailColumnResize = useResizableColumns('stock.planning.detail.v1', detailColumns)
+  const calendarDayColumnResize = useResizableColumns('stock.planning.calendar-day.v1', calendarDayColumns)
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    if (loadInFlightRef.current) return
+    loadInFlightRef.current = true
     setLoading(true)
     setError('')
     try {
@@ -161,13 +214,26 @@ export function StockPlanningPageClient() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลวางแผนสต๊อกไม่สำเร็จ')
     } finally {
+      loadInFlightRef.current = false
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     void load()
-  }, [])
+
+    const refreshWhenActive = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+
+    window.addEventListener('focus', refreshWhenActive)
+    document.addEventListener('visibilitychange', refreshWhenActive)
+
+    return () => {
+      window.removeEventListener('focus', refreshWhenActive)
+      document.removeEventListener('visibilitychange', refreshWhenActive)
+    }
+  }, [load])
 
   const today = new Date().toISOString().slice(0, 10)
   const stockByProduct = useMemo(() => {
@@ -332,14 +398,17 @@ export function StockPlanningPageClient() {
   }, [data, group, includeEmpty, product, productMeta, stockByProduct, today])
 
   const allRows = useMemo(() => plans.flatMap((plan) => plan.rows), [plans])
-  const shortagePlans = plans.filter((plan) => plan.shortage > 0.01)
+  const shortagePlans = useMemo(() => plans.filter((plan) => plan.shortage > 0.01), [plans])
   const shortageTotal = shortagePlans.reduce((sum, plan) => sum + plan.shortage, 0)
   const calendarRows = allRows.filter((row) => row.date.startsWith(month))
-  const hasFilters = Boolean(group || product || includeEmpty)
-  const pageCount = Math.max(1, Math.ceil(plans.length / pageSize))
+  const activePlans = view === 'purchase' ? shortagePlans : plans
+  const activeColumnResize = view === 'purchase' ? purchaseColumnResize : overviewColumnResize
+  const hasFilters = Boolean(group || product || (view === 'overview' && includeEmpty))
+  const pageCount = Math.max(1, Math.ceil(activePlans.length / pageSize))
   const currentPage = Math.min(page, pageCount)
-  const pagedPlans = plans.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const pagedPlans = activePlans.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const initialLoading = loading && !data
+  const canRenderPlanningData = initialLoading || Boolean(data)
 
   function resetFilters() {
     setGroup('')
@@ -399,42 +468,45 @@ export function StockPlanningPageClient() {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-xl font-bold text-slate-800">วางแผนสต๊อก vs PO Sell</h1>
-
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCard
           icon="📋"
           label="PO Sell ค้างส่ง"
-          tone="purple"
-          value={initialLoading ? 'กำลังโหลด' : `${allRows.length.toLocaleString('th-TH')} รายการ`}
+          tone="slate"
+          value={initialLoading ? 'กำลังโหลด' : data ? `${allRows.length.toLocaleString('th-TH')} รายการ` : '—'}
         />
         <KpiCard
           icon="✓"
           label="พร้อมส่ง"
           tone="emerald"
-          value={initialLoading ? 'กำลังโหลด' : `${allRows.filter((row) => row.enough).length.toLocaleString('th-TH')} รายการ`}
+          value={initialLoading ? 'กำลังโหลด' : data ? `${allRows.filter((row) => row.enough).length.toLocaleString('th-TH')} รายการ` : '—'}
         />
         <KpiCard
           icon="⚠"
           label="ขาด"
           tone="danger"
-          value={initialLoading ? 'กำลังโหลด' : `${allRows.filter((row) => !row.enough).length.toLocaleString('th-TH')} รายการ`}
+          value={initialLoading ? 'กำลังโหลด' : data ? `${allRows.filter((row) => !row.enough).length.toLocaleString('th-TH')} รายการ` : '—'}
         />
         <KpiCard
           icon="↗"
           label="ต้องซื้อเพิ่ม"
           tone="red"
-          value={initialLoading ? 'กำลังโหลด' : `${formatMoney(shortageTotal)} กก.`}
+          value={initialLoading ? 'กำลังโหลด' : data ? `${formatMoney(shortageTotal)} กก.` : '—'}
         />
       </div>
 
       <Tabs
         className="gap-0"
         value={view}
-        onValueChange={(value) => setView(value as 'table' | 'calendar')}
+        onValueChange={(value) => {
+          setView(value as PlanningView)
+          setPage(1)
+          setExpanded('')
+        }}
       >
         <TabsList className="w-full flex-nowrap overflow-x-auto" variant="line">
-          <TabsTrigger value="table" variant="line">ตาราง</TabsTrigger>
+          <TabsTrigger value="overview" variant="line">ภาพรวมสต๊อก</TabsTrigger>
+          <TabsTrigger value="purchase" variant="line">ต้องซื้อเพิ่ม</TabsTrigger>
           <TabsTrigger className="gap-1.5" value="calendar" variant="line">
             <CalendarDays aria-hidden="true" className="size-4" />
             ปฏิทิน
@@ -444,11 +516,11 @@ export function StockPlanningPageClient() {
 
       <div
         className="hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block"
+        data-ns-field-scope="filter"
         data-stock-planning-filter-toolbar="desktop"
       >
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="flex min-w-[260px] flex-1 flex-col gap-1 text-xs font-semibold text-slate-500">
-            <span>สินค้า</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="min-w-[260px] flex-1">
             <SearchCombobox
               hideLabel
               inputClassName="h-9 text-sm font-normal"
@@ -463,69 +535,75 @@ export function StockPlanningPageClient() {
                 setPage(1)
               }}
             />
-          </label>
-          <label className="flex flex-col gap-1 text-xs font-semibold text-slate-500">
-            <span>หมวด</span>
-            <Select
-              className="h-9 min-w-[190px]"
-              value={group}
-              onChange={(event) => {
-                setGroup(event.target.value)
-                setProduct('')
-                setPage(1)
-              }}
-            >
-              <option value="">ทุกหมวด</option>
-              {groupOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-            </Select>
-          </label>
+          </div>
+          <Select
+            aria-label="หมวด"
+            className="h-9 min-w-[190px] w-auto"
+            value={group}
+            onChange={(event) => {
+              setGroup(event.target.value)
+              setProduct('')
+              setPage(1)
+            }}
+          >
+            <option value="">ทุกหมวด</option>
+            {groupOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          </Select>
           {hasFilters ? (
             <button
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50"
+              className="h-9 rounded-md border border-slate-300 bg-slate-100 px-3 text-xs font-normal text-slate-700 hover:bg-slate-200"
               onClick={resetFilters}
               type="button"
             >
-              ล้างตัวกรอง
+              ✕ ล้าง
             </button>
           ) : null}
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2">
-          <label className="flex h-9 items-center gap-2 text-xs text-slate-600">
-            <input
-              checked={includeEmpty}
-              onChange={(event) => {
-                setIncludeEmpty(event.target.checked)
-                setPage(1)
-              }}
-              type="checkbox"
-            />
-            แสดงสินค้าที่ไม่มี PO
-          </label>
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-            <button
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-              disabled={loading}
-              onClick={() => void load()}
-              type="button"
-            >
-              <RefreshCw aria-hidden="true" className={`size-4 ${loading ? 'animate-spin' : ''}`} />
-              รีเฟรช
-            </button>
-            <button
-              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-emerald-600 px-3 text-sm font-normal text-white hover:bg-emerald-700 disabled:opacity-60"
-              disabled={exporting || initialLoading || !plans.length}
-              onClick={() => void exportExcel()}
-              type="button"
-            >
-              <Download aria-hidden="true" className="size-4" />
-              {exporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}
-            </button>
+        {view === 'overview' ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500">การแสดงผล:</span>
+              <SegmentedFilterButton
+                active={!includeEmpty}
+                onClick={() => {
+                  setIncludeEmpty(false)
+                  setPage(1)
+                }}
+                type="button"
+              >
+                เฉพาะสินค้าที่มี PO Sell
+              </SegmentedFilterButton>
+              <SegmentedFilterButton
+                active={includeEmpty}
+                onClick={() => {
+                  setIncludeEmpty(true)
+                  setPage(1)
+                }}
+                type="button"
+              >
+                รวมสินค้าที่ไม่มี PO
+              </SegmentedFilterButton>
+            </div>
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              <Button
+                className="gap-1.5 font-normal"
+                disabled={exporting || initialLoading || !plans.length}
+                onClick={() => void exportExcel()}
+                size="sm"
+                type="button"
+                variant="export"
+              >
+                <Download aria-hidden="true" className="size-4" />
+                {exporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}
+              </Button>
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
 
       <div
-        className="space-y-2 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden"
+        className="space-y-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:hidden"
+        data-ns-field-scope="filter"
         data-stock-planning-filter-toolbar="mobile"
       >
         <div className="flex min-w-0 items-center gap-2">
@@ -555,26 +633,21 @@ export function StockPlanningPageClient() {
             ตัวกรอง{hasFilters ? ' (มี)' : ''}
           </button>
         </div>
-        <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 border-t border-slate-100 pt-2">
-          <button
-            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-            disabled={loading}
-            onClick={() => void load()}
-            type="button"
-          >
-            <RefreshCw aria-hidden="true" className={`size-4 ${loading ? 'animate-spin' : ''}`} />
-            รีเฟรช
-          </button>
-          <button
-            className="inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 text-sm font-normal text-white hover:bg-emerald-700 disabled:opacity-60"
-            disabled={exporting || initialLoading || !plans.length}
-            onClick={() => void exportExcel()}
-            type="button"
-          >
-            <Download aria-hidden="true" className="size-4" />
-            {exporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}
-          </button>
-        </div>
+        {view === 'overview' ? (
+          <div className="flex items-center justify-end border-t border-slate-100 pt-2">
+            <Button
+              className="shrink-0 gap-1.5 font-normal"
+              disabled={exporting || initialLoading || !plans.length}
+              onClick={() => void exportExcel()}
+              size="sm"
+              type="button"
+              variant="export"
+            >
+              <Download aria-hidden="true" className="size-4" />
+              {exporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       {mobileFilterDraft ? (
@@ -614,52 +687,75 @@ export function StockPlanningPageClient() {
               {groupOptions.map((option) => <option key={option} value={option}>{option}</option>)}
             </Select>
           </label>
-          <label className="flex min-h-9 items-center gap-2 text-sm text-slate-700">
-            <input
-              checked={mobileFilterDraft.includeEmpty}
-              onChange={(event) => setMobileFilterDraft((current) => current
-                ? { ...current, includeEmpty: event.target.checked }
-                : current)}
-              type="checkbox"
-            />
-            แสดงสินค้าที่ไม่มี PO
-          </label>
+          {view === 'overview' ? (
+            <label className="flex min-h-9 items-center gap-2 text-sm text-slate-700">
+              <input
+                checked={mobileFilterDraft.includeEmpty}
+                onChange={(event) => setMobileFilterDraft((current) => current
+                  ? { ...current, includeEmpty: event.target.checked }
+                  : current)}
+                type="checkbox"
+              />
+              แสดงสินค้าที่ไม่มี PO
+            </label>
+          ) : null}
         </MobileFilterSheet>
       ) : null}
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700" role="alert">
-          {error}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
+          <span className="font-semibold">{error}</span>
+          <Button
+            className="border-red-300 bg-white text-red-700 hover:bg-red-100 hover:text-red-800"
+            disabled={loading}
+            onClick={() => void load()}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            ลองใหม่
+          </Button>
         </div>
       ) : null}
 
-      {!initialLoading && shortagePlans.length ? (
-        <UrgentPurchasePanel plans={shortagePlans} />
+      {canRenderPlanningData && view !== 'calendar' ? (
+        <PlanningPagination
+          currentPage={currentPage}
+          loading={initialLoading}
+          onPageChange={setPage}
+          onPageSizeChange={(value) => {
+            setPageSize(value as (typeof pageSizeOptions)[number])
+            setPage(1)
+          }}
+          onResetTable={() => {
+            activeColumnResize.resetColumnWidths()
+            if (view === 'overview') detailColumnResize.resetColumnWidths()
+          }}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          showResetTable={activeColumnResize.hasCustomWidths || (view === 'overview' && detailColumnResize.hasCustomWidths)}
+          total={activePlans.length}
+        />
       ) : null}
 
-      {view === 'table' ? (
-        <>
-          <PlanningPagination
-            currentPage={currentPage}
-            loading={initialLoading}
-            onPageChange={setPage}
-            onPageSizeChange={(value) => {
-              setPageSize(value as (typeof pageSizeOptions)[number])
-              setPage(1)
-            }}
-            pageCount={pageCount}
-            pageSize={pageSize}
-            total={plans.length}
-          />
-          <PlanDataSurface
-            expanded={expanded}
-            loading={initialLoading}
-            plans={pagedPlans}
-            setExpanded={setExpanded}
-          />
-        </>
-      ) : (
+      {canRenderPlanningData && view === 'overview' ? (
+        <PlanDataSurface
+          columnResize={overviewColumnResize}
+          detailColumnResize={detailColumnResize}
+          expanded={expanded}
+          loading={initialLoading}
+          plans={pagedPlans}
+          setExpanded={setExpanded}
+        />
+      ) : null}
+
+      {canRenderPlanningData && view === 'purchase' ? (
+        <UrgentPurchasePanel columnResize={purchaseColumnResize} loading={initialLoading} plans={pagedPlans} />
+      ) : null}
+
+      {canRenderPlanningData && view === 'calendar' ? (
         <CalendarView
+          columnResize={calendarDayColumnResize}
           loading={initialLoading}
           month={month}
           rows={calendarRows}
@@ -667,94 +763,114 @@ export function StockPlanningPageClient() {
           setMonth={setMonth}
           setSelectedDate={setSelectedDate}
         />
-      )}
+      ) : null}
     </section>
   )
 }
 
-function UrgentPurchasePanel({ plans }: { plans: ProductPlan[] }) {
+function UrgentPurchasePanel({
+  columnResize,
+  loading,
+  plans,
+}: {
+  columnResize: PlanningColumnResize
+  loading: boolean
+  plans: ProductPlan[]
+}) {
   return (
-    <section className="rounded-xl border border-red-200 bg-red-50/70 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="font-bold text-red-800">ต้องซื้อสินค้าเพิ่มด่วน</h2>
-          <p className="mt-1 text-xs text-red-700">
-            พบ {plans.length} สินค้า · คำนวณจาก shortage สูงสุดตามลำดับวันส่ง
-          </p>
-        </div>
-        <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white">ต้องดำเนินการ</span>
-      </div>
-
+    <section>
       <div className="hidden md:block">
-        <div className="mt-3 overflow-x-auto rounded-md border border-slate-200 bg-white">
-          <table className="ns-table min-w-[1200px] w-full text-sm">
-            <thead className="bg-slate-100">
-              <tr>
-                <th className="min-w-[200px] whitespace-nowrap p-2 text-center font-bold text-slate-700">สินค้า</th>
-                <th className="min-w-[120px] whitespace-nowrap p-2 text-center font-bold text-slate-700">หมวด</th>
-                <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">Stock ตอนนี้ (กก.)</th>
-                <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">ต้องซื้อเพิ่ม (กก.)</th>
-                <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">ต้นทุนเฉลี่ย (บาท/กก.)</th>
-                <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">งบประมาณซื้อ (บาท)</th>
-                <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">ราคาขาย PO ที่ขาด (บาท/กก.)</th>
-                <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">กำไรที่จะได้ (บาท)</th>
-                <th className="min-w-[220px] whitespace-nowrap p-2 text-center font-bold text-slate-700">PO Sell แรกที่ขาด</th>
-              </tr>
-            </thead>
-            <tbody>
-              {plans.map((plan) => {
-                const firstShortage = plan.rows.find((row) => !row.enough)
-                return (
-                  <tr key={plan.key}>
-                    <td className="min-w-[200px] whitespace-nowrap p-3 text-center font-semibold text-slate-800">
-                      {plan.productCode} - {plan.productName}
-                    </td>
-                    <td className="min-w-[120px] whitespace-nowrap p-3 text-center">
-                      <span className="rounded bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">{plan.group}</span>
-                    </td>
-                    <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums text-blue-700">{formatMoney(plan.stockNow)}</td>
-                    <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-red-700">{formatMoney(plan.shortage)}</td>
-                    <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums text-slate-700">{plan.avgCost > 0 ? formatMoney(plan.avgCost) : '-'}</td>
-                    <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-red-700">{plan.buyBudget > 0 ? formatMoney(plan.buyBudget) : '-'}</td>
-                    <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums text-emerald-700">{plan.poSellPrice > 0 ? formatMoney(plan.poSellPrice) : '-'}</td>
-                    <td className={`whitespace-nowrap p-3 text-right font-bold tabular-nums ${plan.potentialMargin >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                      {plan.poSellPrice > 0 ? formatMoney(plan.potentialMargin) : '-'}
-                    </td>
-                    <td className="p-3 text-center align-top">
-                      <div className="font-mono font-semibold text-slate-700">{firstShortage?.docNo ?? '-'}</div>
-                      <div className="mt-0.5 font-mono text-[11px] text-slate-500">{firstShortage?.date ?? '-'}</div>
-                      <div className="mt-0.5 max-w-[220px] truncate text-slate-600" title={firstShortage?.partnerName}>
-                        {firstShortage?.partnerName ?? '-'}
-                      </div>
-                    </td>
+        <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-x-auto">
+            <table
+              className="ns-table w-full text-sm"
+              style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}
+            >
+              <colgroup>
+                {purchaseColumns.map((column) => (
+                  <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+                ))}
+              </colgroup>
+              <thead className="bg-slate-100">
+                <tr>
+                  <ResizableTableHead align="center" label="สินค้า" resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} />
+                  <ResizableTableHead align="right" label="Stock พร้อมส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('stockNow', 'Stock พร้อมส่ง (กก.)')} />
+                  <ResizableTableHead align="right" label="ต้องซื้อเพิ่ม (กก.)" resizeProps={columnResize.getResizeHandleProps('shortage', 'ต้องซื้อเพิ่ม (กก.)')} />
+                  <ResizableTableHead align="right" label="งบประมาณซื้อ (บาท)" resizeProps={columnResize.getResizeHandleProps('buyBudget', 'งบประมาณซื้อ (บาท)')} />
+                  <ResizableTableHead align="right" label="กำไรที่คาด (บาท)" resizeProps={columnResize.getResizeHandleProps('potentialMargin', 'กำไรที่คาด (บาท)')} />
+                  <ResizableTableHead align="center" label="PO Sell แรกที่ขาด" resizeProps={columnResize.getResizeHandleProps('firstShortage', 'PO Sell แรกที่ขาด')} />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {loading ? (
+                  <tr>
+                    <td className="p-8 text-center font-semibold text-slate-500" colSpan={6}>กำลังโหลดข้อมูล</td>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                ) : plans.length ? plans.map((plan) => {
+                  const firstShortage = plan.rows.find((row) => !row.enough)
+                  return (
+                    <tr key={plan.key}>
+                      <td className="overflow-hidden p-3 text-center align-top">
+                        <div className="truncate whitespace-nowrap font-semibold text-slate-800" title={`${plan.productCode} - ${plan.productName}`}>{plan.productCode} - {plan.productName}</div>
+                        <div className="mt-0.5 text-xs text-slate-500">{plan.group}</div>
+                      </td>
+                      <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums text-slate-700">{formatMoney(plan.stockNow)}</td>
+                      <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-red-700">{formatMoney(plan.shortage)}</td>
+                      <td className="whitespace-nowrap p-3 text-right">
+                        <div className="font-bold tabular-nums text-slate-700">{plan.buyBudget > 0 ? formatMoney(plan.buyBudget) : '-'}</div>
+                        <div className="mt-0.5 text-xs tabular-nums text-slate-500">
+                          ต้นทุนเฉลี่ย {plan.avgCost > 0 ? `${formatMoney(plan.avgCost)} บาท/กก.` : '-'}
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap p-3 text-right">
+                        <div className={`font-bold tabular-nums ${plan.potentialMargin >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                          {plan.poSellPrice > 0 ? formatMoney(plan.potentialMargin) : '-'}
+                        </div>
+                        <div className="mt-0.5 text-xs tabular-nums text-slate-500">
+                          ราคาขาย PO {plan.poSellPrice > 0 ? `${formatMoney(plan.poSellPrice)} บาท/กก.` : '-'}
+                        </div>
+                      </td>
+                      <td className="p-3 text-center align-top">
+                        <div className="font-mono font-semibold text-slate-700">{firstShortage?.docNo ?? '-'}</div>
+                        <div className="mt-0.5 font-mono text-xs text-slate-500">{firstShortage?.date ?? '-'}</div>
+                        <div className="mt-0.5 max-w-[220px] truncate text-xs text-slate-600" title={firstShortage?.partnerName}>
+                          {firstShortage?.partnerName ?? '-'}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                }) : (
+                  <tr>
+                    <td className="p-8 text-center font-semibold text-slate-500" colSpan={6}>ยังไม่มีสินค้าที่ต้องซื้อเพิ่ม</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
-      <div className="mt-3 space-y-3 md:hidden">
-        {plans.map((plan) => {
+      <div className="space-y-3 md:hidden">
+        {loading ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500 shadow-sm">
+            กำลังโหลดข้อมูล
+          </div>
+        ) : plans.length ? plans.map((plan) => {
           const firstShortage = plan.rows.find((row) => !row.enough)
           return (
             <article
-              className="rounded-xl border border-red-200 bg-white p-4 shadow-sm"
+              className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
               data-stock-planning-mobile-card="urgent"
               key={plan.key}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="font-bold text-slate-800">{plan.productCode} - {plan.productName}</div>
-                  <div className="mt-0.5 text-xs text-slate-500">{plan.group}</div>
-                </div>
-                <span className="shrink-0 text-xs font-semibold text-red-700">ต้องซื้อเพิ่ม</span>
+              <div className="min-w-0">
+                <div className="break-words font-bold text-slate-800">{plan.productCode} - {plan.productName}</div>
+                <div className="mt-0.5 text-xs text-slate-500">{plan.group}</div>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-3 text-xs">
                 <div>
-                  <div className="text-slate-500">Stock ตอนนี้</div>
-                  <div className="mt-0.5 text-right font-semibold tabular-nums text-blue-700">{formatMoney(plan.stockNow)} กก.</div>
+                  <div className="text-slate-500">Stock พร้อมส่ง</div>
+                  <div className="mt-0.5 text-right font-semibold tabular-nums text-slate-700">{formatMoney(plan.stockNow)} กก.</div>
                 </div>
                 <div>
                   <div className="text-slate-500">ต้องซื้อเพิ่ม</div>
@@ -763,11 +879,17 @@ function UrgentPurchasePanel({ plans }: { plans: ProductPlan[] }) {
                 <div>
                   <div className="text-slate-500">งบประมาณซื้อ</div>
                   <div className="mt-0.5 text-right font-semibold tabular-nums text-slate-700">{plan.buyBudget > 0 ? `${formatMoney(plan.buyBudget)} บาท` : '-'}</div>
+                  <div className="mt-0.5 text-right text-[11px] tabular-nums text-slate-500">
+                    ต้นทุนเฉลี่ย {plan.avgCost > 0 ? `${formatMoney(plan.avgCost)} บาท/กก.` : '-'}
+                  </div>
                 </div>
                 <div>
-                  <div className="text-slate-500">กำไรที่จะได้</div>
+                  <div className="text-slate-500">กำไรที่คาด</div>
                   <div className={`mt-0.5 text-right font-semibold tabular-nums ${plan.potentialMargin >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
                     {plan.poSellPrice > 0 ? `${formatMoney(plan.potentialMargin)} บาท` : '-'}
+                  </div>
+                  <div className="mt-0.5 text-right text-[11px] tabular-nums text-slate-500">
+                    ราคาขาย PO {plan.poSellPrice > 0 ? `${formatMoney(plan.poSellPrice)} บาท/กก.` : '-'}
                   </div>
                 </div>
               </div>
@@ -777,7 +899,11 @@ function UrgentPurchasePanel({ plans }: { plans: ProductPlan[] }) {
               </div>
             </article>
           )
-        })}
+        }) : (
+          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500 shadow-sm">
+            ยังไม่มีสินค้าที่ต้องซื้อเพิ่ม
+          </div>
+        )}
       </div>
     </section>
   )
@@ -788,22 +914,41 @@ function PlanningPagination({
   loading,
   onPageChange,
   onPageSizeChange,
+  onResetTable,
   pageCount,
   pageSize,
+  showResetTable,
   total,
 }: {
   currentPage: number
   loading: boolean
   onPageChange: (page: number) => void
   onPageSizeChange: (pageSize: number) => void
+  onResetTable: () => void
   pageCount: number
   pageSize: number
+  showResetTable: boolean
   total: number
 }) {
+  const rangeStart = total > 0 ? (currentPage - 1) * pageSize + 1 : 0
+  const rangeEnd = Math.min(currentPage * pageSize, total)
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
-      <span>พบทั้งหมด {total.toLocaleString('th-TH')} รายการ</span>
+    <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1 text-sm text-slate-600">
+      <span>
+        พบทั้งหมด {total.toLocaleString('th-TH')} รายการ
+        {total > 0 ? ` แสดง ${rangeStart.toLocaleString('th-TH')}-${rangeEnd.toLocaleString('th-TH')}` : ''}
+      </span>
       <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+        {showResetTable ? (
+          <button
+            className="hidden h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 md:inline-flex"
+            onClick={onResetTable}
+            type="button"
+          >
+            คืนค่าเดิมตาราง
+          </button>
+        ) : null}
         <PageSizeDropdown
           disabled={loading}
           onChange={onPageSizeChange}
@@ -833,11 +978,15 @@ function PlanningPagination({
 }
 
 function PlanDataSurface({
+  columnResize,
+  detailColumnResize,
   expanded,
   loading,
   plans,
   setExpanded,
 }: {
+  columnResize: PlanningColumnResize
+  detailColumnResize: PlanningColumnResize
   expanded: string
   loading: boolean
   plans: ProductPlan[]
@@ -848,21 +997,29 @@ function PlanDataSurface({
       <div className="hidden md:block">
         <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="ns-table min-w-[1050px] w-full text-sm">
+            <table
+              className="ns-table w-full text-sm"
+              style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}
+            >
+              <colgroup>
+                {overviewColumns.map((column) => (
+                  <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+                ))}
+              </colgroup>
               <thead className="bg-slate-100">
                 <tr>
-                  <th className="whitespace-nowrap p-2 text-center font-bold text-slate-700">สินค้า</th>
-                  <th className="whitespace-nowrap p-2 text-center font-bold text-slate-700">หมวด</th>
-                  <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">Stock พร้อมส่ง (กก.)</th>
-                  <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">PO Buy กำลังเข้า (กก.)</th>
-                  <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">PO Sell ค้างส่ง (กก.)</th>
-                  <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">สมดุลสุดท้าย (กก.)</th>
-                  <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">ต้องซื้อเพิ่ม (กก.)</th>
-                  <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">จำนวน PO</th>
-                  <th className="whitespace-nowrap p-2 text-center font-bold text-slate-700">สถานะ</th>
+                  <ResizableTableHead align="center" label="สินค้า" resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} />
+                  <ResizableTableHead align="center" label="หมวด" resizeProps={columnResize.getResizeHandleProps('group', 'หมวด')} />
+                  <ResizableTableHead align="right" label="Stock พร้อมส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('stockNow', 'Stock พร้อมส่ง (กก.)')} />
+                  <ResizableTableHead align="right" label="PO Buy กำลังเข้า (กก.)" resizeProps={columnResize.getResizeHandleProps('buyComing', 'PO Buy กำลังเข้า (กก.)')} />
+                  <ResizableTableHead align="right" label="PO Sell ค้างส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('sellPending', 'PO Sell ค้างส่ง (กก.)')} />
+                  <ResizableTableHead align="right" label="สมดุลสุดท้าย (กก.)" resizeProps={columnResize.getResizeHandleProps('finalBalance', 'สมดุลสุดท้าย (กก.)')} />
+                  <ResizableTableHead align="right" label="ต้องซื้อเพิ่ม (กก.)" resizeProps={columnResize.getResizeHandleProps('shortage', 'ต้องซื้อเพิ่ม (กก.)')} />
+                  <ResizableTableHead align="right" label="จำนวน PO" resizeProps={columnResize.getResizeHandleProps('poCount', 'จำนวน PO')} />
+                  <ResizableTableHead align="center" label="สถานะ" resizeProps={columnResize.getResizeHandleProps('urgency', 'สถานะ')} />
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-200">
                 {loading ? (
                   <tr>
                     <td className="p-8 text-center font-semibold text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</td>
@@ -873,34 +1030,34 @@ function PlanDataSurface({
                   return (
                     <Fragment key={plan.key}>
                       <tr className={plan.shortage > 0 ? 'bg-red-50/40 hover:bg-red-50/70' : 'hover:bg-slate-50'}>
-                        <td className="p-3 text-center">
+                        <td className="overflow-hidden p-3 text-center">
                           <button
                             aria-controls={detailId}
                             aria-expanded={isExpanded}
-                            className="inline-flex w-full items-center justify-center gap-2 rounded-sm font-bold text-slate-800 outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                            className="inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-sm font-bold text-slate-800 outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                             onClick={() => setExpanded(isExpanded ? '' : plan.key)}
                             type="button"
                           >
                             {isExpanded
                               ? <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-slate-400" />
                               : <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-slate-400" />}
-                            {plan.productCode} - {plan.productName}
+                            <span className="truncate" title={`${plan.productCode} - ${plan.productName}`}>{plan.productCode} - {plan.productName}</span>
                           </button>
                         </td>
                         <td className="p-3 text-center">
-                          <span className="rounded bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">{plan.group}</span>
+                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-sm text-slate-700">{plan.group}</span>
                         </td>
-                        <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums text-blue-700">{formatMoney(plan.stockNow)}</td>
-                        <td className="whitespace-nowrap p-3 text-right tabular-nums text-emerald-700">{plan.buyComing ? `+${formatMoney(plan.buyComing)}` : '—'}</td>
-                        <td className="whitespace-nowrap p-3 text-right tabular-nums text-red-700">{plan.sellPending ? `−${formatMoney(plan.sellPending)}` : '—'}</td>
-                        <td className={`whitespace-nowrap p-3 text-right font-bold tabular-nums ${plan.finalBalance < 0 ? 'text-red-700' : 'text-emerald-700'}`}>{formatMoney(plan.finalBalance)}</td>
-                        <td className={`whitespace-nowrap p-3 text-right font-bold tabular-nums ${plan.shortage ? 'text-red-700' : 'text-emerald-700'}`}>{plan.shortage ? `⚠ ${formatMoney(plan.shortage)}` : '0'}</td>
+                        <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums text-slate-700">{formatMoney(plan.stockNow)}</td>
+                        <td className="whitespace-nowrap p-3 text-right tabular-nums text-slate-700">{plan.buyComing ? `+${formatMoney(plan.buyComing)}` : '—'}</td>
+                        <td className="whitespace-nowrap p-3 text-right tabular-nums text-slate-700">{plan.sellPending ? `−${formatMoney(plan.sellPending)}` : '—'}</td>
+                        <td className={`whitespace-nowrap p-3 text-right font-bold tabular-nums ${plan.finalBalance < 0 ? 'text-red-700' : 'text-slate-700'}`}>{formatMoney(plan.finalBalance)}</td>
+                        <td className={`whitespace-nowrap p-3 text-right font-bold tabular-nums ${plan.shortage ? 'text-red-700' : 'text-slate-700'}`}>{plan.shortage ? `⚠ ${formatMoney(plan.shortage)}` : '0'}</td>
                       <td className="p-3 text-right font-semibold tabular-nums text-slate-700">{plan.rows.length}</td>
                         <td className="p-3 text-center"><StatusIndicator value={plan.urgency} /></td>
                       </tr>
                       <tr className="bg-slate-50" hidden={!isExpanded} id={detailId}>
                         <td className="p-3" colSpan={9}>
-                          <PlanDetailDesktopTable rows={plan.rows} />
+                          <PlanDetailDesktopTable columnResize={detailColumnResize} rows={plan.rows} />
                         </td>
                       </tr>
                     </Fragment>
@@ -952,24 +1109,24 @@ function PlanDataSurface({
                 <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-3 text-xs">
                   <div>
                     <div className="text-slate-500">Stock พร้อมส่ง</div>
-                    <div className="mt-0.5 text-right font-semibold tabular-nums text-blue-700">{formatMoney(plan.stockNow)} กก.</div>
+                    <div className="mt-0.5 text-right font-semibold tabular-nums text-slate-700">{formatMoney(plan.stockNow)} กก.</div>
                   </div>
                   <div>
                     <div className="text-slate-500">PO Buy กำลังเข้า</div>
-                    <div className="mt-0.5 text-right font-semibold tabular-nums text-emerald-700">{plan.buyComing ? `+${formatMoney(plan.buyComing)}` : '—'} กก.</div>
+                    <div className="mt-0.5 text-right font-semibold tabular-nums text-slate-700">{plan.buyComing ? `+${formatMoney(plan.buyComing)}` : '—'} กก.</div>
                   </div>
                   <div>
                     <div className="text-slate-500">PO Sell ค้างส่ง</div>
-                    <div className="mt-0.5 text-right font-semibold tabular-nums text-red-700">{plan.sellPending ? `−${formatMoney(plan.sellPending)}` : '—'} กก.</div>
+                    <div className="mt-0.5 text-right font-semibold tabular-nums text-slate-700">{plan.sellPending ? `−${formatMoney(plan.sellPending)}` : '—'} กก.</div>
                   </div>
                   <div>
                     <div className="text-slate-500">สมดุลสุดท้าย</div>
-                    <div className={`mt-0.5 text-right font-bold tabular-nums ${plan.finalBalance < 0 ? 'text-red-700' : 'text-emerald-700'}`}>{formatMoney(plan.finalBalance)} กก.</div>
+                    <div className={`mt-0.5 text-right font-bold tabular-nums ${plan.finalBalance < 0 ? 'text-red-700' : 'text-slate-700'}`}>{formatMoney(plan.finalBalance)} กก.</div>
                   </div>
                 </div>
                 <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
                   <span className="text-slate-500">PO Sell {plan.rows.length.toLocaleString('th-TH')} รายการ</span>
-                  <span className={`font-bold tabular-nums ${plan.shortage ? 'text-red-700' : 'text-emerald-700'}`}>
+                  <span className={`font-bold tabular-nums ${plan.shortage ? 'text-red-700' : 'text-slate-700'}`}>
                     {plan.shortage ? `ต้องซื้อ ${formatMoney(plan.shortage)} กก.` : 'สต๊อกเพียงพอ'}
                   </span>
                 </div>
@@ -989,39 +1146,59 @@ function PlanDataSurface({
   )
 }
 
-function PlanDetailDesktopTable({ rows }: { rows: PlanRow[] }) {
+function PlanDetailDesktopTable({
+  columnResize,
+  rows,
+}: {
+  columnResize: PlanningColumnResize
+  rows: PlanRow[]
+}) {
   return (
-    <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
-      <table className="ns-table min-w-[900px] w-full text-sm">
-        <thead className="bg-slate-100">
-          <tr>
-            <th className="whitespace-nowrap p-2 text-center font-bold text-slate-700">PO Sell</th>
-            <th className="whitespace-nowrap p-2 text-center font-bold text-slate-700">ลูกค้า</th>
-            <th className="whitespace-nowrap p-2 text-center font-bold text-slate-700">วันที่กำหนดส่ง</th>
-            <th className="whitespace-nowrap p-2 text-center font-bold text-slate-700">ระยะเวลา</th>
-            <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">ต้องส่ง (กก.)</th>
-            <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">มี ณ วันส่ง (กก.)</th>
-            <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">ต้องซื้อเพิ่ม (กก.)</th>
-            <th className="whitespace-nowrap p-2 text-center font-bold text-slate-700">สถานะ</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr className={row.shortage ? 'bg-red-50/60' : ''} key={`${row.docNo}-${row.date}`}>
-              <td className="p-3 text-center font-mono font-bold">{row.docNo}</td>
-              <td className="p-3 text-center">{row.partnerName}</td>
-              <td className="whitespace-nowrap p-3 text-center font-mono">{row.date || '-'}</td>
-              <td className="whitespace-nowrap p-3 text-center">
-                {row.daysUntil < 0 ? `เลย ${Math.abs(row.daysUntil)} วัน` : row.daysUntil === 0 ? 'วันนี้' : `อีก ${row.daysUntil} วัน`}
-              </td>
-              <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-amber-700">{formatMoney(row.remainingQty)}</td>
-              <td className={`whitespace-nowrap p-3 text-right font-bold tabular-nums ${row.before >= row.remainingQty ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.before)}</td>
-              <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-red-700">{row.shortage ? `⚠ ${formatMoney(row.shortage)}` : '0'}</td>
-              <td className="p-3 text-center"><StatusIndicator value={row.urgency} /></td>
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="overflow-x-auto">
+        <table
+          className="ns-table w-full text-sm"
+          style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}
+        >
+          <colgroup>
+            {detailColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
+          </colgroup>
+          <thead className="bg-slate-100">
+            <tr>
+              <ResizableTableHead align="center" label="PO Sell" resizeProps={columnResize.getResizeHandleProps('poSell', 'PO Sell')} />
+              <ResizableTableHead align="center" label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} />
+              <ResizableTableHead align="center" label="วันที่กำหนดส่ง" resizeProps={columnResize.getResizeHandleProps('deliveryDate', 'วันที่กำหนดส่ง')} />
+              <ResizableTableHead align="center" label="ระยะเวลา" resizeProps={columnResize.getResizeHandleProps('duration', 'ระยะเวลา')} />
+              <ResizableTableHead align="right" label="ต้องส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('remainingQty', 'ต้องส่ง (กก.)')} />
+              <ResizableTableHead align="right" label="มี ณ วันส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('availableQty', 'มี ณ วันส่ง (กก.)')} />
+              <ResizableTableHead align="right" label="ต้องซื้อเพิ่ม (กก.)" resizeProps={columnResize.getResizeHandleProps('shortage', 'ต้องซื้อเพิ่ม (กก.)')} />
+              <ResizableTableHead align="center" label="สถานะ" resizeProps={columnResize.getResizeHandleProps('urgency', 'สถานะ')} />
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {rows.length ? rows.map((row) => (
+              <tr className={row.shortage ? 'bg-red-50/60' : ''} key={`${row.docNo}-${row.date}`}>
+                <td className="p-3 text-center font-mono font-bold">{row.docNo}</td>
+                <td className="overflow-hidden p-3 text-center"><div className="truncate" title={row.partnerName}>{row.partnerName}</div></td>
+                <td className="whitespace-nowrap p-3 text-center font-mono">{row.date || '-'}</td>
+                <td className="whitespace-nowrap p-3 text-center">
+                  {row.daysUntil < 0 ? `เลย ${Math.abs(row.daysUntil)} วัน` : row.daysUntil === 0 ? 'วันนี้' : `อีก ${row.daysUntil} วัน`}
+                </td>
+                <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-slate-700">{formatMoney(row.remainingQty)}</td>
+                <td className={`whitespace-nowrap p-3 text-right font-bold tabular-nums ${row.before < row.remainingQty ? 'text-red-700' : 'text-slate-700'}`}>{formatMoney(row.before)}</td>
+                <td className={`whitespace-nowrap p-3 text-right font-bold tabular-nums ${row.shortage ? 'text-red-700' : 'text-slate-700'}`}>{row.shortage ? `⚠ ${formatMoney(row.shortage)}` : '0'}</td>
+                <td className="p-3 text-center"><StatusIndicator value={row.urgency} /></td>
+              </tr>
+            )) : (
+              <tr>
+                <td className="p-8 text-center font-semibold text-slate-500" colSpan={8}>ยังไม่มี PO Sell สำหรับสินค้านี้</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -1029,7 +1206,7 @@ function PlanDetailDesktopTable({ rows }: { rows: PlanRow[] }) {
 function PlanDetailMobileCards({ rows }: { rows: PlanRow[] }) {
   return (
     <div className="space-y-2">
-      {rows.map((row) => (
+      {rows.length ? rows.map((row) => (
         <div className={`rounded-lg border bg-white p-3 ${row.shortage ? 'border-red-200' : 'border-slate-200'}`} key={`${row.docNo}-${row.date}`}>
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -1049,18 +1226,23 @@ function PlanDetailMobileCards({ rows }: { rows: PlanRow[] }) {
             </div>
             <div>
               <div className="text-slate-500">ต้องซื้อเพิ่ม</div>
-              <div className={`text-right font-bold tabular-nums ${row.shortage ? 'text-red-700' : 'text-emerald-700'}`}>
+              <div className={`text-right font-bold tabular-nums ${row.shortage ? 'text-red-700' : 'text-slate-700'}`}>
                 {formatMoney(row.shortage)} กก.
               </div>
             </div>
           </div>
         </div>
-      ))}
+      )) : (
+        <div className="rounded-lg border border-slate-200 bg-white p-6 text-center text-sm font-semibold text-slate-500">
+          ยังไม่มี PO Sell สำหรับสินค้านี้
+        </div>
+      )}
     </div>
   )
 }
 
 function CalendarView({
+  columnResize,
   loading,
   month,
   rows,
@@ -1068,6 +1250,7 @@ function CalendarView({
   setMonth,
   setSelectedDate,
 }: {
+  columnResize: PlanningColumnResize
   loading: boolean
   month: string
   rows: PlanRow[]
@@ -1101,8 +1284,13 @@ function CalendarView({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex flex-wrap items-end gap-2">
+      <div
+        className="flex flex-col gap-3 px-1 py-1 sm:flex-row sm:items-center sm:justify-between"
+        data-ns-field-scope="filter"
+        data-stock-planning-calendar-toolbar
+      >
+        <div className="text-xs text-slate-500">เลือกวันที่เพื่อดู PO Sell</div>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           <button
             className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50"
             onClick={() => shiftMonth(-1)}
@@ -1110,8 +1298,8 @@ function CalendarView({
           >
             ← เดือนก่อน
           </button>
-          <label className="flex flex-col gap-1 text-xs font-semibold text-slate-500" htmlFor="stock-planning-month">
-            <span>เดือน</span>
+          <label htmlFor="stock-planning-month">
+            <span className="sr-only">เดือน</span>
             <input
               aria-label="เลือกเดือน"
               className="h-9 rounded-md border border-slate-300 px-3 text-sm"
@@ -1129,7 +1317,6 @@ function CalendarView({
             เดือนถัดไป →
           </button>
         </div>
-        <div className="text-xs text-slate-500">เลือกวันที่เพื่อดู PO Sell</div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -1154,7 +1341,7 @@ function CalendarView({
                       className={[
                         'min-h-[112px] border-b border-r border-slate-100 p-2 text-left align-top text-xs outline-none hover:bg-blue-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500',
                         date === today ? 'bg-yellow-50 ring-2 ring-inset ring-yellow-400' : '',
-                        hasShortage ? 'bg-red-50/60' : dayRows.length ? 'bg-emerald-50/40' : '',
+                        hasShortage ? 'bg-red-50/60' : dayRows.length ? 'bg-slate-50' : '',
                         date === selectedDate ? 'bg-blue-50 ring-2 ring-inset ring-blue-500' : '',
                       ].join(' ')}
                       disabled={!date}
@@ -1194,32 +1381,49 @@ function CalendarView({
 
       {selectedDate ? (
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 bg-slate-100 p-3 text-sm font-bold text-slate-800">
-            PO Sell วันที่ {selectedDate}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-100 p-3 text-sm font-bold text-slate-800">
+            <span>PO Sell วันที่ {selectedDate}</span>
+            {columnResize.hasCustomWidths ? (
+              <button
+                className="hidden h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-700 hover:bg-slate-50 md:inline-flex"
+                onClick={columnResize.resetColumnWidths}
+                type="button"
+              >
+                คืนค่าเดิมตาราง
+              </button>
+            ) : null}
           </div>
           <div className="hidden md:block">
             <div className="overflow-x-auto">
-              <table className="ns-table min-w-[800px] w-full text-sm">
+              <table
+                className="ns-table w-full text-sm"
+                style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}
+              >
+                <colgroup>
+                  {calendarDayColumns.map((column) => (
+                    <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+                  ))}
+                </colgroup>
                 <thead className="bg-slate-100">
                   <tr>
-                    <th className="whitespace-nowrap p-2 text-center font-bold text-slate-700">PO Sell</th>
-                    <th className="whitespace-nowrap p-2 text-center font-bold text-slate-700">สินค้า</th>
-                    <th className="whitespace-nowrap p-2 text-center font-bold text-slate-700">ลูกค้า</th>
-                    <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">ต้องส่ง (กก.)</th>
-                    <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">มี ณ วันส่ง (กก.)</th>
-                    <th data-column-align="right" className="whitespace-nowrap p-2 text-right font-bold text-slate-700">ต้องซื้อเพิ่ม (กก.)</th>
-                    <th className="whitespace-nowrap p-2 text-center font-bold text-slate-700">สถานะ</th>
+                    <ResizableTableHead align="center" label="PO Sell" resizeProps={columnResize.getResizeHandleProps('poSell', 'PO Sell')} />
+                    <ResizableTableHead align="center" label="สินค้า" resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} />
+                    <ResizableTableHead align="center" label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} />
+                    <ResizableTableHead align="right" label="ต้องส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('remainingQty', 'ต้องส่ง (กก.)')} />
+                    <ResizableTableHead align="right" label="มี ณ วันส่ง (กก.)" resizeProps={columnResize.getResizeHandleProps('availableQty', 'มี ณ วันส่ง (กก.)')} />
+                    <ResizableTableHead align="right" label="ต้องซื้อเพิ่ม (กก.)" resizeProps={columnResize.getResizeHandleProps('shortage', 'ต้องซื้อเพิ่ม (กก.)')} />
+                    <ResizableTableHead align="center" label="สถานะ" resizeProps={columnResize.getResizeHandleProps('urgency', 'สถานะ')} />
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-200">
                   {selectedRows.length ? selectedRows.map((row) => (
                     <tr key={`${row.docNo}-${row.productId}`}>
                       <td className="p-3 text-center font-mono font-semibold">{row.docNo}</td>
-                      <td className="p-3 text-center">{row.productCode} - {row.productName}</td>
-                      <td className="p-3 text-center">{row.partnerName}</td>
-                      <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-amber-700">{formatMoney(row.remainingQty)}</td>
+                      <td className="overflow-hidden p-3 text-center"><div className="truncate" title={`${row.productCode} - ${row.productName}`}>{row.productCode} - {row.productName}</div></td>
+                      <td className="overflow-hidden p-3 text-center"><div className="truncate" title={row.partnerName}>{row.partnerName}</div></td>
+                      <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-slate-700">{formatMoney(row.remainingQty)}</td>
                       <td className="whitespace-nowrap p-3 text-right tabular-nums">{formatMoney(row.before)}</td>
-                      <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-red-700">{formatMoney(row.shortage)}</td>
+                      <td className={`whitespace-nowrap p-3 text-right font-bold tabular-nums ${row.shortage ? 'text-red-700' : 'text-slate-700'}`}>{formatMoney(row.shortage)}</td>
                       <td className="p-3 text-center"><StatusIndicator value={row.urgency} /></td>
                     </tr>
                   )) : (
@@ -1239,9 +1443,9 @@ function CalendarView({
                 key={`${row.docNo}-${row.productId}`}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <div className="font-mono font-bold text-slate-800">{row.docNo}</div>
-                    <div className="mt-0.5 text-xs text-slate-500">{row.productCode} - {row.productName}</div>
+                    <div className="mt-0.5 break-words text-xs text-slate-500">{row.productCode} - {row.productName}</div>
                   </div>
                   <StatusIndicator value={row.urgency} />
                 </div>
@@ -1259,7 +1463,7 @@ function CalendarView({
                     </div>
                     <div>
                       <div className="text-slate-500">ต้องซื้อ</div>
-                      <div className="mt-0.5 text-right font-bold tabular-nums text-red-700">{formatMoney(row.shortage)}</div>
+                      <div className={`mt-0.5 text-right font-bold tabular-nums ${row.shortage ? 'text-red-700' : 'text-slate-700'}`}>{formatMoney(row.shortage)}</div>
                     </div>
                   </div>
                 </div>
