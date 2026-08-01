@@ -1454,16 +1454,16 @@ function PoSellFormModal({
              {fieldError('items')}
            </div>
  
-           <div className="grid gap-3 grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px]">
+           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_320px]">
               <div className="flex flex-col gap-3">
-                <label className={`flex items-center gap-3 rounded-xl border p-3 cursor-pointer select-none transition-colors ${form.hasVat ? 'border-amber-500 bg-amber-50/50' : 'border-slate-300 bg-white'}`}>
+                <label className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-md border-2 px-3 py-2.5 select-none transition-colors ${form.hasVat ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                   <input
                     checked={form.hasVat}
-                    className="h-5 w-5 rounded border-slate-300 text-amber-600 focus:ring-0 outline-none"
+                    className="size-5"
                     type="checkbox"
                     onChange={(event) => onUpdate('hasVat', event.target.checked)}
                   />
-                  <span className="font-bold text-slate-700">มี VAT</span>
+                  <span className="font-semibold text-slate-700">คิด VAT {formatMoney(vatRatePercent)}%</span>
                 </label>
                 <div className="rounded-xl border border-slate-200 bg-white p-4 shadow flex-1 flex flex-col">
                   <label className="mb-1 block text-xs font-medium text-slate-600">หมายเหตุ</label>
@@ -1471,7 +1471,7 @@ function PoSellFormModal({
                   {fieldError('note')}
                 </div>
               </div>
-              <div className="rounded-md border border-slate-200 bg-slate-50/50 p-4 shadow flex flex-col justify-center">
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
                 <SummaryLine label="จำนวนรวม" value={`${formatMoney(totalQty)} กก.`} />
                 <SummaryLine label="ยอดก่อน VAT" value={formatMoney(subtotal)} />
                 <SummaryLine label={`VAT ${formatMoney(vatRatePercent)}%`} value={formatMoney(vatAmount)} />

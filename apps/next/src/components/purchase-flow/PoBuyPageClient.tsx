@@ -1802,29 +1802,28 @@ function PoBuyFormModal({
             {fieldError('items')}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2 lg:col-span-1">
-              <label className={`flex h-full items-center gap-3 rounded-xl border p-3 cursor-pointer ${form.hasVat ? 'border-amber-500 bg-amber-50' : 'border-slate-300 bg-white'}`}>
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="space-y-3">
+              <label className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-md border-2 px-3 py-2.5 transition-colors ${form.hasVat ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                 <input
                   checked={form.hasVat}
                   className="size-5"
                   type="checkbox"
                   onChange={(event) => onUpdate('hasVat', event.target.checked)}
                 />
-                <span className="font-bold text-slate-700">มี VAT</span>
+                <span className="font-semibold text-slate-700">คิด VAT {formatMoney(formTotals.vatRatePercent)}%</span>
               </label>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <label className="mb-1 block text-xs font-medium text-slate-600">หมายเหตุ</label>
+                <textarea className="min-h-16 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" rows={2} value={form.notes} onChange={(event) => onUpdate('notes', event.target.value)} />
+                {fieldError('notes')}
+              </div>
             </div>
-            <div className="col-span-2 lg:col-span-1 rounded-md border border-slate-100 bg-slate-50 p-3">
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
               <SummaryLine label="ยอดก่อน VAT" value={formatMoney(formTotals.subtotal)} />
               <SummaryLine label={`VAT ${formatMoney(formTotals.vatRatePercent)}%`} value={formatMoney(formTotals.vatAmount)} />
-              <SummaryLine label="ยอดรวม" strong value={formatMoney(formTotals.totalCost)} />
+              <SummaryLine label="ยอดรวมสุทธิ" strong value={formatMoney(formTotals.totalCost)} />
             </div>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs">หมายเหตุ</label>
-            <textarea className="min-h-16 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" rows={2} value={form.notes} onChange={(event) => onUpdate('notes', event.target.value)} />
-            {fieldError('notes')}
           </div>
         </div>
       </DialogContent>

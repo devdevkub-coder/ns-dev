@@ -375,7 +375,6 @@ describe('weight-ticket product editor behavior', () => {
 
     expect(container.querySelector('[class*="fixed"][class*="inset-0"][class*="z-40"]')).toBeNull()
   })
-
   it('keeps the same exit motion when the browser requests reduced motion', async () => {
     prefersReducedMotion = true
     await renderForm()
