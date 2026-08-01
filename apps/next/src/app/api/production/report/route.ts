@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { loadProductionMetrics, summarizeProductionMetrics, summarizeProductionOutputProducts } from '@/lib/server/production-reports'
+import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { getAllowedBranchIds } from '@/lib/server/branch-scope'
+import { loadProductionMetrics, loadProductionReportFilterOptions, summarizeProductionMetrics, summarizeProductionOutputProducts } from '@/lib/server/production-reports'
 import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -44,6 +45,7 @@ async function buildProductionReportWorkbook(rows: ProductionMetricRow[]) {
 function xlsxResponse(body: Buffer, filename: string) {
   return new Response(new Uint8Array(body), {
     headers: {
+      'Cache-Control': 'private, no-store',
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     },
@@ -55,24 +57,32 @@ export async function GET(request: Request) {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'production.reports.view')
     const url = new URL(request.url)
-    const rows = await loadProductionMetrics({
+    const isXlsx = url.searchParams.get('format') === 'xlsx'
+    const allowedBranchIds = await getAllowedBranchIds(context)
+    const rowsPromise = loadProductionMetrics({
+      allowedBranchIds,
       branchId: url.searchParams.get('branchId') || undefined,
       dateFrom: url.searchParams.get('dateFrom') || undefined,
       dateTo: url.searchParams.get('dateTo') || undefined,
       machineId: url.searchParams.get('machineId') || undefined,
       status: url.searchParams.get('status') || undefined,
     })
-    if (url.searchParams.get('format') === 'xlsx') {
+    const filterOptionsPromise = isXlsx
+      ? Promise.resolve(null)
+      : loadProductionReportFilterOptions(getBranchCodeIntersection(context))
+    const [rows, filters] = await Promise.all([rowsPromise, filterOptionsPromise])
+    if (isXlsx) {
       const query = url.searchParams.get('q')?.trim().toLowerCase() ?? ''
       const exportRows = query ? rows.filter((row) => productionReportSearchText(row).includes(query)) : rows
       return xlsxResponse(await buildProductionReportWorkbook(exportRows), `production_report_${new Date().toISOString().slice(0, 10)}.xlsx`)
     }
     return NextResponse.json({
+      filters,
       productSummary: summarizeProductionOutputProducts(rows),
       rows,
       summary: summarizeProductionMetrics(rows),
       wipRows: rows.filter((row) => row.wipQty > 0.000001),
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดรายงานการผลิตไม่ได้', 500)
