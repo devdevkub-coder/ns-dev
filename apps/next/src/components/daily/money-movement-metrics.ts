@@ -1,7 +1,7 @@
 export type ReceiptMetricRow = {
-  amount: number
+  bookAmountThb: number
+  bookNetCashInThb: number
   fee?: number
-  netAmount: number
   status?: string
   withholdingTax?: number
 }
@@ -13,9 +13,9 @@ type MoneyAccountFilterRow = {
 }
 
 type ReceiptMetricSummary = {
-  amount: number
+  bookAmountThb: number
+  bookNetCashInThb: number
   fee: number
-  netAmount: number
   withholdingTax: number
 }
 
@@ -23,12 +23,12 @@ export function summarizeActiveReceiptRows(rows: ReceiptMetricRow[]) {
   return rows.reduce<ReceiptMetricSummary>((summary, row) => {
     if (row.status === 'cancelled') return summary
 
-    summary.amount += row.amount
+    summary.bookAmountThb += row.bookAmountThb
     summary.fee += row.fee ?? 0
-    summary.netAmount += row.netAmount
+    summary.bookNetCashInThb += row.bookNetCashInThb
     summary.withholdingTax += row.withholdingTax ?? 0
     return summary
-  }, { amount: 0, fee: 0, netAmount: 0, withholdingTax: 0 })
+  }, { bookAmountThb: 0, bookNetCashInThb: 0, fee: 0, withholdingTax: 0 })
 }
 
 export function matchesMoneyAccountFilter(row: MoneyAccountFilterRow, accountFilter: string) {

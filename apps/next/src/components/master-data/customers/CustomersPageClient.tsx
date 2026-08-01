@@ -16,6 +16,7 @@ import {
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { FormSelectField } from '@/components/ui/FormSelectField'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
@@ -170,6 +171,7 @@ export function CustomersPageClient() {
   const [districts, setDistricts] = useState<ThaiDistrict[]>([])
   const [branches, setBranches] = useState<MasterDataRecord[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [formDirty, setFormDirty] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
@@ -188,6 +190,8 @@ export function CustomersPageClient() {
   const [subdistricts, setSubdistricts] = useState<ThaiSubdistrict[]>([])
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const columnResize = useResizableColumns('master-data.customers.v6', customerColumns)
+  const { requestDiscard } = useUnsavedChangesGuard(formDirty)
+  const { requestConfirmation } = useActionConfirmation()
 
 
   const loadData = useCallback(async () => {
@@ -281,14 +285,24 @@ export function CustomersPageClient() {
     setError(null)
     try {
       await saveCustomer(values)
-      setFormOpen(false)
-      setSelectedCustomer(null)
+      closeForm()
       await loadData()
     } catch (caught) {
       setError(getErrorMessage(caught, 'บันทึกข้อมูลลูกค้าไม่ได้'))
     } finally {
       setIsSaving(false)
     }
+  }
+
+  function closeForm() {
+    setFormDirty(false)
+    setFormOpen(false)
+    setSelectedCustomer(null)
+  }
+
+  function requestCloseForm() {
+    if (isSaving) return
+    requestDiscard(closeForm)
   }
 
   async function handleToggleActive(customer: Customer, active: boolean) {
@@ -305,6 +319,7 @@ export function CustomersPageClient() {
       setCustomers((current) => current.map((row) => row.id === customer.id ? { ...row, active: customer.active } : row))
       setSelectedCustomer((current) => current?.id === customer.id ? { ...current, active: customer.active } : current)
       setError(getErrorMessage(caught, 'อัปเดตสถานะลูกค้าไม่ได้'))
+      throw caught
     } finally {
       setPendingToggleIds((current) => {
         const next = new Set(current)
@@ -312,6 +327,21 @@ export function CustomersPageClient() {
         return next
       })
     }
+  }
+
+  function requestToggleActive(customer: Customer, active: boolean) {
+    if (active) {
+      void handleToggleActive(customer, active).catch(() => undefined)
+      return
+    }
+
+    requestConfirmation({
+      confirmLabel: 'ปิดการใช้งาน',
+      description: `ต้องการปิดการใช้งานลูกค้า “${customer.code} — ${customer.name}” ใช่หรือไม่?`,
+      destructive: true,
+      onConfirm: () => handleToggleActive(customer, active),
+      title: 'ปิดการใช้งานลูกค้า?',
+    })
   }
 
   async function handleExport() {
@@ -440,12 +470,12 @@ export function CustomersPageClient() {
                 }}
               />
             </label>
-            <button className="inline-flex h-9 items-center gap-1 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
-              <Download aria-hidden="true" className="h-4 w-4" />
+            <button className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
+              <Download aria-hidden="true" className="size-4" />
               <span className="text-xs sm:text-sm">{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</span>
             </button>
-            <button className="inline-flex h-9 items-center gap-1 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60" type="button" onClick={() => void openCreateForm()}>
-              <Plus aria-hidden="true" className="h-4 w-4" />
+            <button className="inline-flex h-10 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-normal text-white hover:bg-blue-700 disabled:opacity-60" type="button" onClick={() => void openCreateForm()}>
+              <Plus aria-hidden="true" className="size-4" />
               เพิ่มรายการ
             </button>
           </div>
@@ -604,19 +634,17 @@ export function CustomersPageClient() {
         </div>
       ) : null}
 
-      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) { setFormOpen(false); setSelectedCustomer(null); } }}>
+      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) requestCloseForm() }}>
         <DialogContent className="max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
           <CustomerForm
             customer={selectedCustomer}
             districts={districts}
             isSaving={isSaving}
+            onDirtyChange={setFormDirty}
             provinces={provinces}
             subdistricts={subdistricts}
             branches={branches}
-            onCancel={() => {
-              setFormOpen(false)
-              setSelectedCustomer(null)
-            }}
+            onCancel={requestCloseForm}
             onSubmit={handleSubmit}
           />
         </DialogContent>
@@ -637,9 +665,9 @@ export function CustomersPageClient() {
                 </colgroup>
                 <TableHeader>
                   <tr>
-                    <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} sortKey="code" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} sortKey="code" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ชื่อบริษัท" resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อบริษัท')} sortKey="name" onSort={setSort} />
-                    <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขผู้เสียภาษี" resizeProps={columnResize.getResizeHandleProps('taxId', 'เลขผู้เสียภาษี')} sortKey="taxId" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="เลขผู้เสียภาษี" resizeProps={columnResize.getResizeHandleProps('taxId', 'เลขผู้เสียภาษี')} sortKey="taxId" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="รูปแบบบริษัท" resizeProps={columnResize.getResizeHandleProps('legalEntityType', 'รูปแบบบริษัท')} sortKey="legalEntityType" onSort={setSort} />
                     <ResizableTableHead direction={sortDirection} label="สาขาที่ใช้ได้" resizeProps={columnResize.getResizeHandleProps('branches', 'สาขาที่ใช้ได้')} />
@@ -668,9 +696,9 @@ export function CustomersPageClient() {
                         }
                       }}
                     >
-                      <TableCell className="whitespace-nowrap font-mono text-xs font-semibold text-slate-700">{customer.code}</TableCell>
+                      <TableCell className="whitespace-nowrap text-center font-mono text-xs font-semibold text-slate-700">{customer.code}</TableCell>
                       <TableCell className="truncate text-xs font-semibold text-slate-800" title={customer.name}>{customer.name}</TableCell>
-                      <TableCell className="whitespace-nowrap font-mono text-xs font-semibold text-slate-700">{displayValue(customer.taxId)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-center font-mono text-xs font-semibold text-slate-700">{displayValue(customer.taxId)}</TableCell>
                       <TableCell className="text-xs font-semibold text-slate-700">{displayValue(customer.type)}</TableCell>
                       <TableCell className="truncate text-xs font-semibold text-slate-700" title={customer.legalEntityType ?? undefined}>{customer.type === 'นิติบุคคล' ? displayValue(customer.legalEntityType) : '-'}</TableCell>
                       <TableCell className="truncate text-xs font-semibold text-slate-700" title={customer.branchNames.join(', ') || undefined}>
@@ -687,7 +715,7 @@ export function CustomersPageClient() {
                           checked={customer.active}
                           disabled={pendingToggleIds.has(customer.id)}
                           label={customer.active ? 'ใช้งาน' : 'ปิด'}
-                          onChange={(checked) => void handleToggleActive(customer, checked)}
+                          onChange={(checked) => requestToggleActive(customer, checked)}
                         />
                       </TableCell>
                       <TableCell className="text-center text-xs font-semibold text-slate-700">
@@ -727,7 +755,7 @@ export function CustomersPageClient() {
                       checked={customer.active}
                       disabled={pendingToggleIds.has(customer.id)}
                       label={customer.active ? 'ใช้งาน' : 'ปิด'}
-                      onChange={(checked) => void handleToggleActive(customer, checked)}
+                      onChange={(checked) => requestToggleActive(customer, checked)}
                     />
                   </div>
                 </div>
@@ -792,17 +820,27 @@ type CustomerFormProps = {
   provinces: ThaiProvince[]
   subdistricts: ThaiSubdistrict[]
   onCancel: () => void
+  onDirtyChange: (dirty: boolean) => void
   onSubmit: (values: CustomerFormValues) => Promise<void>
 }
 
-function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, branches, onCancel, onSubmit }: CustomerFormProps) {
+function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, branches, onCancel, onDirtyChange, onSubmit }: CustomerFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<CustomerFormState>(() => (customer ? customerToForm(customer) : emptyCustomerForm))
+  const { requestConfirmation } = useActionConfirmation()
 
   useEffect(() => {
     setForm(customer ? customerToForm(customer) : emptyCustomerForm)
     setErrors({})
   }, [customer])
+
+  const formBaseline = useMemo(() => JSON.stringify(customer ? customerToForm(customer) : emptyCustomerForm), [customer])
+  const formSnapshot = useMemo(() => JSON.stringify(form), [form])
+
+  useEffect(() => {
+    onDirtyChange(formBaseline !== formSnapshot)
+    return () => onDirtyChange(false)
+  }, [formBaseline, formSnapshot, onDirtyChange])
 
   const postalCode = form.addressPostalCode?.trim() ?? ''
   const postalSubdistricts = postalCode.length === 5 ? subdistricts.filter((subdistrict) => subdistrict.postalCode === postalCode) : []
@@ -908,7 +946,10 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
       <div data-ns-dialog-header className="flex flex-col gap-3 bg-slate-900 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
         <h3 className="text-lg font-bold text-white">{form.id ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้า'}</h3>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-current" onChange={(checked) => update('active', checked)} />
+          <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-current" onChange={(active) => {
+            if (active) { update('active', true); return }
+            requestConfirmation({ confirmLabel: 'ปิดการใช้งาน', description: 'ต้องการปิดการใช้งานลูกค้าเมื่อบันทึกใช่หรือไม่?', destructive: true, onConfirm: () => update('active', false), title: 'ปิดการใช้งานลูกค้า?' })
+          }} />
           <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white transition-colors hover:border-rose-700 hover:bg-rose-700 focus:outline-none" type="button" onClick={onCancel}>
             ยกเลิก
           </button>

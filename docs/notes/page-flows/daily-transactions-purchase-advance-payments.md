@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-07-06
+updated: 2026-07-28
 route: /purchase/advance-payments
 ---
 
@@ -33,6 +33,8 @@ route: /purchase/advance-payments
 | รับเงินล่วงหน้า | Customer `CADV` source document จาก Packing List ก่อนออกใบเสร็จ | `CustomerAdvanceForm`, `GET/POST /api/sales/customer-advances` |
 
 ADV เป็น source document ของเงินล่วงหน้า Supplier ก่อนนำไป allocate เข้า PB. CADV เป็น source document ฝั่ง Customer ก่อนรับเงินจริงผ่าน `/sales/receipts`; หน้า `/finance/customer-advance` ไม่ใช่หน้าทำงานหลักแล้ว.
+
+เลข ADV ต้องออกจากสาขาที่เลือกเท่านั้นในรูปแบบ `ADV<branch><YYMM>-####`; หากสาขาไม่มีรหัสที่ใช้สร้างเอกสาร ระบบต้อง reject และห้าม fallback เป็น `00`.
 
 ทั้ง ADV และ CADV ต้องมี VAT dropdown `ไม่มี VAT` / `มี VAT`. เมื่อเลือกมี VAT ผู้ใช้กรอกยอดก่อน VAT, server ใช้อัตราจาก VAT master ตามวันที่เอกสารและ snapshot ยอดก่อน VAT, VAT และยอดรวม. สำหรับ CADV ยอดรวมเป็นเงินสดเป้าหมายที่ RCP ต้องรับ ส่วนยอดฐานเป็นเครดิตที่จะใช้หักยอดก่อน VAT ของ Sales Bill หลังเชื่อม receipt/allocation flow.
 

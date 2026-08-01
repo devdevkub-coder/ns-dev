@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
@@ -246,8 +247,8 @@ export function MatchLogPageClient() {
             ))}
           </div>
           {hasActiveFilters ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
-          <Button asChild size="sm" variant="export">
-            <a href={exportHref}>ส่งออก Excel</a>
+          <Button asChild className="gap-2" variant="export">
+            <a href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
           </Button>
         </div>
       </DualCostingFilterCard>
@@ -265,20 +266,20 @@ export function MatchLogPageClient() {
         </colgroup>
         <thead className="bg-slate-100">
           <tr>
-            <ResizableTableHead label="Match Type" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="matchType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('matchType', 'Match Type')} />
-            <ResizableTableHead label="Cost Type" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="costType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('costType', 'Cost Type')} />
-            <ResizableTableHead label="Match ID" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="matchId" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('matchId', 'Match ID')} />
-            <ResizableTableHead label="วันที่เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
-            <ResizableTableHead label="Target / Reference" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="target" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('target', 'Target / Reference')} />
-            <ResizableTableHead label="Source" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="sourceType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('sourceType', 'Source')} />
-            <ResizableTableHead label="Source No" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="sourceNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('sourceNo', 'Source No')} />
-            <ResizableTableHead label="สินค้า" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="product" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} />
+            <ResizableTableHead align="center" label="Match Type" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="matchType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('matchType', 'Match Type')} />
+            <ResizableTableHead align="center" label="Cost Type" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="costType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('costType', 'Cost Type')} />
+            <ResizableTableHead align="center" label="Match ID" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="matchId" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('matchId', 'Match ID')} />
+            <ResizableTableHead align="center" label="วันที่เอกสาร" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
+            <ResizableTableHead align="center" label="Target / Reference" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="target" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('target', 'Target / Reference')} />
+            <ResizableTableHead align="center" label="Source" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="sourceType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('sourceType', 'Source')} />
+            <ResizableTableHead align="center" label="Source No" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="sourceNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('sourceNo', 'Source No')} />
+            <ResizableTableHead className="ns-table-textual-column" label="สินค้า" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="product" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} />
             <ResizableTableHead align="right" label="Qty" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="qtyUsed" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qtyUsed', 'Qty')} />
             <ResizableTableHead align="right" label="บาท/หน่วย" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="unitCost" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('unitCost', 'บาท/หน่วย')} />
             <ResizableTableHead align="right" label="มูลค่า" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="totalCost" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('totalCost', 'มูลค่า')} />
             <ResizableTableHead align="center" label="Mode" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="allocationMode" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('allocationMode', 'Mode')} />
             <ResizableTableHead align="center" label="สถานะ" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="status" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
-            <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+            <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -286,20 +287,20 @@ export function MatchLogPageClient() {
           {!isLoading && visibleRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={matchLogColumns.length}>ยังไม่มี Match Log ตามตัวกรอง</td></tr> : null}
           {!isLoading && pagedRows.map((row) => (
             <tr key={row.id} className={`hover:bg-slate-50 ${row.status === 'reversed' ? 'opacity-50' : ''}`}>
-              <td className="p-2"><span className={`rounded-md px-2 py-0.5 text-xs font-medium ${matchTypeClass(row.matchType)}`}>{matchTypeBadge(row.matchType)}</span></td>
-              <td className="p-2"><span className={`rounded-md px-2 py-0.5 text-xs ${costTypeClass(row.costType)}`}>{row.costType}</span></td>
-              <td className="p-2 font-mono text-xs">{row.matchId}</td>
-              <td className="whitespace-nowrap p-2 text-xs">{formatDateDisplay(row.date)}</td>
-              <td className="p-2 text-xs">{row.target}</td>
-              <td className="p-2"><span className={`rounded-md px-2 py-0.5 text-xs ${sourceTypeClass(row.sourceType)}`}>{row.sourceType}</span></td>
-              <td className="p-2 font-mono text-xs">{row.sourceNo}</td>
-              <td className="p-2 text-xs">{row.product}</td>
-              <td className="p-2 text-right">{formatMoney(row.qtyUsed)}</td>
-              <td className="p-2 text-right">{formatMoney(row.unitCost)}</td>
-              <td className="p-2 text-right font-medium">{formatMoney(row.totalCost)}</td>
+              <td className="whitespace-nowrap p-2 text-center"><span className={`rounded-md px-2 py-0.5 text-xs font-medium ${matchTypeClass(row.matchType)}`}>{matchTypeBadge(row.matchType)}</span></td>
+              <td className="whitespace-nowrap p-2 text-center"><span className={`rounded-md px-2 py-0.5 text-xs ${costTypeClass(row.costType)}`}>{row.costType}</span></td>
+              <td className="whitespace-nowrap p-2 text-center font-mono text-xs">{row.matchId}</td>
+              <td className="whitespace-nowrap p-2 text-center text-xs">{formatDateDisplay(row.date)}</td>
+              <td className="whitespace-nowrap p-2 text-center font-mono text-xs">{row.target}</td>
+              <td className="whitespace-nowrap p-2 text-center"><span className={`rounded-md px-2 py-0.5 text-xs ${sourceTypeClass(row.sourceType)}`}>{row.sourceType}</span></td>
+              <td className="whitespace-nowrap p-2 text-center font-mono text-xs">{row.sourceNo}</td>
+              <td className="ns-table-textual-column p-2 text-left text-xs">{row.product}</td>
+              <td className="whitespace-nowrap p-2 text-right tabular-nums">{formatMoney(row.qtyUsed)}</td>
+              <td className="whitespace-nowrap p-2 text-right tabular-nums">{formatMoney(row.unitCost)}</td>
+              <td className="whitespace-nowrap p-2 text-right font-medium tabular-nums">{formatMoney(row.totalCost)}</td>
               <td className="p-2 text-center text-xs">{row.allocationMode}</td>
               <td className="p-2 text-center"><span className={`rounded-md px-2 py-0.5 text-xs ${row.status === 'reversed' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{statusLabel(row.status)}</span></td>
-              <td className="p-2 text-right">
+              <td className="p-2 text-center">
                 {row.status !== 'reversed' ? (
                   <TableActionButton
                     className="text-red-600"

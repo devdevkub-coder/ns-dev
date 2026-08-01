@@ -22,7 +22,6 @@ const transactionLedgerPayloadSchema = z.object({
     id: z.string(),
     name: z.string(),
     odLimit: z.number(),
-    openingBalance: z.number(),
     type: z.string(),
   })),
   duplicateGroups: z.array(z.object({
@@ -362,7 +361,7 @@ export function TransactionLedgerPageClient() {
           {columnResize.hasCustomWidths ? (
             <button className="hidden h-9 shrink-0 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 xl:inline-flex xl:items-center" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button>
           ) : null}
-          <button className="flex h-9 shrink-0 items-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60" disabled={ledger.length === 0 || isExporting} type="button" onClick={() => void exportExcel()}>
+          <button className="flex h-10 shrink-0 items-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-normal text-white hover:bg-emerald-700 disabled:opacity-60" disabled={ledger.length === 0 || isExporting} type="button" onClick={() => void exportExcel()}>
             <Download aria-hidden="true" className="size-4" />
             <span>{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</span>
           </button>
@@ -387,7 +386,7 @@ export function TransactionLedgerPageClient() {
             <SlidersHorizontal className="h-3.5 w-3.5" />
             ตัวกรอง {(dateFrom || dateTo || filterAccount || filterRefType) ? '(มี)' : ''}
           </button>
-          <button className="h-9 rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 shrink-0" disabled={ledger.length === 0 || isExporting} type="button" onClick={() => void exportExcel()}>{isExporting ? '..' : 'Excel'}</button>
+          <button className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 disabled:opacity-60" disabled={ledger.length === 0 || isExporting} type="button" onClick={() => void exportExcel()}><Download aria-hidden="true" className="size-4" />{isExporting ? 'กำลังส่งออก...' : 'ส่งออก Excel'}</button>
         </div>
         <div className="flex flex-wrap gap-1.5 text-xs text-slate-500 pt-1">
           <span className="rounded bg-emerald-50 px-1 py-0.5 text-emerald-700 font-medium">เข้า: {formatMoney(summary.totalIn)}</span>
@@ -508,11 +507,11 @@ export function TransactionLedgerPageClient() {
           </colgroup>
           <thead className="bg-slate-100">
             <tr>
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={handleSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="บัญชี" resizeProps={columnResize.getResizeHandleProps('accountName', 'บัญชี')} sortKey="accountName" onSort={handleSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('refType', 'ประเภท')} sortKey="refType" onSort={handleSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่')} sortKey="refNo" onSort={handleSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="บิลที่เกี่ยวข้อง" resizeProps={columnResize.getResizeHandleProps('linkedBills', 'บิลที่เกี่ยวข้อง')} sortKey="linkedBills" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('refType', 'ประเภท')} sortKey="refType" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่')} sortKey="refNo" onSort={handleSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="บิลที่เกี่ยวข้อง" resizeProps={columnResize.getResizeHandleProps('linkedBills', 'บิลที่เกี่ยวข้อง')} sortKey="linkedBills" onSort={handleSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="ผู้รับ/ส่ง" resizeProps={columnResize.getResizeHandleProps('payee', 'ผู้รับ/ส่ง')} sortKey="payee" onSort={handleSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="รายละเอียด" resizeProps={columnResize.getResizeHandleProps('description', 'รายละเอียด')} sortKey="description" onSort={handleSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="เงินเข้า" resizeProps={columnResize.getResizeHandleProps('amountIn', 'เงินเข้า')} sortKey="amountIn" onSort={handleSort} />
@@ -525,14 +524,14 @@ export function TransactionLedgerPageClient() {
               <tr><td className="px-3 py-10 text-center font-medium text-slate-400" colSpan={ledgerColumns.length}>กำลังโหลด Transaction Ledger...</td></tr>
             ) : pagedLedger.length > 0 ? pagedLedger.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-slate-50">
-                <td className="whitespace-nowrap px-3 py-3 text-xs text-slate-600">{row.date ? formatDateDisplay(row.date) : '-'}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-center text-xs text-slate-600">{row.date ? formatDateDisplay(row.date) : '-'}</td>
                 <td className="min-w-0 px-3 py-3 text-xs font-medium text-slate-900"><div className="truncate" title={row.accountName}>{row.accountName}</div></td>
-                <td className="whitespace-nowrap px-3 py-3"><span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">{row.refType}</span></td>
-                <td className="whitespace-nowrap px-3 py-3 font-mono text-xs text-slate-700">{row.refNo}</td>
-                <td className="min-w-0 px-3 py-3 text-xs">
+                <td className="whitespace-nowrap px-3 py-3 text-center"><span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">{row.refType}</span></td>
+                <td className="whitespace-nowrap px-3 py-3 text-center font-mono text-xs text-slate-700">{row.refNo}</td>
+                <td className="min-w-0 whitespace-nowrap px-3 py-3 text-center text-xs">
                   {row.linkedBills.length > 0 ? (
-                    <div className="flex flex-wrap gap-1">
-                      {row.linkedBills.map((bill) => <span key={row.id + '-' + bill.type + '-' + bill.docNo} className="rounded bg-blue-50 px-2 py-0.5 font-mono text-blue-700">{bill.type}:{bill.docNo}</span>)}
+                    <div className="flex flex-nowrap justify-center gap-1">
+                      {row.linkedBills.map((bill) => <span key={row.id + '-' + bill.type + '-' + bill.docNo} className="whitespace-nowrap rounded bg-blue-50 px-2 py-0.5 font-mono text-blue-700">{bill.type}:{bill.docNo}</span>)}
                     </div>
                   ) : '-'}
                 </td>
@@ -557,9 +556,9 @@ export function TransactionLedgerPageClient() {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <span className="inline-block rounded bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-700">{row.refType}</span>
-                  <span className="ml-1.5 font-mono text-xs text-slate-500 bg-slate-50 px-1 py-0.5 rounded border border-slate-100">{row.refNo}</span>
+                  <span className="ml-1.5 rounded border border-slate-100 bg-slate-50 px-1 py-0.5 text-center font-mono text-xs text-slate-500 whitespace-nowrap">{row.refNo}</span>
                 </div>
-                <span className="text-xs font-medium text-slate-500">{row.date ? formatDateDisplay(row.date) : '-'}</span>
+                <span className="text-center text-xs font-medium text-slate-500 whitespace-nowrap">{row.date ? formatDateDisplay(row.date) : '-'}</span>
               </div>
 
               <div className="text-xs">
@@ -575,7 +574,7 @@ export function TransactionLedgerPageClient() {
               {row.linkedBills.length > 0 ? (
                 <div className="flex flex-wrap gap-1 border-t border-slate-50 pt-2">
                   {row.linkedBills.map((bill) => (
-                    <span key={`${row.id}-${bill.type}-${bill.docNo}`} className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-xs font-semibold text-blue-700">
+                    <span key={`${row.id}-${bill.type}-${bill.docNo}`} className="rounded bg-blue-50 px-1.5 py-0.5 text-center font-mono text-xs font-semibold text-blue-700 whitespace-nowrap">
                       {bill.type}:{bill.docNo}
                     </span>
                   ))}

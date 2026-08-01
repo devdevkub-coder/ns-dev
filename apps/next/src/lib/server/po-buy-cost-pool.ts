@@ -198,9 +198,7 @@ export async function syncPoBuyCostPoolEntries(
     nextLines.delete(entry.source_line_id ?? '')
   }
 
-  for (const nextLine of nextLines.values()) {
-    await tx.stock_cost_pool_entries.create({
-      data: {
+  const entriesToCreate = [...nextLines.values()].map((nextLine) => ({
         branch_id: po.branch_id,
         created_by: params.actor,
         date: po.date,
@@ -216,7 +214,8 @@ export async function syncPoBuyCostPoolEntries(
         status: 'Available',
         unit_cost: nextLine.unitCost,
         warehouse_id: po.warehouse_id,
-      },
-    })
+  }))
+  if (entriesToCreate.length > 0) {
+    await tx.stock_cost_pool_entries.createMany({ data: entriesToCreate })
   }
 }

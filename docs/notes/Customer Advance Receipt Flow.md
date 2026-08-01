@@ -102,7 +102,7 @@ flowchart LR
 | Page / Route | Current role | CADV behavior | Source of truth |
 |---|---|---|---|
 | `/purchase/advance-payments` tab `รับเงินล่วงหน้า` | CADV source-document working page | แสดง list/filter และสร้าง CADV จาก Packing List/Invoice ภายนอกผ่าน modal; ไม่รับเงินจริงและไม่เขียน bank statement | `customer_advances`, `customer_advance_items`, `customer_advance_statuses` |
-| `/sales/receipts` | Receipt/RCP working page | Target ถัดไป: เลือก CADV ที่ยังต้องรับเงิน, ออก RCP, เขียน cash/bank fact, และเพิ่มยอดรับจริงให้ CADV | `customer_receipts`, future `customer_receipt_advance_allocations`, `bank_statement`, `customer_advances` |
+| `/sales/receipts` | Receipt/RCP working page | เลือก CADV ที่ยังต้องรับเงิน, ออก RCP, เขียน cash/bank fact, และเพิ่มยอดรับจริงให้ CADV | `customer_receipts`, `customer_receipt_advance_allocations`, `bank_statement`, `customer_advances` |
 | `/sales/bills` | Sales Bill working page | เลือก CADV ที่ `received/partially_allocated` และมี `available_amount > 0`; หักฐานก่อน VAT แล้วคำนวณ VAT ใหม่จากฐานที่เหลือ | `sales_bills`, `sales_bill_customer_advance_allocations`, `customer_advances` |
 | `/sales/bills/[docNo]` detail/print | Sales Bill read model | แสดง CADV ที่ใช้กับบิลจาก allocation facts และแสดงยอดที่ใช้เป็น total amount ของ allocation | `sales_bill_customer_advance_allocations` |
 | `/finance/ar` | AR aging/drilldown | ใช้ `sales_bills.receivable_balance` เป็น source หลัก และแสดง CADV allocation เป็น drilldown/audit fact | `sales_bills`, `sales_bill_customer_advance_allocations` |
@@ -274,7 +274,7 @@ Balance invariant:
 | `meta` | context เพิ่มเติม | เช่น `source`, `totalAppliedAmount` |
 | `created_at`, `created_by`, `updated_at`, `updated_by`, `version` | audit/version | update ใน transaction เดียวกับ SB |
 
-### Future `customer_receipt_advance_allocations`
+### `customer_receipt_advance_allocations`
 
 | Field | Target meaning |
 |---|---|
@@ -285,7 +285,7 @@ Balance invariant:
 | `status` | active/reversed |
 | `created_at`, `created_by`, `reversed_at`, `reversed_by` | audit |
 
-ตารางนี้ยังเป็น target ถัดไป. ปัจจุบัน `/sales/receipts` ยังไม่ populate `received_amount`/`available_amount` ให้ CADV อัตโนมัติ.
+ตารางนี้เป็น receipt allocation fact ปัจจุบันของ `RCP -> CADV`. การบันทึกหรือ reverse RCP ต้อง refresh `received_amount`, `available_amount` และ status ของ CADV ใน transaction เดียวกัน.
 
 ## VAT And Balance Contract
 
@@ -295,7 +295,8 @@ Balance invariant:
 - เมื่อเชื่อม Receipt allocation ต้องแปลงเงินสดที่รับจริงเป็นเครดิตฐานตามสัดส่วนเดียวกับ ADV Supplier; `available_amount` สำหรับหัก Sales Bill ต้องเป็นยอดฐานก่อน VAT ไม่ใช่ยอด gross.
 - Sales Bill ที่ใช้ CADV ต้องหักส่วนลดก่อน จากนั้นหักเครดิตฐานจากยอดก่อน VAT หลังส่วนลด แล้วคำนวณ VAT ของบิลจากฐานที่เหลือ เพื่อไม่เอา VAT ของเงินล่วงหน้ามาหักซ้ำ.
 - Sales Bill allocation แก้แล้วให้เลือกจาก `customer_advances` ไม่ใช่ `bank_statement.ref_type = CADV`, และเขียน allocation breakdown สำหรับ AR/detail/print.
-- รอบนี้ยังไม่แก้ `/sales/receipts`; CADV จะพร้อมใช้หัก SB ก็ต่อเมื่อ receipt integration หรือ data repair populate `received_amount`/`available_amount` ตาม contract นี้.
+- `/sales/receipts` รองรับ CADV allocation แล้ว; CADV จะพร้อมใช้หัก SB เมื่อ receipt allocation ที่ active ทำให้ยอด received/available ผ่าน contract นี้.
+- เมื่อเพิ่ม foreign receipt, CADV amount และ allocation ยังคงเป็น THB; ให้เก็บ receipt native amount, rate และ carrying THB แยก และห้ามสร้าง `FX gain/loss - AR settlement` เพราะ CADV ยังไม่ใช่ AR.
 
 ## Non-Responsibilities
 

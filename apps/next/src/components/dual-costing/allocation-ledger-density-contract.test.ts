@@ -35,18 +35,22 @@ function openingNativeCell(sourceText: string, marker: string) {
 }
 
 describe('Waiting Allocations semantic alignment', () => {
-  it('keeps text, date, category, and status columns left while numeric columns stay right', () => {
+  it('keeps descriptive text left, documents and status centered, and numeric columns right', () => {
     const viewStart = source.indexOf('function WaitingAllocationsView()')
     const viewEnd = source.indexOf('\nfunction AllocationLedgerView', viewStart)
     const view = source.slice(viewStart, viewEnd)
-    const textualKeys = ['docNo', 'date', 'customerName', 'productName', 'metalGroup', 'allocationStatus'] as const
+    const textualKeys = ['customerName', 'productName', 'metalGroup'] as const
     const textualBodyMarkers = [
-      '{row.docNo}',
-      '{formatDateDisplay(row.date)}',
       "title={row.customerName === '-' ? 'ภายในโรงงาน' : row.customerName}",
       "title={row.productName || ''}",
       '{row.metalGroup}',
+    ] as const
+    const centeredKeys = ['docNo', 'date', 'allocationStatus', 'action'] as const
+    const centeredBodyMarkers = [
+      '{row.docNo}',
+      '{formatDateDisplay(row.date)}',
       '<StatusPill status={row.allocationStatus}',
+      '<Button asChild size="xs"',
     ] as const
     const numericKeys = ['qty', 'allocatedQty', 'remainingQty', 'unitPrice', 'revenuePending'] as const
 
@@ -58,6 +62,14 @@ describe('Waiting Allocations semantic alignment', () => {
     })
     textualBodyMarkers.forEach((marker) => {
       expect(openingNativeCell(view, marker)).toContain(textualColumnClass)
+    })
+    centeredKeys.forEach((key) => {
+      expect(view.match(new RegExp(`\\{ key: '${key}',[^\\n]*align: 'center'`, 'g'))).toHaveLength(3)
+    })
+    centeredBodyMarkers.forEach((marker) => {
+      const cell = openingNativeCell(view, marker)
+      expect(cell).toContain('text-center')
+      expect(cell).toContain('whitespace-nowrap')
     })
     numericKeys.forEach((key) => {
       expect(view.match(new RegExp(`\\{ key: '${key}',[^\\n]*align: 'right'`, 'g'))).toHaveLength(3)
@@ -95,7 +107,6 @@ describe('Allocation Ledger table density', () => {
       ['matchId', 'title={row.matchId}'],
       ['allocatedAt', 'formatDateDisplay(row.allocatedAt)'],
       ['saleDocNo', 'title={row.saleDocNo}'],
-      ['productName', 'title={row.productName}'],
       ['costPoolNo', 'title={row.costPoolNo}'],
       ['status', '<LedgerStatusText status={row.status}'],
       ['action', '<LedgerActionMenu'],
@@ -113,6 +124,8 @@ describe('Allocation Ledger table density', () => {
       expect(view).toMatch(new RegExp(`\\{ key: '${key}',[^\\n]*align: 'center'`))
       expect(openingTableCell(view, bodyMarker)).toContain('text-center')
     })
+    expect(view).toMatch(new RegExp(`\\{ key: 'productName',[^\\n]*align: 'left'[^\\n]*className: '${textualColumnClass}'`))
+    expect(openingTableCell(view, 'title={row.productName}')).toContain(`${textualColumnClass} p-3 text-left`)
     rightAlignedColumns.forEach(([key, bodyMarker]) => {
       expect(view).toMatch(new RegExp(`\\{ key: '${key}',[^\\n]*align: 'right'`))
       expect(openingTableCell(view, bodyMarker)).toContain('text-right')

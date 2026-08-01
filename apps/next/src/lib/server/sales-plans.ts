@@ -5,6 +5,7 @@ import { prisma } from '@/lib/server/prisma'
 import type { AppAuthContext } from '@/lib/server/auth-context'
 
 type SalesPlanDbRow = {
+  branch_code: string | null
   channel_code: string | null
   channel_id: bigint | null
   channel_name: string | null
@@ -32,6 +33,7 @@ type SalesPlanDbRow = {
 }
 
 export type SalesPlanInput = {
+  branchCode: string
   containers: number
   customerCode: string
   kgPerContainer: number
@@ -58,8 +60,8 @@ function normalizeCode(value: string) {
   return value.trim().toUpperCase()
 }
 
-function planNoPrefix(planMonth: string) {
-  return `SP${planMonth.slice(2, 4)}${planMonth.slice(5, 7)}-`
+function planNoPrefix(planMonth: string, branchCode: string) {
+  return `SP${branchCode}${planMonth.slice(2, 4)}${planMonth.slice(5, 7)}-`
 }
 
 function isSalesPlanMetalGroupFilter() {
@@ -71,8 +73,8 @@ function isSalesPlanMetalGroupFilter() {
   ]
 }
 
-async function nextSalesPlanNo(planMonth: string, tx: Prisma.TransactionClient) {
-  const startsWith = planNoPrefix(planMonth)
+async function nextSalesPlanNo(planMonth: string, branchCode: string, tx: Prisma.TransactionClient) {
+  const startsWith = planNoPrefix(planMonth, branchCode)
   const rows = await tx.$queryRaw<Array<{ plan_no: string | null }>>`
     select plan_no
     from public.sales_plans
@@ -91,6 +93,7 @@ function mapSalesPlanRow(row: SalesPlanDbRow) {
   const customerCode = requireBusinessCode(row.customer_code, `ลูกค้า ${row.customer_id}`)
   const productCode = requireBusinessCode(row.product_code, `สินค้า ${row.product_id}`)
   return {
+    branchCode: row.branch_code ?? '',
     channel: channelCode.toLowerCase(),
     channelId: channelCode,
     channelName: row.channel_name ?? channelCode,
@@ -117,7 +120,7 @@ function mapSalesPlanRow(row: SalesPlanDbRow) {
   }
 }
 
-export async function listSalesPlans(planMonth?: string) {
+export async function listSalesPlans(planMonth?: string, branchCode?: string) {
   const month = planMonth ? normalizeMonth(planMonth) : null
   const rows = await prisma.$queryRaw<SalesPlanDbRow[]>`
     select
@@ -144,13 +147,16 @@ export async function listSalesPlans(planMonth?: string) {
       c.name as customer_name,
       sc.code as channel_code,
       sc.name as channel_name,
-      ps.doc_no as po_sell_doc_no
+      ps.doc_no as po_sell_doc_no,
+      b.code as branch_code
     from public.sales_plans sp
     join public.products p on p.id = sp.product_id
     join public.customers c on c.id = sp.customer_id
     left join public.sales_channels sc on sc.id = sp.channel_id
     left join public.po_sells ps on ps.id = sp.po_sell_id
+    left join public.branches b on b.id = sp.branch_id
     where (${month}::date is null or sp.plan_month = ${month}::date)
+      and (${branchCode ?? null}::text is null or b.code = ${branchCode ?? null})
       and sp.status <> 'cancelled'
       and (
         p.metal_group ilike '%ทองแดง%'
@@ -191,16 +197,22 @@ export async function createSalesPlan(input: SalesPlanInput, context: AppAuthCon
     ])
     if (!product) throw new Error('สินค้าที่เลือกต้องอยู่ในหมวดทองแดงหรือทองเหลือง และต้องเปิดใช้งาน')
     if (!customer) throw new Error('ลูกค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+    const branch = await tx.branches.findFirst({
+      select: { id: true, code: true },
+      where: { active: true, code: input.branchCode },
+    })
+    if (!branch) throw new Error('สาขาไม่ถูกต้องหรือถูกปิดใช้งาน')
     const channel = await tx.sales_channels.findFirst({
       select: { code: true, id: true },
       where: { active: true, name: customer.market_scope },
     })
     if (!channel) throw new Error('ช่องทางขายไม่ถูกต้องหรือถูกปิดใช้งาน')
 
-    const planNo = await nextSalesPlanNo(planMonth, tx)
+    const planNo = await nextSalesPlanNo(planMonth, input.branchCode, tx)
     const inserted = await tx.$queryRaw<Array<{ id: bigint }>>`
       insert into public.sales_plans (
         plan_no,
+        branch_id,
         plan_month,
         product_id,
         customer_id,
@@ -217,6 +229,7 @@ export async function createSalesPlan(input: SalesPlanInput, context: AppAuthCon
         updated_by
       ) values (
         ${planNo},
+        ${branch.id},
         ${planMonth}::date,
         ${product.id},
         ${customer.id},

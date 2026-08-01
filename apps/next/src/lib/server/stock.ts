@@ -81,17 +81,7 @@ export function stockWhere(input: {
   to?: string | null
   warehouseId?: bigint | null
 }): Prisma.stock_ledgerWhereInput {
-  const statusWhere = input.status
-    ? {
-        OR: [
-          { output_category: input.status },
-          {
-            output_category: null,
-            warehouses: { type: input.status },
-          },
-        ],
-      }
-    : {}
+  const statusWhere = input.status ? { output_category: input.status } : {}
 
   return {
     ...(input.productId ? { product_id: input.productId } : {}),
@@ -105,11 +95,10 @@ export function stockWhere(input: {
   }
 }
 
-function stockStatusForLedgerRow(row: { output_category: string | null; warehouse_type?: string | null }) {
+function stockStatusForLedgerRow(row: { output_category: string | null }) {
   const explicitStatus = row.output_category?.trim()
   if (explicitStatus) return explicitStatus
-  const warehouseType = row.warehouse_type?.trim().toUpperCase()
-  return warehouseType === 'RM' || warehouseType === 'WIP' || warehouseType === 'FG' ? warehouseType : '-'
+  throw new Error('stock_ledger.output_category is required')
 }
 
 export async function normalizeStockReferenceInput(input: {

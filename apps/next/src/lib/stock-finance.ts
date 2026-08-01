@@ -1,0 +1,1 @@
+export const STOCK_FINANCE_HISTORY_DAYS = 90

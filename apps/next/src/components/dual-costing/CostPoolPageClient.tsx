@@ -288,7 +288,7 @@ export function CostPoolPageClient() {
                 tone={card.tone}
                 value={`${formatMoney(row?.availableQty ?? 0)} กก.`}
               >
-                {formatMoney(row?.availableValue ?? 0)} บาท · {(row?.count ?? 0).toLocaleString('th-TH')} ล็อต
+                {formatMoney(row?.availableValue ?? 0)} บาท · {(row?.count ?? 0).toLocaleString('th-TH')} รายการต้นทุน
               </DualCostingStatCard>
             </div>
           )
@@ -302,7 +302,7 @@ export function CostPoolPageClient() {
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
               <Input
                 className="h-9 pl-9"
-                placeholder="ค้นหาเลขที่ / คู่ค้า / สินค้า..."
+                placeholder="ค้นหาเลขที่ / ผู้ขาย / สินค้า..."
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -356,7 +356,7 @@ export function CostPoolPageClient() {
                 คงเหลือพร้อมใช้
               </label>
             </div>
-            <Button asChild className="h-9 gap-2" size="sm" variant="export">
+            <Button asChild className="h-10 gap-2 text-sm font-normal" variant="export">
               <a href={exportHref}><Download className="size-4" /><span>ส่งออก Excel</span></a>
             </Button>
           </div>
@@ -369,7 +369,7 @@ export function CostPoolPageClient() {
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
             <Input
               className="h-9 pl-9"
-              placeholder="ค้นหาเลขที่ / คู่ค้า / สินค้า..."
+              placeholder="ค้นหาเลขที่ / ผู้ขาย / สินค้า..."
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -383,7 +383,7 @@ export function CostPoolPageClient() {
             ตัวกรอง{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
           </button>
         </div>
-        <Button asChild className="h-9 w-full gap-2" size="sm" variant="export">
+        <Button asChild className="h-10 w-full gap-2 text-sm font-normal" variant="export">
           <a href={exportHref}><Download className="size-4" /><span>ส่งออก Excel</span></a>
         </Button>
       </DualCostingFilterCard>
@@ -474,7 +474,7 @@ export function CostPoolPageClient() {
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1 text-sm text-slate-600">
-        <div>พบทั้งหมด {totalGroups.toLocaleString('th-TH')} สินค้า · {rows.length.toLocaleString('th-TH')} ล็อต</div>
+        <div>พบทั้งหมด {totalGroups.toLocaleString('th-TH')} สินค้า · {rows.length.toLocaleString('th-TH')} รายการต้นทุน</div>
         <div className="flex flex-wrap items-center gap-2">
           {groupColumnResize.hasCustomWidths ? (
             <Button className="hidden h-9 lg:inline-flex" size="sm" type="button" variant="outline" onClick={groupColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button>
@@ -506,11 +506,11 @@ export function CostPoolPageClient() {
               <tr>
                 <ResizableTableHead activeSortKey={groupSortKey} direction={groupSortDirection} label="สินค้า" sortKey="productName" onSort={handleGroupSort} resizeProps={groupColumnResize.getResizeHandleProps('productName', 'สินค้า')} />
                 <ResizableTableHead activeSortKey={groupSortKey} align="right" direction={groupSortDirection} label="ปริมาณตั้งต้นรวม" sortKey="originalQty" onSort={handleGroupSort} resizeProps={groupColumnResize.getResizeHandleProps('originalQty', 'ปริมาณตั้งต้นรวม')} />
-                <ResizableTableHead activeSortKey={groupSortKey} align="right" direction={groupSortDirection} label="จับคู่แล้วรวม" sortKey="usedQty" onSort={handleGroupSort} resizeProps={groupColumnResize.getResizeHandleProps('usedQty', 'จับคู่แล้วรวม')} />
-                <ResizableTableHead activeSortKey={groupSortKey} align="right" direction={groupSortDirection} label="คงเหลือพร้อมใช้รวม" sortKey="availableQty" onSort={handleGroupSort} resizeProps={groupColumnResize.getResizeHandleProps('availableQty', 'คงเหลือพร้อมใช้รวม')} />
+                <ResizableTableHead activeSortKey={groupSortKey} align="right" direction={groupSortDirection} label="ยอดรวมรายการจับคู่" sortKey="usedQty" onSort={handleGroupSort} resizeProps={groupColumnResize.getResizeHandleProps('usedQty', 'ยอดรวมรายการจับคู่')} />
+                <ResizableTableHead activeSortKey={groupSortKey} align="right" direction={groupSortDirection} label="ยอดคงเหลือพร้อมใช้" sortKey="availableQty" onSort={handleGroupSort} resizeProps={groupColumnResize.getResizeHandleProps('availableQty', 'ยอดคงเหลือพร้อมใช้')} />
                 <ResizableTableHead activeSortKey={groupSortKey} align="right" direction={groupSortDirection} label="ต้นทุนเฉลี่ย" sortKey="avgUnitCost" onSort={handleGroupSort} resizeProps={groupColumnResize.getResizeHandleProps('avgUnitCost', 'ต้นทุนเฉลี่ย')} />
                 <ResizableTableHead activeSortKey={groupSortKey} align="right" direction={groupSortDirection} label="มูลค่าคงเหลือรวม" sortKey="availableValue" onSort={handleGroupSort} resizeProps={groupColumnResize.getResizeHandleProps('availableValue', 'มูลค่าคงเหลือรวม')} />
-                <ResizableTableHead align="right" label="จัดการ" resizeProps={groupColumnResize.getResizeHandleProps('action', 'จัดการ')} />
+                <ResizableTableHead align="center" label="จัดการ" resizeProps={groupColumnResize.getResizeHandleProps('action', 'จัดการ')} />
               </tr>
             </thead>
             <tbody>
@@ -520,14 +520,14 @@ export function CostPoolPageClient() {
                 <tr className="cursor-pointer transition-colors hover:bg-slate-50" key={group.key} onClick={() => openGroupDetail(group)}>
                   <td className="p-3">
                     <div className="font-semibold text-slate-900">{group.productName}</div>
-                    <div className="mt-0.5 text-xs text-slate-500">{group.rows.length.toLocaleString('th-TH')} ล็อต</div>
+                    <div className="mt-0.5 text-xs text-slate-500">{group.rows.length.toLocaleString('th-TH')} รายการต้นทุน</div>
                   </td>
                   <td className="p-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(group.originalQty)}</td>
                   <td className="p-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(group.usedQty)}</td>
                   <td className="p-3 text-right font-mono font-semibold tabular-nums text-slate-900">{formatMoney(group.availableQty)}</td>
                   <td className="p-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(group.avgUnitCost)}</td>
                   <td className="p-3 text-right font-mono font-semibold tabular-nums text-slate-900">{formatMoney(group.availableValue)}</td>
-                  <td className="p-3 text-right">
+                  <td className="p-3 text-center">
                     <TableActionButton
                       label="ดูรายละเอียด"
                       menu={<TableActionMenuItem onSelect={() => openGroupDetail(group)}>ดูรายละเอียด</TableActionMenuItem>}
@@ -557,15 +557,15 @@ export function CostPoolPageClient() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-base font-bold text-slate-900">{group.productName}</div>
-                  <div className="mt-0.5 text-xs text-slate-500">{group.rows.length.toLocaleString('th-TH')} ล็อตต้นทุน</div>
+                  <div className="mt-0.5 text-xs text-slate-500">{group.rows.length.toLocaleString('th-TH')} รายการต้นทุน</div>
                 </div>
                 <span className="shrink-0 text-xs font-semibold text-blue-700">ดูรายละเอียด</span>
               </div>
               <div className="grid grid-cols-2 gap-3 rounded-md border border-slate-100 bg-slate-50 p-3 text-sm">
                 <MobileMetric label="ปริมาณตั้งต้นรวม" value={`${formatMoney(group.originalQty)} กก.`} />
-                <MobileMetric align="right" label="จับคู่แล้วรวม" value={`${formatMoney(group.usedQty)} กก.`} />
+                <MobileMetric align="right" label="ยอดรวมรายการจับคู่" value={`${formatMoney(group.usedQty)} กก.`} />
                 <MobileMetric label="ต้นทุนเฉลี่ย" value={formatMoney(group.avgUnitCost)} />
-                <MobileMetric align="right" label="คงเหลือพร้อมใช้รวม" value={`${formatMoney(group.availableQty)} กก.`} />
+                <MobileMetric align="right" label="ยอดคงเหลือพร้อมใช้" value={`${formatMoney(group.availableQty)} กก.`} />
               </div>
               <div className="flex items-end justify-between gap-3 border-t border-slate-100 pt-3">
                 <span className="text-xs text-slate-500">มูลค่าคงเหลือรวม</span>
@@ -591,7 +591,7 @@ export function CostPoolPageClient() {
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 sm:flex sm:flex-wrap sm:justify-between">
                 <div className="min-w-0">
                   <DialogTitle className="truncate text-base text-white sm:text-lg" id="cost-pool-detail-title">รายละเอียด Cost Pool: {activeGroup.productName}</DialogTitle>
-                  <DialogDescription className="truncate text-slate-300">{activeGroup.rows.length.toLocaleString('th-TH')} ล็อต · เรียงตาม {sortLabel(sort)}</DialogDescription>
+                  <DialogDescription className="truncate text-slate-300">{activeGroup.rows.length.toLocaleString('th-TH')} รายการต้นทุน · เรียงตาม {sortLabel(sort)}</DialogDescription>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {lotColumnResize.hasCustomWidths ? (
@@ -606,8 +606,8 @@ export function CostPoolPageClient() {
               <div className="space-y-4 p-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:p-4">
                 <div className="grid grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-5">
                   <DetailMetric label="ปริมาณตั้งต้นรวม" value={`${formatMoney(activeGroup.originalQty)} กก.`} />
-                  <DetailMetric label="จับคู่แล้วรวม" value={`${formatMoney(activeGroup.usedQty)} กก.`} />
-                  <DetailMetric label="คงเหลือพร้อมใช้รวม" value={`${formatMoney(activeGroup.availableQty)} กก.`} />
+                  <DetailMetric label="ยอดรวมรายการจับคู่" value={`${formatMoney(activeGroup.usedQty)} กก.`} />
+                  <DetailMetric label="ยอดคงเหลือพร้อมใช้" value={`${formatMoney(activeGroup.availableQty)} กก.`} />
                   <DetailMetric label="ต้นทุนเฉลี่ย" value={formatMoney(activeGroup.avgUnitCost)} />
                   <DetailMetric className="col-span-2 sm:col-span-1" label="มูลค่าคงเหลือรวม" value={`${formatMoney(activeGroup.availableValue)} บาท`} />
                 </div>
@@ -623,33 +623,33 @@ export function CostPoolPageClient() {
                       <thead className="bg-slate-100">
                         <tr>
                           <ResizableTableHead label="แหล่งต้นทุน" resizeProps={lotColumnResize.getResizeHandleProps('sourceType', 'แหล่งต้นทุน')} />
-                          <ResizableTableHead label="เลขที่เอกสารต้นทุน" resizeProps={lotColumnResize.getResizeHandleProps('sourceNo', 'เลขที่เอกสารต้นทุน')} />
-                          <ResizableTableHead label="วันที่เอกสาร" resizeProps={lotColumnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
-                          <ResizableTableHead label="คู่ค้า" resizeProps={lotColumnResize.getResizeHandleProps('counterparty', 'คู่ค้า')} />
+                          <ResizableTableHead align="center" label="เลขที่เอกสารต้นทุน" resizeProps={lotColumnResize.getResizeHandleProps('sourceNo', 'เลขที่เอกสารต้นทุน')} />
+                          <ResizableTableHead align="center" label="วันที่เอกสาร" resizeProps={lotColumnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
+                          <ResizableTableHead label="ผู้ขาย" resizeProps={lotColumnResize.getResizeHandleProps('counterparty', 'ผู้ขาย')} />
                           <ResizableTableHead align="right" label="ปริมาณตั้งต้น" resizeProps={lotColumnResize.getResizeHandleProps('qty', 'ปริมาณตั้งต้น')} />
                           <ResizableTableHead align="right" label="จับคู่แล้ว" resizeProps={lotColumnResize.getResizeHandleProps('usedQty', 'จับคู่แล้ว')} />
                           <ResizableTableHead align="right" label="คงเหลือพร้อมใช้" resizeProps={lotColumnResize.getResizeHandleProps('availableQty', 'คงเหลือพร้อมใช้')} />
                           <ResizableTableHead align="right" label="ต้นทุน/หน่วย" resizeProps={lotColumnResize.getResizeHandleProps('unitCost', 'ต้นทุนต่อหน่วย')} />
                           <ResizableTableHead align="right" label="มูลค่าคงเหลือ" resizeProps={lotColumnResize.getResizeHandleProps('availableValue', 'มูลค่าคงเหลือ')} />
-                          <ResizableTableHead label="สถานะ" resizeProps={lotColumnResize.getResizeHandleProps('status', 'สถานะ')} />
+                          <ResizableTableHead align="center" label="สถานะ" resizeProps={lotColumnResize.getResizeHandleProps('status', 'สถานะ')} />
                         </tr>
                       </thead>
                       <tbody>
                         {activeGroup.rows.map((row) => (
                           <tr className="hover:bg-slate-50" key={row.costPoolId}>
                             <td className="p-3 whitespace-nowrap"><span className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{sourceLabel(row.sourceType)}</span></td>
-                            <td className="p-3 whitespace-nowrap font-mono text-slate-900">{row.sourceNo}</td>
-                            <td className="p-3 whitespace-nowrap text-slate-600">{formatDateDisplay(row.date)}</td>
+                            <td className="p-3 whitespace-nowrap text-center font-mono text-slate-900">{row.sourceNo}</td>
+                            <td className="p-3 whitespace-nowrap text-center text-slate-600">{formatDateDisplay(row.date)}</td>
                             <td className="p-3 font-medium text-slate-900">{row.counterparty}</td>
                             <td className="p-3 whitespace-nowrap text-right font-mono tabular-nums text-slate-700">{formatMoney(row.qty)}</td>
                             <td className="p-3 whitespace-nowrap text-right font-mono tabular-nums text-slate-700">{formatMoney(row.usedQty)}</td>
                             <td className="p-3 whitespace-nowrap text-right font-mono font-semibold tabular-nums text-slate-900">{formatMoney(row.availableQty)}</td>
                             <td className="p-3 whitespace-nowrap text-right font-mono tabular-nums text-slate-700">{formatMoney(row.unitCost)}</td>
                             <td className="p-3 whitespace-nowrap text-right font-mono font-semibold tabular-nums text-slate-900">{formatMoney(row.availableValue)}</td>
-                            <td className="p-3"><StatusIndicator status={row.status} /></td>
+                            <td className="p-3 text-center whitespace-nowrap"><StatusIndicator status={row.status} /></td>
                           </tr>
                         ))}
-                        {activeGroup.rows.length === 0 ? <tr><td className="p-8 text-center text-slate-500" colSpan={COST_POOL_LOT_TABLE_COLUMN_COUNT}>ไม่พบล็อตต้นทุน</td></tr> : null}
+                        {activeGroup.rows.length === 0 ? <tr><td className="p-8 text-center text-slate-500" colSpan={COST_POOL_LOT_TABLE_COLUMN_COUNT}>ไม่พบรายการต้นทุน</td></tr> : null}
                       </tbody>
                     </table>
                   </div>
@@ -660,14 +660,14 @@ export function CostPoolPageClient() {
                     <article className="space-y-3 rounded-md border border-slate-200 bg-white p-4 shadow-sm" key={row.costPoolId}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="font-mono text-sm font-bold text-slate-900">{row.sourceNo}</div>
-                          <div className="mt-0.5 text-xs text-slate-500">{formatDateDisplay(row.date)}</div>
+                          <div className="whitespace-nowrap font-mono text-sm font-bold text-slate-900">{row.sourceNo}</div>
+                          <div className="mt-0.5 whitespace-nowrap text-xs text-slate-500">{formatDateDisplay(row.date)}</div>
                         </div>
                         <StatusIndicator status={row.status} />
                       </div>
                       <div className="rounded-md border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">
                         <div className="mb-1"><span className="font-semibold text-slate-500">แหล่งต้นทุน: </span><span className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{sourceLabel(row.sourceType)}</span></div>
-                        <div><span className="font-semibold text-slate-500">คู่ค้า: </span><span className="text-slate-900">{row.counterparty}</span></div>
+                        <div><span className="font-semibold text-slate-500">ผู้ขาย: </span><span className="text-slate-900">{row.counterparty}</span></div>
                       </div>
                       <div className="grid grid-cols-2 gap-3 text-sm">
                         <MobileMetric label="ปริมาณตั้งต้น" value={`${formatMoney(row.qty)} กก.`} />
@@ -761,6 +761,9 @@ function statusLabel(status: string) {
 function sourceLabel(type: string) {
   if (type === 'PO_Buy') return 'PO ซื้อ'
   if (type === 'Spot_Buy') return 'ซื้อสด'
+  if (type === 'Opening_Purchase') return 'ยอดยกมา — บิลซื้อ'
+  if (type === 'Opening_PO') return 'ยอดยกมา — PO ซื้อ'
+  if (type === 'Opening_Regrade') return 'ยอดยกมา — ปรับเกรด'
   if (type === 'Production') return 'การผลิต'
   if (type === 'Regrade' || type === 'Grade Adjustment') return 'ปรับเกรด / แปรสภาพ'
   return type

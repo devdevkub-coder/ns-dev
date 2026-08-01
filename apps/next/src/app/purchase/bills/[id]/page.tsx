@@ -111,12 +111,12 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
                     <div className="shrink-0 text-right text-sm font-semibold text-blue-700 tabular-nums">{money(item.amount)}</div>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                    <div><div className="text-xs text-slate-500">ใบรับของ</div><div className="mt-1 font-medium text-slate-900">{item.receiptDocNos.join(', ') || '-'}</div></div>
+                    <div><div className="text-xs text-slate-500">ใบรับของ</div><div className="mt-1 text-center font-mono font-medium text-slate-900 whitespace-nowrap">{item.receiptDocNos.join(', ') || '-'}</div></div>
                     <div><div className="text-xs text-slate-500">ที่มา</div><div className="mt-1 font-medium text-slate-900">{item.sourceKinds.join(' + ') || '-'}</div></div>
                     <div><div className="text-xs text-slate-500">Gross ที่ตัดรวม</div><div className="mt-1 tabular-nums text-slate-900">{money(item.grossWeight)}</div></div>
                     <div><div className="text-xs text-slate-500">หักที่ตัดรวม</div><div className="mt-1 tabular-nums text-slate-900">{money(item.deductWeight)}</div></div>
                     <div className="col-span-2"><div className="text-xs text-slate-500">น้ำหนักที่ตัดรวม</div><div className="mt-1 font-semibold tabular-nums text-slate-900">{money(item.qty)} {item.unit}</div></div>
-                    <div className="col-span-2 text-xs text-slate-500">{item.poDocNos.join(', ') || 'Spot Buy'}</div>
+                    <div className="col-span-2 text-center font-mono text-xs text-slate-500 whitespace-nowrap">{item.poDocNos.join(', ') || 'Spot Buy'}</div>
                   </div>
                 </div>
               ))}
@@ -126,7 +126,7 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
                 <thead className="bg-slate-50 text-slate-600">
                   <tr>
                     <th className="px-3 py-2 text-left font-medium">สินค้า</th>
-                    <th className="px-3 py-2 text-left font-medium">ใบรับของ</th>
+                    <th className="px-3 py-2 text-center font-medium whitespace-nowrap">ใบรับของ</th>
                     <th className="px-3 py-2 text-left font-medium">ที่มา</th>
                     <th className="px-3 py-2 text-right font-medium">Gross ที่ตัดรวม</th>
                     <th className="px-3 py-2 text-right font-medium">หักที่ตัดรวม</th>
@@ -141,10 +141,10 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
                         <div className="font-medium text-slate-900">{item.productName}</div>
                         <div className="text-xs text-slate-500">{[item.productCode || null, `${item.lineCount} allocation`].filter(Boolean).join(' · ')}</div>
                       </td>
-                      <td className="px-3 py-2 align-top text-slate-700">{item.receiptDocNos.join(', ') || '-'}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-center align-top font-mono text-slate-700">{item.receiptDocNos.join(', ') || '-'}</td>
                       <td className="px-3 py-2 align-top text-slate-700">
                         <div>{item.sourceKinds.join(' + ') || '-'}</div>
-                        <div className="text-xs text-slate-500">{item.poDocNos.join(', ') || 'Spot Buy'}</div>
+                        <div className="text-center font-mono text-xs text-slate-500 whitespace-nowrap">{item.poDocNos.join(', ') || 'Spot Buy'}</div>
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">{money(item.grossWeight)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{money(item.deductWeight)}</td>
@@ -174,8 +174,8 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
                   </div>
                   {item.note ? <div className="mt-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">{item.note}</div> : null}
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                    <div><div className="text-xs text-slate-500">ใบรับของ WTI</div><div className="mt-1 font-medium text-slate-900">{item.receiptTicketDocNo}</div><div className="text-xs text-slate-500">{item.sourceType}</div></div>
-                    <div><div className="text-xs text-slate-500">PO / ที่มา</div><div className="mt-1 font-medium text-slate-900">{item.sourceLabel}</div><div className="text-xs text-slate-500">{item.poDocNo ? 'ตัดตาม PO' : 'รับแบบ Spot Buy'}</div></div>
+                    <div><div className="text-xs text-slate-500">ใบรับของ WTI</div><div className="mt-1 text-center font-mono font-medium text-slate-900 whitespace-nowrap">{item.receiptTicketDocNo}</div><div className="text-xs text-slate-500">{item.sourceType}</div></div>
+                    <div><div className="text-xs text-slate-500">PO / ที่มา</div><div className="mt-1 font-medium text-slate-900">{item.poDocNo ? <span className="whitespace-nowrap font-mono">{item.poDocNo}</span> : item.sourceLabel}</div><div className="text-xs text-slate-500">{item.poDocNo ? 'ตัดตาม PO' : 'รับแบบ Spot Buy'}</div></div>
                     <div className="col-span-2"><div className="text-xs text-slate-500">สรุปจาก WTI</div><div className="mt-1 text-slate-900">{item.receiptSummaryLabel}</div></div>
                     <div><div className="text-xs text-slate-500">Gross ที่ตัด</div><div className="mt-1 tabular-nums text-slate-900">{money(item.grossWeight)}</div></div>
                     <div><div className="text-xs text-slate-500">หักที่ตัด</div><div className="mt-1 tabular-nums text-slate-900">{money(item.deductWeight)}</div></div>
@@ -190,7 +190,7 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
                 <thead className="bg-slate-50 text-slate-600">
                   <tr>
                     <th className="px-3 py-2 text-left font-medium">สินค้า</th>
-                    <th className="px-3 py-2 text-left font-medium">ใบรับของ WTI</th>
+                    <th className="px-3 py-2 text-center font-medium">ใบรับของ WTI</th>
                     <th className="px-3 py-2 text-left font-medium">สรุปจาก WTI</th>
                     <th className="px-3 py-2 text-left font-medium">PO / ที่มา</th>
                     <th className="px-3 py-2 text-right font-medium">Gross ที่ตัด</th>
@@ -208,13 +208,13 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
                         <div className="text-xs text-slate-500">{[item.productCode || null, `line ${item.lineNo}`].filter(Boolean).join(' · ')}</div>
                         {item.note ? <div className="mt-1 text-xs text-slate-500">{item.note}</div> : null}
                       </td>
-                      <td className="px-3 py-2 align-top">
-                        <div className="text-slate-900">{item.receiptTicketDocNo}</div>
+                      <td className="px-3 py-2 text-center align-top">
+                        <div className="whitespace-nowrap font-mono text-slate-900">{item.receiptTicketDocNo}</div>
                         <div className="text-xs text-slate-500">{item.sourceType}</div>
                       </td>
                       <td className="px-3 py-2 align-top text-slate-900">{item.receiptSummaryLabel}</td>
                       <td className="px-3 py-2 align-top">
-                        <div className="text-slate-900">{item.sourceLabel}</div>
+                        <div className="text-slate-900">{item.poDocNo ? <span className="inline-block w-full whitespace-nowrap text-center font-mono">{item.poDocNo}</span> : item.sourceLabel}</div>
                         <div className="text-xs text-slate-500">{item.poDocNo ? 'ตัดตาม PO' : 'รับแบบ Spot Buy'}</div>
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">{money(item.grossWeight)}</td>

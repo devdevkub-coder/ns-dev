@@ -5,14 +5,14 @@ import { matchesMoneyAccountFilter, summarizeActiveReceiptRows } from './money-m
 describe('summarizeActiveReceiptRows', () => {
   it('excludes cancelled receipts from every financial total', () => {
     const summary = summarizeActiveReceiptRows([
-      { amount: 53_500, fee: 500, netAmount: 52_500, status: 'completed', withholdingTax: 500 },
-      { amount: 121_637.6, fee: 0, netAmount: 121_637.6, status: 'completed', withholdingTax: 0 },
-      { amount: 8_743.27, fee: 100, netAmount: 8_543.27, status: 'cancelled', withholdingTax: 100 },
+      { bookAmountThb: 53_500, fee: 500, bookNetCashInThb: 52_500, status: 'completed', withholdingTax: 500 },
+      { bookAmountThb: 121_637.6, fee: 0, bookNetCashInThb: 121_637.6, status: 'completed', withholdingTax: 0 },
+      { bookAmountThb: 8_743.27, fee: 100, bookNetCashInThb: 8_543.27, status: 'cancelled', withholdingTax: 100 },
     ])
 
-    expect(summary.amount).toBeCloseTo(175_137.6)
+    expect(summary.bookAmountThb).toBeCloseTo(175_137.6)
     expect(summary.fee).toBeCloseTo(500)
-    expect(summary.netAmount).toBeCloseTo(174_137.6)
+    expect(summary.bookNetCashInThb).toBeCloseTo(174_137.6)
     expect(summary.withholdingTax).toBeCloseTo(500)
   })
 })

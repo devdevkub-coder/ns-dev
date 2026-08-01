@@ -1,10 +1,11 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { GuardedLink } from '@/components/ui/GuardedLink'
 import { Input } from '@/components/ui/Input'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
@@ -105,6 +106,14 @@ export function SystemSettingsPageClient() {
   const [whtRecords, setWhtRecords] = useState<MasterDataRecord[]>([])
   const [whtValues, setWhtValues] = useState<Record<string, string>>({})
 
+  const hasUnsavedTaxSettings = Boolean(
+    (vatRecord && vatValue !== toPercentInput(vatRecord.ratePercent))
+    || whtRecords.some((record) => (
+      (whtValues[record.id] ?? toPercentInput(record.ratePercent))
+      !== toPercentInput(record.ratePercent)
+    )),
+  )
+  useUnsavedChangesGuard(hasUnsavedTaxSettings)
   const activeWhtCount = useMemo(() => whtRecords.filter((record) => record.active).length, [whtRecords])
   const whtColumnResize = useResizableColumns('admin.system-settings.wht.v1', whtColumns)
   const sortedWhtRecords = useMemo(() => {
@@ -178,6 +187,11 @@ export function SystemSettingsPageClient() {
     setWhtSortDirection('asc')
   }
 
+  function dismissPendingSave() {
+    if (savingKey !== null) return
+    setPendingSave(null)
+  }
+
   async function confirmSave() {
     if (!pendingSave) return
 
@@ -212,7 +226,7 @@ export function SystemSettingsPageClient() {
             <h2 className="text-base font-bold text-slate-900">ข้อมูลบริษัทสำหรับใบพิมพ์</h2>
           </div>
           <Button asChild className="w-full md:w-auto font-semibold shrink-0" size="sm">
-            <Link href="/admin/company-profile">เปิดหน้าข้อมูลบริษัท</Link>
+            <GuardedLink href="/admin/company-profile">เปิดหน้าข้อมูลบริษัท</GuardedLink>
           </Button>
         </div>
       </section>
@@ -414,7 +428,7 @@ export function SystemSettingsPageClient() {
       )}
 
       {pendingSave ? (
-        <Dialog open={!!pendingSave} onOpenChange={() => setPendingSave(null)}>
+        <Dialog open={!!pendingSave} onOpenChange={(open) => { if (!open) dismissPendingSave() }}>
           <DialogContent className="max-w-md rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" hideClose>
             <div data-ns-dialog-header className="border-b border-slate-800 px-5 py-4 bg-slate-900 shrink-0 flex items-center justify-between">
               <div>
@@ -443,7 +457,7 @@ export function SystemSettingsPageClient() {
                 size="sm"
                 type="button"
                 variant="secondary"
-                onClick={() => setPendingSave(null)}
+                onClick={dismissPendingSave}
               >
                 ยกเลิก
               </Button>

@@ -2,13 +2,13 @@
 
 import type { FocusEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Menu, Search, X } from 'lucide-react'
 import { AppNavigation } from '@/components/layout/AppNavigation'
 import { AuthStatus } from '@/components/layout/AuthStatus'
 import { MobileBottomNavigation } from '@/components/layout/MobileBottomNavigation'
 import { ThemeModeToggle } from '@/components/layout/ThemeModeToggle'
+import { GuardedLink } from '@/components/ui/GuardedLink'
 import { breadcrumbsForPath, canAccessPath, navigationItems, navigationSections, pageTitleForPath, type NavigationItem } from '@/lib/navigation'
 
 type AppShellProps = {
@@ -274,7 +274,7 @@ export function AppShell({ children }: AppShellProps) {
               {!authContext ? (
                 <div className="px-3 py-4 text-center text-sm text-slate-400">กำลังโหลดเมนู</div>
               ) : menuSearchResults.length ? menuSearchResults.map((item) => (
-                <Link
+                <GuardedLink
                   className="flex min-w-0 items-center gap-3 px-3 py-2 text-sm text-slate-200 transition hover:bg-slate-800 hover:text-white focus:bg-slate-800 focus:outline-none"
                   href={item.href}
                   key={`${item.href}-${item.label}-mobile`}
@@ -288,7 +288,7 @@ export function AppShell({ children }: AppShellProps) {
                     <span className="block truncate font-medium">{item.label}</span>
                     <span className="block truncate text-xs text-slate-500">{item.parentLabel ? `${item.parentLabel} / ` : ''}{item.sectionLabel}</span>
                   </span>
-                </Link>
+                </GuardedLink>
               )) : (
                 <div className="px-3 py-4 text-center text-sm text-slate-400">ไม่พบเมนูที่ค้นหา</div>
               )}
@@ -351,7 +351,7 @@ export function AppShell({ children }: AppShellProps) {
                   {!authContext ? (
                     <div className="px-3 py-4 text-center text-sm text-slate-500 dark:text-[#94a3b8]">กำลังโหลดเมนู</div>
                   ) : menuSearchResults.length ? menuSearchResults.map((item) => (
-                    <Link
+                    <GuardedLink
                       className="flex min-w-0 items-center gap-3 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100 hover:text-slate-900 focus:bg-slate-100 focus:outline-none dark:text-[#e2e8f0] dark:hover:bg-[#334155] dark:hover:text-white dark:focus:bg-[#334155]"
                       href={item.href}
                       key={`${item.href}-${item.label}`}
@@ -362,7 +362,7 @@ export function AppShell({ children }: AppShellProps) {
                         <span className="block truncate font-medium">{item.label}</span>
                         <span className="block truncate text-xs text-slate-500 dark:text-[#94a3b8]">{item.parentLabel ? `${item.parentLabel} / ` : ''}{item.sectionLabel}</span>
                       </span>
-                    </Link>
+                    </GuardedLink>
                   )) : (
                     <div className="px-3 py-4 text-center text-sm text-slate-500 dark:text-[#94a3b8]">ไม่พบเมนูที่ค้นหา</div>
                   )}
@@ -382,9 +382,9 @@ export function AppShell({ children }: AppShellProps) {
                 return (
                   <li className="flex min-w-0 items-center gap-1.5" key={`${breadcrumb.label}-${index}`}>
                     {breadcrumb.href && !isLast ? (
-                      <Link className="max-w-52 truncate font-medium text-slate-600 hover:text-blue-700 hover:underline" href={breadcrumb.href}>
+                      <GuardedLink className="max-w-52 truncate font-medium text-slate-600 hover:text-blue-700 hover:underline" href={breadcrumb.href}>
                         {breadcrumb.label}
-                      </Link>
+                      </GuardedLink>
                     ) : (
                       <span className={isLast ? 'max-w-[36rem] truncate font-semibold text-slate-700' : 'max-w-52 truncate'}>{breadcrumb.label}</span>
                     )}

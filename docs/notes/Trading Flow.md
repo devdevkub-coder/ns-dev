@@ -77,6 +77,7 @@ PO Reports เป็นรายงาน commitment ของ PO:
 - The visible business reference on `/trading/matching` is the Sales Bill, not `deal_no`.
 - A fact must keep purchase bill/cost source reference, sales bill reference, supplier/customer/product snapshot, matched qty, matched amounts, and audit dates.
 - Manual non-PB source is stored in `trading_cost_sources` and referenced by `trading_allocation_facts.trading_cost_source_id`; it must not create stock ledger, warehouse, WTO, PSALE, or WAC side effects.
+- Manual Trading Cost Source requires a branch and uses branch-scoped numbers `TCS<รหัสสาขา><YYMM>-<ลำดับ 4 หลัก>`; source rows and authorization scope stay tied to that branch.
 
 ## Trading Dashboard Target Requirement
 

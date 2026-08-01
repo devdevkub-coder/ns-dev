@@ -6,6 +6,8 @@ import { buildSalesPlan } from '@/lib/server/main-sales-control'
 import { clearPendingSalesPlans, createSalesPlan, getSalesPlanRow, lockSalesPlan } from '@/lib/server/sales-plans'
 import { fetchLiveSalesPlanLmeConfig, getSalesPlanLmeConfig, saveSalesPlanLmeConfig } from '../../../lib/server/sales-plan-lme'
 import { REPORT_PAGE_PERMISSIONS } from '@/lib/report-permissions'
+import { getFinanceBranchCodeIntersection } from '@/lib/server/finance-accounting-branch-scope'
+import { listActiveBranches, listActiveBranchesByCodes } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
@@ -14,6 +16,7 @@ const salesPlanLmeRequestSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('create-plan'),
     plan: z.object({
+      branchCode: z.string().trim().min(1, 'เลือกสาขา'),
       containers: z.coerce.number().finite().gt(0, 'จำนวนตู้ต้องมากกว่า 0'),
       customerCode: z.string().trim().min(1, 'เลือกลูกค้า').max(80),
       kgPerContainer: z.coerce.number().finite().gt(0, 'กก./ตู้ ต้องมากกว่า 0'),
@@ -58,6 +61,13 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const planId = searchParams.get('planId')
     const month = searchParams.get('month')?.trim() ?? ''
+    const requestedBranchCode = searchParams.get('branchCode')?.trim().toUpperCase() || null
+    const allowedBranchCodes = getFinanceBranchCodeIntersection(context, requestedBranchCode)
+    const branches = allowedBranchCodes === null
+      ? await listActiveBranches()
+      : allowedBranchCodes.length > 0
+        ? await listActiveBranchesByCodes(allowedBranchCodes)
+        : []
     if (planId) {
       if (!/^\d+$/.test(planId)) return NextResponse.json({ code: 'BAD_REQUEST', error: 'แผนขายไม่ถูกต้อง' }, { status: 400 })
       const planRow = await getSalesPlanRow(BigInt(planId))
@@ -67,7 +77,8 @@ export async function GET(request: Request) {
     if (month && !/^\d{4}-\d{2}$/.test(month)) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'เดือนต้องเป็นรูปแบบ YYYY-MM' }, { status: 400 })
     }
-    return NextResponse.json(await buildSalesPlan(month || undefined))
+    const payload = await buildSalesPlan(month || undefined, requestedBranchCode ?? undefined)
+    return NextResponse.json({ ...payload, filters: { ...payload.filters, branches: branches.map((branch) => ({ code: branch.code, id: branch.code, name: branch.name })) } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดแผนการขายไม่ได้', 500)
@@ -91,8 +102,17 @@ export async function POST(request: Request) {
       })
     }
     if (payload.action === 'create-plan') {
+      const allowedBranchCodes = getFinanceBranchCodeIntersection(context, payload.plan.branchCode)
+      const branches = allowedBranchCodes === null
+        ? await listActiveBranches()
+        : allowedBranchCodes.length > 0
+          ? await listActiveBranchesByCodes(allowedBranchCodes)
+          : []
+      if (!branches.some((branch) => branch.code === payload.plan.branchCode.trim().toUpperCase())) {
+        throw new Error('สาขาไม่ถูกต้องหรือไม่มีสิทธิ์ใช้งาน')
+      }
       const currentConfig = await getSalesPlanLmeConfig()
-      const planRow = await createSalesPlan(payload.plan, context, currentConfig.fxRate)
+      const planRow = await createSalesPlan({ ...payload.plan, branchCode: payload.plan.branchCode.trim().toUpperCase() }, context, currentConfig.fxRate)
       return NextResponse.json({ planRow }, { status: 201 })
     }
     if (payload.action === 'lock-plan') {

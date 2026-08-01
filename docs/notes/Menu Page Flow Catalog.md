@@ -165,7 +165,6 @@ Source:
 | `/master-data/warehouses` | คลัง | This catalog | CRUD baseline | target warehouse master split from branch | define RM/FG/WIP/hold usage flags |
 | `/master-data/accounts` | บัญชีเงินบริษัท | [[Daily Cash Flow]] | CRUD baseline | legacy `mdAccount`: cash/bank/FCD/OD account master | enforce account type/subtype and bank statement ownership |
 | `/master-data/payment-methods` | วิธีจ่าย/รับเงิน | [[Payment Flow]] | CRUD baseline | legacy `mdPaymentMethod`: payment/receipt method options | map to bank/cash behavior |
-| `/master-data/account-subtypes` | ประเภทบัญชีธนาคาร | This catalog | CRUD baseline | target account subtype master | define allowed subtype per account type |
 | `/master-data/bank-names` | ชื่อธนาคาร | This catalog | CRUD baseline | target bank name master for accounts/directors/suppliers/customers | define duplicate/code pattern |
 | `/master-data/channels` | ช่องทางขาย | [[Sales Flow]] | CRUD baseline | legacy `mdChannel`: purchase/sales channel master | split purchase/sales usage if needed |
 | `/master-data/expense-categories` | หมวดค่าใช้จ่าย | [[Daily Cash Flow]] | CRUD baseline | legacy `mdExpense`: expense category master | category filtered by expense type |

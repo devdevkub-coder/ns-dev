@@ -1,4 +1,5 @@
 import { Prisma } from '../../../generated/prisma/client'
+import { isPurchaseBillActiveStatus } from '@/lib/purchase-bill-status'
 import { toNumber } from '@/lib/server/daily'
 
 const COST_EPSILON = 0.0001
@@ -47,7 +48,7 @@ export async function syncPurchaseBillCostPoolEntries(
   })
   type ExistingEntry = typeof existingEntries[number]
 
-  const shouldKeepActive = params.transactionMode === 'STOCK' && !String(bill.status ?? '').toLowerCase().includes('cancel')
+  const shouldKeepActive = params.transactionMode === 'STOCK' && isPurchaseBillActiveStatus(bill.status, bill.doc_no)
   const activeItems = shouldKeepActive
     ? await tx.purchase_bill_items.findMany({
       orderBy: { line_no: 'asc' },
@@ -169,9 +170,7 @@ export async function syncPurchaseBillCostPoolEntries(
     nextLines.delete(lineKey)
   }
 
-  for (const nextLine of nextLines.values()) {
-    await tx.stock_cost_pool_entries.create({
-      data: {
+  const entriesToCreate = [...nextLines.values()].map((nextLine) => ({
         branch_id: params.branchId,
         created_by: params.actor,
         date: params.date,
@@ -188,7 +187,8 @@ export async function syncPurchaseBillCostPoolEntries(
         status: 'Available',
         unit_cost: nextLine.unitCost,
         warehouse_id: params.warehouseId,
-      },
-    })
+  }))
+  if (entriesToCreate.length > 0) {
+    await tx.stock_cost_pool_entries.createMany({ data: entriesToCreate })
   }
 }

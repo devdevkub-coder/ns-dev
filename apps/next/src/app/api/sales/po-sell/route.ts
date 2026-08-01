@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { XLSX } from '@/lib/server/xlsx'
 import { PO_SELL_PERMISSIONS, poSellPatchPermission } from '@/lib/po-permissions'
+import { PO_SELL_STATUS, requirePoSellStatus } from '@/lib/po-sell-status'
 import { poSellFormSchema, type PoSellFormValues } from '@/lib/sales'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, getCurrentAuthContext, hasPermission, requirePermission, type AppAuthContext } from '@/lib/server/auth-context'
@@ -561,12 +562,12 @@ async function releasePoSellShortCloseDualCosting(
   return { releasedDealCount, releasedFactCount, releasedQty, returnedPoolEntryCount }
 }
 
-function documentStatus(status: string | null | undefined, remainingQty: number, qty = 0, cutAmount = 0): PoSellDocumentStatus {
-  const normalized = (status ?? '').trim().toLowerCase()
-  if (['cancelled', 'canceled', 'void'].includes(normalized)) return 'cancelled'
-  if (normalized.includes('short')) return 'short_closed'
-  if (['closed', 'completed', 'fully matched', 'received'].includes(normalized) || remainingQty <= 0.001) return 'closed'
-  if (remainingQty > 0.001 && ((qty > 0 && remainingQty < qty - 0.001) || cutAmount > 0.001)) return 'partial'
+function documentStatus(status: string | null | undefined, docNo: string): PoSellDocumentStatus {
+  const canonical = requirePoSellStatus(status, docNo)
+  if (canonical === PO_SELL_STATUS.CANCELLED) return 'cancelled'
+  if (canonical === PO_SELL_STATUS.SHORT_CLOSED) return 'short_closed'
+  if (canonical === PO_SELL_STATUS.COMPLETED) return 'closed'
+  if (canonical === PO_SELL_STATUS.PARTIALLY_FULFILLED) return 'partial'
   return 'open'
 }
 
@@ -802,8 +803,8 @@ export async function GET(request: Request) {
       const remainingAmount = toNumber(po.remaining_amount) || items.reduce((sum, item) => sum + item.remainingQty * item.unitPrice, 0)
       const matched = matchedByPoSellId.get(po.id) ?? { cost: 0, qty: 0, salesAmount: 0 }
       const margin = matched.salesAmount > 0 ? matched.salesAmount - matched.cost : totalAmount - matched.cost
-      const status = po.status ?? 'Open'
-      const currentDocumentStatus = documentStatus(status, remainingQty, qty, cutAmount)
+      const status = requirePoSellStatus(po.status, po.doc_no)
+      const currentDocumentStatus = documentStatus(status, po.doc_no)
       const currentMatchStatus = matchStatus(matched.qty, qty, currentDocumentStatus)
       const lockedByDownstream = lockedPoSellIds.has(po.id)
       const canWrite = currentDocumentStatus === 'open' && !lockedByDownstream
@@ -1039,7 +1040,7 @@ export async function POST(request: Request) {
           remaining_amount: totalAmount,
           remaining_qty: qty,
           require_delivery: true,
-          status: 'Open',
+          status: PO_SELL_STATUS.OPEN,
           total_amount: totalAmount,
           unit_price: qty > 0 ? totalAmount / qty : 0,
           updated_at: createdAt,
@@ -1087,7 +1088,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบ PO Sell ที่ต้องการแก้ไข' }, { status: 404 })
     }
 
-    const currentDocumentStatus = documentStatus(existing.status, toNumber(existing.remaining_qty), toNumber(existing.qty), toNumber(existing.cut_amount))
+    const currentDocumentStatus = documentStatus(existing.status, existing.doc_no)
 
     if (values.action === 'cancel') {
       if (currentDocumentStatus !== 'open') {
@@ -1111,14 +1112,14 @@ export async function PATCH(request: Request) {
           notes: [existing.notes, cancelLine].filter(Boolean).join('\n'),
           remaining_amount: 0,
           remaining_qty: 0,
-          status: 'Cancelled',
+          status: PO_SELL_STATUS.CANCELLED,
           updated_at: updatedAt,
           updated_by: actor,
           version: { increment: 1 },
         },
         where: { id: existing.id },
       })
-      return NextResponse.json({ docNo: existing.doc_no, id: existing.doc_no, status: 'Cancelled' })
+      return NextResponse.json({ docNo: existing.doc_no, id: existing.doc_no, status: PO_SELL_STATUS.CANCELLED })
     }
 
     if (values.action === 'shortClose') {
@@ -1149,7 +1150,7 @@ export async function PATCH(request: Request) {
             notes: appendAuditNote(existing.notes, shortCloseLine),
             remaining_amount: 0,
             remaining_qty: 0,
-            status: 'Short Closed',
+            status: PO_SELL_STATUS.SHORT_CLOSED,
             updated_at: updatedAt,
             updated_by: actor,
             version: { increment: 1 },
@@ -1163,7 +1164,7 @@ export async function PATCH(request: Request) {
         id: existing.doc_no,
         releasedCostQty: releaseResult.releasedQty,
         returnedPoolEntryCount: releaseResult.returnedPoolEntryCount,
-        status: 'Short Closed',
+        status: PO_SELL_STATUS.SHORT_CLOSED,
       })
     }
 
@@ -1248,7 +1249,7 @@ export async function PATCH(request: Request) {
         remaining_amount: totalAmount,
         remaining_qty: qty,
         require_delivery: true,
-        status: 'Open',
+        status: PO_SELL_STATUS.OPEN,
         total_amount: totalAmount,
         unit_price: qty > 0 ? totalAmount / qty : 0,
         updated_at: updatedAt,
@@ -1258,7 +1259,7 @@ export async function PATCH(request: Request) {
       where: { id: existing.id },
     })
 
-    return NextResponse.json({ docNo: existing.doc_no, id: existing.doc_no, status: 'Open' })
+    return NextResponse.json({ docNo: existing.doc_no, id: existing.doc_no, status: PO_SELL_STATUS.OPEN })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'แก้ไข PO Sell ไม่ได้', 500)

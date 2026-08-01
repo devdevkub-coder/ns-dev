@@ -1,12 +1,12 @@
 'use client'
 
 import Image from 'next/image'
-import { Camera, Copy, KeyRound, Mail, Pencil, Send, Trash2, Upload, UserRound } from 'lucide-react'
+import { Camera, Copy, KeyRound, Mail, Trash2, Upload, UserRound } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
@@ -215,7 +215,7 @@ type RolesViewTab = 'roles' | 'permissions'
 type AdminUser = AdminUsersPayload['users'][number]
 type AdminRole = AdminUsersPayload['roles'][number]
 type UserColumnKey = 'action' | 'active' | 'branches' | 'contact' | 'department' | 'email' | 'lastLoginAt' | 'name' | 'roles'
-type RoleColumnKey = 'active' | 'branchScope' | 'description' | 'name' | 'permissionCount' | 'type' | 'users'
+type RoleColumnKey = 'action' | 'active' | 'branchScope' | 'description' | 'name' | 'permissionCount' | 'type' | 'users'
 type SortDirection = 'asc' | 'desc'
 type UserStatusFilter = 'all' | 'active' | 'disabled' | 'pending'
 
@@ -248,6 +248,8 @@ type RoleFormState = {
   permissionIds: string[]
 }
 
+type UserImageAction = 'keep' | 'remove' | 'replace'
+
 const userColumns: Array<ResizableColumnDefinition<UserColumnKey>> = [
   { key: 'name', defaultWidth: 190, minWidth: 160 },
   { key: 'contact', defaultWidth: 150, minWidth: 125 },
@@ -268,6 +270,7 @@ const roleColumns: Array<ResizableColumnDefinition<RoleColumnKey>> = [
   { key: 'permissionCount', defaultWidth: 125, minWidth: 105 },
   { key: 'users', defaultWidth: 115, minWidth: 95 },
   { key: 'active', defaultWidth: 120, minWidth: 95 },
+  { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 
 const emptyUserForm: UserFormState = {
@@ -293,6 +296,32 @@ const emptyRoleForm: RoleFormState = {
   description: '',
   name: '',
   permissionIds: [],
+}
+
+function userFormSnapshot(form: UserFormState, imageAction: UserImageAction) {
+  return JSON.stringify({
+    ...form,
+    branchIds: [...form.branchIds].sort(),
+    imageAction,
+    permissionOverrides: [...form.permissionOverrides].sort(
+      (left, right) => left.permissionId.localeCompare(right.permissionId) || left.effect.localeCompare(right.effect),
+    ),
+    roleIds: [...form.roleIds].sort(),
+  })
+}
+
+function roleFormSnapshot(form: RoleFormState) {
+  return JSON.stringify({
+    ...form,
+    permissionIds: [...form.permissionIds].sort(),
+  })
+}
+
+function permissionMatrixSnapshot(allowed: string[], denied: string[]) {
+  return JSON.stringify({
+    allowed: [...allowed].sort(),
+    denied: [...denied].sort(),
+  })
 }
 
 function statusText(accountStatus: AdminUser['accountStatus']) {
@@ -372,7 +401,8 @@ function getRoleSortValue(role: AdminRole, key: RoleColumnKey, roleUserCounts: M
   if (key === 'branchScope') return branchScopeText(role.branchScope)
   if (key === 'permissionCount') return role.permissionIds.length
   if (key === 'users') return roleUserCounts.get(role.id) ?? 0
-  return role.active ? 1 : 0
+  if (key === 'active') return role.active ? 1 : 0
+  return ''
 }
 
 export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
@@ -395,6 +425,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const [permissionSubjectId, setPermissionSubjectId] = useState('')
   const [matrixPermissionIds, setMatrixPermissionIds] = useState<string[]>([])
   const [matrixDeniedPermissionIds, setMatrixDeniedPermissionIds] = useState<string[]>([])
+  const [matrixBaseline, setMatrixBaseline] = useState<string | null>(null)
   const [isSavingMatrix, setIsSavingMatrix] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null)
@@ -404,11 +435,13 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null)
   const [profileImagePreviewUrl, setProfileImagePreviewUrl] = useState<string | null>(null)
+  const [userFormBaseline, setUserFormBaseline] = useState<string | null>(null)
   const [isSavingRole, setIsSavingRole] = useState(false)
   const [roleForm, setRoleForm] = useState<RoleFormState>(emptyRoleForm)
   const [roleFormError, setRoleFormError] = useState<string | null>(null)
   const [roleFormOpen, setRoleFormOpen] = useState(false)
   const [editingRole, setEditingRole] = useState<AdminRole | null>(null)
+  const [roleFormBaseline, setRoleFormBaseline] = useState<string | null>(null)
   const [expandedPermissionSection, setExpandedPermissionSection] = useState<string | null>(null)
   const [selectedPermissionPageHref, setSelectedPermissionPageHref] = useState<string | null>(null)
   const [roleSortDirection, setRoleSortDirection] = useState<SortDirection>('asc')
@@ -417,6 +450,14 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const [userSortKey, setUserSortKey] = useState<UserColumnKey | null>(null)
   const roleColumnResize = useResizableColumns('admin.users-permissions.roles.v1', roleColumns)
   const userColumnResize = useResizableColumns('admin.users-permissions.users.v5', userColumns)
+  const userImageAction: UserImageAction = profileImageFile ? 'replace' : profileImagePreviewUrl ? 'keep' : 'remove'
+  const hasUnsavedUserForm = Boolean(userFormBaseline && userFormBaseline !== userFormSnapshot(form, userImageAction))
+  const hasUnsavedRoleForm = Boolean(roleFormBaseline && roleFormBaseline !== roleFormSnapshot(roleForm))
+  const hasUnsavedMatrix = Boolean(matrixBaseline && matrixBaseline !== permissionMatrixSnapshot(matrixPermissionIds, matrixDeniedPermissionIds))
+  const { requestDiscard: requestDiscardUserForm } = useUnsavedChangesGuard(hasUnsavedUserForm)
+  const { requestDiscard: requestDiscardRoleForm } = useUnsavedChangesGuard(hasUnsavedRoleForm)
+  const { requestDiscard: requestDiscardMatrix } = useUnsavedChangesGuard(hasUnsavedMatrix)
+  const { requestConfirmation } = useActionConfirmation()
 
   useEffect(() => {
     return () => {
@@ -673,9 +714,25 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
           : current)
       }
       setError(getErrorMessage(caught, 'อัปเดตสถานะผู้ใช้ไม่ได้'))
+      throw caught
     } finally {
       setSavingUserId(null)
     }
+  }
+
+  function requestUserStatusUpdate(user: AdminUser, active: boolean) {
+    if (active) {
+      void updateUserStatus(user.id, active).catch(() => undefined)
+      return
+    }
+
+    requestConfirmation({
+      confirmLabel: 'ปิดการใช้งาน',
+      description: `ต้องการปิดการใช้งานผู้ใช้ “${fullName(user)}” ใช่หรือไม่?`,
+      destructive: true,
+      onConfirm: () => updateUserStatus(user.id, active),
+      title: 'ปิดการใช้งานผู้ใช้?',
+    })
   }
 
   async function sendUserInvite(user: AdminUser) {
@@ -738,46 +795,70 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     const passwordActionDisabled = !user.email || user.accountStatus === 'disabled' || actionUserId === user.id
 
     return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <TableActionButton
-            aria-label={`จัดการ ${fullName(user)}`}
-            disabled={actionUserId === user.id}
-            label="จัดการ"
-            mobileLabel={mobileLabel}
-            title="จัดการ"
-          />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-56 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
-          <DropdownMenuItem className="cursor-pointer gap-2 text-slate-700 focus:text-slate-950 dark:text-slate-100 dark:focus:text-white" onSelect={() => openEditUser(user)}>
-            <Pencil aria-hidden="true" className="h-4 w-4" />
-            แก้ไข
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="cursor-pointer gap-2 text-slate-700 focus:text-slate-950 dark:text-slate-100 dark:focus:text-white"
-            disabled={passwordActionDisabled}
-            onSelect={() => void sendUserInvite(user)}
-          >
-            {user.authUserId ? <KeyRound aria-hidden="true" className="h-4 w-4" /> : <Send aria-hidden="true" className="h-4 w-4" />}
-            {actionUserId === user.id ? 'กำลังส่ง...' : userPasswordActionLabel(user)}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <TableActionButton
+        aria-label={`จัดการ ${fullName(user)}`}
+        busy={actionUserId === user.id}
+        disabled={actionUserId === user.id}
+        label="จัดการ"
+        menu={(
+          <>
+            <TableActionMenuItem onSelect={() => openEditUser(user)}>แก้ไข</TableActionMenuItem>
+            <TableActionMenuItem disabled={passwordActionDisabled} onSelect={() => void sendUserInvite(user)}>
+              {actionUserId === user.id ? 'กำลังส่ง...' : userPasswordActionLabel(user)}
+            </TableActionMenuItem>
+          </>
+        )}
+        mobileLabel={mobileLabel}
+        title="จัดการ"
+      />
     )
   }
 
-  function openAddUser() {
+  function closeUserForm() {
+    setUserFormBaseline(null)
+    setFormOpen(false)
     setEditingUser(null)
     setForm(emptyUserForm)
     setProfileImageFile(null)
     setProfileImagePreviewUrl(null)
     setFormError(null)
+  }
+
+  function requestCloseUserForm() {
+    if (isSaving) return
+    requestDiscardUserForm(closeUserForm)
+  }
+
+  function removeProfileImage() {
+    setProfileImageFile(null)
+    setProfileImagePreviewUrl(null)
+    setForm((current) => ({ ...current, profileImageUrl: '' }))
+  }
+
+  function requestRemoveProfileImage() {
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ยืนยันลบรูปภาพ',
+      description: 'รูปประจำตัวนี้จะถูกนำออกจากแบบฟอร์ม และจะมีผลเมื่อกดบันทึกผู้ใช้',
+      destructive: true,
+      onConfirm: removeProfileImage,
+      title: 'ลบรูปประจำตัวนี้หรือไม่?',
+    })
+  }
+
+  function openAddUser() {
+    const nextForm = emptyUserForm
+    setEditingUser(null)
+    setForm(nextForm)
+    setProfileImageFile(null)
+    setProfileImagePreviewUrl(null)
+    setFormError(null)
+    setUserFormBaseline(userFormSnapshot(nextForm, 'remove'))
     setFormOpen(true)
   }
 
   function openEditUser(user: AdminUser) {
-    setEditingUser(user)
-    setForm({
+    const nextForm: UserFormState = {
       active: user.active,
       branchIds: user.branchIds,
       contactLineId: user.contactLineId ?? '',
@@ -792,10 +873,13 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       permissionOverrides: user.permissionOverrides,
       profileImageUrl: user.profileImageUrl ?? '',
       roleIds: user.roles.map((role) => role.id),
-    })
+    }
+    setEditingUser(user)
+    setForm(nextForm)
     setProfileImageFile(null)
     setProfileImagePreviewUrl(user.profileImageUrl ?? null)
     setFormError(null)
+    setUserFormBaseline(userFormSnapshot(nextForm, user.profileImageUrl ? 'keep' : 'remove'))
     setFormOpen(true)
   }
 
@@ -848,9 +932,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       if (existingUser) {
         setSearch(existingUser.email?.trim() || form.email.trim())
         setStatusFilter(existingUser.accountStatus)
-        setFormOpen(false)
-        setEditingUser(null)
-        setFormError(null)
+        closeUserForm()
         setError(duplicateUserMessage(existingUser))
         return
       }
@@ -876,11 +958,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       })
       const savedUser = await readJsonResponse(response, saveUserResultSchema, 'บันทึกผู้ใช้ไม่ได้')
 
-      setFormOpen(false)
-      setEditingUser(null)
-      setForm(emptyUserForm)
-      setProfileImageFile(null)
-      setProfileImagePreviewUrl(null)
+      closeUserForm()
       if (editingUser && editingUser.profileImageUrl && editingUser.profileImageUrl !== profileImageUrl) {
         void fetch('/api/admin/users/profile-image', {
           method: 'DELETE',
@@ -930,27 +1008,46 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     }))
   }
 
-  function openAddRole() {
+  function closeRoleForm() {
+    setRoleFormBaseline(null)
+    setRoleFormOpen(false)
     setEditingRole(null)
     setRoleForm(emptyRoleForm)
     setRoleFormError(null)
     setExpandedPermissionSection(null)
     setSelectedPermissionPageHref(null)
+  }
+
+  function requestCloseRoleForm() {
+    if (isSavingRole) return
+    requestDiscardRoleForm(closeRoleForm)
+  }
+
+  function openAddRole() {
+    const nextForm = emptyRoleForm
+    setEditingRole(null)
+    setRoleForm(nextForm)
+    setRoleFormError(null)
+    setExpandedPermissionSection(null)
+    setSelectedPermissionPageHref(null)
+    setRoleFormBaseline(roleFormSnapshot(nextForm))
     setRoleFormOpen(true)
   }
 
   function openEditRole(role: AdminRole) {
-    setEditingRole(role)
-    setRoleForm({
+    const nextForm: RoleFormState = {
       active: role.active,
       branchScope: role.branchScope === 'own' || role.branchScope === 'custom' ? role.branchScope : 'all',
       description: role.description ?? '',
       name: role.name,
       permissionIds: role.permissionIds,
-    })
+    }
+    setEditingRole(role)
+    setRoleForm(nextForm)
     setRoleFormError(null)
     setExpandedPermissionSection(null)
     setSelectedPermissionPageHref(null)
+    setRoleFormBaseline(roleFormSnapshot(nextForm))
     setRoleFormOpen(true)
   }
 
@@ -979,9 +1076,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         method: editingRole ? 'PATCH' : 'POST',
       })
       await readJsonResponse(response, saveUserResultSchema, 'บันทึกหน้าที่งานไม่ได้')
-      setRoleFormOpen(false)
-      setEditingRole(null)
-      setRoleForm(emptyRoleForm)
+      closeRoleForm()
       await loadData()
     } catch (caught) {
       setRoleFormError(getErrorMessage(caught, 'บันทึกหน้าที่งานไม่ได้'))
@@ -991,21 +1086,31 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   }
 
   function selectPermissionSubject(type: 'role' | 'user', id: string) {
+    if (isSavingMatrix) return
+    requestDiscardMatrix(() => applyPermissionSubject(type, id))
+  }
+
+  function applyPermissionSubject(type: 'role' | 'user', id: string) {
     setPermissionSubjectType(type)
     setPermissionSubjectId(id)
     const role = type === 'role' ? data?.roles.find((item) => item.id === id) : null
     const user = type === 'user' ? data?.users.find((item) => item.id === id) : null
-    setMatrixPermissionIds(role?.permissionIds ?? user?.permissionOverrides.filter((item) => item.effect === 'allow').map((item) => item.permissionId) ?? [])
-    setMatrixDeniedPermissionIds(user?.permissionOverrides.filter((item) => item.effect === 'deny').map((item) => item.permissionId) ?? [])
+    const allowedPermissionIds = role?.permissionIds ?? user?.permissionOverrides.filter((item) => item.effect === 'allow').map((item) => item.permissionId) ?? []
+    const deniedPermissionIds = user?.permissionOverrides.filter((item) => item.effect === 'deny').map((item) => item.permissionId) ?? []
+    setMatrixPermissionIds(allowedPermissionIds)
+    setMatrixDeniedPermissionIds(deniedPermissionIds)
+    setMatrixBaseline(permissionMatrixSnapshot(allowedPermissionIds, deniedPermissionIds))
   }
 
   function toggleMatrixPermission(permissionId: string) {
+    if (isSavingMatrix) return
     setMatrixPermissionIds((current) => current.includes(permissionId) ? current.filter((id) => id !== permissionId) : [...current, permissionId])
     setMatrixDeniedPermissionIds((current) => current.filter((id) => id !== permissionId))
   }
 
   async function savePermissionMatrix() {
     if (!permissionSubjectId) return
+    const savedMatrixSnapshot = permissionMatrixSnapshot(matrixPermissionIds, matrixDeniedPermissionIds)
     setIsSavingMatrix(true)
     try {
       if (permissionSubjectType === 'role') {
@@ -1026,6 +1131,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         await readJsonResponse(response, saveUserResultSchema, 'บันทึกสิทธิ์ผู้ใช้ไม่ได้')
       }
       await loadData()
+      setMatrixBaseline(savedMatrixSnapshot)
     } catch (caught) {
       setError(getErrorMessage(caught, 'บันทึกสิทธิ์ไม่ได้'))
     } finally {
@@ -1121,7 +1227,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
               />
               <BranchSelectCombobox
                 branches={data?.branches ?? []}
-                className="w-[10rem]"
+                className="w-[12rem]"
                 controlSize="filter"
                 includeAllOption
                 inputId="admin-users-branch-filter-desktop"
@@ -1412,13 +1518,13 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       ) : null}
 
       {formOpen ? (
-        <Dialog open={formOpen} onOpenChange={setFormOpen}>
+        <Dialog open={formOpen} onOpenChange={(open) => { if (!open) requestCloseUserForm() }}>
           <DialogContent className="max-w-4xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" hideClose>
             <form className="flex flex-col h-full overflow-hidden" data-ns-field-scope="entry" onSubmit={saveUser}>
               <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 px-5 py-4 text-white shrink-0 dark:border-slate-700 dark:bg-slate-950">
                 <DialogTitle className="text-lg font-bold text-white">{editingUser ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้'}</DialogTitle>
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                  <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700 disabled:opacity-50" disabled={isSaving} type="button" onClick={() => setFormOpen(false)}>ยกเลิก</button>
+                  <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white hover:border-rose-700 hover:bg-rose-700 disabled:opacity-50" disabled={isSaving} type="button" onClick={requestCloseUserForm}>ยกเลิก</button>
                   <button className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50" disabled={isSaving} type="submit">
                     {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
                   </button>
@@ -1479,7 +1585,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                               setFormError(null)
                             }} />
                           </label>
-                          {profileImagePreviewUrl ? <button aria-label="ลบรูป profile" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:bg-slate-800 dark:text-rose-300" title="ลบรูป profile" type="button" onClick={() => { setProfileImageFile(null); setProfileImagePreviewUrl(null); setForm((current) => ({ ...current, profileImageUrl: '' })) }}><Trash2 aria-hidden="true" className="h-3.5 w-3.5" /></button> : null}
+                          {profileImagePreviewUrl ? <button aria-label="ลบรูป profile" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:bg-slate-800 dark:text-rose-300" title="ลบรูป profile" type="button" onClick={requestRemoveProfileImage}><Trash2 aria-hidden="true" className="h-3.5 w-3.5" /></button> : null}
                         </div>
                       </div>
                     </div>
@@ -1633,14 +1739,14 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       ) : null}
 
       {roleFormOpen ? (
-        <Dialog open={roleFormOpen} onOpenChange={setRoleFormOpen}>
+        <Dialog open={roleFormOpen} onOpenChange={(open) => { if (!open) requestCloseRoleForm() }}>
           <DialogContent className="max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" hideClose>
             <form className="flex flex-col h-full overflow-hidden" onSubmit={saveRole}>
               <div data-ns-dialog-header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 px-5 py-4 shrink-0">
                 <DialogTitle className="text-lg font-bold text-slate-100">{editingRole ? 'แก้ไขหน้าที่งาน' : 'เพิ่มหน้าที่งาน'}</DialogTitle>
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                   <ActiveToggle checked={roleForm.active} labelClassName="text-sm font-medium text-current" onChange={(active) => setRoleForm((current) => ({ ...current, active }))} />
-                  <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm text-white hover:bg-rose-700 disabled:opacity-50" disabled={isSavingRole} type="button" onClick={() => setRoleFormOpen(false)}>ยกเลิก</button>
+                  <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm text-white hover:bg-rose-700 disabled:opacity-50" disabled={isSavingRole} type="button" onClick={requestCloseRoleForm}>ยกเลิก</button>
                   <button className="h-9 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50" disabled={isSavingRole} type="submit">{isSavingRole ? 'กำลังบันทึก...' : 'บันทึก'}</button>
                 </div>
               </div>
@@ -1751,12 +1857,12 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                 </colgroup>
                 <thead className="bg-slate-100">
                   <tr>
-                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="ชื่อ" resizeProps={userColumnResize.getResizeHandleProps('name', 'ชื่อ')} sortKey="name" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="left" direction={userSortDirection} label="ชื่อ" resizeProps={userColumnResize.getResizeHandleProps('name', 'ชื่อ')} sortKey="name" onSort={handleUserSort} />
                     <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="ข้อมูลติดต่อ" resizeProps={userColumnResize.getResizeHandleProps('contact', 'ข้อมูลติดต่อ')} sortKey="contact" onSort={handleUserSort} />
                     <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="อีเมล" resizeProps={userColumnResize.getResizeHandleProps('email', 'อีเมล')} sortKey="email" onSort={handleUserSort} />
-                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="ฝ่าย" resizeProps={userColumnResize.getResizeHandleProps('department', 'ฝ่าย')} sortKey="department" onSort={handleUserSort} />
-                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="หน้าที่งาน" resizeProps={userColumnResize.getResizeHandleProps('roles', 'หน้าที่งาน')} sortKey="roles" onSort={handleUserSort} />
-                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="สาขา" resizeProps={userColumnResize.getResizeHandleProps('branches', 'สาขา')} sortKey="branches" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="left" direction={userSortDirection} label="ฝ่าย" resizeProps={userColumnResize.getResizeHandleProps('department', 'ฝ่าย')} sortKey="department" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="left" direction={userSortDirection} label="หน้าที่งาน" resizeProps={userColumnResize.getResizeHandleProps('roles', 'หน้าที่งาน')} sortKey="roles" onSort={handleUserSort} />
+                    <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="left" direction={userSortDirection} label="สาขา" resizeProps={userColumnResize.getResizeHandleProps('branches', 'สาขา')} sortKey="branches" onSort={handleUserSort} />
                     <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="สถานะ" resizeProps={userColumnResize.getResizeHandleProps('active', 'สถานะ')} sortKey="active" onSort={handleUserSort} />
                     <ResizableTableHead activeSortKey={userSortKey ?? undefined} align="center" direction={userSortDirection} label="เข้าสู่ระบบล่าสุด" resizeProps={userColumnResize.getResizeHandleProps('lastLoginAt', 'เข้าสู่ระบบล่าสุด')} sortKey="lastLoginAt" onSort={handleUserSort} />
                     <ResizableTableHead align="center" label="จัดการ" resizeProps={userColumnResize.getResizeHandleProps('action', 'จัดการ')} />
@@ -1776,8 +1882,8 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                         }
                       }}
                     >
-                      <td className="p-3 text-center">
-                        <div className="flex items-center justify-center gap-2">
+                      <td className="p-3 text-left">
+                        <div className="flex items-center justify-start gap-2">
                           {user.profileImageUrl ? (
                             <Image alt="" className="h-9 w-9 rounded-full object-cover ring-1 ring-slate-200" height={36} src={user.profileImageUrl} unoptimized width={36} />
                           ) : (
@@ -1788,17 +1894,17 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                           </div>
                         </div>
                       </td>
-                      <td className="p-3 text-center text-slate-600">
+                      <td className="whitespace-nowrap p-3 text-center text-slate-600">
                         {user.contactPhone || '-'}
                       </td>
                       <td className="p-3 text-center text-slate-600">{user.email || '-'}</td>
-                      <td className="p-3 text-center text-slate-700">{user.department?.name || '-'}</td>
-                      <td className="p-3 text-center text-slate-700">{user.roles.map((role) => role.name).join(', ') || '-'}</td>
-                      <td className="p-3 text-center text-slate-700">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</td>
+                      <td className="p-3 text-left text-slate-700">{user.department?.name || '-'}</td>
+                      <td className="p-3 text-left text-slate-700">{user.roles.map((role) => role.name).join(', ') || '-'}</td>
+                      <td className="p-3 text-left text-slate-700">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</td>
                       <td className="p-3 text-center">
-                        <ActiveToggle checked={user.accountStatus === 'active'} disabled={savingUserId === user.id} label={statusText(user.accountStatus)} onChange={(checked) => void updateUserStatus(user.id, checked)} />
+                        <ActiveToggle checked={user.accountStatus === 'active'} disabled={savingUserId === user.id} label={statusText(user.accountStatus)} onChange={(checked) => requestUserStatusUpdate(user, checked)} />
                       </td>
-                      <td className="p-3 text-center text-slate-600">
+                      <td className="whitespace-nowrap p-3 text-center text-slate-600">
                         <div>{formatDateParts(user.lastLoginAt).date}</div>
                         {formatDateParts(user.lastLoginAt).time ? <div className="text-xs text-slate-400">{formatDateParts(user.lastLoginAt).time}</div> : null}
                       </td>
@@ -1836,7 +1942,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                       <div className="font-bold text-slate-900 text-sm leading-snug">{fullName(user)}</div>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <ActiveToggle checked={user.accountStatus === 'active'} disabled={savingUserId === user.id} label={statusText(user.accountStatus)} onChange={(checked) => void updateUserStatus(user.id, checked)} />
+                      <ActiveToggle checked={user.accountStatus === 'active'} disabled={savingUserId === user.id} label={statusText(user.accountStatus)} onChange={(checked) => requestUserStatusUpdate(user, checked)} />
                     </div>
                   </div>
 
@@ -1864,7 +1970,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     <div className="col-span-2 border-t border-slate-50 pt-2">
                       <div>
                         <span className="text-slate-400 block text-xs uppercase">Login ล่าสุด</span>
-                        <span className="text-slate-600 text-xs">{formatDate(user.lastLoginAt)}</span>
+                        <span className="text-center text-xs text-slate-600 whitespace-nowrap">{formatDate(user.lastLoginAt)}</span>
                       </div>
                     </div>
                     <div className="col-span-2 w-full">{renderUserActions(user, true)}</div>
@@ -1903,9 +2009,9 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
               {selectedMatrixUser?.department ? <span className="text-xs text-slate-500">ฝ่าย: {selectedMatrixUser.department.name}</span> : null}
             </div>
             <div className="overflow-x-auto rounded-md border border-slate-200"><table className="ns-table min-w-full text-sm"><thead className="bg-slate-100"><tr><th className="p-3 text-left">หมวด / หน้า</th>{matrixActions.map((action) => <th key={action} className="p-3 text-center whitespace-nowrap">{action}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">
-              {matrixPages.map((page) => <tr key={page.href}><td className="p-3"><div className="text-xs text-slate-500">{page.sectionLabel}</div><div className="font-medium text-slate-800">{page.icon} {page.label}</div></td>{matrixActions.map((action) => { const permission = page.actions.find((item) => item.action === action); return <td key={action} className="p-3 text-center">{permission ? <input aria-label={`${page.label} ${action}`} checked={matrixPermissionIds.includes(permission.id)} disabled={!permissionSubjectId} type="checkbox" onChange={() => toggleMatrixPermission(permission.id)} /> : '-'}</td> })}</tr>)}
+              {matrixPages.map((page) => <tr key={page.href}><td className="p-3"><div className="text-xs text-slate-500">{page.sectionLabel}</div><div className="font-medium text-slate-800">{page.icon} {page.label}</div></td>{matrixActions.map((action) => { const permission = page.actions.find((item) => item.action === action); return <td key={action} className="p-3 text-center">{permission ? <input aria-label={`${page.label} ${action}`} checked={matrixPermissionIds.includes(permission.id)} disabled={!permissionSubjectId || isSavingMatrix} type="checkbox" onChange={() => toggleMatrixPermission(permission.id)} /> : '-'}</td> })}</tr>)}
             </tbody></table></div>
-            <div className="flex justify-end gap-2"><button className="h-9 rounded-md border border-slate-300 px-4 text-sm" type="button" onClick={() => selectPermissionSubject(permissionSubjectType, permissionSubjectId)}>ยกเลิก</button><button className="h-9 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={!permissionSubjectId || isSavingMatrix} type="button" onClick={() => void savePermissionMatrix()}>{isSavingMatrix ? 'กำลังบันทึก...' : 'บันทึกสิทธิ์'}</button></div>
+            <div className="flex justify-end gap-2"><button className="h-9 rounded-md border border-slate-300 px-4 text-sm" disabled={isSavingMatrix} type="button" onClick={() => selectPermissionSubject(permissionSubjectType, permissionSubjectId)}>ยกเลิก</button><button className="h-9 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={!permissionSubjectId || isSavingMatrix} type="button" onClick={() => void savePermissionMatrix()}>{isSavingMatrix ? 'กำลังบันทึก...' : 'บันทึกสิทธิ์'}</button></div>
           </div>
         ) : null}
         {!isLoading && currentTab === 'roles' && rolesViewTab === 'roles' ? (
@@ -1920,38 +2026,42 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                 </colgroup>
                 <thead className="bg-slate-100">
                   <tr>
-                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} direction={roleSortDirection} label="หน้าที่งาน" resizeProps={roleColumnResize.getResizeHandleProps('name', 'หน้าที่งาน')} sortKey="name" onSort={handleRoleSort} />
-                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} direction={roleSortDirection} label="รายละเอียด" resizeProps={roleColumnResize.getResizeHandleProps('description', 'รายละเอียด')} sortKey="description" onSort={handleRoleSort} />
-                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} direction={roleSortDirection} label="ประเภท" resizeProps={roleColumnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={handleRoleSort} />
-                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} direction={roleSortDirection} label="สาขา" resizeProps={roleColumnResize.getResizeHandleProps('branchScope', 'สาขา')} sortKey="branchScope" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="left" direction={roleSortDirection} label="หน้าที่งาน" resizeProps={roleColumnResize.getResizeHandleProps('name', 'หน้าที่งาน')} sortKey="name" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="left" direction={roleSortDirection} label="รายละเอียด" resizeProps={roleColumnResize.getResizeHandleProps('description', 'รายละเอียด')} sortKey="description" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="center" direction={roleSortDirection} label="ประเภท" resizeProps={roleColumnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={handleRoleSort} />
+                    <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="left" direction={roleSortDirection} label="สาขา" resizeProps={roleColumnResize.getResizeHandleProps('branchScope', 'สาขา')} sortKey="branchScope" onSort={handleRoleSort} />
                     <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="right" direction={roleSortDirection} label="จำนวนสิทธิ์" resizeProps={roleColumnResize.getResizeHandleProps('permissionCount', 'จำนวนสิทธิ์')} sortKey="permissionCount" onSort={handleRoleSort} />
                     <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="right" direction={roleSortDirection} label="ผู้ใช้" resizeProps={roleColumnResize.getResizeHandleProps('users', 'ผู้ใช้')} sortKey="users" onSort={handleRoleSort} />
                     <ResizableTableHead activeSortKey={roleSortKey ?? undefined} align="center" direction={roleSortDirection} label="สถานะ" resizeProps={roleColumnResize.getResizeHandleProps('active', 'สถานะ')} sortKey="active" onSort={handleRoleSort} />
+                    <ResizableTableHead align="center" label="จัดการ" resizeProps={roleColumnResize.getResizeHandleProps('action', 'จัดการ')} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {departmentRoles.map((role) => (
                     <tr key={role.id} className="align-top hover:bg-slate-50">
                       <td className="p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="font-bold text-slate-900">{role.name}</div>
-                          <button className="text-xs font-semibold text-blue-700 hover:underline" type="button" onClick={() => openEditRole(role)}>แก้ไข</button>
-                        </div>
+                        <div className="font-bold text-slate-900">{role.name}</div>
                         <div className="mt-0.5 font-mono text-xs text-slate-500">{role.code}</div>
                       </td>
                       <td className="max-w-[280px] p-3 text-slate-600 leading-normal">{role.description || '-'}</td>
-                      <td className="p-3">
+                      <td className="p-3 text-center">
                         <span className={`rounded px-2 py-0.5 text-xs font-bold ${role.isSystem ? 'bg-slate-200 text-slate-700' : 'bg-blue-100 text-blue-700'}`}>
                           {role.isSystem ? 'SYSTEM' : 'CUSTOM'}
                         </span>
                       </td>
                       <td className="p-3 text-slate-700">{branchScopeText(role.branchScope)}</td>
-                      <td className="p-3 text-right font-bold text-slate-800">{role.permissionIds.length}</td>
-                      <td className="p-3 text-right font-bold text-slate-800">{roleUserCounts.get(role.id) ?? 0}</td>
+                      <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-slate-800">{role.permissionIds.length}</td>
+                      <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-slate-800">{roleUserCounts.get(role.id) ?? 0}</td>
                       <td className="p-3 text-center">
                         <span className={`rounded px-2.5 py-0.5 text-xs font-bold ${role.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
                           {role.active ? 'ใช้งาน' : 'ปิด'}
                         </span>
+                      </td>
+                      <td className="p-3 text-center">
+                        <TableActionButton
+                          aria-label={`จัดการ ${role.name}`}
+                          menu={<TableActionMenuItem onSelect={() => openEditRole(role)}>แก้ไข</TableActionMenuItem>}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -2000,6 +2110,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     </div>
                   </div>
                   <TableActionButton
+                    aria-label={`จัดการ ${role.name}`}
                     mobileLabel
                     menu={<TableActionMenuItem onSelect={() => openEditRole(role)}>แก้ไข</TableActionMenuItem>}
                   />

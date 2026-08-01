@@ -134,6 +134,13 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - Source links to SB/RCP/customer advance allocation are available in row detail; export/source-link depth can still be expanded later.
 - Need created date in list/detail/export.
 
+## Foreign Receipt Contract 2026-07-30
+
+- AR remains a THB read model: `sales_bills.receivable_balance` is the only visible-balance source for table, KPI and export.
+- A foreign RCP can close a THB Sales Bill at the receipt-day rate. Its native amount, rate, settlement THB and settlement FX are audit facts on the RCP, not a currency conversion of the Sales Bill.
+- RCP drilldown may show `receipt_currency_code`, `received_native_amount`, `fx_rate`, `settlement_book_amount` and `settlement_fx_difference`. This information is detail-only and must not add a currency column or native aggregate to AR.
+- Revaluation and FCD conversion never amend the settled Sales Bill or its AR amount.
+
 ## Drilldown Scope Hydration 2026-07-17
 
 - What is what: `/finance/ar` accepts outward `from`, `to`, and branch-code `branchId` from a related-report URL and initializes the AR client with them before its first request.

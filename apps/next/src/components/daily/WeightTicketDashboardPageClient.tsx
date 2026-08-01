@@ -658,8 +658,8 @@ function FlowTablePanel({
           </colgroup>
           <thead className="border-b border-slate-200 bg-slate-100 text-slate-700">
             <tr>
-              <ResizableTableHead label="เลขที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่เอกสาร')} />
-              <ResizableTableHead label="วันที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
+              <ResizableTableHead align="center" label="เลขที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่เอกสาร')} />
+              <ResizableTableHead align="center" label="วันที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
               <ResizableTableHead className={leftAlignParty ? 'ns-table-textual-column' : undefined} label="คู่ค้า" resizeProps={columnResize.getResizeHandleProps('party', 'คู่ค้า')} />
               <ResizableTableHead label="สาขา" resizeProps={columnResize.getResizeHandleProps('branch', 'สาขา')} />
               <ResizableTableHead align="right" label={followUpLabel} resizeProps={columnResize.getResizeHandleProps('followUp', followUpLabel)} />
@@ -672,13 +672,13 @@ function FlowTablePanel({
             {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={7}>{emptyText}</td></tr> : null}
             {!isLoading && pageRows.map((row) => (
               <tr key={row.docNo} className="hover:bg-slate-50">
-                <td className="p-2.5">
+                <td className="whitespace-nowrap p-2.5 text-center">
                   <Link className="inline-flex min-w-0 items-center gap-1 font-semibold text-blue-700 hover:text-blue-900" href={row.href}>
-                    <span className="truncate">{row.docNo}</span>
+                    <span className="whitespace-nowrap font-mono">{row.docNo}</span>
                     <ArrowUpRight className="size-3.5 shrink-0" />
                   </Link>
                 </td>
-                <td className="p-2.5 whitespace-nowrap">{formatDateDisplay(row.date)}</td>
+                <td className="whitespace-nowrap p-2.5 text-center">{formatDateDisplay(row.date)}</td>
                 <td className={leftAlignParty ? 'ns-table-textual-column min-w-0 p-2.5' : 'min-w-0 p-2.5'}><div className="truncate" title={row.partyName}>{row.partyName}</div></td>
                 <td className="min-w-0 p-2.5"><div className="truncate" title={row.branchName}>{row.branchName}</div></td>
                 <td className={`p-2.5 text-right font-mono font-bold tabular-nums ${followUpTextClass}`}>{weightText(row.followUpWeight)}</td>
@@ -699,7 +699,7 @@ function FlowTablePanel({
           <Link key={row.docNo} className="block space-y-3 p-4 hover:bg-slate-50" href={row.href}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="truncate text-sm font-bold text-blue-700">{row.docNo}</div>
+                <div className="whitespace-nowrap text-sm font-bold text-blue-700">{row.docNo}</div>
                 <div className="mt-0.5 truncate text-xs text-slate-500">{formatDateDisplay(row.date)} · {row.branchName}</div>
               </div>
               <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ${row.followUpWeight > 0.0001 ? followUpBadgeClass : 'bg-slate-100 text-slate-700'}`}>{row.warning}</span>

@@ -27,7 +27,7 @@ import {
   updateMasterDataStatusSchema,
 } from '@/lib/server/master-data'
 
-type SimpleMasterKind = 'accountSubtypes' | 'bankNames' | 'directors' | 'expenseTypes' | 'machineTypes' | 'machines' | 'paymentMethods' | 'productionLines' | 'productTypes' | 'productUnits' | 'remittancePurposes' | 'vatSettings' | 'whtSettings'
+type SimpleMasterKind = 'bankNames' | 'directors' | 'expenseTypes' | 'machineTypes' | 'machines' | 'paymentMethods' | 'productionLines' | 'productTypes' | 'productUnits' | 'remittancePurposes' | 'vatSettings' | 'whtSettings'
 
 type Delegate = {
   findMany: (args?: unknown) => Promise<unknown[]>
@@ -146,30 +146,6 @@ function validateSimpleMasterValues(kind: SimpleMasterKind, values: SimpleMaster
 }
 
 const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
-  accountSubtypes: {
-    delegate: () => prisma.account_subtypes as Delegate,
-    prefix: 'AST-',
-    orderBy: [{ sort_order: 'asc' }, { code: 'asc' }],
-    lookupKey: 'code',
-    map: (row) => {
-      const record = asRecord(row)
-      return {
-        id: record.code,
-        code: record.code,
-        name: record.name,
-        sortOrder: toNumber(record.sort_order as number | null),
-        active: record.active,
-        createdAt: toIso(record.created_at as Date | null),
-        updatedAt: toIso(record.updated_at as Date | null),
-      }
-    },
-    data: (values, _id, code) => ({
-      code,
-      name: values.name,
-      sort_order: values.sortOrder ?? 0,
-      active: values.active,
-    }),
-  },
   bankNames: {
     delegate: () => prisma.bank_names as Delegate,
     prefix: 'BANK-',

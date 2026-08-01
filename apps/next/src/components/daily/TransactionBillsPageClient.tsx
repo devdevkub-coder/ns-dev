@@ -22,6 +22,7 @@ import { CollapsedList } from '@/components/ui/CollapsedList'
 import { Table, TableBody, TableHeader, TableRow } from '@/components/ui/Table'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/Tooltip'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { useActionConfirmation, useUnsavedChangesGuard, type FormSafetyConfirmation } from '@/components/ui/FormSafetyProvider'
 import { SELECTED_BRANCH_KEY } from '@/lib/branch-selection'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { cachedPurchaseBillOptions, invalidatePurchaseBillOptionsCache } from '@/lib/purchase-bill-options-cache'
@@ -60,6 +61,7 @@ type BillRow = {
   subtotal?: number
   items?: Array<Partial<PurchaseBillFormValues['items'][number]> & {
     amount?: number
+    lineNo?: number
     netAmount?: number
     netWeight?: number
     productCode?: string
@@ -315,6 +317,7 @@ type ReceiptOption = {
     usedQty: number
   }>
   productSummaries: Array<{
+    baseWeight: number
     billedWeight: number
     deductWeight: number
     grossWeight: number
@@ -431,6 +434,235 @@ const blankItem = (): PurchaseBillFormValues['items'][number] => ({
   receiptTicketId: null,
   salesPrice: 0,
 })
+
+export type PurchaseBillDeletionLine = Pick<
+  PurchaseBillFormValues['items'][number],
+  | 'deductWeight'
+  | 'discount'
+  | 'displayName'
+  | 'grossWeight'
+  | 'lotNo'
+  | 'note'
+  | 'poBuyId'
+  | 'price'
+  | 'productId'
+  | 'qty'
+  | 'salesPrice'
+>
+
+export type PurchaseStockAllocationDeletionLine = Pick<
+  PurchaseBillFormValues['items'][number],
+  'discount' | 'note' | 'poBuyId' | 'price' | 'qty' | 'salesPrice'
+>
+
+export type SalesBillDeletionLine = Pick<
+  SalesBillFormValues['items'][number],
+  | 'deductWeight'
+  | 'discount'
+  | 'grossWeight'
+  | 'netWeight'
+  | 'note'
+  | 'poSellId'
+  | 'price'
+  | 'productId'
+  | 'qty'
+  | 'tradingCostSourceId'
+>
+
+export type SalesStockAllocationDeletionLine = Pick<
+  SalesBillFormValues['items'][number],
+  'deductWeight' | 'discount' | 'netWeight' | 'note' | 'poSellId' | 'price' | 'qty'
+>
+
+export type PurchaseBillSourceResetDraft = Pick<
+  PurchaseBillFormValues,
+  | 'discountTotal'
+  | 'hasVat'
+  | 'items'
+  | 'note'
+  | 'notes'
+  | 'receiptTicketId'
+  | 'transactionMode'
+  | 'vatInvoiceDate'
+  | 'vatInvoiceNo'
+  | 'vatInvoiceReceived'
+  | 'vatType'
+>
+
+export type SalesBillSourceResetDraft = Pick<
+  SalesBillFormValues,
+  | 'branchId'
+  | 'customerId'
+  | 'deliveryTicketId'
+  | 'discountTotal'
+  | 'items'
+  | 'note'
+  | 'transactionMode'
+>
+
+function hasEnteredText(value: string | null | undefined) {
+  return Boolean(value?.trim())
+}
+
+export function shouldConfirmPurchaseBillItemRemoval(item: PurchaseBillDeletionLine) {
+  return Boolean(
+    hasEnteredText(item.productId)
+    || hasEnteredText(item.displayName)
+    || hasEnteredText(item.lotNo)
+    || hasEnteredText(item.note)
+    || item.poBuyId
+    || item.grossWeight !== 0
+    || item.deductWeight !== 0
+    || item.qty !== 0
+    || item.price !== 0
+    || item.salesPrice !== 0
+    || item.discount !== 0,
+  )
+}
+
+export function shouldConfirmPurchaseStockAllocationRemoval(item: PurchaseStockAllocationDeletionLine) {
+  return Boolean(
+    item.poBuyId
+    || hasEnteredText(item.note)
+    || item.qty !== 0
+    || item.price !== 0
+    || item.salesPrice !== 0
+    || item.discount !== 0,
+  )
+}
+
+export function shouldConfirmTradingPurchaseSelectorRemoval(sourceId: string) {
+  return hasEnteredText(sourceId)
+}
+
+export function shouldConfirmSalesBillItemRemoval(item: SalesBillDeletionLine) {
+  return Boolean(
+    hasEnteredText(item.productId)
+    || hasEnteredText(item.note)
+    || item.poSellId
+    || item.tradingCostSourceId
+    || item.grossWeight !== 0
+    || item.deductWeight !== 0
+    || item.netWeight !== 0
+    || item.qty !== 0
+    || item.price !== 0
+    || item.discount !== 0,
+  )
+}
+
+export function shouldConfirmSalesStockAllocationRemoval(item: SalesStockAllocationDeletionLine) {
+  return Boolean(
+    item.poSellId
+    || hasEnteredText(item.note)
+    || item.netWeight !== 0
+    || item.deductWeight !== 0
+    || item.qty !== 0
+    || item.price !== 0
+    || item.discount !== 0,
+  )
+}
+
+function hasPurchaseBillDraftContent(form: PurchaseBillSourceResetDraft) {
+  return Boolean(
+    form.receiptTicketId
+    || form.items.some((item) => (
+      Boolean(item.receiptTicketId || item.receiptSummaryId || item.receiptLineId)
+      || shouldConfirmPurchaseBillItemRemoval(item)
+    ))
+    || hasEnteredText(form.note)
+    || hasEnteredText(form.notes)
+    || form.discountTotal !== 0
+    || form.hasVat
+    || form.vatInvoiceReceived
+    || hasEnteredText(form.vatInvoiceNo)
+    || hasEnteredText(form.vatInvoiceDate)
+    || form.vatType !== 'NONE'
+  )
+}
+
+function hasSalesBillDraftContent(form: SalesBillSourceResetDraft) {
+  return Boolean(
+    form.deliveryTicketId
+    || form.items.some((item) => (
+      Boolean(item.deliveryTicketId || item.deliverySummaryId || item.deliveryLineId)
+      || shouldConfirmSalesBillItemRemoval(item)
+    ))
+    || hasEnteredText(form.note)
+    || form.discountTotal !== 0
+  )
+}
+
+export function shouldConfirmPurchaseStockReceiptClear(form: PurchaseBillSourceResetDraft) {
+  return hasPurchaseBillDraftContent(form)
+}
+
+export function shouldConfirmPurchaseBillSourceChange<K extends keyof PurchaseBillFormValues>(
+  form: PurchaseBillSourceResetDraft,
+  key: K,
+  value: PurchaseBillFormValues[K],
+) {
+  if (key === 'transactionMode') {
+    return value !== form.transactionMode && hasPurchaseBillDraftContent(form)
+  }
+
+  if (key === 'receiptTicketId') {
+    return value !== form.receiptTicketId && Boolean(form.receiptTicketId) && hasPurchaseBillDraftContent(form)
+  }
+
+  return false
+}
+
+export function shouldConfirmSalesBillSourceChange<K extends keyof SalesBillFormValues>(
+  form: SalesBillSourceResetDraft,
+  key: K,
+  value: SalesBillFormValues[K],
+) {
+  if (key === 'transactionMode') {
+    return value !== form.transactionMode && hasSalesBillDraftContent(form)
+  }
+
+  if (key === 'deliveryTicketId') {
+    return value !== form.deliveryTicketId && hasSalesBillDraftContent(form)
+  }
+
+  if (key === 'branchId') {
+    return value !== form.branchId && hasSalesBillDraftContent(form)
+  }
+
+  if (key === 'customerId') {
+    return value !== form.customerId && hasSalesBillDraftContent(form)
+  }
+
+  return false
+}
+
+export function requestDraftSourceChange(
+  shouldConfirm: boolean,
+  requestConfirmation: (confirmation: FormSafetyConfirmation) => void,
+  confirmation: Omit<FormSafetyConfirmation, 'onConfirm'>,
+  onApply: () => void,
+) {
+  if (!shouldConfirm) {
+    onApply()
+    return
+  }
+
+  requestConfirmation({ ...confirmation, onConfirm: onApply })
+}
+
+export function requestLocalRowRemoval(
+  shouldConfirm: boolean,
+  requestConfirmation: (confirmation: FormSafetyConfirmation) => void,
+  confirmation: Omit<FormSafetyConfirmation, 'onConfirm'>,
+  onRemove: () => void,
+) {
+  if (!shouldConfirm) {
+    onRemove()
+    return
+  }
+
+  requestConfirmation({ ...confirmation, onConfirm: onRemove })
+}
 
 const purchaseBillColumns: Array<ResizableColumnDefinition<TransactionBillColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
@@ -744,6 +976,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [filterMode, setFilterMode] = useState('')
   const [form, setForm] = useState<PurchaseBillFormValues>(initialPurchaseForm())
+  const [purchaseFormBaseline, setPurchaseFormBaseline] = useState<string | null>(null)
   const [editingBillId, setEditingBillId] = useState<string | null>(null)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
@@ -759,6 +992,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [salesFieldErrors, setSalesFieldErrors] = useState<Record<string, string>>({})
   const [editingSalesBillId, setEditingSalesBillId] = useState<string | null>(null)
   const [salesForm, setSalesForm] = useState<SalesBillFormValues>(initialSalesForm())
+  const [salesFormBaseline, setSalesFormBaseline] = useState<string | null>(null)
   const [tradingPurchaseSelectorIds, setTradingPurchaseSelectorIds] = useState<string[]>([''])
   const [lockedDeliverySnapshot, setLockedDeliverySnapshot] = useState<DeliveryOption | null>(null)
   const [lockedPoSellOptions, setLockedPoSellOptions] = useState<Option[]>([])
@@ -783,6 +1017,14 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     if (mode === 'purchase') return purchaseBillColumns
     return salesBillColumns
   }, [mode])
+  const purchaseFormSnapshot = useMemo(() => JSON.stringify({ form, supplierSwapMode, supplierSwapSupplierId }), [form, supplierSwapMode, supplierSwapSupplierId])
+  const salesFormSnapshot = useMemo(() => JSON.stringify({ form: salesForm, tradingPurchaseSelectorIds }), [salesForm, tradingPurchaseSelectorIds])
+  const hasUnsavedPurchaseForm = showForm && purchaseFormBaseline !== null && purchaseFormBaseline !== purchaseFormSnapshot
+  const hasUnsavedSalesForm = showSalesForm && salesFormBaseline !== null && salesFormBaseline !== salesFormSnapshot
+  const { requestDiscard: requestDiscardPurchaseForm } = useUnsavedChangesGuard(hasUnsavedPurchaseForm)
+  const { requestDiscard: requestDiscardSalesForm } = useUnsavedChangesGuard(hasUnsavedSalesForm)
+  const { requestDiscard: requestDiscardCancelNote } = useUnsavedChangesGuard(Boolean(cancelingBill && cancelNote.trim()))
+  const { requestConfirmation } = useActionConfirmation()
   const columnResize = useResizableColumns(`daily.transaction-bills.${mode}.v5`, tableColumns)
   const apiPath = mode === 'purchase' ? '/api/purchase/bills' : '/api/sales/bills'
   const requestPath = useMemo(() => {
@@ -881,9 +1123,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     void loadData()
   }, [loadData])
 
-  const loadPurchaseOptions = useCallback(async () => {
+  const loadPurchaseOptions = useCallback(async ({ bypassCache = false }: { bypassCache?: boolean } = {}) => {
     if (mode !== 'purchase') return null
-    if (!purchaseOptionsRequestRef.current) {
+    if (bypassCache) {
+      purchaseOptionsRequestRef.current = dailyFetchJson<PurchasePayload>('/api/purchase/bills/options')
+    } else if (!purchaseOptionsRequestRef.current) {
       purchaseOptionsRequestRef.current = cachedPurchaseBillOptions<PurchasePayload>('/api/purchase/bills/options')
     }
     const payload = await purchaseOptionsRequestRef.current
@@ -1169,6 +1413,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         productName: activeProducts.find((product) => product.id === item.productId)?.name ?? item.productId,
         remainingWeight: item.qty,
         sourceLineIds: item.receiptLineIds,
+        baseWeight: item.grossWeight,
       })
     })
     return {
@@ -1381,16 +1626,25 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     if (handledAutoOpenRef.current === autoOpenKey) return
 
     if (mode === 'purchase') {
-      handledAutoOpenRef.current = autoOpenKey
-      const receipt = options.receipts.find((option) => option.id === targetDocNo || option.documentNo === targetDocNo)
-      if (!receipt) {
-        setError(`ไม่พบ WTI ${targetDocNo} หรือเอกสารถูกนำไปเปิดบิลแล้ว`)
-        clearAutoOpenSearchParams()
-        return
-      }
-      openPurchaseFormFromReceipt(receipt)
-      clearAutoOpenSearchParams()
-      return
+      let cancelled = false
+      void loadPurchaseOptions({ bypassCache: true })
+        .then((payload) => {
+          if (cancelled) return
+          handledAutoOpenRef.current = autoOpenKey
+          const receipt = payload?.receipts.find((option) => option.id === targetDocNo || option.documentNo === targetDocNo)
+          if (!receipt) {
+            setError(`ไม่พบ WTI ${targetDocNo} หรือเอกสารถูกนำไปเปิดบิลแล้ว`)
+            clearAutoOpenSearchParams()
+            return
+          }
+          openPurchaseFormFromReceipt(receipt)
+          clearAutoOpenSearchParams()
+        })
+        .catch((caught) => {
+          if (cancelled) return
+          setError(caught instanceof Error ? caught.message : 'โหลดตัวเลือกบิลซื้อไม่ได้')
+        })
+      return () => { cancelled = true }
     }
 
     let cancelled = false
@@ -1416,6 +1670,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     clearAutoOpenSearchParams,
     isLoading,
     loadSalesOptions,
+    loadPurchaseOptions,
     mode,
     openPurchaseFormFromReceipt,
     openSalesFormFromDelivery,
@@ -1572,7 +1827,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       deductWeight: summary.deductWeight,
       discount: 0,
       displayName: null,
-      grossWeight: summary.grossWeight,
+      grossWeight: summary.baseWeight,
       lotNo: null,
       note: null,
       poBuyId: null,
@@ -1750,11 +2005,13 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   }
 
   async function openPurchaseForm() {
+    const nextForm = { ...initialPurchaseForm(), branchId: resolvedPreferredBranchId ?? '' }
     setEditingBillId(null)
     setSupplierSwapMode(false)
     setSupplierSwapSupplierId('')
     setLockedReceiptSnapshot(null)
-    setForm({ ...initialPurchaseForm(), branchId: resolvedPreferredBranchId ?? '' })
+    setForm(nextForm)
+    setPurchaseFormBaseline(JSON.stringify({ form: nextForm, supplierSwapMode: false, supplierSwapSupplierId: '' }))
     setFieldErrors({})
     setError(null)
     setShowForm(true)
@@ -1762,12 +2019,14 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   }
 
   async function openSalesForm() {
+    const nextForm = { ...initialSalesForm(), branchId: resolvedPreferredBranchId ?? '' }
     setEditingSalesBillId(null)
     setLockedDeliverySnapshot(null)
     setLockedPoSellOptions([])
     setLockedReceiptSnapshot(null)
-    setSalesForm({ ...initialSalesForm(), branchId: resolvedPreferredBranchId ?? '' })
+    setSalesForm(nextForm)
     setTradingPurchaseSelectorIds([''])
+    setSalesFormBaseline(JSON.stringify({ form: nextForm, tradingPurchaseSelectorIds: [''] }))
     setSalesFieldErrors({})
     setError(null)
     try {
@@ -1777,6 +2036,46 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       setError(caught instanceof Error ? caught.message : 'โหลดตัวเลือกบิลขายไม่ได้')
     }
   }
+
+  const closePurchaseFormNow = useCallback(() => {
+    if (isSaving) return
+    setError(null)
+    setSupplierSwapMode(false)
+    setSupplierSwapSupplierId('')
+    setLockedReceiptSnapshot(null)
+    setPurchaseFormBaseline(null)
+    setShowForm(false)
+  }, [isSaving])
+
+  const requestClosePurchaseForm = useCallback(() => {
+    if (isSaving) return
+    requestDiscardPurchaseForm(closePurchaseFormNow)
+  }, [isSaving, requestDiscardPurchaseForm, closePurchaseFormNow])
+
+  const closeSalesFormNow = useCallback(() => {
+    if (isSaving) return
+    setError(null)
+    setLockedPoSellOptions([])
+    setSalesFormBaseline(null)
+    setShowSalesForm(false)
+  }, [isSaving])
+
+  const requestCloseSalesForm = useCallback(() => {
+    if (isSaving) return
+    requestDiscardSalesForm(closeSalesFormNow)
+  }, [isSaving, requestDiscardSalesForm, closeSalesFormNow])
+
+  useEffect(() => {
+    if (!showForm && !showSalesForm) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || document.querySelector('[role="dialog"]')) return
+      event.preventDefault()
+      if (showForm) requestClosePurchaseForm()
+      if (showSalesForm) requestCloseSalesForm()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [requestClosePurchaseForm, requestCloseSalesForm, showForm, showSalesForm])
 
   function salesDeliverySnapshotFromDetail(detail: SalesBillDetail): DeliveryOption | null {
     const deliveryItems = detail.items.filter((item) => item.deliveryTicketDocNo)
@@ -1956,11 +2255,13 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         dailyFetchJson<SalesBillDetail>(`/api/sales/bills/${encodeURIComponent(docNo)}`),
         loadSalesOptions(),
       ])
+      const nextForm = salesFormFromDetail(detail, row)
       setEditingSalesBillId(docNo)
       setLockedDeliverySnapshot(salesDeliverySnapshotFromDetail(detail))
       setLockedPoSellOptions(salesPoSellOptionsFromDetail(detail))
-      setSalesForm(salesFormFromDetail(detail, row))
+      setSalesForm(nextForm)
       setTradingPurchaseSelectorIds([''])
+      setSalesFormBaseline(JSON.stringify({ form: nextForm, tradingPurchaseSelectorIds: [''] }))
       setSalesFieldErrors({})
       setShowSalesForm(true)
     } catch (caught) {
@@ -1970,12 +2271,18 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     }
   }
 
-  function purchaseFormFromRow(row: BillRow): PurchaseBillFormValues {
-    const items = (row.items?.length ? row.items : []).map((item) => ({
+  function purchaseFormFromRow(row: BillRow, detail?: PurchaseBillDetail): PurchaseBillFormValues {
+    const items = (row.items?.length ? row.items : []).map((item, index) => ({
       deductWeight: Number(item.deductWeight ?? 0),
       discount: 0,
       displayName: item.displayName ?? null,
-      grossWeight: Number(item.grossWeight ?? item.qty ?? ('netWeight' in item ? item.netWeight : 0) ?? 0),
+      grossWeight: Number(
+        detail?.allocationRows.find((allocation) => allocation.lineNo === item.lineNo)?.grossWeight
+        ?? item.grossWeight
+        ?? item.qty
+        ?? ('netWeight' in item ? item.netWeight : 0)
+        ?? 0,
+      ),
       lotNo: item.lotNo ?? null,
       note: item.note ?? null,
       poBuyId: item.poBuyId ?? null,
@@ -2045,6 +2352,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         productName,
         remainingWeight: item.qty,
         sourceLineIds: item.receiptLineIds,
+        baseWeight: item.grossWeight,
       })
     })
 
@@ -2077,20 +2385,33 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     }
   }
 
-  function openEditPurchaseForm(row: BillRow) {
+  async function openEditPurchaseForm(row: BillRow) {
     if (row.canEdit === false) {
       setError(row.lockedReason ?? 'บิลนี้ยังแก้ไขไม่ได้')
       return
     }
-    setEditingBillId(row.id)
-    setSupplierSwapMode(false)
-    setSupplierSwapSupplierId('')
-    const nextForm = purchaseFormFromRow(row)
-    setLockedReceiptSnapshot(receiptSnapshotFromPurchaseForm(row, nextForm))
-    setForm(nextForm)
-    setFieldErrors({})
+    const docNo = row.docNo || row.id
+    setIsDetailLoading(true)
     setError(null)
-    setShowForm(true)
+    try {
+      const [detail] = await Promise.all([
+        dailyFetchJson<PurchaseBillDetail>(`/api/purchase/bills/${encodeURIComponent(docNo)}`),
+        loadPurchaseOptions(),
+      ])
+      setEditingBillId(row.id)
+      setSupplierSwapMode(false)
+      setSupplierSwapSupplierId('')
+      const nextForm = purchaseFormFromRow(row, detail)
+      setLockedReceiptSnapshot(receiptSnapshotFromPurchaseForm(row, nextForm))
+      setForm(nextForm)
+      setPurchaseFormBaseline(JSON.stringify({ form: nextForm, supplierSwapMode: false, supplierSwapSupplierId: '' }))
+      setFieldErrors({})
+      setShowForm(true)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลบิลรับซื้อเพื่อแก้ไขไม่ได้')
+    } finally {
+      setIsDetailLoading(false)
+    }
   }
 
   function openCancelPurchaseBill(row: BillRow) {
@@ -2151,18 +2472,48 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   }
 
   function clearSelectedStockReceipt() {
-    setForm((current) => {
-      const next = { ...current }
-      resetStockDependentFields(next)
-      return next
-    })
-    setFieldErrors((current) => ({
-      ...current,
-      items: '',
-      note: '',
-      notes: '',
-      receiptTicketId: '',
-    }))
+    const clear = () => {
+      setForm((current) => {
+        const next = { ...current }
+        resetStockDependentFields(next)
+        return next
+      })
+      setFieldErrors((current) => ({
+        ...current,
+        items: '',
+        note: '',
+        notes: '',
+        receiptTicketId: '',
+      }))
+    }
+
+    requestDraftSourceChange(
+      shouldConfirmPurchaseStockReceiptClear(form),
+      requestConfirmation,
+      {
+        cancelLabel: 'ไม่ล้าง',
+        confirmLabel: 'ล้างใบรับของ',
+        description: 'รายการจากใบรับของ รวมถึงส่วนลด ภาษี และหมายเหตุที่กรอกไว้จะถูกล้างออกจากร่างบิลรับซื้อ',
+        destructive: true,
+        title: 'ยืนยันการล้างใบรับของ',
+      },
+      clear,
+    )
+  }
+
+  function requestPurchaseFormSourceChange<K extends keyof PurchaseBillFormValues>(key: K, value: PurchaseBillFormValues[K]) {
+    requestDraftSourceChange(
+      shouldConfirmPurchaseBillSourceChange(form, key, value),
+      requestConfirmation,
+      {
+        cancelLabel: 'คงค่าเดิม',
+        confirmLabel: 'เปลี่ยนและล้างข้อมูล',
+        description: 'การเปลี่ยนประเภทบิลหรือใบรับของจะล้างรายการและข้อมูลที่เกี่ยวข้องในร่างบิลรับซื้อ',
+        destructive: true,
+        title: 'ยืนยันการเปลี่ยนแหล่งข้อมูลบิลรับซื้อ',
+      },
+      () => updateForm(key, value),
+    )
   }
 
   function updateForm<K extends keyof PurchaseBillFormValues>(key: K, value: PurchaseBillFormValues[K]) {
@@ -2335,16 +2686,30 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   }
 
   function removeStockAllocationRow(index: number) {
-    setForm((current) => {
-      const source = current.items[index]
-      if (!source) return current
-      const summaryId = source.receiptSummaryId ?? source.receiptLineId ?? null
-      if (!summaryId) return current
-      const summaryRowCount = current.items.filter((item) => (item.receiptSummaryId ?? item.receiptLineId) === summaryId).length
-      if (summaryRowCount <= 1) return current
-      return { ...current, items: current.items.filter((_item, itemIndex) => itemIndex !== index) }
-    })
-    setFieldErrors({})
+    const source = form.items[index]
+    const summaryId = source?.receiptSummaryId ?? source?.receiptLineId ?? null
+    const summaryRowCount = summaryId
+      ? form.items.filter((item) => (item.receiptSummaryId ?? item.receiptLineId) === summaryId).length
+      : 0
+    if (!source || !summaryId || summaryRowCount <= 1) return
+
+    const remove = () => {
+      setForm((current) => ({ ...current, items: current.items.filter((_item, itemIndex) => itemIndex !== index) }))
+      setFieldErrors({})
+    }
+
+    requestLocalRowRemoval(
+      shouldConfirmPurchaseStockAllocationRemoval(source),
+      requestConfirmation,
+      {
+        cancelLabel: 'ไม่ลบ',
+        confirmLabel: 'ลบรายการ',
+        description: 'รายการจัดสรรที่กรอกไว้จะถูกลบออกจากร่างบิลรับซื้อ',
+        destructive: true,
+        title: 'ยืนยันการลบรายการจัดสรรบิลรับซื้อ',
+      },
+      remove,
+    )
   }
 
   function updateItemWeights(index: number, key: 'deductWeight' | 'grossWeight', value: number) {
@@ -2360,7 +2725,22 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   }
 
   function removeItem(index: number) {
-    setForm((current) => ({ ...current, items: current.items.filter((_item, itemIndex) => itemIndex !== index) }))
+    const source = form.items[index]
+    if (!source) return
+
+    const remove = () => setForm((current) => ({ ...current, items: current.items.filter((_item, itemIndex) => itemIndex !== index) }))
+    requestLocalRowRemoval(
+      shouldConfirmPurchaseBillItemRemoval(source),
+      requestConfirmation,
+      {
+        cancelLabel: 'ไม่ลบ',
+        confirmLabel: 'ลบรายการ',
+        description: 'รายการสินค้าที่กรอกไว้จะถูกลบออกจากร่างบิลรับซื้อ',
+        destructive: true,
+        title: 'ยืนยันการลบรายการสินค้าบิลรับซื้อ',
+      },
+      remove,
+    )
   }
 
   function updateSalesForm<K extends keyof SalesBillFormValues>(key: K, value: SalesBillFormValues[K]) {
@@ -2454,6 +2834,21 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       [key]: '',
       ...(key === 'customerId' ? { channelId: '' } : {}),
     }))
+  }
+
+  function requestSalesFormSourceChange<K extends keyof SalesBillFormValues>(key: K, value: SalesBillFormValues[K]) {
+    requestDraftSourceChange(
+      shouldConfirmSalesBillSourceChange(salesForm, key, value),
+      requestConfirmation,
+      {
+        cancelLabel: 'คงค่าเดิม',
+        confirmLabel: 'เปลี่ยนและล้างข้อมูล',
+        description: 'การเปลี่ยนประเภทบิล สาขา ลูกค้า หรือใบส่งของอาจล้างรายการและข้อมูลที่เกี่ยวข้องในร่างบิลขาย',
+        destructive: true,
+        title: 'ยืนยันการเปลี่ยนแหล่งข้อมูลบิลขาย',
+      },
+      () => updateSalesForm(key, value),
+    )
   }
 
   function updateSalesItem(index: number, key: keyof SalesBillFormValues['items'][number], value: string | number | null) {
@@ -2677,19 +3072,34 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       ? activeTradingPurchaseBills.find((option) => option.id === sourceId)?.lines.map((line) => line.id) ?? []
       : []
     const lineIdSet = new Set(lineIds)
-    setTradingPurchaseSelectorIds((current) => {
-      const next = current.filter((_value, index) => index !== selectorIndex)
-      return next.length > 0 ? next : ['']
-    })
-    setSalesForm((current) => ({
-      ...current,
-      items: current.items.filter((item) => {
-        if (!item.tradingCostSourceId || !sourceId) return true
-        if (lineIdSet.has(item.tradingCostSourceId)) return false
-        return !item.tradingCostSourceId.startsWith(`${sourceId}:`)
-      }),
-    }))
-    setSalesFieldErrors({})
+    const remove = () => {
+      setTradingPurchaseSelectorIds((current) => {
+        const next = current.filter((_value, index) => index !== selectorIndex)
+        return next.length > 0 ? next : ['']
+      })
+      setSalesForm((current) => ({
+        ...current,
+        items: current.items.filter((item) => {
+          if (!item.tradingCostSourceId || !sourceId) return true
+          if (lineIdSet.has(item.tradingCostSourceId)) return false
+          return !item.tradingCostSourceId.startsWith(`${sourceId}:`)
+        }),
+      }))
+      setSalesFieldErrors({})
+    }
+
+    requestLocalRowRemoval(
+      shouldConfirmTradingPurchaseSelectorRemoval(sourceId),
+      requestConfirmation,
+      {
+        cancelLabel: 'ไม่ลบ',
+        confirmLabel: 'ลบแหล่งสินค้า',
+        description: 'รายการสินค้าที่อ้างอิงจากบิลซื้อ Trading นี้จะถูกนำออกจากร่างบิลขายด้วย',
+        destructive: true,
+        title: 'ยืนยันการลบแหล่งบิลซื้อ Trading',
+      },
+      remove,
+    )
   }
 
   function addSalesStockAllocationRow(index: number) {
@@ -2728,20 +3138,49 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   }
 
   function removeSalesStockAllocationRow(index: number) {
-    setSalesForm((current) => {
-      const source = current.items[index]
-      if (!source) return current
-      const summaryId = source.deliverySummaryId ?? source.deliveryLineId ?? null
-      if (!summaryId) return current
-      const summaryRowCount = current.items.filter((item) => (item.deliverySummaryId ?? item.deliveryLineId) === summaryId).length
-      if (summaryRowCount <= 1) return current
-      return { ...current, items: current.items.filter((_item, itemIndex) => itemIndex !== index) }
-    })
-    setSalesFieldErrors({})
+    const source = salesForm.items[index]
+    const summaryId = source?.deliverySummaryId ?? source?.deliveryLineId ?? null
+    const summaryRowCount = summaryId
+      ? salesForm.items.filter((item) => (item.deliverySummaryId ?? item.deliveryLineId) === summaryId).length
+      : 0
+    if (!source || !summaryId || summaryRowCount <= 1) return
+
+    const remove = () => {
+      setSalesForm((current) => ({ ...current, items: current.items.filter((_item, itemIndex) => itemIndex !== index) }))
+      setSalesFieldErrors({})
+    }
+
+    requestLocalRowRemoval(
+      shouldConfirmSalesStockAllocationRemoval(source),
+      requestConfirmation,
+      {
+        cancelLabel: 'ไม่ลบ',
+        confirmLabel: 'ลบรายการ',
+        description: 'รายการจัดสรรที่กรอกไว้จะถูกลบออกจากร่างบิลขาย',
+        destructive: true,
+        title: 'ยืนยันการลบรายการจัดสรรบิลขาย',
+      },
+      remove,
+    )
   }
 
   function removeSalesItem(index: number) {
-    setSalesForm((current) => ({ ...current, items: current.items.filter((_item, itemIndex) => itemIndex !== index) }))
+    const source = salesForm.items[index]
+    if (!source) return
+
+    const remove = () => setSalesForm((current) => ({ ...current, items: current.items.filter((_item, itemIndex) => itemIndex !== index) }))
+    requestLocalRowRemoval(
+      shouldConfirmSalesBillItemRemoval(source),
+      requestConfirmation,
+      {
+        cancelLabel: 'ไม่ลบ',
+        confirmLabel: 'ลบรายการ',
+        description: 'รายการสินค้าที่กรอกไว้จะถูกลบออกจากร่างบิลขาย',
+        destructive: true,
+        title: 'ยืนยันการลบรายการสินค้าบิลขาย',
+      },
+      remove,
+    )
   }
 
   async function savePurchaseBill() {
@@ -2809,6 +3248,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       setSupplierSwapMode(false)
       setSupplierSwapSupplierId('')
       setLockedReceiptSnapshot(null)
+      setPurchaseFormBaseline(null)
       setShowForm(false)
       await loadData()
     } catch (caught) {
@@ -2860,6 +3300,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       setEditingSalesBillId(null)
       setLockedDeliverySnapshot(null)
       setLockedPoSellOptions([])
+      setSalesFormBaseline(null)
       setShowSalesForm(false)
       await loadData()
     } catch (caught) {
@@ -2869,7 +3310,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     }
   }
 
-  async function cancelBill() {
+  function cancelBill() {
     if (!cancelingBill) return
     const parsed = mode === 'sales'
       ? salesBillCancelSchema.safeParse({ note: cancelNote })
@@ -2879,9 +3320,10 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       return
     }
 
-    setIsSaving(true)
     setError(null)
     setCancelNoteError('')
+    requestConfirmation({ title: 'ยืนยันการยกเลิกบิล', description: `ต้องการยกเลิกบิล ${cancelingBill.docNo} หรือไม่?`, confirmLabel: 'ยืนยันยกเลิก', destructive: true, onConfirm: async () => {
+    setIsSaving(true)
     try {
       if (mode === 'sales') {
         const payload: SalesBillCancelValues & { action: 'cancel' } = { ...(parsed.data as SalesBillCancelValues), action: 'cancel' }
@@ -2904,9 +3346,20 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : mode === 'sales' ? 'ยกเลิกบิลขายไม่ได้' : 'ยกเลิกบิลรับซื้อไม่ได้')
+      throw caught instanceof Error ? caught : new Error(mode === 'sales' ? 'ยกเลิกบิลขายไม่ได้' : 'ยกเลิกบิลรับซื้อไม่ได้')
     } finally {
       setIsSaving(false)
     }
+    } })
+  }
+
+  function closeCancelBill() {
+    if (isSaving) return
+    requestDiscardCancelNote(() => {
+      setCancelingBill(null)
+      setCancelNote('')
+      setCancelNoteError('')
+    })
   }
 
   async function exportExcel() {
@@ -3117,8 +3570,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               onClick={() => openListRow(row)}
             >
               <div className="flex justify-between items-start mb-2">
-                <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
-                <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+                <span className="whitespace-nowrap font-bold text-slate-800 text-sm">{row.docNo}</span>
+                <span className="whitespace-nowrap text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
               </div>
               
               <div className="text-xs text-slate-600 mb-3 space-y-1">
@@ -3161,7 +3614,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <TableActionButton mobileLabel menu={(
                   <>
                     {mode === 'purchase' ? <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onSelect={() => void printPurchaseBill(row)}>พิมพ์</TableActionMenuItem> : null}
-                    {mode === 'purchase' && row.canEdit !== false ? <TableActionMenuItem onSelect={() => openEditPurchaseForm(row)}>แก้ไข</TableActionMenuItem> : null}
+                    {mode === 'purchase' && row.canEdit !== false ? <TableActionMenuItem disabled={isDetailLoading} onSelect={() => void openEditPurchaseForm(row)}>แก้ไข</TableActionMenuItem> : null}
                     {mode === 'purchase' && row.canEdit !== false ? <TableActionMenuItem onSelect={() => openCancelPurchaseBill(row)}>ยกเลิก</TableActionMenuItem> : null}
                     {mode === 'sales' ? <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onSelect={() => void printSalesBill(row)}>พิมพ์</TableActionMenuItem> : null}
                     {mode === 'sales' && row.canEdit !== false ? <TableActionMenuItem disabled={isDetailLoading} onSelect={() => void openEditSalesForm(row)}>แก้ไข</TableActionMenuItem> : null}
@@ -3194,8 +3647,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               {mode === 'purchase' ? <ResizableTableHead align="center" label="เลขที่ใบรับของ" resizeProps={columnResize.getResizeHandleProps('receiptDocs', 'เลขที่ใบรับของ')} /> : null}
               {mode === 'sales' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="เลขที่อ้างอิง" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขที่อ้างอิง')} sortKey="refNo" onSort={changeSort} /> : null}
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="วันที่สร้าง" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่สร้าง')} sortKey="date" onSort={changeSort} />
-              <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')} sortKey="name" onSort={changeSort} />
-              {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="สาขา / คลัง" resizeProps={columnResize.getResizeHandleProps('warehouse', 'สาขา / คลัง')} sortKey="warehouse" onSort={changeSort} /> : null}
+              <SortHeader activeKey={sortKey} align="left" className="ns-table-textual-column" direction={sortDirection} label={mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')} sortKey="name" onSort={changeSort} />
+              {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="left" className="ns-table-textual-column" direction={sortDirection} label="สาขา / คลัง" resizeProps={columnResize.getResizeHandleProps('warehouse', 'สาขา / คลัง')} sortKey="warehouse" onSort={changeSort} /> : null}
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('transactionMode', 'ประเภท')} sortKey="transactionMode" onSort={changeSort} />
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'สถานะเอกสาร' : 'สถานะรับเงิน'} resizeProps={columnResize.getResizeHandleProps('status', mode === 'purchase' ? 'สถานะเอกสาร' : 'สถานะรับเงิน')} sortKey="status" onSort={changeSort} />
               {mode === 'purchase' ? <ResizableTableHead align="center" label="PMA / PMT" resizeProps={columnResize.getResizeHandleProps('paymentDocs', 'PMA / PMT')} /> : null}
@@ -3213,16 +3666,16 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
             {isLoading ? <TableRow><td className="p-6 text-center text-slate-500" colSpan={tableColSpan}>กำลังโหลดข้อมูล</td></TableRow> : null}
             {!isLoading && pageRows.map((row) => (
               <TableRow key={row.id} className={`${row.status === 'cancelled' ? 'bg-red-100/60 hover:bg-red-200/60 text-slate-400' : 'hover:bg-slate-50'} cursor-pointer`} onClick={() => openListRow(row)}>
-                <td className="whitespace-nowrap p-2 text-center text-xs font-semibold text-slate-700">{row.docNo}</td>
+                <td className="whitespace-nowrap p-2 text-center font-mono text-xs font-semibold text-slate-700">{row.docNo}</td>
                 {mode === 'purchase' ? (
-                  <td className="p-2 text-center text-xs font-semibold text-slate-700">
+                  <td className="whitespace-nowrap p-2 text-center font-mono text-xs font-semibold text-slate-700">
                     <CollapsedList items={row.receiptDocNos} splitItems={true} />
                   </td>
                 ) : null}
-                {mode === 'sales' ? <td className="whitespace-nowrap p-2 text-center text-xs font-semibold text-slate-700">{row.refNo || '-'}</td> : null}
-                <td className="p-2 text-center text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</td>
-                <td className="p-2 text-center text-xs font-semibold text-slate-700">{'supplierName' in row ? row.supplierName : row.customerName}</td>
-                {mode !== 'purchase' ? <td className="p-2 text-center text-xs font-semibold text-slate-700">{formatBranchWarehouse(row)}</td> : null}
+                {mode === 'sales' ? <td className="whitespace-nowrap p-2 text-center font-mono text-xs font-semibold text-slate-700">{row.refNo || '-'}</td> : null}
+                <td className="whitespace-nowrap p-2 text-center text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</td>
+                <td className="ns-table-textual-column p-2 text-left text-xs font-semibold text-slate-700">{'supplierName' in row ? row.supplierName : row.customerName}</td>
+                {mode !== 'purchase' ? <td className="ns-table-textual-column p-2 text-left text-xs font-semibold text-slate-700">{formatBranchWarehouse(row)}</td> : null}
                 <td className="p-2 text-center"><span className={`rounded-md-full px-2 py-0.5 text-xs font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>{transactionModeLabel(row.transactionMode)}</span></td>
                 <td className="p-2 text-center">
                   <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${mode === 'purchase' ? workflowStatusBadgeClass(row.paymentWorkflowStatus ?? 'pending_approval') : statusBadgeClass(row.status)}`}>
@@ -3230,14 +3683,14 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     {mode === 'purchase' ? workflowStatusText(row.paymentWorkflowStatus ?? 'pending_approval') : statusText(row.status)}
                   </span>
                 </td>
-                {mode === 'purchase' ? <td className="p-2 text-center text-xs font-semibold text-slate-700"><CollapsedList items={row.paymentDocNos} splitItems={true} /></td> : null}
+                {mode === 'purchase' ? <td className="whitespace-nowrap p-2 text-center font-mono text-xs font-semibold text-slate-700"><CollapsedList items={row.paymentDocNos} splitItems={true} /></td> : null}
                 {mode !== 'purchase' ? <td className="p-2 pr-4 text-right text-xs font-semibold text-slate-700 tabular-nums">{row.itemCount}</td> : null}
                 <TableNumberCell strong value={formatMoney(row.totalAmount ?? 0)} />
                 {mode === 'sales' ? <td className={`p-2 pr-4 text-right font-semibold tabular-nums ${(row.grossProfit ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-700'}`}><div>{formatMoney(row.grossProfit ?? 0)}</div><div className="text-xs text-slate-500">{formatMoney((row.subtotal ?? row.totalAmount ?? 0) > 0 ? (row.grossProfit ?? 0) / (row.subtotal ?? row.totalAmount ?? 1) * 100 : 0)}%</div></td> : null}
                 {mode === 'sales' ? <TableNumberCell value={formatMoney(row.receivedAmount ?? 0)} /> : null}
                 <TableNumberCell tone="amber" value={formatMoney(mode === 'purchase' ? row.payableBalance ?? 0 : row.receivableBalance ?? 0)} />
                 {mode === 'sales' ? (
-                  <td className="p-2 text-center">
+                  <td className="whitespace-nowrap p-2 text-center">
                     {row.vatInvoiceIssued ? (
                       <span className="font-mono text-xs font-semibold text-slate-700">{row.vatInvoiceNo || '-'}</span>
                     ) : (
@@ -3245,20 +3698,20 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     )}
                   </td>
                 ) : null}
-                <td className="p-2 text-center text-xs font-semibold text-slate-700"><div>{row.updatedBy || row.createdBy || '-'}</div><div className="text-xs font-normal text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></td>
+                <td className="whitespace-nowrap p-2 text-center text-xs font-semibold text-slate-700"><div>{row.updatedBy || row.createdBy || '-'}</div><div className="text-xs font-normal text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></td>
                 {mode === 'purchase' ? (
-                  <td className="p-2 text-center">
+                  <td className="whitespace-nowrap p-2 text-center">
                     <TableActionButton menu={(
                       <>
                         <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onSelect={() => void printPurchaseBill(row)}>พิมพ์</TableActionMenuItem>
-                        {row.canEdit !== false ? <TableActionMenuItem onSelect={() => openEditPurchaseForm(row)}>แก้ไข</TableActionMenuItem> : null}
+                        {row.canEdit !== false ? <TableActionMenuItem disabled={isDetailLoading} onSelect={() => void openEditPurchaseForm(row)}>แก้ไข</TableActionMenuItem> : null}
                         {row.canEdit !== false ? <TableActionMenuItem onSelect={() => openCancelPurchaseBill(row)}>ยกเลิก</TableActionMenuItem> : null}
                       </>
                     )} />
                   </td>
                 ) : null}
                 {mode === 'sales' ? (
-                  <td className="p-2 text-center">
+                  <td className="whitespace-nowrap p-2 text-center">
                     <TableActionButton menu={(
                       <>
                         <TableActionMenuItem disabled={printingBillDocNo === row.docNo} onSelect={() => void printSalesBill(row)}>พิมพ์</TableActionMenuItem>
@@ -3287,7 +3740,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       </div>
 
       {showForm && mode === 'purchase' ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClosePurchaseForm() }}>
           <div className="mx-auto my-4 flex max-h-[94vh] w-full max-w-[1280px] flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl outline-none focus:outline-none" data-ns-field-scope="entry">
             <div data-ns-dialog-header className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
               <div className="min-w-0">
@@ -3295,7 +3748,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               </div>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
                 <button className="h-9 rounded-md border border-emerald-600 bg-emerald-600 px-5 text-sm font-normal text-white outline-none hover:border-emerald-700 hover:bg-emerald-700 focus:outline-none disabled:opacity-60" disabled={isSaving || !stockReceiptSelected} type="button" onClick={() => void savePurchaseBill()}>{isSaving ? 'กำลังบันทึก...' : supplierSwapMode ? 'บันทึกและสร้าง PB ใหม่' : editingBillId ? 'บันทึกการแก้ไข' : 'บันทึก'}</button>
-                <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white outline-none hover:border-rose-700 hover:bg-rose-700 focus:outline-none" type="button" onClick={() => { setError(null); setSupplierSwapMode(false); setSupplierSwapSupplierId(''); setLockedReceiptSnapshot(null); setShowForm(false) }}>ยกเลิก</button>
+                <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white outline-none hover:border-rose-700 hover:bg-rose-700 focus:outline-none" type="button" onClick={requestClosePurchaseForm}>ยกเลิก</button>
               </div>
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-6 text-sm">
@@ -3303,8 +3756,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <div className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="amber">1</StepBadge>ประเภทบิล</h4>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <RadioCard active={form.transactionMode === 'STOCK'} disabled={stockReceiptLocked} label="📦 สต็อก" note="ซื้อเข้าสต็อก · เข้าสต็อกและคำนวณ WAC ภายหลัง" onClick={() => updateForm('transactionMode', 'STOCK')} />
-                  <RadioCard active={form.transactionMode === 'TRADING'} disabled={stockReceiptLocked} label="🔄 ซื้อมาขายไป" note="ซื้อขายผ่านมือ · ไม่เข้าสต็อกและไม่กระทบ WAC" onClick={() => updateForm('transactionMode', 'TRADING')} />
+                  <RadioCard active={form.transactionMode === 'STOCK'} disabled={stockReceiptLocked} label="📦 สต็อก" note="ซื้อเข้าสต็อก · เข้าสต็อกและคำนวณ WAC ภายหลัง" onClick={() => requestPurchaseFormSourceChange('transactionMode', 'STOCK')} />
+                  <RadioCard active={form.transactionMode === 'TRADING'} disabled={stockReceiptLocked} label="🔄 ซื้อมาขายไป" note="ซื้อขายผ่านมือ · ไม่เข้าสต็อกและไม่กระทบ WAC" onClick={() => requestPurchaseFormSourceChange('transactionMode', 'TRADING')} />
                 </div>
                 {form.transactionMode === 'TRADING' ? (
                   <div className="mt-3 rounded-md border border-slate-200 bg-white p-2 text-xs text-slate-600">รายการ Trading ไม่เข้า Stock และจะใช้สำหรับจับคู่ขายใน Trading Matching ภายหลัง</div>
@@ -3389,7 +3842,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                       }))}
                       placeholder={stockReceiptLocked ? 'ล็อกใบรับของเดิม' : stockReceiptPrerequisiteReady ? 'ค้นหาเลขที่ใบรับของ' : 'เลือกสาขาและผู้ขายก่อน'}
                       value={form.receiptTicketId ?? ''}
-                      onChange={(value) => updateForm('receiptTicketId', value || null)}
+                      onChange={(value) => requestPurchaseFormSourceChange('receiptTicketId', value || null)}
                     />
                   ) : null}
                 </div>
@@ -3439,15 +3892,15 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
                           <tr>
                             <th className="p-2 text-left">สินค้า</th>
-                            <th className="p-2 text-right">น้ำหนักรวม</th>
-                            <th className="p-2 text-right">หัก</th>
+                            <th className="p-2 text-right" title="น้ำหนักรวมหลังหักภาชนะ">น้ำหนักหลัก</th>
+                            <th className="p-2 text-right" title="หักสิ่งเจือปน">หัก</th>
                             <th className="p-2 text-right">น้ำหนักสุทธิ</th>
                             <th className="p-2 text-right">จำนวนตัดบิล</th>
-                            <th className="p-2 text-left">อ้างอิง PO</th>
+                            <th className="p-2 text-center">อ้างอิง PO</th>
                             <th className="p-2 text-right">ราคา/กก.</th>
                             <th className="p-2 text-right">ราคาหน้าใบ</th>
                             <th className="p-2 text-right">ยอดรวม</th>
-                            <th className="p-2 text-right"><span className="sr-only">จัดการ</span></th>
+                            <th className="p-2 text-center"><span className="sr-only">จัดการ</span></th>
                           </tr>
                         </thead>
                         <tbody>
@@ -3472,12 +3925,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                             return (
                               <Fragment key={`${item.receiptSummaryId ?? item.receiptLineId ?? 'row'}-${index}`}>
                               <tr className={`${isFirstRowOfSummary ? 'border-t border-slate-200' : ''} align-top`}>
-                                <td className="p-2">
+                                <td className="ns-table-textual-column p-2 text-left">
                                   {isFirstRowOfSummary ? (
                                     <>
                                       <div className="font-medium text-slate-900">{sourceSummary?.productName ?? activeProducts.find((product) => product.id === item.productId)?.name ?? item.productId}</div>
                                       <div className="mt-1 space-y-0.5 text-xs text-slate-500">
-                                        <div>{selectedReceipt.documentNo}</div>
+                                    <div className="whitespace-nowrap font-mono">{selectedReceipt.documentNo}</div>
                                         {sourceSummary ? <div>รวม {sourceSummary.lineCount} เต๋า</div> : null}
                                       </div>
                                       {sourceSummary && summaryVariance ? (
@@ -3490,7 +3943,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                 </td>
                                 <td className="p-2 text-right tabular-nums">
                                   <div className="flex flex-col items-end gap-1">
-                                    {isFirstRowOfSummary ? <span>{formatMoney(sourceSummary?.grossWeight ?? item.grossWeight)}</span> : null}
+                                    {isFirstRowOfSummary ? <span>{formatMoney(sourceSummary?.baseWeight ?? item.grossWeight)}</span> : null}
                                   </div>
                                 </td>
                                 <td className="p-2 text-right tabular-nums text-slate-700">{isFirstRowOfSummary ? formatMoney(sourceSummary?.deductWeight ?? item.deductWeight) : ''}</td>
@@ -3548,8 +4001,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                 <td className="p-2 text-right">
                                   <div className="w-full rounded-md border border-slate-200 bg-white px-2 py-2 text-right font-bold tabular-nums text-slate-900">{formatMoney(Math.max(0, item.qty * item.price))}</div>
                                 </td>
-                                <td className="p-2">
-                                  <div className="flex justify-end gap-1">
+                                <td className="p-2 text-center">
+                                  <div className="flex justify-center gap-1">
                                     {!supplierSwapMode && summaryState && summaryState.rowIndices.length > 1 ? (
                                       <Button
                                         size="xs"
@@ -3823,7 +4276,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         </div>
       ) : null}
       {showSalesForm && mode === 'sales' ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) requestCloseSalesForm() }}>
           <div className="relative mx-auto my-4 flex max-h-[94vh] w-full max-w-[1480px] flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl outline-none focus:outline-none" data-combobox-portal-root="true" data-ns-field-scope="entry">
             <div data-ns-dialog-header className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
               <div className="min-w-0">
@@ -3831,7 +4284,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               </div>
               <div className="flex shrink-0 flex-wrap justify-end gap-2">
                 <button className="h-9 rounded-md border border-emerald-600 bg-emerald-600 px-5 text-sm font-normal text-white outline-none hover:border-emerald-700 hover:bg-emerald-700 focus:outline-none disabled:opacity-60" disabled={isSaving} type="button" onClick={() => void saveSalesBill()}>{isSaving ? 'กำลังบันทึก...' : editingSalesBillId ? 'บันทึกการแก้ไข' : 'บันทึก'}</button>
-                <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white outline-none hover:border-rose-700 hover:bg-rose-700 focus:outline-none disabled:opacity-60" disabled={isSaving} type="button" onClick={() => { setError(null); setLockedPoSellOptions([]); setShowSalesForm(false) }}>ยกเลิก</button>
+                <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white outline-none hover:border-rose-700 hover:bg-rose-700 focus:outline-none disabled:opacity-60" disabled={isSaving} type="button" onClick={requestCloseSalesForm}>ยกเลิก</button>
               </div>
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-6 text-sm">
@@ -3839,8 +4292,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="emerald">1</StepBadge>ประเภทบิล</h4>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <RadioCard active={salesForm.transactionMode === 'STOCK'} disabled={salesIdentityLocked || stockDeliveryLocked} label="📦 สต็อก" note="ขายจากสต็อกจริง" onClick={() => updateSalesForm('transactionMode', 'STOCK')} />
-                  <RadioCard active={salesForm.transactionMode === 'TRADING'} disabled={salesIdentityLocked || stockDeliveryLocked} label="🔄 ซื้อมาขายไป" note="ขายจากบิลซื้อแบบซื้อมาขายไป และพ่วง WTO ได้" onClick={() => updateSalesForm('transactionMode', 'TRADING')} />
+                  <RadioCard active={salesForm.transactionMode === 'STOCK'} disabled={salesIdentityLocked || stockDeliveryLocked} label="📦 สต็อก" note="ขายจากสต็อกจริง" onClick={() => requestSalesFormSourceChange('transactionMode', 'STOCK')} />
+                  <RadioCard active={salesForm.transactionMode === 'TRADING'} disabled={salesIdentityLocked || stockDeliveryLocked} label="🔄 ซื้อมาขายไป" note="ขายจากบิลซื้อแบบซื้อมาขายไป และพ่วง WTO ได้" onClick={() => requestSalesFormSourceChange('transactionMode', 'TRADING')} />
                 </div>
                 {salesIdentityLocked ? (
                   <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600">โหมดแก้ไขจะคงประเภทบิล สาขา ลูกค้า และแหล่งที่มาเดิม เพื่อให้ข้อมูล Stock/Trading และ audit ต่อเนื่อง</div>
@@ -3853,8 +4306,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="blue">2</StepBadge>ข้อมูลบิล</h4>
                 <div className={`grid gap-3 ${isExportSalesBill ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
-                  <BranchSelectCombobox branches={activeBranches} disabled={salesIdentityLocked || stockDeliveryLocked} error={salesFieldErrors.branchId} errorKey="branchId" inputId="sales-bill-branch-search" label="สาขา/คลัง *" placeholder="เลือกสาขา/คลัง" value={salesForm.branchId} onChange={(branchId) => updateSalesForm('branchId', branchId ?? '')} />
-                  <CustomerSearchCombobox className="md:col-span-2" disabled={salesIdentityLocked || customerLockedByDelivery || !salesForm.branchId} error={salesFieldErrors.customerId} errorKey="customerId" options={activeCustomers} placeholder={salesForm.branchId ? 'ค้นหารหัสหรือชื่อลูกค้า' : 'เลือกสาขา/คลังก่อน'} value={salesForm.customerId} onChange={(value) => updateSalesForm('customerId', value)} />
+                  <BranchSelectCombobox branches={activeBranches} disabled={salesIdentityLocked || stockDeliveryLocked} error={salesFieldErrors.branchId} errorKey="branchId" inputId="sales-bill-branch-search" label="สาขา/คลัง *" placeholder="เลือกสาขา/คลัง" value={salesForm.branchId} onChange={(branchId) => requestSalesFormSourceChange('branchId', branchId ?? '')} />
+                  <CustomerSearchCombobox className="md:col-span-2" disabled={salesIdentityLocked || customerLockedByDelivery || !salesForm.branchId} error={salesFieldErrors.customerId} errorKey="customerId" options={activeCustomers} placeholder={salesForm.branchId ? 'ค้นหารหัสหรือชื่อลูกค้า' : 'เลือกสาขา/คลังก่อน'} value={salesForm.customerId} onChange={(value) => requestSalesFormSourceChange('customerId', value)} />
                   <Field className="block" error={salesFieldErrors.channelId} label="ช่องทางขาย *">
                     <Input
                       data-error-key="channelId"
@@ -3900,7 +4353,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     }))}
 		                    placeholder={stockDeliveryPrerequisiteReady ? 'ค้นหาเลขที่ใบส่งของ' : 'เลือกสาขาและลูกค้าก่อน'}
                     value={salesForm.deliveryTicketId ?? ''}
-                    onChange={(value) => updateSalesForm('deliveryTicketId', value || null)}
+                    onChange={(value) => requestSalesFormSourceChange('deliveryTicketId', value || null)}
                   />
                   {selectedDelivery ? (
                     <div className="mt-3 grid gap-3 rounded-xl border border-slate-200 bg-white p-3 text-xs md:grid-cols-4">
@@ -3984,7 +4437,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                         }))}
                         placeholder={stockDeliveryPrerequisiteReady ? 'เลือก WTO ถ้าต้องพ่วงรายการจาก Stock' : 'เลือกสาขาและลูกค้าก่อน'}
                         value={salesForm.deliveryTicketId ?? ''}
-                        onChange={(value) => updateSalesForm('deliveryTicketId', value || null)}
+                        onChange={(value) => requestSalesFormSourceChange('deliveryTicketId', value || null)}
                       />
                       {selectedDelivery ? (
                         <div className="mt-3 grid gap-3 rounded-xl border border-slate-200 bg-white p-3 text-xs md:grid-cols-4">
@@ -4021,7 +4474,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                            <th className="p-2 text-right">ราคาขาย/หน่วย</th>
 	                            <th className="p-2 text-right">ส่วนลด</th>
 	                            <th className="p-2 text-right">ยอดรวม</th>
-	                            <th className="p-2 text-right">จัดการ</th>
+                            <th className="p-2 text-center">จัดการ</th>
 	                          </tr>
 	                        </thead>
 	                        <tbody>
@@ -4155,7 +4608,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                                <td className="p-2">
 	                                  <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-right font-bold tabular-nums text-slate-900">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</div>
 	                                </td>
-	                                <td className="p-2">
+	                                <td className="whitespace-nowrap p-2 text-center">
                                   <TableActionButton
                                     disabled={!summaryState || summaryState.rowIndices.length <= 1}
                                     label="ลบรายการ"
@@ -4455,10 +4908,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	      ) : null}
 	      {cancelingBill ? (
         <Dialog open={Boolean(cancelingBill)} onOpenChange={(open) => {
-          if (open || isSaving) return
-          setCancelingBill(null)
-          setCancelNote('')
-          setCancelNoteError('')
+          if (!open) closeCancelBill()
         }}>
           <DialogContent aria-labelledby={`${mode}-bill-cancel-title`} hideClose className="top-auto bottom-0 w-full max-w-lg translate-x-[-50%] translate-y-0 rounded-t-md bg-slate-900 md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-md border-0 shadow-2xl !p-0 overflow-hidden outline-none focus:outline-none">
             <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-md flex flex-row items-center shrink-0">
@@ -4487,12 +4937,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               {cancelNoteError ? <div className="text-xs text-red-600">{cancelNoteError}</div> : null}
             </div>
             <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-white flex justify-end gap-2 shrink-0 rounded-b-md">
-              <Button disabled={isSaving} type="button" variant="ghost" className="font-normal border-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors outline-none focus:ring-0" onClick={() => {
-                if (isSaving) return
-                setCancelingBill(null)
-                setCancelNote('')
-                setCancelNoteError('')
-              }}>ปิด</Button>
+              <Button disabled={isSaving} type="button" variant="ghost" className="font-normal border-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors outline-none focus:ring-0" onClick={closeCancelBill}>ปิด</Button>
               <Button className="rounded-md bg-red-600 hover:bg-red-700 text-white font-medium transition-colors outline-none focus:ring-0 px-5" disabled={isSaving} type="button" onClick={() => void cancelBill()}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</Button>
             </DialogFooter>
           </DialogContent>
@@ -4654,10 +5099,10 @@ function PurchaseBillDetailModal({
                           <div className="font-medium text-slate-900">{item.productName}</div>
                           <div className="text-xs text-slate-500">{[item.productCode || null, `${item.lineCount} allocation`].filter(Boolean).join(' · ')}</div>
                         </td>
-                        <td className="px-3 py-2 align-top text-slate-700">{item.receiptDocNos.join(', ') || '-'}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-center align-top font-mono text-slate-700">{item.receiptDocNos.join(', ') || '-'}</td>
                         <td className="px-3 py-2 align-top text-slate-700">
                           <div>{item.sourceKinds.join(' + ') || '-'}</div>
-                          <div className="text-xs text-slate-500">{item.poDocNos.join(', ') || 'Spot Buy'}</div>
+                          <div className="whitespace-nowrap text-xs text-slate-500">{item.poDocNos.join(', ') || 'Spot Buy'}</div>
                         </td>
                         <td className="px-3 py-2 text-right font-medium tabular-nums">{formatMoney(item.qty)} {item.unit}</td>
                         <td className="px-3 py-2 text-right font-semibold text-blue-700 tabular-nums">{formatMoney(item.amount)}</td>
@@ -4677,11 +5122,11 @@ function PurchaseBillDetailModal({
                   <thead className="bg-slate-50 text-slate-600">
                     <tr>
                       <th className="px-3 py-2 text-left font-medium">สินค้า</th>
-                      <th className="px-3 py-2 text-left font-medium">ใบรับของ WTI</th>
+                      <th className="px-3 py-2 text-center font-medium">ใบรับของ WTI</th>
                       <th className="px-3 py-2 text-left font-medium">PO / ที่มา</th>
-                      <th className="px-3 py-2 text-right font-medium">Gross</th>
-                      <th className="px-3 py-2 text-right font-medium">หัก</th>
-                      <th className="px-3 py-2 text-right font-medium">น้ำหนัก</th>
+                      <th className="px-3 py-2 text-right font-medium">น้ำหนักหลัก</th>
+                      <th className="px-3 py-2 text-right font-medium">หักสิ่งเจือปน</th>
+                      <th className="px-3 py-2 text-right font-medium">น้ำหนักสุทธิ</th>
                       <th className="px-3 py-2 text-right font-medium">ราคา/กก.</th>
                       <th className="px-3 py-2 text-right font-medium">ยอดรวม</th>
                     </tr>
@@ -4694,7 +5139,7 @@ function PurchaseBillDetailModal({
                           <div className="text-xs text-slate-500">{[item.productCode || null, `line ${item.lineNo}`].filter(Boolean).join(' · ')}</div>
                           {item.note ? <div className="mt-1 text-xs text-slate-500">{item.note}</div> : null}
                         </td>
-                        <td className="px-3 py-2 align-top">
+                        <td className="whitespace-nowrap px-3 py-2 text-center align-top font-mono">
                           <div className="text-slate-900">{item.receiptTicketDocNo}</div>
                           <div className="text-xs text-slate-500">{item.receiptSummaryLabel}</div>
                         </td>
@@ -4983,7 +5428,7 @@ function SalesBillDetailModal({
                   <thead className="bg-slate-50 text-slate-600">
                     <tr>
                       <th className="px-3 py-2 text-left font-medium">สินค้า</th>
-                      <th className="px-3 py-2 text-left font-medium">ใบส่งของ WTO</th>
+                      <th className="px-3 py-2 text-center font-medium">ใบส่งของ WTO</th>
                       <th className="px-3 py-2 text-left font-medium">PO / ที่มา</th>
                       <th className="px-3 py-2 text-right font-medium">Gross</th>
                       <th className="px-3 py-2 text-right font-medium">หัก</th>
@@ -5011,7 +5456,7 @@ function SalesBillDetailModal({
                             ) : null}
                             {item.note ? <div className="mt-1 text-xs text-slate-500">{item.note}</div> : null}
                           </td>
-                          <td className="px-3 py-2 align-top">
+                          <td className="whitespace-nowrap px-3 py-2 text-center align-top font-mono">
                             <div className="text-slate-900">{item.deliveryTicketDocNo || '-'}</div>
                             <div className="text-xs text-slate-500">{item.deliveryVehicleNo || '-'}</div>
                           </td>
@@ -5182,23 +5627,23 @@ function SalesBillSourceUsageTimelineTable({ facts }: { facts: SalesBillDetail['
             <thead className="bg-slate-50 text-slate-600">
               <tr>
                 <th className="px-3 py-2 text-left font-medium">รายการ</th>
-                <th className="px-3 py-2 text-left font-medium">ต้นทาง</th>
+                <th className="px-3 py-2 text-center font-medium">ต้นทาง</th>
                 <th className="px-3 py-2 text-right font-medium">จำนวน</th>
                 <th className="px-3 py-2 text-right font-medium">ต้นทุน/COGS</th>
-                <th className="px-3 py-2 text-left font-medium">สถานะ</th>
+                <th className="whitespace-nowrap px-3 py-2 text-center font-medium">สถานะ</th>
               </tr>
             </thead>
             <tbody>
               {facts.map((fact) => (
                 <tr key={fact.id} className="border-t border-slate-100">
-                  <td className="px-3 py-2 align-top">
+                  <td className="whitespace-nowrap px-3 py-2 align-top">
                     <div className="font-medium text-slate-900">{fact.title}</div>
                     <div className="text-slate-500">{[fact.type, fact.productName !== '-' ? fact.productName : null, fact.lineNo ? `line ${fact.lineNo}` : null].filter(Boolean).join(' · ')}</div>
                   </td>
-                  <td className="px-3 py-2 align-top font-mono text-xs text-slate-700">{fact.docNo || '-'}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-center align-top font-mono text-xs text-slate-700">{fact.docNo || '-'}</td>
                   <td className="px-3 py-2 text-right align-top tabular-nums">{fact.qty ? `${formatMoney(fact.qty)} ${fact.unit}` : '-'}</td>
                   <td className="px-3 py-2 text-right align-top tabular-nums">{fact.amount ? formatMoney(fact.amount) : '-'}</td>
-                  <td className="px-3 py-2 align-top">
+                  <td className="whitespace-nowrap px-3 py-2 text-center align-top">
                     <span className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${fact.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{fact.status}</span>
                     <div className="mt-1 text-xs text-slate-400">{formatDateTime(fact.createdAt)}</div>
                   </td>

@@ -1,6 +1,7 @@
 import { requireBusinessCode } from '@/lib/business-code'
 import type { Prisma } from '../../../generated/prisma/client'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { BANK_STATEMENT_CASH_FLOW_CATEGORY, hasBankStatementCashFlowCategory, isOperatingBankStatementCashFlow } from '@/lib/server/bank-statement-cash-flow'
 import { toBangkokDateOnly, toBangkokEndOfDay, toDateOnly, toNumber } from '@/lib/server/daily'
 import { buildFinanceCashPosition } from '@/lib/server/finance-accounting-cash-position'
 import { buildPlStatement } from '@/lib/server/finance-accounting-statements'
@@ -246,20 +247,11 @@ async function loadPeriod(filter: AnalysisFilter, scope: BranchScope) {
       select: { subtotal: true, total_amount: true, vat_amount: true },
       where: { ...activeNullableStatusWhere(), ...branch, cancelled_at: null, date: purchaseBillDateWhere },
     }),
-    prisma.customer_receipts.findMany({
-      select: { net_cash_in: true },
-      where: { ...branch, cancelled_at: null, date: dateWhere, status: 'active' },
-    }),
-    prisma.payments.findMany({
-      select: { net_amount: true, payment_approvals: { select: { source_type: true } } },
-      where: { ...activeNullableStatusWhere(), ...branch, date: dateWhere },
-    }),
-    prisma.loan_payments.aggregate({
-      _sum: { interest_amount: true },
+    prisma.bank_statement.findMany({
+      select: { amount_in: true, amount_out: true, cash_flow_category: true, source_event_type: true },
       where: {
-        ...activeNullableStatusWhere(),
         date: dateWhere,
-        ...(scope.branchIds !== null ? { accounts: { branch_id: { in: scope.branchIds } } } : {}),
+        ...(scope.branchIds === null ? {} : { accounts: { branch_id: { in: scope.branchIds } } }),
       },
     }),
     prisma.stock_ledger.aggregate({ _sum: { value_in: true, value_out: true }, where: { ...branch, date: { lte: dateWhere.lte } } }),
@@ -286,29 +278,34 @@ export async function buildCashFlowAnalysis(filter: AnalysisFilter) {
     buildProjectionSource({ branchId: branchCode, horizon: 30, startDate: filter.to }, scope),
     loadBillsAsOf(filter.to, scope.branchIds),
   ])
-  const [purchases, customerReceipts, payments, loanInterest, stock, pl] = periodRows
+  const [purchases, bankEvents, stock, pl] = periodRows
   const [salesAsOf, purchasesAsOf] = billsAsOf
   const ar = arRows(salesAsOf, filter.to)
   const ap = apRows(purchasesAsOf, filter.to)
   const cash = projection.cash
   const revenue = pl.summary.revenue
   const purchasesTotal = purchases.reduce((sum, bill) => sum + toNumber(bill.total_amount) - toNumber(bill.vat_amount), 0)
-  const receiptsIn = customerReceipts.reduce((sum, receipt) => sum + toNumber(receipt.net_cash_in), 0)
-  const paymentCashOut = payments.map((payment) => ({
-    amount: toNumber(payment.net_amount),
-    sourceType: payment.payment_approvals?.source_type ?? 'other',
-  }))
-  const supplierPaymentsOut = paymentCashOut
-    .filter((payment) => payment.sourceType === 'purchase_bill')
-    .reduce((sum, payment) => sum + payment.amount, 0)
-  const expensePaidOut = paymentCashOut
-    .filter((payment) => payment.sourceType === 'expense')
-    .reduce((sum, payment) => sum + payment.amount, 0)
-  const otherPaymentsOut = paymentCashOut
-    .filter((payment) => payment.sourceType !== 'purchase_bill' && payment.sourceType !== 'expense')
-    .reduce((sum, payment) => sum + payment.amount, 0)
+  const operatingBankEvents = bankEvents.filter(isOperatingBankStatementCashFlow)
+  const receiptsIn = operatingBankEvents
+    .filter((row) => hasBankStatementCashFlowCategory(row, BANK_STATEMENT_CASH_FLOW_CATEGORY.OPERATIONAL_RECEIPT))
+    .reduce((sum, row) => sum + toNumber(row.amount_in), 0)
+  const supplierPaymentsOut = operatingBankEvents
+    .filter((row) => hasBankStatementCashFlowCategory(row, BANK_STATEMENT_CASH_FLOW_CATEGORY.OPERATIONAL_SUPPLIER))
+    .reduce((sum, row) => sum + toNumber(row.amount_out), 0)
+  const expensePaidOut = operatingBankEvents
+    .filter((row) => hasBankStatementCashFlowCategory(row, BANK_STATEMENT_CASH_FLOW_CATEGORY.OPERATIONAL_EXPENSE))
+    .reduce((sum, row) => sum + toNumber(row.amount_out), 0)
+  const otherPaymentsOut = operatingBankEvents
+    .filter((row) => row.cash_flow_category?.startsWith('OP_OUT_') && !(new Set<string>([
+      BANK_STATEMENT_CASH_FLOW_CATEGORY.OPERATIONAL_EXPENSE,
+      BANK_STATEMENT_CASH_FLOW_CATEGORY.OPERATIONAL_INTEREST,
+      BANK_STATEMENT_CASH_FLOW_CATEGORY.OPERATIONAL_SUPPLIER,
+    ])).has(row.cash_flow_category))
+    .reduce((sum, row) => sum + toNumber(row.amount_out), 0)
   const totalPaymentsOut = supplierPaymentsOut + expensePaidOut + otherPaymentsOut
-  const interestPaidOut = toNumber(loanInterest._sum.interest_amount)
+  const interestPaidOut = operatingBankEvents
+    .filter((row) => hasBankStatementCashFlowCategory(row, BANK_STATEMENT_CASH_FLOW_CATEGORY.OPERATIONAL_INTEREST))
+    .reduce((sum, row) => sum + toNumber(row.amount_out), 0)
   const operatingCashFlow = receiptsIn - totalPaymentsOut - interestPaidOut
   const stockNow = toNumber(stock._sum.value_in) - toNumber(stock._sum.value_out)
   const arNow = ar.reduce((sum, row) => sum + row.receivableBalance, 0)

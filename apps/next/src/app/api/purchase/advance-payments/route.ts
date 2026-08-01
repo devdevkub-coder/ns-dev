@@ -9,7 +9,7 @@ import { appendSupplierAdvanceStatusLog, SUPPLIER_ADVANCE_STATUS_ACTION } from '
 import { advancePaymentStatusLabel, mapAdvancePaymentRow, parseBangkokDateTimeInput } from '@/lib/server/advance-payments'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { currentActor, listDailyAccounts, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, documentBranchCode, listDailyAccounts, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { isSupplierEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
@@ -188,7 +188,8 @@ function bangkokDateString(date: Date) {
 
 async function nextAdvanceDocNo(branchValue: string | bigint, date: string) {
   const branch = await findActiveBranchReferenceByCodeOrId(branchValue)
-  const branchCode = (branch?.code ?? '00').replace(/\D/g, '').padStart(2, '0').slice(0, 2)
+  const branchCode = documentBranchCode(branch?.code)
+  if (!branchCode) throw new Error('ไม่พบรหัสสาขาสำหรับออกเลข ADV')
   const compactDate = date.slice(2, 4) + date.slice(5, 7)
   const startsWith = `ADV${branchCode}${compactDate}-`
   const last = await prisma.supplier_advance_payments.findFirst({

@@ -107,6 +107,7 @@ Manual-entry visual follow-up: every field that the user types into or selects i
 ### Persistence Tables
 
 - `public.sales_plans` เก็บแผนขายรายเดือน, สินค้า, ลูกค้า, ช่องทาง, ตู้/กก., `LME cf`, `FX`, `% LME`, ราคา THB/kg, สถานะ, และ link กลับ `po_sells`
+- Sales Plan ต้องเลือกสาขา และเลขแผนใช้รูปแบบ `SP<รหัสสาขา><YYMM>-<ลำดับ 4 หลัก>`; filter/list/create ใช้สาขาเดียวกันเพื่อไม่ให้เลขแผนข้ามสาขา.
 - สถานะฐานข้อมูลหลัก: `draft` -> `locked` -> `po_created`
 - สถานะที่แสดงใน UI: `รอล็อกแผน` -> `ล็อกแผนแล้ว` -> `เปิด PO ขายแล้ว`
 - `po_sell_id` ถูกเติมเมื่อสร้าง PO Sell จากแผนสำเร็จเท่านั้น

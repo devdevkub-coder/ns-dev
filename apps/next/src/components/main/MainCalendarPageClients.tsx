@@ -71,14 +71,14 @@ type BusinessModeRow = BusinessDoc & { date: string }
 const weekdays = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์']
 const cashEntryColumns: Array<TableColumn<CashEntryColumnKey>> = [
   { key: 'type', label: 'ประเภท', defaultWidth: 130, minWidth: 110 },
-  { key: 'description', label: 'รายละเอียด', defaultWidth: 240, minWidth: 170, align: 'right' },
-  { key: 'account', label: 'บัญชี', defaultWidth: 180, minWidth: 140, align: 'right' },
-  { key: 'refNo', label: 'เลขอ้างอิง', defaultWidth: 150, minWidth: 120, align: 'right' },
+  { key: 'description', label: 'รายละเอียด', defaultWidth: 240, minWidth: 170, align: 'left' },
+  { key: 'account', label: 'บัญชี', defaultWidth: 180, minWidth: 140, align: 'left' },
+  { key: 'refNo', label: 'เลขอ้างอิง', defaultWidth: 150, minWidth: 120, align: 'center' },
   { key: 'cashIn', label: 'เงินเข้า', defaultWidth: 130, minWidth: 115, align: 'right' },
   { key: 'cashOut', label: 'เงินออก', defaultWidth: 130, minWidth: 115, align: 'right' },
 ]
 const businessCombinedColumns: Array<TableColumn<BusinessCombinedColumnKey>> = [
-  { key: 'date', label: 'วัน', defaultWidth: 100, minWidth: 90 },
+  { key: 'date', label: 'วัน', defaultWidth: 100, minWidth: 90, align: 'center' },
   { key: 'purchaseAmount', label: 'ซื้อ', defaultWidth: 125, minWidth: 110, align: 'right' },
   { key: 'saleAmount', label: 'ขาย', defaultWidth: 125, minWidth: 110, align: 'right' },
   { key: 'cogs', label: 'COGS', defaultWidth: 120, minWidth: 105, align: 'right' },
@@ -92,21 +92,21 @@ const businessCombinedColumns: Array<TableColumn<BusinessCombinedColumnKey>> = [
 ]
 const businessModeColumns: Record<Exclude<Mode, 'combined'>, Array<TableColumn<BusinessModeColumnKey>>> = {
   expense: [
-    { key: 'date', label: 'วันที่จ่าย', defaultWidth: 120, minWidth: 105 },
-    { key: 'docNo', label: 'เลขที่ EXP', defaultWidth: 140, minWidth: 120, align: 'right' },
-    { key: 'category', label: 'หมวดค่าใช้จ่าย', defaultWidth: 190, minWidth: 150, align: 'right' },
-    { key: 'payee', label: 'ผู้รับเงิน', defaultWidth: 190, minWidth: 150, align: 'right' },
+    { key: 'date', label: 'วันที่จ่าย', defaultWidth: 120, minWidth: 105, align: 'center' },
+    { key: 'docNo', label: 'เลขที่ EXP', defaultWidth: 140, minWidth: 120, align: 'center' },
+    { key: 'category', label: 'หมวดค่าใช้จ่าย', defaultWidth: 190, minWidth: 150, align: 'left' },
+    { key: 'payee', label: 'ผู้รับเงิน', defaultWidth: 190, minWidth: 150, align: 'left' },
     { key: 'amount', label: 'ยอดจ่าย', defaultWidth: 130, minWidth: 115, align: 'right' },
   ],
   purchase: [
-    { key: 'date', label: 'วันที่เอกสาร', defaultWidth: 120, minWidth: 105 },
-    { key: 'docNo', label: 'เลขที่ PB', defaultWidth: 150, minWidth: 125, align: 'right' },
+    { key: 'date', label: 'วันที่เอกสาร', defaultWidth: 120, minWidth: 105, align: 'center' },
+    { key: 'docNo', label: 'เลขที่ PB', defaultWidth: 150, minWidth: 125, align: 'center' },
     { key: 'qty', label: 'น้ำหนัก', defaultWidth: 125, minWidth: 110, align: 'right' },
     { key: 'amount', label: 'ยอดซื้อ', defaultWidth: 140, minWidth: 120, align: 'right' },
   ],
   sales: [
-    { key: 'date', label: 'วันที่เอกสาร', defaultWidth: 120, minWidth: 105 },
-    { key: 'docNo', label: 'เลขที่ SB', defaultWidth: 150, minWidth: 125, align: 'right' },
+    { key: 'date', label: 'วันที่เอกสาร', defaultWidth: 120, minWidth: 105, align: 'center' },
+    { key: 'docNo', label: 'เลขที่ SB', defaultWidth: 150, minWidth: 125, align: 'center' },
     { key: 'qty', label: 'น้ำหนัก', defaultWidth: 125, minWidth: 110, align: 'right' },
     { key: 'amount', label: 'ยอดขาย', defaultWidth: 140, minWidth: 120, align: 'right' },
     { key: 'cogs', label: 'COGS', defaultWidth: 130, minWidth: 115, align: 'right' },
@@ -471,10 +471,10 @@ function BusinessCombinedTable({ days }: { days: BusinessDay[] }) {
           <tbody className="divide-y divide-slate-100">
             {sortedDays.map((day) => <tr key={day.date} className={`transition-colors hover:bg-slate-50 ${day.isWeekend ? 'bg-red-50/20' : ''} ${day.purchaseAmount + day.saleAmount + day.expenseAmount + day.receiptAmount + day.paymentAmount === 0 ? 'opacity-60' : ''}`}>
               {businessCombinedColumns.map((column) => (
-                <td key={column.key} className={`px-3 py-3 ${column.align === 'right' ? 'text-right font-mono tabular-nums' : 'text-left font-semibold'} ${businessCombinedCellTone(day, column.key)}`}>
+                <td key={column.key} className={`px-3 py-3 ${column.align === 'right' ? 'text-right font-mono tabular-nums' : column.align === 'center' ? 'whitespace-nowrap text-center font-semibold' : 'text-left font-semibold'} ${businessCombinedCellTone(day, column.key)}`}>
                   {column.key === 'date' ? (
                     <div className="flex items-center gap-2">
-                      <span>{day.day}</span>
+                      <span className="whitespace-nowrap">{day.day}</span>
                       {day.isToday ? <span className="rounded bg-yellow-100 px-1.5 py-0.5 text-xs font-bold text-yellow-800">วันนี้</span> : null}
                     </div>
                   ) : (
@@ -492,7 +492,7 @@ function BusinessCombinedTable({ days }: { days: BusinessDay[] }) {
         {sortedDays.map((day) => (
           <div key={day.date} className={`p-3 rounded-xl border mb-2 shadow-sm flex flex-col gap-1.5 text-xs bg-white ${day.isWeekend ? 'border-red-100 bg-red-50/20' : 'border-slate-100'} ${day.purchaseAmount + day.saleAmount + day.expenseAmount + day.receiptAmount + day.paymentAmount === 0 ? 'opacity-75' : ''}`}>
             <div className="flex justify-between items-center pb-1 border-b border-slate-50">
-              <span className="font-bold text-slate-800">วันที่ {day.day}</span>
+              <span className="whitespace-nowrap font-bold text-slate-800">วันที่ {day.day}</span>
               {day.isToday && <span className="rounded bg-yellow-100 px-1.5 py-0.5 text-xs font-bold text-yellow-800">วันนี้</span>}
             </div>
             <div className="grid grid-cols-2 gap-2 mt-1 text-xs font-mono text-slate-600">
@@ -589,8 +589,8 @@ function BusinessModeTable({ days, mode }: { days: BusinessDay[]; mode: Exclude<
           <tbody className="divide-y divide-slate-100">
             {sortedRows.map((row) => <tr key={`${mode}-${row.id}`} className="transition-colors hover:bg-slate-50">
               {columns.map((column) => (
-                <td key={column.key} className={`px-3 py-3 ${column.align === 'right' ? 'text-right font-mono tabular-nums' : 'text-left'} ${businessModeCellTone(mode, row, column.key)}`}>
-                  <div className={column.align === 'right' ? 'whitespace-nowrap' : 'truncate'} title={String(formatBusinessModeCell(row, column.key))}>{formatBusinessModeCell(row, column.key)}</div>
+                <td key={column.key} className={`px-3 py-3 ${column.align === 'right' ? 'text-right font-mono tabular-nums' : column.align === 'center' ? 'text-center' : 'text-left'} ${businessModeCellTone(mode, row, column.key)}`}>
+                  <div className={column.align === 'left' || !column.align ? 'truncate' : 'whitespace-nowrap'} title={String(formatBusinessModeCell(row, column.key))}>{formatBusinessModeCell(row, column.key)}</div>
                 </td>
               ))}
             </tr>)}
@@ -604,8 +604,8 @@ function BusinessModeTable({ days, mode }: { days: BusinessDay[]; mode: Exclude<
         {sortedRows.map((doc) => (
           <div key={`${mode}-${doc.id}`} className="p-3 bg-white rounded-xl border border-slate-100 mb-2 shadow-sm flex flex-col gap-1 text-xs">
             <div className="flex justify-between items-center">
-              <span className="font-bold text-slate-800">{doc.docNo}</span>
-              <span className="text-slate-500 text-xs">{doc.date}</span>
+              <span className="whitespace-nowrap font-mono font-bold text-slate-800">{doc.docNo}</span>
+              <span className="whitespace-nowrap text-xs text-slate-500">{doc.date}</span>
             </div>
             {mode === 'expense' && (
               <div className="grid grid-cols-2 gap-1 mt-1 text-xs text-slate-600">
@@ -723,8 +723,8 @@ function CashDayModal({ day, onClose }: { day: CashDay; onClose: () => void }) {
               <tbody className="divide-y divide-slate-100">
                 {sortedEntries.map((entry) => <tr key={entry.id} className="transition-colors hover:bg-slate-50">
                   {cashEntryColumns.map((column) => (
-                    <td key={column.key} className={`px-3 py-3 ${column.align === 'right' ? 'text-right font-mono tabular-nums' : 'text-left'} ${cashEntryCellTone(column.key)}`}>
-                      <div className={column.align === 'right' ? 'whitespace-nowrap' : 'truncate'} title={String(formatCashEntryCell(entry, column.key))}>{formatCashEntryCell(entry, column.key)}</div>
+                    <td key={column.key} className={`px-3 py-3 ${column.align === 'right' ? 'text-right font-mono tabular-nums' : column.align === 'center' ? 'text-center' : 'text-left'} ${cashEntryCellTone(column.key)}`}>
+                      <div className={column.align === 'left' || !column.align ? 'truncate' : 'whitespace-nowrap'} title={String(formatCashEntryCell(entry, column.key))}>{formatCashEntryCell(entry, column.key)}</div>
                     </td>
                   ))}
                 </tr>)}
@@ -739,7 +739,7 @@ function CashDayModal({ day, onClose }: { day: CashDay; onClose: () => void }) {
               <div key={entry.id} className="p-2.5 bg-white rounded-xl border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
                 <div className="flex justify-between items-start">
                   <span className="font-bold text-slate-800">{entry.description || entry.type}</span>
-                  <span className="font-mono text-xs text-slate-400">{entry.refNo}</span>
+                  <span className="whitespace-nowrap font-mono text-xs text-slate-400">{entry.refNo}</span>
                 </div>
                 <div className="text-slate-500 text-xs">บัญชี: {entry.account}</div>
                 <div className="flex justify-end gap-3 mt-1.5 font-mono text-xs">

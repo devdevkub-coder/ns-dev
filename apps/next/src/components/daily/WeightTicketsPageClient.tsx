@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 
+import { useActionConfirmation } from '@/components/ui/FormSafetyProvider'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { WeightTicketWtiForm, type WeightTicketTypeFormProps } from '@/components/daily/WeightTicketWtiForm'
 import { WeightTicketWtoForm } from '@/components/daily/WeightTicketWtoForm'
@@ -10,6 +11,7 @@ import type { WeightTicketType } from '@/lib/weight-tickets'
 type WeightTicketsPageClientProps = WeightTicketTypeFormProps & {
   initialType?: WeightTicketType
   lockType?: boolean
+  onRequestClose?: (requestClose: () => void) => void
 }
 
 function ticketTypeFromDocumentId(ticketId: string, defaultType: WeightTicketType) {
@@ -22,6 +24,7 @@ function ticketTypeFromDocumentId(ticketId: string, defaultType: WeightTicketTyp
 export function WeightTicketsPageClient({
   initialType = 'WTI',
   lockType = false,
+  onRequestClose,
   ticketId = '',
   ...formProps
 }: WeightTicketsPageClientProps) {
@@ -29,13 +32,21 @@ export function WeightTicketsPageClient({
   const resolvedInitialType = ticketTypeFromDocumentId(ticketId, initialType)
   const [activeType, setActiveType] = useState<WeightTicketType>(resolvedInitialType)
   const [dirty, setDirty] = useState(false)
+  const { requestNavigation } = useActionConfirmation()
   const showTabs = !lockType && !editing
 
   function changeType(nextType: WeightTicketType) {
     if (nextType === activeType) return
-    if (dirty && !window.confirm('มีข้อมูลที่ยังไม่ได้บันทึก ต้องการเปลี่ยนประเภทเอกสารและล้างข้อมูลหรือไม่?')) return
-    setDirty(false)
-    setActiveType(nextType)
+    const applyTypeChange = () => {
+      setDirty(false)
+      setActiveType(nextType)
+    }
+
+    if (dirty) {
+      requestNavigation(applyTypeChange)
+    } else {
+      applyTypeChange()
+    }
   }
 
   const form = activeType === 'WTI' ? (
@@ -45,6 +56,7 @@ export function WeightTicketsPageClient({
       hideTypeHeader={showTabs}
       ticketId={ticketId}
       onDirtyChange={setDirty}
+      onRequestClose={onRequestClose}
     />
   ) : (
     <WeightTicketWtoForm
@@ -53,6 +65,7 @@ export function WeightTicketsPageClient({
       hideTypeHeader={showTabs}
       ticketId={ticketId}
       onDirtyChange={setDirty}
+      onRequestClose={onRequestClose}
     />
   )
 

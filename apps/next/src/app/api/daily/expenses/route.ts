@@ -5,7 +5,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, hasPermission, requirePermission } from '@/lib/server/auth-context'
 import { REPORT_PAGE_PERMISSIONS } from '@/lib/report-permissions'
-import { currentActor, documentBranchCode, listDailyAccounts, nextBankStatementDocNos, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, documentBranchCode, listDailyAccounts, lockDailyAccountBalances, nextBankStatementDocNos, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { hasLockedPaymentApproval } from '@/lib/server/payment-approval-pending'
 import {
@@ -14,6 +14,8 @@ import {
   PAYMENT_STATUS_ACTION,
 } from '@/lib/server/payment-history'
 import { prisma } from '@/lib/server/prisma'
+import { getFinanceCurrencyPolicy } from '@/lib/server/finance-currency-policy'
+import { functionalBankStatementMovement } from '@/lib/server/bank-statement-booking'
 import { listActiveBranches } from '@/lib/server/reference-master-cache'
 import { listActiveSupplierPaymentOptions } from '@/lib/server/reference-master-cache'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
@@ -414,6 +416,7 @@ export async function POST(request: Request) {
 
     const values = expenseFormSchema.parse(await request.json())
     const actor = currentActor(context)
+    const currencyPolicy = await getFinanceCurrencyPolicy()
     const rawLines = values.lines && values.lines.length > 0
       ? values.lines
       : [{
@@ -632,6 +635,7 @@ export async function POST(request: Request) {
 
       if (isPayNow) {
         if (!paymentAccount || !paymentBranchCode) throw new Error('ข้อมูลบัญชีจ่ายไม่ครบถ้วน')
+        await lockDailyAccountBalances(tx, [paymentAccount.id])
         await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('payments.doc_no'))`
         const paymentDocNo = await nextSupplierPaymentDocNo(tx, values.date, paymentBranchCode)
         const voucherId = paymentDocNo
@@ -641,6 +645,12 @@ export async function POST(request: Request) {
         const paymentAmount = roundMoney(netAmount - discount)
         const paymentNetAmount = roundMoney(paymentAmount + bankFee)
         if (paymentAmount <= 0) throw new Error('ยอดจ่ายหลังหักส่วนลดต้องมากกว่า 0')
+        if (account?.accountGroup !== 'virtual') {
+          const paymentAccountBalance = (await listDailyAccounts(tx)).find((row) => row.id === account?.code)
+          if (paymentAccountBalance && paymentNetAmount > (paymentAccountBalance.availableToPay ?? 0) + 0.01) {
+            throw new Error('ยอดจ่ายเกินยอดเงินคงเหลือและวงเงิน OD ที่ใช้ได้ กรุณาลดจำนวนหรือเพิ่มบัญชีจ่าย')
+          }
+        }
 
         const payment = await tx.payments.create({
           data: {
@@ -674,13 +684,22 @@ export async function POST(request: Request) {
         })
 
         await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('bank_statement.doc_no'))`
-        const [statementDocNo] = await nextBankStatementDocNos(values.date, 1, tx)
+        const branchCode = documentBranchCode(branch?.code)
+        if (!branch?.id || !branchCode) throw new Error('ไม่พบสาขาสำหรับออกเลข Bank Statement ค่าใช้จ่าย')
+        const [statementDocNo] = await nextBankStatementDocNos(values.date, branchCode, 1, tx)
         if (!statementDocNo) throw new Error('ออกเลข Bank Statement ไม่ได้')
         const bankStatement = await tx.bank_statement.create({
           data: {
+            ...functionalBankStatementMovement({
+              amountIn: 0,
+              amountOut: paymentNetAmount,
+              functionalCurrencyCode: currencyPolicy.functionalCurrencyCode,
+              idempotencyKey: `expense-payment:${paymentDocNo}`,
+              sourceEventKey: `expense-payment:${paymentDocNo}`,
+              sourceEventType: 'expense_payment',
+            }),
             account_id: paymentAccount.id,
-            amount_in: 0,
-            amount_out: paymentNetAmount,
+            branch_id: branch.id,
             created_by: actor,
             date: documentDate,
             description: `${paymentDocNo} - จ่ายค่าใช้จ่าย ${docNo}`,

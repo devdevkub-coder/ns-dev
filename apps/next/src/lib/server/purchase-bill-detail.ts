@@ -1,4 +1,4 @@
-import { PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS } from '@/lib/purchase-bill-status'
+import { purchaseBillStatusText, requirePurchaseBillStatus } from '@/lib/purchase-bill-status'
 import { supplierAdvanceVatTypeLabel } from '@/lib/purchase-advance'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
@@ -213,13 +213,7 @@ type PurchaseBillDetailRow = Prisma.purchase_billsGetPayload<{
 }>
 
 function purchaseBillStatusLabel(status: string | null | undefined) {
-  const normalized = String(status ?? '').toLowerCase()
-  if (normalized === 'unpaid') return 'ยังไม่ชำระเงิน'
-  if (normalized === 'partial') return 'ชำระเงินบางส่วน'
-  if (normalized === 'paid') return 'เสร็จสิ้น'
-  if (normalized === 'cancelled') return 'ยกเลิก'
-  if (normalized === PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS) return 'ยกเลิก/เปลี่ยน Supplier'
-  return status ?? '-'
+  return purchaseBillStatusText(status)
 }
 
 function purchaseBillHistoryActionLabel(action: string | null | undefined) {
@@ -580,7 +574,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
       createdAt: log.created_at.toISOString(),
       details,
       id: log.event_key ?? `purchase-bill-status:${log.id}`,
-      status: log.to_status ?? '',
+      status: requirePurchaseBillStatus(log.to_status, bill.doc_no),
       statusLabel: purchaseBillStatusLabel(log.to_status),
       title: purchaseBillHistoryActionLabel(log.action),
       tone: purchaseBillHistoryTone(log.action),
@@ -615,7 +609,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     payableBalance: toNumber(bill.payable_balance),
     productSummaries,
     receiptDocNos,
-    status: bill.status ?? '',
+    status: requirePurchaseBillStatus(bill.status, bill.doc_no),
     statusLabel: purchaseBillStatusLabel(bill.status),
     subtotal: toNumber(bill.subtotal),
     supplierAddress: bill.supplier_address_snapshot ?? '-',

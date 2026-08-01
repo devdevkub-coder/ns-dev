@@ -93,13 +93,15 @@ PB เป็นจุดตั้งเจ้าหนี้และเป็�
 - Stock PB เขียน `stock_ledger.ref_type = PB` เป็น stock-in
 - Stock PB ทำให้ qty/value เข้า stock และ WAC ปัจจุบันเปลี่ยนตามราคาซื้อของบิลนั้น
 - Trading PB ไม่เขียน stock ledger และไม่กระทบ Stock On Hand/WAC
-- Stock PB ที่มาจาก WTI ต้องแสดง `นน.ก่อนหัก` ใน detail/print เป็นน้ำหนักหลังหักภาชนะแล้ว (`allocated gross - container deduction ตามสัดส่วน allocation`) จากนั้นจึงแสดง `นน.หัก` และ `นน.สุทธิ`; เช่น gross 970 หักภาชนะ 36 ได้ 934 และหักสินค้า/สิ่งเจือปน 37 ได้สุทธิ 897
+- Stock PB ที่มาจาก WTI ต้องตั้งต้นด้วย `น้ำหนักหลัก` ซึ่งเท่ากับน้ำหนักรวมหลังหักภาชนะแล้ว, แสดง `หัก` เฉพาะสิ่งเจือปน, และแสดง `น้ำหนักสุทธิ` ตาม WTI; เช่น gross 970 หักภาชนะ 36 และหักสินค้า/สิ่งเจือปน 37 จะแสดงน้ำหนักหลัก 934, หัก 37, และสุทธิ 897. เมื่อ WTI ถูกออกบิลบางส่วน ระบบต้องกระจายทั้งน้ำหนักหลักและหักสิ่งเจือปนตามสัดส่วนของน้ำหนักสุทธิคงเหลือ. การเปลี่ยนนี้เป็น display contract ของ Stock PB; qty ที่จัดสรร, stock และ ledger ยังคงยึดน้ำหนักสุทธิ และ allocation ยังคงเก็บน้ำหนักชั่งรวมต้นทางเพื่อ audit.
+- เมื่อเปิดแก้ไข Stock PB ระบบต้องอ่าน PB detail แบบ `no-store` และใช้ `allocationRows.grossWeight` ซึ่งคำนวณจากน้ำหนักชั่งรวมลบหักภาชนะแล้วสำหรับค่า `น้ำหนักหลัก` ในฟอร์ม. ห้ามใช้ `purchase_bill_items.gross_weight` ตรง ๆ ในการแสดง เพราะค่านั้นเก็บน้ำหนักชั่งรวมดิบเพื่อ audit; การแยกนี้ทำให้หน้า detail และ edit แสดง contract เดียวกันโดยไม่เปลี่ยน stock, ledger หรือข้อมูลต้นทาง.
 - Stock PB remark ต่อรายการต้องมาจากข้อมูลหักสิ่งเจือปนของ WTI product summary เดียวกัน เช่น `- 1. ฝุ่น 12 กก.` และถ้าสิ่งเจือปนนั้นซื้อกลับเป็นสินค้าอื่นต้องต่อท้าย `ซื้อเป็น <ชื่อสินค้า>`; ถ้ามีหมายเหตุรายเต๋าให้แสดงต่อท้ายเป็นลำดับถัดไปหลังรายการสิ่งเจือปน
 - edit/cancel/supplier swap ของ Stock PB ใช้ append-only reversal (`PB-EDIT-REV` หรือ `PB-CANCEL`) และไม่ delete/rebuild ledger เดิม
 - cancel ของ Stock PB ต้อง reverse ด้วย unit cost/value เดิมของ PB แล้วให้ WAC ปัจจุบันคำนวณใหม่จาก ledger ที่เหลือ; ถ้า stock พร้อมใช้ไม่พอสำหรับ reverse ต้อง block หรือใช้ correction/approval flow แยก
 - อัปเดต WTI usage/status เป็นออกบิลแล้ว
 - อัปเดต POB remaining/status ตาม allocation
 - สร้าง/ปรับ PB payable status สำหรับ Payment Flow
+- `purchase_bills.status` รับได้เฉพาะ `unpaid`, `partial`, `paid`, `cancelled`, และ `cancelled_supplier_swap`; ทุก writer ใช้ contract กลาง และ reader ต้อง reject ค่า status ที่ว่างหรือไม่อยู่ในชุดนี้ ห้าม default หรือ map ค่าเก่า เช่น `open` เป็นสถานะใหม่
 - cancel/supplier swap ต้อง reverse/release allocation, ADV, WTI usage และ stock ledger ตาม append/reversal policy
 
 ## Current Code Baseline
@@ -131,6 +133,10 @@ PB เป็นจุดตั้งเจ้าหนี้และเป็�
 ## 2026-07-19 Party alignment checkpoint
 
 The `/purchase/bills` list now left-aligns the `ผู้ขาย` header to match its left-aligned body. What is what: this is the existing Supplier name column. Why it has to be like this: party names scan as text and the header must follow the same geometry as its values; numeric, status, and action columns remain unchanged, with no effect on bill calculations, APIs, permissions, database schema, or DB state.
+
+## 2026-07-31 WTI open-bill freshness checkpoint
+
+When a user chooses `เปิดบิลซื้อ` from a WTI row, `/purchase/bills?new=1&wti=<docNo>` reads the purchase-bill options directly from the server and does not use the browser option cache. WTI create/edit, confirm, and cancel also invalidate the Purchase Bill option cache after their writes succeed. What is what: the WTI option list determines whether the linked document can populate the Stock PB form. WTI eligibility, status, and remaining allocation are L5 business facts; their source of truth is the database through `/api/purchase/bills/options`, and they must not be served from cache for the WTI-to-PB transition. Why it has to be like this: a newly confirmed WTI is a current transaction fact, so a five-minute cached option list could incorrectly report that the WTI was missing or already billed. Normal Purchase Bill option loading may still use its scoped short-lived client cache; only the WTI-to-PB transition requires a fresh read.
 
 ## 2026-07-23 Purchase list center-alignment checkpoint
 

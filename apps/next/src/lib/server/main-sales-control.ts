@@ -1,7 +1,8 @@
 import type { Prisma } from '../../../generated/prisma/client'
 import { outwardCustomerReference } from '@/lib/server/customer-reference'
 import { requireBusinessCode } from '@/lib/business-code'
-import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
+import { PURCHASE_BILL_ACTIVE_STATUSES } from '@/lib/purchase-bill-status'
+import { isActivePoSellStatus } from '@/lib/po-sell-status'
 import { bangkokDateRange, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib/server/daily'
 import { getSalesPlanLmeConfigAutoRefresh, type SalesPlanLmeConfig } from './sales-plan-lme'
 import { prisma } from '@/lib/server/prisma'
@@ -144,10 +145,6 @@ function activeStatus(status?: string | null) {
   return !['cancelled', 'void', 'reversed'].includes((status ?? '').toLowerCase())
 }
 
-function activePoSellStatus(status?: string | null) {
-  return activeStatus(status) && !['canceled', 'closed', 'completed', 'fully matched', 'received', 'short closed'].includes((status ?? '').toLowerCase())
-}
-
 async function productsContext() {
   const products = await prisma.products.findMany({
     orderBy: [{ code: 'asc' }],
@@ -210,7 +207,7 @@ async function buildSalesPlanningSnapshot() {
     listActiveCustomers(),
     listActiveSalesChannels(),
     prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 10000, where: { NOT: { status: { in: ['Cancelled', 'cancelled'] } } } }),
-    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } } }, orderBy: [{ date: 'desc' }], take: 10000, where: { status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] } } }),
+    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } } }, orderBy: [{ date: 'desc' }], take: 10000, where: { status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] } } }),
     listActiveWarehousesByBranch(SALES_PLAN_SAMUT_SAKHON_BRANCH_CODE),
   ])
   const samutSakhonWarehouseIds = new Set<bigint>(samutSakhonWarehouses.map((warehouse: (typeof samutSakhonWarehouses)[number]) => warehouse.id))
@@ -246,7 +243,7 @@ async function buildSalesPlanningSnapshot() {
     return productAgg.get(key)!
   }
 
-  poSells.filter((po: (typeof poSells)[number]) => activePoSellStatus(po.status)).forEach((po: (typeof poSells)[number]) => {
+  poSells.filter((po: (typeof poSells)[number]) => isActivePoSellStatus(po.status, po.doc_no)).forEach((po: (typeof poSells)[number]) => {
     poSellItems(po, byKey).forEach((item) => {
       const qty = item.qty
       const remaining = Math.max(0, item.remainingQty)
@@ -334,7 +331,7 @@ async function buildSalesPlanningSnapshot() {
   })
 
   const poSellOpenByProduct = new Map<string, number>()
-  poSells.filter((po: (typeof poSells)[number]) => activePoSellStatus(po.status)).forEach((po: (typeof poSells)[number]) => {
+  poSells.filter((po: (typeof poSells)[number]) => isActivePoSellStatus(po.status, po.doc_no)).forEach((po: (typeof poSells)[number]) => {
     poSellItems(po, byKey).forEach((item) => {
       if (!item.product?.id && !item.productId) return
       const key = item.product ? String(item.product.id) : item.productId
@@ -471,11 +468,11 @@ async function buildSalesPlanningSnapshot() {
   }
 }
 
-export async function buildSalesPlan(selectedMonth?: string) {
+export async function buildSalesPlan(selectedMonth?: string, branchCode?: string) {
   const pending = await buildSalesPlanningSnapshot()
   const config = pending.lmeConfig
   const month = /^\d{4}-\d{2}$/.test(selectedMonth ?? '') ? String(selectedMonth) : new Date().toISOString().slice(0, 7)
-  const planRows = await listSalesPlans(month)
+  const planRows = await listSalesPlans(month, branchCode)
   const bestPlanByProduct = new Map<string, { price: number; pct: number }>()
   planRows.forEach((plan) => {
     const key = String(plan.productCode ?? '').trim().toLowerCase()
@@ -592,7 +589,7 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
 
   const currentWhere: Prisma.purchase_billsWhereInput = {
     date: bangkokDateRange(from, to),
-    status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] }
+    status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] }
   }
   if (filters?.branchId) {
     currentWhere.branch_id = BigInt(filters.branchId)
@@ -600,7 +597,7 @@ export async function buildSalesCommission(filters?: { dateFrom?: string; dateTo
 
   const annualWhere: Prisma.purchase_billsWhereInput = {
     date: bangkokDateRange(`${year}-01-01`, `${year}-12-31`),
-    status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] }
+    status: { in: [...PURCHASE_BILL_ACTIVE_STATUSES] }
   }
   if (filters?.branchId) {
     annualWhere.branch_id = BigInt(filters.branchId)

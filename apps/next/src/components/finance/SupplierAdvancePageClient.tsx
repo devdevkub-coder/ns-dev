@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Download } from 'lucide-react'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -22,7 +23,7 @@ type SupplierAdvanceRow = {
   date: string
   description: string
   docNo: string
-  fxRate: number
+  fxRate: number | null
   id: string
   remainingAmount: number
   status: string
@@ -75,9 +76,14 @@ const supplierAdvanceColumns: Array<ResizableColumnDefinition<SupplierAdvanceCol
   { key: 'status', defaultWidth: 110, minWidth: 95 },
 ]
 
-function compareSortValues(left: string | number, right: string | number) {
+function compareSortValues(left: string | number | null, right: string | number | null) {
+  if (left == null || right == null) return left == null && right == null ? 0 : left == null ? -1 : 1
   if (typeof left === 'number' && typeof right === 'number') return left - right
   return String(left ?? '').localeCompare(String(right ?? ''), 'th', { numeric: true, sensitivity: 'base' })
+}
+
+function formatFxRate(value: number | null) {
+  return value == null ? '-' : value.toFixed(3)
 }
 
 function getSupplierAdvanceSortValue(row: SupplierAdvanceRow, key: SupplierAdvanceSortKey) {
@@ -143,7 +149,7 @@ export function SupplierAdvancePageClient() {
         <Metric label="Advance คงเหลือรวม (THB)" value={formatMoney(data?.summary.totalRemainingThb ?? 0)} tone="amber" />
         <Metric label="จำนวนรายการ Active" value={`${data?.summary.activeCount ?? 0}`} />
         <div className="flex items-center justify-end gap-2">
-          <a className="inline-flex h-9 items-center rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700" href={exportHref}>ส่งออก Excel</a>
+          <a className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white shadow-sm hover:bg-emerald-700" href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
         </div>
       </div>
 
@@ -163,10 +169,10 @@ export function SupplierAdvancePageClient() {
           </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
             <tr>
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} sortKey="docNo" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="Supplier" resizeProps={columnResize.getResizeHandleProps('supplierName', 'Supplier')} sortKey="supplierName" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey ?? undefined} direction={sortDirection} label="สกุล" resizeProps={columnResize.getResizeHandleProps('currency', 'สกุล')} sortKey="currency" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey ?? undefined} align="center" direction={sortDirection} label="สกุล" resizeProps={columnResize.getResizeHandleProps('currency', 'สกุล')} sortKey="currency" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="Rate" resizeProps={columnResize.getResizeHandleProps('fxRate', 'Rate')} sortKey="fxRate" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="จำนวน" resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวน')} sortKey="amount" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey ?? undefined} align="right" direction={sortDirection} label="มูลค่า THB" resizeProps={columnResize.getResizeHandleProps('amountThb', 'มูลค่า THB')} sortKey="amountThb" onSort={changeSort} />
@@ -180,16 +186,16 @@ export function SupplierAdvancePageClient() {
             {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={supplierAdvanceColumns.length}>ยังไม่มี Supplier Advance</td></tr> : null}
             {!isLoading && sortedRows.map((row) => (
               <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors">
-                <td className="px-4 py-3.5 font-mono text-xs overflow-hidden truncate">{row.docNo}</td>
-                <td className="px-4 py-3.5 overflow-hidden truncate">{row.date}</td>
+                <td className="whitespace-nowrap px-4 py-3.5 text-center font-mono text-xs overflow-hidden truncate">{row.docNo}</td>
+                <td className="whitespace-nowrap px-4 py-3.5 text-center overflow-hidden truncate">{row.date}</td>
                 <td className="px-4 py-3.5 overflow-hidden truncate">{row.supplierName}</td>
-                <td className="px-4 py-3.5 overflow-hidden truncate">{row.currency}</td>
-                <td className="px-4 py-3.5 text-right overflow-hidden truncate">{formatMoney(row.fxRate)}</td>
-                <td className="px-4 py-3.5 text-right overflow-hidden truncate">{formatMoney(row.amount)}</td>
-                <td className="px-4 py-3.5 text-right font-medium overflow-hidden truncate">{formatMoney(row.amountThb)}</td>
-                <td className="px-4 py-3.5 text-right text-slate-600 overflow-hidden truncate">{formatMoney(row.usedAmount)}</td>
-                <td className="px-4 py-3.5 text-right font-bold text-amber-700 overflow-hidden truncate">{formatMoney(row.remainingAmount)}</td>
-                <td className="px-4 py-3.5 text-center overflow-hidden truncate"><StatusBadge status={row.status} /></td>
+                <td className="whitespace-nowrap px-4 py-3.5 text-center overflow-hidden truncate">{row.currency}</td>
+                <td className="px-4 py-3.5 text-right overflow-hidden truncate">{formatFxRate(row.fxRate)}</td>
+                <td className="px-4 py-3.5 text-right tabular-nums overflow-hidden truncate">{formatMoney(row.amount)}</td>
+                <td className="px-4 py-3.5 text-right tabular-nums font-medium overflow-hidden truncate">{formatMoney(row.amountThb)}</td>
+                <td className="px-4 py-3.5 text-right tabular-nums text-slate-600 overflow-hidden truncate">{formatMoney(row.usedAmount)}</td>
+                <td className="px-4 py-3.5 text-right tabular-nums font-bold text-amber-700 overflow-hidden truncate">{formatMoney(row.remainingAmount)}</td>
+                <td className="whitespace-nowrap px-4 py-3.5 text-center overflow-hidden truncate"><StatusBadge status={row.status} /></td>
               </tr>
             ))}
           </tbody>
@@ -210,7 +216,7 @@ export function SupplierAdvancePageClient() {
             className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm space-y-2"
           >
             <div className="flex justify-between items-start">
-              <span className="font-bold text-slate-800 text-sm font-mono">{row.docNo}</span>
+              <span className="whitespace-nowrap font-bold text-slate-800 text-sm font-mono">{row.docNo}</span>
               <StatusBadge status={row.status} />
             </div>
             
@@ -222,11 +228,11 @@ export function SupplierAdvancePageClient() {
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <div>
                   <span className="font-semibold text-slate-500 block">วันที่: </span>
-                  <span className="text-slate-800">{row.date}</span>
+                  <span className="whitespace-nowrap text-slate-800">{row.date}</span>
                 </div>
                 <div>
                   <span className="font-semibold text-slate-500 block">สกุลเงิน/Rate: </span>
-                  <span className="text-slate-800">{row.currency} @ {formatMoney(row.fxRate)}</span>
+                  <span className="text-slate-800">{row.currency} @ {formatFxRate(row.fxRate)}</span>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2 pt-1.5 border-t border-slate-100/60 mt-1 text-right text-xs">

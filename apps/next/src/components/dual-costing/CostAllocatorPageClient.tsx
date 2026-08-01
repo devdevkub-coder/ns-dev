@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { Input } from '@/components/ui/Input'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -93,6 +94,16 @@ type PoolColumnKey = 'availableQty' | 'availableValue' | 'counterparty' | 'date'
 type PreviewColumnKey = 'availableQty' | 'counterparty' | 'qtyToUse' | 'sourceNo' | 'sourceType' | 'totalCostUse' | 'unitCost'
 type SortDirection = 'asc' | 'desc'
 
+type AllocatorDraft = {
+  allocationMode: string
+  selectedPoSellId: string
+  selectedProductId: string
+  showPreview: boolean
+  sourceType: string
+  targetCost: number
+  targetCostInput: string
+}
+
 const targetColumns: Array<ResizableColumnDefinition<TargetColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 125 },
   { key: 'date', defaultWidth: 115, minWidth: 100 },
@@ -128,17 +139,26 @@ const previewColumns: Array<ResizableColumnDefinition<PreviewColumnKey>> = [
 export function CostAllocatorPageClient() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const [allocationMode, setAllocationMode] = useState('FIFO')
+  const [allocatorBaseline, setAllocatorBaseline] = useState<AllocatorDraft>(() => ({
+    allocationMode: 'FIFO',
+    selectedPoSellId: searchParams.get('poSellId') ?? '',
+    selectedProductId: searchParams.get('productId') ?? '',
+    showPreview: false,
+    sourceType: searchParams.get('sourceType') ?? 'spot-sell',
+    targetCost: 0,
+    targetCostInput: '0',
+  }))
+  const [allocationMode, setAllocationMode] = useState(allocatorBaseline.allocationMode)
   const [data, setData] = useState<Payload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [selectedPoSellId, setSelectedPoSellId] = useState(searchParams.get('poSellId') ?? '')
-  const [selectedProductId, setSelectedProductId] = useState(searchParams.get('productId') ?? '')
+  const [selectedPoSellId, setSelectedPoSellId] = useState(allocatorBaseline.selectedPoSellId)
+  const [selectedProductId, setSelectedProductId] = useState(allocatorBaseline.selectedProductId)
   const [selectedProductOption, setSelectedProductOption] = useState<SearchComboboxOption | null>(null)
-  const [showPreview, setShowPreview] = useState(false)
-  const [sourceType, setSourceType] = useState(searchParams.get('sourceType') ?? 'spot-sell')
-  const [targetCost, setTargetCost] = useState(0)
-  const [targetCostInput, setTargetCostInput] = useState('0')
+  const [showPreview, setShowPreview] = useState(allocatorBaseline.showPreview)
+  const [sourceType, setSourceType] = useState(allocatorBaseline.sourceType)
+  const [targetCost, setTargetCost] = useState(allocatorBaseline.targetCost)
+  const [targetCostInput, setTargetCostInput] = useState(allocatorBaseline.targetCostInput)
   const [targetCostError, setTargetCostError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [collapsedSections, setCollapsedSections] = useState<Record<'step0' | 'step1' | 'step2' | 'step3' | 'step4', boolean>>({
@@ -160,6 +180,14 @@ export function CostAllocatorPageClient() {
   const targetColumnResize = useResizableColumns('dual-costing.cost-allocator.targets.v1', targetColumns)
   const poolColumnResize = useResizableColumns('dual-costing.cost-allocator.pool.v1', poolColumns)
   const previewColumnResize = useResizableColumns('dual-costing.cost-allocator.preview.v1', previewColumns)
+  const allocatorIsDirty = allocationMode !== allocatorBaseline.allocationMode
+    || selectedPoSellId !== allocatorBaseline.selectedPoSellId
+    || selectedProductId !== allocatorBaseline.selectedProductId
+    || showPreview !== allocatorBaseline.showPreview
+    || sourceType !== allocatorBaseline.sourceType
+    || targetCost !== allocatorBaseline.targetCost
+    || targetCostInput !== allocatorBaseline.targetCostInput
+  useUnsavedChangesGuard(allocatorIsDirty)
 
   useEffect(() => {
     setPage(1)
@@ -322,6 +350,15 @@ export function CostAllocatorPageClient() {
       )
       if (response.success) {
         alert(response.message || 'จัดสรรต้นทุนสำเร็จ')
+        setAllocatorBaseline({
+          allocationMode,
+          selectedPoSellId: '',
+          selectedProductId,
+          showPreview: false,
+          sourceType,
+          targetCost,
+          targetCostInput,
+        })
         setSelectedPoSellId('')
         setShowPreview(false)
         setReloadTrigger((prev) => prev + 1)
@@ -461,7 +498,7 @@ export function CostAllocatorPageClient() {
                 <span>กำหนดเอง – ตั้งราคาต้นทุนเป้าหมาย</span>
               </div>
               <p className="text-xs leading-relaxed text-slate-500">
-                ระบบจะเลือก lot ผลผลิต (หรือผัน inventory เก่า) และ/หรือ lot ซื้อล่าสุด ให้ weighted average ได้ ราคาเป้าหมายที่ตั้ง (หลีกเลี่ยงลอทเกินจำเป็น)
+                ระบบจะเลือกรายการผลผลิต (หรือผัน inventory เก่า) และ/หรือรายการซื้อล่าสุด ให้ weighted average ได้ ราคาเป้าหมายที่ตั้ง (หลีกเลี่ยงรายการเกินจำเป็น)
               </p>
               <div className="flex flex-wrap items-end gap-2.5">
                 <div className="flex-1 min-w-[200px]">
@@ -546,15 +583,15 @@ export function CostAllocatorPageClient() {
               </colgroup>
               <thead className="bg-slate-100">
                 <tr>
-                  <ResizableTableHead label={sourceType === 'production' ? 'เลขที่ใบสั่งผลิต' : 'เลขที่เอกสารขาย'} activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="docNo" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('docNo', sourceType === 'production' ? 'เลขที่ใบสั่งผลิต' : 'เลขที่เอกสารขาย')} />
-                  <ResizableTableHead label="วันที่เอกสาร" activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="date" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
+                  <ResizableTableHead align="center" label={sourceType === 'production' ? 'เลขที่ใบสั่งผลิต' : 'เลขที่เอกสารขาย'} activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="docNo" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('docNo', sourceType === 'production' ? 'เลขที่ใบสั่งผลิต' : 'เลขที่เอกสารขาย')} />
+                  <ResizableTableHead align="center" label="วันที่เอกสาร" activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="date" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
                   <ResizableTableHead label={sourceType === 'production' ? 'ผู้ผลิต' : 'ลูกค้า'} activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="customerName" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('customerName', sourceType === 'production' ? 'ผู้ผลิต' : 'ลูกค้า')} />
                   <ResizableTableHead label="สินค้า" activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="productName" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('productName', 'สินค้า')} />
                   <ResizableTableHead align="right" label={sourceType === 'production' ? 'จำนวนผลิต (กก.)' : 'จำนวนขาย (กก.)'} activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="qty" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('qty', sourceType === 'production' ? 'จำนวนผลิต' : 'จำนวนขาย')} />
                   <ResizableTableHead align="right" label="จับคู่แล้ว" activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="matchedQty" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('matchedQty', 'จับคู่แล้ว')} />
                   <ResizableTableHead align="right" label="ค้างจับคู่" activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="remainingQty" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('remainingQty', 'ค้างจับคู่')} />
                   <ResizableTableHead align="right" label={sourceType === 'production' ? 'ต้นทุน/กก.' : 'ราคาขาย/หน่วย'} activeSortKey={targetSortKey ?? undefined} direction={targetSortDirection} sortKey="unitPrice" onSort={handleTargetSort} resizeProps={targetColumnResize.getResizeHandleProps('unitPrice', sourceType === 'production' ? 'ต้นทุนต่อกิโลกรัม' : 'ราคาขายต่อหน่วย')} />
-                  <ResizableTableHead align="right" label="เลือก" resizeProps={targetColumnResize.getResizeHandleProps('action', 'เลือก')} />
+                  <ResizableTableHead align="center" label="เลือก" resizeProps={targetColumnResize.getResizeHandleProps('action', 'เลือก')} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -564,15 +601,15 @@ export function CostAllocatorPageClient() {
                   const active = selectedPoSellId === target.id
                   return (
                     <tr key={target.id} className={active ? 'bg-blue-50/50 hover:bg-blue-50' : 'hover:bg-slate-50'}>
-                      <td className="whitespace-nowrap px-3 py-3 font-mono text-slate-900">{target.docNo}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-slate-600">{target.date}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-center font-mono text-slate-900">{target.docNo}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{target.date}</td>
                       <td className="px-3 py-3 font-medium text-slate-900">{target.customerName === '-' ? 'ภายในโรงงาน' : target.customerName}</td>
                       <td className="px-3 py-3 text-slate-700">{target.productName}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(target.qty)}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-semibold tabular-nums text-slate-700">{formatMoney(target.matchedQty)}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-amber-700">{formatMoney(target.remainingQty)}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(target.unitPrice)}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right">
+                      <td className="whitespace-nowrap px-3 py-3 text-center">
                         <Button
                           size="xs"
                           type="button"
@@ -601,8 +638,8 @@ export function CostAllocatorPageClient() {
               return (
                 <div key={target.id} className={`rounded-xl border p-4 shadow-sm ${active ? 'border-blue-200 bg-blue-50/50' : 'border-slate-200 bg-white'}`}>
                   <div className="flex items-start justify-between gap-3">
-                    <div className="font-mono text-base font-bold text-slate-900">{target.docNo}</div>
-                    <div className="shrink-0 text-sm font-medium text-slate-500">{target.date}</div>
+                    <div className="whitespace-nowrap text-center font-mono text-base font-bold text-slate-900">{target.docNo}</div>
+                    <div className="shrink-0 whitespace-nowrap text-center text-sm font-medium text-slate-500">{target.date}</div>
                   </div>
                   <div className="mt-3 space-y-1.5 rounded-xl border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">
                     <div><span className="font-semibold text-slate-500">{sourceType === 'production' ? 'ผู้ผลิต' : 'ลูกค้า'}: </span><span className="text-slate-900">{target.customerName === '-' ? 'ภายในโรงงาน' : target.customerName}</span></div>
@@ -636,7 +673,7 @@ export function CostAllocatorPageClient() {
       ) : null}
 
       {hasSelection ? (
-        <DualCostingPanel title="③ ล็อตต้นทุนในกลุ่มต้นทุนของสินค้าที่เลือก" titleAction={<PanelToggleButton collapsed={collapsedSections.step3} onClick={() => toggleSection('step3')} />}>
+        <DualCostingPanel title="③ รายการต้นทุนในกลุ่มต้นทุนของสินค้าที่เลือก" titleAction={<PanelToggleButton collapsed={collapsedSections.step3} onClick={() => toggleSection('step3')} />}>
           {!collapsedSections.step3 ? (
           <>
           <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
@@ -657,9 +694,9 @@ export function CostAllocatorPageClient() {
               <thead className="bg-slate-100">
                 <tr>
                   <ResizableTableHead label="แหล่งต้นทุน" activeSortKey={poolSortKey ?? undefined} direction={poolSortDirection} sortKey="sourceType" onSort={handlePoolSort} resizeProps={poolColumnResize.getResizeHandleProps('sourceType', 'แหล่งต้นทุน')} />
-                  <ResizableTableHead label="เลขที่เอกสารต้นทุน" activeSortKey={poolSortKey ?? undefined} direction={poolSortDirection} sortKey="sourceNo" onSort={handlePoolSort} resizeProps={poolColumnResize.getResizeHandleProps('sourceNo', 'เลขที่เอกสารต้นทุน')} />
-                  <ResizableTableHead label="วันที่เอกสาร" activeSortKey={poolSortKey ?? undefined} direction={poolSortDirection} sortKey="date" onSort={handlePoolSort} resizeProps={poolColumnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
-                  <ResizableTableHead label="คู่ค้า" activeSortKey={poolSortKey ?? undefined} direction={poolSortDirection} sortKey="counterparty" onSort={handlePoolSort} resizeProps={poolColumnResize.getResizeHandleProps('counterparty', 'คู่ค้า')} />
+                  <ResizableTableHead align="center" label="เลขที่เอกสารต้นทุน" activeSortKey={poolSortKey ?? undefined} direction={poolSortDirection} sortKey="sourceNo" onSort={handlePoolSort} resizeProps={poolColumnResize.getResizeHandleProps('sourceNo', 'เลขที่เอกสารต้นทุน')} />
+                  <ResizableTableHead align="center" label="วันที่เอกสาร" activeSortKey={poolSortKey ?? undefined} direction={poolSortDirection} sortKey="date" onSort={handlePoolSort} resizeProps={poolColumnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
+                  <ResizableTableHead label="ผู้ขาย" activeSortKey={poolSortKey ?? undefined} direction={poolSortDirection} sortKey="counterparty" onSort={handlePoolSort} resizeProps={poolColumnResize.getResizeHandleProps('counterparty', 'ผู้ขาย')} />
                   <ResizableTableHead align="right" label="คงเหลือพร้อมใช้" activeSortKey={poolSortKey ?? undefined} direction={poolSortDirection} sortKey="availableQty" onSort={handlePoolSort} resizeProps={poolColumnResize.getResizeHandleProps('availableQty', 'คงเหลือพร้อมใช้')} />
                   <ResizableTableHead align="right" label="ต้นทุน/หน่วย" activeSortKey={poolSortKey ?? undefined} direction={poolSortDirection} sortKey="unitCost" onSort={handlePoolSort} resizeProps={poolColumnResize.getResizeHandleProps('unitCost', 'ต้นทุนต่อหน่วย')} />
                   <ResizableTableHead align="right" label="มูลค่าคงเหลือ" activeSortKey={poolSortKey ?? undefined} direction={poolSortDirection} sortKey="availableValue" onSort={handlePoolSort} resizeProps={poolColumnResize.getResizeHandleProps('availableValue', 'มูลค่าคงเหลือ')} />
@@ -667,12 +704,12 @@ export function CostAllocatorPageClient() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={poolColumns.length}>กำลังโหลดกลุ่มต้นทุน</td></tr> : null}
-                {!isLoading && (data?.pool.length ?? 0) === 0 ? <tr><td className="px-3 py-10 text-center text-amber-700" colSpan={poolColumns.length}>ยังไม่มีล็อตต้นทุนสำหรับสินค้านี้</td></tr> : null}
+                {!isLoading && (data?.pool.length ?? 0) === 0 ? <tr><td className="px-3 py-10 text-center text-amber-700" colSpan={poolColumns.length}>ยังไม่มีรายการต้นทุนสำหรับสินค้านี้</td></tr> : null}
                 {sortedPoolRows.slice(0, 12).map((row) => (
                   <tr key={row.costPoolId} className="hover:bg-slate-50">
                     <td className="whitespace-nowrap px-3 py-3"><span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{poolSourceLabel(row.sourceType)}</span></td>
-                    <td className="whitespace-nowrap px-3 py-3 font-mono text-slate-900">{row.sourceNo}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-600">{row.date}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-center font-mono text-slate-900">{row.sourceNo}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{row.date}</td>
                     <td className="px-3 py-3 font-medium text-slate-900">{row.counterparty}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums text-emerald-700">{formatMoney(row.availableQty)}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.unitCost)}</td>
@@ -686,18 +723,18 @@ export function CostAllocatorPageClient() {
 
           <div className="space-y-3 md:hidden">
             {isLoading ? <div className="rounded-xl border border-slate-200 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">กำลังโหลดกลุ่มต้นทุน</div> : null}
-            {!isLoading && (data?.pool.length ?? 0) === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-4 text-center text-sm text-amber-700 shadow-sm">ยังไม่มีล็อตต้นทุนสำหรับสินค้านี้</div> : null}
+            {!isLoading && (data?.pool.length ?? 0) === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-4 text-center text-sm text-amber-700 shadow-sm">ยังไม่มีรายการต้นทุนสำหรับสินค้านี้</div> : null}
             {sortedPoolRows.slice(0, 12).map((row) => (
               <div key={row.costPoolId} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{poolSourceLabel(row.sourceType)}</span>
-                    <div className="mt-2 font-mono text-base font-bold text-slate-900">{row.sourceNo}</div>
+                    <div className="mt-2 whitespace-nowrap font-mono text-base font-bold text-slate-900">{row.sourceNo}</div>
                   </div>
-                  <div className="shrink-0 text-sm font-medium text-slate-500">{row.date}</div>
+                  <div className="shrink-0 whitespace-nowrap text-sm font-medium text-slate-500">{row.date}</div>
                 </div>
                 <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">
-                  <span className="font-semibold text-slate-500">คู่ค้า: </span>
+                  <span className="font-semibold text-slate-500">ผู้ขาย: </span>
                   <span className="text-slate-900">{row.counterparty}</span>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3 text-sm">
@@ -708,7 +745,7 @@ export function CostAllocatorPageClient() {
               </div>
             ))}
           </div>
-          {(data?.pool.length ?? 0) > 12 ? <div className="mt-2 text-xs text-slate-500">แสดง 12 lot แรกตาม sort ปัจจุบันจากทั้งหมด {data?.pool.length ?? 0} lot</div> : null}
+          {(data?.pool.length ?? 0) > 12 ? <div className="mt-2 text-xs text-slate-500">แสดง 12 รายการแรกตามการเรียงปัจจุบันจากทั้งหมด {data?.pool.length ?? 0} รายการ</div> : null}
           </>
           ) : null}
         </DualCostingPanel>
@@ -736,8 +773,8 @@ export function CostAllocatorPageClient() {
               <thead className="bg-slate-100">
                 <tr>
                   <ResizableTableHead label="แหล่งต้นทุน" activeSortKey={previewSortKey ?? undefined} direction={previewSortDirection} sortKey="sourceType" onSort={handlePreviewSort} resizeProps={previewColumnResize.getResizeHandleProps('sourceType', 'แหล่งต้นทุน')} />
-                  <ResizableTableHead label="เลขที่เอกสารต้นทุน" activeSortKey={previewSortKey ?? undefined} direction={previewSortDirection} sortKey="sourceNo" onSort={handlePreviewSort} resizeProps={previewColumnResize.getResizeHandleProps('sourceNo', 'เลขที่เอกสารต้นทุน')} />
-                  <ResizableTableHead label="คู่ค้า" activeSortKey={previewSortKey ?? undefined} direction={previewSortDirection} sortKey="counterparty" onSort={handlePreviewSort} resizeProps={previewColumnResize.getResizeHandleProps('counterparty', 'คู่ค้า')} />
+                  <ResizableTableHead align="center" label="เลขที่เอกสารต้นทุน" activeSortKey={previewSortKey ?? undefined} direction={previewSortDirection} sortKey="sourceNo" onSort={handlePreviewSort} resizeProps={previewColumnResize.getResizeHandleProps('sourceNo', 'เลขที่เอกสารต้นทุน')} />
+                  <ResizableTableHead label="ผู้ขาย" activeSortKey={previewSortKey ?? undefined} direction={previewSortDirection} sortKey="counterparty" onSort={handlePreviewSort} resizeProps={previewColumnResize.getResizeHandleProps('counterparty', 'ผู้ขาย')} />
                   <ResizableTableHead align="right" label="คงเหลือพร้อมใช้" activeSortKey={previewSortKey ?? undefined} direction={previewSortDirection} sortKey="availableQty" onSort={handlePreviewSort} resizeProps={previewColumnResize.getResizeHandleProps('availableQty', 'คงเหลือพร้อมใช้')} />
                   <ResizableTableHead align="right" label="ต้นทุน/หน่วย" activeSortKey={previewSortKey ?? undefined} direction={previewSortDirection} sortKey="unitCost" onSort={handlePreviewSort} resizeProps={previewColumnResize.getResizeHandleProps('unitCost', 'ต้นทุนต่อหน่วย')} />
                   <ResizableTableHead align="right" label="จำนวนที่ใช้" activeSortKey={previewSortKey ?? undefined} direction={previewSortDirection} sortKey="qtyToUse" onSort={handlePreviewSort} resizeProps={previewColumnResize.getResizeHandleProps('qtyToUse', 'จำนวนที่ใช้')} />
@@ -748,7 +785,7 @@ export function CostAllocatorPageClient() {
                 {sortedPreviewRows.map((row) => (
                   <tr key={row.costPoolId} className="hover:bg-slate-50">
                     <td className="whitespace-nowrap px-3 py-3"><span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{poolSourceLabel(row.sourceType)}</span></td>
-                    <td className="whitespace-nowrap px-3 py-3 font-mono text-slate-900">{row.sourceNo}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-center font-mono text-slate-900">{row.sourceNo}</td>
                     <td className="px-3 py-3 font-medium text-slate-900">{row.counterparty}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.availableQty)}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.unitCost)}</td>
@@ -767,11 +804,11 @@ export function CostAllocatorPageClient() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{poolSourceLabel(row.sourceType)}</span>
-                    <div className="mt-2 font-mono text-base font-bold text-slate-900">{row.sourceNo}</div>
+                    <div className="mt-2 whitespace-nowrap font-mono text-base font-bold text-slate-900">{row.sourceNo}</div>
                   </div>
                 </div>
                 <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">
-                  <span className="font-semibold text-slate-500">คู่ค้า: </span>
+                  <span className="font-semibold text-slate-500">ผู้ขาย: </span>
                   <span className="text-slate-900">{row.counterparty}</span>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3 text-sm">
@@ -891,6 +928,9 @@ function sourceBadgeClass(type: string) {
 }
 
 function poolSourceLabel(type: string) {
+  if (type === 'Opening_Purchase') return 'ยอดยกมา — บิลซื้อ'
+  if (type === 'Opening_PO') return 'ยอดยกมา — PO ซื้อ'
+  if (type === 'Opening_Regrade') return 'ยอดยกมา — ปรับเกรด'
   if (type === 'Production') return 'การผลิต'
   if (type === 'Regrade' || type === 'Grade Adjustment') return 'ปรับเกรด'
   if (type === 'PO_Buy') return 'PO ซื้อ'

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { normalizeDate, roundMoney, toDateOnly, toNumber } from '@/lib/server/daily'
-import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
+import { appendSalesBillStatusLog, requireSalesBillStatus, SALES_BILL_STATUS, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { isSalesBillActiveForCancel } from '@/lib/server/sales-bill-cancel-policy'
 import type { Prisma } from '../../../generated/prisma/client'
 
@@ -132,7 +132,7 @@ async function resolveTradingCorrectionSources(
       },
       where: {
         doc_no: { in: sourceDocNos },
-        status: { notIn: ['cancelled', 'Cancelled', 'void', 'voided', 'reversed'] },
+        status: { in: [SALES_BILL_STATUS.UNRECEIVED, SALES_BILL_STATUS.PARTIAL, SALES_BILL_STATUS.RECEIVED] },
         transaction_mode: 'TRADING',
       },
     }) : Promise.resolve([]),
@@ -320,7 +320,7 @@ export async function correctTradingSalesBillAllocations(
   })
   if (!bill) throw new Error('ไม่พบบิลขายที่ต้องการแก้ไข allocation')
   if ((bill.transaction_mode ?? 'STOCK') !== 'TRADING') throw new Error('แก้ไข Trading allocation ได้เฉพาะบิลขาย Trading')
-  if (!isSalesBillActiveForCancel(bill.status)) throw new Error('บิลขายนี้ถูกยกเลิกแล้ว แก้ไข allocation ไม่ได้')
+  if (!isSalesBillActiveForCancel(bill.status, bill.doc_no)) throw new Error('บิลขายนี้ถูกยกเลิกแล้ว แก้ไข allocation ไม่ได้')
   if (!Array.isArray(bill.items)) throw new Error('บิลขายนี้ไม่มีรายการสินค้าให้แก้ไข allocation')
 
   const rawBillItems = bill.items as unknown[]
@@ -408,7 +408,7 @@ export async function correctTradingSalesBillAllocations(
     meta: { reason: 'trading_allocation_correction', revisionKey },
     note: params.note,
     salesBillId: updated.id,
-    toStatus: bill.status ?? 'unreceived',
+    toStatus: requireSalesBillStatus(bill.status, bill.doc_no),
   })
 
   return { docNo: updated.doc_no, totalCost }

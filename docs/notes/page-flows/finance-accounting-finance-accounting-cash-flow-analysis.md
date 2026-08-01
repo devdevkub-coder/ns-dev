@@ -93,9 +93,9 @@ finance/accounting read model: Cash Flow Analysis
 |---|---|
 | Profit comparison | Uses `buildPlStatement().summary.netProfitBeforeTax`; the page must call this `กำไรก่อนภาษี`, not net profit |
 | Operating cash flow | Active Customer Receipt `net_cash_in` and PMT `net_amount` use their transaction dates; PMT rows are classified by `payment_approvals.source_type` and counted once, so Expense PMT and duplicated fee fields are not subtracted twice; paid loan interest is scoped through the linked account |
-| THB cash | Active THB cash/bank balances use opening balance plus database `bank_statement.groupBy(account_id)` movement through the selected as-of date |
+| THB cash | Active cash/bank balances derive from persisted `bank_statement.amount_in/amount_out` through the selected as-of date; Account Master opening balance is not a runtime cash source |
 | OD | Limit and used balance are measured per OD account before aggregation, so a positive account cannot cancel another account's OD use |
-| FCD | Kept by currency and outside THB cash/projections; current movement source is opening balance only because `bank_statement` has no foreign-amount field |
+| FCD | Native balance is kept per account+currency in `fcd_ledger_entries`; THB projections use persisted carrying/book THB and never convert native movement with a current rate |
 | Projection inflow | Open AR uses Sales Bill due date, then bill/customer credit-term fallback |
 | Projection outflow | Open Purchase Bills use the bill date under the current conservative policy; unpaid expenses use due date/document date; tax uses the Tax/VAT/WHT calendar; loan schedules are included only for unrestricted all-branch scope |
 

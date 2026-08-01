@@ -3,10 +3,12 @@ import { bangkokDateRange, toBangkokDateOnly, toDateOnly, toNumber } from '@/lib
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
+import { isInternalBankStatementTransfer } from '@/lib/server/bank-statement-cash-flow'
+import { buildFinanceCashPosition } from '@/lib/server/finance-accounting-cash-position'
 import { loadProductionMetrics, summarizeProductionMetrics } from '@/lib/server/production-reports'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemQty, purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
-import { listActiveAccounts, listActiveBranches, listActiveCustomers, listActiveSalespersons, listActiveSuppliers, listProductReferences, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
+import { listActiveBranches, listActiveCustomers, listActiveSalespersons, listActiveSuppliers, listProductReferences } from '@/lib/server/reference-master-cache'
 import { salesBillAnalyticsLineTotals, salesBillAnalyticsLinesByBillId, type SalesBillAnalyticsLine } from '@/lib/server/sales-bill-analytics-lines'
 import type { Prisma } from '../../../generated/prisma/client'
 
@@ -88,10 +90,6 @@ function deltaValue(current: number, previous: number) {
   const amount = current - previous
   const pct = previous === 0 ? current === 0 ? 0 : 100 : amount / Math.abs(previous) * 100
   return { amount, pct }
-}
-
-function cachedMoney(value: string | null) {
-  return value == null ? 0 : Number(value)
 }
 
 type PurchaseBillRow = Prisma.purchase_billsGetPayload<{
@@ -191,41 +189,15 @@ function salesLineRows(lines: SalesBillAnalyticsLine[] | undefined) {
 
 type CashBalanceSnapshot = { bank: number; cash: number; fcd: number; odLimit: number; odUsed: number }
 
-async function cashBalancesForDates(asOfDates: readonly [Date, Date]) {
-  const [accounts, bankRows] = await Promise.all([
-    listActiveAccounts(),
-    prisma.bank_statement.findMany({
-      orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-      take: 30000,
-      where: { date: { lte: endOfDay(asOfDates[0] > asOfDates[1] ? asOfDates[0] : asOfDates[1]) } },
-    }),
-  ])
-
-  return asOfDates.map((asOf) => {
-    const balances = new Map<bigint, number>()
-    accounts.forEach((account: AccountReferenceRecord) => balances.set(account.id, cachedMoney(account.openingBalance)))
-    const cutoff = endOfDay(asOf)
-    bankRows.forEach((row: Prisma.bank_statementGetPayload<Record<string, never>>) => {
-      if (row.date > cutoff || !row.account_id) return
-      const previous = balances.get(row.account_id) ?? 0
-      balances.set(row.account_id, row.balance === null || row.balance === undefined ? previous + toNumber(row.amount_in) - toNumber(row.amount_out) : toNumber(row.balance))
-    })
-    return accounts.reduce((acc: { bank: number; cash: number; fcd: number; odLimit: number; odUsed: number }, account: AccountReferenceRecord) => {
-      const balance = balances.get(account.id) ?? 0
-      const type = [account.type, account.name, account.bankName, account.bank].filter(Boolean).join(' ').toLowerCase()
-      if (type.includes('od')) {
-        acc.odUsed += Math.max(0, -balance)
-        acc.odLimit += cachedMoney(account.odLimit)
-      } else if (type.includes('fcd') || type.includes('foreign') || type.includes('ต่างประเทศ')) {
-        acc.fcd += balance
-      } else if (type.includes('cash') || type.includes('เงินสด')) {
-        acc.cash += balance
-      } else {
-        acc.bank += balance
-      }
-      return acc
-    }, { bank: 0, cash: 0, fcd: 0, odLimit: 0, odUsed: 0 })
-  }) as [CashBalanceSnapshot, CashBalanceSnapshot]
+async function cashBalancesForDates(asOfDates: readonly [Date, Date], branchIds: bigint[] | null) {
+  const positions = await Promise.all(asOfDates.map((asOf) => buildFinanceCashPosition({ asOf, branchIds })))
+  return positions.map((position) => ({
+    bank: position.bankBalance,
+    cash: position.cashBalance,
+    fcd: 0,
+    odLimit: position.odLimit,
+    odUsed: position.odUsed,
+  })) as [CashBalanceSnapshot, CashBalanceSnapshot]
 }
 
 async function receivablePayableForDates(asOfDates: readonly [Date, Date], branchId?: bigint) {
@@ -264,14 +236,12 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
   const todayStart = startOfDay(selectedDate)
   const todayEnd = endOfDay(selectedDate)
 
-  const [purchases, sales, expenses, previousSales, previousExpenses, payments, receipts, stockRows, deals, receivablePayableSnapshots, productionRows, cashBalanceSnapshots, bankToday, bankRange, loanSchedules, products, salespersons, branches, suppliers, customers, historicalRows]: readonly [
+  const [purchases, sales, expenses, previousSales, previousExpenses, stockRows, deals, receivablePayableSnapshots, productionRows, cashBalanceSnapshots, bankToday, bankRange, loanSchedules, products, salespersons, branches, suppliers, customers, historicalRows]: readonly [
     PurchaseBillRow[],
     SalesBillRow[],
     ExpenseRow[],
     SalesBillRow[],
     ExpenseRow[],
-    Prisma.paymentsGetPayload<Record<string, never>>[],
-    Prisma.receiptsGetPayload<Record<string, never>>[],
     StockLedgerRow[],
     TradingDealRow[],
     [ReceivablePayableSnapshot, ReceivablePayableSnapshot],
@@ -292,15 +262,13 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
     () => prisma.expenses.findMany({ include: { expense_categories: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
     () => prisma.sales_bills.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, customer_id: customer?.id || undefined, date: { gte: new Date(`${previousRange.from}T00:00:00.000Z`), lte: new Date(`${previousRange.to}T23:59:59.999Z`) } } }),
     () => prisma.expenses.findMany({ include: { expense_categories: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 3000, where: { date: { gte: new Date(`${previousRange.from}T00:00:00.000Z`), lte: new Date(`${previousRange.to}T23:59:59.999Z`) } } }),
-    () => includeDaily ? prisma.payments.findMany({ orderBy: [{ date: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }) : Promise.resolve([]),
-    () => includeDaily ? prisma.receipts.findMany({ orderBy: [{ date: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }) : Promise.resolve([]),
     () => prisma.stock_ledger.findMany({ include: { branches: true, products: true }, orderBy: [{ date: 'desc' }], take: 20000 }),
     () => includeOwner ? prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 3000 }) : Promise.resolve([]),
     () => receivablePayableForDates([selectedDate, previousRange.toDate], branch?.id),
     () => includeOwner ? loadProductionMetrics({ branchId: filter.branchId, dateFrom: from, dateTo: to }) : Promise.resolve([]),
-    () => cashBalancesForDates([selectedDate, previousRange.toDate]),
-    () => includeBankToday ? prisma.bank_statement.findMany({ include: { accounts: true }, orderBy: [{ date: 'desc' }], where: { date: { gte: todayStart, lte: todayEnd } } }) : Promise.resolve([]),
-    () => includeAnalytics || includeDaily ? prisma.bank_statement.findMany({ include: { accounts: true }, orderBy: [{ date: 'asc' }], take: 10000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }) : Promise.resolve([]),
+    () => cashBalancesForDates([selectedDate, previousRange.toDate], branch?.id == null ? null : [branch.id]),
+    () => includeBankToday ? prisma.bank_statement.findMany({ include: { accounts: true }, orderBy: [{ date: 'desc' }], where: { date: { gte: todayStart, lte: todayEnd }, ...(branch ? { accounts: { is: { branch_id: branch.id } } } : {}) } }) : Promise.resolve([]),
+    () => includeAnalytics || includeDaily ? prisma.bank_statement.findMany({ include: { accounts: true }, orderBy: [{ date: 'asc' }], take: 10000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) }, ...(branch ? { accounts: { is: { branch_id: branch.id } } } : {}) } }) : Promise.resolve([]),
     () => includeOwner ? prisma.loan_schedules.findMany({ include: { loans: true }, orderBy: [{ due_date: 'asc' }], take: 1000, where: { due_date: { lte: todayEnd }, payment_status: { notIn: ['Paid', 'paid', 'PAID', 'cancelled', 'Cancelled'] } } }) : Promise.resolve([]),
     async (): Promise<ProductRow[]> => (await listProductReferences())
       .filter((row) => row.active)
@@ -325,11 +293,13 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
   const todayPurchases = activePurchases.filter((row) => row.date >= todayStart && row.date <= todayEnd)
   const todaySales = activeSales.filter((row) => row.date >= todayStart && row.date <= todayEnd)
   const todayExpenses = expenses.filter((row) => row.date >= todayStart && row.date <= todayEnd && activeStatus(row.status))
-  const todayBankCashIn = bankToday.reduce((sum, row) => sum + toNumber(row.amount_in), 0)
-  const todayBankCashOut = bankToday.reduce((sum, row) => sum + toNumber(row.amount_out), 0)
+  const externalBankToday = bankToday.filter((row) => !isInternalBankStatementTransfer(row))
+  const externalBankRange = bankRange.filter((row) => !isInternalBankStatementTransfer(row))
+  const todayBankCashIn = externalBankToday.reduce((sum, row) => sum + toNumber(row.amount_in), 0)
+  const todayBankCashOut = externalBankToday.reduce((sum, row) => sum + toNumber(row.amount_out), 0)
   const bankByTypeMap = new Map<string, { cashIn: number; cashOut: number; label: string }>()
   const typeLabel = (value?: string | null) => value === 'PMT' ? 'จ่ายเงิน Supplier' : value === 'RCP' ? 'รับเงินลูกค้า' : value === 'EXP' ? 'ค่าใช้จ่าย' : value === 'TRF' ? 'โอนระหว่างบัญชี' : value || 'อื่นๆ'
-  for (const row of bankToday) {
+  for (const row of externalBankToday) {
     const key = row.ref_type ?? row.type ?? 'OTHER'
     const current = bankByTypeMap.get(key) ?? { cashIn: 0, cashOut: 0, label: typeLabel(key) }
     current.cashIn += toNumber(row.amount_in)
@@ -337,7 +307,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
     bankByTypeMap.set(key, current)
   }
   const bankByAccountMap = new Map<string, { cashIn: number; cashOut: number; name: string; type: string }>()
-  for (const row of bankToday) {
+  for (const row of externalBankToday) {
     const key = row.account_id == null ? 'unknown' : String(row.account_id)
     const current = bankByAccountMap.get(key) ?? { cashIn: 0, cashOut: 0, name: row.accounts?.name ?? '-', type: row.accounts?.type ?? '-' }
     current.cashIn += toNumber(row.amount_in)
@@ -372,13 +342,13 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
   const previousSalesAmount = previousLiveSalesAmount + previousHistoricalRevenue
   const previousCogs = previousLiveCogs + previousHistoricalCogs
   const previousExpenseAmount = previousExpenses.filter((row) => activeStatus(row.status)).reduce((sum, row) => sum + toNumber(row.amount), 0) + previousHistoricalExpenses
-  const previousCashBalance = previousCash.cash + previousCash.bank + previousCash.fcd
+  const previousCashBalance = previousCash.cash + previousCash.bank
   const purchaseAmount = livePurchaseAmount + historicalCogs
   const salesAmount = liveSalesAmount + historicalRevenue
   const cogs = liveCogs + historicalCogs
   const grossProfit = (activeSales.reduce((sum, row) => sum + toNumber(row.gross_profit), 0) || liveSalesAmount - liveCogs) + historicalRevenue - historicalCogs
   const expenseAmount = expenses.filter((row) => activeStatus(row.status)).reduce((sum, row) => sum + toNumber(row.amount), 0) + historicalExpenses
-  const cashBalance = currentCash.cash + currentCash.bank + currentCash.fcd
+  const cashBalance = currentCash.cash + currentCash.bank
   const kpiExpenses = expenseAmount + cogs
   const netProfit = salesAmount - cogs - expenseAmount
   const previousKpiExpenses = previousExpenseAmount + previousCogs
@@ -387,8 +357,8 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
   const stockValue = stockRows.reduce((sum, row) => sum + toNumber(row.value_in) - toNumber(row.value_out), 0)
   const production = summarizeProductionMetrics(productionRows)
   const tradingPending = deals.filter((deal) => !['Matched', 'Closed', 'Cancelled', 'cancelled'].includes(deal.status ?? '')).length
-  const cashIn = receipts.reduce((sum, row) => sum + toNumber(row.net_amount || row.amount), 0)
-  const cashOut = payments.reduce((sum, row) => sum + toNumber(row.net_amount || row.amount), 0) + expenseAmount
+  const cashIn = externalBankRange.reduce((sum, row) => sum + toNumber(row.amount_in), 0)
+  const cashOut = externalBankRange.reduce((sum, row) => sum + toNumber(row.amount_out), 0)
   const salespersonById = new Map(salespersons.map((row) => [row.id, row]))
   const groupMap = new Map<string, { buyAmt: number; buyQty: number; group: string; products: Map<string, { buyAmt: number; buyQty: number; productCode: string; productId: string; productName: string; sellAmt: number; sellQty: number }>; sellAmt: number; sellQty: number }>()
   const ensureGroup = (group: string) => {
@@ -471,7 +441,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
     bySalesperson.set(key, current)
   }
   const dailyTrendMap = new Map<string, { label: string; purchase: number; sales: number }>()
-  for (const row of bankRange) dailyTrendMap.set(dateOnly(row.date), { label: dateOnly(row.date), purchase: 0, sales: 0 })
+  for (const row of externalBankRange) dailyTrendMap.set(dateOnly(row.date), { label: dateOnly(row.date), purchase: 0, sales: 0 })
   for (const bill of activePurchases) {
     const label = toBangkokDateOnly(bill.date)
     const current = dailyTrendMap.get(label) ?? { label, purchase: 0, sales: 0 }
@@ -607,7 +577,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
         { label: '📥 AR', value: currentReceivables.ar },
         { label: '📤 AP', value: -currentReceivables.ap },
         { label: '⚠ OD Used', value: currentCash.odUsed },
-        { label: '💎 Net Cash', value: currentCash.cash + currentCash.bank + currentCash.fcd + currentReceivables.ar - currentReceivables.ap - currentCash.odUsed },
+        { label: '💎 Net Cash', value: currentCash.cash + currentCash.bank + currentReceivables.ar - currentReceivables.ap - currentCash.odUsed },
       ].filter((row) => row.value !== 0),
       kpi: {
         ar: currentReceivables.ar,
@@ -634,7 +604,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
       },
       monthlyTrend: Array.from(monthlyTrendMap.values()).sort((a, b) => a.label.localeCompare(b.label)).slice(-6),
       sections: {
-        cash: { ...currentCash, netCash: currentCash.cash + currentCash.bank + currentCash.fcd + currentReceivables.ar - currentReceivables.ap - currentCash.odUsed },
+        cash: { ...currentCash, netCash: currentCash.cash + currentCash.bank + currentReceivables.ar - currentReceivables.ap - currentCash.odUsed },
         purchase: { amount: purchaseAmount, count: activePurchases.length, qty: activePurchases.reduce((sum, row) => sum + purchaseBillItemQty(row), 0), today: todayPurchases.reduce((sum, row) => sum + toNumber(row.total_amount), 0) },
         sales: { amount: salesAmount, count: activeSales.length, gp: grossProfit, qty: activeSales.reduce((sum, row) => sum + salesBillAnalyticsLineTotals(activeSalesLineFactsByBillId.get(row.id)).qty, 0), today: todaySales.reduce((sum, row) => sum + toNumber(row.total_amount), 0) },
         stock: { qty: stockQty, value: stockValue },
@@ -674,9 +644,9 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
       cashMovement: {
         accounts: Array.from(bankByAccountMap.values()).sort((a, b) => (b.cashIn + b.cashOut) - (a.cashIn + a.cashOut)),
         byType: Array.from(bankByTypeMap.values()).filter((row) => row.cashIn > 0 || row.cashOut > 0),
-        cashIn: todayBankCashIn || cashIn,
-        cashOut: todayBankCashOut || cashOut,
-        net: (todayBankCashIn || cashIn) - (todayBankCashOut || cashOut),
+        cashIn: todayBankCashIn,
+        cashOut: todayBankCashOut,
+        net: todayBankCashIn - todayBankCashOut,
       },
       expenseByCategory: Array.from(expenseCategoryMap.values()).sort((a, b) => b.amount - a.amount),
       expenseRows: todayExpenses.slice(0, 12).map((row) => ({ amount: toNumber(row.amount), category: row.expense_categories?.name ?? '-', docNo: row.doc_no, payee: row.payee ?? '-' })),
@@ -699,7 +669,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter, options: 
       },
     },
     ownerDaily: {
-      actualActivity: { cashIn: todayBankCashIn || cashIn, cashOut: todayBankCashOut || cashOut, expenseOut: todayExpenses.reduce((sum, row) => sum + toNumber(row.amount), 0), fgQty, fgValue, paymentOut: bankToday.filter((row) => row.ref_type === 'PMT').reduce((sum, row) => sum + toNumber(row.amount_out), 0), net: (todayBankCashIn || cashIn) - (todayBankCashOut || cashOut) },
+      actualActivity: { cashIn: todayBankCashIn, cashOut: todayBankCashOut, expenseOut: todayExpenses.reduce((sum, row) => sum + toNumber(row.amount), 0), fgQty, fgValue, paymentOut: externalBankToday.filter((row) => row.ref_type === 'PMT').reduce((sum, row) => sum + toNumber(row.amount_out), 0), net: todayBankCashIn - todayBankCashOut },
       cashPlan: { available: currentCash.cash + currentCash.bank, expectedIn: arDueRows.reduce((sum, row) => sum + row.amount, 0), expectedOut: apDueRows.reduce((sum, row) => sum + row.amount, 0) + loanToday.reduce((sum, row) => sum + row.amount, 0) + todayExpenses.reduce((sum, row) => sum + toNumber(row.amount), 0), gap: currentCash.cash + currentCash.bank + arDueRows.reduce((sum, row) => sum + row.amount, 0) - apDueRows.reduce((sum, row) => sum + row.amount, 0) - loanToday.reduce((sum, row) => sum + row.amount, 0) - todayExpenses.reduce((sum, row) => sum + toNumber(row.amount), 0) },
       due: {
         ap: apDueRows.slice(0, 10),

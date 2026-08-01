@@ -1,7 +1,8 @@
 import type { Prisma } from '../../../generated/prisma/client'
-import { parseInternalBigIntId } from '@/lib/business-code'
+import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { listAllAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
+import { functionalBankStatementMovement } from '@/lib/server/bank-statement-booking'
 
 export function toDateOnly(value: Date | null | undefined) {
   return value ? value.toISOString().slice(0, 10) : ''
@@ -107,11 +108,14 @@ export async function nextDailyDocNos(
   prefix: string,
   date: string,
   count: number,
+  branchCode: string,
   client: unknown = prisma,
 ) {
   if (count <= 0) return []
   const compactDate = date.slice(2, 4) + date.slice(5, 7)
-  const startsWith = `${prefix}${compactDate}-`
+  const normalizedBranchCode = documentBranchCode(branchCode)
+  if (!normalizedBranchCode) throw new Error(`ไม่พบรหัสสาขาสำหรับออกเลขที่เอกสาร ${prefix}`)
+  const startsWith = `${prefix}${normalizedBranchCode}${compactDate}-`
   const model = dailyDocNoModel(client, table)
   const last = await model.findFirst({
     orderBy: { doc_no: 'desc' },
@@ -122,10 +126,12 @@ export async function nextDailyDocNos(
   return Array.from({ length: count }, (_, index) => `${startsWith}${String(startNumber + index).padStart(4, '0')}`)
 }
 
-export async function nextBankStatementDocNos(date: string, count: number, client: unknown = prisma) {
+export async function nextBankStatementDocNos(date: string, branchCode: string, count: number, client: unknown = prisma) {
   if (count <= 0) return []
   const compactDate = date.slice(2, 4) + date.slice(5, 7)
-  const startsWith = `BST${compactDate}-`
+  const normalizedBranchCode = documentBranchCode(branchCode)
+  if (!normalizedBranchCode) throw new Error('ไม่พบรหัสสาขาสำหรับออกเลข Bank Statement')
+  const startsWith = `BST${normalizedBranchCode}${compactDate}-`
   const model = dailyDocNoModel(client, 'bank_statement')
   const historyModel = (client as { payment_account_splits?: BankStatementHistoryModel }).payment_account_splits
   const [lastStatement, lastPaymentSplit] = await Promise.all([
@@ -147,10 +153,10 @@ export async function nextBankStatementDocNos(date: string, count: number, clien
   return Array.from({ length: count }, (_, index) => `${startsWith}${String(startNumber + index).padStart(4, '0')}`)
 }
 
-export async function listDailyAccounts() {
+export async function listDailyAccounts(client: typeof prisma | Prisma.TransactionClient = prisma) {
   const [accounts, statementTotals] = await Promise.all([
     listAllAccounts(),
-    prisma.bank_statement.groupBy({
+    client.bank_statement.groupBy({
       by: ['account_id'],
       _sum: {
         amount_in: true,
@@ -167,26 +173,63 @@ export async function listDailyAccounts() {
   )
 
   return accounts.map((account: AccountReferenceRecord) => {
-    const realBalance = (account.openingBalance == null ? 0 : Number(account.openingBalance)) + (statementTotalByAccountId.get(account.id.toString()) ?? 0)
+    const ledgerBalance = statementTotalByAccountId.get(account.id.toString()) ?? 0
     const odLimit = account.odLimit == null ? 0 : Number(account.odLimit)
-    const odUsed = Math.max(0, -realBalance)
+    const odUsed = account.subtype === 'current' ? Math.max(0, -ledgerBalance) : 0
     const odRemaining = Math.max(0, odLimit - odUsed)
-    const availableToPay = realBalance + odLimit
+    const balance = account.subtype === 'current' ? Math.max(0, ledgerBalance) : ledgerBalance
+    const availableToPay = balance + odRemaining
 
     return {
       active: account.active,
-      balance: realBalance,
-      code: account.accountNo,
+      balance,
+      accountNo: account.accountNo,
+      code: account.code,
       id: account.code,
       name: account.name,
       type: account.type,
+      accountGroup: account.accountGroup,
+      isFcd: account.isFcd,
       subtype: account.subtype,
+      supportedCurrencies: account.supportedCurrencies,
       odLimit,
       odUsed,
       odRemaining,
       availableToPay,
     }
   })
+}
+
+export function toDailyAccountOption(account: { accountNo?: string | null; code: string | null; name: string; type: string }) {
+  const code = requireBusinessCode(account.code, 'บัญชีเงิน')
+  return {
+    accountNo: account.accountNo ?? '',
+    bankName: account.name,
+    id: code,
+    isPrimary: false,
+    kind: account.type === 'cash' ? 'cash' as const : 'bank' as const,
+    label: [account.type, account.name, code].filter(Boolean).join(' / '),
+    paymentMethod: account.type,
+  }
+}
+
+export function assertJsonSafe(value: unknown, path = 'payload'): void {
+  if (typeof value === 'bigint') {
+    throw new Error(`${path} contains BigInt`)
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertJsonSafe(item, `${path}[${index}]`))
+    return
+  }
+  if (value && typeof value === 'object') {
+    Object.entries(value).forEach(([key, item]) => assertJsonSafe(item, `${path}.${key}`))
+  }
+}
+
+export async function lockDailyAccountBalances(tx: Prisma.TransactionClient, accountIds: bigint[]) {
+  for (const accountId of [...new Set(accountIds.map((value) => value.toString()))].sort()) {
+    await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${`daily-account-balance:${accountId}`}))`
+  }
 }
 
 export function bankStatementTransferRows(values: {
@@ -196,11 +239,14 @@ export function bankStatementTransferRows(values: {
   docNo: string
   entryDocNos: [string, string]
   fee: number
+  functionalCurrencyCode: string
+  fromBranchId: bigint
   fromAccountId: string
   fromAccountName: string
   id: string
   toAccountId: string
   toAccountName: string
+  toBranchId: bigint
 }): Prisma.bank_statementCreateManyInput[] {
   const fromAccountId = parseInternalBigIntId(values.fromAccountId)
   const toAccountId = parseInternalBigIntId(values.toAccountId)
@@ -209,9 +255,16 @@ export function bankStatementTransferRows(values: {
   }
   return [
     {
+      ...functionalBankStatementMovement({
+        amountIn: 0,
+        amountOut: values.amount + values.fee,
+        functionalCurrencyCode: values.functionalCurrencyCode,
+        idempotencyKey: `transfer:${values.docNo}:from`,
+        sourceEventKey: `transfer:${values.docNo}:from`,
+        sourceEventType: 'internal_transfer_source',
+      }),
       account_id: fromAccountId,
-      amount_in: 0,
-      amount_out: values.amount + values.fee,
+      branch_id: values.fromBranchId,
       created_by: values.by,
       date: normalizeDate(values.date),
       description: `โอนเข้า ${values.toAccountName}`,
@@ -222,9 +275,16 @@ export function bankStatementTransferRows(values: {
       type: 'โอนระหว่างบัญชี',
     },
     {
+      ...functionalBankStatementMovement({
+        amountIn: values.amount,
+        amountOut: 0,
+        functionalCurrencyCode: values.functionalCurrencyCode,
+        idempotencyKey: `transfer:${values.docNo}:destination`,
+        sourceEventKey: `transfer:${values.docNo}:destination`,
+        sourceEventType: 'internal_transfer_destination',
+      }),
       account_id: toAccountId,
-      amount_in: values.amount,
-      amount_out: 0,
+      branch_id: values.toBranchId,
       created_by: values.by,
       date: normalizeDate(values.date),
       description: `รับโอนจาก ${values.fromAccountName}`,

@@ -1,9 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Download } from 'lucide-react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 
 type AccountRow = {
@@ -14,8 +18,10 @@ type AccountRow = {
   code: string
   currency: string
   id: string
+  isFcd: boolean
   name: string
   odLimit: number
+  odUsed: number
   type: string
 }
 
@@ -37,6 +43,7 @@ type CashPositionPayload = {
   }
   nearDue: { ap: DueRow[]; ar: DueRow[] }
   summary: { accountBalance: number; accounts: number; netAfterAp: number; netExposure: number }
+  filters: { accountGroup: string; asOf: string; branchId: string; branches: Array<{ id: string; name: string }> }
 }
 
 function typeClass(type: string) {
@@ -52,7 +59,7 @@ function accountBarClass(type: string) {
   return 'bg-blue-400'
 }
 
-type CashPositionColumnKey = 'code' | 'name' | 'type' | 'bankName' | 'accountNo' | 'currency' | 'odLimit' | 'balance'
+type CashPositionColumnKey = 'code' | 'name' | 'type' | 'bankName' | 'accountNo' | 'currency' | 'odLimit' | 'balance' | 'source'
 
 const cashPositionColumns: Array<ResizableColumnDefinition<CashPositionColumnKey>> = [
   { key: 'code', defaultWidth: 80, minWidth: 60 },
@@ -63,12 +70,16 @@ const cashPositionColumns: Array<ResizableColumnDefinition<CashPositionColumnKey
   { key: 'currency', defaultWidth: 80, minWidth: 60 },
   { key: 'odLimit', defaultWidth: 140, minWidth: 110 },
   { key: 'balance', defaultWidth: 140, minWidth: 110 },
+  { key: 'source', defaultWidth: 100, minWidth: 90 },
 ]
 
 export function CashPositionPageClient() {
   const [data, setData] = useState<CashPositionPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [asOf, setAsOf] = useState('')
+  const [branchId, setBranchId] = useState('ALL')
+  const [accountGroup, setAccountGroup] = useState('ALL')
   const [sortKey, setSortKey] = useState<string>('code')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
@@ -87,17 +98,30 @@ export function CashPositionPageClient() {
     setError(null)
     setIsLoading(true)
     try {
-      setData(await dailyFetchJson<CashPositionPayload>('/api/finance/cash-position'))
+      const params = new URLSearchParams()
+      if (asOf) params.set('asOf', asOf)
+      if (branchId !== 'ALL') params.set('branchId', branchId)
+      if (accountGroup !== 'ALL') params.set('accountGroup', accountGroup)
+      const payload = await dailyFetchJson<CashPositionPayload>(`/api/finance/cash-position${params.size ? `?${params}` : ''}`)
+      setData(payload)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'โหลด Cash Position ไม่ได้')
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [accountGroup, asOf, branchId])
 
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  const exportXlsx = useCallback(() => {
+    const params = new URLSearchParams({ format: 'xlsx' })
+    if (asOf) params.set('asOf', asOf)
+    if (branchId !== 'ALL') params.set('branchId', branchId)
+    if (accountGroup !== 'ALL') params.set('accountGroup', accountGroup)
+    window.location.assign(`/api/finance/cash-position?${params.toString()}`)
+  }, [accountGroup, asOf, branchId])
 
   const accounts = useMemo(() => data?.accounts ?? [], [data])
   const sortedAccounts = useMemo(() => {
@@ -119,8 +143,8 @@ export function CashPositionPageClient() {
   const cashTotal = accounts.filter((row) => row.type === 'เงินสด').reduce((sum, row) => sum + row.balance, 0)
   const bankTotal = accounts.filter((row) => row.type === 'ธนาคาร').reduce((sum, row) => sum + row.balance, 0)
   const fcdTotal = accounts.filter((row) => row.type === 'FCD').reduce((sum, row) => sum + row.balance, 0)
-  const odUsedTotal = accounts.reduce((sum, row) => sum + (row.type === 'OD' ? Math.max(0, -row.balance) : 0), 0)
-  const odAvailTotal = accounts.reduce((sum, row) => sum + (row.type === 'OD' ? Math.max(0, row.odLimit - Math.max(0, -row.balance)) : 0), 0)
+  const odUsedTotal = accounts.reduce((sum, row) => sum + row.odUsed, 0)
+  const odAvailTotal = accounts.reduce((sum, row) => sum + Math.max(0, row.odLimit - row.odUsed), 0)
   const arTotal = data?.exposure.ar.total ?? 0
   const apTotal = data?.exposure.ap.total ?? 0
   const liquidTotal = cashTotal + bankTotal + fcdTotal
@@ -134,6 +158,18 @@ export function CashPositionPageClient() {
   return (
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
+
+      <div className="flex flex-wrap items-end gap-2 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
+        <DatePickerInput ariaLabel="ณ วันที่" className="w-36" value={asOf} onChange={setAsOf} />
+        <BranchSelectCombobox allOptionLabel="ทุกสาขาที่มีสิทธิ์" branches={data?.filters.branches ?? []} className="w-[12rem]" controlSize="filter" includeAllOption inputId="cash-position-branch-filter" label="" placeholder="ทุกสาขาที่มีสิทธิ์" value={branchId === 'ALL' ? null : branchId} onChange={(value) => setBranchId(value ?? 'ALL')} />
+        <Select aria-label="กลุ่มบัญชี" className="h-9 w-40 text-sm" value={accountGroup} onChange={(event) => setAccountGroup(event.target.value)}>
+          <option value="ALL">ทุกบัญชีเงิน</option>
+          <option value="cash">เงินสด</option>
+          <option value="bank">บัญชีธนาคาร</option>
+          <option value="fcd">บัญชี FCD</option>
+        </Select>
+        <button className="ml-auto inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700" type="button" onClick={exportXlsx}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</button>
+      </div>
 
       <div className="grid grid-cols-1 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
         <SharedKpiCard icon={netCash >= 0 ? '💰' : '⚠️'} label="สภาพคล่องสุทธิ" note="= เงินสด + ธนาคาร + FCD + ลูกหนี้ − เจ้าหนี้ − OD ใช้ไป" tone={netCash >= 0 ? 'emerald' : 'red'} value={formatMoney(netCash)} />
@@ -203,7 +239,7 @@ export function CashPositionPageClient() {
 
       <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-4 py-3 flex items-center justify-between">
-          <h3 className="font-semibold text-slate-900">รายละเอียดบัญชีเงินทั้งหมด</h3>
+          <h3 className="font-semibold text-slate-900">รายละเอียดบัญชีเงินทั้งหมด (มูลค่าทางบัญชี THB)</h3>
           {columnResize.hasCustomWidths ? (
             <button
               className="rounded-xl border border-slate-300 px-2 py-0.5 bg-white text-slate-700 hover:bg-slate-50 text-xs"
@@ -222,20 +258,21 @@ export function CashPositionPageClient() {
           </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-500">
             <tr>
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="รหัส" sortKey="code" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} />
+              <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="รหัส" sortKey="code" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ชื่อบัญชี" sortKey="name" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อบัญชี')} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ประเภท" sortKey="type" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ธนาคาร" sortKey="bankName" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('bankName', 'ธนาคาร')} />
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขบัญชี" sortKey="accountNo" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('accountNo', 'เลขบัญชี')} />
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="สกุล" sortKey="currency" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('currency', 'สกุล')} />
+              <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="เลขบัญชี" sortKey="accountNo" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('accountNo', 'เลขบัญชี')} />
+              <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="สกุล" sortKey="currency" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('currency', 'สกุล')} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} align="right" label="วงเงิน OD" sortKey="odLimit" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('odLimit', 'วงเงิน OD')} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} align="right" label="ยอดคงเหลือ" sortKey="balance" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('balance', 'ยอดคงเหลือ')} />
+              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} align="center" label="ดูรายการ" sortKey="source" onSort={changeSort} resizeProps={columnResize.getResizeHandleProps('source', 'ดูรายการ')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {isLoading ? (
               <tr>
-                <td className="px-4 py-6 text-center text-slate-500" colSpan={8}>
+                <td className="px-4 py-6 text-center text-slate-500" colSpan={9}>
                   กำลังโหลดข้อมูล
                 </td>
               </tr>
@@ -243,7 +280,7 @@ export function CashPositionPageClient() {
             {!isLoading &&
               sortedAccounts.map((row) => (
                 <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-4 py-3.5 font-mono text-xs text-slate-500 truncate" title={row.code}>{row.code}</td>
+                  <td className="whitespace-nowrap px-4 py-3.5 text-center font-mono text-xs text-slate-500 truncate" title={row.code}>{row.code}</td>
                   <td className="px-4 py-3.5 font-medium text-slate-900 truncate" title={row.name}>{row.name}</td>
                   <td className="px-4 py-3.5 truncate">
                     <span className={`rounded-md px-2 py-0.5 text-xs ${typeClass(row.type)}`}>
@@ -251,11 +288,14 @@ export function CashPositionPageClient() {
                     </span>
                   </td>
                   <td className="px-4 py-3.5 text-slate-600 truncate" title={row.bankName}>{row.bankName || '-'}</td>
-                  <td className="px-4 py-3.5 font-mono text-xs text-slate-500 truncate" title={row.accountNo}>{row.accountNo || '-'}</td>
-                  <td className="px-4 py-3.5 text-slate-600 truncate" title={row.currency}>{row.currency}</td>
-                  <td className="px-4 py-3.5 text-right font-mono text-slate-700">{row.odLimit ? formatMoney(row.odLimit) : '-'}</td>
-                  <td className={`px-4 py-3.5 text-right font-bold font-mono ${row.balance < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                  <td className="whitespace-nowrap px-4 py-3.5 text-center font-mono text-xs text-slate-500 truncate" title={row.accountNo}>{row.accountNo || '-'}</td>
+                  <td className="whitespace-nowrap px-4 py-3.5 text-center text-slate-600 truncate" title={row.currency}>{row.currency}</td>
+                  <td className="px-4 py-3.5 text-right tabular-nums font-mono text-slate-700">{row.odLimit ? formatMoney(row.odLimit) : '-'}</td>
+                  <td className={`px-4 py-3.5 text-right tabular-nums font-bold font-mono ${row.balance < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
                     {formatMoney(row.balance)}
+                  </td>
+                  <td className="px-4 py-3.5 text-center">
+                    <a className="text-xs font-medium text-blue-700 hover:underline" href={row.isFcd ? `/finance/foreign/fcd-ledger?accountId=${encodeURIComponent(row.code)}` : `/finance/bank?accountId=${encodeURIComponent(row.code)}`}>รายการ</a>
                   </td>
                 </tr>
               ))}

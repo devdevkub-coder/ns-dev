@@ -153,7 +153,6 @@ updated: 2026-06-11
 | `/master-data/warehouses` | คลัง | [master-data-master-data-warehouses.md](master-data-master-data-warehouses.md) | This catalog |
 | `/master-data/accounts` | บัญชีเงินบริษัท | [master-data-master-data-accounts.md](master-data-master-data-accounts.md) | [[Daily Cash Flow]] |
 | `/master-data/payment-methods` | วิธีจ่าย/รับเงิน | [master-data-master-data-payment-methods.md](master-data-master-data-payment-methods.md) | [[Payment Flow]] |
-| `/master-data/account-subtypes` | ประเภทบัญชีธนาคาร | [master-data-master-data-account-subtypes.md](master-data-master-data-account-subtypes.md) | This catalog |
 | `/master-data/bank-names` | ชื่อธนาคาร | [master-data-master-data-bank-names.md](master-data-master-data-bank-names.md) | This catalog |
 | `/master-data/channels` | ช่องทางขาย | [master-data-master-data-channels.md](master-data-master-data-channels.md) | [[Sales Flow]] |
 | `/master-data/expense-categories` | หมวดค่าใช้จ่าย | [master-data-master-data-expense-categories.md](master-data-master-data-expense-categories.md) | [[Daily Cash Flow]] |

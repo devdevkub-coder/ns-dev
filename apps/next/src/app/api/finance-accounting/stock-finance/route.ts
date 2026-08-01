@@ -1,14 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { bangkokDateStart, toBangkokDateOnly } from '@/lib/server/daily'
+import { getFinanceBranchCodeIntersection } from '@/lib/server/finance-accounting-branch-scope'
+import { FinancialStatementInputError } from '@/lib/server/finance-accounting-statements'
 import { buildStockFinance } from '@/lib/server/finance-accounting-working-capital'
+import { STOCK_FINANCE_HISTORY_DAYS } from '@/lib/stock-finance'
 
 export const runtime = 'nodejs'
 
-function parseDate(value: string | null, fallback: Date) {
-  if (!value) return fallback
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? fallback : parsed
+function parseDateOnly(value: string | null) {
+  const dateOnly = value?.trim()
+  if (!dateOnly) throw new FinancialStatementInputError('ณ วันที่ต้องอยู่ในรูปแบบ YYYY-MM-DD')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
+    throw new FinancialStatementInputError('ณ วันที่ต้องอยู่ในรูปแบบ YYYY-MM-DD')
+  }
+  const parsed = bangkokDateStart(dateOnly)
+  if (Number.isNaN(parsed.getTime()) || toBangkokDateOnly(parsed) !== dateOnly) {
+    throw new FinancialStatementInputError('ณ วันที่ไม่ถูกต้อง')
+  }
+  return parsed
 }
 
 export async function GET(request: NextRequest) {
@@ -17,15 +28,25 @@ export async function GET(request: NextRequest) {
     requirePermission(context, 'finance.financials.view')
 
     const params = request.nextUrl.searchParams
+    const branchParam = params.get('branchId')?.trim().toUpperCase()
+    const branchId = branchParam && branchParam !== 'ALL' ? branchParam : undefined
+    const allowedBranchCodes = getFinanceBranchCodeIntersection(context)
+
+    if (branchId && getFinanceBranchCodeIntersection(context, branchId)?.length === 0) {
+      return apiErrorResponse(new FinancialStatementInputError('ไม่มีสิทธิ์ดูข้อมูลของสาขาที่ระบุ', 403), 'ไม่มีสิทธิ์ดูข้อมูลของสาขาที่ระบุ', 403)
+    }
+
     const payload = await buildStockFinance({
-      asOf: parseDate(params.get('asOf'), new Date()),
-      branchId: params.get('branchId') || undefined,
-      periodDays: 90,
+      allowedBranchCodes,
+      asOf: parseDateOnly(params.get('asOf')),
+      branchId,
+      periodDays: STOCK_FINANCE_HISTORY_DAYS,
     })
 
-    return NextResponse.json(payload)
+    return NextResponse.json(payload, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
+    if (caught instanceof FinancialStatementInputError) return apiErrorResponse(caught, caught.message, caught.status)
     return apiErrorResponse(caught, 'โหลด Stock Finance Analysis ไม่ได้', 500)
   }
 }

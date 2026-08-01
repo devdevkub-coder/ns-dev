@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import Image from 'next/image'
-import Link from 'next/link'
 import { ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, RotateCcw, Scale, Share2, SquarePen, XCircle, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { GuardedLink } from '@/components/ui/GuardedLink'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import {
   WeightTicketProductBreakdownTable,
@@ -101,6 +102,7 @@ export function WeightTicketDetailModal({
   onClose: () => void
   onEdit?: (id: string, type: WeightTicketType) => void
 }) {
+  const { requestConfirmation } = useActionConfirmation()
   const [ticket, setTicket] = useState<WeightTicketRecord | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -121,6 +123,12 @@ export function WeightTicketDetailModal({
   const [isSendingLine, setIsSendingLine] = useState(false)
   const [showStockReturnDialog, setShowStockReturnDialog] = useState(false)
   const [canReturnStock, setCanReturnStock] = useState(false)
+  const { requestDiscard: requestDiscardCancelNote } = useUnsavedChangesGuard(Boolean(ticket?.canCancel && cancelNote.trim()))
+
+  function requestClose() {
+    if (isCanceling) return
+    requestDiscardCancelNote(onClose)
+  }
   const [successModalMessage, setSuccessModalMessage] = useState('')
   const [expandedTimelineIds, setExpandedTimelineIds] = useState<Record<string, boolean>>({})
 
@@ -193,10 +201,28 @@ export function WeightTicketDetailModal({
       const updated = await cancelWeightTicket(ticket.id, cancelNote)
       setTicket(updated)
     } catch (caught) {
-      setCancelError(getErrorMessage(caught, 'ยกเลิกใบรับ-ส่งของไม่ได้'))
+      const message = getErrorMessage(caught, 'ยกเลิกใบรับ-ส่งของไม่ได้')
+      setCancelError(message)
+      throw new Error(message)
     } finally {
       setIsCanceling(false)
     }
+  }
+
+  function requestCancelTicket() {
+    if (!ticket) return
+    if (!cancelNote.trim()) {
+      setCancelError('กรอกหมายเหตุการยกเลิก')
+      return
+    }
+
+    requestConfirmation({
+      confirmLabel: 'ยืนยันยกเลิก',
+      description: `เอกสาร ${ticket.documentNo} จะเปลี่ยนสถานะเป็นยกเลิก และเก็บประวัติการทำรายการไว้`,
+      destructive: true,
+      onConfirm: handleCancelTicket,
+      title: 'ยืนยันการยกเลิกเอกสารหรือไม่?',
+    })
   }
 
   async function handleConfirmTicket() {
@@ -268,7 +294,7 @@ export function WeightTicketDetailModal({
   return (
     <>
     <Dialog open onOpenChange={(open) => {
-      if (!open) onClose()
+      if (!open) requestClose()
     }}>
       <DialogContent hideClose aria-labelledby="weight-ticket-detail-title" className="left-0 top-0 h-[100dvh] max-h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 rounded-none !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 sm:left-1/2 sm:top-1/2 sm:h-auto sm:max-h-[90vh] sm:w-[calc(100%-2rem)] sm:max-w-[min(96vw,96rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-md">
         <DialogHeader className="bg-slate-900 px-4 pb-4 pt-[calc(env(safe-area-inset-top)+1rem)] text-white shrink-0 rounded-none sm:p-4 sm:rounded-t-md">
@@ -304,17 +330,17 @@ export function WeightTicketDetailModal({
                       type="button"
                       variant="outline"
                       className="h-10 w-10 shrink-0 gap-0 px-0 font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white sm:h-9 sm:w-auto sm:gap-2 sm:px-4"
-                      onClick={() => onEdit(ticket.id, ticket.type)}
+                      onClick={() => requestDiscardCancelNote(() => onEdit(ticket.id, ticket.type))}
                     >
                       <SquarePen className="size-4" />
                       <span className="sr-only sm:not-sr-only">แก้ไข</span>
                     </Button>
                   ) : (
                     <Button asChild type="button" variant="outline" className="h-10 w-10 shrink-0 gap-0 px-0 font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white sm:h-9 sm:w-auto sm:gap-2 sm:px-4">
-                      <Link aria-label="แก้ไข" href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}`}>
+                      <GuardedLink aria-label="แก้ไข" href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}`}>
                         <SquarePen className="size-4" />
                         <span className="sr-only sm:not-sr-only">แก้ไข</span>
-                      </Link>
+                      </GuardedLink>
                     </Button>
                   )
                 ) : null}
@@ -328,7 +354,7 @@ export function WeightTicketDetailModal({
                 </Button>
                 </>
               ) : null}
-              <Button className="h-10 shrink-0 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white sm:h-9" type="button" variant="outline" onClick={onClose}>ปิด</Button>
+              <Button className="h-10 shrink-0 border-rose-600 bg-rose-600 font-normal text-white hover:border-rose-700 hover:bg-rose-700 hover:text-white sm:h-9" disabled={isCanceling} type="button" variant="outline" onClick={requestClose}>ปิด</Button>
             </div>
           </div>
         </DialogHeader>
@@ -489,10 +515,10 @@ export function WeightTicketDetailModal({
                   <table className="ns-table hidden lg:table min-w-full divide-y divide-slate-100 text-sm">
                     <thead className="bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-500">
                       <tr>
-                        <th className="px-3 py-3 text-left">เวลา</th>
-                        <th className="px-3 py-3 text-left">เหตุการณ์</th>
+                        <th className="px-3 py-3 text-center">เวลา</th>
+                        <th className="px-3 py-3 text-center">เหตุการณ์</th>
                         <th className="px-3 py-3 text-left">สินค้า</th>
-                        <th className="px-3 py-3 text-left">เอกสารปลายทาง</th>
+                        <th className="px-3 py-3 text-center">เอกสารปลายทาง</th>
                         <th className="px-3 py-3 text-right">น้ำหนักสุทธิ</th>
                         <th className="px-3 py-3 text-right">คงเหลือหลังรายการ</th>
                         <th className="px-3 py-3 text-left">ผู้ทำรายการ/หมายเหตุ</th>
@@ -507,17 +533,17 @@ export function WeightTicketDetailModal({
                         </tr>
                       ) : ticket.usageTimeline.map((event) => (
                         <tr key={event.id}>
-                          <td className="whitespace-nowrap px-3 py-3 text-slate-500">{formatDateTime(event.createdAt)}</td>
-                          <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-900">{usageActionLabel(event.action)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-center text-slate-500">{formatDateTime(event.createdAt)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-center font-medium text-slate-900">{usageActionLabel(event.action)}</td>
                           <td className="px-3 py-3">
                             <div className="font-medium text-slate-900">{event.productName}</div>
                             {event.productCode ? <div className="mt-0.5 text-xs text-slate-500">{event.productCode}</div> : null}
                           </td>
-                          <td className="whitespace-nowrap px-3 py-3 text-slate-700">
+                          <td className="whitespace-nowrap px-3 py-3 text-center text-slate-700">
                             {event.targetDocNo ? (
-                              <Link className="font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
+                              <GuardedLink className="font-mono font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
                                 {event.targetDocNo}
-                              </Link>
+                              </GuardedLink>
                             ) : (
                               '-'
                             )}
@@ -546,7 +572,7 @@ export function WeightTicketDetailModal({
                         <div className="flex justify-between items-start gap-2">
                           <div>
                             <div className="font-bold text-slate-800 text-base">{usageActionLabel(event.action)}</div>
-                            <div className="text-sm text-slate-500 font-medium">{formatDateTime(event.createdAt)}</div>
+                            <div className="whitespace-nowrap text-sm text-slate-500 font-medium">{formatDateTime(event.createdAt)}</div>
                           </div>
                           <div className="text-right">
                             <span className={cn('text-sm font-bold block', usageWeightClass(event.action))}>
@@ -562,9 +588,9 @@ export function WeightTicketDetailModal({
                           {event.targetDocNo && (
                             <div>
                               <span className="font-semibold text-slate-500">เอกสารปลายทาง:</span>{' '}
-                              <Link className="font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
+                              <GuardedLink className="whitespace-nowrap font-mono font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
                                 {event.targetDocNo}
-                              </Link>
+                              </GuardedLink>
                               {event.targetLineNo ? ` (รายการ ${event.targetLineNo})` : ''}
                             </div>
                           )}
@@ -629,9 +655,9 @@ export function WeightTicketDetailModal({
                           {targetDocNo || productName || allocatedNetWeight != null ? (
                             <div className="flex flex-wrap gap-x-4 gap-y-1">
                               {targetDocNo ? (
-                                <Link className="font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(targetDocNo)}`}>
+                                <GuardedLink className="whitespace-nowrap font-mono font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(targetDocNo)}`}>
                                   {targetDocNo}
-                                </Link>
+                                </GuardedLink>
                               ) : null}
                               {productName ? <span>{productName}</span> : null}
                               {allocatedNetWeight != null ? <span>น้ำหนัก: {formatWeight(allocatedNetWeight)} กก.</span> : null}
@@ -690,7 +716,7 @@ export function WeightTicketDetailModal({
                     />
                     {cancelError ? <div className="mt-1 text-xs text-red-600">{cancelError}</div> : null}
                   </div>
-                  <Button disabled={isCanceling} type="button" variant="outline" onClick={handleCancelTicket}>
+                  <Button disabled={isCanceling} type="button" variant="outline" onClick={requestCancelTicket}>
                     <XCircle className="mr-2 size-4" />
                     {isCanceling ? 'กำลังยกเลิก...' : 'ยกเลิกเอกสาร'}
                   </Button>

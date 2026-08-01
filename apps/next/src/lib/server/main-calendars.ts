@@ -1,8 +1,10 @@
 import type { Prisma } from '../../../generated/prisma/client'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { isInternalBankStatementTransfer } from '@/lib/server/bank-statement-cash-flow'
+import { buildFinanceCashPosition } from '@/lib/server/finance-accounting-cash-position'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemQty } from '@/lib/server/purchase-bill-items'
-import { listActiveAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
+import { listActiveAccounts } from '@/lib/server/reference-master-cache'
 
 type JsonItem = Prisma.JsonObject
 
@@ -60,46 +62,25 @@ function calendarWeeks<T extends { date: string }>(days: T[], start: Date) {
   return weeks
 }
 
-function cashAccountText(account: { bank: string | null; bankName: string | null; name: string; type: string }) {
-  return [account.type, account.name, account.bankName, account.bank].filter(Boolean).join(' ').toLowerCase()
-}
-
-function isCashAccount(account: { bank: string | null; bankName: string | null; name: string; type: string }) {
-  const value = cashAccountText(account)
-  return ['เงินสด', 'ธนาคาร', 'od', 'cash', 'bank'].some((term) => value.includes(term))
-}
-
-function cachedMoney(value: string | null) {
-  return value == null ? 0 : Number(value)
-}
-
 export async function buildCashFlowCalendar(monthValue?: string | null) {
   const { daysInMonth, month, next, start } = monthBounds(monthValue)
   const accounts = await listActiveAccounts()
-  const cashAccounts = accounts.filter(isCashAccount)
-  const scopedAccounts = cashAccounts.length ? cashAccounts : accounts
+  const scopedAccounts = accounts.filter((account) => account.accountGroup === 'cash' || account.accountGroup === 'bank')
   const accountIds = scopedAccounts.map((account) => account.id)
   const accountNames = new Map(scopedAccounts.map((account) => [account.id, account.name]))
 
-  const [openingRows, monthRows] = await Promise.all([
-    prisma.bank_statement.findMany({
-      orderBy: [{ date: 'asc' }],
-      select: { amount_in: true, amount_out: true },
-      where: { account_id: { in: accountIds }, date: { lt: start } },
-    }),
+  const [openingPosition, monthRows] = await Promise.all([
+    buildFinanceCashPosition({ asOf: new Date(start.getTime() - 1), branchIds: null }),
     prisma.bank_statement.findMany({
       orderBy: [{ date: 'asc' }, { ref_no: 'asc' }],
-      select: { account_id: true, amount_in: true, amount_out: true, date: true, desc: true, description: true, id: true, ref_no: true, type: true },
+      select: { account_id: true, amount_in: true, amount_out: true, cash_flow_category: true, date: true, desc: true, description: true, id: true, ref_no: true, source_event_type: true, type: true },
       where: { account_id: { in: accountIds }, date: { gte: start, lt: next } },
     }),
   ])
-  type OpeningRow = (typeof openingRows)[number]
-
-  const openingCash = scopedAccounts.reduce((sum: number, account: AccountReferenceRecord) => sum + cachedMoney(account.openingBalance), 0)
-    + openingRows.reduce((sum: number, row: OpeningRow) => sum + toNumber(row.amount_in) - toNumber(row.amount_out), 0)
+  const openingCash = openingPosition.cashAndBank
 
   const entriesByDay = new Map<string, Array<{ account: string; date: string; description: string; id: string; in: number; out: number; refNo: string; type: string }>>()
-  monthRows.forEach((row: (typeof monthRows)[number]) => {
+  monthRows.filter((row) => !isInternalBankStatementTransfer(row)).forEach((row: (typeof monthRows)[number]) => {
     const key = dayId(row.date)
     if (!entriesByDay.has(key)) entriesByDay.set(key, [])
     entriesByDay.get(key)!.push({

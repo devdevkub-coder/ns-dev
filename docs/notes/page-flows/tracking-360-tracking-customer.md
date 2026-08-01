@@ -233,3 +233,7 @@ Target detail payload fields:
 ## 2026-07-12 Table consistency checkpoint
 
 `/tracking/customer` detail tables now derive numeric-column alignment from the rendered row values so numeric headers and bodies stay right-aligned, with canonical `p-2` headers and `p-3` body cells. What is what: these are read-only customer drilldown facts under the existing Tracking views. Why it stays this way: mixed text/numeric tables must keep a stable scan line without changing tracking filters, formulas, exports, API behavior, permissions, database schema, or DB state.
+
+## 2026-08-01 Detail table semantic contract
+
+Customer detail tables now classify each column by business meaning: dates/documents/statuses stay centered and non-wrapping, document numbers use mono text, numeric facts stay right-aligned with tabular numerals, and descriptive text remains readable. This is presentation-only; Customer Tracking data sources, calculations, filters, exports, permissions, and read-only behavior are unchanged.

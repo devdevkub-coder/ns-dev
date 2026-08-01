@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { z } from 'zod'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { ApiError, getErrorMessage, readJsonResponse } from '@/lib/api-client'
 import { companyProfileDraftSchema, companyProfileSchema, emptyCompanyProfile, type CompanyProfileFormValues } from '@/lib/company-profile'
@@ -194,6 +195,7 @@ function fieldErrorsFromApi(caught: unknown): FieldErrors {
 }
 
 export function CompanyProfilePageClient() {
+  const [formBaseline, setFormBaseline] = useState<string | null>(null)
   const [branches, setBranches] = useState<BranchOption[]>([])
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
@@ -204,6 +206,9 @@ export function CompanyProfilePageClient() {
   const [profileConfigured, setProfileConfigured] = useState(false)
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null)
   const [selectedBranchName, setSelectedBranchName] = useState<string | null>(null)
+  const formIsDirty = !isLoading && formBaseline !== null && JSON.stringify(form) !== formBaseline
+  const { requestDiscard } = useUnsavedChangesGuard(formIsDirty)
+  const { requestConfirmation } = useActionConfirmation()
 
   const loadData = useCallback(async (branchId?: string | null) => {
     setError(null)
@@ -213,6 +218,7 @@ export function CompanyProfilePageClient() {
       const response = await fetch(`/api/admin/company-profile${query}`, { cache: 'no-store' })
       const payload = await readJsonResponse(response, payloadSchema, 'โหลดข้อมูลบริษัทไม่สำเร็จ')
       setBranches(payload.branches)
+      setFormBaseline(JSON.stringify(payload.profile))
       setForm(payload.profile)
       setProfileConfigured(payload.profileConfigured)
       setSelectedBranchId(payload.selectedBranchId)
@@ -232,7 +238,7 @@ export function CompanyProfilePageClient() {
   function selectBranch(branchId: string) {
     if (branchId === selectedBranchId) return
     setMessage(null)
-    void loadData(branchId)
+    requestDiscard(() => loadData(branchId))
   }
 
   function update<K extends keyof CompanyProfileFormValues>(key: K, value: CompanyProfileFormValues[K]) {
@@ -264,6 +270,7 @@ export function CompanyProfilePageClient() {
       })
       const payload = await readJsonResponse(response, payloadSchema, 'บันทึกข้อมูลบริษัทไม่สำเร็จ')
       setBranches(payload.branches)
+      setFormBaseline(JSON.stringify(payload.profile))
       setForm(payload.profile)
       setProfileConfigured(payload.profileConfigured)
       setSelectedBranchId(payload.selectedBranchId)
@@ -289,6 +296,16 @@ export function CompanyProfilePageClient() {
     const reader = new FileReader()
     reader.onload = () => update('logoUrl', String(reader.result ?? '') || null)
     reader.readAsDataURL(file)
+  }
+
+  function requestLogoRemoval() {
+    requestConfirmation({
+      confirmLabel: 'ลบโลโก้',
+      description: 'โลโก้จะถูกนำออกจากแบบฟอร์มนี้ และจะมีผลเมื่อกดบันทึกข้อมูลบริษัท',
+      destructive: true,
+      onConfirm: () => update('logoUrl', null),
+      title: 'ยืนยันการลบโลโก้?',
+    })
   }
 
   async function openPreview(kind: PreviewKind) {
@@ -409,7 +426,7 @@ export function CompanyProfilePageClient() {
               )}
               <div className="flex flex-col gap-2">
                 <input accept="image/*" className="text-xs" type="file" onChange={(event) => uploadLogo(event.target.files?.[0])} />
-                {form.logoUrl ? <button className="text-left text-xs text-red-600 hover:underline" type="button" onClick={() => update('logoUrl', null)}>🗑 ลบโลโก้</button> : null}
+                {form.logoUrl ? <button className="text-left text-xs text-red-600 hover:underline" type="button" onClick={requestLogoRemoval}>🗑 ลบโลโก้</button> : null}
                 {fieldErrors.logoUrl ? <span className="text-xs text-red-600">{fieldErrors.logoUrl}</span> : null}
               </div>
             </div>

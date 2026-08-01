@@ -12,6 +12,7 @@ import { Card } from '@/components/ui/Card'
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from '@/components/ui/combobox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { WeightTicketAttachmentGrid as AttachmentProfileGrid, type WeightTicketAttachmentPreview as AttachmentPreview } from '@/components/daily/WeightTicketAttachmentGrid'
 import { WeightTicketWtiFormSection, WeightTicketWtoFormSection } from '@/components/daily/WeightTicketTypeFormSections'
@@ -19,6 +20,7 @@ import { ApiError, getErrorMessage } from '@/lib/api-client'
 import { recordImageDelivery } from '@/lib/client-image-delivery-telemetry'
 import { cn } from '@/lib/utils'
 import { cachedWeightTicketReferences } from '@/lib/weight-ticket-reference-cache'
+import { invalidatePurchaseBillOptionsCache } from '@/lib/purchase-bill-options-cache'
 import {
   calculateWeightTicketLineTotals,
   createWeightTicketLine,
@@ -97,6 +99,29 @@ type WtoStockOptionsState = Record<string, {
   warehousesById: Record<string, WtoStockWarehouseOption>
 }>
 
+const ADDED_IMPURITY_NOTE = 'หักสิ่งเจือปนเพิ่มเติม'
+
+export type WeightTicketDeletionLine = Pick<
+  WeightTicketLine,
+  | 'containerDeductionWeight'
+  | 'deductionMode'
+  | 'deductionValue'
+  | 'grossWeight'
+  | 'id'
+  | 'imageNames'
+  | 'impurityId'
+  | 'impurityProductId'
+  | 'note'
+  | 'parentId'
+  | 'productId'
+  | 'warehouseId'
+> & {
+  imageFiles: AttachmentPreview[]
+  impurityProductName?: string
+  impurityPurchaseAction?: 'none' | 'buy'
+  impuritySourceLineId?: string
+}
+
 function createFormWeightTicketLine(id?: string): FormWeightTicketLine {
   return {
     ...createWeightTicketLine(id),
@@ -119,23 +144,31 @@ function initialForm(type: WeightTicketType = 'WTI'): FormState {
   }
 }
 
-function hasEnteredTicketData(form: FormState) {
-  return Boolean(
-    form.branchId
-    || form.partyId
-    || form.remark.trim()
-    || form.vehicleNo.trim()
-    || form.vehicleImageFiles.length
-    || form.godownName.trim()
-    || form.lines.some((line) => (
-      line.productId
-      || line.grossWeight
-      || line.containerDeductionWeight
-      || line.deductionValue
-      || line.note.trim()
-      || line.imageFiles.length
-    )),
-  )
+function formSafetySnapshot(form: FormState) {
+  return JSON.stringify({
+    branchId: form.branchId,
+    godownName: form.godownName,
+    lines: form.lines.map((line) => ({
+      containerDeductionWeight: line.containerDeductionWeight,
+      deductionMode: line.deductionMode,
+      deductionValue: line.deductionValue,
+      grossWeight: line.grossWeight,
+      imageFiles: line.imageFiles.map((file) => file.rawValue),
+      impurityId: line.impurityId,
+      impurityProductId: line.impurityProductId,
+      impurityPurchaseAction: line.impurityPurchaseAction,
+      impuritySourceLineId: line.impuritySourceLineId,
+      note: line.note,
+      parentId: line.parentId,
+      productId: line.productId,
+      warehouseId: line.warehouseId,
+    })),
+    partyId: form.partyId,
+    remark: form.remark,
+    type: form.type,
+    vehicleImageFiles: form.vehicleImageFiles.map((file) => file.rawValue),
+    vehicleNo: form.vehicleNo,
+  })
 }
 
 function makeFileId() {
@@ -193,6 +226,176 @@ function WeightTicketLineCardThumbnail({ files }: { files: AttachmentPreview[] }
 
 function getLineImpurityId(line: FormWeightTicketLine) {
   return line.impurityId ?? ''
+}
+
+function hasEnteredText(value: string | null | undefined) {
+  return Boolean(value?.trim())
+}
+
+function hasMeaningfulProductLineData(line: WeightTicketDeletionLine) {
+  return Boolean(
+    hasEnteredText(line.productId)
+    || hasEnteredText(line.warehouseId)
+    || hasEnteredText(line.grossWeight)
+    || hasEnteredText(line.containerDeductionWeight)
+    || line.deductionMode !== 'none'
+    || hasEnteredText(line.deductionValue)
+    || hasEnteredText(line.impurityId)
+    || hasEnteredText(line.impurityProductId)
+    || hasEnteredText(line.impurityProductName)
+    || line.impurityPurchaseAction === 'buy'
+    || hasEnteredText(line.impuritySourceLineId)
+    || hasEnteredText(line.note)
+    || line.imageFiles.length > 0
+    || line.imageNames.length > 0,
+  )
+}
+
+function hasMeaningfulLotData(line: WeightTicketDeletionLine) {
+  return Boolean(
+    hasEnteredText(line.grossWeight)
+    || hasEnteredText(line.containerDeductionWeight)
+    || line.deductionMode !== 'none'
+    || hasEnteredText(line.deductionValue)
+    || hasEnteredText(line.impurityId)
+    || hasEnteredText(line.impurityProductId)
+    || hasEnteredText(line.impurityProductName)
+    || line.impurityPurchaseAction === 'buy'
+    || hasEnteredText(line.impuritySourceLineId)
+    || hasEnteredText(line.note)
+    || line.imageFiles.length > 0
+    || line.imageNames.length > 0,
+  )
+}
+
+function isFreshImpurityLine(
+  line: WeightTicketDeletionLine,
+  sourceLine: WeightTicketDeletionLine,
+  defaultImpurityId: string,
+) {
+  return (
+    line.parentId === sourceLine.id
+    && line.productId === sourceLine.productId
+    && line.warehouseId === sourceLine.warehouseId
+    && line.grossWeight === '0'
+    && line.containerDeductionWeight === '0'
+    && line.deductionMode === 'kg'
+    && !hasEnteredText(line.deductionValue)
+    && line.impurityId === defaultImpurityId
+    && !hasEnteredText(line.impurityProductId)
+    && !hasEnteredText(line.impurityProductName)
+    && (line.impurityPurchaseAction ?? 'none') === 'none'
+    && !hasEnteredText(line.impuritySourceLineId)
+    && line.note === ADDED_IMPURITY_NOTE
+    && line.imageFiles.length === 0
+    && line.imageNames.length === 0
+  )
+}
+
+function linesRemovedByLineRemoval(lines: WeightTicketDeletionLine[], lineId: string) {
+  const childIds = new Set(lines.filter((line) => line.parentId === lineId).map((line) => line.id))
+  return lines.filter((line) => (
+    line.id === lineId
+    || line.parentId === lineId
+    || childIds.has(line.impuritySourceLineId ?? '')
+  ))
+}
+
+export function shouldConfirmWeightTicketProductRemoval(lines: WeightTicketDeletionLine[], lineId: string) {
+  return linesRemovedByLineRemoval(lines, lineId).some(hasMeaningfulProductLineData)
+}
+
+export function shouldConfirmWeightTicketLotRemoval(line: WeightTicketDeletionLine) {
+  return hasMeaningfulLotData(line)
+}
+
+export function shouldConfirmWeightTicketImpurityRemoval(
+  lines: WeightTicketDeletionLine[],
+  sourceLineId: string,
+  defaultImpurityId: string,
+) {
+  const sourceLine = lines.find((line) => line.id === sourceLineId)
+  if (!sourceLine) return false
+
+  const parentLine = sourceLine.parentId
+    ? lines.find((line) => line.id === sourceLine.parentId)
+    : undefined
+  const isFresh = parentLine && isFreshImpurityLine(sourceLine, parentLine, defaultImpurityId)
+  const removedPurchaseLines = lines.filter((line) => line.impuritySourceLineId === sourceLineId)
+
+  return !isFresh || removedPurchaseLines.some(hasMeaningfulProductLineData)
+}
+
+type ActionConfirmationRequest = {
+  cancelLabel: string
+  confirmLabel: string
+  description: string
+  destructive: boolean
+  onConfirm: () => void
+  title: string
+}
+
+export function requestWeightTicketSelectionChange(
+  shouldConfirm: boolean,
+  requestConfirmation: (request: ActionConfirmationRequest) => void,
+  confirmation: Omit<ActionConfirmationRequest, 'onConfirm'>,
+  onConfirm: () => void,
+) {
+  if (!shouldConfirm) {
+    onConfirm()
+    return
+  }
+  requestConfirmation({ ...confirmation, onConfirm })
+}
+
+export function shouldConfirmWeightTicketBranchChange(
+  lines: Array<Pick<WeightTicketDeletionLine, 'warehouseId'>>,
+  partyWillBeCleared: boolean,
+) {
+  return partyWillBeCleared || lines.some((line) => hasEnteredText(line.warehouseId))
+}
+
+export function shouldConfirmWeightTicketProductChange(lines: WeightTicketDeletionLine[], lineId: string) {
+  const targetLine = lines.find((line) => line.id === lineId)
+  if (!targetLine) return false
+  const targetDataWillBeCleared = Boolean(
+    hasEnteredText(targetLine.warehouseId)
+    || hasEnteredText(targetLine.grossWeight)
+    || hasEnteredText(targetLine.containerDeductionWeight)
+    || targetLine.deductionMode !== 'none'
+    || hasEnteredText(targetLine.deductionValue)
+    || hasEnteredText(targetLine.impurityId)
+    || hasEnteredText(targetLine.impurityProductId)
+    || hasEnteredText(targetLine.impurityProductName)
+    || targetLine.impurityPurchaseAction === 'buy'
+    || hasEnteredText(targetLine.impuritySourceLineId)
+    || hasEnteredText(targetLine.note)
+    || targetLine.imageFiles.length > 0
+    || targetLine.imageNames.length > 0,
+  )
+  return targetDataWillBeCleared || linesRemovedByLineRemoval(lines, lineId)
+    .filter((line) => line.id !== lineId)
+    .some((line) => line.parentId === lineId && !line.impuritySourceLineId
+      ? hasMeaningfulLotData(line)
+      : hasMeaningfulProductLineData(line))
+}
+
+export function shouldConfirmWeightTicketImpurityChange(
+  lines: WeightTicketDeletionLine[],
+  sourceLineId: string,
+  clearsDeductionValue = false,
+  clearsImpurityProduct = false,
+) {
+  const sourceLine = lines.find((line) => line.id === sourceLineId)
+  return Boolean(
+    (clearsDeductionValue && hasEnteredText(sourceLine?.deductionValue))
+    || (clearsImpurityProduct && (
+      hasEnteredText(sourceLine?.impurityProductId)
+      || hasEnteredText(sourceLine?.impurityProductName)
+    ))
+    || sourceLine?.impurityPurchaseAction === 'buy'
+    || lines.filter((line) => line.impuritySourceLineId === sourceLineId).some(hasMeaningfulProductLineData),
+  )
 }
 
 function isOtherProductImpurityOption(impurityId: string) {
@@ -511,6 +714,7 @@ export type WeightTicketFormCoreProps = {
   ticketId?: string
   embeddedModal?: boolean
   onClose?: () => void
+  onRequestClose?: (requestClose: () => void) => void
   onDirtyChange?: (dirty: boolean) => void
   onSaveSuccess?: (ticket: WeightTicketRecord) => void
 }
@@ -521,12 +725,14 @@ export function WeightTicketFormCore({
   ticketId = '',
   embeddedModal = false,
   onClose,
+  onRequestClose,
   onDirtyChange,
   onSaveSuccess,
 }: WeightTicketFormCoreProps) {
   const router = useRouter()
   const editingTicketId = ticketId.trim()
   const [form, setForm] = useState<FormState>(() => initialForm(initialType))
+  const [formBaseline, setFormBaseline] = useState(() => formSafetySnapshot(initialForm(initialType)))
   const [branches, setBranches] = useState<OptionItem[]>([])
   const [suppliers, setSuppliers] = useState<OptionItem[]>([])
   const [customers, setCustomers] = useState<OptionItem[]>([])
@@ -588,9 +794,12 @@ export function WeightTicketFormCore({
     }
   }, [])
 
+  const isFormDirty = formSafetySnapshot(form) !== formBaseline
+  const { requestDiscard } = useUnsavedChangesGuard(isFormDirty)
+  const { requestConfirmation } = useActionConfirmation()
   useEffect(() => {
-    onDirtyChange?.(hasEnteredTicketData(form))
-  }, [form, onDirtyChange])
+    onDirtyChange?.(isFormDirty)
+  }, [isFormDirty, onDirtyChange])
 
   const partyOptions = useMemo(() => {
     const options = form.type === 'WTI' ? suppliers : customers
@@ -786,8 +995,10 @@ export function WeightTicketFormCore({
       try {
         const ticket = await getWeightTicket(editingTicketId)
         if (cancelled) return
+        const nextForm = ticketToFormState(ticket)
         setLoadedTicket(ticket)
-        setForm(ticketToFormState(ticket))
+        setForm(nextForm)
+        setFormBaseline(formSafetySnapshot(nextForm))
         setSavedTicket(null)
         setActiveLineId('')
         setMobileProductView('list')
@@ -1002,6 +1213,39 @@ export function WeightTicketFormCore({
     setForm((current) => ({ ...current, [key]: value }))
   }
 
+  function changeBranch(value: string | null) {
+    const branchId = value ?? ''
+    const currentParty = (form.type === 'WTI' ? suppliers : customers)
+      .find((option) => option.id === form.partyId && option.branchIds?.includes(branchId))
+    if (branchId === form.branchId) return
+    requestWeightTicketSelectionChange(
+      shouldConfirmWeightTicketBranchChange(form.lines, Boolean(form.partyId && !currentParty)),
+      requestConfirmation,
+      {
+        cancelLabel: 'ไม่เปลี่ยน',
+        confirmLabel: 'เปลี่ยนสาขา',
+        description: 'คลังสินค้าและคู่ค้าที่ใช้กับสาขาเดิมจะถูกล้างจากใบรับ-ส่งของนี้',
+        destructive: true,
+        title: 'เปลี่ยนสาขา?',
+      },
+      () => {
+        setForm((current) => {
+          const selectedBranch = branches.find((branch) => branch.id === branchId)
+          const party = (current.type === 'WTI' ? suppliers : customers)
+            .find((option) => option.id === current.partyId && option.branchIds?.includes(branchId))
+          return {
+            ...current,
+            branchId,
+            branchName: selectedBranch?.label ?? '',
+            lines: current.lines.map((line) => ({ ...line, warehouseId: '', warehouseName: '', warehouseType: '' })),
+            partyId: party ? current.partyId : '',
+            partyName: party?.label ?? '',
+          }
+        })
+      },
+    )
+  }
+
   function updateLine(lineId: string, updater: (line: FormWeightTicketLine) => FormWeightTicketLine) {
     setForm((current) => {
       const updatedLines = current.lines.map((line) => line.id === lineId ? updater(line) : line)
@@ -1066,7 +1310,7 @@ export function WeightTicketFormCore({
     setMobileProductView('editor')
   }
 
-  function closeMobileProductEditor(focusTargetId = activeLineId, onClosed?: () => void) {
+  const closeMobileProductEditor = useCallback((focusTargetId = activeLineId, onClosed?: () => void) => {
     if (mobileProductEditorCloseTimeoutRef.current !== null) return
 
     cancelMobileProductEditorOpenAnimation()
@@ -1081,7 +1325,21 @@ export function WeightTicketFormCore({
 
     setMobileProductEditorVisible(false)
     mobileProductEditorCloseTimeoutRef.current = window.setTimeout(finishClose, 400)
-  }
+  }, [activeLineId, cancelMobileProductEditorOpenAnimation])
+
+  useEffect(() => {
+    if (mobileProductView !== 'editor') return
+
+    const handleMobileProductEditorKeyDown = (event: KeyboardEvent) => {
+      if (window.matchMedia('(min-width: 1280px)').matches || event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      closeMobileProductEditor()
+    }
+
+    document.addEventListener('keydown', handleMobileProductEditorKeyDown)
+    return () => document.removeEventListener('keydown', handleMobileProductEditorKeyDown)
+  }, [closeMobileProductEditor, mobileProductView])
 
   function addSameProductLot(sourceLine: FormWeightTicketLine) {
     setMergeNotice('')
@@ -1188,6 +1446,81 @@ export function WeightTicketFormCore({
     })
   }
 
+  function requestLineProductChange(lineId: string, productId: string) {
+    if (form.lines.find((line) => line.id === lineId)?.productId === productId) return
+    requestWeightTicketSelectionChange(
+      shouldConfirmWeightTicketProductChange(form.lines, lineId),
+      requestConfirmation,
+      {
+        cancelLabel: 'ไม่เปลี่ยน',
+        confirmLabel: 'เปลี่ยนสินค้า',
+        description: 'ข้อมูลสินค้า เต๋า และสิ่งเจือปนที่เกี่ยวข้องจะถูกล้างจากรายการนี้',
+        destructive: true,
+        title: 'เปลี่ยนสินค้า?',
+      },
+      () => changeLineProduct(lineId, productId),
+    )
+  }
+
+  function requestImpurityChange(
+    lineId: string,
+    mutation: (line: FormWeightTicketLine) => FormWeightTicketLine,
+    clearsDeductionValue = false,
+    clearsImpurityProduct = false,
+  ) {
+    requestWeightTicketSelectionChange(
+      shouldConfirmWeightTicketImpurityChange(form.lines, lineId, clearsDeductionValue, clearsImpurityProduct),
+      requestConfirmation,
+      {
+        cancelLabel: 'ไม่เปลี่ยน',
+        confirmLabel: 'เปลี่ยนข้อมูล',
+        description: 'ข้อมูลซื้อเพิ่มของสิ่งเจือปนที่เกี่ยวข้องจะถูกนำออกจากรายการนี้',
+        destructive: true,
+        title: 'เปลี่ยนข้อมูลสิ่งเจือปน?',
+      },
+      () => updateLine(lineId, mutation),
+    )
+  }
+
+  function requestProductRemoval(lineId: string) {
+    if (!shouldConfirmWeightTicketProductRemoval(form.lines, lineId)) {
+      removeLine(lineId)
+      return
+    }
+
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ลบสินค้า',
+      description: 'รายการสินค้า เต๋า และสิ่งเจือปนที่เกี่ยวข้องจะถูกนำออกจากใบรับ-ส่งของที่กำลังแก้ไข',
+      destructive: true,
+      onConfirm: () => removeLine(lineId),
+      title: 'ยืนยันการลบสินค้า',
+    })
+  }
+
+  function removeLot(lotId: string) {
+    setForm((current) => ({
+      ...current,
+      lines: current.lines.filter((line) => line.id !== lotId),
+    }))
+  }
+
+  function requestLotRemoval(lot: FormWeightTicketLine) {
+    if (!shouldConfirmWeightTicketLotRemoval(lot)) {
+      removeLot(lot.id)
+      return
+    }
+
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ลบเต๋า',
+      description: 'ข้อมูลน้ำหนัก รูปภาพ และรายละเอียดของเต๋านี้จะถูกนำออกจากรายการที่กำลังแก้ไข',
+      destructive: true,
+      onConfirm: () => removeLot(lot.id),
+      title: 'ยืนยันการลบเต๋า',
+    })
+  }
+
   function addImpurityLine(sourceLine: FormWeightTicketLine) {
     if (calculateRealLotSummary(sourceLine, form.lines).lotCount === 0) return
     const nextLine = createFormWeightTicketLine()
@@ -1199,7 +1532,7 @@ export function WeightTicketFormCore({
     nextLine.deductionValue = ''
     nextLine.impurityId = impurityOptions[0]?.id || ''
     nextLine.impurityPurchaseAction = 'none'
-    nextLine.note = 'หักสิ่งเจือปนเพิ่มเติม'
+    nextLine.note = ADDED_IMPURITY_NOTE
     nextLine.parentId = sourceLine.id
     if (!isOtherProductImpurityOption(nextLine.impurityId)) {
       const existingNormalImpurityIds = form.lines
@@ -1219,13 +1552,29 @@ export function WeightTicketFormCore({
     setPendingFocusField(`line-${nextLine.id}-impurity`)
   }
 
-  function removeImpurityLine(sourceLine: FormWeightTicketLine) {
+  function removeImpurityLine(sourceLineId: string) {
     setForm((current) => {
       return {
         ...current,
-        lines: removeImpurityPurchaseLinesForSource(current.lines, sourceLine.id)
-          .filter((line) => line.id !== sourceLine.id),
+        lines: removeImpurityPurchaseLinesForSource(current.lines, sourceLineId)
+          .filter((line) => line.id !== sourceLineId),
       }
+    })
+  }
+
+  function requestImpurityRemoval(sourceLineId: string) {
+    if (!shouldConfirmWeightTicketImpurityRemoval(form.lines, sourceLineId, impurityOptions[0]?.id ?? '')) {
+      removeImpurityLine(sourceLineId)
+      return
+    }
+
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ลบสิ่งเจือปน',
+      description: 'รายการหักสิ่งเจือปนและข้อมูลซื้อเพิ่มที่เกี่ยวข้องจะถูกนำออกจากรายการที่กำลังแก้ไข',
+      destructive: true,
+      onConfirm: () => removeImpurityLine(sourceLineId),
+      title: 'ยืนยันการลบสิ่งเจือปน',
     })
   }
 
@@ -1301,13 +1650,19 @@ export function WeightTicketFormCore({
     }))
   }
 
-  function backToList() {
-    if (onClose) {
-      onClose()
-    } else {
-      router.push(`/daily/weight-ticket-list?type=${form.type}`)
-    }
-  }
+  const backToList = useCallback(() => {
+    requestDiscard(() => {
+      if (onClose) {
+        onClose()
+      } else {
+        router.push(`/daily/weight-ticket-list?type=${form.type}`)
+      }
+    })
+  }, [form.type, onClose, requestDiscard, router])
+
+  useEffect(() => {
+    onRequestClose?.(backToList)
+  }, [backToList, onRequestClose])
 
   async function saveTicket() {
     const nextTouched: Record<string, boolean> = {
@@ -1373,10 +1728,13 @@ export function WeightTicketFormCore({
         vehicleNo: form.vehicleNo.trim(),
         godownName: form.godownName.trim(),
       })
+      invalidatePurchaseBillOptionsCache()
       setLoadError('')
+      const nextForm = ticketToFormState(ticket)
       setLoadedTicket(ticket)
       setSavedTicket(ticket)
-      setForm(ticketToFormState(ticket))
+      setForm(nextForm)
+      setFormBaseline(formSafetySnapshot(nextForm))
       if (onSaveSuccess) {
         onSaveSuccess(ticket)
       } else {
@@ -1568,19 +1926,7 @@ export function WeightTicketFormCore({
                 value={form.branchId}
 	                onChange={(value) => {
 	                  markTouched('branchId')
-	                  setForm((current) => {
-	                    const selectedBranch = branches.find((branch) => branch.id === value)
-	                    const currentParty = (current.type === 'WTI' ? suppliers : customers)
-	                      .find((option) => option.id === current.partyId && option.branchIds?.includes(value ?? ''))
-	                    return {
-	                      ...current,
-	                      branchId: value ?? '',
-	                      branchName: selectedBranch?.label ?? '',
-	                      lines: current.lines.map((line) => ({ ...line, warehouseId: '', warehouseName: '', warehouseType: '' })),
-	                      partyId: currentParty ? current.partyId : '',
-	                      partyName: currentParty?.label ?? '',
-	                    }
-	                  })
+	                  changeBranch(value)
 	                }}
               />
               {(() => {
@@ -1749,12 +2095,6 @@ export function WeightTicketFormCore({
                   onClick={(event) => {
                     if (event.currentTarget === event.target) closeMobileProductEditor()
                   }}
-                  onKeyDownCapture={(event) => {
-                    if (window.matchMedia('(min-width: 1280px)').matches || event.key !== 'Escape') return
-                    event.preventDefault()
-                    event.stopPropagation()
-                    closeMobileProductEditor()
-                  }}
                 >
                   <div className={cn(
                     mobileProductView === 'editor'
@@ -1842,18 +2182,18 @@ export function WeightTicketFormCore({
                       hideSelectedCard
                       products={productOptions}
                       value={line.productId}
-                      onChange={(value) => {
-                        markTouched(`line-${line.id}-product`)
-                        changeLineProduct(line.id, value)
+	                      onChange={(value) => {
+	                        markTouched(`line-${line.id}-product`)
+	                        requestLineProductChange(line.id, value)
                       }}
                     />
                   ),
                   placeholder: isLoadingProducts ? 'กำลังโหลดสินค้า...' : 'เลือกสินค้า',
                   selectedProduct,
                   value: line.productId,
-                  onChange: (value: string) => {
-                    markTouched(`line-${line.id}-product`)
-                    changeLineProduct(line.id, value)
+	                  onChange: (value: string) => {
+	                    markTouched(`line-${line.id}-product`)
+	                    requestLineProductChange(line.id, value)
                   },
                 }
                 const warehouseSectionProps = {
@@ -1886,7 +2226,7 @@ export function WeightTicketFormCore({
                             size="xs"
                             type="button"
                             variant="outline"
-                            onClick={() => removeLine(line.id)}
+                            onClick={() => requestProductRemoval(line.id)}
                             className="hidden outline-none xl:flex items-center gap-1"
                           >
                             <Trash2 className="size-3" />
@@ -1967,12 +2307,7 @@ export function WeightTicketFormCore({
                                         type="button"
                                         variant="ghost"
                                         className="text-rose-600 hover:bg-rose-50 h-9 px-3 text-sm font-semibold outline-none flex items-center"
-                                        onClick={() => {
-                                          setForm((current) => ({
-                                            ...current,
-                                            lines: current.lines.filter((l) => l.id !== lot.id),
-                                          }))
-                                        }}
+                                        onClick={() => requestLotRemoval(lot)}
                                       >
                                         <Trash2 className="size-3.5 mr-1" />
                                         ลบเต๋า
@@ -2268,15 +2603,16 @@ export function WeightTicketFormCore({
                                           value={selectedImpurityId}
                                           onChange={(value) => {
                                             const impurity = impurityOptionsForChild.find((option) => option.id === value)
+                                            const clearsImpurityProduct = !isOtherProductImpurityOption(value)
                                             markTouched(`line-${child.id}-impurity`)
-                                            updateLine(child.id, (current) => ({
+                                            requestImpurityChange(child.id, (current) => ({
                                               ...current,
                                               impurityId: value,
                                               impurityName: impurity?.label ?? '',
                                               impurityPurchaseAction: 'none',
                                               impurityProductId: isOtherProductImpurityOption(value) ? current.impurityProductId ?? '' : '',
                                               impurityProductName: isOtherProductImpurityOption(value) ? current.impurityProductName ?? '' : '',
-                                            }))
+                                            }), false, clearsImpurityProduct)
                                           }}
                                         />
                                         </FieldBlock>
@@ -2296,12 +2632,12 @@ export function WeightTicketFormCore({
                                             onChange={(value) => {
                                               const product = impurityPurchaseProducts.find((option) => option.id === value)
                                               markTouched(`line-${child.id}-impurity-product`)
-                                              updateLine(child.id, (current) => ({
+	                                              requestImpurityChange(child.id, (current) => ({
                                                 ...current,
                                                 impurityProductId: value,
                                                 impurityProductName: product?.label ?? '',
                                                 impurityPurchaseAction: 'none',
-                                              }))
+	                                              }))
                                             }}
                                           />
                                         </FieldBlock>
@@ -2319,12 +2655,12 @@ export function WeightTicketFormCore({
                                           value={child.deductionMode}
                                           onChange={(value) => {
                                             const deductionMode = value as DeductionMode
-                                            updateLine(child.id, (current) => ({
+	                                            requestImpurityChange(child.id, (current) => ({
                                               ...current,
                                               deductionMode,
                                               impurityPurchaseAction: 'none',
-                                              deductionValue: '',
-                                            }))
+	                                              deductionValue: '',
+	                                            }), true)
                                           }}
                                         />
                                         </FieldBlock>
@@ -2387,7 +2723,7 @@ export function WeightTicketFormCore({
                                           aria-label="ลบรายการหักสิ่งเจือปน"
                                           title="ลบ"
                                           className="text-rose-600 hover:bg-rose-50 h-10 w-9 px-0 outline-none flex items-center justify-center font-semibold"
-                                          onClick={() => removeImpurityLine(child)}
+                                          onClick={() => requestImpurityRemoval(child.id)}
                                         >
                                           <Trash2 className="size-4" />
                                         </Button>
@@ -2423,7 +2759,7 @@ export function WeightTicketFormCore({
                                         className="mt-3 h-9 w-full border-rose-200 bg-white text-sm font-semibold text-rose-700 hover:bg-rose-50 md:hidden"
                                         type="button"
                                         variant="outline"
-                                        onClick={() => removeImpurityLine(child)}
+                                        onClick={() => requestImpurityRemoval(child.id)}
                                       >
                                         <Trash2 className="mr-1.5 size-4" />
                                         ลบสิ่งเจือปน
@@ -2496,8 +2832,8 @@ export function WeightTicketFormCore({
                               const nextLineId = getMainParentLines(form.lines).find((line) => line.id !== activeLine.id)?.id
                               if (!nextLineId) return
                               closeMobileProductEditor(nextLineId, () => {
-                                removeLine(activeLine.id)
                                 setActiveLineId(nextLineId)
+                                requestProductRemoval(activeLine.id)
                               })
                             }}
                           >

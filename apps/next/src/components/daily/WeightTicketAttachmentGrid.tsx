@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { ImagePlus, Trash2 } from 'lucide-react'
+import { useActionConfirmation } from '@/components/ui/FormSafetyProvider'
 import { cn } from '@/lib/utils'
 import { recordImageDelivery } from '@/lib/client-image-delivery-telemetry'
 
@@ -51,6 +52,19 @@ export function WeightTicketAttachmentGrid({
   onRemove: (fileId: string) => void
   noWrapper?: boolean
 }) {
+  const { requestConfirmation } = useActionConfirmation()
+
+  function requestRemove(fileId: string) {
+    requestConfirmation({
+      title: 'ยืนยันการลบรูปภาพ',
+      description: 'ต้องการนำรูปภาพนี้ออกจากรายการที่กำลังแก้ไขหรือไม่?',
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ลบรูปภาพ',
+      destructive: true,
+      onConfirm: () => onRemove(fileId),
+    })
+  }
+
   const content = (
     <div className="flex flex-wrap gap-3" id={id}>
       {files.map((file) => (
@@ -74,7 +88,7 @@ export function WeightTicketAttachmentGrid({
             )}
           </button>
           <div className="mt-2 truncate text-xs text-slate-600" title={file.fileName}>{file.fileName}</div>
-          <button className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline" disabled={disabled} type="button" onClick={() => onRemove(file.id)}>
+          <button className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline" disabled={disabled} type="button" onClick={() => requestRemove(file.id)}>
             <Trash2 className="h-3 w-3" />
             ลบ
           </button>

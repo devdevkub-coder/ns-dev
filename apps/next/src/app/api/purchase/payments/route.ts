@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { parseInternalBigIntId, requireBusinessCode, requireDocumentNo, stringifyBusinessValue } from '@/lib/business-code'
 import { supplierPaymentFormSchema } from '@/lib/daily'
+import { isPurchaseBillCancelledStatus, requirePurchaseBillStatus } from '@/lib/purchase-bill-status'
 import {
   assertCompatiblePaymentDestinations,
   assertCompatiblePaymentRecipients,
@@ -17,7 +18,7 @@ import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference
 import { refreshAdvancePaymentWorkflowStatus } from '@/lib/server/advance-payments'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission, getBranchCodeIntersection } from '@/lib/server/auth-context'
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
-import { currentActor, listDailyAccounts, nextBankStatementDocNos, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, listDailyAccounts, lockDailyAccountBalances, nextBankStatementDocNos, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { refreshExpensePaymentStatus } from '@/lib/server/expense-payment-status'
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import {
@@ -31,6 +32,8 @@ import {
 import { appendPurchaseBillStatusLog, PURCHASE_BILL_STATUS_ACTION } from '@/lib/server/purchase-bill-history'
 import { enqueueAndExecuteNotification } from '@/lib/server/line-notification-jobs'
 import { prisma } from '@/lib/server/prisma'
+import { getFinanceCurrencyPolicy } from '@/lib/server/finance-currency-policy'
+import { functionalBankStatementMovement } from '@/lib/server/bank-statement-booking'
 import { refreshPurchaseBillSettlement } from '@/lib/server/purchase-bill-settlement'
 import { listActiveBranchesByCodes, listActiveSupplierPaymentOptions, listSupplierReferencesByIds } from '@/lib/server/reference-master-cache'
 import { activeWhtRatePercent } from '@/lib/server/tax-settings'
@@ -228,11 +231,11 @@ async function nextSupplierPaymentDocNo(tx: Prisma.TransactionClient, date: stri
 
 async function refreshPurchaseBillPaymentStatus(tx: Prisma.TransactionClient, billId: bigint, actor: string) {
   const bill = await tx.purchase_bills.findUnique({
-    select: { id: true, status: true },
+    select: { doc_no: true, id: true, status: true },
     where: { id: billId },
   })
   if (!bill) throw new Error('ไม่พบบิลซื้อที่ต้องการตัดชำระ')
-  if (String(bill.status ?? '').toLowerCase().includes('cancel')) {
+  if (isPurchaseBillCancelledStatus(bill.status, bill.doc_no)) {
     throw new Error('ตัดชำระไม่ได้ เพราะบิลซื้อถูกยกเลิกแล้ว')
   }
   await refreshPurchaseBillSettlement(tx, billId, actor)
@@ -634,6 +637,7 @@ export async function POST(request: Request) {
     assertPaymentVoucherCreateOnly(values.id)
     assertPaymentVoucherServerGeneratedDocNo(values.docNo)
     const actor = currentActor(context)
+    const currencyPolicy = await getFinanceCurrencyPolicy()
 
     const voucherId = `PMT-${randomUUID()}`
     const paymentDate = normalizeDate(values.date)
@@ -667,17 +671,6 @@ export async function POST(request: Request) {
     if (Math.abs(splitTotal - netAmount) > 0.01) {
       throw new Error('รวมยอดแยกบัญชีต้องเท่ากับยอดสุทธิที่ต้องจ่าย')
     }
-    const allAccounts = await listDailyAccounts()
-    for (const split of paymentSplits) {
-      const account = allAccounts.find((a: (typeof allAccounts)[number]) => a.id === split.accountId)
-      if (account) {
-        const splitAmount = toNumber(split.amount)
-        const available = (account.balance ?? 0) + (account.subtype === 'current' ? (account.odLimit ?? 0) : 0)
-        if (splitAmount > available + 0.01) {
-          throw new Error('ยอดจ่ายเกินยอดเงินคงเหลือและวงเงิน OD ที่ใช้ได้ กรุณาลดจำนวนหรือเพิ่มบัญชีจ่าย')
-        }
-      }
-    }
     const splitAccountCodes = [...new Set(paymentSplits.map((split) => split.accountId).filter(Boolean))]
     const splitAccountReferences = await Promise.all(splitAccountCodes.map(async (code) => [code, await findActiveAccountReferenceByCode(code)] as const))
     const splitAccountByCode = new Map(splitAccountReferences)
@@ -692,6 +685,14 @@ export async function POST(request: Request) {
     const paymentMethod = activePaymentMethod.name
 
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await lockDailyAccountBalances(tx, Array.from(splitAccountByCode.values()).flatMap((account) => account ? [account.id] : []))
+      const allAccounts = await listDailyAccounts(tx)
+      for (const split of paymentSplits) {
+        const account = allAccounts.find((row) => row.id === split.accountId)
+        if (account && account.accountGroup !== 'virtual' && toNumber(split.amount) > (account.availableToPay ?? 0) + 0.01) {
+          throw new Error('ยอดจ่ายเกินยอดเงินคงเหลือและวงเงิน OD ที่ใช้ได้ กรุณาลดจำนวนหรือเพิ่มบัญชีจ่าย')
+        }
+      }
       const txExt = tx as typeof tx & {
         payment_approvals: {
           findMany: (args: unknown) => Promise<PaymentApprovalRecord[]>
@@ -1021,12 +1022,19 @@ export async function POST(request: Request) {
 
       await tx.bank_statement.deleteMany({ where: { ref_id: voucherId, ref_type: 'PMT' } })
       await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('bank_statement.doc_no'))`
-      const statementDocNos = await nextBankStatementDocNos(values.date, paymentSplits.length, tx)
+      const statementDocNos = await nextBankStatementDocNos(values.date, branchCode, paymentSplits.length, tx)
       await tx.bank_statement.createMany({
         data: paymentSplits.map((split, index) => ({
+          ...functionalBankStatementMovement({
+            amountIn: 0,
+            amountOut: split.amount,
+            functionalCurrencyCode: currencyPolicy.functionalCurrencyCode,
+            idempotencyKey: `supplier-payment:${docNo}:split:${index + 1}`,
+            sourceEventKey: `supplier-payment:${docNo}:split:${index + 1}`,
+            sourceEventType: 'supplier_payment',
+          }),
           account_id: (splitAccountByCode.get(split.accountId)?.id as bigint),
-          amount_in: 0,
-          amount_out: split.amount,
+          branch_id: branchId,
           created_by: actor,
           date: paymentDate,
           description: `${docNo} - จ่ายผู้รับเงิน${paymentSplits.length > 1 ? ` (split ${index + 1}/${paymentSplits.length})` : ''}`,
@@ -1154,7 +1162,7 @@ export async function POST(request: Request) {
           note: values.notes ?? null,
           purchaseBillDocNo: lineBill.doc_no,
           purchaseBillId: lineBill.id,
-          toStatus: refreshedBill?.status ?? lineBill.status ?? 'unpaid',
+          toStatus: requirePurchaseBillStatus(refreshedBill?.status ?? lineBill.status, lineBill.doc_no),
         })
       }
 

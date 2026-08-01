@@ -227,3 +227,7 @@ Target detail payload fields:
 ## 2026-07-12 Table consistency checkpoint
 
 `/tracking/supplier` detail tables now align numeric headers and bodies from the actual column values and use canonical `p-2` header / `p-3` body density. What is what: these remain read-only supplier performance, product, payment, and yearly facts. Why it stays this way: the detail surfaces must share one table rhythm while tracking formulas, exports, API behavior, permissions, database schema, and DB state remain unchanged.
+
+## 2026-08-01 Detail table semantic contract
+
+Supplier detail tables now classify date, document, status, descriptive, and numeric columns explicitly. Dates/documents do not wrap, document numbers use mono text, and financial/quantity facts remain right-aligned with tabular numerals. The change is presentation-only and preserves supplier formulas, PB/PMT/WTI links, filters, exports, permissions, API behavior, and DB state.

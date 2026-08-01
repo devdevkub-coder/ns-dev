@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
 import { PageSizeDropdown } from '@/components/ui/PageSizeDropdown'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -62,6 +63,7 @@ function compareImpurities(left: Impurity, right: Impurity, key: SortKey, direct
 export function ImpuritiesPageClient() {
   const [activeFilter, setActiveFilter] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [formDirty, setFormDirty] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [impurities, setImpurities] = useState<Impurity[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -75,6 +77,8 @@ export function ImpuritiesPageClient() {
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const columnResize = useResizableColumns('master-data.impurities.v5', impurityColumns)
+  const { requestDiscard } = useUnsavedChangesGuard(formDirty)
+  const { requestConfirmation } = useActionConfirmation()
 
 
   const loadData = useCallback(async () => {
@@ -129,14 +133,24 @@ export function ImpuritiesPageClient() {
     setError(null)
     try {
       await saveImpurity(values)
-      setFormOpen(false)
-      setSelectedImpurity(null)
+      closeForm()
       await loadData()
     } catch (caught) {
       setError(getErrorMessage(caught, 'บันทึกข้อมูลสิ่งเจือปนไม่ได้'))
     } finally {
       setIsSaving(false)
     }
+  }
+
+  function closeForm() {
+    setFormDirty(false)
+    setFormOpen(false)
+    setSelectedImpurity(null)
+  }
+
+  function requestCloseForm() {
+    if (isSaving) return
+    requestDiscard(closeForm)
   }
 
   async function handleToggleActive(impurity: Impurity, active: boolean) {
@@ -153,6 +167,7 @@ export function ImpuritiesPageClient() {
       setImpurities((current) => current.map((row) => row.id === impurity.id ? { ...row, active: impurity.active } : row))
       setSelectedImpurity((current) => current?.id === impurity.id ? { ...current, active: impurity.active } : current)
       setError(getErrorMessage(caught, 'อัปเดตสถานะสิ่งเจือปนไม่ได้'))
+      throw caught
     } finally {
       setPendingToggleIds((current) => {
         const next = new Set(current)
@@ -160,6 +175,21 @@ export function ImpuritiesPageClient() {
         return next
       })
     }
+  }
+
+  function requestToggleActive(impurity: Impurity, active: boolean) {
+    if (active) {
+      void handleToggleActive(impurity, active).catch(() => undefined)
+      return
+    }
+
+    requestConfirmation({
+      confirmLabel: 'ปิดการใช้งาน',
+      description: `ต้องการปิดการใช้งานสิ่งเจือปน “${impurity.code} — ${impurity.name}” ใช่หรือไม่?`,
+      destructive: true,
+      onConfirm: () => handleToggleActive(impurity, active),
+      title: 'ปิดการใช้งานสิ่งเจือปน?',
+    })
   }
 
   function setSort(key: SortKey) {
@@ -221,11 +251,12 @@ export function ImpuritiesPageClient() {
           <MatchButton active={activeFilter === 'active'} label="ใช้งาน" tone="emerald" onClick={() => setActiveFilter('active')} />
           <MatchButton active={activeFilter === 'inactive'} label="ปิด" tone="slate" onClick={() => setActiveFilter('inactive')} />
           <button
-            className="ml-auto flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
+            className="ml-auto flex h-10 items-center justify-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-normal text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
             type="button"
             onClick={openCreateForm}
           >
-            + เพิ่มสิ่งเจือปน
+            <Plus aria-hidden="true" className="size-4" />
+            เพิ่มสิ่งเจือปน
           </button>
         </div>
       </div>
@@ -303,15 +334,13 @@ export function ImpuritiesPageClient() {
         </MobileFilterSheet>
       ) : null}
 
-      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) { setFormOpen(false); setSelectedImpurity(null); } }}>
+      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) requestCloseForm() }}>
         <DialogContent className="max-w-4xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
           <ImpurityForm
             impurity={selectedImpurity}
             isSaving={isSaving}
-            onCancel={() => {
-              setFormOpen(false)
-              setSelectedImpurity(null)
-            }}
+            onDirtyChange={setFormDirty}
+            onCancel={requestCloseForm}
             onSubmit={handleSubmit}
           />
         </DialogContent>
@@ -396,7 +425,7 @@ export function ImpuritiesPageClient() {
                           checked={impurity.active}
                           disabled={pendingToggleIds.has(impurity.id)}
                           label={impurity.active ? 'ใช้งาน' : 'ปิด'}
-                          onChange={(checked) => void handleToggleActive(impurity, checked)}
+                          onChange={(checked) => requestToggleActive(impurity, checked)}
                         />
                       </TableCell>
                       <TableCell className="text-center text-xs font-semibold text-slate-700">
@@ -433,7 +462,7 @@ export function ImpuritiesPageClient() {
                       checked={impurity.active}
                       disabled={pendingToggleIds.has(impurity.id)}
                       label={impurity.active ? 'ใช้งาน' : 'ปิด'}
-                      onChange={(checked) => void handleToggleActive(impurity, checked)}
+                      onChange={(checked) => requestToggleActive(impurity, checked)}
                     />
                   </div>
                 </div>
@@ -458,17 +487,27 @@ type ImpurityFormProps = {
   impurity: Impurity | null
   isSaving: boolean
   onCancel: () => void
+  onDirtyChange: (dirty: boolean) => void
   onSubmit: (values: ImpurityFormValues) => Promise<void>
 }
 
-function ImpurityForm({ impurity, isSaving, onCancel, onSubmit }: ImpurityFormProps) {
+function ImpurityForm({ impurity, isSaving, onCancel, onDirtyChange, onSubmit }: ImpurityFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<ImpurityFormValues>(() => (impurity ? impurityToForm(impurity) : emptyImpurityForm))
+  const { requestConfirmation } = useActionConfirmation()
 
   useEffect(() => {
     setForm(impurity ? impurityToForm(impurity) : emptyImpurityForm)
     setErrors({})
   }, [impurity])
+
+  const formBaseline = useMemo(() => JSON.stringify(impurity ? impurityToForm(impurity) : emptyImpurityForm), [impurity])
+  const formSnapshot = useMemo(() => JSON.stringify(form), [form])
+
+  useEffect(() => {
+    onDirtyChange(formBaseline !== formSnapshot)
+    return () => onDirtyChange(false)
+  }, [formBaseline, formSnapshot, onDirtyChange])
 
   function update<K extends keyof ImpurityFormValues>(key: K, value: ImpurityFormValues[K]) {
     setForm((current) => ({ ...current, [key]: value }))
@@ -491,7 +530,10 @@ function ImpurityForm({ impurity, isSaving, onCancel, onSubmit }: ImpurityFormPr
       <div data-ns-dialog-header className="flex flex-col gap-3 bg-slate-900 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
         <h3 className="text-lg font-bold text-white">{form.id ? 'แก้ไขสิ่งเจือปน' : 'เพิ่มสิ่งเจือปน'}</h3>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-current" onChange={(checked) => update('active', checked)} />
+          <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-current" onChange={(active) => {
+            if (active) { update('active', true); return }
+            requestConfirmation({ confirmLabel: 'ปิดการใช้งาน', description: 'ต้องการปิดการใช้งานสิ่งเจือปนเมื่อบันทึกใช่หรือไม่?', destructive: true, onConfirm: () => update('active', false), title: 'ปิดการใช้งานสิ่งเจือปน?' })
+          }} />
           <button className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white transition-colors hover:border-rose-700 hover:bg-rose-700 focus:outline-none" type="button" onClick={onCancel}>
             ยกเลิก
           </button>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { usePathname } from 'next/navigation'
 import { Plus } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { KpiCard as SharedKpiCard } from '@/components/ui/KpiCard'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { MobileFilterSheet } from '@/components/ui/MobileFilterSheet'
@@ -20,6 +21,7 @@ import { isCostPoolEligibleMetalGroup, stockAdjustReasonLabel, stockAdjustReason
 import type { StatusConvertFormValues, StockAdjustFormValues, StockConvertFormValues, StockCostPoolOption, StockOption } from '@/lib/stock'
 import { z } from 'zod'
 import { ApiError } from '@/lib/api-client'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 
 type Mode = 'adjust' | 'convert' | 'status-convert'
 type Payload = {
@@ -104,6 +106,58 @@ type StockAdjustSnapshot = {
   systemQty: number
   totalValue: number
   unitPricePerKg: number
+}
+
+function statusConvertFormSafetySnapshot(values: StatusConvertFormValues) {
+  return JSON.stringify({
+    date: values.date,
+    fromStatus: values.fromStatus,
+    lotNo: values.lotNo,
+    notes: values.notes,
+    productId: values.productId,
+    qty: values.qty,
+    reason: values.reason,
+    sourceBranchId: values.sourceBranchId,
+    targetBranchId: values.targetBranchId,
+    targetWarehouseId: values.targetWarehouseId,
+    toStatus: values.toStatus,
+    warehouseId: values.warehouseId,
+  })
+}
+
+function stockConvertFormSafetySnapshot(values: StockConvertFormValues) {
+  return JSON.stringify({
+    allocationMethod: values.allocationMethod,
+    branchId: values.branchId,
+    date: values.date,
+    lotNo: values.lotNo,
+    manualAllocations: values.manualAllocations,
+    notes: values.notes,
+    reason: values.reason,
+    sourceProductId: values.sourceProductId,
+    sourceQty: values.sourceQty,
+    targetCostPolicy: values.targetCostPolicy,
+    targetLotNo: values.targetLotNo,
+    targetProductId: values.targetProductId,
+    targetQty: values.targetQty,
+    targetUnitCost: values.targetUnitCost,
+    targetUnitCostReason: values.targetUnitCostReason,
+    warehouseId: values.warehouseId,
+  })
+}
+
+function stockAdjustFormSafetySnapshot(values: StockAdjustFormValues) {
+  return JSON.stringify({
+    branchId: values.branchId,
+    countedQty: values.countedQty,
+    date: values.date,
+    lotNo: values.lotNo,
+    productId: values.productId,
+    reason: values.reason,
+    remark: values.remark,
+    status: values.status,
+    warehouseId: values.warehouseId,
+  })
 }
 
 type StockConvertDetailLine = {
@@ -229,12 +283,14 @@ const detailColumns: Array<ResizableColumnDefinition<string>> = [
 ]
 
 export function StockOperationPageClient({ mode }: { mode: Mode }) {
+  const { requestConfirmation } = useActionConfirmation()
   const meta = config[mode]
   const pathname = usePathname()
   const [data, setData] = useState<Payload>({ reference: { branches: [], products: [], warehouses: [] }, rows: [] })
   const [error, setError] = useState<string | null>(null)
   const [adjustBranchFilter, setAdjustBranchFilter] = useState('')
   const [adjustTypeFilter, setAdjustTypeFilter] = useState('')
+  const [formDirty, setFormDirty] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [fromDateFilter, setFromDateFilter] = useState('')
@@ -300,6 +356,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
   const adjustResize = useResizableColumns('stock.operation.adjust.v5', adjustColumns)
   const columnResize = mode === 'status-convert' ? statusConvertResize : mode === 'convert' ? convertResize : adjustResize
   const [isConvertDetailLoading, setIsConvertDetailLoading] = useState(false)
+  const { requestDiscard } = useUnsavedChangesGuard(formOpen && formDirty)
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -503,10 +560,16 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
     setStatusFlowFilter('')
   }, [])
 
-  const closeForm = useCallback(() => {
+  const discardForm = useCallback(() => {
+    setFormDirty(false)
     setFormOpen(false)
     if (window.location.search.includes('new=1')) window.history.replaceState(null, '', pathname)
   }, [pathname])
+
+  const closeForm = useCallback(() => {
+    if (isSaving) return
+    requestDiscard(discardForm)
+  }, [discardForm, isSaving, requestDiscard])
 
   function toggleStatusConvertSort(nextKey: StatusConvertSortKey) {
     if (statusConvertSortKey === nextKey) {
@@ -539,8 +602,9 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       }
 
       await dailyFetchJson(meta.api, { body: JSON.stringify(values), method: 'POST' })
-      closeForm()
+      discardForm()
       await loadData()
+      return true
     } catch (caught) {
       if (caught instanceof z.ZodError) {
         const messages = caught.errors.map((err) => err.message)
@@ -553,13 +617,14 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       } else {
         setError(caught instanceof Error ? caught.message : 'บันทึกข้อมูลไม่ได้')
       }
+      return false
     } finally {
       setIsSaving(false)
     }
   }
 
-  async function reverseConvert(refNo: string) {
-    if (!window.confirm(`Reverse Grade Adjustment ${refNo} ?`)) return
+  function reverseConvert(refNo: string) {
+    requestConfirmation({ title: 'ยืนยันการย้อนกลับรายการปรับเกรด', description: `ต้องการย้อนกลับรายการปรับเกรด ${refNo} หรือไม่?`, confirmLabel: 'ยืนยันย้อนกลับ', destructive: true, onConfirm: async () => {
     setError(null)
     setIsSaving(true)
     try {
@@ -567,24 +632,36 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Reverse ไม่สำเร็จ')
+      throw caught
     } finally {
       setIsSaving(false)
     }
+      },
+    })
   }
 
   async function reverseStatusConvert(refNo: string) {
     const note = window.prompt(`Reverse Status Convert ${refNo}\nกรอกเหตุผลการ reverse`)
     if (note === null) return
-    setError(null)
-    setIsSaving(true)
-    try {
-      await dailyFetchJson(meta.api, { body: JSON.stringify({ action: 'reverse', note, refNo }), method: 'PATCH' })
-      await loadData()
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Reverse ไม่สำเร็จ')
-    } finally {
-      setIsSaving(false)
-    }
+    requestConfirmation({
+      title: 'ยืนยันการย้อนกลับสถานะรายการ',
+      description: `ต้องการย้อนกลับสถานะรายการ ${refNo} หรือไม่?`,
+      confirmLabel: 'ยืนยันย้อนกลับ',
+      destructive: true,
+      onConfirm: async () => {
+        setError(null)
+        setIsSaving(true)
+        try {
+          await dailyFetchJson(meta.api, { body: JSON.stringify({ action: 'reverse', note, refNo }), method: 'PATCH' })
+          await loadData()
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : 'Reverse ไม่สำเร็จ')
+          throw caught
+        } finally {
+          setIsSaving(false)
+        }
+      },
+    })
   }
 
   async function correctAdjust(row: Record<string, string | number | boolean | null>) {
@@ -654,10 +731,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-          <Select className="h-9 w-auto" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
-            <option value="">ทุกสาขา</option>
-            {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-          </Select>
+          <BranchSelectCombobox branches={data.reference.branches} className="w-[12rem]" controlSize="filter" inputId="stock-operation-branch-filter" label="" placeholder="ทุกสาขา" value={adjustBranchFilter || null} onChange={(value) => setAdjustBranchFilter(value ?? '')} />
           {mode === 'convert' ? (
             <>
               <Select className="h-9 w-auto" value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>
@@ -839,10 +913,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
         >
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
-                <Select className="h-9 w-full" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
-                  <option value="">ทุกสาขา</option>
-                  {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-                </Select>
+                <BranchSelectCombobox branches={data.reference.branches} className="w-full" controlSize="filter" inputId="stock-operation-branch-filter-mobile" label="" placeholder="ทุกสาขา" value={adjustBranchFilter || null} onChange={(value) => setAdjustBranchFilter(value ?? '')} />
               </label>
               {mode === 'convert' ? (
                 <>
@@ -1093,7 +1164,6 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       <Dialog
         open={formOpen}
         onOpenChange={(open) => {
-          if (!open && isSaving) return
           if (!open) closeForm()
           else setFormOpen(true)
         }}
@@ -1130,9 +1200,9 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
               </div>
             </div>
           </DialogHeader>
-          {mode === 'status-convert' ? <StatusConvertForm isSaving={isSaving} error={error} reference={data.reference} onCancel={closeForm} onSubmit={submit} /> : null}
-          {mode === 'convert' ? <ConvertForm isSaving={isSaving} error={error} reference={data.reference} onCancel={closeForm} onSubmit={submit} /> : null}
-          {mode === 'adjust' ? <AdjustForm isSaving={isSaving} error={error} reference={data.reference} onCancel={closeForm} onSubmit={submit} /> : null}
+          {mode === 'status-convert' ? <StatusConvertForm isSaving={isSaving} error={error} reference={data.reference} onCancel={closeForm} onDirtyChange={setFormDirty} onSubmit={submit} /> : null}
+          {mode === 'convert' ? <ConvertForm isSaving={isSaving} error={error} reference={data.reference} requestConfirmation={requestConfirmation} onCancel={closeForm} onDirtyChange={setFormDirty} onSubmit={submit} /> : null}
+          {mode === 'adjust' ? <AdjustForm isSaving={isSaving} error={error} reference={data.reference} onCancel={closeForm} onDirtyChange={setFormDirty} onSubmit={submit} /> : null}
         </DialogContent>
       </Dialog>
       <OperationTable
@@ -1278,13 +1348,13 @@ function OperationTable({
                 }}
               >
                 <div className="mb-2 flex items-start justify-between">
-                  <span className="font-bold text-slate-800">{refNo}</span>
+                  <span className="whitespace-nowrap font-bold text-slate-800">{refNo}</span>
                   <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold ${adjustType === 'LOSS' ? 'bg-red-100 text-red-700' : adjustType === 'GAIN' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                     <span className={`size-1.5 rounded-full ${adjustType === 'LOSS' ? 'bg-red-500' : adjustType === 'GAIN' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                     {adjustType === 'LOSS' ? 'นับขาด' : adjustType === 'GAIN' ? 'นับเกิน' : '-'}
                   </span>
                 </div>
-                <div className="text-xs text-slate-500">{formatDateTime(row.createdAt)}</div>
+                <div className="whitespace-nowrap text-xs text-slate-500">{formatDateTime(row.createdAt)}</div>
                 <div className="my-3 space-y-1 text-xs text-slate-600">
                   <div><span className="font-semibold">สินค้า:</span> {formatCell(row.productName)}</div>
                   <div><span className="font-semibold">สาขา/คลัง:</span> {formatCell(row.branchWarehouse)}</div>
@@ -1333,13 +1403,13 @@ function OperationTable({
             return (
               <div key={id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50">
                 <div className="mb-2 flex items-start justify-between">
-                  <span className="font-bold text-slate-800">{refNo}</span>
+                  <span className="whitespace-nowrap font-bold text-slate-800">{refNo}</span>
                   <div className="flex gap-1.5">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${sourceTypeColor}`}>{displayConvertLabel(CONVERT_SOURCE_TYPE_LABELS, sourceType)}</span>
                     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusColor}`}>{displayConvertLabel(CONVERT_STATUS_LABELS, status || 'posted')}</span>
                   </div>
                 </div>
-                <div className="text-xs text-slate-500">{formatDateDisplay(date)}</div>
+                <div className="whitespace-nowrap text-xs text-slate-500">{formatDateDisplay(date)}</div>
                 <div className="my-3 space-y-1 text-xs text-slate-600">
                   <div><span className="font-semibold text-red-600">สินค้าออก:</span> {formatCell(row.sourceProduct)}</div>
                   <div><span className="font-semibold text-emerald-700">สินค้าเข้า:</span> {formatCell(row.targetProduct)}</div>
@@ -1379,10 +1449,10 @@ function OperationTable({
             return (
               <div key={id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50">
                 <div className="mb-2 flex items-start justify-between">
-                  <span className="font-bold text-slate-800">{refNo}</span>
+                  <span className="whitespace-nowrap font-bold text-slate-800">{refNo}</span>
                   <StatusText status={status} />
                 </div>
-                <div className="text-xs text-slate-500">{formatDateDisplay(date)}</div>
+                <div className="whitespace-nowrap text-xs text-slate-500">{formatDateDisplay(date)}</div>
                 <div className="my-3 space-y-1 text-xs text-slate-600">
                   <div><span className="font-semibold">สินค้า:</span> <b>{formatCell(row.productCode)}</b> - {formatCell(row.productName)}</div>
                   <div><span className="font-semibold">สาขา/คลัง:</span> {formatCell(row.branchName)} / {formatCell(row.warehouseName)} → {formatCell(row.targetWarehouseName)}</div>
@@ -1405,7 +1475,7 @@ function OperationTable({
                   </div>
                   <div>
                     <div className="text-slate-400">ผู้ทำ / วันที่สร้างรายการ</div>
-                    <div className="font-semibold text-slate-600">{formatCell(row.createdBy)} ({formatDateTime(row.createdAt)})</div>
+                    <div className="font-semibold text-slate-600">{formatCell(row.createdBy)} <span className="whitespace-nowrap">({formatDateTime(row.createdAt)})</span></div>
                   </div>
                 </div>
                 <div className="mt-3 flex justify-end gap-2">
@@ -1500,54 +1570,54 @@ function StatusText({ status }: { status: string }) {
 
 function columnsFor(mode: Mode): OperationColumn[] {
   if (mode === 'status-convert') return [
-    { key: 'date', label: 'วันที่เอกสาร', sortable: true },
-    { key: 'refNo', label: 'เลขที่', sortable: true },
-    { key: 'productDisplay', label: 'สินค้า', sortable: true },
-    { key: 'locationDisplay', label: 'สาขา/คลัง', sortable: true },
+    { key: 'date', label: 'วันที่เอกสาร', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'refNo', label: 'เลขที่', cellClassName: 'text-center whitespace-nowrap font-mono', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'productDisplay', label: 'สินค้า', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'locationDisplay', label: 'สาขา/คลัง', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
     { key: 'qty', label: 'จำนวน (กก.)', cellClassName: 'text-right font-semibold text-purple-700 tabular-nums', headerClassName: 'text-right', sortable: true },
     { key: 'unitCost', label: 'ต้นทุน (บาท/กก.)', cellClassName: 'text-right text-slate-600 tabular-nums', headerClassName: 'text-right', sortable: true },
     { key: 'value', label: 'มูลค่า', cellClassName: 'text-right text-slate-600 tabular-nums', headerClassName: 'text-right', sortable: true },
-    { key: 'statusFlow', label: 'เปลี่ยนสถานะ', cellClassName: 'text-center', headerClassName: 'text-center', sortable: true },
-    { key: 'note', label: 'เหตุผล', sortable: true },
-    { key: 'status', label: 'สถานะ', cellClassName: 'text-center', headerClassName: 'text-center', sortable: true },
-    { key: 'createdBy', label: 'ผู้ทำรายการ', sortable: true },
-    { key: 'createdAt', label: 'วันที่สร้างรายการ', sortable: true },
-    { key: 'action', label: 'จัดการ', cellClassName: 'text-center', headerClassName: 'text-center' },
+    { key: 'statusFlow', label: 'เปลี่ยนสถานะ', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'note', label: 'เหตุผล', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'status', label: 'สถานะ', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'createdBy', label: 'ผู้ทำรายการ', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'createdAt', label: 'วันที่สร้างรายการ', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'action', label: 'จัดการ', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap' },
   ]
   if (mode === 'convert') return [
     { key: 'sourceType', label: 'วิธีจัดสรร', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
-    { key: 'refNo', label: 'เลขที่ / อ้างอิง', cellClassName: 'whitespace-nowrap text-right', headerClassName: 'text-right', sortable: true },
-    { key: 'date', label: 'วันที่เอกสาร', cellClassName: 'whitespace-nowrap text-right', headerClassName: 'text-right', sortable: true },
-    { key: 'branchWarehouse', label: 'สาขา / คลัง', cellClassName: 'whitespace-nowrap text-right', headerClassName: 'text-right', sortable: true },
-    { key: 'sourceProduct', label: 'สินค้าออก', cellClassName: 'text-right', headerClassName: 'text-right', sortable: true },
+    { key: 'refNo', label: 'เลขที่ / อ้างอิง', cellClassName: 'whitespace-nowrap text-center font-mono', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'date', label: 'วันที่เอกสาร', cellClassName: 'whitespace-nowrap text-center', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'branchWarehouse', label: 'สาขา / คลัง', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'sourceProduct', label: 'สินค้าออก', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
     { key: 'sourceQty', label: 'จำนวนออก', cellClassName: 'whitespace-nowrap text-right font-mono tabular-nums text-red-700', headerClassName: 'text-right', sortable: true },
     { key: 'unitCost', label: 'ต้นทุน/กก. ออก', cellClassName: 'whitespace-nowrap text-right font-mono tabular-nums', headerClassName: 'text-right', sortable: true },
-    { key: 'targetProduct', label: 'สินค้าเข้า', cellClassName: 'text-right', headerClassName: 'text-right', sortable: true },
+    { key: 'targetProduct', label: 'สินค้าเข้า', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
     { key: 'targetQty', label: 'จำนวนเข้า', cellClassName: 'whitespace-nowrap text-right font-mono tabular-nums text-emerald-700', headerClassName: 'text-right', sortable: true },
     { key: 'targetUnitCost', label: 'ต้นทุน/กก. เข้า', cellClassName: 'whitespace-nowrap text-right font-mono tabular-nums', headerClassName: 'text-right', sortable: true },
     { key: 'lossQty', label: 'สูญเสีย', cellClassName: 'whitespace-nowrap text-right font-mono tabular-nums', headerClassName: 'text-right', sortable: true },
-    { key: 'costStatus', label: 'สถานะต้นทุน', cellClassName: 'text-right', headerClassName: 'text-right', sortable: true },
-    { key: 'status', label: 'สถานะ', cellClassName: 'text-right', headerClassName: 'text-right', sortable: true },
-    { key: 'action', label: 'จัดการ', cellClassName: 'text-right', headerClassName: 'text-right' },
+    { key: 'costStatus', label: 'สถานะต้นทุน', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'status', label: 'สถานะ', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'action', label: 'จัดการ', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap' },
   ]
   if (mode === 'adjust') return [
-    { key: 'docNo', label: 'เลขที่เอกสาร', sortable: true },
-    { key: 'date', label: 'วันที่เอกสาร', sortable: true },
-    { key: 'branchWarehouse', label: 'สาขา/คลัง', sortable: true },
-    { key: 'productName', label: 'สินค้า', sortable: true },
-    { key: 'outputCategory', label: 'ประเภทคลัง', sortable: true },
-    { key: 'systemQty', label: 'ยอดในระบบ', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
-    { key: 'onHoldQty', label: 'จองไว้', cellClassName: 'text-right font-mono text-amber-700', headerClassName: 'text-right', sortable: true },
-    { key: 'readyQty', label: 'พร้อมใช้', cellClassName: 'text-right font-mono text-emerald-700', headerClassName: 'text-right', sortable: true },
-    { key: 'countedQty', label: 'นับจริง', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
-    { key: 'diffQty', label: 'ส่วนต่าง', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
-    { key: 'adjustType', label: 'ประเภท', sortable: true },
-    { key: 'unitPricePerKg', label: 'ราคา/กก.', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
-    { key: 'totalValue', label: 'มูลค่ารวม (บาท)', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
-    { key: 'reason', label: 'เหตุผล', sortable: true },
-    { key: 'createdAt', label: 'วันที่สร้างรายการ', sortable: true },
-    { key: 'updatedBy', label: 'แก้ไขโดย', sortable: true },
-    { key: 'action', label: 'จัดการ', cellClassName: 'text-center', headerClassName: 'text-center' },
+    { key: 'docNo', label: 'เลขที่เอกสาร', cellClassName: 'text-center whitespace-nowrap font-mono', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'date', label: 'วันที่เอกสาร', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'branchWarehouse', label: 'สาขา/คลัง', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'productName', label: 'สินค้า', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'outputCategory', label: 'ประเภทคลัง', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'systemQty', label: 'ยอดในระบบ', cellClassName: 'text-right font-mono tabular-nums', headerClassName: 'text-right', sortable: true },
+    { key: 'onHoldQty', label: 'จองไว้', cellClassName: 'text-right font-mono tabular-nums text-amber-700', headerClassName: 'text-right', sortable: true },
+    { key: 'readyQty', label: 'พร้อมใช้', cellClassName: 'text-right font-mono tabular-nums text-emerald-700', headerClassName: 'text-right', sortable: true },
+    { key: 'countedQty', label: 'นับจริง', cellClassName: 'text-right font-mono tabular-nums', headerClassName: 'text-right', sortable: true },
+    { key: 'diffQty', label: 'ส่วนต่าง', cellClassName: 'text-right font-mono tabular-nums', headerClassName: 'text-right', sortable: true },
+    { key: 'adjustType', label: 'ประเภท', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'unitPricePerKg', label: 'ราคา/กก.', cellClassName: 'text-right font-mono tabular-nums', headerClassName: 'text-right', sortable: true },
+    { key: 'totalValue', label: 'มูลค่ารวม (บาท)', cellClassName: 'text-right font-mono tabular-nums', headerClassName: 'text-right', sortable: true },
+    { key: 'reason', label: 'เหตุผล', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'createdAt', label: 'วันที่สร้างรายการ', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap', sortable: true },
+    { key: 'updatedBy', label: 'แก้ไขโดย', cellClassName: 'text-left', headerClassName: 'text-left', sortable: true },
+    { key: 'action', label: 'จัดการ', cellClassName: 'text-center whitespace-nowrap', headerClassName: 'text-center whitespace-nowrap' },
   ]
   return []
 }
@@ -1866,7 +1936,7 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
                   <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                     <div>
                       <div className="text-xs text-slate-500">Cost Pool ต้นทาง</div>
-                      <div className="mt-0.5 font-semibold text-slate-800">{line.sourceRefNo ?? line.sourceType ?? '-'}</div>
+                      <div className="mt-0.5 whitespace-nowrap text-center font-mono font-semibold text-slate-800">{line.sourceRefNo ?? line.sourceType ?? '-'}</div>
                       <div className="text-xs text-slate-400">Pool {line.sourcePoolId ?? '-'}{line.sourceLotNo ? ` · ล็อต ${line.sourceLotNo}` : ''}</div>
                     </div>
                     <div>
@@ -1913,10 +1983,10 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
                 </colgroup>
                 <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
                   <tr>
-                    <ResizableTableHead label="ลำดับ" resizeProps={columnResize.getResizeHandleProps('line', 'ลำดับ')} />
-                    <ResizableTableHead label="Cost Pool ต้นทาง" resizeProps={columnResize.getResizeHandleProps('sourcePool', 'Cost Pool ต้นทาง')} />
+                    <ResizableTableHead align="right" label="ลำดับ" resizeProps={columnResize.getResizeHandleProps('line', 'ลำดับ')} />
+                    <ResizableTableHead align="center" label="Cost Pool ต้นทาง" resizeProps={columnResize.getResizeHandleProps('sourcePool', 'Cost Pool ต้นทาง')} />
                     <ResizableTableHead label="สินค้าต้นทาง" resizeProps={columnResize.getResizeHandleProps('sourceProduct', 'สินค้าต้นทาง')} />
-                    <ResizableTableHead label="Cost Pool ปลายทาง" resizeProps={columnResize.getResizeHandleProps('targetPool', 'Cost Pool ปลายทาง')} />
+                    <ResizableTableHead align="center" label="Cost Pool ปลายทาง" resizeProps={columnResize.getResizeHandleProps('targetPool', 'Cost Pool ปลายทาง')} />
                     <ResizableTableHead label="สินค้าปลายทาง" resizeProps={columnResize.getResizeHandleProps('targetProduct', 'สินค้าปลายทาง')} />
                     <ResizableTableHead align="right" label="จำนวน" resizeProps={columnResize.getResizeHandleProps('qty', 'จำนวน')} />
                     <ResizableTableHead align="right" label="ต้นทุน/กก." resizeProps={columnResize.getResizeHandleProps('unitCost', 'ต้นทุน/กก.')} />
@@ -1927,20 +1997,20 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
                 <tbody className="divide-y divide-slate-200">
                   {detail.lines.map((line) => (
                     <tr key={`${line.lineNo}-${line.sourcePoolId ?? 'source'}`} className="transition-colors hover:bg-slate-50">
-                      <td className="overflow-hidden truncate px-3 py-3 align-top font-mono text-slate-700">{line.lineNo}</td>
-                      <td className="overflow-hidden truncate px-3 py-3 align-top text-slate-700">
-                        <div>{line.sourceRefNo ?? line.sourceType ?? '-'}</div>
+                      <td className="overflow-hidden truncate px-3 py-3 text-right align-top font-mono tabular-nums text-slate-700">{line.lineNo}</td>
+                      <td className="overflow-hidden truncate whitespace-nowrap px-3 py-3 text-center align-top text-slate-700">
+                        <div className="font-mono">{line.sourceRefNo ?? line.sourceType ?? '-'}</div>
                         <div className="mt-0.5 text-xs text-slate-400">Pool {line.sourcePoolId ?? '-'}{line.sourceLotNo ? ` · ล็อต ${line.sourceLotNo}` : ''}</div>
                       </td>
                       <td className="overflow-hidden truncate px-3 py-3 align-top text-slate-700">{line.sourceProduct}</td>
-                      <td className="overflow-hidden truncate px-3 py-3 align-top text-slate-700">
+                      <td className="overflow-hidden truncate whitespace-nowrap px-3 py-3 text-center align-top text-slate-700">
                         <div>Pool {line.targetPoolId ?? '-'}</div>
                         <div className="mt-0.5 text-xs text-slate-400">{displayConvertLabel(CONVERT_POOL_STATUS_LABELS, line.targetPoolStatus ?? '')}{line.targetLotNo ? ` · ล็อต ${line.targetLotNo}` : ''}</div>
                       </td>
                       <td className="overflow-hidden truncate px-3 py-3 align-top text-slate-700">{line.targetProduct}</td>
-                      <td className="overflow-hidden truncate px-3 py-3 text-right align-top font-mono text-slate-700">{formatMoney(line.qty)}</td>
-                      <td className="overflow-hidden truncate px-3 py-3 text-right align-top font-mono text-slate-700">{formatMoney(line.unitCost)}</td>
-                      <td className="overflow-hidden truncate px-3 py-3 text-right align-top font-mono text-slate-700">{formatMoney(line.totalCost)}</td>
+                      <td className="overflow-hidden truncate px-3 py-3 text-right align-top font-mono tabular-nums text-slate-700">{formatMoney(line.qty)}</td>
+                      <td className="overflow-hidden truncate px-3 py-3 text-right align-top font-mono tabular-nums text-slate-700">{formatMoney(line.unitCost)}</td>
+                      <td className="overflow-hidden truncate px-3 py-3 text-right align-top font-mono tabular-nums text-slate-700">{formatMoney(line.totalCost)}</td>
                       <td className="overflow-hidden truncate px-3 py-3 text-center align-top">
                         <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${line.allocationStatus === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
                           {displayConvertLabel(CONVERT_ALLOCATION_STATUS_LABELS, line.allocationStatus)}
@@ -2067,8 +2137,20 @@ function BranchWarehouseFields({ branchId, reference, setBranchId, setWarehouseI
   </>
 }
 
-function StatusConvertForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onSubmit: (values: StatusConvertFormValues) => void; reference: Payload['reference'] }) {
+function StatusConvertForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onDirtyChange: (dirty: boolean) => void; onSubmit: (values: StatusConvertFormValues) => Promise<boolean>; reference: Payload['reference'] }) {
   const [values, setValues] = useState<StatusConvertFormValues>({ sourceBranchId: '', targetBranchId: '', date: todayDateInput(), docNo: null, fromStatus: 'RM', lotNo: null, notes: null, productId: '', qty: 0, reason: '', toStatus: 'FG', warehouseId: '', targetWarehouseId: '' })
+  const [formBaseline, setFormBaseline] = useState(() => statusConvertFormSafetySnapshot(values))
+  const isFormDirty = statusConvertFormSafetySnapshot(values) !== formBaseline
+
+  useEffect(() => {
+    props.onDirtyChange(isFormDirty)
+    return () => props.onDirtyChange(false)
+  }, [isFormDirty, props.onDirtyChange])
+
+  async function submit() {
+    if (await props.onSubmit(values)) setFormBaseline(statusConvertFormSafetySnapshot(values))
+  }
+
   const activeBranches = props.reference.branches.filter((option) => option.active !== false)
   const sourceWarehouses = props.reference.warehouses.filter((option) => option.active !== false && (!values.sourceBranchId || option.branchId === values.sourceBranchId))
   const targetWarehouses = props.reference.warehouses.filter((option) => option.active !== false && (!values.targetBranchId || option.branchId === values.targetBranchId))
@@ -2122,7 +2204,7 @@ function StatusConvertForm(props: { isSaving: boolean; error?: string | null; on
       }))
   }, [props.reference.products])
 
-  return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={() => props.onSubmit(values)}>
+  return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={submit}>
     <div className="md:col-span-2 grid gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 md:grid-cols-2">
       <div className="w-full">
         <SearchCombobox
@@ -2260,7 +2342,7 @@ function CostPoolPreview({
           <table className="ns-table w-full text-xs">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
-                <th className="p-2 text-left">Source</th>
+                <th className="p-2 text-center whitespace-nowrap">Source</th>
                 <th className="p-2 text-right">Available</th>
                 <th className="p-2 text-right">฿/กก.</th>
                 <th className="p-2 text-right">ตัด</th>
@@ -2269,15 +2351,15 @@ function CostPoolPreview({
             <tbody>
               {entries.map((entry) => (
                 <tr key={entry.id} className="border-t border-slate-100">
-                  <td className="p-3">
-                    <div className="font-semibold text-slate-700">{entry.sourceRefNo ?? entry.sourceType}</div>
+                  <td className="whitespace-nowrap p-3 text-center">
+                    <div className="whitespace-nowrap font-mono font-semibold text-slate-700">{entry.sourceRefNo ?? entry.sourceType}</div>
                     <div className="text-slate-500">{entry.date}{entry.lotNo ? ` · Lot ${entry.lotNo}` : ''}</div>
                   </td>
-                  <td className="p-3 text-right font-mono">{formatMoney(entry.availableQty)}</td>
-                  <td className="p-3 text-right font-mono">{formatMoney(entry.unitCost)}</td>
+                  <td className="p-3 text-right font-mono tabular-nums">{formatMoney(entry.availableQty)}</td>
+                  <td className="p-3 text-right font-mono tabular-nums">{formatMoney(entry.unitCost)}</td>
                   <td className="p-3 text-right">
                     <input
-                      className="h-9 w-24 rounded-md border border-slate-300 px-2 text-right font-mono"
+                      className="h-9 w-24 rounded-md border border-slate-300 px-2 text-right font-mono tabular-nums"
                       min="0"
                       step="0.001"
                       type="number"
@@ -2296,7 +2378,7 @@ function CostPoolPreview({
           <table className="ns-table w-full text-xs">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
-                <th className="p-2 text-left">Source</th>
+                <th className="p-2 text-center whitespace-nowrap">Source</th>
                 <th className="p-2 text-right">ตัด</th>
                 <th className="p-2 text-right">฿/กก.</th>
                 <th className="p-2 text-right">มูลค่า</th>
@@ -2305,13 +2387,13 @@ function CostPoolPreview({
             <tbody>
               {previewRows.map((line) => (
                 <tr key={line.entry.id} className="border-t border-slate-100">
-                  <td className="p-3">
-                    <div className="font-semibold text-slate-700">{line.entry.sourceRefNo ?? line.entry.sourceType}</div>
+                  <td className="whitespace-nowrap p-3 text-center">
+                    <div className="whitespace-nowrap font-mono font-semibold text-slate-700">{line.entry.sourceRefNo ?? line.entry.sourceType}</div>
                     <div className="text-slate-500">{line.entry.date}{line.entry.lotNo ? ` · Lot ${line.entry.lotNo}` : ''}</div>
                   </td>
-                  <td className="p-3 text-right font-mono">{formatMoney(line.qty)}</td>
-                  <td className="p-3 text-right font-mono">{formatMoney(line.entry.unitCost)}</td>
-                  <td className="p-3 text-right font-mono">{formatMoney(line.qty * line.entry.unitCost)}</td>
+                  <td className="p-3 text-right font-mono tabular-nums">{formatMoney(line.qty)}</td>
+                  <td className="p-3 text-right font-mono tabular-nums">{formatMoney(line.entry.unitCost)}</td>
+                  <td className="p-3 text-right font-mono tabular-nums">{formatMoney(line.qty * line.entry.unitCost)}</td>
                 </tr>
               ))}
               {!previewRows.length ? <tr><td className="p-3 text-center text-slate-400" colSpan={4}>เลือกสินค้า/สาขา/คลังและน้ำหนักเพื่อ preview Cost Pool</td></tr> : null}
@@ -2323,7 +2405,11 @@ function CostPoolPreview({
   )
 }
 
-function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onSubmit: (values: StockConvertFormValues) => void; reference: Payload['reference'] }) {
+export function hasManualAllocationData(manualAllocations: StockConvertFormValues['manualAllocations']) {
+  return manualAllocations.length > 0
+}
+
+function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onDirtyChange: (dirty: boolean) => void; onSubmit: (values: StockConvertFormValues) => Promise<boolean>; reference: Payload['reference']; requestConfirmation: ReturnType<typeof useActionConfirmation>['requestConfirmation'] }) {
   const [values, setValues] = useState<StockConvertFormValues>({
     allocationMethod: 'FIFO',
     branchId: '',
@@ -2343,6 +2429,18 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
     targetUnitCostReason: null,
     warehouseId: '',
   })
+  const [formBaseline, setFormBaseline] = useState(() => stockConvertFormSafetySnapshot(values))
+  const isFormDirty = stockConvertFormSafetySnapshot(values) !== formBaseline
+
+  useEffect(() => {
+    props.onDirtyChange(isFormDirty)
+    return () => props.onDirtyChange(false)
+  }, [isFormDirty, props.onDirtyChange])
+
+  async function submit() {
+    if (await props.onSubmit(values)) setFormBaseline(stockConvertFormSafetySnapshot(values))
+  }
+
   const [productStock, setProductStock] = useState<ProductStockPayload | null>(null)
   const [productStockError, setProductStockError] = useState<string | null>(null)
   const [isStockPreviewLoading, setIsStockPreviewLoading] = useState(false)
@@ -2380,6 +2478,21 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
   function updateManualAllocation(poolEntryId: string, qty: number) {
     const existing = values.manualAllocations.filter((line) => line.poolEntryId !== poolEntryId)
     setValues({ ...values, manualAllocations: qty > 0 ? [...existing, { poolEntryId, qty }] : existing })
+  }
+
+  function changeAllocationMethod(allocationMethod: StockConvertFormValues['allocationMethod']) {
+    const applyAllocationMethod = () => setValues({ ...values, allocationMethod, manualAllocations: [] })
+    if (!hasManualAllocationData(values.manualAllocations)) {
+      applyAllocationMethod()
+      return
+    }
+    props.requestConfirmation({
+      confirmLabel: 'เปลี่ยนวิธีตัดต้นทุน',
+      description: 'การเปลี่ยนวิธีตัดต้นทุนจะล้าง lot ที่เลือกเองไว้ ต้องการดำเนินการต่อหรือไม่?',
+      destructive: true,
+      onConfirm: applyAllocationMethod,
+      title: 'ยืนยันการเปลี่ยนวิธีตัดต้นทุน',
+    })
   }
 
   const productSearchOptions = useMemo<SearchComboboxOption[]>(() => {
@@ -2428,7 +2541,7 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
     return () => { cancelled = true }
   }, [props.reference.branches, props.reference.products, values.branchId, values.sourceProductId])
 
-  return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={() => props.onSubmit(values)}>
+  return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={submit}>
     <div className="md:col-span-2 rounded-xl border border-slate-200 bg-white p-5 shadow-sm grid gap-4 md:grid-cols-2 animate-fade-in">
       <BaseDateDoc values={values} setValues={setValues} />
       <BranchWarehouseFields branchId={values.branchId} reference={props.reference} setBranchId={(branchId) => setValues({ ...values, branchId, warehouseId: '' })} setWarehouseId={(warehouseId) => setValues({ ...values, warehouseId })} warehouseId={values.warehouseId} />
@@ -2453,7 +2566,7 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
               <Select
                 className="mt-1.5 h-10 w-full"
                 value={values.allocationMethod}
-                onChange={(event) => setValues({ ...values, allocationMethod: event.target.value as StockConvertFormValues['allocationMethod'], manualAllocations: [] })}
+                onChange={(event) => changeAllocationMethod(event.target.value as StockConvertFormValues['allocationMethod'])}
               >
                 <option value="FIFO">FIFO (มาก่อน-ออกก่อน)</option>
                 <option value="LIFO">LIFO (มาหลัง-ออกก่อน)</option>
@@ -2537,8 +2650,20 @@ function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel
   </FormShell>
 }
 
-function AdjustForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onSubmit: (values: StockAdjustFormValues) => void; reference: Payload['reference'] }) {
+function AdjustForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onDirtyChange: (dirty: boolean) => void; onSubmit: (values: StockAdjustFormValues) => Promise<boolean>; reference: Payload['reference'] }) {
   const [values, setValues] = useState<StockAdjustFormValues>({ branchId: '', countedQty: 0, date: todayDateInput(), docNo: null, lotNo: null, productId: '', reason: stockAdjustReasonOptions[0], remark: null, status: 'RM', systemQty: 0, warehouseId: '' })
+  const [formBaseline, setFormBaseline] = useState(() => stockAdjustFormSafetySnapshot(values))
+  const isFormDirty = stockAdjustFormSafetySnapshot(values) !== formBaseline
+
+  useEffect(() => {
+    props.onDirtyChange(isFormDirty)
+    return () => props.onDirtyChange(false)
+  }, [isFormDirty, props.onDirtyChange])
+
+  async function submit() {
+    if (await props.onSubmit(values)) setFormBaseline(stockAdjustFormSafetySnapshot(values))
+  }
+
   const [snapshot, setSnapshot] = useState<StockAdjustSnapshot | null>(null)
   const [snapshotError, setSnapshotError] = useState<string | null>(null)
   const [isSnapshotLoading, setIsSnapshotLoading] = useState(false)
@@ -2593,7 +2718,7 @@ function AdjustForm(props: { isSaving: boolean; error?: string | null; onCancel:
   const totalValue = snapshot?.totalValue ?? values.totalValue ?? 0
   const diffQty = snapshot?.diffQty ?? 0
 
-  return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={() => props.onSubmit(values)}>
+  return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={submit}>
     <div className="grid gap-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm md:col-span-2 md:grid-cols-2">
       <div className="md:col-span-2 border-b border-slate-100 pb-2">
         <h4 className="text-sm font-bold text-slate-800">ข้อมูลการนับจริง</h4>

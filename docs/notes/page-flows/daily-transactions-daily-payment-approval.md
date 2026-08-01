@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-07-19
+updated: 2026-07-28
 route: /daily/payment-approval
 ---
 
@@ -33,6 +33,7 @@ PMA approval document สำหรับ source payable ก่อน PMT
 - อนุมัติยอดเต็มหรือ split ยอดเป็น PMA running ใหม่ทุกครั้ง
 - แสดง PMA approved ที่รอทำจ่าย และ PMA voided แบบ read-only
 - snapshot ผู้รับเงิน ช่องทางรับเงิน บัญชีรับเงิน ยอดอนุมัติ และผู้อนุมัติ
+- snapshot `branch_id` ของ PMA ทุก split และออกเลข `PMA<branch><YYMM>-####`; ตารางกรองด้วยสาขาของ PMA โดยตรง
 - lock source document เมื่อมี active PMA approved
 - ใบพิมพ์ชุดที่เลือกต้องแสดงรายการเดิมครบ, sort ให้ผู้รับเงิน/Supplier และช่องทางจ่ายเดียวกันอยู่ติดกัน, แสดงทั้งเลขที่เอกสาร PMA และเอกสารอ้างอิงต้นทาง, ใช้วันที่ PMA ในคอลัมน์วันที่ และเพิ่มแถวรวมเมื่อผู้รับเงิน/Supplier เดียวกันใช้ช่องทางจ่ายหรือเลขบัญชีเดียวกันมากกว่า 1 รายการ
 
@@ -75,6 +76,7 @@ PMA approval document สำหรับ source payable ก่อน PMT
 - destination payment method/account ต้องมาจาก source party snapshot/master ที่ถูกต้อง
 - void ได้เฉพาะก่อนเกิด active PMT
 - filter/status ต้องแยก source pending, PMA approved, PMA voided
+- ถ้า source ไม่มี active branch หรือ branch code ใช้งานไม่ได้ ต้อง reject; ห้ามออกเลข `00` หรือ fallback จาก source อื่น
 
 ## Side Effects
 

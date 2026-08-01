@@ -13,6 +13,7 @@ import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableAct
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Select } from '@/components/ui/Select'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { ApiError } from '@/lib/api-client'
 import { calculateCustomerAdvanceTaxBreakdown, customerAdvanceFormSchema, type CustomerAdvanceVatType } from '@/lib/customer-advance'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
@@ -127,6 +128,15 @@ type FormErrors = Record<string, string>
 
 const emptyLine = (id: string): CustomerAdvanceLine => ({ grossWeight: '', id, netWeight: '', productId: '', quantity: '' })
 
+export function isBlankCustomerAdvanceLine(
+  line: Pick<CustomerAdvanceLine, 'grossWeight' | 'netWeight' | 'productId' | 'quantity'>,
+) {
+  return !line.productId.trim()
+    && !line.quantity.trim()
+    && !line.grossWeight.trim()
+    && !line.netWeight.trim()
+}
+
 const initialForm = (): CustomerAdvanceFormState => ({
   amount: '',
   branchId: '',
@@ -198,6 +208,7 @@ function lineFieldError(errors: FormErrors, index: number, key: Exclude<keyof Cu
 export function CustomerAdvanceForm() {
   const lineSequence = useRef(1)
   const detailRequestSequence = useRef(0)
+  const [formBaseline, setFormBaseline] = useState<string | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingDocNo, setEditingDocNo] = useState<string | null>(null)
   const [cancelRow, setCancelRow] = useState<CustomerAdvanceRow | null>(null)
@@ -226,6 +237,10 @@ export function CustomerAdvanceForm() {
   const [sortDirection, setSortDirection] = useState<CustomerAdvanceSortDirection>('desc')
   const [sortKey, setSortKey] = useState<CustomerAdvanceSortKey>('documentDate')
   const columnResize = useResizableColumns('sales.customer-advances.v1', customerAdvanceColumns)
+  const formIsDirty = isFormOpen && formBaseline !== null && JSON.stringify(form) !== formBaseline
+  const { requestDiscard } = useUnsavedChangesGuard(formIsDirty)
+  const { requestDiscard: requestCancelDiscard } = useUnsavedChangesGuard(Boolean(cancelRow) && cancelReason.length > 0)
+  const { requestConfirmation } = useActionConfirmation()
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), sortDirection, sortKey })
@@ -300,16 +315,18 @@ export function CustomerAdvanceForm() {
     setSaveSuccessMessage('')
   }
 
-  const resetForm = () => {
+  const initializeForm = () => {
     lineSequence.current = 1
-    setForm(initialForm())
+    const nextForm = initialForm()
+    setFormBaseline(JSON.stringify(nextForm))
+    setForm(nextForm)
     setFormErrors({})
     setSubmitError('')
     setSaveSuccessMessage('')
   }
 
   const openCreateForm = () => {
-    resetForm()
+    initializeForm()
     setEditingDocNo(null)
     setIsFormOpen(true)
   }
@@ -321,6 +338,19 @@ export function CustomerAdvanceForm() {
     setFormErrors({})
   }
 
+  const closeCancelDialog = () => {
+    if (isCancelling) return
+    requestCancelDiscard(() => {
+      setCancelRow(null)
+      setCancelReason('')
+    })
+  }
+
+  const requestCloseForm = () => {
+    if (isSaving) return
+    requestDiscard(closeForm)
+  }
+
   const openEditForm = async (row: CustomerAdvanceRow) => {
     setSubmitError('')
     setFormErrors({})
@@ -330,7 +360,7 @@ export function CustomerAdvanceForm() {
         throw new Error('แก้ไข CADV ไม่ได้ เพราะเอกสารถูกนำไปใช้ในขั้นตอนรับเงินหรือบิลขายแล้ว')
       }
       lineSequence.current = detail.lines.length
-      setForm({
+      const nextForm = {
         amount: String(detail.subtotalAmount),
         branchId: detail.branchId,
         contractNo: detail.contractNo,
@@ -346,7 +376,9 @@ export function CustomerAdvanceForm() {
         })),
         remark: detail.remark,
         vatType: detail.vatType,
-      })
+      }
+      setFormBaseline(JSON.stringify(nextForm))
+      setForm(nextForm)
       setEditingDocNo(detail.docNo)
       setIsFormOpen(true)
     } catch (caught) {
@@ -389,10 +421,26 @@ export function CustomerAdvanceForm() {
   }
 
   const removeLine = (id: string) => {
-    setForm((current) => ({ ...current, lines: current.lines.filter((line) => line.id !== id) }))
-    setFormErrors((current) => clearLineErrors(current))
-    setSubmitError('')
-    setSaveSuccessMessage('')
+    const target = form.lines.find((line) => line.id === id)
+    if (!target) return
+    const remove = () => {
+      setForm((current) => ({ ...current, lines: current.lines.filter((line) => line.id !== id) }))
+      setFormErrors((current) => clearLineErrors(current))
+      setSubmitError('')
+      setSaveSuccessMessage('')
+    }
+    if (isBlankCustomerAdvanceLine(target)) {
+      remove()
+      return
+    }
+    requestConfirmation({
+      cancelLabel: 'ไม่ลบ',
+      confirmLabel: 'ยืนยันลบรายการ',
+      description: 'ต้องการลบรายการสินค้าใน CADV นี้หรือไม่? สินค้า จำนวน และข้อมูลน้ำหนักในแถวนี้จะหายไป',
+      destructive: true,
+      onConfirm: remove,
+      title: 'ยืนยันการลบรายการสินค้า',
+    })
   }
 
   const submit = async () => {
@@ -416,6 +464,7 @@ export function CustomerAdvanceForm() {
       })
       setLastCreatedDocNo(saved.docNo)
       setSaveSuccessMessage(`${editingDocNo ? 'แก้ไข' : 'สร้าง'}เอกสาร ${saved.docNo} สำเร็จ`)
+      setFormBaseline(JSON.stringify(form))
       closeForm()
       setPage(1)
       await loadData()
@@ -429,10 +478,11 @@ export function CustomerAdvanceForm() {
     }
   }
 
-  const submitCancel = async () => {
+  const submitCancel = () => {
     if (!cancelRow) return
-    setIsCancelling(true)
     setSubmitError('')
+    requestConfirmation({ title: 'ยืนยันการยกเลิก CADV', description: `ต้องการยกเลิกเอกสาร ${cancelRow.docNo} หรือไม่?`, confirmLabel: 'ยืนยันยกเลิก', destructive: true, onConfirm: async () => {
+    setIsCancelling(true)
     try {
       const updated = await dailyFetchJson<{ docNo: string }>(`/api/sales/customer-advances/${encodeURIComponent(cancelRow.docNo)}`, {
         body: JSON.stringify({ reason: cancelReason }),
@@ -445,9 +495,11 @@ export function CustomerAdvanceForm() {
       await loadData()
     } catch (caught) {
       setSubmitError(caught instanceof Error ? caught.message : 'ยกเลิกรายการ CADV ไม่ได้')
+      throw caught instanceof Error ? caught : new Error('ยกเลิกรายการ CADV ไม่ได้')
     } finally {
       setIsCancelling(false)
     }
+    } })
   }
 
   const canPrevious = data ? data.pagination.page > 1 : false
@@ -474,7 +526,7 @@ export function CustomerAdvanceForm() {
   }
 
   const createFormDialog = (
-    <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) closeForm() }}>
+    <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) requestCloseForm() }}>
       <DialogContent className="max-h-[92vh] max-w-7xl rounded-md !p-0 bg-white border-0 overflow-hidden" fallbackTitle={editingDocNo ? 'แก้ไขรายการรับเงินล่วงหน้า' : 'สร้างรายการรับเงินล่วงหน้า'} hideClose>
         <DialogHeader className="flex-row items-start justify-between gap-4">
           <div>
@@ -482,8 +534,8 @@ export function CustomerAdvanceForm() {
             <DialogDescription>{editingDocNo ? 'แก้ไขเอกสารก่อนเริ่มรับเงินจริงหรือใช้หักบิลขาย' : 'บันทึก CADV จาก Packing List เพื่อใช้สร้างใบเสร็จรับเงินในขั้นตอนถัดไป'}</DialogDescription>
           </div>
           <div className="flex shrink-0 gap-2">
-            {!editingDocNo ? <Button className="bg-white/10 text-white hover:bg-white/20 hover:text-white" disabled={isSaving} size="sm" type="button" variant="ghost" onClick={resetForm}>ล้างข้อมูล</Button> : null}
-            <Button className="bg-white/10 text-white hover:bg-white/20 hover:text-white" disabled={isSaving} size="sm" type="button" variant="ghost" onClick={closeForm}>ปิด</Button>
+            {!editingDocNo ? <Button className="bg-white/10 text-white hover:bg-white/20 hover:text-white" disabled={isSaving} size="sm" type="button" variant="ghost" onClick={() => requestDiscard(initializeForm)}>ล้างข้อมูล</Button> : null}
+            <Button className="bg-white/10 text-white hover:bg-white/20 hover:text-white" disabled={isSaving} size="sm" type="button" variant="ghost" onClick={requestCloseForm}>ปิด</Button>
           </div>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4">
@@ -534,10 +586,7 @@ export function CustomerAdvanceForm() {
 
   const cancelDialog = (
     <Dialog open={Boolean(cancelRow)} onOpenChange={(open) => {
-      if (!open) {
-        setCancelRow(null)
-        setCancelReason('')
-      }
+      if (!open) closeCancelDialog()
     }}>
       <DialogContent className="max-w-lg rounded-md bg-white" fallbackTitle="ยกเลิก CADV" hideClose>
         <DialogHeader>
@@ -554,10 +603,7 @@ export function CustomerAdvanceForm() {
         </Field>
         {submitError ? <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{submitError}</p> : null}
         <div className="flex justify-end gap-2">
-          <Button disabled={isCancelling} type="button" variant="outline" onClick={() => {
-            setCancelRow(null)
-            setCancelReason('')
-          }}>ปิด</Button>
+          <Button disabled={isCancelling} type="button" variant="outline" onClick={closeCancelDialog}>ปิด</Button>
           <Button className="bg-rose-600 text-white hover:bg-rose-700 hover:text-white" disabled={isCancelling || !cancelReason.trim()} type="button" onClick={() => void submitCancel()}>
             <XCircle className="h-4 w-4" />{isCancelling ? 'กำลังยกเลิก' : 'ยืนยันยกเลิก'}
           </Button>
@@ -759,19 +805,19 @@ export function CustomerAdvanceForm() {
                 </colgroup>
                 <thead className="border-b border-slate-200 bg-slate-100 text-slate-700">
                   <tr>
-                    <CustomerAdvanceSortHeader activeKey={sortKey} direction={sortDirection} label="เลขที่ CADV" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ CADV')} sortKey="docNo" onSort={changeSort} />
-                    <CustomerAdvanceSortHeader activeKey={sortKey} direction={sortDirection} label="วันที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('documentDate', 'วันที่เอกสาร')} sortKey="documentDate" onSort={changeSort} />
+                    <CustomerAdvanceSortHeader activeKey={sortKey} align="center" direction={sortDirection} label="เลขที่ CADV" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่ CADV')} sortKey="docNo" onSort={changeSort} />
+                    <CustomerAdvanceSortHeader activeKey={sortKey} align="center" direction={sortDirection} label="วันที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('documentDate', 'วันที่เอกสาร')} sortKey="documentDate" onSort={changeSort} />
                     <ResizableTableHead label="สาขา" resizeProps={columnResize.getResizeHandleProps('branchName', 'สาขา')} />
                     <CustomerAdvanceSortHeader activeKey={sortKey} direction={sortDirection} label="ลูกค้า" resizeProps={columnResize.getResizeHandleProps('customerName', 'ลูกค้า')} sortKey="customerName" onSort={changeSort} />
-                    <ResizableTableHead label="Invoice / Contract" resizeProps={columnResize.getResizeHandleProps('reference', 'Invoice / Contract')} />
+                    <ResizableTableHead align="center" label="Invoice / Contract" resizeProps={columnResize.getResizeHandleProps('reference', 'Invoice / Contract')} />
                     <ResizableTableHead align="right" label="น้ำหนักสุทธิ" resizeProps={columnResize.getResizeHandleProps('totalNetWeight', 'น้ำหนักสุทธิ')} />
                     <CustomerAdvanceSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ยอดที่ต้องรับ" resizeProps={columnResize.getResizeHandleProps('targetAmount', 'ยอดที่ต้องรับ')} sortKey="targetAmount" onSort={changeSort} />
                     <ResizableTableHead align="right" label="รับแล้ว" resizeProps={columnResize.getResizeHandleProps('receivedAmount', 'รับแล้ว')} />
                     <ResizableTableHead align="right" label="คงค้างรับ" resizeProps={columnResize.getResizeHandleProps('remainingReceiptAmount', 'คงค้างรับ')} />
                     <ResizableTableHead align="right" label="ฐานที่ใช้หักบิล" resizeProps={columnResize.getResizeHandleProps('usableCreditAmount', 'ฐานที่ใช้หักบิล')} />
                     <CustomerAdvanceSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ฐานคงเหลือใช้หักบิล" resizeProps={columnResize.getResizeHandleProps('availableAmount', 'ฐานคงเหลือใช้หักบิล')} sortKey="availableAmount" onSort={changeSort} />
-                    <CustomerAdvanceSortHeader activeKey={sortKey} direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
-                    <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+                    <CustomerAdvanceSortHeader activeKey={sortKey} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
+                    <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
                   </tr>
                 </thead>
                 <tbody>
@@ -792,17 +838,17 @@ export function CustomerAdvanceForm() {
                         }
                       }}
                     >
-                      <td className="p-3 font-medium text-slate-900 whitespace-nowrap">
+                      <td className="whitespace-nowrap p-3 text-center font-mono font-medium text-slate-900">
                         {row.docNo}
                         {row.docNo === lastCreatedDocNo ? <span className="ml-2 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">ล่าสุด</span> : null}
                       </td>
-                      <td className="p-3 whitespace-nowrap">{formatDateDisplay(row.documentDate)}</td>
+                      <td className="whitespace-nowrap p-3 text-center">{formatDateDisplay(row.documentDate)}</td>
                       <td className="p-3 text-slate-700 whitespace-nowrap">{row.branchName}</td>
                       <td className="p-3">
                         <p className="font-medium text-slate-900">{row.customerName}</p>
                         <p className="text-xs text-slate-500">{row.customerCode}</p>
                       </td>
-                      <td className="p-3 text-slate-600">
+                      <td className="whitespace-nowrap p-3 text-center font-mono text-slate-600">
                         <p>{row.invoiceNo || '-'}</p>
                         <p className="text-xs">{row.contractNo || '-'}</p>
                       </td>
@@ -856,7 +902,7 @@ function CustomerAdvanceSortHeader({
   sortKey,
 }: {
   activeKey: CustomerAdvanceSortKey
-  align?: 'left' | 'right'
+  align?: 'center' | 'left' | 'right'
   direction: CustomerAdvanceSortDirection
   label: string
   onSort: (key: CustomerAdvanceSortKey) => void

@@ -5,8 +5,9 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { FINANCE_DEBT_PAGE_PERMISSIONS } from '@/lib/finance-debt-permissions'
-import { bankStatementTransferRows, currentActor, listDailyAccounts, nextDailyDocNo, nextDailyDocNos, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { bankStatementTransferRows, currentActor, documentBranchCode, listDailyAccounts, lockDailyAccountBalances, nextBankStatementDocNos, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { getFinanceCurrencyPolicy } from '@/lib/server/finance-currency-policy'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -78,32 +79,13 @@ export async function POST(request: Request) {
 
     const values = transferFormSchema.parse(await request.json())
     const actor = currentActor(context)
-    const [fromAccount, toAccount] = await Promise.all([
+    const [currencyPolicy, fromAccount, toAccount] = await Promise.all([
+      getFinanceCurrencyPolicy(),
       findActiveAccountReferenceByCode(values.fromAccountId),
       findActiveAccountReferenceByCode(values.toAccountId),
     ])
     if (!fromAccount || !toAccount) {
       throw new Error('บัญชีต้นทางหรือปลายทางไม่ถูกต้อง')
-    }
-
-    const allAccounts = await listDailyAccounts()
-    const fromAcc = allAccounts.find((a) => a.id === values.fromAccountId)
-    if (fromAcc) {
-      let oldAmountAndFee = 0
-      if (values.id) {
-        const prevTransfer = await prisma.transfers.findFirst({
-          select: { amount: true, fee: true, bank_fee: true },
-          where: { doc_no: values.id },
-        })
-        if (prevTransfer) {
-          oldAmountAndFee = toNumber(prevTransfer.amount) + toNumber(prevTransfer.fee ?? prevTransfer.bank_fee)
-        }
-      }
-      const transferCost = values.amount + values.fee
-      const available = (fromAcc.balance ?? 0) + oldAmountAndFee + (fromAcc.subtype === 'current' ? (fromAcc.odLimit ?? 0) : 0)
-      if (transferCost > available + 0.01) {
-        throw new Error('ยอดจ่ายเกินยอดเงินคงเหลือและวงเงิน OD ที่ใช้ได้ กรุณาลดจำนวนหรือเพิ่มบัญชีจ่าย')
-      }
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -112,12 +94,27 @@ export async function POST(request: Request) {
             doc_no: true,
             id: true,
             status: true,
+            from_account_id: true,
           })
         : null
       if (values.id && !existingTransfer) {
         throw new Error('ไม่พบรายการโอนเงิน')
       }
-      const docNo = values.docNo ?? existingTransfer?.doc_no ?? await nextDailyDocNo('transfers', 'TRF', values.date, tx)
+      await lockDailyAccountBalances(tx, [fromAccount.id, ...(existingTransfer?.from_account_id ? [existingTransfer.from_account_id] : [])])
+      const fromAcc = (await listDailyAccounts(tx)).find((a) => a.id === values.fromAccountId)
+      if (fromAcc) {
+        const oldTransfer = existingTransfer
+          ? await tx.transfers.findUnique({ select: { amount: true, fee: true, bank_fee: true }, where: { id: existingTransfer.id } })
+          : null
+        const oldAmountAndFee = oldTransfer ? toNumber(oldTransfer.amount) + toNumber(oldTransfer.fee ?? oldTransfer.bank_fee) : 0
+        const transferCost = values.amount + values.fee
+        if (transferCost > (fromAcc.availableToPay ?? 0) + oldAmountAndFee + 0.01) {
+          throw new Error('ยอดจ่ายเกินยอดเงินคงเหลือและวงเงิน OD ที่ใช้ได้ กรุณาลดจำนวนหรือเพิ่มบัญชีจ่าย')
+        }
+      }
+      const branchCode = documentBranchCode(fromAccount.branchCode)
+      if (!fromAccount.branchId || !toAccount.branchId || !branchCode) throw new Error('บัญชีต้นทางหรือปลายทางไม่มีสาขาสำหรับออกเลขรายการโอนเงิน')
+      const docNo = values.docNo ?? existingTransfer?.doc_no ?? await nextDailyDocNo('transfers', 'TRF', values.date, tx, branchCode)
       const transfer = existingTransfer
         ? await tx.transfers.update({
             where: { id: existingTransfer.id },
@@ -128,6 +125,7 @@ export async function POST(request: Request) {
               doc_no: docNo,
               fee: values.fee,
               from_account_id: fromAccount.id,
+              branch_id: fromAccount.branchId,
               notes: values.notes,
               to_account_id: toAccount.id,
               updated_at: new Date(),
@@ -143,6 +141,7 @@ export async function POST(request: Request) {
               doc_no: docNo,
               fee: values.fee,
               from_account_id: fromAccount.id,
+              branch_id: fromAccount.branchId,
               notes: values.notes,
               status: 'active',
               to_account_id: toAccount.id,
@@ -157,7 +156,7 @@ export async function POST(request: Request) {
           ref_type: 'TRF',
         },
       })
-      const statementDocNos = await nextDailyDocNos('bank_statement', 'BST', values.date, 2, tx)
+      const statementDocNos = await nextBankStatementDocNos(values.date, branchCode, 2, tx)
       await tx.bank_statement.createMany({
         data: bankStatementTransferRows({
           amount: values.amount,
@@ -166,11 +165,14 @@ export async function POST(request: Request) {
           docNo,
           entryDocNos: [statementDocNos[0]!, statementDocNos[1]!],
           fee: values.fee,
+          functionalCurrencyCode: currencyPolicy.functionalCurrencyCode,
           fromAccountId: stringifyBusinessValue(fromAccount.id),
+          fromBranchId: fromAccount.branchId,
           fromAccountName: fromAccount.name,
           id: transfer.id.toString(),
           toAccountId: stringifyBusinessValue(toAccount.id),
           toAccountName: toAccount.name,
+          toBranchId: toAccount.branchId,
         }),
       })
 

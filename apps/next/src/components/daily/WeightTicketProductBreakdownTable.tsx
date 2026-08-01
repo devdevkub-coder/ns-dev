@@ -371,9 +371,9 @@ function PendingOutRowsTable({
             <th className="px-3 py-3 text-right">จำนวน</th>
             <th className="px-3 py-3 text-right">ราคาต้นทุนเฉลี่ย</th>
             <th className="px-3 py-3 text-right">มูลค่า</th>
-            <th className="px-3 py-3 text-left">สถานะ</th>
+            <th className="whitespace-nowrap px-3 py-3 text-center">สถานะ</th>
             <th className="px-3 py-3 text-left">รายการเปลี่ยนแปลง</th>
-            <th className="px-3 py-3 text-left">อ้างอิง</th>
+            <th className="px-3 py-3 text-center">อ้างอิง</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -393,17 +393,17 @@ function PendingOutRowsTable({
                 <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-900">
                   {row.pendingOutValue == null ? '-' : formatMoney(row.pendingOutValue)}
                 </td>
-                <td className="px-3 py-3">
+                <td className="whitespace-nowrap px-3 py-3 text-center">
                   <span className={`inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ${pendingOutStatusClass(row.status)}`}>
                     {pendingOutStatusLabel(row.status)}
                   </span>
                 </td>
                 <td className="px-3 py-3 text-slate-600">
                   <div className="whitespace-pre-line">{changeLabel}</div>
-                  <div className="mt-0.5 text-xs text-slate-500">{formatDateTime(row.costSnapshotAt)}</div>
+                  <div className="mt-0.5 whitespace-nowrap text-xs text-slate-500">{formatDateTime(row.costSnapshotAt)}</div>
                 </td>
-                <td className="px-3 py-3 text-slate-600">
-                  <div>{row.referenceDocNo || '-'}</div>
+                <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">
+                  <div className="font-mono">{row.referenceDocNo || '-'}</div>
                   <div className="mt-0.5 text-xs text-slate-500">กันไว้: {formatDateTime(row.heldAt)}</div>
                   {row.releasedAt ? <div className="mt-0.5 text-xs text-slate-500">ปิดรายการ: {formatDateTime(row.releasedAt)}</div> : null}
                 </td>
@@ -446,9 +446,9 @@ function PendingOutRowsTable({
                 </div>
               </div>
               <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                <div className="whitespace-pre-line">รายการเปลี่ยนแปลง: {changeLabel} · {formatDateTime(row.costSnapshotAt)}</div>
-                <div className="mt-1">อ้างอิง: {row.referenceDocNo || '-'} · กันไว้ {formatDateTime(row.heldAt)}</div>
-                {row.releasedAt ? <div className="mt-1">ปิดรายการ: {formatDateTime(row.releasedAt)}</div> : null}
+                <div>รายการเปลี่ยนแปลง: {changeLabel} · <span className="whitespace-nowrap">{formatDateTime(row.costSnapshotAt)}</span></div>
+                <div className="mt-1">อ้างอิง: <span className="whitespace-nowrap font-mono">{row.referenceDocNo || '-'}</span> · กันไว้ <span className="whitespace-nowrap">{formatDateTime(row.heldAt)}</span></div>
+                {row.releasedAt ? <div className="mt-1">ปิดรายการ: <span className="whitespace-nowrap">{formatDateTime(row.releasedAt)}</span></div> : null}
               </div>
             </div>
           )
@@ -545,7 +545,7 @@ export function WeightTicketProductBreakdownTable({
             {ticket.type === 'WTO' ? <th className="px-3 py-3 text-right">มูลค่ารอส่ง</th> : null}
             {showBillingColumns ? <th className="px-3 py-3 text-right">ออกบิลแล้ว</th> : null}
             {showBillingColumns ? <th className="px-3 py-3 text-right">คงเหลือ</th> : null}
-            {showBillingColumns ? <th className="px-3 py-3 text-left">เอกสารปลายทาง</th> : null}
+            {showBillingColumns ? <th className="px-3 py-3 text-center">เอกสารปลายทาง</th> : null}
             <th className="px-3 py-3 text-right">รูป</th>
           </tr>
         </thead>
@@ -576,11 +576,11 @@ export function WeightTicketProductBreakdownTable({
                   {showBillingColumns ? <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-blue-700">{formatWeight(group.summary.billedWeight)}</td> : null}
                   {showBillingColumns ? <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-emerald-700">{formatWeight(group.summary.remainingWeight)}</td> : null}
                   {showBillingColumns ? (
-                    <td className="px-3 py-3 text-slate-600">
+                    <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">
                       {targetDocNos.length ? (
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="flex flex-nowrap justify-center gap-1.5">
                           {targetDocNos.map((docNo) => (
-                            <span className="rounded-md bg-white px-2 py-0.5 text-xs text-slate-700" key={`${group.summary.id}-${docNo}`}>
+                            <span className="whitespace-nowrap rounded-md bg-white px-2 py-0.5 font-mono text-xs text-slate-700" key={`${group.summary.id}-${docNo}`}>
                               {docNo}
                             </span>
                           ))}
@@ -871,7 +871,7 @@ export function WeightTicketProductBreakdownTable({
                       <span className="text-slate-500 font-semibold">เอกสารปลายทาง:</span>{' '}
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
                         {targetDocNos.map((docNo) => (
-                          <span className="rounded-md bg-slate-100 px-2.5 py-1 text-sm font-semibold text-slate-700 shadow-sm" key={docNo}>
+                          <span className="whitespace-nowrap rounded-md bg-slate-100 px-2.5 py-1 font-mono text-sm font-semibold text-slate-700 shadow-sm" key={docNo}>
                             {docNo}
                           </span>
                         ))}

@@ -531,7 +531,7 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tabl
               <span className="text-slate-500 font-mono">{item.no}</span>
             </div>
             <div className="flex justify-between text-slate-500">
-              <span>วันที่: {item.date}</span>
+              <span className="whitespace-nowrap">วันที่: {item.date}</span>
               {hasDoc && (
                 <span className={`px-2 py-0.5 rounded-full text-xs ${item.hasDoc ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                   {item.hasDoc ? '✓ มีเอกสาร' : '✗ ขาดเอกสาร'}
@@ -556,24 +556,24 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tabl
           </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-600 font-medium">
             <tr>
-              <ResizableTableHead label="วันที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
-              <ResizableTableHead align="right" label="เลขที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="no" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('no', 'เลขที่')} />
-              <ResizableTableHead align="right" label="คู่ค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="party" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('party', 'คู่ค้า')} />
+              <ResizableTableHead align="center" label="วันที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+              <ResizableTableHead align="center" label="เลขที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="no" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('no', 'เลขที่')} />
+              <ResizableTableHead align="left" label="คู่ค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="party" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('party', 'คู่ค้า')} />
               <ResizableTableHead align="right" label="ฐาน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="base" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('base', 'ฐาน')} />
               <ResizableTableHead align="right" label={valueKey === 'vat' ? 'VAT' : 'WHT'} activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="value" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('value', valueKey === 'vat' ? 'VAT' : 'WHT')} />
-              {hasDoc ? <ResizableTableHead align="right" label="เอกสาร" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="hasDoc" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('hasDoc', 'เอกสาร')} /> : null}
+              {hasDoc ? <ResizableTableHead align="center" label="เอกสาร" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="hasDoc" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('hasDoc', 'เอกสาร')} /> : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
             <LoadingOrEmpty colSpan={hasDoc ? 6 : 5} isLoading={isLoading} rows={sortedRows.length} />
             {!isLoading && sortedRows.map((item) => (
               <tr key={`${item.source}-${item.no}`} className="hover:bg-slate-50/50 transition-colors">
-                <Td>{item.date}</Td>
-                <Td align="right"><span className="font-mono text-xs text-slate-600">{item.no}</span></Td>
-                <Td align="right" className="truncate max-w-[200px]">{item.party}</Td>
+                <Td align="center">{item.date}</Td>
+                <Td align="center"><span className="font-mono text-xs text-slate-600">{item.no}</span></Td>
+                <Td align="left" className="whitespace-normal max-w-[200px]">{item.party}</Td>
                 <Td align="right">{money(item.base)}</Td>
                 <Td align="right"><span className={`font-bold ${valueColor}`}>{money(item[valueKey])}</span></Td>
-                {hasDoc ? <Td align="right">{item.hasDoc ? '✓' : '✗ ขาด'}</Td> : null}
+                {hasDoc ? <Td align="center">{item.hasDoc ? '✓' : '✗ ขาด'}</Td> : null}
               </tr>
             ))}
           </tbody>

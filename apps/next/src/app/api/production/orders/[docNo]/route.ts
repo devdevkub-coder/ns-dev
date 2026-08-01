@@ -22,7 +22,7 @@ export async function PATCH(request: Request, context: ProductionOrderRouteConte
     const payload = values.action === 'complete'
       ? await completeProductionOrder(docNo, values.note, actor, values.confirmCloseWithWip)
       : await cancelProductionOrder(docNo, values.reason, actor)
-    return NextResponse.json(payload)
+    return NextResponse.json(payload, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     if (caught instanceof ProductionOrderError) return apiErrorResponse(caught, caught.message, caught.status)

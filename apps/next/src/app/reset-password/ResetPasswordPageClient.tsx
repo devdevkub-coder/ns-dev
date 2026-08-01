@@ -1,8 +1,9 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { GuardedLink } from '@/components/ui/GuardedLink'
+import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { resetPasswordSchema } from '@/lib/auth'
 import { acknowledgePasswordChanged, PASSWORD_UPDATE_ERROR } from '@/lib/auth-client-contract'
 import { getSessionSafely, getSupabaseClient } from '@/lib/supabase'
@@ -19,6 +20,7 @@ export function ResetPasswordPageClient() {
   const [sessionEmail, setSessionEmail] = useState('')
   const supabase = getSupabaseClient()
   const isSupabaseReady = Boolean(supabase)
+  useUnsavedChangesGuard(Boolean(password || confirmPassword))
 
   useEffect(() => {
     if (!supabase) return
@@ -163,9 +165,9 @@ export function ResetPasswordPageClient() {
           </button>
 
           <div className="text-center">
-            <Link className="text-sm font-medium text-slate-600 hover:underline" href="/forgot-password">
+            <GuardedLink className="text-sm font-medium text-slate-600 hover:underline" href="/forgot-password">
               ขอลิงก์ใหม่
-            </Link>
+            </GuardedLink>
           </div>
         </form>
       </div>

@@ -1,50 +1,36 @@
-import type { Prisma } from '../../../../../../generated/prisma/client'
 import { NextResponse } from 'next/server'
+import { applyWorksheetTableLayout, XLSX } from '@/lib/server/xlsx'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { getFinanceCurrencyPolicy } from '@/lib/server/finance-currency-policy'
 import { prisma } from '@/lib/server/prisma'
-import { listActiveAccounts, type AccountReferenceRecord } from '@/lib/server/reference-master-cache'
+import { listActiveAccounts } from '@/lib/server/reference-master-cache'
 
 export const runtime = 'nodejs'
 
-type StatementRow = Awaited<ReturnType<typeof prisma.bank_statement.findMany>>[number]
-type FxRateRow = Awaited<ReturnType<typeof prisma.fx_rates.findMany>>[number]
-
-function displayCurrency(value: string | null | undefined) {
-  return (value || 'THB').trim().toUpperCase()
+function normalizedCurrency(value: string | null) {
+  return value?.trim().toUpperCase() ?? ''
 }
 
 function accountLabel(account: { accountNo: string | null; name: string }) {
   return account.accountNo ? `${account.accountNo} - ${account.name}` : account.name
 }
 
-function cachedAmount(value: string | null) {
-  return value == null ? 0 : Number(value)
-}
-
-function movementType(row: StatementRow) {
-  if (row.ref_type === 'ORC') return 'Overseas Receipt In'
-  if (row.ref_type === 'ORC-FEE') return 'Overseas Receipt Fee'
-  if (row.ref_type === 'ITF') return 'Overseas Payment Out'
-  if (row.ref_type === 'ITF-FEE') return 'Overseas Transfer Fee'
-  return row.ref_type || row.type || 'Bank Movement'
-}
-
-function buildRateLookup(fxRates: FxRateRow[]) {
-  return (currency: string, date: string) => {
-    const matched = fxRates.find((rate) => rate.from_currency === currency && toDateOnly(rate.rate_date) <= date)
-    return matched ? toNumber(matched.rate) : 0
-  }
-}
-
-function dateWhere(from: string | null, to: string | null): Prisma.bank_statementWhereInput['date'] | undefined {
-  if (!from && !to) return undefined
-  return {
-    ...(from ? { gte: normalizeDate(from) } : {}),
-    ...(to ? { lte: normalizeDate(to) } : {}),
-  }
+async function xlsxResponse(rows: Array<Record<string, string | number>>, filename: string) {
+  const workbook = XLSX.utils.book_new()
+  const sheet = XLSX.utils.json_to_sheet(rows)
+  const headers = rows[0] ? Object.keys(rows[0]) : []
+  sheet['!cols'] = headers.map((header) => ({ wch: Math.max(14, header.length + 3) }))
+  applyWorksheetTableLayout(sheet, headers.length, rows.length + 1)
+  XLSX.utils.book_append_sheet(workbook, sheet, 'FCD Ledger')
+  const body = await XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
+  return new Response(new Uint8Array(body), {
+    headers: {
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    },
+  })
 }
 
 export async function GET(request: Request) {
@@ -53,112 +39,145 @@ export async function GET(request: Request) {
     requirePermission(context, 'finance.cash.view')
 
     const url = new URL(request.url)
-    const accountId = url.searchParams.get('accountId')
-    const accountReference = await findActiveAccountReferenceByCode(accountId)
-    const internalAccountId = accountReference?.id ?? null
-    const from = url.searchParams.get('from')
-    const to = url.searchParams.get('to')
+    const accountCode = url.searchParams.get('accountId')?.trim().toUpperCase() ?? ''
+    const currencyCode = normalizedCurrency(url.searchParams.get('currencyCode'))
+    const valuationDate = url.searchParams.get('valuationDate')?.trim() ?? ''
+    const valuationRateType = url.searchParams.get('valuationRateType')?.trim() ?? ''
+    if (valuationDate && !/^\d{4}-\d{2}-\d{2}$/.test(valuationDate)) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'วันที่ตีมูลค่าต้องเป็นรูปแบบ YYYY-MM-DD' }, { status: 400 })
+    }
+    const fcdAccountCurrencies = (await listActiveAccounts())
+      .filter((account) => account.accountGroup === 'bank' && account.isFcd)
+      .flatMap((account) => account.supportedCurrencies.map((currency) => ({ account, currency })))
+    const accounts = fcdAccountCurrencies
+      .map(({ account, currency }) => ({
+        accountNo: account.accountNo,
+        bankName: account.bankName ?? account.bank ?? '',
+        branchName: account.branchName ?? '',
+        code: account.code,
+        currency,
+        id: `${account.code}|${currency}`,
+        label: accountLabel(account),
+        name: account.name,
+        type: account.type,
+      }))
 
-    const [allAccounts, fxRates] = await Promise.all([
-      listActiveAccounts(),
-      prisma.fx_rates.findMany({
-        orderBy: [{ rate_date: 'desc' }, { updated_at: 'desc' }],
-        take: 5000,
-        where: { active: true, to_currency: 'THB' },
-      }),
+    const selected = accountCode && currencyCode
+      ? accounts.find((account) => account.code === accountCode && account.currency === currencyCode) ?? null
+      : null
+    if ((accountCode || currencyCode) && !selected) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'บัญชี FCD หรือสกุลเงินที่เลือกไม่ถูกต้องหรือไม่ active' }, { status: 400 })
+    }
+    const selectedAccount = selected
+      ? fcdAccountCurrencies.find(({ account, currency }) => account.code === selected.code && currency === selected.currency)?.account ?? null
+      : null
+    if (selected && !selectedAccount) throw new Error('ไม่พบข้อมูลบัญชี FCD ที่เลือก')
+
+    const [policy, rateTypeRows, entries] = await Promise.all([
+      getFinanceCurrencyPolicy(),
+      prisma.fx_rates.findMany({ distinct: ['rate_type'], orderBy: { rate_type: 'asc' }, select: { rate_type: true }, where: { active: true } }),
+      selected ? prisma.fcd_ledger_entries.findMany({
+      orderBy: [{ entry_date: 'asc' }, { id: 'asc' }],
+      where: { account_id: selectedAccount!.id, currency_code: selected.currency },
+      }) : Promise.resolve([]),
     ])
 
-    const accounts = allAccounts.filter((account: AccountReferenceRecord) => {
-      const currency = displayCurrency(account.currency)
-      return account.type === 'FCD' || (currency !== 'THB' && currency.length > 0)
-    })
-    const selectedAccount = accounts.find((account: AccountReferenceRecord) => account.id === internalAccountId) ?? accounts[0] ?? null
-
-    const rateFor = buildRateLookup(fxRates)
-
-    const statementRows = selectedAccount ? await prisma.bank_statement.findMany({
-      orderBy: [{ date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-      take: 5000,
-      where: {
-        account_id: selectedAccount.id,
-        ...(dateWhere(from, to) ? { date: dateWhere(from, to) } : {}),
-      },
-    }) : []
-
-    const selectedCurrency = selectedAccount ? displayCurrency(selectedAccount.currency) : ''
-    let foreignBal = selectedAccount ? cachedAmount(selectedAccount.openingBalance) : 0
-    let thbBal = 0
-    const rows = selectedAccount ? [{
-      date: '-',
-      description: 'Opening',
-      foreignBal,
-      foreignIn: 0,
-      foreignOut: 0,
-      fxRate: 0,
-      id: `opening-${selectedAccount.code}`,
-      refNo: '-',
-      thbBal,
-      thbIn: 0,
-      thbOut: 0,
-      type: 'ยอดยกมา',
-    }] : []
-
-    statementRows.forEach((row: StatementRow) => {
-      const date = toDateOnly(row.date)
-      const fxRate = rateFor(selectedCurrency, date)
-      const thbIn = toNumber(row.amount_in)
-      const thbOut = toNumber(row.amount_out)
-      const foreignIn = 0
-      const foreignOut = 0
-      thbBal += thbIn - thbOut
-      rows.push({
-        date,
-        description: row.description ?? row.desc ?? row.note ?? '',
-        foreignBal,
+    let foreignBalance = 0
+    let thbBalance = 0
+    const rows = entries.map((entry) => {
+      const foreignIn = toNumber(entry.native_amount_in)
+      const foreignOut = toNumber(entry.native_amount_out)
+      const thbIn = toNumber(entry.carrying_thb_in)
+      const thbOut = toNumber(entry.carrying_thb_out)
+      foreignBalance += foreignIn - foreignOut
+      thbBalance += thbIn - thbOut
+      return {
+        date: toDateOnly(entry.entry_date),
+        description: entry.source_event_type,
+        foreignBal: foreignBalance,
         foreignIn,
         foreignOut,
-        fxRate,
-        id: row.doc_no,
-        refNo: row.ref_no || row.ref_type || '-',
-        thbBal,
+        fxRate: entry.fx_rate ? toNumber(entry.fx_rate) : null,
+        id: entry.id.toString(),
+        refNo: entry.source_event_key,
+        thbBal: thbBalance,
         thbIn,
         thbOut,
-        type: movementType(row),
-      })
+        type: entry.source_event_type,
+      }
     })
 
+    const valuationRate = selected && valuationDate && valuationRateType
+      ? await prisma.fx_rates.findFirst({
+          orderBy: { id: 'desc' },
+          select: { id: true, rate: true, source: true },
+          where: {
+            active: true,
+            from_currency: selected.currency,
+            rate_date: new Date(`${valuationDate}T00:00:00.000Z`),
+            rate_type: valuationRateType,
+            to_currency: policy.functionalCurrencyCode,
+          },
+        })
+      : null
+    const nativeBalance = rows.length ? rows[rows.length - 1]!.foreignBal : 0
+    const carryingThbBalance = rows.length ? rows[rows.length - 1]!.thbBal : 0
+    const weightedCarryingRate = nativeBalance > 0 && carryingThbBalance > 0 ? carryingThbBalance / nativeBalance : null
+    const latestValuationRate = valuationRate ? toNumber(valuationRate.rate) : null
+    const currentThbValue = latestValuationRate != null ? Number((nativeBalance * latestValuationRate).toFixed(2)) : null
+    const unrealizedDifference = currentThbValue != null ? Number((currentThbValue - carryingThbBalance).toFixed(2)) : null
+
+    if (url.searchParams.get('format') === 'xlsx') {
+      if (!selected) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ต้องเลือกบัญชี FCD และสกุลเงินก่อน export' }, { status: 400 })
+      return await xlsxResponse(rows.map((row) => ({
+        CarryingBalanceTHB: row.thbBal,
+        CarryingTHBIn: row.thbIn,
+        CarryingTHBOut: row.thbOut,
+        Currency: selected.currency,
+        Date: row.date,
+        FXRate: row.fxRate ?? '',
+        NativeBalance: row.foreignBal,
+        NativeIn: row.foreignIn,
+        NativeOut: row.foreignOut,
+        SourceEventKey: row.refNo,
+        SourceEventType: row.type,
+      })), `fcd_ledger_${selected.code}_${selected.currency}_${valuationDate || 'all'}.xlsx`)
+    }
+
     return NextResponse.json({
-      account: selectedAccount ? {
-        accountNo: selectedAccount.accountNo,
-        bankName: selectedAccount.bankName ?? selectedAccount.bank ?? '',
-        branchName: selectedAccount.branchName ?? '',
-        code: selectedAccount.code,
-        currency: selectedCurrency,
-        id: selectedAccount.code,
-        name: selectedAccount.name,
-        openingBalance: cachedAmount(selectedAccount.openingBalance),
-        type: selectedAccount.type,
+      account: selected ? {
+        accountNo: selected.accountNo,
+        bankName: selected.bankName,
+        branchName: selected.branchName,
+        code: selected.code,
+        currency: selected.currency,
+        id: selected.id,
+        name: selected.name,
+        type: selected.type,
       } : null,
       filters: {
-        accounts: accounts.map((account: AccountReferenceRecord) => ({
-          accountNo: account.accountNo,
-          bankName: account.bankName ?? account.bank ?? '',
-          branchName: account.branchName ?? '',
-          code: account.code,
-          currency: displayCurrency(account.currency),
-          id: account.code,
-          label: accountLabel(account),
-          name: account.name,
-          type: account.type,
-        })),
+        accounts,
+        functionalCurrencyCode: policy.functionalCurrencyCode,
+        rateTypes: rateTypeRows.map((row) => row.rate_type),
       },
       rows,
       summary: {
         accountCount: accounts.length,
-        currency: selectedCurrency,
-        foreignBalance: foreignBal,
+        currency: selected?.currency ?? '',
+        foreignBalance,
         rows: rows.length,
-        thbBalance: thbBal,
+        thbBalance: carryingThbBalance,
+        valuation: {
+          currentThbValue,
+          latestValuationRate,
+          rateFound: valuationRate != null,
+          rateReference: valuationRate?.id.toString() ?? null,
+          rateSource: valuationRate?.source ?? null,
+          rateType: valuationRateType || null,
+          unrealizedDifference,
+          valuationDate: valuationDate || null,
+          weightedCarryingRate,
+        },
       },
     })
   } catch (caught) {

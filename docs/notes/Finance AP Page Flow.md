@@ -12,7 +12,7 @@ tags:
   - page-flow
 status: draft
 created: 2026-06-11
-updated: 2026-06-26
+updated: 2026-07-30
 ---
 
 # Finance AP Page Flow / Flow หน้าเจ้าหนี้ AP
@@ -179,6 +179,12 @@ Response ควรรวม:
 - Filter `to` ต้องรวมข้อมูลทั้งวันของวันที่ผู้ใช้เลือก ไม่ใช่หยุดที่เวลา `00:00:00`
 - Due date target ต้องรองรับ bill due date / supplier credit term ไม่ใช่ hardcode credit term 0 ระยะยาว
 - Aging ต้องหยุดนับเมื่อยอดค้างเป็น 0
+
+## Foreign Customer Receipt Impact
+
+- Customer Receipt และ FCD settlement ไม่เปลี่ยน AP table, detail, API หรือ export
+- AP ยังคงอ่านยอด THB จาก `purchase_bills.paid_amount` และ `purchase_bills.payable_balance`
+- จุดเชื่อมเดียวคือ Cash Position ซึ่งต้องรับ AP เป็น THB และเทียบกับ book/carrying THB ของเงินสดและธนาคาร
 
 ## Dev Verification Spec: AP Missing Same-Day Bills
 

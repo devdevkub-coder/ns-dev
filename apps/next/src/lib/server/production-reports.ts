@@ -104,7 +104,7 @@ export function productionWhere(filters: ProductionReportFilters, branchId?: big
         ...(filters.dateTo ? { lte: new Date(`${filters.dateTo}T00:00:00.000Z`) } : {}),
       },
     } : {}),
-    NOT: { status: 'Cancelled' },
+    ...(!filters.status || filters.status !== 'Cancelled' ? { NOT: { status: 'Cancelled' } } : {}),
   }
 }
 
@@ -163,6 +163,7 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
       },
       production_inputs: {
         select: {
+          event_key: true,
           id: true,
           qty: true,
           total_cost: true,
@@ -177,14 +178,16 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
             },
           },
         },
-        where: { status: 'active' },
+        where: { event_key: { not: null }, status: 'active' },
       },
       production_lines: { select: { name: true } },
       production_machines: { select: { id: true, name: true } },
       production_outputs: {
         select: {
           category_code: true,
+          event_key: true,
           id: true,
+          output_round: true,
           output_category: true,
           output_status: true,
           output_type: true,
@@ -192,7 +195,7 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
           source_wip_qty: true,
           total_cost: true,
         },
-        where: { status: 'active' },
+        where: { event_key: { not: null }, status: 'active' },
       },
       production_type: true,
       products: { select: { code: true, name: true } },
@@ -357,17 +360,18 @@ export async function loadProductionTotalWipQty(filters: Pick<ProductionReportFi
       id: true,
       production_inputs: {
         select: {
+          event_key: true,
           id: true,
           production_input_returns: {
             select: { qty: true },
             where: { status: 'active' },
           },
         },
-        where: { status: 'active' },
+        where: { event_key: { not: null }, status: 'active' },
       },
       production_outputs: {
-        select: { id: true },
-        where: { status: 'active' },
+        select: { event_key: true, id: true, output_round: true },
+        where: { event_key: { not: null }, status: 'active' },
       },
     },
     where: {

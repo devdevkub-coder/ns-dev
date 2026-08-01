@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { AppShell } from '@/components/layout/AppShell'
 import { ThemeProvider } from '@/components/theme-provider'
+import { FormSafetyProvider } from '@/components/ui/FormSafetyProvider'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -27,7 +28,9 @@ export default function RootLayout({
     <html lang="th" suppressHydrationWarning>
       <body suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="system" disableTransitionOnChange enableSystem>
-          <AppShell>{children}</AppShell>
+          <FormSafetyProvider>
+            <AppShell>{children}</AppShell>
+          </FormSafetyProvider>
         </ThemeProvider>
       </body>
     </html>

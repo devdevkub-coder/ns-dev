@@ -241,8 +241,8 @@ export function BillSwapHistoryPageClient({ tableKey = 'daily.bill-swap-history.
         {!isLoading && pagedRows.map((row) => (
           <div key={row.id} className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm space-y-2">
             <div className="flex justify-between items-start">
-              <span className="font-bold text-slate-800 text-sm">{row.billDocNo || row.billId}</span>
-              <span className="text-xs text-slate-500">{row.swapDate}</span>
+              <span className="text-center font-mono font-bold text-sm text-slate-800 whitespace-nowrap">{row.billDocNo || row.billId}</span>
+              <span className="text-center text-xs text-slate-500 whitespace-nowrap">{row.swapDate}</span>
             </div>
             
             <div className="text-xs text-slate-600 space-y-1">
@@ -306,8 +306,8 @@ export function BillSwapHistoryPageClient({ tableKey = 'daily.bill-swap-history.
           </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold">
             <tr>
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="วันที่" resizeProps={getResizeHandleProps('swapDate', 'วันที่')} sortKey="swapDate" onSort={changeSort} />
-              <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="บิลซื้อ" resizeProps={getResizeHandleProps('billDocNo', 'บิลซื้อ')} sortKey="billDocNo" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="วันที่" resizeProps={getResizeHandleProps('swapDate', 'วันที่')} sortKey="swapDate" onSort={changeSort} />
+              <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="บิลซื้อ" resizeProps={getResizeHandleProps('billDocNo', 'บิลซื้อ')} sortKey="billDocNo" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="Supplier เดิม" resizeProps={getResizeHandleProps('beforeSupplier', 'Supplier เดิม')} sortKey="beforeSupplier" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="Supplier ใหม่" resizeProps={getResizeHandleProps('afterSupplier', 'Supplier ใหม่')} sortKey="afterSupplier" onSort={changeSort} />
               <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="สินค้า" resizeProps={getResizeHandleProps('product', 'สินค้า')} sortKey="product" onSort={changeSort} />
@@ -324,8 +324,8 @@ export function BillSwapHistoryPageClient({ tableKey = 'daily.bill-swap-history.
             {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
             {!isLoading && pagedRows.map((row) => (
               <tr key={row.id} className="hover:bg-slate-50">
-                <td className="p-2 text-xs font-semibold text-slate-700 whitespace-nowrap">{row.swapDate}</td>
-                <td className="p-2 text-xs font-semibold text-slate-700 truncate" title={row.billDocNo || row.billId}>{row.billDocNo || row.billId}</td>
+                <td className="whitespace-nowrap p-2 text-center text-xs font-semibold text-slate-700">{row.swapDate}</td>
+                <td className="whitespace-nowrap truncate p-2 text-center font-mono text-xs font-semibold text-slate-700" title={row.billDocNo || row.billId}>{row.billDocNo || row.billId}</td>
                 <td className="p-2 text-xs font-semibold text-rose-600 truncate" title={row.beforeSupplierName}>{row.beforeSupplierName}</td>
                 <td className="p-2 text-xs font-semibold text-emerald-700 truncate" title={row.afterSupplierName}>{row.afterSupplierName}</td>
                 <td className="p-2 text-xs font-semibold text-slate-700 truncate" title={row.productName}>{row.productName}</td>

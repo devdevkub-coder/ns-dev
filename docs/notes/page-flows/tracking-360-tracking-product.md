@@ -256,3 +256,7 @@ Target detail payload fields:
 ## 2026-07-12 Table consistency checkpoint
 
 `/tracking/product` detail tables now align numeric headers with numeric cells and use canonical `p-2` header / `p-3` body density. What is what: these remain read-only product profitability, movement, and yearly comparison facts. Why it stays this way: detail columns should scan consistently without changing allocation/COGS/GP formulas, exports, API behavior, permissions, database schema, or DB state.
+
+## 2026-08-01 Sales detail table correction
+
+The Product detail `รายการขาย` table now uses the same semantic column contract as `รายการซื้อ`: dates and document numbers stay centered on one line, document numbers use mono text, amounts/weights/COGS/GP stay right-aligned with tabular numerals, and status remains a compact non-wrapping column. The ambiguous allocation header `ขาย` is now `เอกสารขาย`. This fixes the visible multi-line date regression without changing Product Tracking formulas, source links, allocation facts, API/export behavior, permissions, or DB state.

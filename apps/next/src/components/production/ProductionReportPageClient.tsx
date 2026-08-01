@@ -733,8 +733,9 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               คืนค่าเดิมตาราง
             </button>
           ) : null}
-          <button className="rounded-md bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-sm font-semibold text-white focus:outline-none sm:ml-auto w-full sm:w-auto text-center shrink-0" type="button" onClick={exportCostCsv}>
-            ส่งออก Excel
+          <button className="flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-normal text-white hover:bg-emerald-700 focus:outline-none sm:ml-auto sm:w-auto" type="button" onClick={exportCostCsv}>
+            <Download aria-hidden="true" className="size-4" />
+            ส่งออก CSV
           </button>
         </div>
         <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 lg:grid-cols-7 text-sm">
@@ -773,7 +774,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                     <ResizableTableHead
                       key={column.key}
                       activeSortKey={sortKey}
-                      align={column.type === 'money' || column.type === 'number' ? 'right' : 'left'}
+                      align={productionTableColumnAlignment(column)}
                       direction={sortDir}
                       label={column.label}
                       resizeProps={costBreakdownResize.getResizeHandleProps(column.key, column.label)}
@@ -793,7 +794,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                           key={column.key}
                           className={`p-3 text-xs min-w-0 overflow-hidden ${productionCostBreakdownCellClass(column)}`}
                         >
-                          <div className={column.type === 'money' || column.type === 'number' ? 'truncate text-right tabular-nums' : 'truncate'} title={formatProductionCostBreakdownCell(row, column)}>
+                          <div className={productionTableColumnAlignment(column) === 'left' ? 'truncate' : `${productionTableColumnAlignment(column) === 'right' ? 'text-right tabular-nums' : 'text-center'} whitespace-nowrap`} title={formatProductionCostBreakdownCell(row, column)}>
                             {formatProductionCostBreakdownCell(row, column)}
                           </div>
                         </td>
@@ -814,8 +815,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             return (
               <div key={String(row.id ?? index)} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="font-mono text-sm font-bold text-slate-800">{String(row.docNo ?? '')}</span>
-                  <span className="text-sm text-slate-600 font-medium">{formatDateDisplay(String(row.date ?? ''))}</span>
+                  <span className="whitespace-nowrap font-mono text-sm font-bold text-slate-800">{String(row.docNo ?? '')}</span>
+                  <span className="whitespace-nowrap text-sm font-medium text-slate-600">{formatDateDisplay(String(row.date ?? ''))}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
                   <div>
@@ -919,16 +920,16 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             </colgroup>
                 <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
                   <tr>
-                    <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="center" direction={dashboardMachineSortDir} label="เครื่องจักร" resizeProps={dashboardMachineResize.getResizeHandleProps('name', 'เครื่องจักร')} sortKey="name" onSort={toggleDashboardMachineSort} />
-                    <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="center" direction={dashboardMachineSortDir} label="รอบที่ใช้" resizeProps={dashboardMachineResize.getResizeHandleProps('batches', 'รอบที่ใช้')} sortKey="batches" onSort={toggleDashboardMachineSort} />
+                    <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="left" direction={dashboardMachineSortDir} label="เครื่องจักร" resizeProps={dashboardMachineResize.getResizeHandleProps('name', 'เครื่องจักร')} sortKey="name" onSort={toggleDashboardMachineSort} />
+                    <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="right" direction={dashboardMachineSortDir} label="รอบที่ใช้" resizeProps={dashboardMachineResize.getResizeHandleProps('batches', 'รอบที่ใช้')} sortKey="batches" onSort={toggleDashboardMachineSort} />
                     <ResizableTableHead activeSortKey={dashboardMachineSortKey} align="right" direction={dashboardMachineSortDir} label="น้ำหนักผลิต" resizeProps={dashboardMachineResize.getResizeHandleProps('qty', 'น้ำหนักผลิต')} sortKey="qty" onSort={toggleDashboardMachineSort} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {machineUtil.map((item) => (
                 <tr key={item.name} className="hover:bg-slate-50">
-                  <td className="min-w-0 overflow-hidden p-3 text-center text-xs text-slate-700"><div className="truncate" title={item.name}>{item.name}</div></td>
-                  <td className="whitespace-nowrap p-3 text-center text-xs tabular-nums">{item.batches}</td>
+                  <td className="min-w-0 overflow-hidden p-3 text-left text-xs text-slate-700"><div className="truncate" title={item.name}>{item.name}</div></td>
+                  <td className="whitespace-nowrap p-3 text-right text-xs tabular-nums">{item.batches}</td>
                   <td className="whitespace-nowrap p-3 text-right text-xs font-bold tabular-nums text-slate-800">{formatMoney(item.qty)}</td>
                 </tr>
               ))}
@@ -1022,8 +1023,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                   <tr>
                     <ResizableTableHead align="center" label="#" resizeProps={dashboardTopProductResize.getResizeHandleProps('rank', '#')} />
                     <ResizableTableHead activeSortKey={dashboardProductSortKey} align="center" direction={dashboardProductSortDir} label="รหัสสินค้า" resizeProps={dashboardTopProductResize.getResizeHandleProps('code', 'รหัสสินค้า')} sortKey="code" onSort={toggleDashboardProductSort} />
-                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="center" direction={dashboardProductSortDir} label="สินค้า" resizeProps={dashboardTopProductResize.getResizeHandleProps('name', 'สินค้า')} sortKey="name" onSort={toggleDashboardProductSort} />
-                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="center" direction={dashboardProductSortDir} label="รอบ" resizeProps={dashboardTopProductResize.getResizeHandleProps('batches', 'รอบ')} sortKey="batches" onSort={toggleDashboardProductSort} />
+                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="left" className="ns-table-textual-column" direction={dashboardProductSortDir} label="สินค้า" resizeProps={dashboardTopProductResize.getResizeHandleProps('name', 'สินค้า')} sortKey="name" onSort={toggleDashboardProductSort} />
+                    <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" className="ns-table-numeric-header" direction={dashboardProductSortDir} label="รอบ" resizeProps={dashboardTopProductResize.getResizeHandleProps('batches', 'รอบ')} sortKey="batches" onSort={toggleDashboardProductSort} />
                     <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" direction={dashboardProductSortDir} label="น้ำหนัก (กก.)" resizeProps={dashboardTopProductResize.getResizeHandleProps('qty', 'น้ำหนัก (กก.)')} sortKey="qty" onSort={toggleDashboardProductSort} />
                     <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" direction={dashboardProductSortDir} label="ต้นทุนรวม (บาท)" resizeProps={dashboardTopProductResize.getResizeHandleProps('cost', 'ต้นทุนรวม (บาท)')} sortKey="cost" onSort={toggleDashboardProductSort} />
                     <ResizableTableHead activeSortKey={dashboardProductSortKey} align="right" direction={dashboardProductSortDir} label="ต้นทุนผลิต (บาท/กก.)" resizeProps={dashboardTopProductResize.getResizeHandleProps('avgCost', 'ต้นทุนผลิต (บาท/กก.)')} sortKey="avgCost" onSort={toggleDashboardProductSort} />
@@ -1034,8 +1035,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                     <tr key={`${item.code || item.name}-${index}`} className="hover:bg-slate-50">
                       <td className="p-3 text-center text-xs font-bold text-emerald-700 tabular-nums">{index + 1}</td>
                       <td className="min-w-0 overflow-hidden p-3 text-center font-mono text-xs text-slate-600"><div className="truncate" title={item.code || '-'}>{item.code || '-'}</div></td>
-                      <td className="min-w-0 overflow-hidden p-3 text-center text-xs text-slate-700"><div className="truncate" title={item.name}>{item.name}</div></td>
-                      <td className="whitespace-nowrap p-3 text-center text-xs tabular-nums">{item.batches}</td>
+                      <td className="ns-table-textual-column min-w-0 overflow-hidden p-3 text-left text-xs text-slate-700"><div className="truncate" title={item.name}>{item.name}</div></td>
+                      <td className="whitespace-nowrap p-3 text-right text-xs tabular-nums">{item.batches}</td>
                       <td className="p-3 text-right font-bold text-xs tabular-nums whitespace-nowrap">{formatMoney(item.qty)}</td>
                       <td className="p-3 text-right text-xs tabular-nums whitespace-nowrap">{formatMoney(item.cost)}</td>
                       <td className="p-3 text-right text-xs text-slate-600 tabular-nums whitespace-nowrap">{formatMoney(item.avgCost ?? (item.qty > 0 ? item.cost / item.qty : 0))}</td>
@@ -1180,7 +1181,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               </div>
             ) : null}
             {config.exportable ? (
-              <Button asChild className="ml-auto gap-2" size="sm" variant="export">
+              <Button asChild className="ml-auto gap-2" variant="export">
                 <a href={exportHref}>
                   <Download aria-hidden="true" className="size-4" />
                   ส่งออก Excel
@@ -1220,7 +1221,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         </div>
         <div className="flex items-center justify-between gap-3">
           <span className="min-w-0 truncate text-xs font-medium text-slate-500">ช่วงเวลา: {reportRangeLabel}</span>
-          <Button asChild className="shrink-0 gap-2" size="sm" variant="export">
+          <Button asChild className="shrink-0 gap-2" variant="export">
             <a href={exportHref}>
               <Download aria-hidden="true" className="size-4" />
               ส่งออก Excel
@@ -1447,7 +1448,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                           <ResizableTableHead
                             key={column.key}
                             activeSortKey={sortKey}
-                            align={column.type === 'money' || column.type === 'number' || column.type === 'percent' ? 'right' : 'center'}
+                            align={column.type === 'money' || column.type === 'number' || column.type === 'percent' ? 'right' : column.key === 'docNo' || column.key === 'date' || column.key === 'status' ? 'center' : 'left'}
                             direction={sortDir}
                             label={column.label}
                             resizeProps={wipResize.getResizeHandleProps(column.key, column.label)}
@@ -1466,8 +1467,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                             <td className="whitespace-nowrap px-3 py-3 text-center font-mono text-slate-900">{String(row.docNo ?? '')}</td>
                             <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">{formatDateDisplay(String(row.date ?? ''))}</td>
                             <td className={`whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums ${cellTone(ageDays, { key: 'ageDays', label: 'อายุ (วัน)' }, 'wip')}`}>{ageDays}</td>
-                            <td className="whitespace-nowrap px-3 py-3 text-center text-slate-700">{String(row.branchName ?? '-')}</td>
-                            <td className="whitespace-nowrap px-3 py-3 text-center text-slate-700">{String(row.machineName ?? '-')}</td>
+                            <td className="ns-table-textual-column whitespace-nowrap px-3 py-3 text-left text-slate-700">{String(row.branchName ?? '-')}</td>
+                            <td className="ns-table-textual-column whitespace-nowrap px-3 py-3 text-left text-slate-700">{String(row.machineName ?? '-')}</td>
                             <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatMoney(Number(row.inputQty ?? 0))}</td>
                             <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatMoney(Number(row.outputQty ?? 0))}</td>
                             <td className="whitespace-nowrap px-3 py-3 text-right font-bold tabular-nums text-amber-700">{formatMoney(Number(row.wipQty ?? 0))}</td>
@@ -1494,8 +1495,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                     return (
                       <div key={String(row.id ?? index)} className={`bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3 ${wipAgeClass(ageDays)}`}>
                         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                          <span className="font-mono text-base font-bold text-slate-900">{String(row.docNo ?? '')}</span>
-                          <span className="text-sm text-slate-600 font-medium">{formatDateDisplay(String(row.date ?? ''))}</span>
+                          <span className="whitespace-nowrap font-mono text-base font-bold text-slate-900">{String(row.docNo ?? '')}</span>
+                          <span className="whitespace-nowrap text-sm font-medium text-slate-600">{formatDateDisplay(String(row.date ?? ''))}</span>
                         </div>
                         <div className="grid grid-cols-2 gap-y-3 gap-x-4">
                           <div>
@@ -1554,7 +1555,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                       <ResizableTableHead
                         key={column.key}
                         activeSortKey={sortKey}
-                        align={column.type === 'number' || column.type === 'money' || column.type === 'percent' ? 'right' : 'center'}
+                        align={column.key === 'name' ? 'left' : 'right'}
+                        className={column.key === 'name' ? 'ns-table-textual-column' : 'ns-table-numeric-header'}
                         direction={sortDir}
                         label={column.label}
                         resizeProps={productSummaryResize.getResizeHandleProps(column.key, column.label)}
@@ -1568,7 +1570,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                   {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={productSummaryTableColumns.length}>กำลังโหลดข้อมูล</td></tr> : null}
                   {!isLoading && pagedProductSummary.map((item) => (
                     <tr key={item.name} className="hover:bg-slate-50">
-                      <td className="px-3 py-3 text-center text-slate-700">{item.name}</td>
+                      <td className="ns-table-textual-column px-3 py-3 text-left text-slate-700">{item.name}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{item.count}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-emerald-700">{formatMoney(item.qty)}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatMoney(item.cost)}</td>
@@ -1628,14 +1630,12 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             </colgroup>
             <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
               <tr>
-                {config.columns.map((column, index) => (
+                {config.columns.map((column) => (
                   <ResizableTableHead
                     key={column.key}
                     activeSortKey={sortKey}
                     label={column.label}
-                    align={mode === 'report'
-                      ? column.type === 'money' || column.type === 'number' || column.type === 'percent' ? 'right' : 'center'
-                      : index === 0 ? 'left' : 'right'}
+                    align={productionTableColumnAlignment(column)}
                     direction={sortDir}
                     sortKey={column.key}
                     resizeProps={columnResize.getResizeHandleProps(column.key, column.label)}
@@ -1648,15 +1648,12 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={config.columns.length}>กำลังโหลดข้อมูล</td></tr> : null}
               {!isLoading && pagedFilteredRows.map((row, index) => (
                 <tr key={String(row.id ?? index)} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${mode === 'wip' ? wipAgeClass(Number(row.ageDays ?? 0)) : ''}`}>
-                  {config.columns.map((column, index) => {
-                    const isRightAligned = mode === 'report'
-                      ? column.type === 'money' || column.type === 'number' || column.type === 'percent'
-                      : index > 0
-                    const isCentered = mode === 'report' && !isRightAligned
+                  {config.columns.map((column) => {
+                    const alignment = productionTableColumnAlignment(column)
                     return (
                       <td
                         key={column.key}
-                        className={`whitespace-nowrap px-3 py-3 overflow-hidden truncate ${isRightAligned ? 'text-right font-medium tabular-nums text-slate-900' : isCentered ? 'text-center text-slate-700' : 'text-left text-slate-700'} ${cellTone(row[column.key], column, mode)}`}
+                        className={`px-3 py-3 ${alignment === 'right' ? 'whitespace-nowrap text-right font-medium tabular-nums text-slate-900' : alignment === 'center' ? `whitespace-nowrap text-center text-slate-700 ${column.key === 'docNo' ? 'font-mono' : ''}` : 'break-words text-left text-slate-700'} ${cellTone(row[column.key], column, mode)}`}
                       >
                         {formatDisplayCell(row, column, mode)}
                       </td>
@@ -1690,8 +1687,8 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                 className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <span className="font-mono text-base font-bold text-slate-900">{String(row.docNo ?? '')}</span>
-                  <span className="shrink-0 text-sm font-medium text-slate-500">{formatDateDisplay(String(row.date ?? ''))}</span>
+                  <span className="whitespace-nowrap font-mono text-base font-bold text-slate-900">{String(row.docNo ?? '')}</span>
+                  <span className="shrink-0 whitespace-nowrap text-sm font-medium text-slate-500">{formatDateDisplay(String(row.date ?? ''))}</span>
                 </div>
 
                 <div className="space-y-1.5 rounded-xl border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">
@@ -2098,11 +2095,22 @@ function formatProductionCostBreakdownCell(row: Row, column: Column) {
 }
 
 function productionCostBreakdownCellClass(column: Column) {
-  const align = column.type === 'money' || column.type === 'number' ? 'text-right font-mono whitespace-nowrap tabular-nums' : 'text-left'
+  const alignment = productionTableColumnAlignment(column)
+  const align = alignment === 'right'
+    ? 'text-right font-mono whitespace-nowrap tabular-nums'
+    : alignment === 'center'
+      ? 'text-center whitespace-nowrap'
+      : 'text-left'
   if (column.key === 'totalCost') return `${align} font-bold text-blue-700`
   if (column.key === 'outputQty') return `${align} font-semibold text-emerald-700`
   if (column.key === 'docNo') return `${align} font-mono text-slate-600`
   return `${align} text-slate-700`
+}
+
+function productionTableColumnAlignment(column: Column): 'center' | 'left' | 'right' {
+  if (column.type === 'money' || column.type === 'number' || column.type === 'percent') return 'right'
+  if (column.type === 'date' || column.key === 'docNo' || column.key === 'status') return 'center'
+  return 'left'
 }
 
 function dashboardTopProductValue(row: DashboardTopProduct, key: string) {

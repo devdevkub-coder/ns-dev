@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { Prisma } from '../../../generated/prisma/client'
 import { parseInternalBigIntId, stringifyBusinessValue } from '@/lib/business-code'
+import { isPurchaseBillActiveStatus } from '@/lib/purchase-bill-status'
 import { toNumber } from '@/lib/server/daily'
 import { syncPoBuyCostPoolEntries } from '@/lib/server/po-buy-cost-pool'
 
@@ -160,25 +161,13 @@ async function insertStatusLogs(
   }>,
 ) {
   if (entries.length === 0) return
-  const poBuyIds = [...new Set(entries.map((entry) => entry.poBuyId))]
-  const existingCounts = await Promise.all(
-    poBuyIds.map(async (poBuyId) => [
-      poBuyId,
-      await tx.po_buy_status_logs.count({ where: { po_buy_id: poBuyId } }),
-    ] as const),
-  )
-  const nextSequenceByPoId = new Map(existingCounts)
-
   for (const entry of entries) {
-    const nextSequence = (nextSequenceByPoId.get(entry.poBuyId) ?? 0) + 1
-    nextSequenceByPoId.set(entry.poBuyId, nextSequence)
-
     await tx.po_buy_status_logs.create({
       data: {
         action: entry.action,
         created_at: entry.createdAt ?? new Date(),
         created_by: entry.createdBy ?? null,
-        event_key: `POBLOG-${entry.poBuyDocNo}-${String(nextSequence).padStart(4, '0')}`,
+        event_key: `POBLOG-${entry.poBuyDocNo}-${randomUUID()}`,
         from_status: entry.fromStatus ?? null,
         ...(entry.meta !== undefined ? { meta: entry.meta } : {}),
         note: entry.note ?? null,
@@ -328,7 +317,7 @@ export async function reconcilePoBuys(
     tx.purchase_bill_po_allocations.findMany({
       include: {
         purchase_bill_items: { select: { product_id: true } },
-        purchase_bills: { select: { status: true } },
+        purchase_bills: { select: { doc_no: true, status: true } },
       },
       where: {
         allocation_status: 'active',
@@ -338,7 +327,7 @@ export async function reconcilePoBuys(
     }),
   ])
 
-  const activeAllocations = allocations.filter((allocation) => !String(allocation.purchase_bills.status ?? '').toLowerCase().includes('cancel'))
+  const activeAllocations = allocations.filter((allocation) => isPurchaseBillActiveStatus(allocation.purchase_bills.status, allocation.purchase_bills.doc_no))
   const allocationsByPo = new Map<bigint, { amount: number; qtyByProduct: Map<string, number> }>()
   activeAllocations.forEach((allocation) => {
     const current = allocationsByPo.get(allocation.po_buy_id) ?? { amount: 0, qtyByProduct: new Map<string, number>() }

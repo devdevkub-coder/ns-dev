@@ -94,7 +94,7 @@ export default async function SalesBillDetailPage({ params }: PageProps) {
                   {item.note ? <div className="mt-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">{item.note}</div> : null}
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                     <div><div className="text-xs text-slate-500">ที่มา</div><div className="mt-1 font-medium text-slate-900">{item.sourceLabel || '-'}</div><div className="text-xs text-slate-500">{item.sourceType || '-'}</div></div>
-                    <div><div className="text-xs text-slate-500">WTO / รถ</div><div className="mt-1 font-medium text-slate-900">{item.deliveryTicketDocNo || '-'}</div><div className="text-xs text-slate-500">{item.deliveryVehicleNo || '-'}</div></div>
+                    <div><div className="text-xs text-slate-500">WTO / รถ</div><div className="mt-1 text-center font-mono font-medium text-slate-900 whitespace-nowrap">{item.deliveryTicketDocNo || '-'}</div><div className="text-xs text-slate-500">{item.deliveryVehicleNo || '-'}</div></div>
                     <div><div className="text-xs text-slate-500">Gross</div><div className="mt-1 tabular-nums text-slate-900">{formatMoney(item.grossWeight)}</div></div>
                     <div><div className="text-xs text-slate-500">หัก</div><div className="mt-1 tabular-nums text-slate-900">{formatMoney(item.deductWeight)}</div></div>
                     <div><div className="text-xs text-slate-500">จำนวน</div><div className="mt-1 font-semibold tabular-nums text-slate-900">{formatMoney(item.qty || item.netWeight)} {item.unit}</div></div>
@@ -111,7 +111,7 @@ export default async function SalesBillDetailPage({ params }: PageProps) {
                   <tr>
                     <th className="px-3 py-2 text-left font-medium">สินค้า</th>
                     <th className="px-3 py-2 text-left font-medium">ที่มา</th>
-                    <th className="px-3 py-2 text-left font-medium">WTO / รถ</th>
+                    <th className="px-3 py-2 text-center font-medium">WTO / รถ</th>
                     <th className="px-3 py-2 text-right font-medium">Gross</th>
                     <th className="px-3 py-2 text-right font-medium">หัก</th>
                     <th className="px-3 py-2 text-right font-medium">จำนวน</th>
@@ -133,7 +133,7 @@ export default async function SalesBillDetailPage({ params }: PageProps) {
                         <div className="text-xs text-slate-500">{item.sourceType || '-'}</div>
                         {item.matchedCogs > 0 ? <div className="mt-1 text-xs text-red-600">Matched COGS {formatMoney(item.matchedCogs)}</div> : null}
                       </td>
-                      <td className="px-3 py-2 align-top">
+                      <td className="whitespace-nowrap px-3 py-2 text-center align-top font-mono">
                         <div>{item.deliveryTicketDocNo || '-'}</div>
                         <div className="text-xs text-slate-500">{item.deliveryVehicleNo || '-'}</div>
                       </td>
@@ -227,14 +227,14 @@ export default async function SalesBillDetailPage({ params }: PageProps) {
                             <div className="min-w-0">
                               <div className="font-medium text-slate-900">{fact.title}</div>
                               <div className="mt-1 text-xs text-slate-500">{[fact.type, fact.productName !== '-' ? fact.productName : null, fact.lineNo ? `line ${fact.lineNo}` : null].filter(Boolean).join(' · ')}</div>
-                              <div className="mt-2 font-mono text-xs text-slate-700">{fact.docNo || '-'}</div>
+                              <div className="mt-2 text-center font-mono text-xs text-slate-700 whitespace-nowrap">{fact.docNo || '-'}</div>
                             </div>
                             <span className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${fact.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{fact.status}</span>
                           </div>
                           <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                             <div><div className="text-slate-500">จำนวน</div><div className="mt-1 font-medium tabular-nums text-slate-900">{fact.qty ? `${formatMoney(fact.qty)} ${fact.unit}` : '-'}</div></div>
                             <div><div className="text-slate-500">มูลค่า/COGS</div><div className="mt-1 font-medium tabular-nums text-slate-900">{fact.amount ? formatMoney(fact.amount) : '-'}</div></div>
-                            <div className="col-span-2 text-slate-400">{formatDateTime(fact.createdAt)}</div>
+                            <div className="col-span-2 text-center text-slate-400 whitespace-nowrap">{formatDateTime(fact.createdAt)}</div>
                           </div>
                         </div>
                       ))}
@@ -244,25 +244,25 @@ export default async function SalesBillDetailPage({ params }: PageProps) {
                         <thead className="bg-slate-50 text-slate-600">
                           <tr>
                             <th className="px-3 py-2 text-left font-medium">รายการ</th>
-                            <th className="px-3 py-2 text-left font-medium">เอกสาร</th>
+                            <th className="px-3 py-2 text-center font-medium">เอกสาร</th>
                             <th className="px-3 py-2 text-right font-medium">จำนวน</th>
                             <th className="px-3 py-2 text-right font-medium">มูลค่า/COGS</th>
-                            <th className="px-3 py-2 text-left font-medium">สถานะ</th>
+                            <th className="px-3 py-2 text-center font-medium">สถานะ</th>
                           </tr>
                         </thead>
                         <tbody>
                           {bill.sourceUsageFacts.map((fact) => (
                             <tr key={fact.id} className="border-t border-slate-100">
-                              <td className="px-3 py-2 align-top">
+                              <td className="whitespace-nowrap px-3 py-2 align-top">
                                 <div className="font-medium text-slate-900">{fact.title}</div>
                                 <div className="text-slate-500">{[fact.type, fact.productName !== '-' ? fact.productName : null, fact.lineNo ? `line ${fact.lineNo}` : null].filter(Boolean).join(' · ')}</div>
                               </td>
-                              <td className="px-3 py-2 align-top font-mono text-xs text-slate-700">{fact.docNo || '-'}</td>
+                              <td className="whitespace-nowrap px-3 py-2 text-center align-top font-mono text-xs text-slate-700">{fact.docNo || '-'}</td>
                               <td className="px-3 py-2 text-right align-top tabular-nums">{fact.qty ? `${formatMoney(fact.qty)} ${fact.unit}` : '-'}</td>
                               <td className="px-3 py-2 text-right align-top tabular-nums">{fact.amount ? formatMoney(fact.amount) : '-'}</td>
-                              <td className="px-3 py-2 align-top">
+                              <td className="whitespace-nowrap px-3 py-2 text-center align-top">
                                 <span className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${fact.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{fact.status}</span>
-                                <div className="mt-1 text-xs text-slate-400">{formatDateTime(fact.createdAt)}</div>
+                                <div className="mt-1 text-center text-xs text-slate-400 whitespace-nowrap">{formatDateTime(fact.createdAt)}</div>
                               </td>
                             </tr>
                           ))}

@@ -11,7 +11,18 @@ import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 
 type AccountOption = { id: string; label: string; name: string }
-type ErpRow = { date: string; id: string; in: number; out: number; refNo: string; type: string }
+type ErpRow = {
+  bookAmountInThb: number
+  bookAmountOutThb: number
+  bookFxRate: number | null
+  currencyCode: string | null
+  date: string
+  id: string
+  nativeAmountIn: number
+  nativeAmountOut: number
+  refNo: string
+  type: string
+}
 type ImportedRow = { date: string; desc: string; id: string; in: number; matchStatus: string; out: number }
 type Payload = {
   designState: { importTable: string; matchState: string; writeBehavior: string }
@@ -31,14 +42,14 @@ const importedColumns: Array<ResizableColumnDefinition<ImportedColumnKey>> = [
   { key: 'matchStatus', defaultWidth: 100, minWidth: 80 },
 ]
 
-type ErpColumnKey = 'date' | 'type' | 'refNo' | 'in' | 'out'
+type ErpColumnKey = 'date' | 'type' | 'refNo' | 'bookAmountInThb' | 'bookAmountOutThb'
 
 const erpColumns: Array<ResizableColumnDefinition<ErpColumnKey>> = [
   { key: 'date', defaultWidth: 100, minWidth: 80 },
   { key: 'type', defaultWidth: 100, minWidth: 80 },
   { key: 'refNo', defaultWidth: 150, minWidth: 110 },
-  { key: 'in', defaultWidth: 120, minWidth: 95 },
-  { key: 'out', defaultWidth: 120, minWidth: 95 },
+  { key: 'bookAmountInThb', defaultWidth: 120, minWidth: 95 },
+  { key: 'bookAmountOutThb', defaultWidth: 120, minWidth: 95 },
 ]
 
 export function BankReconciliationPageClient() {
@@ -132,7 +143,6 @@ export function BankReconciliationPageClient() {
       const payload = await dailyFetchJson<Payload>(`/api/finance/foreign/bank-reconciliation${query ? `?${query}` : ''}`)
       if (latestLoadRequestRef.current !== requestId) return
       setData(payload)
-      if (!accountId && payload.filters.accounts[0]?.id) setAccountId(payload.filters.accounts[0].id)
     } catch (caught) {
       if (latestLoadRequestRef.current !== requestId) return
       setError(caught instanceof Error ? caught.message : 'โหลด Bank Reconciliation ไม่ได้')
@@ -335,7 +345,7 @@ function ImportedTable({
         </colgroup>
         <TableHeader>
           <TableRow>
-            <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={onSort} />
+            <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={onSort} />
             <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="รายละเอียด" resizeProps={columnResize.getResizeHandleProps('desc', 'รายละเอียด')} sortKey="desc" onSort={onSort} />
             <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="เข้า" resizeProps={columnResize.getResizeHandleProps('in', 'เข้า')} sortKey="in" onSort={onSort} />
             <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ออก" resizeProps={columnResize.getResizeHandleProps('out', 'ออก')} sortKey="out" onSort={onSort} />
@@ -359,16 +369,16 @@ function ImportedTable({
           ) : null}
           {!isLoading && rows.map((row) => (
             <TableRow key={row.id} className="hover:bg-slate-50/50 transition-colors">
-              <TableCell className="px-4 py-3.5 text-left text-slate-600 font-medium">
+              <TableCell className="whitespace-nowrap px-4 py-3.5 text-center text-slate-600 font-medium">
                 {formatDateDisplay(row.date)}
               </TableCell>
               <TableCell className="px-4 py-3.5 text-left text-slate-700 max-w-xs truncate" title={row.desc}>
                 {row.desc || '-'}
               </TableCell>
-              <TableCell className="px-4 py-3.5 text-right font-bold font-mono text-emerald-600">
+              <TableCell className="px-4 py-3.5 text-right font-bold font-mono tabular-nums text-emerald-600">
                 {row.in ? formatMoney(row.in) : '-'}
               </TableCell>
-              <TableCell className="px-4 py-3.5 text-right font-bold font-mono text-red-600">
+              <TableCell className="px-4 py-3.5 text-right font-bold font-mono tabular-nums text-red-600">
                 {row.out ? formatMoney(row.out) : '-'}
               </TableCell>
               <TableCell className="px-4 py-3.5 text-center">
@@ -394,7 +404,7 @@ function ImportedTable({
         {!isLoading && rows.map((row) => (
           <div key={row.id} className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm space-y-2 text-sm">
             <div className="flex justify-between items-start">
-              <span className="font-mono text-slate-500 text-xs">{formatDateDisplay(row.date)}</span>
+              <span className="whitespace-nowrap font-mono text-slate-500 text-xs">{formatDateDisplay(row.date)}</span>
               <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${row.matchStatus === 'Matched' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                 {row.matchStatus}
               </span>
@@ -446,11 +456,11 @@ function ErpTable({
         </colgroup>
         <TableHeader>
           <TableRow>
-            <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={onSort} />
-            <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={onSort} />
-            <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="Ref" resizeProps={columnResize.getResizeHandleProps('refNo', 'Ref')} sortKey="refNo" onSort={onSort} />
-            <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="เข้า" resizeProps={columnResize.getResizeHandleProps('in', 'เข้า')} sortKey="in" onSort={onSort} />
-            <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ออก" resizeProps={columnResize.getResizeHandleProps('out', 'ออก')} sortKey="out" onSort={onSort} />
+            <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={onSort} />
+            <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={onSort} />
+            <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="Ref" resizeProps={columnResize.getResizeHandleProps('refNo', 'Ref')} sortKey="refNo" onSort={onSort} />
+            <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="เข้า (THB)" resizeProps={columnResize.getResizeHandleProps('bookAmountInThb', 'เข้า (THB)')} sortKey="bookAmountInThb" onSort={onSort} />
+            <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ออก (THB)" resizeProps={columnResize.getResizeHandleProps('bookAmountOutThb', 'ออก (THB)')} sortKey="bookAmountOutThb" onSort={onSort} />
           </TableRow>
         </TableHeader>
         <TableBody className="divide-y divide-slate-100">
@@ -470,14 +480,14 @@ function ErpTable({
           ) : null}
           {!isLoading && rows.map((row) => (
             <TableRow key={row.id} className="hover:bg-slate-50/50 transition-colors">
-              <TableCell className="px-4 py-3.5 text-left text-slate-600 font-medium">{formatDateDisplay(row.date)}</TableCell>
-              <TableCell className="px-4 py-3.5 text-left text-slate-700">{row.type}</TableCell>
-              <TableCell className="px-4 py-3.5 text-left font-mono text-blue-600 font-medium">{row.refNo}</TableCell>
-              <TableCell className="px-4 py-3.5 text-right font-bold font-mono text-emerald-600">
-                {row.in ? formatMoney(row.in) : '-'}
+              <TableCell className="whitespace-nowrap px-4 py-3.5 text-center font-medium text-slate-600">{formatDateDisplay(row.date)}</TableCell>
+              <TableCell className="whitespace-nowrap px-4 py-3.5 text-center text-slate-700">{row.type}</TableCell>
+              <TableCell className="whitespace-nowrap px-4 py-3.5 text-center font-mono font-medium text-blue-600">{row.refNo}</TableCell>
+              <TableCell className="px-4 py-3.5 text-right tabular-nums font-bold font-mono text-emerald-600">
+                {row.bookAmountInThb ? formatMoney(row.bookAmountInThb) : '-'}
               </TableCell>
-              <TableCell className="px-4 py-3.5 text-right font-bold font-mono text-red-600">
-                {row.out ? formatMoney(row.out) : '-'}
+              <TableCell className="px-4 py-3.5 text-right tabular-nums font-bold font-mono text-red-600">
+                {row.bookAmountOutThb ? formatMoney(row.bookAmountOutThb) : '-'}
               </TableCell>
             </TableRow>
           ))}
@@ -495,18 +505,18 @@ function ErpTable({
         {!isLoading && rows.map((row) => (
           <div key={row.id} className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm space-y-2 text-sm">
             <div className="flex justify-between items-start">
-              <span className="font-mono text-slate-500 text-xs">{formatDateDisplay(row.date)}</span>
+              <span className="whitespace-nowrap font-mono text-slate-500 text-xs">{formatDateDisplay(row.date)}</span>
               <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{row.type}</span>
             </div>
-            <div className="font-mono text-xs text-blue-600 font-medium">Ref: {row.refNo}</div>
+            <div className="whitespace-nowrap font-mono text-xs text-blue-600 font-medium">Ref: {row.refNo}</div>
             <div className="flex justify-end gap-4 pt-2 border-t border-slate-100/60 text-right text-xs">
               <div>
                 <span className="text-xs text-slate-400 mr-1">เข้า:</span>
-                <span className="text-emerald-700 font-bold tabular-nums text-sm">{row.in ? formatMoney(row.in) : '-'}</span>
+                <span className="text-emerald-700 font-bold tabular-nums text-sm">{row.bookAmountInThb ? formatMoney(row.bookAmountInThb) : '-'}</span>
               </div>
               <div>
                 <span className="text-xs text-slate-400 mr-1">ออก:</span>
-                <span className="text-rose-700 font-bold tabular-nums text-sm">{row.out ? formatMoney(row.out) : '-'}</span>
+                <span className="text-rose-700 font-bold tabular-nums text-sm">{row.bookAmountOutThb ? formatMoney(row.bookAmountOutThb) : '-'}</span>
               </div>
             </div>
           </div>

@@ -9,10 +9,11 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { TableActionButton, TableActionMenuItem } from '@/components/ui/TableActionButton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
-import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader } from '@/components/ui/Dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader } from '@/components/ui/Dialog'
 import { Select } from '@/components/ui/Select'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { Bot, CircleAlert, Clock3, RefreshCw, Users, XCircle } from 'lucide-react'
+import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 
 // Validation Schema for credentials and basic configs
 const credentialsSchema = z.object({
@@ -334,6 +335,7 @@ function getJobSortValue(job: NotificationJob, key: JobColKey, targetNameById: M
 }
 
 export function LineSettingsPageClient() {
+  const { requestConfirmation } = useActionConfirmation()
   const [activeTab, setActiveTab] = useState<'overview' | 'credentials' | 'targets' | 'rules' | 'templates' | 'outbox' | 'analytics'>('overview')
 
   // Lists & data states
@@ -347,6 +349,7 @@ export function LineSettingsPageClient() {
     lineAutoSendWto: false,
     googleSheetsWebhookUrl: '',
   })
+  const [credentialsBaseline, setCredentialsBaseline] = useState<string | null>(null)
 
   const [targets, setTargets] = useState<Target[]>([])
   const [rules, setRules] = useState<RoutingRule[]>([])
@@ -380,17 +383,20 @@ export function LineSettingsPageClient() {
   // Target Modals / Forms state
   const [isTargetModalOpen, setIsTargetModalOpen] = useState(false)
   const [editingTarget, setEditingTarget] = useState<Partial<Target> | null>(null)
+  const [targetFormBaseline, setTargetFormBaseline] = useState<string | null>(null)
 
   // Rule Modals / Forms state
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false)
   const [editingRule, setEditingRule] = useState<Partial<RoutingRule> | null>(null)
   const [ruleFieldErrors, setRuleFieldErrors] = useState<{ documentTypes?: string; targetId?: string }>({})
+  const [ruleFormBaseline, setRuleFormBaseline] = useState<string | null>(null)
 
   // Template Modals / Forms state
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<Partial<MessageTemplate> | null>(null)
   const [templatePreviewJson, setTemplatePreviewJson] = useState<any | null>(null)
   const [previewDocNo, setPreviewDocNo] = useState('')
+  const [templateFormBaseline, setTemplateFormBaseline] = useState<string | null>(null)
 
   const getTemplateConfig = useCallback((template?: Partial<MessageTemplate> | null): TemplateConfig => {
     const defaults = createDefaultTemplateConfig()
@@ -426,6 +432,65 @@ export function LineSettingsPageClient() {
     })
   }, [getTemplateConfig])
 
+  const openTargetForm = useCallback((target: Partial<Target>) => {
+    setTargetFormBaseline(JSON.stringify(target))
+    setEditingTarget(target)
+    setIsTargetModalOpen(true)
+  }, [])
+  const closeTargetForm = useCallback(() => {
+    setIsTargetModalOpen(false)
+    setEditingTarget(null)
+    setTargetFormBaseline(null)
+  }, [])
+  const openRuleForm = useCallback((rule: Partial<RoutingRule>) => {
+    setRuleFormBaseline(JSON.stringify(rule))
+    setEditingRule(rule)
+    setIsRuleModalOpen(true)
+  }, [])
+  const closeRuleForm = useCallback(() => {
+    setIsRuleModalOpen(false)
+    setEditingRule(null)
+    setRuleFieldErrors({})
+    setRuleFormBaseline(null)
+  }, [])
+  const openTemplateForm = useCallback((template: Partial<MessageTemplate>) => {
+    setTemplateFormBaseline(JSON.stringify(template))
+    setEditingTemplate(template)
+    setIsTemplateModalOpen(true)
+  }, [])
+  const closeTemplateForm = useCallback(() => {
+    setIsTemplateModalOpen(false)
+    setEditingTemplate(null)
+    setTemplatePreviewJson(null)
+    setTemplateFormBaseline(null)
+  }, [])
+
+  const hasUnsavedCredentials = credentialsBaseline !== null && JSON.stringify(form) !== credentialsBaseline
+  const hasUnsavedTargetForm = Boolean(isTargetModalOpen && editingTarget && targetFormBaseline !== null && JSON.stringify(editingTarget) !== targetFormBaseline)
+  const hasUnsavedRuleForm = Boolean(isRuleModalOpen && editingRule && ruleFormBaseline !== null && JSON.stringify(editingRule) !== ruleFormBaseline)
+  const hasUnsavedTemplateForm = Boolean(isTemplateModalOpen && editingTemplate && templateFormBaseline !== null && JSON.stringify(editingTemplate) !== templateFormBaseline)
+  useUnsavedChangesGuard(hasUnsavedCredentials)
+  const { requestDiscard: requestDiscardTargetForm } = useUnsavedChangesGuard(hasUnsavedTargetForm)
+  const { requestDiscard: requestDiscardRuleForm } = useUnsavedChangesGuard(hasUnsavedRuleForm)
+  const { requestDiscard: requestDiscardTemplateForm } = useUnsavedChangesGuard(hasUnsavedTemplateForm)
+
+  const requestCloseTargetForm = useCallback(() => requestDiscardTargetForm(closeTargetForm), [closeTargetForm, requestDiscardTargetForm])
+  const requestCloseRuleForm = useCallback(() => requestDiscardRuleForm(closeRuleForm), [closeRuleForm, requestDiscardRuleForm])
+  const requestCloseTemplateForm = useCallback(() => requestDiscardTemplateForm(closeTemplateForm), [closeTemplateForm, requestDiscardTemplateForm])
+
+  useEffect(() => {
+    if (!isTargetModalOpen && !isTemplateModalOpen) return
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (document.querySelector('[role="dialog"]')) return
+      event.preventDefault()
+      if (isTargetModalOpen) requestCloseTargetForm()
+      if (isTemplateModalOpen) requestCloseTemplateForm()
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [isTargetModalOpen, isTemplateModalOpen, requestCloseTargetForm, requestCloseTemplateForm])
+
   // Outbox job details modal
   const [selectedJob, setSelectedJob] = useState<NotificationJob | null>(null)
 
@@ -447,6 +512,7 @@ export function LineSettingsPageClient() {
       const response = await fetch('/api/admin/line-settings', { cache: 'no-store' })
       const data = await response.json()
       setForm(data)
+      setCredentialsBaseline(JSON.stringify(data))
     } catch (err) {
       console.error('Failed to load line credentials settings', err)
     }
@@ -668,6 +734,7 @@ export function LineSettingsPageClient() {
       } else {
         setMessage('บันทึกข้อมูลการเชื่อมต่อสำเร็จ')
       }
+      setCredentialsBaseline(JSON.stringify(parsed.data))
       void loadCredentials()
       void loadBotInfo()
       void loadTargets()
@@ -747,12 +814,23 @@ export function LineSettingsPageClient() {
   }
 
   // TARGET CRUD Handlers
-  const handleSaveTarget = async (e: React.FormEvent) => {
+  const handleSaveTarget = async (e: React.FormEvent, confirmed = false) => {
     e.preventDefault()
     setError(null)
     setMessage(null)
     if (!editingTarget?.target_id || !editingTarget?.target_type || !editingTarget?.display_name) {
       setError('กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน')
+      return
+    }
+    const currentTarget = targets.find((target) => target.id === editingTarget.id)
+    if (!confirmed && currentTarget?.is_active && editingTarget.is_active === false) {
+      requestConfirmation({
+        title: 'ยืนยันการปิดใช้งานเป้าหมายผู้รับ',
+        description: 'การปิดใช้งานจะหยุดส่งการแจ้งเตือนไปยังเป้าหมายนี้',
+        confirmLabel: 'ยืนยันปิดใช้งาน',
+        destructive: true,
+        onConfirm: () => handleSaveTarget(e, true),
+      })
       return
     }
 
@@ -773,11 +851,11 @@ export function LineSettingsPageClient() {
       if (!res.ok) throw new Error(body.error || 'บันทึกเป้าหมายไม่สำเร็จ')
 
       setMessage(isEdit ? 'แก้ไขเป้าหมายผู้รับสำเร็จ' : 'เพิ่มเป้าหมายผู้รับสำเร็จ')
-      setIsTargetModalOpen(false)
-      setEditingTarget(null)
+      closeTargetForm()
       void loadTargets()
     } catch (caught) {
       setError(getErrorMessage(caught, 'บันทึกเป้าหมายขัดข้อง'))
+      if (confirmed) throw caught
     }
   }
 
@@ -815,8 +893,8 @@ export function LineSettingsPageClient() {
     }
   }
 
-  const handleDeleteTarget = async (id: string) => {
-    if (!confirm('ยืนยันลบเป้าหมายการรับข่าวสารนี้?')) return
+  const handleDeleteTarget = (id: string) => {
+    requestConfirmation({ title: 'ยืนยันการลบเป้าหมายผู้รับ', description: 'ต้องการลบเป้าหมายการรับข่าวสารนี้หรือไม่?', confirmLabel: 'ยืนยันลบ', destructive: true, onConfirm: async () => {
     setError(null)
     setMessage(null)
     try {
@@ -830,11 +908,14 @@ export function LineSettingsPageClient() {
       void loadTargets()
     } catch (caught) {
       setError(getErrorMessage(caught, 'ลบเป้าหมายขัดข้อง'))
+      throw caught
     }
+      },
+    })
   }
 
   // RULE CRUD Handlers
-  const handleSaveRule = async (e: React.FormEvent) => {
+  const handleSaveRule = async (e: React.FormEvent, confirmed = false) => {
     e.preventDefault()
     setError(null)
     setMessage(null)
@@ -858,6 +939,17 @@ export function LineSettingsPageClient() {
       requestAnimationFrame(() => {
         const fieldId = nextFieldErrors.documentTypes ? 'line-rule-document-types' : 'line-rule-target'
         document.getElementById(fieldId)?.focus()
+      })
+      return
+    }
+    const currentRule = rules.find((rule) => rule.id === editingRule.id)
+    if (!confirmed && currentRule?.is_active && editingRule.is_active === false) {
+      requestConfirmation({
+        title: 'ยืนยันการปิดใช้งานกฎส่งข่าวสาร',
+        description: 'การปิดใช้งานจะหยุดใช้กฎนี้สำหรับการส่งแจ้งเตือนใหม่',
+        confirmLabel: 'ยืนยันปิดใช้งาน',
+        destructive: true,
+        onConfirm: () => handleSaveRule(e, true),
       })
       return
     }
@@ -897,17 +989,16 @@ export function LineSettingsPageClient() {
       if (!res.ok) throw new Error(body.error || 'บันทึกกฎแจ้งเตือนไม่สำเร็จ')
 
       setMessage(isEdit ? 'แก้ไขกฎกระจายการแจ้งเตือนสำเร็จ' : 'เพิ่มกฎกระจายการแจ้งเตือนสำเร็จ')
-      setIsRuleModalOpen(false)
-      setEditingRule(null)
-      setRuleFieldErrors({})
+      closeRuleForm()
       void loadRules()
     } catch (caught) {
       setError(getErrorMessage(caught, 'บันทึกกฎขัดข้อง'))
+      if (confirmed) throw caught
     }
   }
 
-  const handleDeleteRule = async (id: string) => {
-    if (!confirm('ยืนยันลบกฎส่งข่าวสารนี้?')) return
+  const handleDeleteRule = (id: string) => {
+    requestConfirmation({ title: 'ยืนยันการลบกฎส่งข่าวสาร', description: 'ต้องการลบกฎส่งข่าวสารนี้หรือไม่?', confirmLabel: 'ยืนยันลบ', destructive: true, onConfirm: async () => {
     setError(null)
     setMessage(null)
     try {
@@ -921,7 +1012,10 @@ export function LineSettingsPageClient() {
       void loadRules()
     } catch (caught) {
       setError(getErrorMessage(caught, 'ลบกฎขัดข้อง'))
+      throw caught
     }
+      },
+    })
   }
 
   const handleSimulateRule = async () => {
@@ -950,12 +1044,23 @@ export function LineSettingsPageClient() {
   }
 
   // TEMPLATE CRUD Handlers
-  const handleSaveTemplate = async (e: React.FormEvent) => {
+  const handleSaveTemplate = async (e: React.FormEvent, confirmed = false) => {
     e.preventDefault()
     setError(null)
     setMessage(null)
     if (!editingTemplate?.name) {
       setError('กรุณากรอกข้อมูลให้จำเป็นให้ครบถ้วน')
+      return
+    }
+    const currentTemplate = templates.find((template) => template.id === editingTemplate.id)
+    if (!confirmed && currentTemplate?.is_active && editingTemplate.is_active === false) {
+      requestConfirmation({
+        title: 'ยืนยันการปิดใช้งานเทมเพลต',
+        description: 'การปิดใช้งานจะทำให้เทมเพลตนี้ไม่พร้อมใช้งานสำหรับการส่งแจ้งเตือนใหม่',
+        confirmLabel: 'ยืนยันปิดใช้งาน',
+        destructive: true,
+        onConfirm: () => handleSaveTemplate(e, true),
+      })
       return
     }
 
@@ -982,16 +1087,16 @@ export function LineSettingsPageClient() {
       if (!res.ok) throw new Error(body.error || 'บันทึกเทมเพลตไม่สำเร็จ')
 
       setMessage(isEdit ? 'แก้ไขเทมเพลตสำเร็จ' : 'เพิ่มเทมเพลตสำเร็จ')
-      setIsTemplateModalOpen(false)
-      setEditingTemplate(null)
+      closeTemplateForm()
       void loadTemplates()
     } catch (caught) {
       setError(getErrorMessage(caught, 'บันทึกเทมเพลตขัดข้อง'))
+      if (confirmed) throw caught
     }
   }
 
-  const handleDeleteTemplate = async (id: string) => {
-    if (!confirm('ยืนยันลบเทมเพลตนี้?')) return
+  const handleDeleteTemplate = (id: string) => {
+    requestConfirmation({ title: 'ยืนยันการลบเทมเพลต', description: 'ต้องการลบเทมเพลตนี้หรือไม่?', confirmLabel: 'ยืนยันลบ', destructive: true, onConfirm: async () => {
     setError(null)
     setMessage(null)
     try {
@@ -1005,7 +1110,10 @@ export function LineSettingsPageClient() {
       void loadTemplates()
     } catch (caught) {
       setError(getErrorMessage(caught, 'ลบเทมเพลตขัดข้อง'))
+      throw caught
     }
+      },
+    })
   }
 
   const handlePreviewTemplate = async () => {
@@ -1051,8 +1159,8 @@ export function LineSettingsPageClient() {
     }
   }
 
-  const handleCancelJob = async (id: string) => {
-    if (!confirm('ยืนยันยกเลิกและหยุดการส่งแจ้งเตือนคิวนี้?')) return
+  const handleCancelJob = (id: string) => {
+    requestConfirmation({ title: 'ยืนยันการยกเลิกคิวแจ้งเตือน', description: 'ต้องการยกเลิกและหยุดการส่งแจ้งเตือนคิวนี้หรือไม่?', confirmLabel: 'ยืนยันยกเลิก', destructive: true, onConfirm: async () => {
     setError(null)
     setMessage(null)
     try {
@@ -1066,7 +1174,10 @@ export function LineSettingsPageClient() {
       void loadJobs()
     } catch (caught) {
       setError(getErrorMessage(caught, 'ยกเลิกคิวงานขัดข้อง'))
+      throw caught
     }
+      },
+    })
   }
 
   // Column Resizer
@@ -1423,7 +1534,7 @@ export function LineSettingsPageClient() {
                   <button
                     className="px-3.5 py-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition focus:outline-none h-8"
                     onClick={() => {
-                      setEditingTarget({
+                    openTargetForm({
                         target_type: 'group',
                         display_name: '',
                         target_id: '',
@@ -1431,8 +1542,7 @@ export function LineSettingsPageClient() {
                         is_default: false,
                         notify_wti: true,
                         notify_wto: true
-                      })
-                      setIsTargetModalOpen(true)
+                    })
                     }}
                   >
                     ➕ เพิ่มกลุ่มแชทด้วยตนเอง
@@ -1491,6 +1601,7 @@ export function LineSettingsPageClient() {
                           resizeProps={targetResize.getResizeHandleProps('notifyWto', 'แจ้งเตือน WTO')}
                         />
                         <ResizableTableHead
+                          align="center"
                           label="สถานะ"
                           activeSortKey={targetSortKey ?? undefined}
                           direction={targetSortDirection}
@@ -1498,7 +1609,7 @@ export function LineSettingsPageClient() {
                           onSort={handleTargetSort}
                           resizeProps={targetResize.getResizeHandleProps('status', 'สถานะ')}
                         />
-                        <ResizableTableHead align="right" label="จัดการ" resizeProps={targetResize.getResizeHandleProps('actions', 'จัดการ')} />
+                        <ResizableTableHead align="center" label="จัดการ" resizeProps={targetResize.getResizeHandleProps('actions', 'จัดการ')} />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1531,7 +1642,7 @@ export function LineSettingsPageClient() {
                               {t.notify_wto ? 'รับข่าวสาร' : 'ข้าม'}
                             </span>
                           </td>
-                          <td className="px-3 py-3">
+                          <td className="whitespace-nowrap px-3 py-3 text-center">
                             {(() => {
                               const isLeft = !t.is_active && t.last_event_type === 'not_found'
                               const isDisabled = !t.is_active && !isLeft
@@ -1548,12 +1659,12 @@ export function LineSettingsPageClient() {
                               )
                             })()}
                           </td>
-                          <td className="px-3 py-3 text-right">
+                          <td className="whitespace-nowrap px-3 py-3 text-center">
                             <TableActionButton menu={(
                               <>
                                 <TableActionMenuItem onSelect={() => void handleTestTarget(t.target_id, t.id)}>ทดสอบส่ง</TableActionMenuItem>
                                 <TableActionMenuItem disabled={t.is_default} onSelect={() => void handleSetDefaultTarget(t.id)}>ตั้งดีฟอลต์</TableActionMenuItem>
-                                <TableActionMenuItem onSelect={() => { setEditingTarget(t); setIsTargetModalOpen(true) }}>แก้ไข</TableActionMenuItem>
+                                <TableActionMenuItem onSelect={() => openTargetForm(t)}>แก้ไข</TableActionMenuItem>
                                 <TableActionMenuItem onSelect={() => void handleDeleteTarget(t.id)}>ลบ</TableActionMenuItem>
                               </>
                             )} />
@@ -1625,7 +1736,7 @@ export function LineSettingsPageClient() {
                           <>
                             <TableActionMenuItem onSelect={() => void handleTestTarget(t.target_id, t.id)}>ทดสอบ</TableActionMenuItem>
                             <TableActionMenuItem disabled={t.is_default} onSelect={() => void handleSetDefaultTarget(t.id)}>ตั้งดีฟอลต์</TableActionMenuItem>
-                            <TableActionMenuItem onSelect={() => { setEditingTarget(t); setIsTargetModalOpen(true) }}>แก้ไข</TableActionMenuItem>
+                            <TableActionMenuItem onSelect={() => openTargetForm(t)}>แก้ไข</TableActionMenuItem>
                             <TableActionMenuItem onSelect={() => void handleDeleteTarget(t.id)}>ลบ</TableActionMenuItem>
                           </>
                         )} />
@@ -1651,7 +1762,7 @@ export function LineSettingsPageClient() {
                   className="px-3.5 py-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition focus:outline-none h-8"
                   onClick={() => {
                     setRuleFieldErrors({})
-                    setEditingRule({
+                    openRuleForm({
                       name: '',
                       priority: 100,
                       is_active: true,
@@ -1660,7 +1771,6 @@ export function LineSettingsPageClient() {
                       stop_after_match: true,
                       conditions: { documentTypes: [] }
                     })
-                    setIsRuleModalOpen(true)
                   }}
                 >
                   ➕ เพิ่มกฎใหม่
@@ -1711,6 +1821,7 @@ export function LineSettingsPageClient() {
                           resizeProps={ruleResize.getResizeHandleProps('stopAfter', 'หยุดเช็คเมื่อตรง')}
                         />
                         <ResizableTableHead
+                          align="center"
                           label="สถานะ"
                           activeSortKey={ruleSortKey ?? undefined}
                           direction={ruleSortDirection}
@@ -1718,7 +1829,7 @@ export function LineSettingsPageClient() {
                           onSort={handleRuleSort}
                           resizeProps={ruleResize.getResizeHandleProps('isActive', 'สถานะ')}
                         />
-                        <ResizableTableHead align="right" label="จัดการ" resizeProps={ruleResize.getResizeHandleProps('actions', 'จัดการ')} />
+                        <ResizableTableHead align="center" label="จัดการ" resizeProps={ruleResize.getResizeHandleProps('actions', 'จัดการ')} />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1744,15 +1855,15 @@ export function LineSettingsPageClient() {
                                 {r.stop_after_match ? 'หยุดตรวจต่อ' : 'ตรวจต่อ'}
                               </span>
                             </td>
-                            <td className="px-3 py-3">
+                            <td className="whitespace-nowrap px-3 py-3 text-center">
                               <span className={`px-1.5 py-0.5 rounded font-semibold ${r.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
                                 {r.is_active ? 'เปิดใช้งาน' : 'ปิด'}
                               </span>
                             </td>
-                            <td className="px-3 py-3 text-right">
+                            <td className="whitespace-nowrap px-3 py-3 text-center">
                               <TableActionButton menu={(
                                 <>
-                                  <TableActionMenuItem onSelect={() => { setRuleFieldErrors({}); setEditingRule(r); setIsRuleModalOpen(true) }}>แก้ไข</TableActionMenuItem>
+                                  <TableActionMenuItem onSelect={() => { setRuleFieldErrors({}); openRuleForm(r) }}>แก้ไข</TableActionMenuItem>
                                   <TableActionMenuItem onSelect={() => void handleDeleteRule(r.id)}>ลบ</TableActionMenuItem>
                                 </>
                               )} />
@@ -1810,8 +1921,7 @@ export function LineSettingsPageClient() {
                             <>
                               <TableActionMenuItem onSelect={() => {
                                 setRuleFieldErrors({})
-                                setEditingRule(r)
-                                setIsRuleModalOpen(true)
+                                openRuleForm(r)
                               }}>แก้ไข</TableActionMenuItem>
                               <TableActionMenuItem onSelect={() => void handleDeleteRule(r.id)}>ลบ</TableActionMenuItem>
                             </>
@@ -1841,7 +1951,7 @@ export function LineSettingsPageClient() {
                 <button
                   className="px-3.5 py-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition focus:outline-none h-8"
                   onClick={() => {
-                    setEditingTemplate({
+                    openTemplateForm({
                       name: '',
                       template_type: 'weight_ticket',
                       is_default_wti: false,
@@ -1849,7 +1959,6 @@ export function LineSettingsPageClient() {
                       is_active: true,
                       config: createDefaultTemplateConfig()
                     })
-                    setIsTemplateModalOpen(true)
                   }}
                 >
                   ➕ เพิ่มเทมเพลตใหม่
@@ -1886,8 +1995,7 @@ export function LineSettingsPageClient() {
                         type="button"
                         className="px-2.5 py-1 text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-md transition focus:outline-none h-7 flex items-center"
                         onClick={() => {
-                          setEditingTemplate(t)
-                          setIsTemplateModalOpen(true)
+                          openTemplateForm(t)
                           setTemplatePreviewJson(null)
                         }}
                       >
@@ -1980,6 +2088,7 @@ export function LineSettingsPageClient() {
                     <thead className="bg-slate-100 text-xs font-semibold text-slate-600 select-none">
                       <tr>
                         <ResizableTableHead
+                          align="center"
                           label="เวลาสร้างคิว"
                           activeSortKey={jobSortKey ?? undefined}
                           direction={jobSortDirection}
@@ -1988,6 +2097,7 @@ export function LineSettingsPageClient() {
                           resizeProps={jobResize.getResizeHandleProps('createdAt', 'เวลาสร้างคิว')}
                         />
                         <ResizableTableHead
+                          align="center"
                           label="เลขที่เอกสาร"
                           activeSortKey={jobSortKey ?? undefined}
                           direction={jobSortDirection}
@@ -2004,6 +2114,7 @@ export function LineSettingsPageClient() {
                           resizeProps={jobResize.getResizeHandleProps('target', 'กลุ่มไลน์ผู้รับ')}
                         />
                         <ResizableTableHead
+                          align="center"
                           label="สถานะคิว"
                           activeSortKey={jobSortKey ?? undefined}
                           direction={jobSortDirection}
@@ -2012,6 +2123,7 @@ export function LineSettingsPageClient() {
                           resizeProps={jobResize.getResizeHandleProps('status', 'สถานะคิว')}
                         />
                         <ResizableTableHead
+                          align="right"
                           label="จำนวนพยายาม"
                           activeSortKey={jobSortKey ?? undefined}
                           direction={jobSortDirection}
@@ -2019,7 +2131,7 @@ export function LineSettingsPageClient() {
                           onSort={handleJobSort}
                           resizeProps={jobResize.getResizeHandleProps('attempts', 'จำนวนพยายาม')}
                         />
-                        <ResizableTableHead align="right" label="จัดการ" resizeProps={jobResize.getResizeHandleProps('actions', 'จัดการ')} />
+                        <ResizableTableHead align="center" label="จัดการ" resizeProps={jobResize.getResizeHandleProps('actions', 'จัดการ')} />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -2028,10 +2140,10 @@ export function LineSettingsPageClient() {
                         const boundTarget = targets.find(t => t.target_id === job.target_id)
                         return (
                           <tr key={job.id} className="hover:bg-slate-50/50 transition-colors text-xs">
-                            <td className="px-3 py-3 text-slate-500">
+                            <td className="whitespace-nowrap px-3 py-3 text-center text-slate-500">
                               {dateStr}
                             </td>
-                            <td className="px-3 py-3 font-semibold text-slate-900">
+                            <td className="whitespace-nowrap px-3 py-3 text-center font-mono font-semibold text-slate-900">
                               <div className="flex flex-col">
                                 <span>{job.document_no}</span>
                                 <span className="text-xs text-slate-400 uppercase font-bold tracking-wider">{job.document_type}</span>
@@ -2041,7 +2153,7 @@ export function LineSettingsPageClient() {
                               <div className="font-semibold text-slate-800">{boundTarget?.display_name || 'ไม่ระบุกลุ่ม'}</div>
                               <div className="text-xs text-slate-400 font-mono mt-0.5 truncate">{job.target_id}</div>
                             </td>
-                            <td className="px-3 py-3">
+                            <td className="whitespace-nowrap px-3 py-3 text-center">
                               <span className={`px-2 py-0.5 rounded font-semibold text-xs ${job.status === 'sent' ? 'bg-emerald-50 text-emerald-700' :
                                   job.status === 'failed' ? 'bg-rose-50 text-rose-700' :
                                     job.status === 'processing' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500'
@@ -2054,10 +2166,10 @@ export function LineSettingsPageClient() {
                                 </p>
                               )}
                             </td>
-                            <td className="px-3 py-3 font-bold text-slate-600">
+                            <td className="whitespace-nowrap px-3 py-3 text-right font-bold tabular-nums text-slate-600">
                               {job.attempt_count} / {job.max_attempts}
                             </td>
-                            <td className="px-3 py-3 text-right">
+                            <td className="whitespace-nowrap px-3 py-3 text-center">
                               <TableActionButton menu={(
                                 <>
                                   <TableActionMenuItem onSelect={() => setSelectedJob(job)}>ดูประวัติยิง</TableActionMenuItem>
@@ -2093,8 +2205,8 @@ export function LineSettingsPageClient() {
                       <div key={job.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3 text-xs">
                         <div className="flex justify-between items-start">
                           <div>
-                            <span className="text-xs text-slate-400 block">{dateStr}</span>
-                            <h4 className="font-bold text-slate-900 mt-1">{job.document_no}</h4>
+                            <span className="block text-center text-xs text-slate-400 whitespace-nowrap">{dateStr}</span>
+                            <h4 className="mt-1 text-center font-mono font-bold text-slate-900 whitespace-nowrap">{job.document_no}</h4>
                             <span className="text-xs text-slate-400 uppercase font-bold tracking-wider">{job.document_type}</span>
                           </div>
                           <span className={`px-2 py-0.5 rounded font-semibold text-xs ${job.status === 'sent' ? 'bg-emerald-50 text-emerald-700' :
@@ -2219,7 +2331,7 @@ export function LineSettingsPageClient() {
 
       {/* Target Add/Edit Modal */}
       {isTargetModalOpen && editingTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 animate-fade-in" onMouseDown={(event) => { if (event.target === event.currentTarget) requestCloseTargetForm() }}>
           <div className="relative w-full max-w-md overflow-hidden rounded-md bg-slate-900 shadow-2xl animate-zoom-in">
             {/* Modal Header */}
             <div data-ns-dialog-header className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
@@ -2230,10 +2342,7 @@ export function LineSettingsPageClient() {
                 <button
                   type="button"
                   className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white transition hover:border-rose-700 hover:bg-rose-700 focus:outline-none"
-                  onClick={() => {
-                    setIsTargetModalOpen(false)
-                    setEditingTarget(null)
-                  }}
+                  onClick={requestCloseTargetForm}
                 >
                   ยกเลิก
                 </button>
@@ -2342,11 +2451,7 @@ export function LineSettingsPageClient() {
         <Dialog
           open={isRuleModalOpen}
           onOpenChange={(open) => {
-            setIsRuleModalOpen(open)
-            if (!open) {
-              setEditingRule(null)
-              setRuleFieldErrors({})
-            }
+            if (!open) requestCloseRuleForm()
           }}
         >
           <DialogContent
@@ -2620,14 +2725,13 @@ export function LineSettingsPageClient() {
                   onChange={(checked) => setEditingRule({ ...editingRule, is_active: checked })}
                 />
                 <div className="flex justify-end gap-2">
-                  <DialogClose asChild>
-                    <button
-                      type="button"
-                      className="h-9 rounded-md border border-slate-300 bg-white px-4 text-sm font-normal text-slate-700 transition hover:bg-slate-50 focus:outline-none"
-                    >
-                      ยกเลิก
-                    </button>
-                  </DialogClose>
+                  <button
+                    type="button"
+                    className="h-9 rounded-md border border-slate-300 bg-white px-4 text-sm font-normal text-slate-700 transition hover:bg-slate-50 focus:outline-none"
+                    onClick={requestCloseRuleForm}
+                  >
+                    ยกเลิก
+                  </button>
                   <button
                     type="submit"
                     className="h-9 rounded-md bg-slate-900 px-5 text-sm font-normal text-white transition hover:bg-slate-800 focus:outline-none"
@@ -2643,7 +2747,7 @@ export function LineSettingsPageClient() {
 
       {/* Template Add/Edit Modal & Live Preview */}
       {isTemplateModalOpen && editingTemplate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 animate-fade-in" onMouseDown={(event) => { if (event.target === event.currentTarget) requestCloseTemplateForm() }}>
           <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 shadow-2xl animate-zoom-in">
             <div data-ns-dialog-header className="flex flex-wrap items-start justify-between gap-3 rounded-t-md bg-slate-900 px-5 py-4 text-white">
               <h3 className="text-base font-bold">
@@ -2653,11 +2757,7 @@ export function LineSettingsPageClient() {
                 <button
                   type="button"
                   className="h-9 rounded-md border border-rose-600 bg-rose-600 px-4 text-sm font-normal text-white transition hover:border-rose-700 hover:bg-rose-700 focus:outline-none"
-                  onClick={() => {
-                    setIsTemplateModalOpen(false)
-                    setEditingTemplate(null)
-                    setTemplatePreviewJson(null)
-                  }}
+                  onClick={requestCloseTemplateForm}
                 >
                   ยกเลิก
                 </button>
