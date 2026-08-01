@@ -122,7 +122,7 @@ const blankAssetForm: AssetFormState = {
   warrantyExpireDate: '',
 }
 
-const fieldClass = 'w-full rounded-md border border-slate-100 px-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100'
+const fieldClass = 'h-10 w-full rounded-md border border-slate-100 px-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100'
 
 type DepreciationPayload = {
   designState: { glPosting: string; reverseWrite: string; runWrite: string }

@@ -349,9 +349,9 @@ export function DailyTransferPageClient() {
 
             {/* Desktop Filters */}
             <div className="hidden lg:flex flex-wrap items-center gap-2">
-              <DatePickerInput className="w-[130px]" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
+              <DatePickerInput className="h-9 w-[130px]" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
               <span className="text-slate-400">→</span>
-              <DatePickerInput className="w-[130px]" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
+              <DatePickerInput className="h-9 w-[130px]" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
               <Select className="h-9 w-auto" value={fromAccountId} onChange={(event) => setFromAccountId(event.target.value)}>
                 <option value="">ทุกบัญชีต้นทาง</option>
                 {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
@@ -460,9 +460,9 @@ export function DailyTransferPageClient() {
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput className="flex-1" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
+                  <DatePickerInput className="h-9 flex-1" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput className="flex-1" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
+                  <DatePickerInput className="h-9 flex-1" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
                 </div>
               </div>
 
@@ -793,7 +793,7 @@ function MoneyField(props: {
       {props.label}{props.required ? <span className="text-red-600"> *</span> : null}
       <Input
         aria-invalid={Boolean(props.error)}
-        className={`mt-1.5 h-9 text-right tabular-nums ${props.error ? 'border-red-400 bg-red-50' : ''}`}
+        className={`mt-1.5 h-10 text-right tabular-nums ${props.error ? 'border-red-400 bg-red-50' : ''}`}
         inputMode="decimal"
         required={props.required}
         type="text"

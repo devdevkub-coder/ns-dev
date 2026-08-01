@@ -71,7 +71,7 @@ export function CashOthersSummaryPageClient() {
     <section className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <label className="text-xs font-bold text-slate-500">ณ วันที่</label>
-        <DatePickerInput className="w-[140px]" value={asOf} onChange={setAsOf} />
+        <DatePickerInput className="h-9 w-[140px]" value={asOf} onChange={setAsOf} />
         <span className="flex-1" />
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">

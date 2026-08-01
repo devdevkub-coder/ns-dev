@@ -220,21 +220,21 @@ export function MatchLogPageClient() {
       <DualCostingFilterCard>
         <div className="flex flex-wrap items-center gap-2">
           <Input
-            className="min-w-[240px] flex-1 rounded-md"
+            className="h-9 min-w-[240px] flex-1 rounded-md"
             placeholder="ค้นหา match id / source / target..."
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-          <Select className="w-auto min-w-[160px]" value={matchType} onChange={(event) => setMatchType(event.target.value)}>
+          <Select className="h-9 w-auto min-w-[160px]" value={matchType} onChange={(event) => setMatchType(event.target.value)}>
             <option value="all">ทุก Match Type</option>
             {(data?.filters.matchTypes ?? []).map((item) => <option key={item} value={item}>{matchTypeLabel(item)}</option>)}
           </Select>
-          <Select className="w-auto min-w-[150px]" value={costType} onChange={(event) => setCostType(event.target.value)}>
+          <Select className="h-9 w-auto min-w-[150px]" value={costType} onChange={(event) => setCostType(event.target.value)}>
             <option value="all">ทุก Cost Type</option>
             {(data?.filters.costTypes ?? []).map((item) => <option key={item} value={item}>{costTypeLabel(item)}</option>)}
           </Select>
-          <Select className="w-auto min-w-[180px]" disabled={poSellOptions.length === 0} title="API ยังไม่มี po_sell_id แยก จึงกรองจาก target ที่ส่งมา" value={poSellTarget} onChange={(event) => setPoSellTarget(event.target.value)}>
+          <Select className="h-9 w-auto min-w-[180px]" disabled={poSellOptions.length === 0} title="API ยังไม่มี po_sell_id แยก จึงกรองจาก target ที่ส่งมา" value={poSellTarget} onChange={(event) => setPoSellTarget(event.target.value)}>
             <option value="all">ทุก PO Sell</option>
             {poSellOptions.map((target) => <option key={target} value={target}>{target}</option>)}
           </Select>

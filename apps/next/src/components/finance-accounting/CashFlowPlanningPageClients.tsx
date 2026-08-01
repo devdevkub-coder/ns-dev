@@ -430,7 +430,7 @@ export function CashFlowForecastCalendarPageClient({ initialFilters }: { initial
         >
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="cash-flow-forecast-start-mobile">เริ่มวันที่</label>
-            <DatePickerInput ariaLabel="เริ่มวันที่" className="w-full text-sm" id="cash-flow-forecast-start-mobile" value={mobileStartDate} onChange={setMobileStartDate} />
+            <DatePickerInput ariaLabel="เริ่มวันที่" className="h-9 w-full text-sm" id="cash-flow-forecast-start-mobile" value={mobileStartDate} onChange={setMobileStartDate} />
           </div>
 
           <div>

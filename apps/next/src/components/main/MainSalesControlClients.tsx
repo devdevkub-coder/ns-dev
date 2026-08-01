@@ -2526,10 +2526,10 @@ export function SalesCommissionPageClient() {
       <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
         <div className="grid items-end gap-3 md:grid-cols-3">
           <Field label="จากวันที่">
-            <DatePickerInput className="w-full mt-1" value={from} onChange={setFrom} />
+            <DatePickerInput className="mt-1 h-9 w-full" value={from} onChange={setFrom} />
           </Field>
           <Field label="ถึงวันที่">
-            <DatePickerInput className="w-full mt-1" value={to} onChange={setTo} />
+            <DatePickerInput className="mt-1 h-9 w-full" value={to} onChange={setTo} />
           </Field>
           <Field label="สาขา">
             <BranchSelectCombobox branches={data?.filters.branches ?? []} className="mt-1 w-full" controlSize="filter" inputId="commission-overview-branch-filter" label="" placeholder="ทั้งหมด" value={branchId || null} onChange={(value) => setBranchId(value ?? '')} />
@@ -2884,7 +2884,7 @@ function LmeEditableCard({ autoFilled = false, error, errorKey, label, manualOnl
       <input
         aria-invalid={Boolean(error)}
         aria-required={manualRequired ? 'true' : undefined}
-        className={`h-14 px-4 text-2xl font-extrabold ${readOnly ? salesPlanReadonlyNumberInputClass : salesPlanNumberInputClass} ${error ? 'border-red-400 bg-red-50 text-red-700 dark:border-red-500 dark:bg-red-950/20 dark:text-red-200' : ''}`}
+        className={`h-10 px-4 text-2xl font-extrabold ${readOnly ? salesPlanReadonlyNumberInputClass : salesPlanNumberInputClass} ${error ? 'border-red-400 bg-red-50 text-red-700 dark:border-red-500 dark:bg-red-950/20 dark:text-red-200' : ''}`}
         data-auto-filled={autoFilled ? 'true' : undefined}
         data-error-key={errorKey}
         disabled={readOnly}

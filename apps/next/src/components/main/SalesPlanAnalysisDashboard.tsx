@@ -170,11 +170,11 @@ export function SalesPlanAnalysisDashboard() {
         <div className="flex min-w-max items-end gap-2">
           <label className="flex shrink-0 flex-col gap-1 text-[11px] font-semibold text-slate-500" htmlFor="sales-plan-analysis-month">
             เดือน
-            <input className="h-8 w-[140px] rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-700" id="sales-plan-analysis-month" type="month" value={month} onChange={(event) => { setMonth(event.target.value); void load(event.target.value) }} />
+            <input className="h-9 w-[140px] rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-700" id="sales-plan-analysis-month" type="month" value={month} onChange={(event) => { setMonth(event.target.value); void load(event.target.value) }} />
           </label>
           <label className="flex shrink-0 flex-col gap-1 text-[11px] font-semibold text-slate-500">
             หมวด
-            <Select className="h-8 w-[150px] text-xs" value={group} onChange={(event) => setGroup(event.target.value)}>
+            <Select className="h-9 w-[150px] text-xs" value={group} onChange={(event) => setGroup(event.target.value)}>
               <option value="">ทุกหมวด</option>
               {groupOptions.map((value) => <option key={value} value={value}>{value}</option>)}
             </Select>
@@ -183,7 +183,7 @@ export function SalesPlanAnalysisDashboard() {
             สินค้า
             <SearchCombobox
               hideLabel
-              inputClassName="h-8 w-[300px] text-xs"
+              inputClassName="h-9 w-[300px] text-xs"
               inputId="sales-plan-analysis-product"
               label="สินค้า"
               options={productOptions}
@@ -192,8 +192,8 @@ export function SalesPlanAnalysisDashboard() {
               onChange={setProduct}
             />
           </div>
-          <button className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={isLoading} onClick={() => void load()} type="button"><RefreshCw className="size-3.5" />รีเฟรช</button>
-          {(group || product) ? <button className="h-8 shrink-0 rounded-md border border-slate-300 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50" onClick={() => { setGroup(''); setProduct('') }} type="button">ล้างตัวกรอง</button> : null}
+          <button className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={isLoading} onClick={() => void load()} type="button"><RefreshCw className="size-3.5" />รีเฟรช</button>
+          {(group || product) ? <button className="h-9 shrink-0 rounded-md border border-slate-300 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50" onClick={() => { setGroup(''); setProduct('') }} type="button">ล้างตัวกรอง</button> : null}
         </div>
       </div>
 

@@ -868,9 +868,9 @@ export function PoBuyPageClient() {
             onChange={(value) => setBranchFilter(value ?? '')}
           />
           <label className="text-xs text-slate-500">วันที่:</label>
-          <DatePickerInput id="po-buy-date-from" value={fromDate} onChange={setFromDate} />
+          <DatePickerInput className="h-9" id="po-buy-date-from" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
-          <DatePickerInput id="po-buy-date-to" value={toDate} onChange={setToDate} />
+          <DatePickerInput className="h-9" id="po-buy-date-to" value={toDate} onChange={setToDate} />
           {hasFilters ? <UiButton size="xs" type="button" variant="secondary" onClick={resetFilters}>✕ ล้าง</UiButton> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -994,9 +994,9 @@ export function PoBuyPageClient() {
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput className="flex-1" value={fromDate} onChange={setFromDate} />
+                  <DatePickerInput className="h-9 flex-1" value={fromDate} onChange={setFromDate} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput className="flex-1" value={toDate} onChange={setToDate} />
+                  <DatePickerInput className="h-9 flex-1" value={toDate} onChange={setToDate} />
                 </div>
               </div>
 
@@ -1554,7 +1554,7 @@ function SupplierSearchCombobox({
       error={error}
       inputId="po-buy-supplier-search"
       label="ผู้ขาย *"
-      inputClassName="!h-9 px-2 py-1.5"
+      inputClassName="!h-10 px-2 py-1.5"
       options={options.map((supplier) => ({
         id: supplier.id,
         label: optionLabel(supplier),
@@ -1734,7 +1734,7 @@ function PoBuyFormModal({
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             <div className="col-span-2 sm:col-span-1" data-field-invalid={errors.branchId ? 'true' : undefined}>
               <label className="mb-1 block text-xs">สาขา <span className="text-red-600">*</span></label>
-              <UiSelect aria-invalid={Boolean(errors.branchId)} className={`!h-9 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'}`} required value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
+              <UiSelect aria-invalid={Boolean(errors.branchId)} className={`!h-10 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'}`} required value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
                 <option disabled value="">เลือกสาขา</option>
                 {activeBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
               </UiSelect>
@@ -1753,7 +1753,7 @@ function PoBuyFormModal({
             </div>
             <div className="col-span-2 lg:col-span-1">
               <label className="mb-1 block text-xs">วันส่งมอบ <span className="text-red-600">*</span></label>
-              <DatePickerInput ariaInvalid={Boolean(errors.expectedDelivery)} className="!h-9 w-full" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
+              <DatePickerInput ariaInvalid={Boolean(errors.expectedDelivery)} className="!h-10 w-full" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
               {fieldError('expectedDelivery')}
             </div>
           </div>

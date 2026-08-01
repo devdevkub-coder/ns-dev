@@ -862,7 +862,7 @@ export function AdvancePaymentsPageClient() {
 
           <div className="space-y-3 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm" data-ns-field-scope="filter">
             <div className="flex flex-wrap items-center gap-2">
-              <Input className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหา ADV / ใบชั่งใหญ่ / ผู้ขาย / ทะเบียน..." type="search" value={q} onChange={(event) => { setQ(event.target.value); setPage(1) }} />
+              <Input className="h-9 min-w-[260px] flex-1 rounded-md" placeholder="ค้นหา ADV / ใบชั่งใหญ่ / ผู้ขาย / ทะเบียน..." type="search" value={q} onChange={(event) => { setQ(event.target.value); setPage(1) }} />
 
               {/* Mobile Filter Button */}
               <button
@@ -875,9 +875,9 @@ export function AdvancePaymentsPageClient() {
 
               <div className="hidden md:flex flex-wrap items-center gap-2">
                 <label className="text-xs text-slate-500">วันที่:</label>
-                <DatePickerInput ariaLabel="จากวันที่" id="advance-payments-date-from" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
+                <DatePickerInput ariaLabel="จากวันที่" className="h-9" id="advance-payments-date-from" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
                 <span className="text-slate-400">→</span>
-                <DatePickerInput ariaLabel="ถึงวันที่" id="advance-payments-date-to" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+                <DatePickerInput ariaLabel="ถึงวันที่" className="h-9" id="advance-payments-date-to" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
               </div>
 
               {hasActiveFilters ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
@@ -955,9 +955,9 @@ export function AdvancePaymentsPageClient() {
                   <div>
                     <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                     <div className="flex items-center gap-2">
-                      <DatePickerInput className="flex-1" ariaLabel="จากวันที่มือถือ" id="advance-payments-mobile-date-from" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
+                      <DatePickerInput className="h-9 flex-1" ariaLabel="จากวันที่มือถือ" id="advance-payments-mobile-date-from" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
                       <span className="text-slate-400">→</span>
-                      <DatePickerInput className="flex-1" ariaLabel="ถึงวันที่มือถือ" id="advance-payments-mobile-date-to" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+                      <DatePickerInput className="h-9 flex-1" ariaLabel="ถึงวันที่มือถือ" id="advance-payments-mobile-date-to" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
                     </div>
                   </div>
 

@@ -985,9 +985,9 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                   <div>
                     <span className="mb-1 block text-xs font-semibold text-slate-600">ช่วงวันที่</span>
                     <div className="flex items-center gap-2">
-                      <DatePickerInput className="flex-1" value={fromDateFilter} onChange={setFromDateFilter} />
+                      <DatePickerInput className="h-9 flex-1" value={fromDateFilter} onChange={setFromDateFilter} />
                       <span className="text-slate-400">→</span>
-                      <DatePickerInput className="flex-1" value={toDateFilter} onChange={setToDateFilter} />
+                      <DatePickerInput className="h-9 flex-1" value={toDateFilter} onChange={setToDateFilter} />
                     </div>
                   </div>
                 </>
@@ -1026,9 +1026,9 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                   <div>
                     <span className="mb-1 block text-xs font-semibold text-slate-600">ช่วงวันที่</span>
                     <div className="flex items-center gap-2">
-                      <DatePickerInput className="flex-1" value={statusFromDateFilter} onChange={setStatusFromDateFilter} />
+                      <DatePickerInput className="h-9 flex-1" value={statusFromDateFilter} onChange={setStatusFromDateFilter} />
                       <span className="text-slate-400">→</span>
-                      <DatePickerInput className="flex-1" value={statusToDateFilter} onChange={setStatusToDateFilter} />
+                      <DatePickerInput className="h-9 flex-1" value={statusToDateFilter} onChange={setStatusToDateFilter} />
                     </div>
                   </div>
                 </>
@@ -2066,10 +2066,10 @@ function Field(props: { disabled?: boolean; label: string; onChange: (value: str
     <label className="block text-xs font-semibold text-slate-600" data-manual-required={props.label.trim().endsWith('*') ? 'true' : undefined}>
       {props.label}
       {props.type === 'date' ? (
-        <DatePickerInput className="mt-1 h-9 w-full font-normal" value={props.value} onChange={props.onChange} />
+        <DatePickerInput className="mt-1 h-10 w-full font-normal" value={props.value} onChange={props.onChange} />
       ) : (
         <input
-          className={`mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed ${isNumberField ? '[appearance:textfield] text-right tabular-nums [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none' : ''}`}
+          className={`mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed ${isNumberField ? '[appearance:textfield] text-right tabular-nums [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none' : ''}`}
           disabled={props.disabled}
           inputMode={isNumberField ? 'decimal' : undefined}
           min={isNumberField ? 0 : undefined}

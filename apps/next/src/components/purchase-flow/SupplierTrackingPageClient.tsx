@@ -392,9 +392,9 @@ export function SupplierTrackingPageClient() {
               />
             </label>
             <label className="text-xs text-slate-500">วันที่:</label>
-            <DatePickerInput value={dateFrom} onChange={setDateFrom} />
+            <DatePickerInput className="h-9" value={dateFrom} onChange={setDateFrom} />
             <span className="text-slate-400">→</span>
-            <DatePickerInput value={dateTo} onChange={setDateTo} />
+            <DatePickerInput className="h-9" value={dateTo} onChange={setDateTo} />
             <Select
               className="h-9 w-[10rem] rounded-md border border-slate-300 bg-white px-3 text-sm"
               value={productCategory}
@@ -481,11 +481,11 @@ export function SupplierTrackingPageClient() {
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs font-semibold text-slate-500">
                   จากวันที่
-                  <DatePickerInput className="mt-1 w-full" value={dateFrom} onChange={setDateFrom} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={dateFrom} onChange={setDateFrom} />
                 </label>
                 <label className="text-xs font-semibold text-slate-500">
                   ถึงวันที่
-                  <DatePickerInput className="mt-1 w-full" value={dateTo} onChange={setDateTo} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={dateTo} onChange={setDateTo} />
                 </label>
               </div>
               <label className="block text-xs font-semibold text-slate-500">

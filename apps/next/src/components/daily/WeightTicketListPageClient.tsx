@@ -495,7 +495,7 @@ export function WeightTicketListPageClient() {
             <label className="relative block min-w-[260px] flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
               <Input
-                className="pl-9"
+                className="h-9 pl-9"
                 placeholder="ค้นหาเลขที่, ผู้ขาย/ลูกค้า, ทะเบียนรถ, สินค้า, สิ่งเจือปน"
                 value={query}
                 onChange={(event) => {
@@ -505,9 +505,9 @@ export function WeightTicketListPageClient() {
               />
             </label>
             <label className="text-xs text-slate-500">วันที่:</label>
-            <DatePickerInput value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
+            <DatePickerInput className="h-9" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
             <span className="text-slate-400">→</span>
-            <DatePickerInput value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+            <DatePickerInput className="h-9" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
             <BranchSelectCombobox
               allOptionLabel="ทุกสาขา"
               branches={branches.map((branch) => ({ id: branch.id, name: branch.label }))}
@@ -619,9 +619,9 @@ export function WeightTicketListPageClient() {
           <div>
             <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
             <div className="flex items-center gap-2">
-              <DatePickerInput className="flex-1" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
+              <DatePickerInput className="h-9 flex-1" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
               <span className="text-slate-400">→</span>
-              <DatePickerInput className="flex-1" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+              <DatePickerInput className="h-9 flex-1" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
             </div>
           </div>
 

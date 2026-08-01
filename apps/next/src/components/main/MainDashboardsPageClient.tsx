@@ -944,7 +944,7 @@ function OwnerDailyView({ data, date, setDate }: { data: MainPayload | null; dat
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <span className="text-xs font-semibold text-slate-600">ข้อมูลวันที่:</span>
         <button className={dateButtonClass} type="button" onClick={() => shiftDate(-1)}>← วันก่อน</button>
-        <DatePickerInput className="w-[140px]" value={date} onChange={setDate} />
+        <DatePickerInput className="h-9 w-[140px]" value={date} onChange={setDate} />
         <button className={`${dateButtonClass} disabled:cursor-not-allowed disabled:opacity-40`} disabled={isToday} type="button" onClick={() => shiftDate(1)}>วันถัดไป →</button>
         <button className={isToday ? 'h-9 rounded-md border border-slate-300 bg-slate-100 px-4 text-sm font-semibold text-slate-900 outline-none transition focus:ring-2 focus:ring-slate-200' : `${dateButtonClass} px-4`} type="button" onClick={() => setDate(today())}>วันนี้</button>
       </div>
@@ -1035,7 +1035,7 @@ function DailyReportView({ data, date, setDate }: { data: MainPayload | null; da
     <>
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <button className={dateButtonClass} type="button" onClick={() => shiftDate(-1)}>← วันก่อน</button>
-        <DatePickerInput className="w-[140px]" value={date} onChange={setDate} />
+        <DatePickerInput className="h-9 w-[140px]" value={date} onChange={setDate} />
         <button className={`${dateButtonClass} disabled:cursor-not-allowed disabled:opacity-40`} disabled={isToday} type="button" onClick={() => shiftDate(1)}>วันถัดไป →</button>
         <button className={isToday ? 'h-9 rounded-md border border-slate-300 bg-slate-100 px-4 text-sm font-semibold text-slate-900 outline-none transition focus:ring-2 focus:ring-slate-200' : `${dateButtonClass} px-4`} type="button" onClick={() => setDate(today())}>วันนี้</button>
       </div>

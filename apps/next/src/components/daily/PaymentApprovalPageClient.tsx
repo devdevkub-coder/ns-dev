@@ -698,7 +698,7 @@ export function PaymentApprovalPageClient() {
               <div className="col-span-12 md:col-span-6">
                 <label className="block text-xs text-slate-600">
                   {row.sourceType === 'petty_advance_return' ? 'บัญชีรับคืนของบริษัท' : 'ช่องทางจ่าย / บัญชีปลายทาง'}
-                  <Select className="mt-1 h-9" value={split.destinationId} onChange={(event) => updateSplit(split.id, { destinationId: event.target.value })}>
+                  <Select className="mt-1 h-10" value={split.destinationId} onChange={(event) => updateSplit(split.id, { destinationId: event.target.value })}>
                     <option value="">เลือกช่องทางจ่าย</option>
                     {destinationOptions.map((option) => (
                       <option key={option.id} value={option.id}>
@@ -712,7 +712,7 @@ export function PaymentApprovalPageClient() {
                 <label className="block text-xs text-slate-600">
                   ยอดอนุมัติ
                   <Input
-                    className="mt-1 h-9 text-right"
+                    className="mt-1 h-10 text-right"
                     inputMode="decimal"
                     type="text"
                     value={inputDrafts[split.id] ?? formatDecimalWithGrouping(split.amount)}
@@ -780,12 +780,12 @@ export function PaymentApprovalPageClient() {
         {/* Desktop Filters (Hidden on Mobile) */}
         <div className="hidden space-y-3 border-b border-slate-100 p-4 lg:block">
           <div className="flex flex-wrap items-center gap-2">
-            <Input className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหาเลขที่ / ชื่อ / ช่องทางจ่าย..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Input className="h-9 min-w-[260px] flex-1 rounded-md" placeholder="ค้นหาเลขที่ / ชื่อ / ช่องทางจ่าย..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <BranchSelectCombobox branches={data.branches} className="w-[12rem]" controlSize="filter" inputId="payment-approval-branch-filter" placeholder="ทุกสาขา" value={branchFilter || null} onChange={(value) => setBranchFilter(value ?? '')} />
             <label className="text-xs text-slate-500">วันที่:</label>
-            <DatePickerInput id="payment-approval-date-from" value={dateFrom} onChange={setDateFrom} />
+            <DatePickerInput className="h-9" id="payment-approval-date-from" value={dateFrom} onChange={setDateFrom} />
             <span className="text-slate-400">→</span>
-            <DatePickerInput id="payment-approval-date-to" value={dateTo} onChange={setDateTo} />
+            <DatePickerInput className="h-9" id="payment-approval-date-to" value={dateTo} onChange={setDateTo} />
             {hasCustomFilters ? <Button className="h-9" size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้างตัวกรอง</Button> : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -878,9 +878,9 @@ export function PaymentApprovalPageClient() {
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput className="flex-1" value={dateFrom} onChange={setDateFrom} />
+                  <DatePickerInput className="h-9 flex-1" value={dateFrom} onChange={setDateFrom} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput className="flex-1" value={dateTo} onChange={setDateTo} />
+                  <DatePickerInput className="h-9 flex-1" value={dateTo} onChange={setDateTo} />
                 </div>
               </div>
 

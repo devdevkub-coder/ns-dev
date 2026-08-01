@@ -2902,7 +2902,7 @@ export function LineSettingsPageClient() {
                         />
                         <input
                           type="text"
-                          className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                          className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
                           value={field.label}
                           disabled={!field.enabled}
                           onChange={(e) => updateEditingTemplateConfig((config) => ({
@@ -2956,7 +2956,7 @@ export function LineSettingsPageClient() {
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      className="w-full rounded border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                      className="h-10 w-full rounded border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-white focus:outline-none"
                       placeholder="เช่น WTI012606-0023"
                       value={previewDocNo}
                       onChange={(e) => setPreviewDocNo(e.target.value)}

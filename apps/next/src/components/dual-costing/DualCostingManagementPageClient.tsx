@@ -460,7 +460,7 @@ function WaitingAllocationsView() {
         {/* Desktop View */}
         <div className="hidden lg:block">
           <div className="flex flex-wrap items-center gap-2">
-            <Input className="min-w-[240px] flex-1 rounded-md border-slate-300 focus-visible:ring-blue-500/30" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Input className="h-9 min-w-[240px] flex-1 rounded-md border-slate-300 focus-visible:ring-blue-500/30" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <Select className="h-9 w-auto min-w-[160px] border-slate-300" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
             <div aria-label="กรองสถานะรายการรอจัดสรร" className="flex flex-wrap items-center gap-2" role="group">
               <span className="text-xs text-slate-500">สถานะ:</span>
@@ -485,7 +485,7 @@ function WaitingAllocationsView() {
         {/* Mobile View */}
         <div className="block lg:hidden space-y-2">
           <div className="flex gap-2">
-            <Input className="flex-1 h-10 rounded-md border-slate-300 focus-visible:ring-blue-500/30 text-sm" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Input className="h-9 flex-1 rounded-md border-slate-300 focus-visible:ring-blue-500/30 text-sm" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <button
               className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors ${
                 showMobileFilters ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
@@ -876,9 +876,9 @@ function AllocationLedgerView() {
           <div className="flex flex-wrap items-center gap-2">
             <Input className="h-9 min-w-[260px] flex-1 rounded-md border-slate-300" placeholder="ค้นหาเลขที่การจับคู่ / เอกสารขาย / เอกสารต้นทุน / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <span className="text-xs font-semibold text-slate-500">วันที่:</span>
-            <DatePickerInput id="allocation-ledger-from" value={fromDate} onChange={setFromDate} />
+            <DatePickerInput className="h-9" id="allocation-ledger-from" value={fromDate} onChange={setFromDate} />
             <span className="text-slate-400">→</span>
-            <DatePickerInput id="allocation-ledger-to" value={toDate} onChange={setToDate} />
+            <DatePickerInput className="h-9" id="allocation-ledger-to" value={toDate} onChange={setToDate} />
             <Select className="h-9 w-auto min-w-[130px] border-slate-300" value={targetType} onChange={(event) => setTargetType(event.target.value)}><option value="all">ทุกประเภทเป้าหมาย</option>{(data?.filters.targetTypes ?? []).map((item) => <option key={item} value={item}>{targetTypeLabel(item)}</option>)}</Select>
             <Select className="h-9 w-auto min-w-[130px] border-slate-300" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
             {hasActiveFilters ? (
@@ -964,8 +964,8 @@ function AllocationLedgerView() {
           <div>
             <span className="mb-1 block text-xs font-semibold text-slate-600">วันที่จัดสรร</span>
             <div className="grid grid-cols-2 gap-2">
-              <DatePickerInput ariaLabel="จากวันที่" className="min-w-0" value={mobileFilters.fromDate} onChange={(fromDate) => setMobileFilters((current) => ({ ...current, fromDate }))} />
-              <DatePickerInput ariaLabel="ถึงวันที่" className="min-w-0" value={mobileFilters.toDate} onChange={(toDate) => setMobileFilters((current) => ({ ...current, toDate }))} />
+              <DatePickerInput ariaLabel="จากวันที่" className="h-9 min-w-0" value={mobileFilters.fromDate} onChange={(fromDate) => setMobileFilters((current) => ({ ...current, fromDate }))} />
+              <DatePickerInput ariaLabel="ถึงวันที่" className="h-9 min-w-0" value={mobileFilters.toDate} onChange={(toDate) => setMobileFilters((current) => ({ ...current, toDate }))} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -1460,11 +1460,11 @@ function DualCostingReportView() {
                   <div className="grid grid-cols-2 gap-2">
                     <label className="text-xs font-semibold text-slate-500">
                       จากวันที่
-                      <DatePickerInput className="mt-1 w-full" value={fromDate} onChange={setFromDate} />
+                      <DatePickerInput className="mt-1 h-9 w-full" value={fromDate} onChange={setFromDate} />
                     </label>
                     <label className="text-xs font-semibold text-slate-500">
                       ถึงวันที่
-                      <DatePickerInput className="mt-1 w-full" value={toDate} onChange={setToDate} />
+                      <DatePickerInput className="mt-1 h-9 w-full" value={toDate} onChange={setToDate} />
                     </label>
                   </div>
                   <div className="flex justify-end pt-1">

@@ -384,9 +384,9 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
             </div>
             
             <span className="text-xs text-slate-500">วันที่บิล:</span>
-            <DatePickerInput className="w-[130px]" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
+            <DatePickerInput className="h-9 w-[130px]" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
             <span className="text-slate-400">→</span>
-            <DatePickerInput className="w-[130px]" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
+            <DatePickerInput className="h-9 w-[130px]" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
             
             {hasFilters && (
               <button className="rounded-md bg-slate-100 px-3 py-2 text-xs font-normal text-slate-700 hover:bg-slate-200 transition-colors" type="button" onClick={() => { setBranchId(''); setBucket(''); setFrom(''); setPage(1); setQ(''); setStatus(''); setSupplierId(''); setTo('') }}>✕ ล้าง</button>
@@ -424,7 +424,7 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
 
           <div className="relative w-full">
             <input
-              autoComplete="off" className="w-full rounded-md border px-3 py-2 text-sm pr-8"
+              autoComplete="off" className="h-9 w-full rounded-md border px-3 py-2 pr-8 text-sm"
               placeholder="ค้นหาเลขบิล / ผู้ขาย / สาขา..."
               type="search"
               value={q}
@@ -478,11 +478,11 @@ export function AccountsPayablePageClient({ initialFilters }: { initialFilters?:
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-slate-500">
                   วันที่บิลจาก
-                  <DatePickerInput className="mt-1 w-full" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
                 </label>
                 <label className="text-xs text-slate-500">
                   วันที่บิลถึง
-                  <DatePickerInput className="mt-1 w-full" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
                 </label>
               </div>
               <div className="flex justify-between items-center pt-1">

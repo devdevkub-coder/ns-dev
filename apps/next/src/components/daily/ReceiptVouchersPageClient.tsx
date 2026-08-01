@@ -615,7 +615,7 @@ export function ReceiptVouchersPageClient() {
         <div className="hidden lg:block rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center gap-2">
             <Input
-              className="min-w-[260px] flex-1 rounded-md"
+              className="h-9 min-w-[260px] flex-1 rounded-md"
               placeholder="ค้นเลขที่ RV / ผู้รับเงิน / บิลซื้อ / ทะเบียนรถ..."
               type="search"
               value={search}
@@ -624,9 +624,9 @@ export function ReceiptVouchersPageClient() {
 
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-500">วันที่ออกเอกสาร:</span>
-              <DatePickerInput id="receipt-vouchers-date-from" value={dateFrom} onChange={setDateFrom} />
+              <DatePickerInput className="h-9" id="receipt-vouchers-date-from" value={dateFrom} onChange={setDateFrom} />
               <span className="text-slate-400">→</span>
-              <DatePickerInput id="receipt-vouchers-date-to" value={dateTo} onChange={setDateTo} />
+              <DatePickerInput className="h-9" id="receipt-vouchers-date-to" value={dateTo} onChange={setDateTo} />
               <BranchSelectCombobox
                 branches={branchOptions.filter((branch) => branch.active).map((branch) => ({ id: branch.id, name: `${branch.code} · ${branch.name}` }))}
                 className="w-[12rem]"
@@ -673,7 +673,7 @@ export function ReceiptVouchersPageClient() {
         <div className="block lg:hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2">
             <Input
-              className="flex-1 min-w-0 rounded-md"
+              className="h-9 min-w-0 flex-1 rounded-md"
               placeholder="ค้นหาเลขที่ / ผู้รับ / บิลซื้อ..."
               type="search"
               value={search}
@@ -745,9 +745,9 @@ export function ReceiptVouchersPageClient() {
                 <div>
                   <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                   <div className="flex items-center gap-2">
-                    <DatePickerInput className="flex-1" id="receipt-vouchers-mobile-date-from" value={dateFrom} onChange={setDateFrom} />
+                    <DatePickerInput className="h-9 flex-1" id="receipt-vouchers-mobile-date-from" value={dateFrom} onChange={setDateFrom} />
                     <span className="text-slate-400">→</span>
-                    <DatePickerInput className="flex-1" id="receipt-vouchers-mobile-date-to" value={dateTo} onChange={setDateTo} />
+                    <DatePickerInput className="h-9 flex-1" id="receipt-vouchers-mobile-date-to" value={dateTo} onChange={setDateTo} />
                   </div>
                 </div>
           </MobileFilterSheet>
@@ -1021,7 +1021,7 @@ function ReceiptVoucherFormModal({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_180px]">
               <div className="col-span-1">
                 <FormField label="สาขา">
-                  <Select className="h-9 w-full" disabled={mode === 'edit'} value={form.branchId} onChange={(event) => onUpdateForm({ branchId: event.target.value, purchaseBillDocNo: '' })}>
+                  <Select className="h-10 w-full" disabled={mode === 'edit'} value={form.branchId} onChange={(event) => onUpdateForm({ branchId: event.target.value, purchaseBillDocNo: '' })}>
                     <option value="">เลือกสาขาก่อน</option>
                     {branchOptions.filter((branch) => branch.active).map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
                   </Select>
@@ -1030,7 +1030,7 @@ function ReceiptVoucherFormModal({
               <div className="sm:col-span-2 lg:col-span-1">
                 <SearchCombobox
                   disabled={mode === 'edit'}
-                  inputClassName="h-9 bg-white"
+                  inputClassName="h-10 bg-white"
                   inputId="rv-supplier"
                   label="Supplier"
                   options={supplierSearchOptions}
@@ -1043,7 +1043,7 @@ function ReceiptVoucherFormModal({
               <div className="col-span-1">
                 <SearchCombobox
                   disabled={mode === 'edit'}
-                  inputClassName="h-9 bg-white"
+                  inputClassName="h-10 bg-white"
                   inputId="rv-purchase-bill"
                   label="อ้างอิงบิลซื้อ"
                   options={purchaseBillSearchOptions}

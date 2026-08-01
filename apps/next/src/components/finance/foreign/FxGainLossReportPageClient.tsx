@@ -161,9 +161,9 @@ export function FxGainLossReportPageClient() {
         {/* Desktop View */}
         <div className="hidden lg:flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500">วันที่:</span>
-          <DatePickerInput ariaLabel="จากวันที่" className="w-[130px]" value={fromDate} onChange={setFromDate} />
+          <DatePickerInput ariaLabel="จากวันที่" className="h-9 w-[130px]" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
-          <DatePickerInput ariaLabel="ถึงวันที่" className="w-[130px]" value={toDate} onChange={setToDate} />
+          <DatePickerInput ariaLabel="ถึงวันที่" className="h-9 w-[130px]" value={toDate} onChange={setToDate} />
           
           <Select aria-label="สกุลเงิน" className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" value={currency} onChange={(event) => setCurrency(event.target.value)}>
             <option value="all">ทุกสกุล</option>
@@ -199,11 +199,11 @@ export function FxGainLossReportPageClient() {
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-slate-500">
                   จากวันที่
-                  <DatePickerInput className="mt-1 w-full" value={fromDate} onChange={setFromDate} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={fromDate} onChange={setFromDate} />
                 </label>
                 <label className="text-xs text-slate-500">
                   ถึงวันที่
-                  <DatePickerInput className="mt-1 w-full" value={toDate} onChange={setToDate} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={toDate} onChange={setToDate} />
                 </label>
               </div>
               <div className="grid grid-cols-2 gap-2">

@@ -507,11 +507,11 @@ export function PlStatementPageClient({ initialFilters }: { initialFilters?: { b
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="pl-statement-from-mobile">จากวันที่</label>
-                <DatePickerInput ariaLabel="จากวันที่" className="w-full text-sm" id="pl-statement-from-mobile" value={mobileFrom} onChange={setMobileFrom} />
+                <DatePickerInput ariaLabel="จากวันที่" className="h-9 w-full text-sm" id="pl-statement-from-mobile" value={mobileFrom} onChange={setMobileFrom} />
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="pl-statement-to-mobile">ถึงวันที่</label>
-                <DatePickerInput ariaLabel="ถึงวันที่" className="w-full text-sm" id="pl-statement-to-mobile" value={mobileTo} onChange={setMobileTo} />
+                <DatePickerInput ariaLabel="ถึงวันที่" className="h-9 w-full text-sm" id="pl-statement-to-mobile" value={mobileTo} onChange={setMobileTo} />
               </div>
             </div>
           ) : null}
@@ -700,7 +700,7 @@ export function BalanceSheetPageClient() {
         >
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="balance-sheet-as-of-mobile">ณ วันที่</label>
-            <DatePickerInput ariaLabel="ณ วันที่" className="w-full text-sm" id="balance-sheet-as-of-mobile" value={asOf} onChange={setAsOf} />
+            <DatePickerInput ariaLabel="ณ วันที่" className="h-9 w-full text-sm" id="balance-sheet-as-of-mobile" value={asOf} onChange={setAsOf} />
           </div>
 
           <div>
@@ -979,11 +979,11 @@ export function CashFlowStatementPageClient({ initialFilters }: { initialFilters
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="cash-flow-statement-from-mobile">จากวันที่</label>
-              <DatePickerInput ariaLabel="จากวันที่" className="w-full text-sm" id="cash-flow-statement-from-mobile" value={mobileFrom} onChange={setMobileFrom} />
+              <DatePickerInput ariaLabel="จากวันที่" className="h-9 w-full text-sm" id="cash-flow-statement-from-mobile" value={mobileFrom} onChange={setMobileFrom} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="cash-flow-statement-to-mobile">ถึงวันที่</label>
-              <DatePickerInput ariaLabel="ถึงวันที่" className="w-full text-sm" id="cash-flow-statement-to-mobile" value={mobileTo} onChange={setMobileTo} />
+              <DatePickerInput ariaLabel="ถึงวันที่" className="h-9 w-full text-sm" id="cash-flow-statement-to-mobile" value={mobileTo} onChange={setMobileTo} />
             </div>
           </div>
 
@@ -1129,7 +1129,7 @@ function FilterPanel({ children }: { children: ReactNode }) {
 }
 
 function DateInput({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
-  return <label className="flex items-center gap-2 text-xs text-slate-600"><span>{label}</span><DatePickerInput ariaLabel={label} className="w-[140px]" value={value} onChange={onChange} /></label>
+  return <label className="flex items-center gap-2 text-xs text-slate-600"><span>{label}</span><DatePickerInput ariaLabel={label} className="h-9 w-[140px]" value={value} onChange={onChange} /></label>
 }
 
 function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; onChange: (value: string) => void; value: string }) {

@@ -1754,7 +1754,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                 <div className="grid gap-4 text-sm md:grid-cols-[minmax(0,1fr)_220px]">
                   <label className="text-sm font-medium text-slate-700">
                     ชื่อหน้าที่งาน *
-                    <input aria-invalid={Boolean(roleFormError && !roleForm.name.trim())} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-slate-500" required value={roleForm.name} onChange={(event) => setRoleForm((current) => ({ ...current, name: event.target.value }))} />
+                    <input aria-invalid={Boolean(roleFormError && !roleForm.name.trim())} className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-slate-500" required value={roleForm.name} onChange={(event) => setRoleForm((current) => ({ ...current, name: event.target.value }))} />
                   </label>
                   <label className="text-sm font-medium text-slate-700">
                     ขอบเขตสาขา

@@ -217,9 +217,9 @@ export function DealMarginPageClient() {
         <div className="hidden lg:block">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold text-slate-500">วันที่เอกสาร:</span>
-            <DatePickerInput id="deal-margin-from" value={fromDate} onChange={setFromDate} />
+            <DatePickerInput className="h-9" id="deal-margin-from" value={fromDate} onChange={setFromDate} />
             <span className="text-slate-400">→</span>
-            <DatePickerInput id="deal-margin-to" value={toDate} onChange={setToDate} />
+            <DatePickerInput className="h-9" id="deal-margin-to" value={toDate} onChange={setToDate} />
             <Select className="w-auto min-w-[180px] h-9 border-slate-300" value={channel} onChange={(event) => setChannel(event.target.value)}>
               <option value="all">ทุกช่องทาง</option>
               {(data?.filters.channels ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
@@ -255,11 +255,11 @@ export function DealMarginPageClient() {
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-slate-500 font-semibold">
                   จากวันที่
-                  <DatePickerInput className="mt-1 w-full" value={fromDate} onChange={setFromDate} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={fromDate} onChange={setFromDate} />
                 </label>
                 <label className="text-xs text-slate-500 font-semibold">
                   ถึงวันที่
-                  <DatePickerInput className="mt-1 w-full" value={toDate} onChange={setToDate} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={toDate} onChange={setToDate} />
                 </label>
               </div>
               <label className="text-xs text-slate-500 font-semibold">

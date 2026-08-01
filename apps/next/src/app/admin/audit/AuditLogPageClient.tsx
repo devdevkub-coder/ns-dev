@@ -331,7 +331,7 @@ export function AuditLogPageClient() {
 
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">Event Type</span>
-                <input className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" list="audit-event-types-mobile" placeholder="เช่น app_user.updated" value={eventType} onChange={(event) => {
+                <input className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" list="audit-event-types-mobile" placeholder="เช่น app_user.updated" value={eventType} onChange={(event) => {
                   setEventType(event.target.value)
                   setPage(1)
                 }} />
@@ -354,7 +354,7 @@ export function AuditLogPageClient() {
 
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ผู้ทำรายการ</span>
-                <input className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" placeholder="email/ชื่อแสดง" value={actor} onChange={(event) => {
+                <input className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" placeholder="email/ชื่อแสดง" value={actor} onChange={(event) => {
                   setActor(event.target.value)
                   setPage(1)
                 }} />
@@ -362,7 +362,7 @@ export function AuditLogPageClient() {
 
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">เป้าหมาย</span>
-                <input className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" placeholder="email/ชื่อแสดง" value={target} onChange={(event) => {
+                <input className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" placeholder="email/ชื่อแสดง" value={target} onChange={(event) => {
                   setTarget(event.target.value)
                   setPage(1)
                 }} />

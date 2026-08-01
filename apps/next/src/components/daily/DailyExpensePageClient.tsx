@@ -1599,9 +1599,9 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                   <div>
                     <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                     <div className="flex items-center gap-2">
-                      <DatePickerInput className="flex-1" value={dateFrom} onChange={setDateFrom} />
+                      <DatePickerInput className="h-9 flex-1" value={dateFrom} onChange={setDateFrom} />
                       <span className="text-slate-400">→</span>
-                      <DatePickerInput className="flex-1" value={dateTo} onChange={setDateTo} />
+                      <DatePickerInput className="h-9 flex-1" value={dateTo} onChange={setDateTo} />
                     </div>
                   </div>
 
@@ -1829,13 +1829,13 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                         </label>
                         <label className="block" data-field="discount">
                           <span className="mb-1 block text-xs font-medium text-slate-600">Discount</span>
-                          <MoneyInputControl className="h-9 text-sm" error={fieldErrors.discount} value={Number(form.discount) || 0} onChange={(value) => setForm({ ...form, discount: value })} />
+                          <MoneyInputControl className="!h-10 text-sm" error={fieldErrors.discount} value={Number(form.discount) || 0} onChange={(value) => setForm({ ...form, discount: value })} />
                           {fieldErrors.discount ? <span className="mt-1 block text-xs text-red-700">{fieldErrors.discount}</span> : null}
                         </label>
                         {selectedPaymentMethodGroup === 'cash' ? null : (
                           <label className="block" data-field="bankFee">
                             <span className="mb-1 block text-xs font-medium text-slate-600">Bank fee</span>
-                            <MoneyInputControl className="h-9 text-sm" error={fieldErrors.bankFee} value={Number(form.bankFee) || 0} onChange={(value) => setForm({ ...form, bankFee: value })} />
+                            <MoneyInputControl className="!h-10 text-sm" error={fieldErrors.bankFee} value={Number(form.bankFee) || 0} onChange={(value) => setForm({ ...form, bankFee: value })} />
                             {fieldErrors.bankFee ? <span className="mt-1 block text-xs text-red-700">{fieldErrors.bankFee}</span> : null}
                           </label>
                         )}
@@ -2383,7 +2383,7 @@ function PayeeField(props: { error?: string; onChange: (value: string) => void; 
       <input
         aria-invalid={Boolean(props.error)}
         autoComplete="off"
-        className={`h-9 w-full rounded-md border px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 bg-white text-slate-900'}`}
+        className={`h-10 w-full rounded-md border px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 bg-white text-slate-900'}`}
         list="expense-payee-options"
         placeholder="ค้นหา Supplier"
         required
@@ -2407,8 +2407,8 @@ function TextField(props: { error?: string; fieldName?: string; label: string; o
     <label className="block" data-field={props.fieldName}>
       <span className="mb-1 block text-xs font-medium text-slate-600">{props.label}{renderRequiredMark(props.required)}</span>
       {props.type === 'date'
-        ? <DatePickerInput ariaInvalid={Boolean(props.error)} className={`h-9 w-full ${props.error ? 'border-red-400 bg-red-50' : ''}`} readOnly={props.readOnly} required={props.required} value={props.value} onChange={(value) => props.onChange?.(value)} />
-        : <input aria-invalid={Boolean(props.error)} className={`h-9 w-full rounded-md border px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300'} ${props.readOnly ? 'bg-slate-50 text-slate-500' : 'bg-white text-slate-900'}`} readOnly={props.readOnly} required={props.required} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange?.(event.target.value)} />}
+        ? <DatePickerInput ariaInvalid={Boolean(props.error)} className={`h-10 w-full ${props.error ? 'border-red-400 bg-red-50' : ''}`} readOnly={props.readOnly} required={props.required} value={props.value} onChange={(value) => props.onChange?.(value)} />
+        : <input aria-invalid={Boolean(props.error)} className={`h-10 w-full rounded-md border px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300'} ${props.readOnly ? 'bg-slate-50 text-slate-500' : 'bg-white text-slate-900'}`} readOnly={props.readOnly} required={props.required} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange?.(event.target.value)} />}
       {props.error ? <span className="mt-1 block text-xs text-red-700">{props.error}</span> : null}
     </label>
   )

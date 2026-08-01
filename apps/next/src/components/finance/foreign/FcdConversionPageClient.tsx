@@ -118,15 +118,15 @@ export function FcdConversionPageClient() {
   return <section className="space-y-4" data-ns-field-scope="entry">
     {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div> : null}
     <div className="grid gap-3 rounded-md border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-3">
-      <Field label="วันที่แลกเงินจริง"><DatePickerInput className="h-9 w-full" value={form.conversionDate} onChange={(value) => setForm({ ...form, conversionDate: value })} /></Field>
+      <Field label="วันที่แลกเงินจริง"><DatePickerInput className="h-10 w-full" value={form.conversionDate} onChange={(value) => setForm({ ...form, conversionDate: value })} /></Field>
       <Field label="สาขา"><Select value={form.branchCode} onChange={(event) => setForm({ ...form, branchCode: event.target.value })}><option value="">เลือกสาขา</option>{(data?.filters.branches ?? []).map((branch) => <option key={branch.code} value={branch.code}>{branch.code} - {branch.name}</option>)}</Select></Field>
       <Field label="บัญชี FCD และสกุลเงิน"><Select value={form.source} onChange={(event) => setForm({ ...form, source: event.target.value })}><option value="">เลือกบัญชี FCD</option>{(data?.filters.sourceAccounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.label}</option>)}</Select></Field>
       <Field label={`ยอดที่แลก (${source?.currency ?? '-'})`}><MoneyInput value={form.nativeAmount} onChange={(nativeAmount) => setForm({ ...form, nativeAmount })} /></Field>
       <Field label={`บัญชีรับ ${data?.filters.functionalCurrencyCode ?? '-'}`}><Select value={form.destinationAccountCode} onChange={(event) => setForm({ ...form, destinationAccountCode: event.target.value })}><option value="">เลือกบัญชีปลายทาง</option>{(data?.filters.destinationAccounts ?? []).map((account) => <option key={account.id} value={account.code}>{account.label}</option>)}</Select></Field>
       <Field label={`ยอด ${data?.filters.functionalCurrencyCode ?? '-'} เข้าบัญชีจริง (หลังหัก fee)`}><MoneyInput value={form.actualThbReceived} onChange={(actualThbReceived) => setForm({ ...form, actualThbReceived })} /></Field>
       <Field label="ค่าธรรมเนียมธนาคาร"><MoneyInput value={form.bankFeeThb} onChange={(bankFeeThb) => setForm({ ...form, bankFeeThb })} /></Field>
-      <Field label="เลขอ้างอิงธนาคาร"><input className="h-9 w-full rounded-md border border-slate-300 px-2 text-sm" value={form.bankReference} onChange={(event) => setForm({ ...form, bankReference: event.target.value })} /></Field>
-      <div className="flex items-end"><button className="h-9 w-full rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={saving} type="button" onClick={() => void submit()}>บันทึกการแลกเงิน</button></div>
+      <Field label="เลขอ้างอิงธนาคาร"><input className="h-10 w-full rounded-md border border-slate-300 px-2 text-sm" value={form.bankReference} onChange={(event) => setForm({ ...form, bankReference: event.target.value })} /></Field>
+      <div className="flex items-end"><button className="h-10 w-full rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={saving} type="button" onClick={() => void submit()}>บันทึกการแลกเงิน</button></div>
     </div>
     {source ? <div className="grid gap-3 rounded-md border border-blue-200 bg-blue-50 p-4 text-sm md:grid-cols-5"><Fact label={`คงเหลือ ${source.currency}`} value={formatMoney(ledger?.summary.foreignBalance ?? 0)} /><Fact label="Carrying THB" value={formatMoney(ledger?.summary.thbBalance ?? 0)} /><Fact label="Carrying rate" value={ledger?.summary.valuation.weightedCarryingRate?.toFixed(3) ?? '-'} /><Fact label="Effective conversion rate" value={effectiveConversionRate?.toFixed(3) ?? '-'} /><Fact label="กำไร/(ขาดทุน) ที่คาด" value={realizedDifference == null ? '-' : formatMoney(realizedDifference)} /></div> : null}
     {columnResize.hasCustomWidths ? <div className="flex justify-end"><button className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</button></div> : null}
@@ -153,7 +153,7 @@ export function FcdConversionPageClient() {
 
 function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="space-y-1 text-sm font-medium text-slate-700"><span>{label}</span>{children}</label> }
 function Fact({ label, value }: { label: string; value: string }) { return <div><div className="text-slate-500">{label}</div><div className="font-semibold tabular-nums text-slate-900">{value}</div></div> }
-function MoneyInput({ value, onChange }: { value: string; onChange: (value: string) => void }) { return <input className="h-9 w-full rounded-md border border-slate-300 px-2 text-right tabular-nums" inputMode="decimal" value={value} onChange={(event) => onChange(event.target.value)} /> }
+function MoneyInput({ value, onChange }: { value: string; onChange: (value: string) => void }) { return <input className="h-10 w-full rounded-md border border-slate-300 px-2 text-right tabular-nums" inputMode="decimal" value={value} onChange={(event) => onChange(event.target.value)} /> }
 
 function conversionSortValue(row: ConversionRow, key: ConversionColumnKey): number | string {
   if (key === 'actualThbReceived') return row.actualThbReceived

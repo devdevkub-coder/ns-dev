@@ -160,7 +160,7 @@ export function CashPositionPageClient() {
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="flex flex-wrap items-end gap-2 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
-        <DatePickerInput ariaLabel="ณ วันที่" className="w-36" value={asOf} onChange={setAsOf} />
+        <DatePickerInput ariaLabel="ณ วันที่" className="h-9 w-36" value={asOf} onChange={setAsOf} />
         <BranchSelectCombobox allOptionLabel="ทุกสาขาที่มีสิทธิ์" branches={data?.filters.branches ?? []} className="w-[12rem]" controlSize="filter" includeAllOption inputId="cash-position-branch-filter" label="" placeholder="ทุกสาขาที่มีสิทธิ์" value={branchId === 'ALL' ? null : branchId} onChange={(value) => setBranchId(value ?? 'ALL')} />
         <Select aria-label="กลุ่มบัญชี" className="h-9 w-40 text-sm" value={accountGroup} onChange={(event) => setAccountGroup(event.target.value)}>
           <option value="ALL">ทุกบัญชีเงิน</option>

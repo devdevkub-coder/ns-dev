@@ -100,9 +100,9 @@ export function CompareMarginPageClient() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-slate-500 font-semibold">วันที่:</span>
-              <DatePickerInput id="compare-margin-from" value={fromDate} onChange={setFromDate} />
+              <DatePickerInput className="h-9" id="compare-margin-from" value={fromDate} onChange={setFromDate} />
               <span className="text-slate-400">→</span>
-              <DatePickerInput id="compare-margin-to" value={toDate} onChange={setToDate} />
+              <DatePickerInput className="h-9" id="compare-margin-to" value={toDate} onChange={setToDate} />
               {hasActiveFilters ? <Button size="xs" type="button" variant="secondary" className="h-9 rounded-md" onClick={() => { setFromDate(''); setToDate('') }}>✕ ล้าง</Button> : null}
             </div>
             <div className="text-xs text-slate-500 font-semibold">ช่วงวันที่มีผลกับทั้ง deal และ sales bill comparison</div>
@@ -128,11 +128,11 @@ export function CompareMarginPageClient() {
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-slate-500 font-semibold">
                   จากวันที่
-                  <DatePickerInput className="mt-1 w-full" value={fromDate} onChange={setFromDate} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={fromDate} onChange={setFromDate} />
                 </label>
                 <label className="text-xs text-slate-500 font-semibold">
                   ถึงวันที่
-                  <DatePickerInput className="mt-1 w-full" value={toDate} onChange={setToDate} />
+                  <DatePickerInput className="mt-1 h-9 w-full" value={toDate} onChange={setToDate} />
                 </label>
               </div>
               <div className="text-xs text-slate-500 mt-1 font-semibold">ช่วงวันที่มีผลกับทั้ง deal และ sales bill comparison</div>

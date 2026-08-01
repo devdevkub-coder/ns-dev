@@ -157,7 +157,7 @@ export function LoginPageClient() {
             Email <span className="text-red-600">*</span>
             <input
               autoComplete="email"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              className="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isLoading}
               onChange={(event) => setIdentifier(event.target.value)}
               placeholder="name@company.com"
@@ -172,7 +172,7 @@ export function LoginPageClient() {
             <span className="relative mt-1 block">
               <input
                 autoComplete="current-password"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 pr-12 outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-10 w-full rounded-md border border-slate-300 px-3 py-2 pr-12 outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={isLoading}
                 onChange={(event) => setPassword(event.target.value)}
                 onKeyDown={submitOnPasswordEnter}

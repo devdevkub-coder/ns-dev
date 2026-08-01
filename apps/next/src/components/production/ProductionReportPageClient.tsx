@@ -716,9 +716,9 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full">
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <DatePickerInput className="flex-1 sm:flex-none sm:w-[130px]" value={dateFrom} onChange={setDateFrom} />
+            <DatePickerInput className="h-9 flex-1 sm:flex-none sm:w-[130px]" value={dateFrom} onChange={setDateFrom} />
             <span className="text-slate-400 text-sm shrink-0">-</span>
-            <DatePickerInput className="flex-1 sm:flex-none sm:w-[130px]" value={dateTo} onChange={setDateTo} />
+            <DatePickerInput className="h-9 flex-1 sm:flex-none sm:w-[130px]" value={dateTo} onChange={setDateTo} />
             <button className="rounded-md border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 focus:outline-none shrink-0" type="button" onClick={() => { setDateFrom(''); setDateTo('') }}>
               <span className="hidden xs:inline">ล้างวันที่</span>
               <span className="xs:hidden">ล้าง</span>
@@ -1119,9 +1119,9 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           </div>
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto lg:ml-auto">
             <span className="text-xs font-semibold text-slate-500 shrink-0">วันที่สร้าง:</span>
-            <DatePickerInput ariaLabel="วันที่สร้างตั้งแต่" className="flex-1 sm:flex-none sm:w-[130px]" placeholder={isReportAllRange ? 'ไม่จำกัด' : undefined} value={displayedDateFrom} onChange={(value) => { setDateFrom(value); setReportRangeFilter('custom') }} />
+            <DatePickerInput ariaLabel="วันที่สร้างตั้งแต่" className="h-9 flex-1 sm:flex-none sm:w-[130px]" placeholder={isReportAllRange ? 'ไม่จำกัด' : undefined} value={displayedDateFrom} onChange={(value) => { setDateFrom(value); setReportRangeFilter('custom') }} />
             <span className="text-slate-400 text-sm shrink-0">-</span>
-            <DatePickerInput ariaLabel="วันที่สร้างถึง" className="flex-1 sm:flex-none sm:w-[130px]" placeholder={isReportAllRange ? 'ไม่จำกัด' : undefined} value={displayedDateTo} onChange={(value) => { setDateTo(value); setReportRangeFilter('custom') }} />
+            <DatePickerInput ariaLabel="วันที่สร้างถึง" className="h-9 flex-1 sm:flex-none sm:w-[130px]" placeholder={isReportAllRange ? 'ไม่จำกัด' : undefined} value={displayedDateTo} onChange={(value) => { setDateTo(value); setReportRangeFilter('custom') }} />
             {mode === 'report' ? (
               <>
                 <Select aria-label="สาขา" className="h-9 w-[150px]" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
@@ -1283,7 +1283,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           <div className="flex items-center gap-2">
             <DatePickerInput
               ariaLabel="วันที่สร้างตั้งแต่"
-              className="min-w-0 flex-1"
+              className="h-9 min-w-0 flex-1"
               placeholder={reportMobileFilterDraft.range === 'all' ? 'ไม่จำกัด' : undefined}
               value={reportMobileFilterDraft.dateFrom}
               onChange={(value) => updateReportMobileFilters({ dateFrom: value, range: 'custom' })}
@@ -1291,7 +1291,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             <span className="text-slate-400">-</span>
             <DatePickerInput
               ariaLabel="วันที่สร้างถึง"
-              className="min-w-0 flex-1"
+              className="h-9 min-w-0 flex-1"
               placeholder={reportMobileFilterDraft.range === 'all' ? 'ไม่จำกัด' : undefined}
               value={reportMobileFilterDraft.dateTo}
               onChange={(value) => updateReportMobileFilters({ dateTo: value, range: 'custom' })}

@@ -116,6 +116,8 @@ Visual-first reporting rule: when evaluating or reporting on a specific UI page,
 
 - filter shell wrapper: `rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm`
 - filter row gap: `gap-2`
+- **Single-line field height contract:** normal business-entry controls use `h-10` (40px): shared `Input`, `Select`, `SearchCombobox`, `Combobox` / `InputGroup`, and `DatePicker` / `DatePickerInput`. Filter controls use their explicit compact `h-9` (36px) variant/class only. This changes height only: keep the component's existing width class and responsive width behavior. Do not impose an absolute global height through CSS.
+- The contract does not apply to textarea/multiline fields, checkbox/radio/file inputs, hidden/submit/reset/image inputs, page/action buttons, segmented controls, or compact inline table editors. Those controls remain content- or action-specific.
 - search field:
   - min width: `min-w-[260px]`
   - height target: `h-9`

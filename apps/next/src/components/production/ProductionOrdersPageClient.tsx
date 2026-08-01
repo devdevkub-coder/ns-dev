@@ -801,9 +801,9 @@ export function ProductionOrdersPageClient() {
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">วันที่สร้างรายการ</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput ariaLabel="วันที่สร้างรายการตั้งแต่" className="flex-1" value={mobileDateFrom} onChange={(value) => updateMobileFilters({ dateFrom: value })} />
+                  <DatePickerInput ariaLabel="วันที่สร้างรายการตั้งแต่" className="h-9 flex-1" value={mobileDateFrom} onChange={(value) => updateMobileFilters({ dateFrom: value })} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput ariaLabel="วันที่สร้างรายการถึง" className="flex-1" value={mobileDateTo} onChange={(value) => updateMobileFilters({ dateTo: value })} />
+                  <DatePickerInput ariaLabel="วันที่สร้างรายการถึง" className="h-9 flex-1" value={mobileDateTo} onChange={(value) => updateMobileFilters({ dateTo: value })} />
                 </div>
               </div>
 

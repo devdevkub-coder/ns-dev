@@ -270,9 +270,9 @@ export function WeightTicketDashboardPageClient() {
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-slate-500">วันที่:</span>
-            <DatePickerInput value={dateRange.dateFrom} onChange={(value) => setDateRange((current) => ({ ...current, dateFrom: value }))} />
+            <DatePickerInput className="h-9" value={dateRange.dateFrom} onChange={(value) => setDateRange((current) => ({ ...current, dateFrom: value }))} />
             <span className="text-slate-400">→</span>
-            <DatePickerInput value={dateRange.dateTo} onChange={(value) => setDateRange((current) => ({ ...current, dateTo: value }))} />
+            <DatePickerInput className="h-9" value={dateRange.dateTo} onChange={(value) => setDateRange((current) => ({ ...current, dateTo: value }))} />
             <BranchSelectCombobox
               allOptionLabel="ทุกสาขา"
               branches={branches}
@@ -372,9 +372,9 @@ export function WeightTicketDashboardPageClient() {
           <div>
             <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
             <div className="flex items-center gap-2">
-              <DatePickerInput className="flex-1" value={dateRange.dateFrom} onChange={(value) => setDateRange((current) => ({ ...current, dateFrom: value }))} />
+              <DatePickerInput className="h-9 flex-1" value={dateRange.dateFrom} onChange={(value) => setDateRange((current) => ({ ...current, dateFrom: value }))} />
               <span className="text-slate-400">→</span>
-              <DatePickerInput className="flex-1" value={dateRange.dateTo} onChange={(value) => setDateRange((current) => ({ ...current, dateTo: value }))} />
+              <DatePickerInput className="h-9 flex-1" value={dateRange.dateTo} onChange={(value) => setDateRange((current) => ({ ...current, dateTo: value }))} />
             </div>
           </div>
           <div>

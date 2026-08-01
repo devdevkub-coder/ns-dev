@@ -85,8 +85,8 @@ function toSavePayload(record: MasterDataRecord, value: number, fallbackName: st
   }
 }
 
-function percentInputClassName() {
-  return 'h-9 w-full appearance-none px-3 py-1.5 text-right font-semibold tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none border-none outline-none focus:ring-0 bg-transparent'
+function percentInputClassName(heightClass = 'h-10') {
+  return `${heightClass} w-full appearance-none px-3 py-1.5 text-right font-semibold tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none border-none outline-none focus:ring-0 bg-transparent`
 }
 
 function compareSortValues(left: string | number, right: string | number) {
@@ -248,7 +248,7 @@ export function SystemSettingsPageClient() {
 
             <label className="block text-sm font-medium text-slate-700">
               อัตรา %
-              <div className="mt-1.5 flex max-w-xs items-center overflow-hidden rounded-md border border-slate-300 bg-white h-9" data-slot="input-group">
+              <div className="mt-1.5 flex h-10 max-w-xs items-center overflow-hidden rounded-md border border-slate-300 bg-white" data-slot="input-group">
                 <Input
                   className={percentInputClassName()}
                   inputMode="decimal"
@@ -333,7 +333,7 @@ export function SystemSettingsPageClient() {
                           <div className="ml-auto flex max-w-[130px] items-center overflow-hidden rounded-md border border-slate-300 bg-white" data-slot="input-group">
                             <Input
                               aria-label={`${record.name} อัตราเปอร์เซ็นต์`}
-                              className={percentInputClassName()}
+                              className={percentInputClassName('h-9')}
                               inputMode="decimal"
                               max={100}
                               min={0}
@@ -387,7 +387,7 @@ export function SystemSettingsPageClient() {
                     <div className="flex items-center gap-2 pt-1.5 border-t border-slate-100">
                       <div className="flex-1">
                         <span className="text-slate-400 block text-xs uppercase font-semibold mb-1">อัตรา %</span>
-                        <div className="flex max-w-[130px] items-center overflow-hidden rounded-md border border-slate-300 bg-white h-9" data-slot="input-group">
+                        <div className="flex h-10 max-w-[130px] items-center overflow-hidden rounded-md border border-slate-300 bg-white" data-slot="input-group">
                           <Input
                             aria-label={`${record.name} อัตราเปอร์เซ็นต์`}
                             className={percentInputClassName()}

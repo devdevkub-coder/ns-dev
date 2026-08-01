@@ -207,16 +207,16 @@ export function BillSwapHistoryPageClient({ tableKey = 'daily.bill-swap-history.
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <Input
-            className="min-w-[260px] flex-1 rounded-md"
+            className="h-9 min-w-[260px] flex-1 rounded-md"
             placeholder="ค้นหาชื่อ Supplier / สินค้า / บิล..."
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
           <span className="text-xs text-slate-500">วันที่:</span>
-          <DatePickerInput id="bill-swap-history-date-from" value={dateFrom} onChange={setDateFrom} />
+          <DatePickerInput className="h-9" id="bill-swap-history-date-from" value={dateFrom} onChange={setDateFrom} />
           <span className="text-slate-400">→</span>
-          <DatePickerInput id="bill-swap-history-date-to" value={dateTo} onChange={setDateTo} />
+          <DatePickerInput className="h-9" id="bill-swap-history-date-to" value={dateTo} onChange={setDateTo} />
           {hasActiveFilter ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
         </div>
       </div>

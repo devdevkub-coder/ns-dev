@@ -347,9 +347,9 @@ export function TransactionLedgerPageClient() {
       <div className="hidden rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm lg:block">
         <div className="flex flex-wrap items-center gap-2">
           <input className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm h-9 border-slate-300" placeholder="ค้นหา เลขที่ / รายละเอียด / ผู้รับ-ส่ง..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <DatePickerInput className="w-[130px]" value={dateFrom} onChange={setDateFrom} />
+          <DatePickerInput className="h-9 w-[130px]" value={dateFrom} onChange={setDateFrom} />
           <span className="text-slate-400">→</span>
-          <DatePickerInput className="w-[130px]" value={dateTo} onChange={setDateTo} />
+          <DatePickerInput className="h-9 w-[130px]" value={dateTo} onChange={setDateTo} />
           <Select className="h-9 w-auto min-w-40 text-sm" value={filterAccount} onChange={(event) => setFilterAccount(event.target.value)}>
             <option value="">💳 ทุกบัญชี</option>
             {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
@@ -424,9 +424,9 @@ export function TransactionLedgerPageClient() {
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput className="flex-1" value={dateFrom} onChange={setDateFrom} />
+                  <DatePickerInput className="h-9 flex-1" value={dateFrom} onChange={setDateFrom} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput className="flex-1" value={dateTo} onChange={setDateTo} />
+                  <DatePickerInput className="h-9 flex-1" value={dateTo} onChange={setDateTo} />
                 </div>
               </div>
 

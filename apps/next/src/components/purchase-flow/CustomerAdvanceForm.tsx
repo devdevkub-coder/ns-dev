@@ -701,6 +701,7 @@ export function CustomerAdvanceForm() {
         <div className="flex flex-wrap items-end gap-2">
           <Field className="min-w-[260px] flex-1" label="ค้นหา">
             <Input
+              className="h-9"
               placeholder="ค้นหา CADV, ลูกค้า, Invoice หรือ Contract"
               type="search"
               value={query}
@@ -712,6 +713,7 @@ export function CustomerAdvanceForm() {
           </Field>
           <Field className="w-full sm:w-[180px]" label="สาขา">
             <Select
+              className="h-9"
               disabled={!data}
               value={branchFilter}
               onChange={(event) => {
@@ -729,6 +731,7 @@ export function CustomerAdvanceForm() {
             <span className="text-xs text-slate-500">วันที่:</span>
             <DatePickerInput
               ariaLabel="วันที่เริ่มต้น"
+              className="h-9"
               id="customer-advance-date-from"
               value={dateFrom}
               onChange={(value) => {
@@ -739,6 +742,7 @@ export function CustomerAdvanceForm() {
             <span className="text-slate-400">→</span>
             <DatePickerInput
               ariaLabel="วันที่สิ้นสุด"
+              className="h-9"
               id="customer-advance-date-to"
               value={dateTo}
               onChange={(value) => {

@@ -279,7 +279,7 @@ export function WeightTicketStockReturnDialog({
                         <td className="px-3 py-2 text-right font-semibold tabular-nums text-amber-700">{formatMoney(option.pendingQty)}</td>
                         <td className="px-3 py-2">
                           <input
-                            className={`w-full rounded-xl border px-2 py-2 text-right tabular-nums ${requiresReason ? 'border-amber-300 bg-amber-50' : 'border-slate-300 bg-white'}`}
+                            className={`h-10 w-full rounded-xl border px-2 py-2 text-right tabular-nums ${requiresReason ? 'border-amber-300 bg-amber-50' : 'border-slate-300 bg-white'}`}
                             min="0"
                             max={option.pendingQty}
                             step="0.01"

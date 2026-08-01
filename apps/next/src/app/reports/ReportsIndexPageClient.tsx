@@ -318,8 +318,8 @@ export function ReportsIndexPageClient() {
 
       <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
-          <DatePickerInput className="w-[130px] border-slate-100" onChange={setFromDate} value={fromDate} />
-          <DatePickerInput className="w-[130px] border-slate-100" onChange={setToDate} value={toDate} />
+          <DatePickerInput className="h-9 w-[130px] border-slate-100" onChange={setFromDate} value={fromDate} />
+          <DatePickerInput className="h-9 w-[130px] border-slate-100" onChange={setToDate} value={toDate} />
           <span className="text-xs font-medium text-slate-400">เว้นว่างเพื่อดูทุกช่วงเวลา</span>
         </div>
         <div className="mt-2 flex justify-end">

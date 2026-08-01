@@ -3498,9 +3498,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput className="flex-1" value={dateFrom} onChange={setDateFrom} />
+                  <DatePickerInput className="h-9 flex-1" value={dateFrom} onChange={setDateFrom} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput className="flex-1" value={dateTo} onChange={setDateTo} />
+                  <DatePickerInput className="h-9 flex-1" value={dateTo} onChange={setDateTo} />
                 </div>
               </div>
 
@@ -4386,7 +4386,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                                  <SearchCombobox
 	                                    disabled={salesIdentityLocked}
 	                                    hideSelectedOptionFromList
-	                                    inputClassName="h-9 text-sm"
+	                                    inputClassName="h-10 text-sm"
                                     inputId={`sales-bill-trading-purchase-source-search-${selectorIndex}`}
                                     label={`บิลซื้อ Trading ${selectorIndex + 1}`}
                                     options={sourceOptions.map((source) => ({
@@ -5393,7 +5393,7 @@ function SalesBillDetailModal({
                             <div className="mb-1 text-xs font-semibold text-slate-700">Line {item.lineNo}: {item.productName}</div>
                             <SearchCombobox
                               hideLabel
-                              inputClassName="h-9 text-sm"
+                              inputClassName="h-10 text-sm"
                               inputId={`sales-bill-correction-source-${item.lineNo}`}
                               label={`Trading Cost Source line ${item.lineNo}`}
                               options={comboboxOptions}

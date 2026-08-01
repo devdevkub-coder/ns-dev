@@ -3663,7 +3663,7 @@ export function MoneyMovementPageClient({
                       <label className="block">
                         <span className="mb-1 block text-xs font-medium text-slate-600">วันที่</span>
                         <DatePickerInput
-                          className="w-full h-9 text-sm"
+                          className="w-full h-10 text-sm"
                           value={form.date}
                           onChange={changeReceiptDate}
                         />
@@ -3671,7 +3671,7 @@ export function MoneyMovementPageClient({
                       <label className="block">
                         <span className="mb-1 block text-xs font-medium text-slate-600">ประเภทเอกสารรับเงิน</span>
                         <UiSelect
-                          className="h-9 w-full rounded-md border border-slate-300 px-2 text-sm"
+                          className="h-10 w-full rounded-md border border-slate-300 px-2 text-sm"
                           disabled={Boolean(form.id)}
                           value={receiptSourceType}
                           onChange={(event) => changeReceiptSourceType(event.target.value as 'SB' | 'CADV')}
@@ -3691,7 +3691,7 @@ export function MoneyMovementPageClient({
                       />
                       <SearchCombobox
                         disabled={Boolean(form.id || form.billId) || (receiptSourceType === 'SB' && !(form as CustomerReceiptFormValues).branchId)}
-                        inputClassName="!h-9 px-2 py-1.5"
+                        inputClassName="!h-10 px-2 py-1.5"
                         inputId="receipt-customer-search"
                         label={`${partyLabel} *`}
                         options={customerSearchOptions}
@@ -4004,7 +4004,7 @@ export function MoneyMovementPageClient({
                     introContent={<div className={`grid gap-4 ${isForeignReceipt ? 'max-w-[420px] md:grid-cols-[220px_180px]' : 'md:grid-cols-3'}`}>
                       <SearchCombobox
                         disabled={Boolean(form.id) || !functionalCurrencyCode}
-                        inputClassName="!h-9 px-2 py-1.5"
+                        inputClassName="!h-10 px-2 py-1.5"
                         inputId="receipt-currency"
                         label="สกุลเงินที่รับจริง *"
                         options={availableReceiptCurrencyOptions}
@@ -4015,7 +4015,7 @@ export function MoneyMovementPageClient({
                       {isForeignReceipt ? <label className="block">
                         <span className="mb-1 block text-xs font-medium text-slate-600">อัตรา {receiptCurrencyCode} → {functionalCurrencyCode} *</span>
                         <UiInput
-                          className="h-9 w-full text-right tabular-nums"
+                          className="h-10 w-full text-right tabular-nums"
                           inputMode="decimal"
                           placeholder={isFxRateLoading ? 'กำลังโหลด rate' : '0.00'}
                           type="text"
@@ -4204,9 +4204,9 @@ export function MoneyMovementPageClient({
                   <div>
                     <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                     <div className="flex items-center gap-2">
-                      <DatePickerInput className="flex-1" value={dateFrom} onChange={setDateFrom} />
+                      <DatePickerInput className="h-9 flex-1" value={dateFrom} onChange={setDateFrom} />
                       <span className="text-slate-400">→</span>
-                      <DatePickerInput className="flex-1" value={dateTo} onChange={setDateTo} />
+                      <DatePickerInput className="h-9 flex-1" value={dateTo} onChange={setDateTo} />
                     </div>
                   </div>
 

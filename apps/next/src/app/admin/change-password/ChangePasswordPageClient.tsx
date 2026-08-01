@@ -288,7 +288,7 @@ function PasswordField(props: {
       <Input
         autoComplete={props.autoComplete}
         aria-invalid={Boolean(props.error)}
-        className={`mt-1.5 h-9 focus:ring-blue-500 focus:border-blue-500 ${props.error ? 'border-red-400 bg-red-50 focus:border-red-400' : ''}`}
+        className={`mt-1.5 h-10 focus:ring-blue-500 focus:border-blue-500 ${props.error ? 'border-red-400 bg-red-50 focus:border-red-400' : ''}`}
         disabled={props.disabled}
         required
         type={props.showPassword ? 'text' : 'password'}

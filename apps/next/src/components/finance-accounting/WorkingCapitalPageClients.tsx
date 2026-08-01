@@ -268,7 +268,7 @@ export function WorkingCapitalPageClient() {
         >
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">ถึงวันที่</label>
-            <DatePickerInput className="w-full text-sm" value={asOf} onChange={setAsOf} />
+            <DatePickerInput className="h-9 w-full text-sm" value={asOf} onChange={setAsOf} />
           </div>
 
           <div>
@@ -398,7 +398,7 @@ export function StockFinancePageClient() {
         <div className="flex gap-2 items-center">
           <div className="flex-1 flex items-center gap-1.5">
             <span className="text-xs text-slate-500 font-semibold shrink-0">ณ วันที่</span>
-            <DatePickerInput className="w-full text-xs" value={asOf} onChange={setAsOf} />
+            <DatePickerInput className="h-9 w-full text-xs" value={asOf} onChange={setAsOf} />
           </div>
           <button
             type="button"
@@ -577,11 +577,11 @@ export function ProfitLeakPageClient() {
           <div className="flex-1 grid grid-cols-2 gap-2">
             <div className="flex items-center gap-1">
               <span className="text-xs text-slate-500 font-semibold shrink-0">จาก</span>
-              <DatePickerInput className="w-full text-xs" value={from} onChange={setFrom} />
+              <DatePickerInput className="h-9 w-full text-xs" value={from} onChange={setFrom} />
             </div>
             <div className="flex items-center gap-1">
               <span className="text-xs text-slate-500 font-semibold shrink-0">ถึง</span>
-              <DatePickerInput className="w-full text-xs" value={to} onChange={setTo} />
+              <DatePickerInput className="h-9 w-full text-xs" value={to} onChange={setTo} />
             </div>
           </div>
           <button
@@ -727,7 +727,7 @@ function FilterPanel({ children }: { children: ReactNode }) {
 }
 
 function DateInput({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
-  return <label className="flex items-center gap-2 text-xs text-slate-600"><span>{label}</span><DatePickerInput className="w-[140px]" value={value} onChange={onChange} /></label>
+  return <label className="flex items-center gap-2 text-xs text-slate-600"><span>{label}</span><DatePickerInput className="h-9 w-[140px]" value={value} onChange={onChange} /></label>
 }
 
 function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; onChange: (value: string) => void; value: string }) {
@@ -1309,7 +1309,7 @@ function SlowMovingTable({ asOf, branchId, branches, isLoading, rows, onAsOfChan
         >
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">ณ วันที่</label>
-            <DatePickerInput className="w-full text-sm" value={asOf} onChange={onAsOfChange} />
+            <DatePickerInput className="h-9 w-full text-sm" value={asOf} onChange={onAsOfChange} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>
@@ -1602,7 +1602,7 @@ function ProductTable({ asOf, branchId, branches, isLoading, rows, onAsOfChange,
         >
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">ณ วันที่</label>
-            <DatePickerInput className="w-full text-sm" value={asOf} onChange={onAsOfChange} />
+            <DatePickerInput className="h-9 w-full text-sm" value={asOf} onChange={onAsOfChange} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600">สาขา</label>

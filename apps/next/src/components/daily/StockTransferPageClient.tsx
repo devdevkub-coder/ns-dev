@@ -538,9 +538,9 @@ export function StockTransferPageClient() {
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
                 <div className="flex items-center gap-2">
-                  <DatePickerInput className="flex-1" value={dateFrom} onChange={setDateFrom} />
+                  <DatePickerInput className="h-9 flex-1" value={dateFrom} onChange={setDateFrom} />
                   <span className="text-slate-400">→</span>
-                  <DatePickerInput className="flex-1" value={dateTo} onChange={setDateTo} />
+                  <DatePickerInput className="h-9 flex-1" value={dateTo} onChange={setDateTo} />
                 </div>
               </div>
 
@@ -607,10 +607,10 @@ export function StockTransferPageClient() {
             <div className="max-h-[76vh] overflow-y-auto bg-slate-50 p-4 sm:p-5 space-y-4 text-sm flex-1">
               <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm grid grid-cols-2 gap-4">
                 <FormField error={fieldErrors.date} errorKey="date" label="วันที่เอกสาร *">
-                  <DatePickerInput className="w-full h-9" value={form.date} onChange={(value) => updateForm('date', value)} />
+                  <DatePickerInput className="w-full h-10" value={form.date} onChange={(value) => updateForm('date', value)} />
                 </FormField>
                 <FormField error={fieldErrors.transferDate} errorKey="transferDate" label="วันที่โอนย้าย *">
-                  <DatePickerInput className="w-full h-9" value={form.transferDate ?? ''} onChange={(value) => updateForm('transferDate', value)} />
+                  <DatePickerInput className="w-full h-10" value={form.transferDate ?? ''} onChange={(value) => updateForm('transferDate', value)} />
                 </FormField>
               </div>
 
