@@ -392,6 +392,7 @@ filter shell มาตรฐานของ list page:
 Rules:
 - search ต้องมาก่อน filter อื่นและอยู่แถวเดียวกับ date/select/clear controls บน desktop/tablet
 - page action buttons ต้องไม่ปนกลางแถว control; วางชิดขวาในแถว segmented/status หรือ action row ถัดมา
+- ถ้าหน้า list/report ไม่มี segmented/status สำหรับแถวล่าง ห้ามสร้าง action row ว่าง: ให้รวม page action เป็นกลุ่ม `ml-auto` ชิดขวาของ toolbar แถวบนแทน
 - date range ใช้รูปแบบ from -> to
 - clear filter แสดงเมื่อมี active filter เท่านั้น
 - ถ้า filter อยู่ในบริบทเดียวกัน ให้รวมอยู่ card/block เดียว
@@ -945,6 +946,8 @@ reference implementation ที่ใช้อ้างอิงได้ตอ�
 เวลาเริ่มหน้าใหม่ ให้ดู reference ที่ใกล้ domain ที่สุดก่อน
 
 ## Change Log
+
+- 2026-08-02: Clarified the compact list/report exception: when a page has no segmented/status controls for a lower row, it must not render an otherwise empty action row. Keep the real page action in a right-aligned `ml-auto` group on the control toolbar instead.
 
 - 2026-08-01: Clarified the project-wide semantic table contract while closing the runtime-table rescan: descriptive business text is left-aligned, document/date/status/action columns are centered, numeric measures are right-aligned with tabular numerals, and header/body alignment plus non-wrapping document/date values must match across primary and detail runtime tables.
 

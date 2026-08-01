@@ -835,6 +835,13 @@ After the `/daily/expense-dashboard` follow-up, tracked `apps/next/src` TS/TSX f
 - Preserved exceptions: textareas, checkbox/radio/file/hidden controls, segmented filters, and compact inline table editors keep their content-specific sizing. Existing width, min-width, flex, responsive layout, business handlers, API contracts, and DB state were not changed.
 - Validation: the focused shared-control contract test passed 2/2; changed-file and full-workspace ESLint passed with 0 errors (10 pre-existing/out-of-scope warnings in the full run); workspace type-check passed; the SIT-env webpack production build compiled and generated 331 routes; static residual rescan found no remaining mismatch; `git diff --check` and local `/api/health` HTTP 200 passed. Browser UAT was not run because the user requested implementation, not browser testing.
 
+### Deal Margin Empty Action-Row Follow-Up - 2026-08-02
+
+- What: `/dual-costing/deal-margin` now keeps date, channel, and conditional clear controls together with the real `ส่งออก Excel` action in one compact desktop toolbar; the action is a right-aligned `ml-auto` group and retains its normal `h-10` export treatment.
+- Why: this report has no segmented/status control for a lower row. Rendering a divider and export-only second row created a visibly oversized blank filter card, unlike the canonical filter layout.
+- Preserved: query parameters, date/channel state, clear behavior, export URL, table, and mobile filter behavior are unchanged. This is a layout-only follow-up with no API, formula, permission, or database change.
+- Validation: `npm run lint --workspace @ns-scrap-erp/next -- src/components/dual-costing/DealMarginPageClient.tsx` passed with 0 errors and 10 pre-existing/out-of-scope warnings; `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false` passed; the SIT-env Webpack production build completed and generated 331 routes; `git diff --check` passed. Browser UAT was not run because the user requested implementation, not browser testing.
+
 ### Sidebar Title Source Unification - 2026-08-02
 
 - AppShell heading and breadcrumb labels now derive from the actual `navigationItems` sidebar label for every registered route, with only parenthetical helper text removed for the displayed version (for example `Cost Allocator (ทอง/เหลือง)` becomes `Cost Allocator`).

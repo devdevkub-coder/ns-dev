@@ -225,9 +225,7 @@ export function DealMarginPageClient() {
               {(data?.filters.channels ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
             </Select>
             {hasActiveFilters ? <Button size="sm" type="button" variant="secondary" className="h-9 rounded-md" onClick={clearFilters}>ล้างตัวกรอง</Button> : null}
-          </div>
-          <div className="mt-2 flex justify-end border-t border-slate-100 pt-2">
-            <Button asChild variant="export" className="gap-2">
+            <Button asChild variant="export" className="ml-auto h-10 gap-2 text-sm font-normal">
               <a href={exportHref}><Download aria-hidden="true" className="size-4" />ส่งออก Excel</a>
             </Button>
           </div>

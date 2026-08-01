@@ -19,12 +19,14 @@ Active decisions:
 - Apply the single-line control-height contract across active `apps/next`: normal business-entry fields use `h-10`, filters use explicit `h-9`, and compact inline table editors plus multiline/check/file controls keep their intentional sizing. Preserve every existing width and responsive rule.
 - For every registered sidebar route, derive the AppShell heading and breadcrumb from its sidebar label, stripping parenthetical helper text; document/detail routes without a sidebar entry keep their contextual title.
 - Keep the previously requested Cost Pool seller/wording contract; it is an explicit adjacent scope, not a table-only regression.
+- Keep list/report filter cards compact when there is no segmented/status row: the real page action belongs in a right-aligned `ml-auto` group on the control toolbar, not in an otherwise empty lower row.
 - The user requested a project-wide detailed table check, so final closeout combines the complete static runtime-table inventory with representative Desktop/Mobile visual verification through Codex Browser. The mandatory local login/RSC/navigation guard has been rerun against the final production build.
 
 Current proof:
 
 - Focused runtime-table and adjacent contract suite: 15 files / 83 tests passed after the independent-audit follow-up.
 - Workspace lint passed with 0 errors and 10 pre-existing/out-of-scope warnings; workspace type-check passed with an 8 GB Node heap after the default 2 GB heap exhausted memory.
+- Deal Margin Report desktop filter is compact again: date/channel/conditional clear stay in the control toolbar and its real Excel action is a right-aligned `ml-auto` group, so there is no empty secondary action row. Query state, export URL, table, and mobile filter behavior are unchanged. Workspace lint passed with 0 errors (10 pre-existing warnings), type-check passed, and the SIT-env Webpack production build generated 331 routes; browser UAT was not requested for this UI-only follow-up.
 - Webpack production build passed and generated 331 routes with the ignored SIT environment explicitly loaded into the build process.
 - The final production login/RSC/navigation guard passed 112 navigation routes / 225 checks with 0 failures and 0 target failures after the final SIT-env build restart.
 - `git diff --check` passed after the latest table follow-up.
