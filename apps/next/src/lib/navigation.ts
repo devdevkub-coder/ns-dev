@@ -23,7 +23,6 @@ export type NavigationItem = {
   href: string
   icon: string
   label: string
-  pageTitle?: string
   section: NavigationSectionKey
 }
 
@@ -275,28 +274,27 @@ export const navigationSections: Array<{ key: NavigationSectionKey; label: strin
 ]
 
 export const navigationItems: NavigationItem[] = [
-  { href: '/owner-daily', icon: '☀️', label: 'Owner Daily Control', pageTitle: 'ควบคุมรายวันผู้บริหาร', section: 'main' },
-  { href: '/daily-report', icon: '📰', label: 'Daily Report', pageTitle: 'รายงานประจำวัน', section: 'main' },
-  { href: '/analytics-dashboard', icon: '📈', label: 'Analytics Dashboard', pageTitle: 'วิเคราะห์ข้อมูล', section: 'main' },
-  { href: '/dashboard-overview', icon: '📊', label: 'Dashboard Overview', pageTitle: 'ภาพรวมแดชบอร์ด', section: 'main' },
+  { href: '/owner-daily', icon: '☀️', label: 'Owner Daily Control', section: 'main' },
+  { href: '/daily-report', icon: '📰', label: 'Daily Report', section: 'main' },
+  { href: '/analytics-dashboard', icon: '📈', label: 'Analytics Dashboard', section: 'main' },
+  { href: '/dashboard-overview', icon: '📊', label: 'Dashboard Overview', section: 'main' },
   { href: '/profit-cost-analysis', icon: '💎', label: 'Profit & Cost Analysis', section: 'main' },
-  { href: '/sales-plan', icon: '📋', label: 'วางแผนการขาย (LME)', pageTitle: 'วางแผนการขาย (Sales Plan) — ทองแดง / ทองเหลือง', section: 'main' },
-  { href: '/sales-plan-analysis', icon: '📊', label: 'วิเคราะห์แผนขาย', pageTitle: 'วิเคราะห์แผนขาย', section: 'main' },
-  { href: '/stock/planning', icon: '📅', label: 'วางแผนสต๊อก vs PO Sell', pageTitle: 'วางแผนสต๊อก vs PO Sell', section: 'main' },
-  { href: '/sales-commission', icon: '💼', label: 'Sales Tracking Dashboard', pageTitle: 'ติดตามผลงานพนักงานขาย', section: 'main' },
+  { href: '/sales-plan', icon: '📋', label: 'วางแผนการขาย (LME)', section: 'main' },
+  { href: '/sales-plan-analysis', icon: '📊', label: 'วิเคราะห์แผนขาย', section: 'main' },
+  { href: '/stock/planning', icon: '📅', label: 'วางแผนสต๊อก vs PO Sell', section: 'main' },
+  { href: '/sales-commission', icon: '💼', label: 'Sales Tracking Dashboard', section: 'main' },
   { href: '/cash-flow-calendar', icon: '📅', label: 'Cash Flow Calendar', section: 'main' },
   { href: '/business-calendar', icon: '🗓️', label: 'Business Calendar', section: 'main' },
   { href: '/cash-others-summary', icon: '💰', label: 'Cash & Others Summary', section: 'main' },
-  { href: '/tracking/customer', icon: '👥', label: 'Customer Tracking', pageTitle: 'ติดตามลูกค้า 360°', section: 'tracking' },
-  { href: '/tracking/supplier', icon: '🏭', label: 'Supplier Tracking', pageTitle: 'ติดตามผู้ขาย 360°', section: 'tracking' },
-  { href: '/tracking/product', icon: '📦', label: 'Product Tracking', pageTitle: 'ติดตามสินค้า 360°', section: 'tracking' },
-  { href: '/purchase/bills', icon: '📥', label: 'บิลรับซื้อ', pageTitle: 'บิลรับซื้อ', section: 'daily' },
-  { href: '/sales/bills', icon: '📤', label: 'บิลขาย', pageTitle: 'บิลขาย', section: 'daily' },
+  { href: '/tracking/customer', icon: '👥', label: 'Customer Tracking', section: 'tracking' },
+  { href: '/tracking/supplier', icon: '🏭', label: 'Supplier Tracking', section: 'tracking' },
+  { href: '/tracking/product', icon: '📦', label: 'Product Tracking', section: 'tracking' },
+  { href: '/purchase/bills', icon: '📥', label: 'บิลรับซื้อ', section: 'daily' },
+  { href: '/sales/bills', icon: '📤', label: 'บิลขาย', section: 'daily' },
   {
     href: '/purchase/receipt-vouchers',
     icon: '🧾',
     label: 'ใบสำคัญรับเงิน',
-    pageTitle: 'ใบสำคัญรับเงิน (Receipt Voucher)',
     section: 'daily',
   },
   { href: '/daily/weight-ticket-dashboard', icon: '📊', label: 'Dashboard ใบรับ-ส่งของ', section: 'daily' },
@@ -308,22 +306,22 @@ export const navigationItems: NavigationItem[] = [
   { href: '/production/dashboard', icon: '📊', label: 'แดชบอร์ดการผลิต', section: 'production' },
   { href: '/production/orders', icon: '🏭', label: 'ใบสั่งผลิต', section: 'production' },
   { href: '/production/report', icon: '📐', label: 'รายงานการผลิต / Yield', section: 'production' },
-  { href: '/purchase/po-buy', icon: '📝', label: 'PO Buy (จองซื้อ)', pageTitle: 'PO Buy (จองซื้อ)', section: 'daily' },
-  { href: '/sales/po-sell', icon: '📃', label: 'PO Sell (จองขาย)', pageTitle: 'PO Sell (จองขาย)', section: 'daily' },
+  { href: '/purchase/po-buy', icon: '📝', label: 'PO Buy (จองซื้อ)', section: 'daily' },
+  { href: '/sales/po-sell', icon: '📃', label: 'PO Sell (จองขาย)', section: 'daily' },
   { href: '/dual-costing/cost-pool', icon: '🪣', label: 'Cost Pool', section: 'dual-costing' },
   { href: '/dual-costing/cost-allocator', icon: '🎯', label: 'Cost Allocator (ทอง/เหลือง)', section: 'dual-costing' },
   { href: '/dual-costing/waiting-allocations', icon: '⏳', label: 'Waiting Allocations', section: 'dual-costing' },
   { href: '/dual-costing/cost-allocation-ledger', icon: '📒', label: 'Allocation Ledger', section: 'dual-costing' },
   { href: '/dual-costing/report', icon: '📊', label: 'Dual Costing Report', section: 'dual-costing' },
   { href: '/dual-costing/deal-margin', icon: '💎', label: 'Deal Margin Report', section: 'dual-costing' },
-  { href: '/daily/payment-approval', icon: '✅', label: 'อนุมัติจ่ายเงิน', pageTitle: 'อนุมัติจ่ายเงิน (Payment Approval)', section: 'finance-debt' },
+  { href: '/daily/payment-approval', icon: '✅', label: 'อนุมัติจ่ายเงิน', section: 'finance-debt' },
   { href: '/purchase/advance-payments', icon: '⏪', label: 'เงินล่วงหน้า/มัดจำ', section: 'daily' },
   { href: '/purchase/payments', icon: '💸', label: 'จ่ายเงิน', section: 'finance-debt' },
-  { href: '/sales/receipts', icon: '💰', label: 'รับเงิน Customer', pageTitle: 'รับเงิน Customer', section: 'finance-debt' },
+  { href: '/sales/receipts', icon: '💰', label: 'รับเงิน Customer', section: 'finance-debt' },
   { href: '/daily/transfer', icon: '🔄', label: 'โอนเงินระหว่างบัญชี', section: 'finance-debt' },
   { href: '/finance/ar', icon: '📈', label: 'ลูกหนี้ (AR)', section: 'finance-debt' },
-  { href: '/finance/ap', icon: '📉', label: 'เจ้าหนี้ (AP)', pageTitle: 'รายการค้างจ่าย', section: 'finance-debt' },
-  { href: '/finance/bank', icon: '🏦', label: 'Cash / Bank Statement', pageTitle: 'รายการเงินสด / ธนาคาร', section: 'finance-debt' },
+  { href: '/finance/ap', icon: '📉', label: 'เจ้าหนี้ (AP)', section: 'finance-debt' },
+  { href: '/finance/bank', icon: '🏦', label: 'Cash / Bank Statement', section: 'finance-debt' },
   { href: '/finance/cash-position', icon: '💼', label: 'Cash Position', section: 'finance-debt' },
   {
     href: '/finance/foreign/fcd-ledger',
@@ -339,14 +337,14 @@ export const navigationItems: NavigationItem[] = [
     ],
   },
   { href: '/daily/petty-advance', icon: '🏦', label: 'เงินสำรองจ่าย / กู้กรรมการ', section: 'finance-debt' },
-  { href: '/stock/balance', icon: '📦', label: 'สต๊อกคงเหลือ', pageTitle: 'สต๊อกคงเหลือ', section: 'stock' },
+  { href: '/stock/balance', icon: '📦', label: 'สต๊อกคงเหลือ', section: 'stock' },
   { href: '/stock/ledger', icon: '📋', label: 'Stock Ledger', section: 'stock' },
   { href: '/stock/status-convert', icon: '🔄', label: 'ปรับสถานะสินค้า (RM→FG)', section: 'stock' },
   { href: '/stock/convert', icon: '🔀', label: 'Grade Adjustment / ปรับเกรด', section: 'stock' },
   { href: '/stock/adjust', icon: '🔢', label: 'นับสต๊อก / Stock Count Adjust', section: 'stock' },
   { href: '/trading/dashboard', icon: '🔄', label: 'Trading Dashboard', section: 'reports' },
-  { href: '/po-reports/outstanding', icon: '📑', label: 'PO ซื้อ/ขาย คงเหลือ', pageTitle: 'รายงาน PO ซื้อ / PO ขาย คงเหลือ', section: 'reports' },
-  { href: '/reports', icon: '📑', label: 'รายงานทั้งหมด', pageTitle: 'รายงานสรุป', section: 'reports' },
+  { href: '/po-reports/outstanding', icon: '📑', label: 'PO ซื้อ/ขาย คงเหลือ', section: 'reports' },
+  { href: '/reports', icon: '📑', label: 'รายงานทั้งหมด', section: 'reports' },
   { href: '/finance-accounting/financial-dashboard', icon: '💼', label: 'Financial Dashboard', section: 'finance-accounting' },
   { href: '/finance-accounting/cash-flow-analysis', icon: '🔍', label: 'Cash Flow Analysis', section: 'finance-accounting' },
   { href: '/finance-accounting/cf-forecast-calendar', icon: '📅', label: 'CF Forecast Calendar', section: 'finance-accounting' },
@@ -357,17 +355,17 @@ export const navigationItems: NavigationItem[] = [
   { href: '/finance-accounting/pl-statement', icon: '📈', label: 'งบกำไรขาดทุน (P&L)', section: 'finance-accounting' },
   { href: '/finance-accounting/balance-sheet', icon: '⚖️', label: 'งบดุล (Balance Sheet)', section: 'finance-accounting' },
   { href: '/finance-accounting/cash-flow-statement', icon: '💧', label: 'งบกระแสเงินสด', section: 'finance-accounting' },
-  { href: '/finance-accounting/asset-register', icon: '🏗️', label: 'Fixed Assets / ทรัพย์สิน', pageTitle: 'ทะเบียนสินทรัพย์ถาวร', section: 'finance-accounting' },
-  { href: '/finance-accounting/depreciation', icon: '📉', label: 'ค่าเสื่อมราคา', pageTitle: 'ค่าเสื่อมราคา', section: 'finance-accounting' },
-  { href: '/finance-accounting/asset-disposal', icon: '🗑️', label: 'จำหน่ายทรัพย์สิน', pageTitle: 'จำหน่ายทรัพย์สิน', section: 'finance-accounting' },
-  { href: '/finance-accounting/loan-contracts', icon: '🏦', label: 'Loan / Leasing / BSL', pageTitle: 'สัญญาสินเชื่อ / ลีสซิ่ง / BSL', section: 'finance-accounting' },
+  { href: '/finance-accounting/asset-register', icon: '🏗️', label: 'Fixed Assets / ทรัพย์สิน', section: 'finance-accounting' },
+  { href: '/finance-accounting/depreciation', icon: '📉', label: 'ค่าเสื่อมราคา', section: 'finance-accounting' },
+  { href: '/finance-accounting/asset-disposal', icon: '🗑️', label: 'จำหน่ายทรัพย์สิน', section: 'finance-accounting' },
+  { href: '/finance-accounting/loan-contracts', icon: '🏦', label: 'Loan / Leasing / BSL', section: 'finance-accounting' },
   { href: '/finance-accounting/loan-dashboard', icon: '📊', label: 'Loan Dashboard', section: 'finance-accounting' },
   { href: '/finance-accounting/asset-overview', icon: '💎', label: 'Net Worth / Track Asset', section: 'finance-accounting' },
   { href: '/finance-accounting/equity-maint', icon: '👑', label: 'Equity / ทุนจดทะเบียน', section: 'finance-accounting' },
-  { href: '/finance-accounting/opening-balance', icon: '🚀', label: 'Opening Balance / ตั้งต้นยอด', pageTitle: 'ตั้งต้นยอดก่อนเริ่มใช้งาน', section: 'finance-accounting' },
+  { href: '/finance-accounting/opening-balance', icon: '🚀', label: 'Opening Balance / ตั้งต้นยอด', section: 'finance-accounting' },
   { href: '/finance-accounting/accounting-periods', icon: '🗓️', label: 'Accounting Periods', section: 'finance-accounting' },
   { href: '/finance-accounting/posting-rules', icon: '🧭', label: 'Posting Rules', section: 'finance-accounting' },
-  { href: '/finance-accounting/historical-data', icon: '📅', label: 'ข้อมูลย้อนหลัง ม.ค.-เม.ย. 2026', pageTitle: 'ข้อมูลย้อนหลัง ม.ค.-เม.ย. 2026 (ก่อน Go-Live)', section: 'finance-accounting' },
+  { href: '/finance-accounting/historical-data', icon: '📅', label: 'ข้อมูลย้อนหลัง ม.ค.-เม.ย. 2026', section: 'finance-accounting' },
   // กลุ่มข้อมูลบริษัท
   { href: '/master-data/branches', icon: '🏢', label: 'สาขา', section: 'company-data' },
   { href: '/master-data/warehouses', icon: '🏬', label: 'คลัง', section: 'company-data' },
@@ -410,7 +408,6 @@ export const navigationItems: NavigationItem[] = [
         href: '/master-data/accounts',
         icon: '📋',
         label: 'รายชื่อบัญชีบริษัท',
-        pageTitle: 'รายชื่อบัญชีบริษัท',
         section: 'master-data',
       },
       {
@@ -453,13 +450,13 @@ export const navigationItems: NavigationItem[] = [
     label: 'ตั้งค่าระบบ',
     section: 'admin',
     children: [
-      { href: '/admin/system-settings', icon: '🧾', label: 'VAT / WHT', pageTitle: 'ตั้งค่าระบบ', section: 'admin' },
+      { href: '/admin/system-settings', icon: '🧾', label: 'VAT / WHT', section: 'admin' },
       { href: '/admin/company-profile', icon: '🏢', label: 'ข้อมูลบริษัท (สำหรับใบพิมพ์)', section: 'admin' },
       { href: '/admin/line-settings', icon: '💬', label: 'ตั้งค่า LINE Notification', section: 'admin' },
-      { href: '/admin/system-manual', icon: '📘', label: 'คู่มือระบบ', pageTitle: 'คู่มือระบบ', section: 'admin' },
+      { href: '/admin/system-manual', icon: '📘', label: 'คู่มือระบบ', section: 'admin' },
     ],
   },
-  { href: '/admin/transaction-ledger', icon: '📒', label: 'Transaction Ledger', pageTitle: 'Transaction Ledger (เช็คเงินเข้า-ออก)', section: 'admin' },
+  { href: '/admin/transaction-ledger', icon: '📒', label: 'Transaction Ledger', section: 'admin' },
   { href: '/admin/migration-tools', icon: '💾', label: 'Backup / Restore (สำคัญ)', section: 'admin' },
   { href: '/admin/audit', icon: '🔍', label: 'Audit & Activity Log', section: 'admin' },
   {
@@ -533,16 +530,21 @@ export function sidebarNavigationPath(pathname: string) {
   return mappedParent?.[1] ?? normalizedPath
 }
 
-export function pageTitleForPath(pathname: string) {
-  if (pathname === '/login') return 'เข้าสู่ระบบ'
+function displayNavigationLabel(label: string) {
+  return label.replace(/\s*\([^)]*\)/g, '').replace(/\s+/g, ' ').trim()
+}
+
+export function pageTitleForPath(pathname: string, fallbackTitle?: string | null) {
+  const normalizedPath = pathname.endsWith('/') && pathname !== '/' ? pathname.slice(0, -1) : pathname
+  if (normalizedPath === '/login') return 'เข้าสู่ระบบ'
 
   for (const item of navigationItems) {
-    const child = item.children?.find((entry) => entry.href === pathname)
-    if (child) return child.pageTitle ?? child.label
-    if (item.href === pathname) return item.pageTitle ?? item.label
+    const child = item.children?.find((entry) => entry.href === normalizedPath)
+    if (child) return displayNavigationLabel(child.label)
+    if (item.href === normalizedPath) return displayNavigationLabel(item.label)
   }
 
-  return 'NS Scrap ERP'
+  return fallbackTitle ?? 'NS Scrap ERP'
 }
 
 
@@ -557,16 +559,16 @@ export function breadcrumbsForPath(pathname: string): BreadcrumbItem[] {
 
     if (child) {
       return [
-        ...(sectionLabel ? [{ label: sectionLabel }] : []),
-        { href: item.href, label: item.label },
-        { label: child.label },
+        ...(sectionLabel ? [{ label: displayNavigationLabel(sectionLabel) }] : []),
+        { href: item.href, label: displayNavigationLabel(item.label) },
+        { label: displayNavigationLabel(child.label) },
       ]
     }
 
     if (item.href === normalizedPath) {
       return [
-        ...(sectionLabel ? [{ label: sectionLabel }] : []),
-        { label: item.label },
+        ...(sectionLabel ? [{ label: displayNavigationLabel(sectionLabel) }] : []),
+        { label: displayNavigationLabel(item.label) },
       ]
     }
   }

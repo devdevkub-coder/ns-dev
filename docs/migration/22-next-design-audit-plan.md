@@ -834,3 +834,10 @@ After the `/daily/expense-dashboard` follow-up, tracked `apps/next/src` TS/TSX f
 - Why: form fields of mixed native/shared implementations were rendering at different heights, while filters that relied on shared defaults became taller than neighboring filter controls. The explicit split keeps forms visually aligned without making dense toolbars or inline tables oversized.
 - Preserved exceptions: textareas, checkbox/radio/file/hidden controls, segmented filters, and compact inline table editors keep their content-specific sizing. Existing width, min-width, flex, responsive layout, business handlers, API contracts, and DB state were not changed.
 - Validation: the focused shared-control contract test passed 2/2; changed-file and full-workspace ESLint passed with 0 errors (10 pre-existing/out-of-scope warnings in the full run); workspace type-check passed; the SIT-env webpack production build compiled and generated 331 routes; static residual rescan found no remaining mismatch; `git diff --check` and local `/api/health` HTTP 200 passed. Browser UAT was not run because the user requested implementation, not browser testing.
+
+### Sidebar Title Source Unification - 2026-08-02
+
+- AppShell heading and breadcrumb labels now derive from the actual `navigationItems` sidebar label for every registered route, with only parenthetical helper text removed for the displayed version (for example `Cost Allocator (ทอง/เหลือง)` becomes `Cost Allocator`).
+- The duplicate per-route `pageTitle` registry field was removed so a later entry cannot drift from its sidebar label. Dynamic document/detail paths have no sidebar equivalent and retain their contextual title through the existing override mechanism.
+- Validation: focused navigation title contract passed 2/2; workspace lint/type-check passed; and the Webpack production build compiled all 331 static pages. Browser UAT was not requested for this wording-only batch.
+- Fresh independent acceptance audit returned `ACCEPTED` against the exact sidebar-title request and dynamic-detail preservation contract.

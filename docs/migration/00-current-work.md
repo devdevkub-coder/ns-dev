@@ -17,6 +17,7 @@ Active decisions:
 - Preserve merged SIT finance/FCD, status, branch-scope, form-safety, WTI/WTO, Production, Stock Planning, LINE settings, and NSERP-159 behavior.
 - Apply the `docs/design.md` runtime-table contract across active `apps/next`: `ns-table`, non-wrapping headers/documents/dates, shared density, semantic header/body alignment, and shared row actions. Primary dense/wide grids keep sort/resize; document, form, print, and compact detail tables do not gain invented behavior.
 - Apply the single-line control-height contract across active `apps/next`: normal business-entry fields use `h-10`, filters use explicit `h-9`, and compact inline table editors plus multiline/check/file controls keep their intentional sizing. Preserve every existing width and responsive rule.
+- For every registered sidebar route, derive the AppShell heading and breadcrumb from its sidebar label, stripping parenthetical helper text; document/detail routes without a sidebar entry keep their contextual title.
 - Keep the previously requested Cost Pool seller/wording contract; it is an explicit adjacent scope, not a table-only regression.
 - The user requested a project-wide detailed table check, so final closeout combines the complete static runtime-table inventory with representative Desktop/Mobile visual verification through Codex Browser. The mandatory local login/RSC/navigation guard has been rerun against the final production build.
 
@@ -34,6 +35,8 @@ Current proof:
 - `/tracking/product` had no current-period rows, so the Product Detail `รายการซื้อ` / `รายการขาย` real-data modal could not be reopened in this pass; the final source contract and focused tests cover the corrected date/document geometry.
 - The shared SIT `P2022` blocker for `/tracking/customer` and `/dual-costing/cost-allocation-ledger` is resolved by applying and recording existing migration `20260727110000_add_trading_allocation_fact_cost_pool_entry`. Preflight found `0` allocation-fact rows; no business data was changed or backfilled. Postflight confirmed both nullable columns, the restrictive FK, both indexes, migration history, and authenticated HTTP 200 responses for Customer Tracking, Product Tracking, Allocation Ledger, Trading Matching, and Trading Dashboard.
 - Fresh independent acceptance after the numeric/status follow-up returned `ACCEPTED` with no remaining runtime-table contract gap.
+- Sidebar title contract test covers every effective sidebar route plus the dynamic-detail fallback; the focused test passed 2/2, workspace lint/type-check passed, and the Webpack production build compiled all 331 static pages. Browser UAT was not requested for this shared wording-only batch.
+- Fresh independent acceptance audit returned `ACCEPTED` for the sidebar title/breadcrumb contract.
 
 Immediate next tasks:
 

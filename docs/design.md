@@ -375,6 +375,7 @@ Reference pages:
 - Section and child-menu expand controls use the compact text triangle glyphs (`▾` / `▸`) used by the legacy sidebar.
 - The desktop compact rail hides labels only at `lg`, while the mobile full-screen menu keeps labels visible.
 - AppShell topbar uses the same fixed dark shell as the sidebar: `#0f172a` background, `#334155` divider, and high-contrast text/control colors in both light and dark application themes. The breadcrumb and main working surface remain theme-aware.
+- For every route registered in the sidebar, AppShell heading and breadcrumb labels derive from the sidebar label only; remove parenthetical helper text and normalize whitespace when displaying them. Document/detail routes that do not have a sidebar item may keep their contextual title and document number.
 
 ## Filter Pattern
 
