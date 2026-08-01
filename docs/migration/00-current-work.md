@@ -30,11 +30,11 @@ Current proof:
 - Shared `ns-table` CSS now keeps every right-aligned numeric body/footer cell non-wrapping with tabular numerals. The runtime guard verifies direct numeric alignment plus the shared CSS contract, and verifies direct status cells are centered and non-wrapping; FCD Conversion/Revaluation status cells were the final two violations and are corrected on Desktop/Mobile.
 - Representative Codex Browser QA passed Desktop routes `/daily/weight-ticket-list`, `/production/report`, `/stock/planning`, `/stock/balance`, `/finance/cash-position`, `/finance-accounting/working-capital`, `/purchase/po-buy`, `/sales/po-sell`, and `/master-data/customers`; Mobile checks passed Weight Ticket cards, Production Report, Stock Planning, and Customer cards. No console error was observed during the sweep.
 - `/tracking/product` had no current-period rows, so the Product Detail `รายการซื้อ` / `รายการขาย` real-data modal could not be reopened in this pass; the final source contract and focused tests cover the corrected date/document geometry.
-- `/dual-costing/cost-allocation-ledger` remains runtime-blocked by SIT schema drift (`P2022`): `trading_allocation_facts` is missing `cost_pool_entry_id` and `target_ref_id`. This is a database migration-state issue, not a runtime-table contract failure; no runtime fallback or unauthorized migration was applied.
+- The shared SIT `P2022` blocker for `/tracking/customer` and `/dual-costing/cost-allocation-ledger` is resolved by applying and recording existing migration `20260727110000_add_trading_allocation_fact_cost_pool_entry`. Preflight found `0` allocation-fact rows; no business data was changed or backfilled. Postflight confirmed both nullable columns, the restrictive FK, both indexes, migration history, and authenticated HTTP 200 responses for Customer Tracking, Product Tracking, Allocation Ledger, Trading Matching, and Trading Dashboard.
 - Fresh independent acceptance after the numeric/status follow-up returned `ACCEPTED` with no remaining runtime-table contract gap.
 
 Immediate next tasks:
 
 1. Keep this integration branch local; do not push until explicitly requested.
-2. Before any future Allocation Ledger DB repair, inspect the target environment and migration history and obtain authority for the schema mutation.
+2. For any further database change, keep the same target verification, migration-history preflight, transaction, and postflight discipline; do not use runtime fallbacks for schema drift.
 3. Before an eventual push, fetch and compare the authorized destination again and verify the intended merge ancestry/content.

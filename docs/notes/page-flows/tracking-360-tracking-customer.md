@@ -237,3 +237,7 @@ Target detail payload fields:
 ## 2026-08-01 Detail table semantic contract
 
 Customer detail tables now classify each column by business meaning: dates/documents/statuses stay centered and non-wrapping, document numbers use mono text, numeric facts stay right-aligned with tabular numerals, and descriptive text remains readable. This is presentation-only; Customer Tracking data sources, calculations, filters, exports, permissions, and read-only behavior are unchanged.
+
+## 2026-08-01 SIT allocation-fact schema parity
+
+Customer Tracking derives sales quantity and amount through the shared Sales Bill line-fact reader. That reader also consumes Trading allocation facts, so Prisma requires the deployed `trading_allocation_facts` schema to match the application model even when the current allocation-fact table is empty. SIT now has the existing `20260727110000` migration recorded with nullable exact Cost Pool and target references, its FK, and indexes. No customer, sales, receipt, Cost Pool, or allocation-fact row was changed or backfilled. This keeps Tracking read-only while restoring its authenticated API response instead of hiding schema drift behind a fallback.
