@@ -1033,7 +1033,7 @@ export function PaymentApprovalPageClient() {
 
         {!isLoading && totalRows === 0 ? (
           <div className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
-            {tab === 'ap' ? 'ไม่มีรายการต้นทุน / ผู้ขายรออนุมัติ' : tab === 'advance' ? 'ไม่มีรายการจ่ายเงินล่วงหน้า / มัดจำรออนุมัติ' : tab === 'pettyReturn' ? 'ไม่มีรายการคืนเงินสำรองจ่าย / คืนเงินกู้กรรมการรออนุมัติ' : 'ไม่มีค่าใช้จ่ายค้างจ่าย'}
+            {tab === 'ap' ? 'ไม่มีรายการรออนุมัติ' : tab === 'advance' ? 'ไม่มีรายการจ่ายเงินล่วงหน้า / มัดจำรออนุมัติ' : tab === 'pettyReturn' ? 'ไม่มีรายการคืนเงินสำรองจ่าย / คืนเงินกู้กรรมการรออนุมัติ' : 'ไม่มีค่าใช้จ่ายค้างจ่าย'}
           </div>
         ) : null}
       </div>
@@ -1130,7 +1130,7 @@ export function PaymentApprovalPageClient() {
                 {!isLoading && totalRows === 0 ? (
                   <TableRow>
                     <TableCell className="p-8 text-center text-slate-500" colSpan={paymentApprovalApColumnCount}>
-                      {tab === 'advance' ? 'ไม่มีรายการจ่ายเงินล่วงหน้า / มัดจำรออนุมัติ' : 'ไม่มีรายการต้นทุน / ผู้ขายรออนุมัติ'}
+                      {tab === 'advance' ? 'ไม่มีรายการจ่ายเงินล่วงหน้า / มัดจำรออนุมัติ' : 'ไม่มีรายการรออนุมัติ'}
                     </TableCell>
                   </TableRow>
                 ) : null}

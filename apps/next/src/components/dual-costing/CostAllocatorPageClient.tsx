@@ -673,7 +673,7 @@ export function CostAllocatorPageClient() {
       ) : null}
 
       {hasSelection ? (
-        <DualCostingPanel title="③ รายการต้นทุนในกลุ่มต้นทุนของสินค้าที่เลือก" titleAction={<PanelToggleButton collapsed={collapsedSections.step3} onClick={() => toggleSection('step3')} />}>
+        <DualCostingPanel title="③ รายการในกลุ่มต้นทุนของสินค้าที่เลือก" titleAction={<PanelToggleButton collapsed={collapsedSections.step3} onClick={() => toggleSection('step3')} />}>
           {!collapsedSections.step3 ? (
           <>
           <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm md:block">
@@ -704,7 +704,7 @@ export function CostAllocatorPageClient() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? <tr><td className="px-3 py-10 text-center text-slate-500" colSpan={poolColumns.length}>กำลังโหลดกลุ่มต้นทุน</td></tr> : null}
-                {!isLoading && (data?.pool.length ?? 0) === 0 ? <tr><td className="px-3 py-10 text-center text-amber-700" colSpan={poolColumns.length}>ยังไม่มีรายการต้นทุนสำหรับสินค้านี้</td></tr> : null}
+                {!isLoading && (data?.pool.length ?? 0) === 0 ? <tr><td className="px-3 py-10 text-center text-amber-700" colSpan={poolColumns.length}>ยังไม่มีรายการสำหรับสินค้านี้</td></tr> : null}
                 {sortedPoolRows.slice(0, 12).map((row) => (
                   <tr key={row.costPoolId} className="hover:bg-slate-50">
                     <td className="whitespace-nowrap px-3 py-3"><span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{poolSourceLabel(row.sourceType)}</span></td>
@@ -723,7 +723,7 @@ export function CostAllocatorPageClient() {
 
           <div className="space-y-3 md:hidden">
             {isLoading ? <div className="rounded-xl border border-slate-200 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">กำลังโหลดกลุ่มต้นทุน</div> : null}
-            {!isLoading && (data?.pool.length ?? 0) === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-4 text-center text-sm text-amber-700 shadow-sm">ยังไม่มีรายการต้นทุนสำหรับสินค้านี้</div> : null}
+            {!isLoading && (data?.pool.length ?? 0) === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-4 text-center text-sm text-amber-700 shadow-sm">ยังไม่มีรายการสำหรับสินค้านี้</div> : null}
             {sortedPoolRows.slice(0, 12).map((row) => (
               <div key={row.costPoolId} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">

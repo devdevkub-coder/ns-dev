@@ -26,6 +26,7 @@
 - If the page is Thai-first, do not leave generic English labels in table headers, filters, empty states, or detail-section titles.
 - Baseline mappings for active list/report UI: `Code` -> `รหัส`, `Customer` -> `ลูกค้า`, `Supplier` -> `ผู้ขาย`, `Product` -> `สินค้า`, `Search Customer` -> `ค้นหาลูกค้า`, `Select Product` -> `เลือกสินค้า`.
 - Official page/module names such as `Customer Tracking 360°` may stay as product names, but the working labels around the table/filter must be Thai.
+- รายการย่อยในกลุ่มต้นทุนใช้คำว่า `รายการ` เท่านั้น ไม่ใช้ `รายการต้นทุน`, `ล็อต` หรือ `Lot` ในข้อความที่ผู้ใช้เห็น.
 
 ## Page Description Banners
 

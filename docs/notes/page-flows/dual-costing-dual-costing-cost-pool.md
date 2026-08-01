@@ -62,12 +62,12 @@ Target rule ล่าสุดหลังเทียบ legacy:
 ## Current UI Behavior Summary
 
 - ใช้ `/daily/weight-ticket-list` เป็น canonical visual/interaction system แต่ Cost Pool คง field ธุรกิจของตัวเองและมี data surface หลักเพียงชุดเดียว จึงไม่สร้าง line tabs ที่ไม่มีความหมาย
-- หน้าหลักจัดกลุ่ม Cost Pool ตามสินค้าเพื่อให้เห็นปริมาณตั้งต้น ยอดรวมรายการจับคู่ ยอดคงเหลือพร้อมใช้ ต้นทุนเฉลี่ย และมูลค่าคงเหลือก่อน จากนั้น `ดูรายละเอียด` จึงเปิด read-only dialog เพื่อแสดงรายการต้นทุนที่ประกอบเป็นยอดรวม กลุ่มสินค้าและ dialog นี้เป็นโครงข้อมูลธุรกิจ ไม่ใช่ visual override
+- หน้าหลักจัดกลุ่ม Cost Pool ตามสินค้าเพื่อให้เห็นปริมาณตั้งต้น ยอดรวมรายการจับคู่ ยอดคงเหลือพร้อมใช้ ต้นทุนเฉลี่ย และมูลค่าคงเหลือก่อน จากนั้น `ดูรายละเอียด` จึงเปิด read-only dialog เพื่อแสดงรายการที่ประกอบเป็นยอดรวม กลุ่มสินค้าและ dialog นี้เป็นโครงข้อมูลธุรกิจ ไม่ใช่ visual override
 - เก็บ summary ตัดสินใจเฉพาะ Purchase, Production และ Regrade; aggregate KPI ที่ซ้ำกับยอดในตารางถูกตัดออกเพื่อให้ผู้ใช้เข้าถึง filter และรายการได้เร็วขึ้น
-- Desktop ใช้ filter card สองแถวตั้งแต่ `md` โดย Cost Type และ Status เป็น segmented single-select ตาม API contract; mobile ใช้ compact search/filter/export row และ shared `MobileFilterSheet`
+- Desktop ใช้ filter card สองแถวตั้งแต่ `md` โดย search, date range, combobox, select และปุ่มล้างตัวกรองสูง `h-9` เท่ากัน ส่วน Cost Type และ Status เป็น segmented single-select ตาม API contract; mobile ใช้ compact search/filter/export row และ shared `MobileFilterSheet` โดย date/filter controls ใช้ `h-9` เช่นเดียวกัน
 - Count, reset-width, page-size และ pagination อยู่ในแถวเดียวภายนอก table shell; desktop table ใช้ shared resizable/sortable fixed-layout header และ mobile ใช้ dense cards
 - หัวคอลัมน์ตัวเลขชิดขวาแนวเดียวกับค่าด้านล่าง โดย sort icon อยู่ก่อน label เพื่อไม่ดันข้อความหัวตารางออกจากแนวตัวเลข
-- XLSX ใช้ query filters ชุดเดียวกับหน้าจอ และการจัดลำดับรายการต้นทุนตาม FIFO/LIFO/Cheap/Expensive ยังคงมาจาก API โดย detail table ไม่ re-sort ซ้ำ
+- XLSX ใช้ query filters ชุดเดียวกับหน้าจอ และการจัดลำดับรายการตาม FIFO/LIFO/Cheap/Expensive ยังคงมาจาก API โดย detail table ไม่ re-sort ซ้ำ
 
 ## Non-Responsibilities
 
@@ -85,7 +85,7 @@ Target rule ล่าสุดหลังเทียบ legacy:
 | 2 | เลือก product/source/status/cost type | API/client filter เฉพาะ candidate ที่ตรง |
 | 3 | toggle available only | ซ่อน `Fully Used` หรือ available qty <= 0 |
 | 4 | เลือก sort | FIFO/LIFO/Cheap/Expensive |
-| 5 | เปิดดูรายละเอียดสินค้า | แสดงรายการต้นทุนของสินค้านั้นใน read-only dialog โดยไม่เปลี่ยน allocation หรือ stock |
+| 5 | เปิดดูรายละเอียดสินค้า | แสดงรายการของสินค้านั้นใน read-only dialog โดยไม่เปลี่ยน allocation หรือ stock |
 | 6 | Export | ส่งออก XLSX ด้วย filter ปัจจุบัน |
 
 ## API / Data Contract

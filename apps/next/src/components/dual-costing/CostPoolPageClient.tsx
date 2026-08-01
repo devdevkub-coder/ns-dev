@@ -288,7 +288,7 @@ export function CostPoolPageClient() {
                 tone={card.tone}
                 value={`${formatMoney(row?.availableQty ?? 0)} กก.`}
               >
-                {formatMoney(row?.availableValue ?? 0)} บาท · {(row?.count ?? 0).toLocaleString('th-TH')} รายการต้นทุน
+                {formatMoney(row?.availableValue ?? 0)} บาท · {(row?.count ?? 0).toLocaleString('th-TH')} รายการ
               </DualCostingStatCard>
             </div>
           )
@@ -309,9 +309,9 @@ export function CostPoolPageClient() {
               />
             </label>
             <span className="text-xs text-slate-500">วันที่เอกสาร:</span>
-            <DatePickerInput id="cost-pool-date-from" value={fromDate} onChange={setFromDate} />
+            <DatePickerInput className="h-9" id="cost-pool-date-from" value={fromDate} onChange={setFromDate} />
             <span className="text-slate-400">→</span>
-            <DatePickerInput id="cost-pool-date-to" value={toDate} onChange={setToDate} />
+            <DatePickerInput className="h-9" id="cost-pool-date-to" value={toDate} onChange={setToDate} />
             <div className="w-auto min-w-[180px]">
               <SearchCombobox
                 hideLabel
@@ -414,9 +414,9 @@ export function CostPoolPageClient() {
           <div>
             <span className="mb-1 block text-xs font-semibold text-slate-600">วันที่เอกสาร</span>
             <div className="flex items-center gap-2">
-              <DatePickerInput className="min-w-0 flex-1" value={fromDate} onChange={setFromDate} />
+              <DatePickerInput className="h-9 min-w-0 flex-1" value={fromDate} onChange={setFromDate} />
               <span className="text-slate-400">→</span>
-              <DatePickerInput className="min-w-0 flex-1" value={toDate} onChange={setToDate} />
+              <DatePickerInput className="h-9 min-w-0 flex-1" value={toDate} onChange={setToDate} />
             </div>
           </div>
           <div>
@@ -474,7 +474,7 @@ export function CostPoolPageClient() {
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1 text-sm text-slate-600">
-        <div>พบทั้งหมด {totalGroups.toLocaleString('th-TH')} สินค้า · {rows.length.toLocaleString('th-TH')} รายการต้นทุน</div>
+        <div>พบทั้งหมด {totalGroups.toLocaleString('th-TH')} สินค้า · {rows.length.toLocaleString('th-TH')} รายการ</div>
         <div className="flex flex-wrap items-center gap-2">
           {groupColumnResize.hasCustomWidths ? (
             <Button className="hidden h-9 lg:inline-flex" size="sm" type="button" variant="outline" onClick={groupColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button>
@@ -520,7 +520,7 @@ export function CostPoolPageClient() {
                 <tr className="cursor-pointer transition-colors hover:bg-slate-50" key={group.key} onClick={() => openGroupDetail(group)}>
                   <td className="p-3">
                     <div className="font-semibold text-slate-900">{group.productName}</div>
-                    <div className="mt-0.5 text-xs text-slate-500">{group.rows.length.toLocaleString('th-TH')} รายการต้นทุน</div>
+                    <div className="mt-0.5 text-xs text-slate-500">{group.rows.length.toLocaleString('th-TH')} รายการ</div>
                   </td>
                   <td className="p-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(group.originalQty)}</td>
                   <td className="p-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(group.usedQty)}</td>
@@ -557,7 +557,7 @@ export function CostPoolPageClient() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-base font-bold text-slate-900">{group.productName}</div>
-                  <div className="mt-0.5 text-xs text-slate-500">{group.rows.length.toLocaleString('th-TH')} รายการต้นทุน</div>
+                  <div className="mt-0.5 text-xs text-slate-500">{group.rows.length.toLocaleString('th-TH')} รายการ</div>
                 </div>
                 <span className="shrink-0 text-xs font-semibold text-blue-700">ดูรายละเอียด</span>
               </div>
@@ -591,7 +591,7 @@ export function CostPoolPageClient() {
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 sm:flex sm:flex-wrap sm:justify-between">
                 <div className="min-w-0">
                   <DialogTitle className="truncate text-base text-white sm:text-lg" id="cost-pool-detail-title">รายละเอียด Cost Pool: {activeGroup.productName}</DialogTitle>
-                  <DialogDescription className="truncate text-slate-300">{activeGroup.rows.length.toLocaleString('th-TH')} รายการต้นทุน · เรียงตาม {sortLabel(sort)}</DialogDescription>
+                  <DialogDescription className="truncate text-slate-300">{activeGroup.rows.length.toLocaleString('th-TH')} รายการ · เรียงตาม {sortLabel(sort)}</DialogDescription>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {lotColumnResize.hasCustomWidths ? (
@@ -649,7 +649,7 @@ export function CostPoolPageClient() {
                             <td className="p-3 text-center whitespace-nowrap"><StatusIndicator status={row.status} /></td>
                           </tr>
                         ))}
-                        {activeGroup.rows.length === 0 ? <tr><td className="p-8 text-center text-slate-500" colSpan={COST_POOL_LOT_TABLE_COLUMN_COUNT}>ไม่พบรายการต้นทุน</td></tr> : null}
+                        {activeGroup.rows.length === 0 ? <tr><td className="p-8 text-center text-slate-500" colSpan={COST_POOL_LOT_TABLE_COLUMN_COUNT}>ไม่พบรายการ</td></tr> : null}
                       </tbody>
                     </table>
                   </div>
