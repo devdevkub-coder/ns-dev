@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-13
+updated: 2026-07-27
 route: /production/report
 ---
 
@@ -37,7 +37,7 @@ Business purpose:
 - วัด efficiency โรงงาน
 - detect production loss
 - ดู WIP คงเหลือของใบสั่งผลิตที่ยังค้าง
-- ส่งออกตารางรายละเอียดเป็น CSV ตาม filter ที่เห็นบนหน้า
+- ส่งออกตารางรายละเอียดเป็น XLSX ตาม filter ที่เห็นบนหน้า
 
 Primary formula:
 
@@ -79,8 +79,10 @@ production report/yield/output/loss by period/order/line
 - แสดง KPI ตาม requirement snapshot: ใบสั่งผลิต, วัตถุดิบรวม, ผลผลิตรวม, Loss รวม, Yield %, ต้นทุนผลิตรวม, Loss Value (บาท)
 - ไม่แสดง KPI `บาท/กก. เฉลี่ย` บน summary เพราะทำให้สูตร cost/kg สับสนระหว่าง `RM/Input` และ `Total/Output`
 - แสดง block `WIP คงเหลือ (Work-in-Progress)` ในหน้านี้ได้ แม้ standalone `/production/wip-report` ถูก retire แล้ว
+- ในแท็บ WIP ให้แสดงยอดรวมปริมาณ/มูลค่าในแถว table toolbar เดียวกับจำนวนรายการและ pagination ไม่สร้างหัวข้อสรุปซ้ำกับชื่อแท็บ
 - แสดง block `ผลผลิตแยกตามสินค้า` จาก output facts ที่รับเข้า stock ของบริษัท ไม่รวม loss
-- แสดงตาราง `รายละเอียดใบสั่งผลิต` เป็น source สำหรับ CSV export
+- ในแท็บสรุปตามสินค้า ให้ใช้ชื่อ line tab เป็นบริบทของตาราง แล้วแสดง table toolbar/pagination ก่อนตารางโดยไม่สร้างหัวข้อซ้ำ
+- แสดงตาราง `รายละเอียดใบสั่งผลิต` เป็น source สำหรับ XLSX export
 - drilldown ไป production order and WIP/cost เมื่อมี route/action รองรับ
 
 ## Non-Responsibilities
@@ -100,7 +102,7 @@ production report/yield/output/loss by period/order/line
 | 4 | review WIP | show open/partial orders with remaining WIP qty/value |
 | 5 | review product summary | group output by product, excluding loss |
 | 6 | review detail | order-level input/output/WIP/loss/yield/RM/process/total/loss value/unit cost |
-| 7 | export | CSV from the visible detail table and active filters |
+| 7 | export | XLSX from the visible detail table and active filters |
 
 ## Legacy Baseline
 
@@ -145,10 +147,10 @@ Target differences from legacy:
 - yield formula ต้องชัดและใช้หน่วยเดียวกัน
 - loss category ต้องมาจาก output category policy
 - report ต้อง reconcile กับ WIP/output facts
-- cancelled production orders are excluded from default report rows
-- status filter follows MVP statuses: `Open`, `In Production`, `Partially Completed`, `Completed`, `Cancelled`; `Closed` is a future accounting/cost-lock decision, not MVP default
+- cancelled production orders are excluded from every report response, including a stale explicit `Cancelled` query
+- selectable report statuses are `Open`, `In Production`, `Partially Completed`, and `Completed`; `Cancelled` remains a lifecycle state but is not a report filter option, and `Closed` is a future accounting/cost-lock decision
 - `Loss Value (บาท)` must be zero only when loss qty is zero or the order has no valid RM unit cost; missing cost data must be visible as a data/reconciliation issue, not silently defaulted
-- CSV export must use the same detail row set shown on screen
+- XLSX export must use the same detail row set shown on screen
 
 ## Side Effects
 
@@ -167,7 +169,6 @@ Target differences from legacy:
 - Current Next report summary still has an ambiguous cost/kg metric; target requirement removes average cost/kg from KPI and keeps explicit order-level `RM/Input` and `Total/Output` formulas.
 - Current Next report row contract needs explicit `lossValue`, `rmCostPerKg`, and `productionCostPerKg` fields before UI can match the screenshot.
 - Current product summary in the shared report client groups by production order target product; target requires grouping actual output products received into stock.
-- Current filter UI only sends date range from the shared client; target production report needs branch, machine, and status filters to match legacy/customer screenshot.
 
 ## Implementation Task Breakdown
 
@@ -193,7 +194,7 @@ Target differences from legacy:
 
 - [x] Restore production report filters to match legacy/customer screenshot: date from, date to, branch, machine, and status.
 - [x] Use outward business codes/ids consistently and let the API resolve internal ids server-side.
-- [x] Keep cancelled orders excluded by default; status handling must not silently reintroduce legacy `Closed` unless accounting/cost-lock policy is approved.
+- [x] Keep cancelled orders excluded from every result and out of selectable report statuses; status handling must not silently reintroduce legacy `Closed` unless accounting/cost-lock policy is approved.
 - [ ] Later extension: order/line/product filters can be added after API/schema support is confirmed.
 
 ### Task 4: UI Layout / KPI
@@ -210,8 +211,8 @@ Target differences from legacy:
 ### Task 5: Detail Table / Export
 
 - [x] Detail table columns should include: เลขที่, วันที่, ประเภท, เครื่อง, สถานะ, Input, Output, WIP, Loss, Yield %, RM, Process, Total, Loss Value (บาท), RM บาท/กก., ต้นทุนผลิต บาท/กก.
-- [x] CSV export must export the visible detail row set under the active filters.
-- [x] CSV headers must use explicit unit-cost labels, not ambiguous `฿/กก.`.
+- [x] XLSX export must export the visible detail row set under the active filters.
+- [x] XLSX headers must use explicit unit-cost labels, not ambiguous `฿/กก.`.
 - [x] Export must not use a separate query or summary-only dataset that can drift from the visible table.
 
 ### Task 6: QA / Validation
@@ -221,7 +222,7 @@ Target differences from legacy:
 - [x] Run `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`.
 - [x] Run `npm run build --workspace @ns-scrap-erp/next`.
 - [x] Run `npm run verify:production-report --workspace @ns-scrap-erp/next`.
-- [ ] Browser QA `/production/report`: filters, KPI totals, WIP section, product summary, detail columns, and CSV export.
+- [x] Browser QA `/production/report`: desktop/mobile filters, WIP section, product summary, detail columns, draft-only mobile apply/clear/Escape behavior, and responsive layout.
 - [x] Confirm `/production/wip-report` remains retired and is not reintroduced in navigation.
 
 ## Implementation Checklist
@@ -255,3 +256,11 @@ Target differences from legacy:
 ## 2026-07-12 Browser visual consistency checkpoint
 
 Verified in Codex Browser with live report rows. The report and its in-page WIP tab now use Thai-first working labels, Thai production-type display values, and Lucide KPI icons instead of unresolved `??` glyphs. The document number remains the sole left-aligned business column; every later report/WIP column, including date, text, status, and numeric values, is right-aligned in both header and body. What is what: this remains a read-only view of the same production/WIP facts. Why it stays this way: it applies the approved `/stock/convert` alignment and `/production/orders` density baseline without changing filters, formulas, exports, API contracts, permissions, or database state.
+
+## 2026-07-27 Report filter and responsive-design correction
+
+What is what: `/production/report` is still a read-only L5 production-fact report. Its applied query carries date, branch, machine, and one lifecycle status to the authenticated API; the API returns only branch/machine options visible to that user scope and applies the same branch scope to screen data and XLSX export. Cancelled orders remain outside report rows even when a stale client query requests that status. Responses and exports use `private, no-store` because stock, cost, WIP, and production status are business facts.
+
+Why it has to be like this: a filter must change the read-model query and export together, not only hide rows in the browser; otherwise KPI, WIP, product summary, and downloaded report can drift or disclose another branch. The Desktop filter card keeps search/date/branch/machine in one responsive control group and range/status/action controls below. Mobile keeps search, scope summary, and Excel export compact; the sheet changes are draft-only, including `ล้างตัวกรอง`, until `ใช้ตัวกรอง` is pressed. WIP and product-summary tabs use the same loading and pagination contract as the order table. The current alignment rule supersedes the 2026-07-12 note above: identifiers, dates, labels, statuses, and actions are centered; quantities, money, and percentages are right-aligned with tabular numerals.
+
+Validation: focused report-route/status tests passed `2/2`; targeted and workspace ESLint passed with zero errors (the workspace has six pre-existing warnings outside this scope); workspace type-check passed; the production build passed with a 4 GB Node heap; and `verify:production-report` passed against 24 report rows and seven product-summary rows. Live browser QA passed at desktop and 390px mobile: the filter sheet kept changes as a draft until `ใช้ตัวกรอง`, `ล้างตัวกรอง` changed only that draft, Escape discarded it, WIP/product-summary tabs rendered, mobile width remained `390px` without document overflow, and the browser reported no console errors. The report UI exposes only reportable statuses; `Cancelled` remains blocked by the server even for a stale query.
