@@ -1,3 +1,11 @@
+# Vercel UAT Deployment Dependency Fix 2026-08-02
+
+Objective: ให้ Vercel project ใหม่ที่ deploy branch `uat` ของ `nserprich99-creator/ns-erp` resolve dependency ของ Next workspace ได้เหมือน local.
+
+Checkpoint: `vitest` ถูกประกาศใน `apps/next` โดยตรงและ lockfile ถูกอัปเดต; workspace lint, type-check, production build และ `git diff --check` ผ่าน. ยังไม่ได้ push fix ขึ้น `uat` จนกว่าจะตรวจ diff และยืนยัน target remote.
+
+Immediate next task: commit และ push เฉพาะ `uat-origin/uat` เพื่อให้ Vercel redeploy; `main` ไม่เปลี่ยนใน batch นี้.
+
 # Foreign Receipt Settlement FX Follow-up 2026-07-31
 
 Objective: ให้ foreign SB receipt คำนวณ cash applied/AR settlement/FX gain จาก facts ที่ persist แล้ว, แยก FX fact ตามสาขา และคง THB consumer เดิมโดยไม่สร้าง GL, fallback หรือ hardcode.
