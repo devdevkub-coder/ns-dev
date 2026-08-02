@@ -350,12 +350,10 @@ async function loadPlInputs(filter: PeriodFilter) {
         ...relatedBranchWhere('accounts', scope.branchIds),
       },
     }),
-    scope.constrained
-      ? Promise.resolve([])
-      : prisma.fx_gain_loss.findMany({
-          orderBy: [{ date: 'asc' }],
-          where: { date: dateWhere },
-        }),
+    prisma.fx_gain_loss.findMany({
+      orderBy: [{ date: 'asc' }],
+      where: { ...branchWhere, date: dateWhere },
+    }),
     prisma.asset_disposals.findMany({
       include: { assets: { select: { branch_id: true, code: true, name: true } } },
       orderBy: [{ disposal_date: 'asc' }, { disposal_no: 'asc' }],
@@ -623,7 +621,6 @@ export async function buildPlStatement(filter: PeriodFilter) {
       'ค่าเสื่อมราคานับเฉพาะรายการ posted ที่ยังไม่ถูก reverse',
       'กำไร/ขาดทุนจากจำหน่ายทรัพย์สินนับเฉพาะรายการ approved ที่ยังไม่ถูก reverse ตาม disposal_date',
       'Stock/Trading split เป็นข้อมูลประกอบเฉพาะรายได้และต้นทุนขายจากชุดข้อมูลเต็ม ไม่ใช่ตัวกรองกำไรก่อนภาษี',
-      ...(scope.constrained ? ['ไม่รวมกำไร/ขาดทุนอัตราแลกเปลี่ยนเมื่อจำกัดขอบเขตสาขา เพราะ fx_gain_loss ยังไม่มีมิติสาขา'] : []),
       ...(scope.constrained ? ['ไม่แสดง Historical Baseline เมื่อจำกัดขอบเขตสาขา เพราะ historical_monthly ยังไม่มีมิติสาขา'] : []),
     ]),
     split: {

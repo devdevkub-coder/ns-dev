@@ -55,6 +55,8 @@ type Bill = {
   payableBalance?: number
   receivableBalance?: number
   receiptStatus?: string
+  receiptUpdatedAt?: string | null
+  receiptUpdatedBy?: string | null
   sourceDocNo?: string
   sourceType?: 'advance_payment' | 'expense' | 'petty_advance_return' | 'purchase_bill'
   status?: string
@@ -98,7 +100,9 @@ type MoneyRow = {
   discount?: number
   fee?: number
   foreignAudit?: {
+    arSettledThb: number
     carryingBookAmount: number
+    cashAppliedThb: number
     currencyCode: string
     fxRate: number
     fxRateDate: string
@@ -184,13 +188,15 @@ type PaymentSplit = SupplierPaymentFormValues['splits'][number]
 type ReceiptLine = NonNullable<CustomerReceiptFormValues['salesBillLines']>[number]
 type CustomerAdvanceReceiptLine = NonNullable<CustomerReceiptFormValues['customerAdvanceLines']>[number]
 type ReceiptSplit = NonNullable<CustomerReceiptFormValues['splits']>[number]
-type PaymentBillSort = 'age_asc' | 'age_desc' | 'balance_asc' | 'balance_desc' | 'date_asc' | 'date_desc' | 'doc_asc' | 'doc_desc' | 'paid_asc' | 'paid_desc' | 'source_asc' | 'source_desc' | 'supplier_asc' | 'supplier_desc' | 'total_asc' | 'total_desc'
-type PaymentBillSortField = 'age' | 'balance' | 'date' | 'docNo' | 'paidAmount' | 'sourceDocNo' | 'supplier' | 'totalAmount'
+type PaymentBillSort = 'age_asc' | 'age_desc' | 'balance_asc' | 'balance_desc' | 'date_asc' | 'date_desc' | 'doc_asc' | 'doc_desc' | 'operator_asc' | 'operator_desc' | 'paid_asc' | 'paid_desc' | 'source_asc' | 'source_desc' | 'status_asc' | 'status_desc' | 'supplier_asc' | 'supplier_desc' | 'total_asc' | 'total_desc' | 'updated_asc' | 'updated_desc'
+type PaymentBillSortField = 'age' | 'balance' | 'date' | 'docNo' | 'operator' | 'paidAmount' | 'sourceDocNo' | 'status' | 'supplier' | 'totalAmount' | 'updatedAt'
 type PaymentQueueSourceFilter = 'all' | NonNullable<Bill['sourceType']>
+type ReceiptQueueStatusFilter = 'active' | 'all' | 'pending'
 type HistorySortField = 'accountName' | 'amount' | 'bankFee' | 'billRefs' | 'date' | 'docNo' | 'netAmount' | 'notes' | 'partyName' | 'status' | 'wht'
 type PaymentHistoryStatusFilter = 'active' | 'all' | 'cancelled'
 type ReceiptTab = 'entry' | 'history'
 type PaymentQueueColumnKey = 'accountNo' | 'action' | 'age' | 'balance' | 'date' | 'destination' | 'docNo' | 'paidAmount' | 'partyName' | 'totalAmount'
+type ReceiptQueueColumnKey = 'accountNo' | 'action' | 'balance' | 'date' | 'docNo' | 'operator' | 'paidAmount' | 'partyName' | 'status' | 'totalAmount' | 'updatedAt'
 type MoneyHistoryColumnKey = 'accountName' | 'action' | 'amount' | 'bankFee' | 'billRefs' | 'date' | 'docNo' | 'netAmount' | 'notes' | 'partyName' | 'status' | 'wht'
 const pageSizeOptions = [10, 25, 50, 100]
 const paymentQueueSourceOptions = [
@@ -214,7 +220,7 @@ const paymentQueueColumns: Array<ResizableColumnDefinition<PaymentQueueColumnKey
   { key: 'age', defaultWidth: 145, minWidth: 135 },
   { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
-const receiptQueueColumns: Array<ResizableColumnDefinition<PaymentQueueColumnKey>> = [
+const receiptQueueColumns: Array<ResizableColumnDefinition<ReceiptQueueColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 140, minWidth: 120 },
   { key: 'partyName', defaultWidth: 260, minWidth: 160 },
@@ -222,6 +228,9 @@ const receiptQueueColumns: Array<ResizableColumnDefinition<PaymentQueueColumnKey
   { key: 'totalAmount', defaultWidth: 120, minWidth: 100 },
   { key: 'paidAmount', defaultWidth: 110, minWidth: 90 },
   { key: 'balance', defaultWidth: 110, minWidth: 90 },
+  { key: 'status', defaultWidth: 120, minWidth: 100 },
+  { key: 'updatedAt', defaultWidth: 150, minWidth: 140 },
+  { key: 'operator', defaultWidth: 160, minWidth: 130 },
   { key: 'action', defaultWidth: 72, minWidth: 64, maxWidth: 88 },
 ]
 const paymentHistoryColumns: Array<ResizableColumnDefinition<MoneyHistoryColumnKey>> = [
@@ -994,11 +1003,25 @@ function receiptQueueDocNo(bill: Bill) {
   return bill.activeReceiptDocNos?.[0] ?? '-'
 }
 
-function receiptQueueStatusLabel(bill: Bill) {
+function receiptQueueStatus(bill: Bill): Exclude<ReceiptQueueStatusFilter, 'all'> {
   const status = String(bill.receiptStatus ?? '').toLowerCase()
-  if (status === 'pending') return 'รอรับเงิน'
-  if (status === 'active') return 'รับเงินแล้ว'
-  return bill.activeReceiptDocNos?.length ? 'รับเงินแล้ว' : 'รอรับเงิน'
+  if (status === 'active' || bill.activeReceiptDocNos?.length) return 'active'
+  return 'pending'
+}
+
+function receiptQueueStatusLabel(bill: Bill) {
+  return receiptQueueStatus(bill) === 'active' ? 'รับเงินแล้ว' : 'รอรับเงิน'
+}
+
+function formatDateTimeDisplay(value: string | null | undefined) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return new Intl.DateTimeFormat('th-TH', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'Asia/Bangkok',
+  }).format(date)
 }
 
 function buildReceivableBillPrintHtml(bill: Bill, customerName: string) {
@@ -1142,6 +1165,7 @@ export function MoneyMovementPageClient({
   const [billPageSize, setBillPageSize] = useState(25)
   const [billSort, setBillSort] = useState<PaymentBillSort>('date_desc')
   const [billSourceFilter, setBillSourceFilter] = useState<PaymentQueueSourceFilter>('all')
+  const [receiptQueueStatusFilter, setReceiptQueueStatusFilter] = useState<ReceiptQueueStatusFilter>('all')
   const [historyPage, setHistoryPage] = useState(1)
   const [historyPageSize, setHistoryPageSize] = useState(10)
   const [historySortField, setHistorySortField] = useState<HistorySortField>(mode === 'payment' ? 'date' : 'docNo')
@@ -1496,7 +1520,8 @@ export function MoneyMovementPageClient({
       ].join(' ').toLowerCase()
       const matchesSearch = !query || searchHaystack.includes(query)
       const matchesBranch = !branchFilter || bill.branchId === branchFilter
-      return matchesSearch && matchesBranch && balance > 0
+      const matchesStatus = receiptQueueStatusFilter === 'all' || receiptQueueStatus(bill) === receiptQueueStatusFilter
+      return matchesSearch && matchesBranch && matchesStatus && balance > 0
     }).sort((left, right) => {
       const leftCustomerName = partyMap.get(left.customerId ?? '') ?? left.customerId ?? ''
       const rightCustomerName = partyMap.get(right.customerId ?? '') ?? right.customerId ?? ''
@@ -1517,6 +1542,10 @@ export function MoneyMovementPageClient({
           return receiptQueueDocNo(left).localeCompare(receiptQueueDocNo(right), 'th')
         case 'doc_desc':
           return receiptQueueDocNo(right).localeCompare(receiptQueueDocNo(left), 'th')
+        case 'operator_asc':
+          return String(left.receiptUpdatedBy ?? '').localeCompare(String(right.receiptUpdatedBy ?? ''), 'th')
+        case 'operator_desc':
+          return String(right.receiptUpdatedBy ?? '').localeCompare(String(left.receiptUpdatedBy ?? ''), 'th')
         case 'paid_asc':
           return (left.paidAmount ?? 0) - (right.paidAmount ?? 0)
         case 'paid_desc':
@@ -1525,6 +1554,14 @@ export function MoneyMovementPageClient({
           return left.docNo.localeCompare(right.docNo, 'th')
         case 'source_desc':
           return right.docNo.localeCompare(left.docNo, 'th')
+        case 'status_asc':
+          return receiptQueueStatusLabel(left).localeCompare(receiptQueueStatusLabel(right), 'th')
+        case 'status_desc':
+          return receiptQueueStatusLabel(right).localeCompare(receiptQueueStatusLabel(left), 'th')
+        case 'updated_asc':
+          return String(left.receiptUpdatedAt ?? '').localeCompare(String(right.receiptUpdatedAt ?? ''))
+        case 'updated_desc':
+          return String(right.receiptUpdatedAt ?? '').localeCompare(String(left.receiptUpdatedAt ?? ''))
         case 'supplier_asc':
           return leftCustomerName.localeCompare(rightCustomerName, 'th')
         case 'supplier_desc':
@@ -1537,7 +1574,7 @@ export function MoneyMovementPageClient({
           return String(right.date ?? '').localeCompare(String(left.date ?? ''))
       }
     })
-  }, [billSearch, billSort, branchFilter, data.bills, mode, partyMap])
+  }, [billSearch, billSort, branchFilter, data.bills, mode, partyMap, receiptQueueStatusFilter])
 
   const supplierBillTotalRows = supplierBills.length
   const supplierBillTotalPages = Math.max(1, Math.ceil(supplierBillTotalRows / billPageSize))
@@ -1548,10 +1585,10 @@ export function MoneyMovementPageClient({
   const receiptBillCurrentPage = Math.min(billPage, receiptBillTotalPages)
   const receiptBillPageRows = receiptBills.slice((receiptBillCurrentPage - 1) * billPageSize, receiptBillCurrentPage * billPageSize)
   const entryBillTotalPages = mode === 'payment' ? supplierBillTotalPages : receiptBillTotalPages
-  const hasActiveBillFilters = billSearch.trim() !== '' || billSort !== 'date_desc' || billSourceFilter !== 'all' || branchFilter !== ''
+  const hasActiveBillFilters = billSearch.trim() !== '' || billSort !== 'date_desc' || billSourceFilter !== 'all' || branchFilter !== '' || receiptQueueStatusFilter !== 'all'
   useEffect(() => {
     setBillPage(1)
-  }, [billPageSize, billSearch, billSort, billSourceFilter, branchFilter])
+  }, [billPageSize, billSearch, billSort, billSourceFilter, branchFilter, receiptQueueStatusFilter])
 
   useEffect(() => {
     if (billPage > entryBillTotalPages) setBillPage(entryBillTotalPages)
@@ -1811,6 +1848,7 @@ export function MoneyMovementPageClient({
     setReceiptCurrencyFilter('')
     setReceiptSourceFilter('')
     setPaymentHistoryStatusFilter('all')
+    setReceiptQueueStatusFilter('all')
   }
 
   function switchMoneyTab(value: ReceiptTab) {
@@ -1835,6 +1873,7 @@ export function MoneyMovementPageClient({
     setReceiptCurrencyFilter('')
     setReceiptSourceFilter('')
     setPaymentHistoryStatusFilter('all')
+    setReceiptQueueStatusFilter('all')
     setBillSearch('')
     setBillSort('date_desc')
     setBillSourceFilter('all')
@@ -1864,9 +1903,12 @@ export function MoneyMovementPageClient({
       date: 'date',
       doc: 'docNo',
       paid: 'paidAmount',
+      operator: 'operator',
       source: 'sourceDocNo',
+      status: 'status',
       supplier: 'supplier',
       total: 'totalAmount',
+      updated: 'updatedAt',
     }
     return { direction: rawDirection, field: fieldMap[rawField] ?? 'date' }
   }
@@ -1877,10 +1919,13 @@ export function MoneyMovementPageClient({
       balance: 'balance',
       date: 'date',
       docNo: 'doc',
+      operator: 'operator',
       paidAmount: 'paid',
       sourceDocNo: 'source',
+      status: 'status',
       supplier: 'supplier',
       totalAmount: 'total',
+      updatedAt: 'updated',
     }
     return `${fieldMap[field]}_${direction}` as PaymentBillSort
   }
@@ -3131,6 +3176,16 @@ export function MoneyMovementPageClient({
                 value={branchFilter}
                 onChange={(value) => setBranchFilter(value ?? '')}
               />
+              <UiSelect
+                aria-label="กรองสถานะใบรับเงิน"
+                className="h-9 w-full px-2 sm:w-auto sm:min-w-[140px]"
+                value={receiptQueueStatusFilter}
+                onChange={(event) => setReceiptQueueStatusFilter(event.target.value as ReceiptQueueStatusFilter)}
+              >
+                <option value="all">ทุกสถานะ</option>
+                <option value="pending">รอรับเงิน</option>
+                <option value="active">รับเงินแล้ว</option>
+              </UiSelect>
               {hasActiveBillFilters ? (
                 <UiButton
                   className="h-9 font-normal"
@@ -3141,6 +3196,7 @@ export function MoneyMovementPageClient({
                     setBillSearch('')
                     setBillSort('date_desc')
                     setBranchFilter('')
+                    setReceiptQueueStatusFilter('all')
                   }}
                 >
                   <X aria-hidden="true" className="mr-1 h-4 w-4" />
@@ -3193,6 +3249,8 @@ export function MoneyMovementPageClient({
                       <span className="text-slate-800">{partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? '-'}</span>
                     </div>
                     <div className="text-xs font-semibold text-amber-700">{receiptQueueStatusLabel(bill)}</div>
+                    <div><span className="font-semibold text-slate-500">อัปเดตล่าสุด: </span>{formatDateTimeDisplay(bill.receiptUpdatedAt)}</div>
+                    <div><span className="font-semibold text-slate-500">ผู้ดำเนินการ: </span>{bill.receiptUpdatedBy || '-'}</div>
                   </div>
                   <div className="flex items-end justify-between border-t border-slate-100 pt-2">
                     <div>
@@ -3236,6 +3294,9 @@ export function MoneyMovementPageClient({
                   <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="ยอดรวม" resizeProps={receiptQueueColumnResize.getResizeHandleProps('totalAmount', 'ยอดรวม')} sortKey="totalAmount" onSort={toggleBillSort} />
                   <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="รับแล้ว" resizeProps={receiptQueueColumnResize.getResizeHandleProps('paidAmount', 'รับแล้ว')} sortKey="paidAmount" onSort={toggleBillSort} />
                   <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="ค้างรับ" resizeProps={receiptQueueColumnResize.getResizeHandleProps('balance', 'ค้างรับ')} sortKey="balance" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="สถานะ" resizeProps={receiptQueueColumnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="อัปเดตล่าสุด" resizeProps={receiptQueueColumnResize.getResizeHandleProps('updatedAt', 'อัปเดตล่าสุด')} sortKey="updatedAt" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="ผู้ดำเนินการ" resizeProps={receiptQueueColumnResize.getResizeHandleProps('operator', 'ผู้ดำเนินการ')} sortKey="operator" onSort={toggleBillSort} />
                   <ResizableTableHead align="center" label="จัดการ" resizeProps={receiptQueueColumnResize.getResizeHandleProps('action', 'Action')} />
                 </tr>
               </TableHeader>
@@ -3249,8 +3310,7 @@ export function MoneyMovementPageClient({
                   return (
                     <TableRow key={bill.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openReceivableBillDetail(bill)}>
                       <TableCell className="text-xs font-semibold text-slate-700">
-                        <div>{receiptDocNo}</div>
-                        <div className="mt-1 text-xs font-normal text-amber-700">{receiptQueueStatusLabel(bill)}</div>
+                        {receiptDocNo}
                       </TableCell>
                       <TableCell className="text-xs font-semibold text-slate-700">{formatDateDisplay(bill.date)}</TableCell>
                       <TableCell className="truncate text-xs font-semibold text-slate-700">{partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? '-'}</TableCell>
@@ -3258,6 +3318,14 @@ export function MoneyMovementPageClient({
                       <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(bill.totalAmount)}</TableCell>
                       <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold text-blue-700 tabular-nums">{formatMoney(receivedAmount)}</TableCell>
                       <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold text-emerald-700 tabular-nums">{formatMoney(balance)}</TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${receiptQueueStatus(bill) === 'active' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          <span className={`size-1.5 rounded-full ${receiptQueueStatus(bill) === 'active' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                          {receiptQueueStatusLabel(bill)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-xs font-medium text-slate-600">{formatDateTimeDisplay(bill.receiptUpdatedAt)}</TableCell>
+                      <TableCell className="truncate text-xs font-medium text-slate-700">{bill.receiptUpdatedBy || '-'}</TableCell>
                       <TableCell className="text-center">
                         <TableActionButton menu={(
                           <>
@@ -5000,7 +5068,7 @@ function ReceiptDetailDialog({
             <>
               <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
                 <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                  <div className="text-xs text-slate-500">{row.foreignAudit ? (row.sourceType === 'CADV' ? 'ยอดตัด CADV (THB)' : 'Settlement (THB)') : 'ยอดรับ (THB)'}</div>
+                  <div className="text-xs text-slate-500">{row.foreignAudit ? 'มูลค่าเงินรับ ณ วันรับเงิน (THB)' : 'ยอดรับ (THB)'}</div>
                   <div className="text-lg font-bold text-emerald-700">{formatMoney(receiptBookAmount(row))}</div>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
@@ -5041,8 +5109,12 @@ function ReceiptDetailDialog({
                   ['สกุลเงินที่รับจริง', row.foreignAudit.currencyCode],
                   [`ยอดที่ลูกค้าโอน (${row.foreignAudit.currencyCode})`, formatMoney(row.foreignAudit.nativeAmount)],
                   ['อัตราแลกเปลี่ยน', `${formatFxRate(row.foreignAudit.fxRate)} (${row.foreignAudit.fxRateDate || '-'})`],
-                  [row.sourceType === 'CADV' ? 'ยอดตัดเงินรับล่วงหน้า (THB)' : 'ยอดตัดลูกหนี้ (THB)', formatMoney(row.foreignAudit.settlementBookAmount)],
-                  ...(row.sourceType === 'SB' ? [['Settlement FX (THB)', formatMoney(row.foreignAudit.settlementFxDifference)] as [string, string]] : []),
+                  ['มูลค่าเงินรับ ณ วันรับเงิน (THB)', formatMoney(row.foreignAudit.settlementBookAmount)],
+                  ...(row.sourceType === 'SB' ? [
+                    ['เงินสดตัดลูกหนี้ (THB)', formatMoney(row.foreignAudit.cashAppliedThb)] as [string, string],
+                    ['ยอดตัดลูกหนี้ (THB)', formatMoney(row.foreignAudit.arSettledThb)] as [string, string],
+                    ['กำไร FX จากการปิดบิล (THB)', formatMoney(row.foreignAudit.settlementFxDifference)] as [string, string],
+                  ] : []),
                   ['Carrying (THB)', formatMoney(row.foreignAudit.carryingBookAmount)],
                 ]}
               /> : null}

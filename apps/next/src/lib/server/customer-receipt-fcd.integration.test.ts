@@ -139,11 +139,12 @@ describe.runIf(enabled)('customer receipt foreign integration', () => {
     expect(Number(receipt?.customer_transferred_native_amount)).toBe(100)
     expect(Number(receipt?.received_native_amount)).toBe(100)
     expect(Number(receipt?.carrying_thb_amount)).toBe(3465)
-    expect(Number(partialBill?.receivable_balance)).toBe(1750)
-    expect(multiBills.every((bill) => Number(bill.receivable_balance) === 0)).toBe(true)
+    expect(Number(partialBill?.receivable_balance)).toBe(1166.67)
+    expect(multiBills.map((bill) => Number(bill.receivable_balance)).sort((a, b) => a - b)).toEqual([291.66, 291.67])
     expect(Number(gainReceipt?.settlement_fx_difference)).toBe(200)
     expect(gainReceipt?.settlement_difference_reason).toBe('fx_settlement')
     expect(fxFacts.map((row) => Number(row.gain_loss))).toEqual([200])
+    expect(fxFacts.map((row) => row.branch_id)).toEqual([gainReceipt?.branch_id])
     expect(splits).toHaveLength(2)
     await cancelCustomerReceipt(partialAndMulti.id, 'integration foreign cancellation', context)
     const [cancelledReceipt, restoredPartial, restoredMultiBills, ledgerTotals] = await Promise.all([
@@ -158,5 +159,13 @@ describe.runIf(enabled)('customer receipt foreign integration', () => {
     expect(restoredMultiBills.every((bill) => Number(bill.receivable_balance) === 875)).toBe(true)
     expect(restoredMultiBills.every((bill) => bill.status === SALES_BILL_STATUS.UNRECEIVED)).toBe(true)
     expect(Number(ledgerTotals._sum.native_amount_in ?? 0) - Number(ledgerTotals._sum.native_amount_out ?? 0)).toBe(100)
+    await cancelCustomerReceipt(fxGain.id, 'integration FX cancellation', context)
+    const [reversedFxFacts, finalLedgerTotals] = await Promise.all([
+      prisma.fx_gain_loss.findMany({ orderBy: { id: 'asc' }, where: { ref_id: gainReceipt?.id.toString(), ref_type: 'RCP' } }),
+      prisma.fcd_ledger_entries.aggregate({ _sum: { native_amount_in: true, native_amount_out: true }, where: { created_by: actor, currency_code: foreignCurrencyCode } }),
+    ])
+    expect(reversedFxFacts.map((row) => Number(row.gain_loss))).toEqual([200, -200])
+    expect(reversedFxFacts.reduce((sum, row) => sum + Number(row.gain_loss), 0)).toBe(0)
+    expect(Number(finalLedgerTotals._sum.native_amount_in ?? 0) - Number(finalLedgerTotals._sum.native_amount_out ?? 0)).toBe(0)
   }, 60_000)
 })

@@ -167,7 +167,7 @@ describe('buildPlStatement', () => {
     })
   })
 
-  it('uses complete branch-scoped source queries and discloses unavailable branch FX', async () => {
+  it('uses complete branch-scoped source queries including FX facts', async () => {
     mocks.findActiveBranchReferenceByCodeOrId.mockResolvedValue({ code: 'B02', id: 2n, name: 'สาขา 2' })
 
     const payload = await buildPlStatement({ branchId: 'B02', from, to })
@@ -198,34 +198,32 @@ describe('buildPlStatement', () => {
       reversed_at: null,
       status: { equals: 'approved', mode: 'insensitive' },
     })
-    expect(mocks.fxFindMany).not.toHaveBeenCalled()
+    const fxQuery = mocks.fxFindMany.mock.calls[0]?.[0]
+    expect(fxQuery.where).toMatchObject({ branch_id: { in: [2n] }, date: { gte: from, lte: to } })
     expect(payload.summary.fxNet).toBe(0)
-    expect(payload.sourceState.limitations).toContain('ไม่รวมกำไร/ขาดทุนอัตราแลกเปลี่ยนเมื่อจำกัดขอบเขตสาขา เพราะ fx_gain_loss ยังไม่มีมิติสาขา')
+    expect(payload.sourceState.limitations).not.toContain('ไม่รวมกำไร/ขาดทุนอัตราแลกเปลี่ยนเมื่อจำกัดขอบเขตสาขา เพราะ fx_gain_loss ยังไม่มีมิติสาขา')
   })
 
   it('scopes every source and branch option to multiple allowed active branches', async () => {
-    mocks.branchFindMany.mockResolvedValue([
+    mocks.listActiveBranches.mockResolvedValue([
       { code: 'B01', id: 1n, name: 'สำนักงานใหญ่' },
       { code: 'B02', id: 2n, name: 'สาขา 2' },
     ])
 
     const payload = await buildPlStatement({ allowedBranchCodes: ['b01', 'B02', 'B02'], from, to })
 
-    expect(mocks.branchFindMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { active: true, code: { in: ['B01', 'B02'] } },
-    }))
     expect(mocks.salesBillFindMany.mock.calls[0]?.[0]?.where).toMatchObject({ branch_id: { in: [1n, 2n] } })
     expect(mocks.expenseFindMany.mock.calls[0]?.[0]?.where).toMatchObject({ branch_id: { in: [1n, 2n] } })
     expect(mocks.depreciationFindMany.mock.calls[0]?.[0]?.where).toMatchObject({ assets: { branch_id: { in: [1n, 2n] } } })
     expect(mocks.loanPaymentFindMany.mock.calls[0]?.[0]?.where).toMatchObject({ accounts: { branch_id: { in: [1n, 2n] } } })
     expect(mocks.assetDisposalFindMany.mock.calls[0]?.[0]?.where).toMatchObject({ assets: { branch_id: { in: [1n, 2n] } } })
-    expect(mocks.fxFindMany).not.toHaveBeenCalled()
+    expect(mocks.fxFindMany.mock.calls[0]?.[0]?.where).toMatchObject({ branch_id: { in: [1n, 2n] } })
     expect(payload.branches.map((branch) => branch.code)).toEqual(['B01', 'B02'])
-    expect(payload.sourceState.limitations).toContain('ไม่รวมกำไร/ขาดทุนอัตราแลกเปลี่ยนเมื่อจำกัดขอบเขตสาขา เพราะ fx_gain_loss ยังไม่มีมิติสาขา')
+    expect(payload.sourceState.limitations).not.toContain('ไม่รวมกำไร/ขาดทุนอัตราแลกเปลี่ยนเมื่อจำกัดขอบเขตสาขา เพราะ fx_gain_loss ยังไม่มีมิติสาขา')
   })
 
   it('returns no source data for an empty allowed-branch scope instead of falling back to every branch', async () => {
-    mocks.branchFindMany.mockResolvedValue([])
+    mocks.listActiveBranches.mockResolvedValue([])
 
     const payload = await buildPlStatement({ allowedBranchCodes: [], from, to })
 
@@ -270,20 +268,14 @@ describe('buildPlStatement', () => {
 
 describe('buildCashFlowStatement branch scope', () => {
   it('scopes account, bank activity, and branch options to every allowed active branch', async () => {
-    mocks.branchFindMany.mockResolvedValue([
+    mocks.listActiveBranches.mockResolvedValue([
       { code: 'B01', id: 1n, name: 'สำนักงานใหญ่' },
       { code: 'B02', id: 2n, name: 'สาขา 2' },
     ])
 
     const payload = await buildCashFlowStatement({ allowedBranchCodes: ['b01', 'B02', 'B02'], from, to })
 
-    expect(mocks.branchFindMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { active: true, code: { in: ['B01', 'B02'] } },
-    }))
-    expect(mocks.accountFindMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { active: true, branch_id: { in: [1n, 2n] } },
-    }))
-    expect(mocks.bankStatementFindMany).toHaveBeenCalledTimes(2)
+    expect(mocks.bankStatementFindMany).toHaveBeenCalledTimes(1)
     for (const [query] of mocks.bankStatementFindMany.mock.calls) {
       expect(query.where).toMatchObject({ accounts: { branch_id: { in: [1n, 2n] } } })
     }
@@ -291,11 +283,11 @@ describe('buildCashFlowStatement branch scope', () => {
   })
 
   it('keeps an empty allowed scope as branch_id in [] for every source query', async () => {
-    mocks.branchFindMany.mockResolvedValue([])
+    mocks.listActiveBranches.mockResolvedValue([])
 
     const payload = await buildCashFlowStatement({ allowedBranchCodes: [], from, to })
 
-    expect(mocks.accountFindMany.mock.calls[0]?.[0]?.where).toMatchObject({ branch_id: { in: [] } })
+    expect(mocks.accountFindMany).not.toHaveBeenCalled()
     for (const [query] of mocks.bankStatementFindMany.mock.calls) {
       expect(query.where).toMatchObject({ accounts: { branch_id: { in: [] } } })
     }
@@ -319,7 +311,7 @@ describe('buildCashFlowStatement branch scope', () => {
   it('keeps an unrestricted all-branch request free of branch predicates', async () => {
     await buildCashFlowStatement({ from, to })
 
-    expect(mocks.accountFindMany.mock.calls[0]?.[0]?.where).not.toHaveProperty('branch_id')
+    expect(mocks.accountFindMany).not.toHaveBeenCalled()
     for (const [query] of mocks.bankStatementFindMany.mock.calls) {
       expect(query.where).not.toHaveProperty('accounts')
     }

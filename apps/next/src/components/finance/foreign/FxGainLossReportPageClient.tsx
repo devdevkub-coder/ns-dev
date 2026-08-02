@@ -10,6 +10,8 @@ import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 
 type FxGainLossRow = {
+  branch: string
+  cashAppliedThb: number | null
   currency: string
   date: string
   foreignAmount: number
@@ -33,6 +35,8 @@ type FxGainLossPayload = {
 }
 
 type FxGainLossColumnKey =
+  | 'branch'
+  | 'cashAppliedThb'
   | 'currency'
   | 'date'
   | 'foreignAmount'
@@ -49,11 +53,12 @@ const fxGainLossColumns: Array<ResizableColumnDefinition<FxGainLossColumnKey>> =
   { key: 'date', defaultWidth: 120, minWidth: 105 },
   { key: 'transactionType', defaultWidth: 150, minWidth: 120 },
   { key: 'reference', defaultWidth: 170, minWidth: 130 },
+  { key: 'branch', defaultWidth: 170, minWidth: 130 },
   { key: 'currency', defaultWidth: 90, minWidth: 80 },
   { key: 'foreignAmount', defaultWidth: 150, minWidth: 125 },
   { key: 'originalFxRate', defaultWidth: 140, minWidth: 115 },
   { key: 'settlementFxRate', defaultWidth: 150, minWidth: 125 },
-  { key: 'originalThbValue', defaultWidth: 150, minWidth: 125 },
+  { key: 'cashAppliedThb', defaultWidth: 150, minWidth: 125 },
   { key: 'settlementThbValue', defaultWidth: 160, minWidth: 130 },
   { key: 'fxGainLossAmount', defaultWidth: 140, minWidth: 120 },
 ]
@@ -251,11 +256,12 @@ export function FxGainLossReportPageClient() {
               <ResizableTableHead label="วันที่" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
               <ResizableTableHead label="ประเภท" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="transactionType" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('transactionType', 'ประเภท')} />
               <ResizableTableHead label="Reference" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="reference" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('reference', 'Reference')} />
+              <ResizableTableHead label="สาขา" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="branch" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('branch', 'สาขา')} />
               <ResizableTableHead label="สกุล" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="currency" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('currency', 'สกุล')} />
               <ResizableTableHead align="right" label="Foreign Amount" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="foreignAmount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('foreignAmount', 'Foreign Amount')} />
               <ResizableTableHead align="right" label="Original Rate" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="originalFxRate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('originalFxRate', 'Original Rate')} />
               <ResizableTableHead align="right" label="Settlement Rate" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="settlementFxRate" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('settlementFxRate', 'Settlement Rate')} />
-              <ResizableTableHead align="right" label="Original THB" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="originalThbValue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('originalThbValue', 'Original THB')} />
+              <ResizableTableHead align="right" label="เงินสดตัดลูกหนี้" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="cashAppliedThb" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('cashAppliedThb', 'เงินสดตัดลูกหนี้')} />
               <ResizableTableHead align="right" label="Settlement THB" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="settlementThbValue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('settlementThbValue', 'Settlement THB')} />
               <ResizableTableHead align="right" label="FX G/L" activeSortKey={sortKey ?? undefined} direction={sortDirection} sortKey="fxGainLossAmount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('fxGainLossAmount', 'FX G/L')} />
             </tr>
@@ -271,11 +277,12 @@ export function FxGainLossReportPageClient() {
                   {row.sourceDocumentHref ? <a className="text-blue-700 hover:underline" href={row.sourceDocumentHref}>{row.reference}</a> : <span className="text-slate-700">{row.reference}</span>}
                   {row.sourceLedgerHref ? <a className="ml-2 text-xs text-slate-500 hover:text-blue-700 hover:underline" href={row.sourceLedgerHref}>Ledger</a> : null}
                 </td>
+                <td className="min-w-0 truncate px-3 py-3 text-slate-700">{row.branch}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-slate-600">{row.currency || '-'}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.foreignAmount)}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.originalFxRate)}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.settlementFxRate)}</td>
-                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.originalThbValue)}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{row.cashAppliedThb === null ? '-' : formatMoney(row.cashAppliedThb)}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums text-slate-700">{formatMoney(row.settlementThbValue)}</td>
                 <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold tabular-nums ${row.fxGainLossAmount >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatMoney(row.fxGainLossAmount)}</td>
               </tr>
@@ -309,6 +316,7 @@ export function FxGainLossReportPageClient() {
               <span className="font-semibold text-slate-800">{row.transactionType}</span>
               <span className="font-mono text-blue-600">Ref: {row.sourceDocumentHref ? <a className="hover:underline" href={row.sourceDocumentHref}>{row.reference}</a> : row.reference}{row.sourceLedgerHref ? <a className="ml-2 text-xs text-slate-500 hover:text-blue-700 hover:underline" href={row.sourceLedgerHref}>Ledger</a> : null}</span>
             </div>
+            <div className="text-xs text-slate-500">สาขา: {row.branch}</div>
             
             <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100/60 mt-1">
               <div>
@@ -325,9 +333,9 @@ export function FxGainLossReportPageClient() {
             
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 pt-1.5 border-t border-slate-100/60 mt-1 font-mono text-xs">
               <div className="space-y-0.5">
-                <div className="flex justify-between text-slate-400"><span>Original:</span></div>
+                <div className="flex justify-between text-slate-400"><span>AR Settlement:</span></div>
                 <div className="flex justify-between"><span>Rate:</span><span>{formatMoney(row.originalFxRate)}</span></div>
-                <div className="flex justify-between"><span>Value:</span><span>{formatMoney(row.originalThbValue)}</span></div>
+                <div className="flex justify-between"><span>ตัดลูกหนี้:</span><span>{row.cashAppliedThb === null ? '-' : formatMoney(row.cashAppliedThb)}</span></div>
               </div>
               <div className="space-y-0.5 text-right">
                 <div className="flex justify-between text-slate-400"><span>Settlement:</span></div>

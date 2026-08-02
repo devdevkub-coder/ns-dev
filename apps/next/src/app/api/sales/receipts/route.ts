@@ -86,6 +86,8 @@ export async function GET(request: Request) {
             select: {
               doc_no: true,
               status: true,
+              updated_at: true,
+              updated_by: true,
             },
           },
           status: true,
@@ -161,6 +163,7 @@ export async function GET(request: Request) {
           customer_receipt_allocations: {
             orderBy: [{ line_no: 'asc' }],
             select: {
+              allocated_ar_amount: true,
               discount_amount: true,
               line_no: true,
               receipt_amount: true,
@@ -276,14 +279,18 @@ export async function GET(request: Request) {
         sourceType: requestedSourceType || null,
       },
       branches: branchReferences.map((branch) => ({ active: true, code: branch.code, id: branch.code, name: branch.name })),
-      bills: bills.map((bill) => ({
+      bills: bills.map((bill) => {
+        const activeAllocation = bill.customer_receipt_allocations.find((allocation) => RECEIPT_QUEUE_STATUSES.includes(allocation.status))
+        return {
         activeReceiptDocNos: [...new Set(bill.customer_receipt_allocations
           .filter((allocation) => {
             const receiptStatus = allocation.customer_receipts.status.toLowerCase()
             return RECEIPT_QUEUE_STATUSES.includes(allocation.status) && RECEIPT_QUEUE_STATUSES.includes(receiptStatus)
           })
           .map((allocation) => allocation.customer_receipts.doc_no))],
-        receiptStatus: bill.customer_receipt_allocations.find((allocation) => RECEIPT_QUEUE_STATUSES.includes(allocation.status))?.customer_receipts.status ?? '',
+        receiptStatus: activeAllocation?.customer_receipts.status ?? '',
+        receiptUpdatedAt: activeAllocation?.customer_receipts.updated_at?.toISOString() ?? null,
+        receiptUpdatedBy: activeAllocation?.customer_receipts.updated_by ?? null,
         customerId: bill.customers?.code?.trim() || stringifyBusinessValue(bill.customer_id),
         branchId: bill.branches?.code ?? '',
         branchName: bill.branches?.name ?? '',
@@ -293,7 +300,8 @@ export async function GET(request: Request) {
         paidAmount: Math.max(0, toNumber(bill.total_amount) - toNumber(bill.receivable_balance)),
         receivableBalance: toNumber(bill.receivable_balance),
         totalAmount: toNumber(bill.total_amount),
-      })),
+        }
+      }),
       customerAdvances: customerAdvances
         .filter((advance) => toNumber(advance.target_amount) - toNumber(advance.received_amount) > 0.005)
         .map((advance) => ({
@@ -320,7 +328,11 @@ export async function GET(request: Request) {
           ? receiptForeignSplits.map((split) => `${split.account_name_snapshot} - ${toNumber(split.received_native_amount).toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 2 })} ${split.currency_code}`)
           : receiptStatements.length > 0
           ? receiptStatements.map((statement) => `${statement.accounts?.name ?? '-'} - ${toNumber(statement.book_amount_in).toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 2 })} THB`)
-          : [receipt.account_name_snapshot]
+            : [receipt.account_name_snapshot]
+        const cashAppliedThb = receipt.customer_receipt_allocations
+          .reduce((total, allocation) => total + toNumber(allocation.receipt_amount), 0)
+        const arSettledThb = receipt.customer_receipt_allocations
+          .reduce((total, allocation) => total + toNumber(allocation.allocated_ar_amount), 0)
         return {
           accountId: receipt.account_code_snapshot,
           accountName: accountSummaries[0] ?? receipt.account_name_snapshot,
@@ -366,6 +378,8 @@ export async function GET(request: Request) {
           foreignAudit: receipt.receipt_currency_code
             ? {
               carryingBookAmount: toNumber(receipt.carrying_thb_amount),
+              arSettledThb,
+              cashAppliedThb,
               currencyCode: receipt.receipt_currency_code,
               fxRate: toNumber(receipt.fx_rate),
               fxRateDate: receipt.fx_rate_date ? toDateOnly(receipt.fx_rate_date) : '',
