@@ -786,7 +786,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     }
   }
 
-  function openTemporaryPasswordDialog(user: AdminUser) {
+  function openCredentialDialog(user: AdminUser) {
     if (user.accountStatus !== 'active') return
     setTemporaryPasswordResult(null)
     setActivationUser(user)
@@ -819,22 +819,23 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
             <Pencil aria-hidden="true" className="h-4 w-4" />
             แก้ไข
           </DropdownMenuItem>
-          <DropdownMenuItem
-            className="cursor-pointer gap-2 text-slate-700 focus:text-slate-950 dark:text-slate-100 dark:focus:text-white"
-            disabled={passwordActionDisabled}
-            onSelect={() => void sendUserInvite(user)}
-          >
-            {user.authUserId ? <KeyRound aria-hidden="true" className="h-4 w-4" /> : <Send aria-hidden="true" className="h-4 w-4" />}
-            {actionUserId === user.id ? 'กำลังส่ง...' : userPasswordActionLabel(user)}
-          </DropdownMenuItem>
           {user.accountStatus === 'active' ? (
             <DropdownMenuItem
               className="cursor-pointer gap-2 text-slate-700 focus:text-slate-950 dark:text-slate-100 dark:focus:text-white"
-              disabled={actionUserId === user.id}
-              onSelect={() => openTemporaryPasswordDialog(user)}
+              disabled={passwordActionDisabled}
+              onSelect={() => openCredentialDialog(user)}
             >
               <KeyRound aria-hidden="true" className="h-4 w-4" />
-              สร้างรหัสผ่านชั่วคราว
+              จัดการรหัสผ่าน
+            </DropdownMenuItem>
+          ) : user.accountStatus === 'pending' ? (
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 text-slate-700 focus:text-slate-950 dark:text-slate-100 dark:focus:text-white"
+              disabled={passwordActionDisabled}
+              onSelect={() => void sendUserInvite(user)}
+            >
+              <Send aria-hidden="true" className="h-4 w-4" />
+              {actionUserId === user.id ? 'กำลังส่ง...' : userPasswordActionLabel(user)}
             </DropdownMenuItem>
           ) : null}
         </DropdownMenuContent>
@@ -1434,7 +1435,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
             }
           }}
         >
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md" hideClose>
             <DialogHeader>
               <DialogTitle>กำหนดวิธีเข้าสู่ระบบ</DialogTitle>
               <DialogDescription>{fullName(activationUser)} · {activationUser.email}</DialogDescription>

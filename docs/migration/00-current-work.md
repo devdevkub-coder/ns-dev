@@ -1,6 +1,6 @@
 # Direct Temporary Password Action 2026-08-03
 
-เพิ่มเมนู `จัดการ > สร้างรหัสผ่านชั่วคราว` สำหรับผู้ใช้ที่มีสถานะ `active` โดยเปิด credential dialog เดิมและใช้ API temporary-password เดิม ไม่ต้องปิด/เปิดผู้ใช้ก่อน. ยังคงแสดงรหัสครั้งเดียว, บังคับเปลี่ยนหลัง login และไม่เก็บ raw password ใน application table.
+รวมเมนู credential ของผู้ใช้สถานะ `active` เป็น `จัดการ > จัดการรหัสผ่าน` แล้วเปิด credential dialog จุดเดียวให้เลือกส่งลิงก์หรือสร้างรหัสผ่านชั่วคราว ไม่ต้องปิด/เปิดผู้ใช้ก่อน. ยังคงแสดงรหัสครั้งเดียว, บังคับเปลี่ยนหลัง login และไม่เก็บ raw password ใน application table.
 
 # User Branch Access UX Checkpoint 2026-08-03
 
