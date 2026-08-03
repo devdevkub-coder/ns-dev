@@ -1,6 +1,6 @@
 # Disable Broken Password-Link UI 2026-08-03
 
-นำ entry point `ส่งลิงก์ให้ตั้งรหัสผ่าน` ออกจากเมนูและ modal เพราะทั้งคู่พึ่งพา Supabase email/redirect ที่ Production ยังใช้ไม่ได้. Credential UI เหลือการสร้างรหัสผ่านชั่วคราวเพียง flow เดียว แสดงครั้งเดียวและบังคับเปลี่ยนหลัง login.
+นำ entry point `ส่งลิงก์ให้ตั้งรหัสผ่าน` ออกจากเมนูและ modal รวมถึงการส่งลิงก์อัตโนมัติหลังสร้างผู้ใช้ เพราะทั้งหมดพึ่งพา Supabase email/redirect ที่ Production ยังใช้ไม่ได้. Credential UI เหลือการสร้างรหัสผ่านชั่วคราวเพียง flow เดียว แสดงครั้งเดียวและบังคับเปลี่ยนหลัง login.
 
 # Temporary Password Copy Feedback 2026-08-03
 
