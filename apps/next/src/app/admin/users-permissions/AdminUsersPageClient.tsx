@@ -1,11 +1,12 @@
 'use client'
 
 import Image from 'next/image'
-import { Camera, Check, Copy, KeyRound, Mail, Trash2, Upload, UserRound } from 'lucide-react'
+import { Camera, Check, Copy, KeyRound, Pencil, Trash2, Upload, UserRound } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useActionConfirmation, useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -199,11 +200,6 @@ const statusUpdateSchema = z.object({
 const temporaryPasswordResultSchema = z.object({
   issuedAt: z.string(),
   temporaryPassword: z.string().min(12),
-})
-
-const inviteResultSchema = z.object({
-  mode: z.enum(['invite', 'reset']),
-  sent: z.literal(true),
 })
 
 const saveUserResultSchema = z.object({
@@ -791,35 +787,6 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     }
   }
 
-  async function sendUserPasswordLink(user: AdminUser) {
-    setActionUserId(user.id)
-    setError(null)
-    setNotice(null)
-
-    try {
-      const response = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}/invite`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ redirectTo: `${window.location.origin}/reset-password` }),
-      })
-      const payload = await readJsonResponse(response, inviteResultSchema, 'ส่งลิงก์ตั้งรหัสผ่านไม่สำเร็จ')
-      setNotice(payload.mode === 'invite' ? `ส่งลิงก์ตั้งรหัสผ่านไปที่ ${user.email} แล้ว` : `ส่งลิงก์รีเซ็ตรหัสผ่านไปที่ ${user.email} แล้ว`)
-      await loadData()
-      return true
-    } catch (caught) {
-      setError(getErrorMessage(caught, 'ส่งลิงก์ตั้งรหัสผ่านไม่สำเร็จ'))
-      return false
-    } finally {
-      setActionUserId(null)
-    }
-  }
-
-  async function sendActivationPasswordLink() {
-    if (!activationUser) return
-    const sent = await sendUserPasswordLink(activationUser)
-    if (sent) setActivationUser(null)
-  }
-
   function openCredentialDialog(user: AdminUser) {
     if (user.accountStatus !== 'active') return
     setTemporaryPasswordResult(null)
@@ -842,24 +809,33 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     const passwordActionDisabled = !user.email || user.accountStatus === 'disabled' || actionUserId === user.id
 
     return (
-      <TableActionButton
-        aria-label={`จัดการ ${fullName(user)}`}
-        busy={actionUserId === user.id}
-        disabled={actionUserId === user.id}
-        label="จัดการ"
-        menu={(
-          <>
-            <TableActionMenuItem onSelect={() => openEditUser(user)}>แก้ไข</TableActionMenuItem>
-            {user.accountStatus === 'active' ? (
-              <TableActionMenuItem disabled={passwordActionDisabled} onSelect={() => openCredentialDialog(user)}>
-                จัดการรหัสผ่าน
-              </TableActionMenuItem>
-            ) : null}
-          </>
-        )}
-        mobileLabel={mobileLabel}
-        title="จัดการ"
-      />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <TableActionButton
+            aria-label={`จัดการ ${fullName(user)}`}
+            disabled={actionUserId === user.id}
+            label="จัดการ"
+            mobileLabel={mobileLabel}
+            title="จัดการ"
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-56 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+          <DropdownMenuItem className="cursor-pointer gap-2 text-slate-700 focus:text-slate-950 dark:text-slate-100 dark:focus:text-white" onSelect={() => openEditUser(user)}>
+            <Pencil aria-hidden="true" className="h-4 w-4" />
+            แก้ไข
+          </DropdownMenuItem>
+          {user.accountStatus === 'active' ? (
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 text-slate-700 focus:text-slate-950 dark:text-slate-100 dark:focus:text-white"
+              disabled={passwordActionDisabled}
+              onSelect={() => openCredentialDialog(user)}
+            >
+              <KeyRound aria-hidden="true" className="h-4 w-4" />
+              จัดการรหัสผ่าน
+            </DropdownMenuItem>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
     )
   }
 
@@ -1486,7 +1462,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <p className="text-sm text-slate-600 dark:text-slate-300">เลือกวิธีให้ผู้ใช้ตั้งรหัสผ่าน โดยส่งลิงก์ให้ผู้ใช้ตั้งเอง หรือสร้างรหัสชั่วคราวให้ Admin แจ้งผู้ใช้</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">ระบบจะสร้างรหัสผ่านชั่วคราวให้ผู้ใช้ใช้เข้าสู่ระบบครั้งแรก แล้วบังคับเปลี่ยนทันที</p>
                   {error ? (
                     <div aria-live="assertive" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
                       {error}
@@ -1496,29 +1472,14 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     className="flex w-full items-start gap-3 rounded-md border border-blue-300 bg-blue-50 p-4 text-left hover:bg-blue-100 disabled:opacity-50 dark:border-blue-700 dark:bg-blue-950/40 dark:hover:bg-blue-950/70"
                     disabled={actionUserId === activationUser.id}
                     type="button"
-                    onClick={() => void sendActivationPasswordLink()}
-                  >
-                    <Mail aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-blue-700 dark:text-blue-300" />
-                    <span>
-                      <span className="block text-sm font-semibold text-blue-950 dark:text-blue-100">ส่งลิงก์ให้ตั้งรหัสผ่าน</span>
-                      <span className="mt-1 block text-xs text-blue-700 dark:text-blue-300">ผู้ใช้ตั้งเองจากอีเมล</span>
-                    </span>
-                  </button>
-                  <button
-                    className="flex w-full items-start gap-3 rounded-md border border-slate-300 bg-white p-4 text-left hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700"
-                    disabled={actionUserId === activationUser.id}
-                    type="button"
                     onClick={() => void createTemporaryPassword()}
                   >
-                    <KeyRound aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-slate-700 dark:text-slate-200" />
+                    <KeyRound aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-blue-700 dark:text-blue-300" />
                     <span>
-                      <span className="block text-sm font-semibold">สร้างรหัสผ่านชั่วคราว</span>
-                      <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">แจ้งให้ผู้ใช้ใช้ครั้งแรก แล้วเปลี่ยนทันที</span>
+                      <span className="block text-sm font-semibold text-blue-950 dark:text-blue-100">สร้างรหัสผ่านชั่วคราว</span>
+                      <span className="mt-1 block text-xs text-blue-700 dark:text-blue-300">แสดงให้ Admin ครั้งเดียว</span>
                     </span>
                   </button>
-                  <p className="rounded-md bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500 dark:bg-slate-800/70 dark:text-slate-400">
-                    หากส่งลิงก์ไม่สำเร็จ ระบบจะแจ้งว่าเป็นโควตาต่ออีเมล (รอ 60 วินาที) หรือโควตาทั้งโปรเจกต์ (รอประมาณ 1 ชั่วโมง)
-                  </p>
                   <button
                     className="h-9 w-full rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                     type="button"
