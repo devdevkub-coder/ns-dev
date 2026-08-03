@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { Camera, Copy, KeyRound, Mail, Pencil, Send, Trash2, Upload, UserRound } from 'lucide-react'
+import { Camera, Check, Copy, KeyRound, Mail, Pencil, Send, Trash2, Upload, UserRound } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
@@ -413,6 +413,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const [actionUserId, setActionUserId] = useState<string | null>(null)
   const [activationUser, setActivationUser] = useState<AdminUser | null>(null)
   const [temporaryPasswordResult, setTemporaryPasswordResult] = useState<string | null>(null)
+  const [temporaryPasswordCopied, setTemporaryPasswordCopied] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [savingUserId, setSavingUserId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -770,6 +771,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   async function createTemporaryPassword() {
     if (!activationUser) return
     setActionUserId(activationUser.id)
+    setTemporaryPasswordCopied(false)
     setError(null)
     try {
       const response = await fetch(`/api/admin/users/${encodeURIComponent(activationUser.id)}/temporary-password`, {
@@ -789,8 +791,19 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   function openCredentialDialog(user: AdminUser) {
     if (user.accountStatus !== 'active') return
     setTemporaryPasswordResult(null)
+    setTemporaryPasswordCopied(false)
     setActivationUser(user)
     setError(null)
+  }
+
+  async function copyTemporaryPassword() {
+    if (!temporaryPasswordResult) return
+    try {
+      await navigator.clipboard.writeText(temporaryPasswordResult)
+      setTemporaryPasswordCopied(true)
+    } catch {
+      setError('คัดลอกรหัสผ่านไม่สำเร็จ กรุณาเลือกข้อความแล้วคัดลอกเอง')
+    }
   }
 
   function userPasswordActionLabel(user: AdminUser) {
@@ -1432,6 +1445,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
             if (!open) {
               setActivationUser(null)
               setTemporaryPasswordResult(null)
+              setTemporaryPasswordCopied(false)
             }
           }}
         >
@@ -1451,14 +1465,16 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     <code className="min-w-0 flex-1 select-all break-all px-2 font-mono text-sm font-semibold">{temporaryPasswordResult}</code>
                     <button
                       aria-label="คัดลอกรหัสผ่านชั่วคราว"
-                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
-                      title="คัดลอก"
+                      className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border px-3 text-xs font-semibold transition-colors ${temporaryPasswordCopied ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700'}`}
+                      title={temporaryPasswordCopied ? 'คัดลอกแล้ว' : 'คัดลอก'}
                       type="button"
-                      onClick={() => void navigator.clipboard.writeText(temporaryPasswordResult)}
+                      onClick={() => void copyTemporaryPassword()}
                     >
-                      <Copy aria-hidden="true" className="h-4 w-4" />
+                      {temporaryPasswordCopied ? <Check aria-hidden="true" className="h-4 w-4" /> : <Copy aria-hidden="true" className="h-4 w-4" />}
+                      {temporaryPasswordCopied ? 'คัดลอกแล้ว' : 'คัดลอก'}
                     </button>
                   </div>
+                  {temporaryPasswordCopied ? <p aria-live="polite" className="text-xs font-medium text-emerald-700 dark:text-emerald-300">คัดลอกรหัสผ่านแล้ว</p> : null}
                   <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
                     รหัสนี้จะแสดงครั้งเดียว ปิดหน้าต่างแล้วดูซ้ำไม่ได้
                   </div>
@@ -1468,6 +1484,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     onClick={() => {
                       setActivationUser(null)
                       setTemporaryPasswordResult(null)
+                      setTemporaryPasswordCopied(false)
                     }}
                   >
                     ปิด
