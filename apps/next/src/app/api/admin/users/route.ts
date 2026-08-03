@@ -95,7 +95,7 @@ async function assertUserRefs(
   const [roles, branches, department] = await Promise.all([
     prisma.app_roles.findMany({
       select: { id: true },
-      where: { id: { in: parsedRoleIds }, active: true, is_employee_role: true },
+      where: { id: { in: parsedRoleIds }, active: true },
     }),
     findActiveBranchReferencesByCodes(branchIds),
     prisma.departments.findFirst({
