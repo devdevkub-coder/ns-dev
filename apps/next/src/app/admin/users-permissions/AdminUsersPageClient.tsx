@@ -786,6 +786,13 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     }
   }
 
+  function openTemporaryPasswordDialog(user: AdminUser) {
+    if (user.accountStatus !== 'active') return
+    setTemporaryPasswordResult(null)
+    setActivationUser(user)
+    setError(null)
+  }
+
   function userPasswordActionLabel(user: AdminUser) {
     if (user.accountStatus === 'pending') return user.invitationSentAt ? 'ส่งคำเชิญอีกครั้ง' : 'ส่งคำเชิญ'
     if (user.credentialStatus === 'temporary_password') return 'ส่งลิงก์รีเซ็ตรหัสผ่าน'
@@ -820,6 +827,16 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
             {user.authUserId ? <KeyRound aria-hidden="true" className="h-4 w-4" /> : <Send aria-hidden="true" className="h-4 w-4" />}
             {actionUserId === user.id ? 'กำลังส่ง...' : userPasswordActionLabel(user)}
           </DropdownMenuItem>
+          {user.accountStatus === 'active' ? (
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 text-slate-700 focus:text-slate-950 dark:text-slate-100 dark:focus:text-white"
+              disabled={actionUserId === user.id}
+              onSelect={() => openTemporaryPasswordDialog(user)}
+            >
+              <KeyRound aria-hidden="true" className="h-4 w-4" />
+              สร้างรหัสผ่านชั่วคราว
+            </DropdownMenuItem>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
     )
