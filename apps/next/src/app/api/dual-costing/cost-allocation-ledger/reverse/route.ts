@@ -83,7 +83,7 @@ export async function POST(request: Request) {
         throw new AllocationLedgerConflictError('ไม่พบข้อมูลต้นทุนที่ยังใช้งานครบทั้งการจับคู่ จึงไม่สามารถย้อนกลับได้')
       }
       if (activeFacts.some((fact) => fact.cost_pool_entry_id == null)) {
-        throw new AllocationLedgerConflictError('รายการเก่ายังระบุ lot ต้นทุนไม่ชัดเจน จึงไม่สามารถย้อนกลับโดยเดา lot ได้')
+        throw new AllocationLedgerConflictError('รายการเดิมยังระบุรายการ Cost Pool ไม่ชัดเจน จึงไม่สามารถย้อนกลับโดยเดารายการได้')
       }
 
       const productionTarget = anchor.sales_bill_no
@@ -104,13 +104,13 @@ export async function POST(request: Request) {
       const poolIds = Array.from(releasedByPoolId.keys()).map((id) => BigInt(id))
       const pools = await tx.stock_cost_pool_entries.findMany({ where: { id: { in: poolIds } } })
       if (pools.length !== poolIds.length) {
-        throw new AllocationLedgerConflictError('ไม่พบ Cost Pool lot ครบทั้งการจับคู่ จึงไม่สามารถย้อนกลับได้')
+        throw new AllocationLedgerConflictError('ไม่พบรายการ Cost Pool ครบทั้งการจับคู่ จึงไม่สามารถย้อนกลับได้')
       }
 
       const auditNote = `Reversed from Allocation Ledger: ${reason}`
       for (const pool of pools) {
         if (pool.branch_id !== branch.id) {
-          throw new AllocationLedgerConflictError('Cost Pool lot อยู่นอกสาขาที่อนุญาต')
+          throw new AllocationLedgerConflictError('รายการ Cost Pool อยู่นอกสาขาที่อนุญาต')
         }
         const releasedQty = releasedByPoolId.get(pool.id.toString()) ?? 0
         const nextAllocatedQty = toNumber(pool.allocated_qty) - releasedQty

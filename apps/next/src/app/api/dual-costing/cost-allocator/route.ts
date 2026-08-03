@@ -580,7 +580,7 @@ export async function POST(request: Request) {
       .filter((candidate) => Number.isFinite(candidate.qtyToUse) && candidate.qtyToUse > 0)
 
     if (normalizedCandidates.length === 0) {
-      return NextResponse.json({ error: 'ไม่มีรายการต้นทุนที่พร้อมยืนยันการจัดสรร' }, { status: 400 })
+      return NextResponse.json({ error: 'ไม่มีรายการที่พร้อมยืนยันการจัดสรร' }, { status: 400 })
     }
 
     const invalidCandidate = normalizedCandidates.find((candidate) => !candidate.costPoolId)

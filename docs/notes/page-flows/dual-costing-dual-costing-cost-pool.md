@@ -5,7 +5,7 @@ tags:
   - menu
   - dual-costing
 status: accepted-baseline
-updated: 2026-07-12
+updated: 2026-08-03
 route: /dual-costing/cost-pool
 ---
 
@@ -54,7 +54,7 @@ Target rule ล่าสุดหลังเทียบ legacy:
 ## Page Responsibilities
 
 - แสดงต้นทุน candidate เฉพาะทองแดง/ทองเหลือง
-- แสดง source type, source no, counterparty, product, original qty, matched qty, available qty, unit cost, available value และ status
+- แสดงแหล่งต้นทุน เลขที่เอกสาร ผู้ขาย สินค้า ปริมาณตั้งต้น ปริมาณที่จับคู่แล้ว ปริมาณคงเหลือ ต้นทุนต่อหน่วย มูลค่าคงเหลือ และสถานะ
 - แสดง summary ตาม cost/source/status ที่ filter อยู่
 - export XLSX ด้วย row set เดียวกับตาราง
 - ช่วย user ตรวจว่ามีต้นทุนเหลือพอสำหรับ allocation หรือไม่
@@ -62,12 +62,12 @@ Target rule ล่าสุดหลังเทียบ legacy:
 ## Current UI Behavior Summary
 
 - ใช้ `/daily/weight-ticket-list` เป็น canonical visual/interaction system แต่ Cost Pool คง field ธุรกิจของตัวเองและมี data surface หลักเพียงชุดเดียว จึงไม่สร้าง line tabs ที่ไม่มีความหมาย
-- หน้าหลักจัดกลุ่ม Cost Pool ตามสินค้าเพื่อให้เห็นปริมาณตั้งต้น จับคู่แล้ว คงเหลือ ต้นทุนเฉลี่ย และมูลค่าคงเหลือก่อน จากนั้น `ดูรายละเอียด` จึงเปิด read-only dialog เพื่อแสดง lot ต้นทุนที่ประกอบเป็นยอดรวม กลุ่มสินค้าและ dialog นี้เป็นโครงข้อมูลธุรกิจ ไม่ใช่ visual override
+- หน้าหลักจัดกลุ่ม Cost Pool ตามสินค้าเพื่อให้เห็นปริมาณตั้งต้น ยอดรวมรายการจับคู่ ยอดคงเหลือพร้อมใช้ ต้นทุนเฉลี่ย และมูลค่าคงเหลือก่อน จากนั้น `ดูรายละเอียด` จึงเปิด read-only dialog เพื่อแสดงรายการที่ประกอบเป็นยอดรวม กลุ่มสินค้าและ dialog นี้เป็นโครงข้อมูลธุรกิจ ไม่ใช่ visual override
 - เก็บ summary ตัดสินใจเฉพาะ Purchase, Production และ Regrade; aggregate KPI ที่ซ้ำกับยอดในตารางถูกตัดออกเพื่อให้ผู้ใช้เข้าถึง filter และรายการได้เร็วขึ้น
-- Desktop ใช้ filter card สองแถวตั้งแต่ `md` โดย Cost Type และ Status เป็น segmented single-select ตาม API contract; mobile ใช้ compact search/filter/export row และ shared `MobileFilterSheet`
+- Desktop ใช้ filter card สองแถวตั้งแต่ `md` โดย search, date range, combobox, select และปุ่มล้างตัวกรองสูง `h-9` เท่ากัน ส่วน Cost Type และ Status เป็น segmented single-select ตาม API contract; mobile ใช้ compact search/filter/export row และ shared `MobileFilterSheet` โดย date/filter controls ใช้ `h-9` เช่นเดียวกัน
 - Count, reset-width, page-size และ pagination อยู่ในแถวเดียวภายนอก table shell; desktop table ใช้ shared resizable/sortable fixed-layout header และ mobile ใช้ dense cards
 - หัวคอลัมน์ตัวเลขชิดขวาแนวเดียวกับค่าด้านล่าง โดย sort icon อยู่ก่อน label เพื่อไม่ดันข้อความหัวตารางออกจากแนวตัวเลข
-- XLSX ใช้ query filters ชุดเดียวกับหน้าจอ และการจัดลำดับ lot ตาม FIFO/LIFO/Cheap/Expensive ยังคงมาจาก API โดย detail table ไม่ re-sort ซ้ำ
+- XLSX ใช้ query filters ชุดเดียวกับหน้าจอ และการจัดลำดับรายการตาม FIFO/LIFO/Cheap/Expensive ยังคงมาจาก API โดย detail table ไม่ re-sort ซ้ำ
 
 ## Non-Responsibilities
 
@@ -85,7 +85,7 @@ Target rule ล่าสุดหลังเทียบ legacy:
 | 2 | เลือก product/source/status/cost type | API/client filter เฉพาะ candidate ที่ตรง |
 | 3 | toggle available only | ซ่อน `Fully Used` หรือ available qty <= 0 |
 | 4 | เลือก sort | FIFO/LIFO/Cheap/Expensive |
-| 5 | เปิดดูรายละเอียดสินค้า | แสดง lot ต้นทุนของสินค้านั้นใน read-only dialog โดยไม่เปลี่ยน allocation หรือ stock |
+| 5 | เปิดดูรายละเอียดสินค้า | แสดงรายการของสินค้านั้นใน read-only dialog โดยไม่เปลี่ยน allocation หรือ stock |
 | 6 | Export | ส่งออก XLSX ด้วย filter ปัจจุบัน |
 
 ## API / Data Contract
@@ -125,7 +125,7 @@ Current source tables/routes:
 | `sourceType` | `PO_Buy`, `Spot_Buy`, `Production`, or `Regrade` |
 | `sourceNo` | outward document no such as `POB...` or `PB...` |
 | `date` | source document date |
-| `counterparty` | supplier/counterparty name snapshot/display |
+| `counterparty` | ชื่อผู้ขายจาก `suppliers.name` สำหรับ PB/PO และ `—` สำหรับ Production/Regrade/ยอดยกมา (คง key เดิมเพื่อ compatibility) |
 | `branchName` | branch display |
 | `productId` / `productName` | outward product code/name |
 | `qty` | original source qty |
@@ -153,8 +153,10 @@ Read-only. No stock, payment, AP/AR, PO/PB status, or bank statement side effect
 
 - Current API is implemented and protected by `finance.cash.view`.
 - Current route returns a useful read model and XLSX export.
+- สัญญาการแสดงผู้ขาย: wire key `counterparty` เดิมส่ง `suppliers.name` สำหรับ PB/PO และส่ง `—` สำหรับ Production, Regrade และยอดยกมา; หน้าจอและ XLSX แสดงคอลัมน์นี้เป็น `ผู้ขาย` ส่วนแหล่งต้นทุนยอดยกมาคือ `ยอดยกมา — บิลซื้อ`, `ยอดยกมา — PO ซื้อ` และ `ยอดยกมา — ปรับเกรด`.
 - 2026-06-14 runtime now enforces target eligibility for all Cost Pool rows and restores the legacy source breadth for PB/Production/Regrade read visibility.
-- 2026-07-12 UI follows the customer-approved full-page reference with canonical filters, pagination, resizable grouped table, dense mobile cards, and a read-only lot-detail dialog without changing API, formulas, permissions, or DB state.
+- 2026-08-03 UI follows the customer-approved full-page reference with canonical filters, pagination, resizable grouped table, dense mobile cards, and a read-only item-detail dialog without changing API, formulas, permissions, or DB state.
+- 2026-08-03 local Browser UAT against SIT data verified Desktop and Mobile KPI counts, grouped table/cards, item-detail dialog, Cost Allocator wording, and zero browser-console errors; deployed SIT verification remains a separate post-push gate.
 
 ## Current Gap
 
@@ -171,6 +173,6 @@ Read-only. No stock, payment, AP/AR, PO/PB status, or bank statement side effect
 - [x] Normalize desktop/mobile filters and Cost Type/Status segmented controls
 - [x] Restore grouped-table resize/sort/fixed-layout mechanics and reset control
 - [x] Move count/page-size/pagination outside the table shell
-- [x] Replace inline lot expansion with a read-only detail dialog
+- [x] Replace inline item expansion with a read-only detail dialog
 - [x] Remove aggregate KPI cards that duplicate the primary table
 - [ ] Add/reconcile durable allocation usage source

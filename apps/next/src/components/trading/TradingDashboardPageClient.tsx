@@ -675,7 +675,7 @@ function CostSourceModal({
           <div className="rounded-md border border-slate-200 bg-white overflow-hidden shadow-xs col-span-2 lg:col-span-1">
             <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-3 bg-slate-50/50">
               <div>
-                <div className="text-sm font-bold text-slate-800">รายการต้นทุนล่าสุด</div>
+                <div className="text-sm font-bold text-slate-800">รายการล่าสุด</div>
                 <div className="text-xs text-slate-500">แสดงเฉพาะรายการที่ยังใช้เป็นต้นทุนซื้อมาขายไปได้</div>
               </div>
               <button className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-normal text-slate-600 hover:bg-slate-50 hover:text-slate-800 outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer transition-colors" type="button" onClick={onRefresh}>
@@ -707,7 +707,7 @@ function CostSourceModal({
                 </thead>
                 <tbody>
                   {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={6}>กำลังโหลดข้อมูล</td></tr> : null}
-                  {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={6}>ยังไม่มีรายการต้นทุน</td></tr> : null}
+                  {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={6}>ยังไม่มีรายการ</td></tr> : null}
                   {sortedRows.map((row) => (
                     <tr key={row.id} className="border-t border-slate-200">
                       <td className="p-3 font-mono text-xs font-semibold text-slate-800 overflow-hidden truncate">{row.sourceNo}</td>

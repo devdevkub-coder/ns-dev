@@ -257,7 +257,7 @@ async function resolveTradingCorrectionSources(
     const sourceBill = sourceBillByDocNo.get(parsed.docNo)
     if (!sourceBill) throw new Error(`ไม่พบ Trading PB ${parsed.docNo}`)
     const sourceLine = sourceBill.purchase_bill_items.find((line) => line.line_no === parsed.lineNo)
-    if (!sourceLine) throw new Error(`ไม่พบรายการต้นทุน ${parsed.docNo}:${parsed.lineNo}`)
+    if (!sourceLine) throw new Error(`ไม่พบรายการ ${parsed.docNo}:${parsed.lineNo}`)
     const sourceProductCode = sourceLine.product_id != null ? productCodeById.get(sourceLine.product_id) ?? sourceLine.product_code ?? '' : sourceLine.product_code ?? ''
     if (sourceProductCode && sourceProductCode !== itemCode) throw new Error(`สินค้าบิลขายแถวที่ ${parsed.salesLineNo} ไม่ตรงกับต้นทุน ${sourceBill.doc_no}:${parsed.lineNo}`)
     const sourceKeyById = `${sourceBill.id.toString()}:${parsed.lineNo}`

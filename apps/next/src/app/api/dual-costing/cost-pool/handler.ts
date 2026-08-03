@@ -96,13 +96,6 @@ function costTypeFromSourceType(sourceType: CostPoolRow['sourceType']): CostPool
   return 'Production'
 }
 
-function defaultCounterparty(sourceType: CostPoolRow['sourceType']) {
-  if (sourceType === 'Production') return 'Production Output'
-  if (sourceType === 'Grade Adjustment') return 'Regrade / Conversion'
-  if (sourceType === 'Opening_Purchase' || sourceType === 'Opening_PO' || sourceType === 'Opening_Regrade') return 'Opening Cost Pool'
-  return 'Purchase Receipt'
-}
-
 function sortRows(rows: CostPoolRow[], sort: string | null) {
   const nextRows = [...rows]
   const incomingAsc = (left: CostPoolRow, right: CostPoolRow) =>
@@ -123,7 +116,7 @@ async function buildWorkbook(rows: CostPoolRow[]) {
     Branch: row.branchName,
     CostPoolId: row.costPoolId,
     CostType: row.costType,
-    Counterparty: row.counterparty,
+    ผู้ขาย: row.counterparty,
     Date: row.date,
     OriginalQty: row.qty,
     Product: row.productName,
@@ -310,8 +303,8 @@ export async function getCostPoolRowsData(options: {
       || ''
     const poBuySupplier = resolvedSourceNo ? poBuySupplierByDocNo.get(resolvedSourceNo.trim()) || '' : ''
     const counterparty = sourceTypeValue === 'PO_Buy' || sourceTypeValue === 'Spot_Buy'
-      ? poBuySupplier || purchaseBillSupplier || defaultCounterparty(sourceTypeValue)
-      : defaultCounterparty(sourceTypeValue)
+      ? poBuySupplier || purchaseBillSupplier || '—'
+      : '—'
     rows.push({
       availableQty,
       availableValue: availableQty * unitCost,
