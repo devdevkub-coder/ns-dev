@@ -1,3 +1,9 @@
+# User Branch Access UX Checkpoint 2026-08-03
+
+ปรับฟอร์มเพิ่ม/แก้ไขผู้ใช้ให้เลือกขอบเขตสาขาแบบ explicit ระหว่าง `ทุกสาขา` และ `เฉพาะสาขาที่เลือก`; โหมดเฉพาะสาขาต้องเลือกอย่างน้อยหนึ่งสาขา ส่วนโหมดทุกสาขาจะส่ง `branchIds: []` ตามสัญญา API เดิมและล้าง checkbox ให้อัตโนมัติ เพื่อไม่ให้ผู้ใช้ตีความค่าไม่เลือกสาขาผิด. ยังไม่เปลี่ยน schema หรือ migration.
+
+Validation และการ promote ไป SIT/Production อยู่ใน batch เดียวกับการแก้ UI นี้.
+
 # Production Temporary-Password Login Hotfix 2026-08-03
 
 Root cause: users with `must_change_password = true` were blocked by the proxy before `POST /api/auth/login-complete`, so temporary-password login returned HTTP 403. The proxy now allows login completion, then redirects the authenticated user to `/admin/change-password` as intended. Validation: targeted proxy lint, workspace type-check, and `git diff --check` passed.
