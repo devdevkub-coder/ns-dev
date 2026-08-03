@@ -211,7 +211,7 @@ const saveUserResultSchema = z.object({
 })
 
 type TabKey = 'users' | 'roles'
-type RolesViewTab = 'roles' | 'permissions'
+type RolesViewTab = 'roles' | 'permissions' | 'master-data'
 type AdminUser = AdminUsersPayload['users'][number]
 type AdminRole = AdminUsersPayload['roles'][number]
 type UserColumnKey = 'action' | 'active' | 'branches' | 'contact' | 'department' | 'email' | 'lastLoginAt' | 'name' | 'roles'
@@ -219,6 +219,24 @@ type RoleColumnKey = 'action' | 'active' | 'branchScope' | 'description' | 'name
 type SortDirection = 'asc' | 'desc'
 type UserStatusFilter = 'all' | 'active' | 'disabled' | 'pending'
 type BranchAccessMode = 'all' | 'selected'
+
+const permissionActionLabels: Record<string, string> = {
+  create: 'สร้าง',
+  delete: 'ลบ',
+  export: 'ส่งออก',
+  manage: 'จัดการ',
+  status: 'เปิด/ปิด',
+  update: 'แก้ไข',
+  view: 'ดู',
+}
+
+const masterResourceLabels: Record<string, string> = {
+  accounts: 'บัญชีเงินบริษัท',
+  customers: 'ลูกค้า',
+  products: 'สินค้า',
+  reference: 'ข้อมูลหลักอื่น ๆ',
+  suppliers: 'ผู้ขาย',
+}
 
 type AdminUsersPageClientProps = {
   mode?: TabKey
@@ -635,6 +653,20 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     return Array.from(groups.entries())
   }, [data?.permissions])
 
+  const masterPermissionGroups = useMemo(() => {
+    const groups = new Map<string, AdminUsersPayload['permissions']>()
+    for (const permission of data?.permissions ?? []) {
+      if (permission.module !== 'master') continue
+      const current = groups.get(permission.resource) ?? []
+      current.push(permission)
+      groups.set(permission.resource, current)
+    }
+    return Array.from(groups.entries()).sort(([left], [right]) => {
+      const leftLabel = masterResourceLabels[left] ?? left
+      const rightLabel = masterResourceLabels[right] ?? right
+      return leftLabel.localeCompare(rightLabel, 'th')
+    })
+  }, [data?.permissions])
   const permissionsBySidebar = useMemo(() => sidebarPermissionSections(data?.permissions ?? []), [data?.permissions])
   const sidebarPermissionIds = useMemo(() => new Set(
     permissionsBySidebar.flatMap((section) => section.pages.flatMap((page) => page.actions.map((permission) => permission.id))),
@@ -2053,7 +2085,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
 
         {/* Tab 2: Roles */}
         {!isLoading && currentTab === 'roles' ? <div className="border-b border-slate-200 px-4 pt-3">
-          <Tabs value={rolesViewTab} onValueChange={(value) => setRolesViewTab(value as RolesViewTab)}><TabsList variant="line"><TabsTrigger value="roles" variant="line">Role ตามฝ่าย</TabsTrigger><TabsTrigger value="permissions" variant="line">สิทธิ์รายหน้า</TabsTrigger></TabsList></Tabs>
+          <Tabs value={rolesViewTab} onValueChange={(value) => setRolesViewTab(value as RolesViewTab)}><TabsList variant="line"><TabsTrigger value="roles" variant="line">Role ตามฝ่าย</TabsTrigger><TabsTrigger value="permissions" variant="line">สิทธิ์รายหน้า</TabsTrigger><TabsTrigger value="master-data" variant="line">สิทธิ์ข้อมูลหลัก</TabsTrigger></TabsList></Tabs>
         </div> : null}
         {!isLoading && currentTab === 'roles' && rolesViewTab === 'permissions' ? (
           <div className="space-y-4 p-4">
@@ -2079,6 +2111,55 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
               {matrixPages.map((page) => <tr key={page.href}><td className="p-3"><div className="text-xs text-slate-500">{page.sectionLabel}</div><div className="font-medium text-slate-800">{page.icon} {page.label}</div></td>{matrixActions.map((action) => { const permission = page.actions.find((item) => item.action === action); return <td key={action} className="p-3 text-center">{permission ? <input aria-label={`${page.label} ${action}`} checked={matrixPermissionIds.includes(permission.id)} disabled={!permissionSubjectId || isSavingMatrix} type="checkbox" onChange={() => toggleMatrixPermission(permission.id)} /> : '-'}</td> })}</tr>)}
             </tbody></table></div>
             <div className="flex justify-end gap-2"><button className="h-9 rounded-md border border-slate-300 px-4 text-sm" disabled={isSavingMatrix} type="button" onClick={() => selectPermissionSubject(permissionSubjectType, permissionSubjectId)}>ยกเลิก</button><button className="h-9 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={!permissionSubjectId || isSavingMatrix} type="button" onClick={() => void savePermissionMatrix()}>{isSavingMatrix ? 'กำลังบันทึก...' : 'บันทึกสิทธิ์'}</button></div>
+          </div>
+        ) : null}
+        {!isLoading && currentTab === 'roles' && rolesViewTab === 'master-data' ? (
+          <div className="space-y-4 p-4">
+            <div className="flex flex-wrap items-center gap-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+              <span className="text-sm font-semibold text-slate-700">กำหนดสิทธิ์ข้อมูลหลักให้</span>
+              <div className="flex rounded-md border border-slate-300 bg-white p-0.5">
+                <button className={`rounded px-3 py-1.5 text-sm ${permissionSubjectType === 'role' ? 'bg-slate-800 text-white' : 'text-slate-600'}`} type="button" onClick={() => selectPermissionSubject('role', '')}>Role</button>
+                <button className={`rounded px-3 py-1.5 text-sm ${permissionSubjectType === 'user' ? 'bg-slate-800 text-white' : 'text-slate-600'}`} type="button" onClick={() => selectPermissionSubject('user', '')}>ผู้ใช้รายบุคคล</button>
+              </div>
+              <SearchCombobox
+                hideLabel
+                inputClassName="h-9 w-[15rem]"
+                inputId="admin-master-permission-subject"
+                label={permissionSubjectType === 'role' ? 'Role' : 'ผู้ใช้'}
+                options={permissionSubjectOptions}
+                placeholder={`เลือก${permissionSubjectType === 'role' ? ' Role' : 'ผู้ใช้'}`}
+                value={permissionSubjectId}
+                onChange={(subjectId) => selectPermissionSubject(permissionSubjectType, subjectId)}
+              />
+              {selectedMatrixUser?.department ? <span className="text-xs text-slate-500">ฝ่าย: {selectedMatrixUser.department.name}</span> : null}
+            </div>
+            <div className="overflow-x-auto rounded-md border border-slate-200">
+              <table className="ns-table min-w-full text-sm">
+                <thead className="bg-slate-100">
+                  <tr>
+                    <th className="p-3 text-left">หัวข้อข้อมูลหลัก</th>
+                    {matrixActions.map((action) => <th key={action} className="p-3 text-center whitespace-nowrap">{permissionActionLabels[action] ?? action}</th>)}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {masterPermissionGroups.map(([resource, permissions]) => (
+                    <tr key={resource}>
+                      <td className="p-3">
+                        <div className="font-medium text-slate-800">{masterResourceLabels[resource] ?? resource}</div>
+                        <div className="font-mono text-xs text-slate-400">master.{resource}</div>
+                      </td>
+                      {matrixActions.map((action) => {
+                        const permission = permissions.find((item) => item.action === action)
+                        return <td key={action} className="p-3 text-center">{permission ? <input aria-label={`${masterResourceLabels[resource] ?? resource} ${permissionActionLabels[action] ?? action}`} checked={matrixPermissionIds.includes(permission.id)} disabled={!permissionSubjectId} type="checkbox" onChange={() => toggleMatrixPermission(permission.id)} /> : '-'}</td>
+                      })}
+                    </tr>
+                  ))}
+                  {masterPermissionGroups.length === 0 ? <tr><td className="p-8 text-center text-sm text-slate-500" colSpan={matrixActions.length + 1}>ยังไม่มี permission ข้อมูลหลักใน catalog</td></tr> : null}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-slate-500">สิทธิ์ที่เลือกจะบันทึกตาม Role หรือผู้ใช้ที่เลือก โดยไม่รวมสิทธิ์จากหัวข้ออื่นเข้าด้วยกัน</p>
+            <div className="flex justify-end gap-2"><button className="h-9 rounded-md border border-slate-300 px-4 text-sm" type="button" onClick={() => selectPermissionSubject(permissionSubjectType, permissionSubjectId)}>ยกเลิก</button><button className="h-9 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={!permissionSubjectId || isSavingMatrix} type="button" onClick={() => void savePermissionMatrix()}>{isSavingMatrix ? 'กำลังบันทึก...' : 'บันทึกสิทธิ์ข้อมูลหลัก'}</button></div>
           </div>
         ) : null}
         {!isLoading && currentTab === 'roles' && rolesViewTab === 'roles' ? (

@@ -9,7 +9,7 @@ Working state:
 - Integration branch: `codex/sit-main-integration-20260801`
 - Integration worktree: `C:\new-ns-scrap-erp-worktrees\sit-main-integration-20260801`
 - Local source before merge: `85e26807d`; first fetched SIT source: `63f455a7f`.
-- During merge, `sit-origin/main` advanced to `33e01ceb1`; the additional commit splits Master Data role permissions and adds migration `20260803100000_split_master_data_permissions.sql`.
+- First semantic merge completed in `f985ac0`; the additional `sit-origin/main` commit `33e01ceb1` is now merged without conflict. It splits Master Data role permissions and adds migration `20260803100000_split_master_data_permissions.sql`.
 - Primary workspace remains untouched because it contains unrelated dirty work. SIT secrets remain only in ignored env files and must not enter Git.
 
 Preserved decisions:
@@ -30,6 +30,6 @@ Required validation before push:
 
 Immediate next tasks:
 
-1. Finish the semantic merge against `63f455a7f`, then merge the additional `33e01ceb1` commit.
-2. Complete the validation and independent acceptance gates.
+1. Commit the second merge layer, then complete the full validation and independent acceptance gates.
+2. Fetch and compare `sit-origin/main` again; if it advanced, merge the new commits before publication.
 3. Push `HEAD` to `sit-origin/main` without force, verify remote SHA/deployment, and report the assigned Plane issue through REST only when the issue mapping is confirmed.
