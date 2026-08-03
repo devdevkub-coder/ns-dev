@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { parseInternalBigIntId } from '@/lib/business-code'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { authEmailErrorResponse } from '@/lib/server/auth-email-errors'
 import { prisma } from '@/lib/server/prisma'
 import { getSupabaseAdminClient, getSupabasePublicServerClient } from '@/lib/server/supabase-admin'
 
@@ -113,7 +114,8 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
       const { error } = await supabase.auth.resetPasswordForEmail(appUser.email, { redirectTo })
 
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 502 })
+        const response = authEmailErrorResponse(error)
+        return NextResponse.json(response.body, { headers: response.headers, status: response.status })
       }
 
       const sentAt = new Date()
@@ -146,7 +148,8 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
       }
       const { error } = await supabase.auth.resetPasswordForEmail(appUser.email, { redirectTo })
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 502 })
+        const response = authEmailErrorResponse(error)
+        return NextResponse.json(response.body, { headers: response.headers, status: response.status })
       }
       await prisma.app_users.update({
         data: {
@@ -179,7 +182,8 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
     })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 502 })
+      const response = authEmailErrorResponse(error)
+      return NextResponse.json(response.body, { headers: response.headers, status: response.status })
     }
 
     await prisma.app_users.update({
