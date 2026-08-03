@@ -1436,15 +1436,15 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         >
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>กำหนดวิธีเข้าสู่ระบบ</DialogTitle>
+              <DialogTitle>จัดการรหัสผ่าน</DialogTitle>
               <DialogDescription>{fullName(activationUser)} · {activationUser.email}</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 bg-white p-5 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
               {temporaryPasswordResult ? (
                 <div className="space-y-3">
                   <div>
-                    <h3 className="text-sm font-semibold">รหัสผ่านชั่วคราว</h3>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">แสดงครั้งเดียว ผู้ใช้ต้องเปลี่ยนรหัสผ่านหลัง Login ครั้งแรก</p>
+                    <h3 className="text-sm font-semibold">สร้างรหัสผ่านชั่วคราวแล้ว</h3>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">แจ้งรหัสนี้ให้ผู้ใช้ และให้เปลี่ยนหลังเข้าสู่ระบบ</p>
                   </div>
                   <div className="flex items-center gap-2 rounded-md border border-slate-300 bg-slate-50 p-2 dark:border-slate-600 dark:bg-slate-950">
                     <code className="min-w-0 flex-1 select-all break-all px-2 font-mono text-sm font-semibold">{temporaryPasswordResult}</code>
@@ -1459,7 +1459,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     </button>
                   </div>
                   <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-                    ระบบไม่เก็บรหัสนี้ไว้ หลังปิดหน้าต่างจะไม่สามารถเปิดดูซ้ำได้
+                    รหัสนี้จะแสดงครั้งเดียว ปิดหน้าต่างแล้วดูซ้ำไม่ได้
                   </div>
                   <button
                     className="h-9 w-full rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
@@ -1469,12 +1469,12 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                       setTemporaryPasswordResult(null)
                     }}
                   >
-                    เสร็จสิ้น
+                    ปิด
                   </button>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <p className="text-sm text-slate-600 dark:text-slate-300">บัญชีเปิดใช้งานแล้ว เลือกวิธีให้ผู้ใช้ตั้งรหัสผ่าน</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">เลือกวิธีตั้งรหัสผ่านให้ผู้ใช้</p>
                   <button
                     className="flex w-full items-start gap-3 rounded-md border border-blue-300 bg-blue-50 p-4 text-left hover:bg-blue-100 disabled:opacity-50 dark:border-blue-700 dark:bg-blue-950/40 dark:hover:bg-blue-950/70"
                     disabled={actionUserId === activationUser.id}
@@ -1483,8 +1483,8 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                   >
                     <Mail aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-blue-700 dark:text-blue-300" />
                     <span>
-                      <span className="block text-sm font-semibold text-blue-950 dark:text-blue-100">ส่งลิงก์ตั้งรหัสผ่าน</span>
-                      <span className="mt-1 block text-xs text-blue-700 dark:text-blue-300">แนะนำ · ผู้ใช้ตั้งรหัสผ่านเองจากอีเมล</span>
+                      <span className="block text-sm font-semibold text-blue-950 dark:text-blue-100">ส่งลิงก์ให้ตั้งรหัสผ่าน</span>
+                      <span className="mt-1 block text-xs text-blue-700 dark:text-blue-300">ผู้ใช้ตั้งเองจากอีเมล</span>
                     </span>
                   </button>
                   <button
@@ -1496,7 +1496,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     <KeyRound aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-slate-700 dark:text-slate-200" />
                     <span>
                       <span className="block text-sm font-semibold">สร้างรหัสผ่านชั่วคราว</span>
-                      <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">แสดงให้ Admin ครั้งเดียว และบังคับเปลี่ยนหลัง Login</span>
+                      <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">แจ้งให้ผู้ใช้ใช้ครั้งแรก แล้วเปลี่ยนทันที</span>
                     </span>
                   </button>
                   <button
@@ -1504,7 +1504,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     type="button"
                     onClick={() => setActivationUser(null)}
                   >
-                    ไว้ภายหลัง
+                    ปิด
                   </button>
                 </div>
               )}
