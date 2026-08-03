@@ -43,6 +43,16 @@ export const changePasswordSchema = z.object({
 
 export type ChangePasswordFormData = z.infer<typeof changePasswordSchema>
 
+export const firstPasswordChangeSchema = z.object({
+  password: passwordSyntaxSchema,
+  confirmPassword: z.string().min(1, 'กรุณายืนยันรหัสผ่าน'),
+}).refine((values) => values.password === values.confirmPassword, {
+  message: 'รหัสผ่านและยืนยันรหัสผ่านไม่ตรงกัน',
+  path: ['confirmPassword'],
+})
+
+export type FirstPasswordChangeFormData = z.infer<typeof firstPasswordChangeSchema>
+
 export const userProfileSchema = z.object({
   displayName: z.string().trim().min(1, 'กรุณากรอกชื่อแสดงผล (Display Name)'),
 })

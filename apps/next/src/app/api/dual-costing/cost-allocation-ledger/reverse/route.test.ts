@@ -170,7 +170,7 @@ describe('POST /api/dual-costing/cost-allocation-ledger/reverse', () => {
     }))
 
     expect(response.status).toBe(409)
-    await expect(response.json()).resolves.toEqual({ error: 'รายการเก่ายังระบุ lot ต้นทุนไม่ชัดเจน จึงไม่สามารถย้อนกลับโดยเดา lot ได้' })
+    await expect(response.json()).resolves.toEqual({ error: 'รายการเดิมยังระบุรายการ Cost Pool ไม่ชัดเจน จึงไม่สามารถย้อนกลับโดยเดารายการได้' })
     expect(mocks.poolUpdate).not.toHaveBeenCalled()
     expect(mocks.factUpdateMany).not.toHaveBeenCalled()
   })

@@ -5,7 +5,7 @@ tags:
   - menu
   - dual-costing
 status: accepted-baseline
-updated: 2026-07-12
+updated: 2026-08-03
 route: /dual-costing/cost-pool
 ---
 
@@ -155,7 +155,8 @@ Read-only. No stock, payment, AP/AR, PO/PB status, or bank statement side effect
 - Current route returns a useful read model and XLSX export.
 - สัญญาการแสดงผู้ขาย: wire key `counterparty` เดิมส่ง `suppliers.name` สำหรับ PB/PO และส่ง `—` สำหรับ Production, Regrade และยอดยกมา; หน้าจอและ XLSX แสดงคอลัมน์นี้เป็น `ผู้ขาย` ส่วนแหล่งต้นทุนยอดยกมาคือ `ยอดยกมา — บิลซื้อ`, `ยอดยกมา — PO ซื้อ` และ `ยอดยกมา — ปรับเกรด`.
 - 2026-06-14 runtime now enforces target eligibility for all Cost Pool rows and restores the legacy source breadth for PB/Production/Regrade read visibility.
-- 2026-07-12 UI follows the customer-approved full-page reference with canonical filters, pagination, resizable grouped table, dense mobile cards, and a read-only cost-item detail dialog without changing API, formulas, permissions, or DB state.
+- 2026-08-03 UI follows the customer-approved full-page reference with canonical filters, pagination, resizable grouped table, dense mobile cards, and a read-only item-detail dialog without changing API, formulas, permissions, or DB state.
+- 2026-08-03 local Browser UAT against SIT data verified Desktop and Mobile KPI counts, grouped table/cards, item-detail dialog, Cost Allocator wording, and zero browser-console errors; deployed SIT verification remains a separate post-push gate.
 
 ## Current Gap
 
@@ -172,6 +173,6 @@ Read-only. No stock, payment, AP/AR, PO/PB status, or bank statement side effect
 - [x] Normalize desktop/mobile filters and Cost Type/Status segmented controls
 - [x] Restore grouped-table resize/sort/fixed-layout mechanics and reset control
 - [x] Move count/page-size/pagination outside the table shell
-- [x] Replace inline cost-item expansion with a read-only detail dialog
+- [x] Replace inline item expansion with a read-only detail dialog
 - [x] Remove aggregate KPI cards that duplicate the primary table
 - [ ] Add/reconcile durable allocation usage source

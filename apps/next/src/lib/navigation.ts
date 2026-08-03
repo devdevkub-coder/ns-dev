@@ -392,7 +392,6 @@ export const navigationItems: NavigationItem[] = [
     section: 'master-data',
     children: [
       { href: '/master-data/products', icon: '📋', label: 'รายการสินค้า', section: 'master-data' },
-      { href: '/master-data/impurity-products', icon: '🧪', label: 'รายการสินค้าสิ่งเจือปน', section: 'master-data' },
       { href: '/master-data/product-types', icon: '🏷️', label: 'ประเภทสินค้า', section: 'master-data' },
       { href: '/master-data/product-units', icon: '⚖️', label: 'หน่วยสินค้า', section: 'master-data' },
     ],

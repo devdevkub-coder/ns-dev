@@ -1,47 +1,35 @@
 # 00 Current Work
 
-## Active SIT semantic integration and runtime-table closeout — 2026-08-01
+## Active SIT semantic integration and promotion — 2026-08-03
 
-Objective: finish the semantic merge of `sit-origin/main` into the accepted local work, preserve both sides' validated business behavior, and close the active Next runtime-table consistency regression reported in Product Tracking `รายการขาย`.
+Objective: รวมงาน UI/runtime ที่ผู้ใช้อนุมัติไว้กับ `sit-origin/main` ล่าสุดโดยไม่ทำให้งาน Dev ด้าน Auth, Roles/Permissions, Finance/FCD, Production, WTI/WTO หรือ business flow อื่นหาย แล้วตรวจครบก่อน push ไป SIT แบบไม่ force.
 
 Working state:
 
 - Integration branch: `codex/sit-main-integration-20260801`
 - Integration worktree: `C:\new-ns-scrap-erp-worktrees\sit-main-integration-20260801`
-- Source: local committed work at `3c255dbf8` plus `sit-origin/main` at `4858d08e8`; final merge history preserves both sources as parents.
-- No unresolved merge conflict is present. The original dirty worktree remains preserved, with safety ref `refs/codex-safety/pre-sit-merge-20260801`.
-- SIT secrets remain only in ignored `apps/next/.env.sit.local`; no secret or connection string belongs in Git.
+- Local source before merge: `85e26807d`; first fetched SIT source: `63f455a7f`.
+- During merge, `sit-origin/main` advanced to `33e01ceb1`; the additional commit splits Master Data role permissions and adds migration `20260803100000_split_master_data_permissions.sql`.
+- Primary workspace remains untouched because it contains unrelated dirty work. SIT secrets remain only in ignored env files and must not enter Git.
 
-Active decisions:
+Preserved decisions:
 
-- Preserve merged SIT finance/FCD, status, branch-scope, form-safety, WTI/WTO, Production, Stock Planning, LINE settings, and NSERP-159 behavior.
-- Apply the `docs/design.md` runtime-table contract across active `apps/next`: `ns-table`, non-wrapping headers/documents/dates, shared density, semantic header/body alignment, and shared row actions. Primary dense/wide grids keep sort/resize; document, form, print, and compact detail tables do not gain invented behavior.
-- Apply the single-line control-height contract across active `apps/next`: normal business-entry fields use `h-10`, filters use explicit `h-9`, and compact inline table editors plus multiline/check/file controls keep their intentional sizing. Preserve every existing width and responsive rule.
-- For every registered sidebar route, derive the AppShell heading and breadcrumb from its sidebar label, stripping parenthetical helper text; document/detail routes without a sidebar entry keep their contextual title.
-- Keep the previously requested Cost Pool seller/wording contract; it is an explicit adjacent scope, not a table-only regression.
-- Keep list/report filter cards compact when there is no segmented/status row: the real page action belongs in a right-aligned `ml-auto` group on the control toolbar, not in an otherwise empty lower row.
-- The user requested a project-wide detailed table check, so final closeout combines the complete static runtime-table inventory with representative Desktop/Mobile visual verification through Codex Browser. The mandatory local login/RSC/navigation guard has been rerun against the final production build.
+- Keep the latest SIT credential flow, temporary-password behavior, proxy/Auth fixes, branch access, and Roles/Permissions behavior.
+- Keep accepted local runtime-table semantics: descriptive business text left, document/date/status/action centered, numeric measures right, matching header/body alignment, shared row actions, sort/resize where already required, and non-wrapping documents/dates/numbers.
+- Keep accepted control sizing: filters `h-9`, normal business-entry controls `h-10`, page actions `h-10`, while preserving existing widths and responsive behavior.
+- Keep accepted Stock Planning, Production Report, Deal Margin, sidebar-title, WTI/WTO camera/gallery, Cost Pool, and Allocation Ledger changes.
+- Cost Pool user-facing wording uses `รายการ` only; do not reintroduce `รายการต้นทุน`, `ล็อต`, `ลอท`, or `Lot`.
+- Do not apply the new permission migration to a database as part of this Git integration; DB promotion requires its own verified preflight/target/apply/postflight step.
 
-Current proof:
+Required validation before push:
 
-- Focused runtime-table and adjacent contract suite: 15 files / 83 tests passed after the independent-audit follow-up.
-- Workspace lint passed with 0 errors and 10 pre-existing/out-of-scope warnings; workspace type-check passed with an 8 GB Node heap after the default 2 GB heap exhausted memory.
-- Deal Margin Report desktop filter is compact again: date/channel/conditional clear stay in the control toolbar and its real Excel action is a right-aligned `ml-auto` group, so there is no empty secondary action row. Query state, export URL, table, and mobile filter behavior are unchanged. Workspace lint passed with 0 errors (10 pre-existing warnings), type-check passed, and the SIT-env Webpack production build generated 331 routes; browser UAT was not requested for this UI-only follow-up.
-- Webpack production build passed and generated 331 routes with the ignored SIT environment explicitly loaded into the build process.
-- The final production login/RSC/navigation guard passed 112 navigation routes / 225 checks with 0 failures and 0 target failures after the final SIT-env build restart.
-- `git diff --check` passed after the latest table follow-up.
-- The project-wide control-height sweep passed the focused shared-control contract test (2/2), changed-file and workspace lint with 0 errors, workspace type-check, SIT-env webpack production build (331 routes), static residual rescan, and local `/api/health` HTTP 200. Browser UAT was not requested for this UI-only batch.
-- Static inventory covers direct runtime JSX tables, shared `Table` call sites, and classified print-template exceptions; the detailed checkpoint is in `docs/migration/22-next-design-audit-plan.md`.
-- Shared `ns-table` CSS now keeps every right-aligned numeric body/footer cell non-wrapping with tabular numerals. The runtime guard verifies direct numeric alignment plus the shared CSS contract, and verifies direct status cells are centered and non-wrapping; FCD Conversion/Revaluation status cells were the final two violations and are corrected on Desktop/Mobile.
-- Representative Codex Browser QA passed Desktop routes `/daily/weight-ticket-list`, `/production/report`, `/stock/planning`, `/stock/balance`, `/finance/cash-position`, `/finance-accounting/working-capital`, `/purchase/po-buy`, `/sales/po-sell`, and `/master-data/customers`; Mobile checks passed Weight Ticket cards, Production Report, Stock Planning, and Customer cards. No console error was observed during the sweep.
-- `/tracking/product` had no current-period rows, so the Product Detail `รายการซื้อ` / `รายการขาย` real-data modal could not be reopened in this pass; the final source contract and focused tests cover the corrected date/document geometry.
-- The shared SIT `P2022` blocker for `/tracking/customer` and `/dual-costing/cost-allocation-ledger` is resolved by applying and recording existing migration `20260727110000_add_trading_allocation_fact_cost_pool_entry`. Preflight found `0` allocation-fact rows; no business data was changed or backfilled. Postflight confirmed both nullable columns, the restrictive FK, both indexes, migration history, and authenticated HTTP 200 responses for Customer Tracking, Product Tracking, Allocation Ledger, Trading Matching, and Trading Dashboard.
-- Fresh independent acceptance after the numeric/status follow-up returned `ACCEPTED` with no remaining runtime-table contract gap.
-- Sidebar title contract test covers every effective sidebar route plus the dynamic-detail fallback; the focused test passed 2/2, workspace lint/type-check passed, and the Webpack production build compiled all 331 static pages. Browser UAT was not requested for this shared wording-only batch.
-- Fresh independent acceptance audit returned `ACCEPTED` for the sidebar title/breadcrumb contract.
+- Resolve both merge layers and prove `sit-origin/main` is an ancestor of the final commit.
+- Run focused Auth/Permission, Dual Costing, Production, runtime-table, control-height, sidebar-title, and WTI/WTO attachment tests.
+- Run workspace lint, type-check, production build, and `git diff --check`.
+- Perform a fresh independent acceptance audit, fetch/compare SIT again, then push only if the branch is not behind and no conflict marker or secret is present.
 
 Immediate next tasks:
 
-1. Keep this integration branch local; do not push until explicitly requested.
-2. For any further database change, keep the same target verification, migration-history preflight, transaction, and postflight discipline; do not use runtime fallbacks for schema drift.
-3. Before an eventual push, fetch and compare the authorized destination again and verify the intended merge ancestry/content.
+1. Finish the semantic merge against `63f455a7f`, then merge the additional `33e01ceb1` commit.
+2. Complete the validation and independent acceptance gates.
+3. Push `HEAD` to `sit-origin/main` without force, verify remote SHA/deployment, and report the assigned Plane issue through REST only when the issue mapping is confirmed.

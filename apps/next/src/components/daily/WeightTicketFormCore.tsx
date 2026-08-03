@@ -2095,6 +2095,12 @@ export function WeightTicketFormCore({
                   onClick={(event) => {
                     if (event.currentTarget === event.target) closeMobileProductEditor()
                   }}
+                  onKeyDownCapture={(event) => {
+                    if (window.matchMedia('(min-width: 1280px)').matches || event.key !== 'Escape') return
+                    event.preventDefault()
+                    event.stopPropagation()
+                    closeMobileProductEditor()
+                  }}
                 >
                   <div className={cn(
                     mobileProductView === 'editor'

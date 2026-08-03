@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { Camera, Copy, KeyRound, Mail, Trash2, Upload, UserRound } from 'lucide-react'
+import { Camera, Check, Copy, KeyRound, Mail, Trash2, Upload, UserRound } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
@@ -196,14 +196,14 @@ const statusUpdateSchema = z.object({
   activatedAt: z.string().nullable(),
 })
 
-const inviteResultSchema = z.object({
-  mode: z.enum(['invite', 'reset']),
-  sent: z.boolean(),
-})
-
 const temporaryPasswordResultSchema = z.object({
   issuedAt: z.string(),
   temporaryPassword: z.string().min(12),
+})
+
+const inviteResultSchema = z.object({
+  mode: z.enum(['invite', 'reset']),
+  sent: z.literal(true),
 })
 
 const saveUserResultSchema = z.object({
@@ -218,6 +218,7 @@ type UserColumnKey = 'action' | 'active' | 'branches' | 'contact' | 'department'
 type RoleColumnKey = 'action' | 'active' | 'branchScope' | 'description' | 'name' | 'permissionCount' | 'type' | 'users'
 type SortDirection = 'asc' | 'desc'
 type UserStatusFilter = 'all' | 'active' | 'disabled' | 'pending'
+type BranchAccessMode = 'all' | 'selected'
 
 type AdminUsersPageClientProps = {
   mode?: TabKey
@@ -298,9 +299,10 @@ const emptyRoleForm: RoleFormState = {
   permissionIds: [],
 }
 
-function userFormSnapshot(form: UserFormState, imageAction: UserImageAction) {
+function userFormSnapshot(form: UserFormState, imageAction: UserImageAction, branchAccessMode: BranchAccessMode) {
   return JSON.stringify({
     ...form,
+    branchAccessMode,
     branchIds: [...form.branchIds].sort(),
     imageAction,
     permissionOverrides: [...form.permissionOverrides].sort(
@@ -412,6 +414,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const [actionUserId, setActionUserId] = useState<string | null>(null)
   const [activationUser, setActivationUser] = useState<AdminUser | null>(null)
   const [temporaryPasswordResult, setTemporaryPasswordResult] = useState<string | null>(null)
+  const [temporaryPasswordCopied, setTemporaryPasswordCopied] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [savingUserId, setSavingUserId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -431,6 +434,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null)
   const [detailUser, setDetailUser] = useState<AdminUser | null>(null)
   const [form, setForm] = useState<UserFormState>(emptyUserForm)
+  const [branchAccessMode, setBranchAccessMode] = useState<BranchAccessMode>('all')
   const [formError, setFormError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null)
@@ -451,7 +455,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
   const roleColumnResize = useResizableColumns('admin.users-permissions.roles.v1', roleColumns)
   const userColumnResize = useResizableColumns('admin.users-permissions.users.v5', userColumns)
   const userImageAction: UserImageAction = profileImageFile ? 'replace' : profileImagePreviewUrl ? 'keep' : 'remove'
-  const hasUnsavedUserForm = Boolean(userFormBaseline && userFormBaseline !== userFormSnapshot(form, userImageAction))
+  const hasUnsavedUserForm = Boolean(userFormBaseline && userFormBaseline !== userFormSnapshot(form, userImageAction, branchAccessMode))
   const hasUnsavedRoleForm = Boolean(roleFormBaseline && roleFormBaseline !== roleFormSnapshot(roleForm))
   const hasUnsavedMatrix = Boolean(matrixBaseline && matrixBaseline !== permissionMatrixSnapshot(matrixPermissionIds, matrixDeniedPermissionIds))
   const { requestDiscard: requestDiscardUserForm } = useUnsavedChangesGuard(hasUnsavedUserForm)
@@ -583,8 +587,8 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       .flatMap((role) => role.permissionIds),
   ), [data?.roles, form.roleIds])
 
-  const employeeRoles = useMemo(() => (
-    (data?.roles ?? []).filter((role) => role.active && role.isEmployeeRole)
+  const assignableRoles = useMemo(() => (
+    (data?.roles ?? []).filter((role) => role.active)
   ), [data?.roles])
   const roleFilterOptions = useMemo(() => [
     { id: 'all', label: 'ทุกหน้าที่งาน' },
@@ -688,7 +692,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
             } : user),
           }
         : current)
-      if (active && previousUser?.accountStatus === 'pending') {
+      if (active && (previousUser?.accountStatus === 'pending' || previousUser?.accountStatus === 'disabled')) {
         setTemporaryPasswordResult(null)
         setActivationUser({
           ...previousUser,
@@ -735,39 +739,10 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     })
   }
 
-  async function sendUserInvite(user: AdminUser) {
-    setActionUserId(user.id)
-    setError(null)
-    setNotice(null)
-
-    try {
-      const response = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}/invite`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ redirectTo: `${window.location.origin}/reset-password` }),
-      })
-      const payload = await readJsonResponse(response, inviteResultSchema, 'ส่ง invite/reset password ไม่สำเร็จ')
-
-      setNotice(payload?.mode === 'invite' ? `ส่ง invite ไปที่ ${user.email} แล้ว` : `ส่ง reset password ไปที่ ${user.email} แล้ว`)
-      await loadData()
-      return true
-    } catch (caught) {
-      setError(getErrorMessage(caught, 'ส่ง invite/reset password ไม่สำเร็จ'))
-      return false
-    } finally {
-      setActionUserId(null)
-    }
-  }
-
-  async function sendActivationPasswordLink() {
-    if (!activationUser) return
-    const sent = await sendUserInvite(activationUser)
-    if (sent) setActivationUser(null)
-  }
-
   async function createTemporaryPassword() {
     if (!activationUser) return
     setActionUserId(activationUser.id)
+    setTemporaryPasswordCopied(false)
     setError(null)
     try {
       const response = await fetch(`/api/admin/users/${encodeURIComponent(activationUser.id)}/temporary-password`, {
@@ -784,11 +759,51 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     }
   }
 
-  function userPasswordActionLabel(user: AdminUser) {
-    if (user.accountStatus === 'pending') return user.invitationSentAt ? 'ส่งคำเชิญอีกครั้ง' : 'ส่งคำเชิญ'
-    if (user.credentialStatus === 'temporary_password') return 'ส่งลิงก์รีเซ็ตรหัสผ่าน'
-    if (user.credentialStatus !== 'ready') return user.credentialStatus === 'link_sent' ? 'ส่งลิงก์ตั้งรหัสผ่านอีกครั้ง' : 'ส่งลิงก์ตั้งรหัสผ่าน'
-    return 'ส่งลิงก์รีเซ็ตรหัสผ่าน'
+  async function sendUserPasswordLink(user: AdminUser) {
+    setActionUserId(user.id)
+    setError(null)
+    setNotice(null)
+
+    try {
+      const response = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ redirectTo: `${window.location.origin}/reset-password` }),
+      })
+      const payload = await readJsonResponse(response, inviteResultSchema, 'ส่งลิงก์ตั้งรหัสผ่านไม่สำเร็จ')
+      setNotice(payload.mode === 'invite' ? `ส่งลิงก์ตั้งรหัสผ่านไปที่ ${user.email} แล้ว` : `ส่งลิงก์รีเซ็ตรหัสผ่านไปที่ ${user.email} แล้ว`)
+      await loadData()
+      return true
+    } catch (caught) {
+      setError(getErrorMessage(caught, 'ส่งลิงก์ตั้งรหัสผ่านไม่สำเร็จ'))
+      return false
+    } finally {
+      setActionUserId(null)
+    }
+  }
+
+  async function sendActivationPasswordLink() {
+    if (!activationUser) return
+    const sent = await sendUserPasswordLink(activationUser)
+    if (sent) setActivationUser(null)
+  }
+
+  function openCredentialDialog(user: AdminUser) {
+    if (user.accountStatus !== 'active') return
+    setTemporaryPasswordResult(null)
+    setTemporaryPasswordCopied(false)
+    setActivationUser(user)
+    setError(null)
+  }
+
+  async function copyTemporaryPassword() {
+    if (!temporaryPasswordResult) return
+    try {
+      await navigator.clipboard.writeText(temporaryPasswordResult)
+      setTemporaryPasswordCopied(true)
+    } catch {
+      setError('คัดลอกรหัสผ่านไม่สำเร็จ กรุณาเลือกข้อความแล้วคัดลอกเอง')
+    }
   }
 
   function renderUserActions(user: AdminUser, mobileLabel = false) {
@@ -803,9 +818,11 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         menu={(
           <>
             <TableActionMenuItem onSelect={() => openEditUser(user)}>แก้ไข</TableActionMenuItem>
-            <TableActionMenuItem disabled={passwordActionDisabled} onSelect={() => void sendUserInvite(user)}>
-              {actionUserId === user.id ? 'กำลังส่ง...' : userPasswordActionLabel(user)}
-            </TableActionMenuItem>
+            {user.accountStatus === 'active' ? (
+              <TableActionMenuItem disabled={passwordActionDisabled} onSelect={() => openCredentialDialog(user)}>
+                จัดการรหัสผ่าน
+              </TableActionMenuItem>
+            ) : null}
           </>
         )}
         mobileLabel={mobileLabel}
@@ -819,6 +836,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     setFormOpen(false)
     setEditingUser(null)
     setForm(emptyUserForm)
+    setBranchAccessMode('all')
     setProfileImageFile(null)
     setProfileImagePreviewUrl(null)
     setFormError(null)
@@ -850,10 +868,11 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     const nextForm = emptyUserForm
     setEditingUser(null)
     setForm(nextForm)
+    setBranchAccessMode('all')
     setProfileImageFile(null)
     setProfileImagePreviewUrl(null)
     setFormError(null)
-    setUserFormBaseline(userFormSnapshot(nextForm, 'remove'))
+    setUserFormBaseline(userFormSnapshot(nextForm, 'remove', 'all'))
     setFormOpen(true)
   }
 
@@ -876,10 +895,11 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
     }
     setEditingUser(user)
     setForm(nextForm)
+    setBranchAccessMode(user.branchIds.length ? 'selected' : 'all')
     setProfileImageFile(null)
     setProfileImagePreviewUrl(user.profileImageUrl ?? null)
     setFormError(null)
-    setUserFormBaseline(userFormSnapshot(nextForm, user.profileImageUrl ? 'keep' : 'remove'))
+    setUserFormBaseline(userFormSnapshot(nextForm, user.profileImageUrl ? 'keep' : 'remove', user.branchIds.length ? 'selected' : 'all'))
     setFormOpen(true)
   }
 
@@ -926,6 +946,11 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       return
     }
 
+    if (branchAccessMode === 'selected' && form.branchIds.length === 0) {
+      setFormError('เลือกสาขาอย่างน้อย 1 สาขา หรือเลือก “ทุกสาขา”')
+      return
+    }
+
     if (!editingUser) {
       const existingUser = findExistingUserByEmail(data?.users ?? [], form.email)
 
@@ -954,7 +979,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       const response = await fetch(editingUser ? `/api/admin/users/${encodeURIComponent(editingUser.id)}` : '/api/admin/users', {
         method: editingUser ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, profileImageUrl }),
+        body: JSON.stringify({ ...form, branchIds: branchAccessMode === 'all' ? [] : form.branchIds, profileImageUrl }),
       })
       const savedUser = await readJsonResponse(response, saveUserResultSchema, 'บันทึกผู้ใช้ไม่ได้')
 
@@ -966,25 +991,12 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
           body: JSON.stringify({ url: editingUser.profileImageUrl }),
         }).catch(() => undefined)
       }
-      let inviteErrorMessage: string | null = null
-
       if (!editingUser) {
         setStatusFilter('all')
-        try {
-          const inviteResponse = await fetch(`/api/admin/users/${encodeURIComponent(savedUser.id)}/invite`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ redirectTo: `${window.location.origin}/reset-password` }),
-          })
-          await readJsonResponse(inviteResponse, inviteResultSchema, 'สร้างผู้ใช้แล้ว แต่ส่งคำเชิญไม่สำเร็จ')
-          setNotice(`สร้างผู้ใช้และส่งคำเชิญไปที่ ${form.email.trim()} แล้ว`)
-        } catch (caught) {
-          inviteErrorMessage = getErrorMessage(caught, 'สร้างผู้ใช้แล้ว แต่ส่งคำเชิญไม่สำเร็จ สามารถส่งอีกครั้งจากเมนูจัดการ')
-        }
+        setNotice(`สร้างผู้ใช้ ${form.email.trim()} แล้ว สามารถสร้างรหัสผ่านชั่วคราวจากเมนูจัดการได้`)
       }
 
       await loadData()
-      if (inviteErrorMessage) setError(inviteErrorMessage)
     } catch (caught) {
       if (uploadedProfileImageUrl) {
         void fetch('/api/admin/users/profile-image', {
@@ -1395,35 +1407,38 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
             if (!open) {
               setActivationUser(null)
               setTemporaryPasswordResult(null)
+              setTemporaryPasswordCopied(false)
             }
           }}
         >
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md" hideClose>
             <DialogHeader>
-              <DialogTitle>กำหนดวิธีเข้าสู่ระบบ</DialogTitle>
+              <DialogTitle>จัดการรหัสผ่าน</DialogTitle>
               <DialogDescription>{fullName(activationUser)} · {activationUser.email}</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 bg-white p-5 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
               {temporaryPasswordResult ? (
                 <div className="space-y-3">
                   <div>
-                    <h3 className="text-sm font-semibold">รหัสผ่านชั่วคราว</h3>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">แสดงครั้งเดียว ผู้ใช้ต้องเปลี่ยนรหัสผ่านหลัง Login ครั้งแรก</p>
+                    <h3 className="text-sm font-semibold">สร้างรหัสผ่านชั่วคราวแล้ว</h3>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">แจ้งรหัสนี้ให้ผู้ใช้ และให้เปลี่ยนหลังเข้าสู่ระบบ</p>
                   </div>
                   <div className="flex items-center gap-2 rounded-md border border-slate-300 bg-slate-50 p-2 dark:border-slate-600 dark:bg-slate-950">
                     <code className="min-w-0 flex-1 select-all break-all px-2 font-mono text-sm font-semibold">{temporaryPasswordResult}</code>
                     <button
                       aria-label="คัดลอกรหัสผ่านชั่วคราว"
-                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
-                      title="คัดลอก"
+                      className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border px-3 text-xs font-semibold transition-colors ${temporaryPasswordCopied ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700'}`}
+                      title={temporaryPasswordCopied ? 'คัดลอกแล้ว' : 'คัดลอก'}
                       type="button"
-                      onClick={() => void navigator.clipboard.writeText(temporaryPasswordResult)}
+                      onClick={() => void copyTemporaryPassword()}
                     >
-                      <Copy aria-hidden="true" className="h-4 w-4" />
+                      {temporaryPasswordCopied ? <Check aria-hidden="true" className="h-4 w-4" /> : <Copy aria-hidden="true" className="h-4 w-4" />}
+                      {temporaryPasswordCopied ? 'คัดลอกแล้ว' : 'คัดลอก'}
                     </button>
                   </div>
+                  {temporaryPasswordCopied ? <p aria-live="polite" className="text-xs font-medium text-emerald-700 dark:text-emerald-300">คัดลอกรหัสผ่านแล้ว</p> : null}
                   <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-                    ระบบไม่เก็บรหัสนี้ไว้ หลังปิดหน้าต่างจะไม่สามารถเปิดดูซ้ำได้
+                    รหัสนี้จะแสดงครั้งเดียว ปิดหน้าต่างแล้วดูซ้ำไม่ได้
                   </div>
                   <button
                     className="h-9 w-full rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
@@ -1431,14 +1446,20 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     onClick={() => {
                       setActivationUser(null)
                       setTemporaryPasswordResult(null)
+                      setTemporaryPasswordCopied(false)
                     }}
                   >
-                    เสร็จสิ้น
+                    ปิด
                   </button>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <p className="text-sm text-slate-600 dark:text-slate-300">บัญชีเปิดใช้งานแล้ว เลือกวิธีให้ผู้ใช้ตั้งรหัสผ่าน</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">เลือกวิธีให้ผู้ใช้ตั้งรหัสผ่าน โดยส่งลิงก์ให้ผู้ใช้ตั้งเอง หรือสร้างรหัสชั่วคราวให้ Admin แจ้งผู้ใช้</p>
+                  {error ? (
+                    <div aria-live="assertive" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
+                      {error}
+                    </div>
+                  ) : null}
                   <button
                     className="flex w-full items-start gap-3 rounded-md border border-blue-300 bg-blue-50 p-4 text-left hover:bg-blue-100 disabled:opacity-50 dark:border-blue-700 dark:bg-blue-950/40 dark:hover:bg-blue-950/70"
                     disabled={actionUserId === activationUser.id}
@@ -1463,6 +1484,9 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                       <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">แสดงให้ Admin ครั้งเดียว และบังคับเปลี่ยนหลัง Login</span>
                     </span>
                   </button>
+                  <p className="rounded-md bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500 dark:bg-slate-800/70 dark:text-slate-400">
+                    หากส่งลิงก์ไม่สำเร็จ ระบบจะแจ้งว่าเป็นโควตาต่ออีเมล (รอ 60 วินาที) หรือโควตาทั้งโปรเจกต์ (รอประมาณ 1 ชั่วโมง)
+                  </p>
                   <button
                     className="h-9 w-full rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                     type="button"
@@ -1653,9 +1677,10 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                   </div>
 
                   <div className="rounded-xl border border-slate-100 bg-white p-4">
-                    <div className="mb-2 text-sm font-medium text-slate-700">หน้าที่งาน <span aria-hidden="true" className="ml-1 text-red-600">*</span></div>
+                    <div className="mb-1 text-sm font-medium text-slate-700">หน้าที่งาน / Role <span aria-hidden="true" className="ml-1 text-red-600">*</span></div>
+                    <div className="mb-2 text-xs text-slate-500">ดึงจาก Role ที่ใช้งานอยู่ในหน้า Roles &amp; Permissions และใช้สิทธิ์ของ Role นี้เป็นสิทธิ์ตั้งต้น</div>
                     <div className="space-y-2">
-                      {employeeRoles.map((role) => (
+                      {assignableRoles.map((role) => (
                         <label key={role.id} className="flex items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
                           <input
                             checked={form.roleIds.includes(role.id)}
@@ -1674,11 +1699,11 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                           </span>
                         </label>
                       ))}
-                      {employeeRoles.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มีหน้าที่งานที่ใช้งานได้</p> : null}
+                      {assignableRoles.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มี Role ที่ใช้งานได้</p> : null}
                     </div>
                   </div>
 
-                  {!isUsersPage ? <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
+                  <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
                     <div className="flex items-baseline justify-between gap-3 border-b border-slate-100 pb-1">
                       <div className="text-xs font-bold uppercase tracking-wider text-slate-500">สิทธิ์รายหน้า</div>
                       <div className="text-xs text-slate-500">ตามหน้าที่งาน / อนุญาตเพิ่ม / ปิดสิทธิ์</div>
@@ -1713,20 +1738,62 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                         </div>
                       ))}
                     </div>
-                  </div> : null}
+                  </div>
 
                   <div className="rounded-xl border border-slate-100 bg-white p-4">
-                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">สาขาที่เข้าถึง</div>
-                    <div className="grid gap-2">
-                      {data?.branches.map((branch) => (
-                        <label key={branch.id} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                          <input checked={form.branchIds.includes(branch.id)} type="checkbox" className="rounded border-slate-300 text-slate-800 focus:ring-blue-500" onChange={() => toggleFormArray('branchIds', branch.id)} />
-                          <span>{branch.name}</span>
-                          <span className="font-mono text-xs text-slate-400">{branch.code}</span>
-                        </label>
-                      ))}
-                      {data?.branches.length === 0 ? <span className="text-sm text-slate-500">ยังไม่มีสาขาที่เปิดใช้งาน</span> : null}
+                    <div className="mb-3 border-b border-slate-100 pb-2">
+                      <div className="text-xs font-bold uppercase tracking-wider text-slate-500">ขอบเขตข้อมูลตามสาขา</div>
+                      <p className="mt-1 text-xs text-slate-500">กำหนดว่าผู้ใช้นี้จะเห็นข้อมูลของสาขาใด</p>
                     </div>
+                    <div className="grid gap-2">
+                      <label className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                        <input
+                          checked={branchAccessMode === 'all'}
+                          className="mt-0.5 border-slate-300 text-blue-600 focus:ring-blue-500"
+                          name="branch-access-mode"
+                          type="radio"
+                          onChange={() => {
+                            setBranchAccessMode('all')
+                            setForm((current) => ({ ...current, branchIds: [] }))
+                          }}
+                        />
+                        <span>
+                          <span className="font-medium">ทุกสาขา</span>
+                          <span className="block text-xs text-slate-500">ผู้ใช้เห็นข้อมูลได้ทุกสาขา ไม่ต้องเลือก checkbox ด้านล่าง</span>
+                        </span>
+                      </label>
+                      <label className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                        <input
+                          checked={branchAccessMode === 'selected'}
+                          className="mt-0.5 border-slate-300 text-blue-600 focus:ring-blue-500"
+                          name="branch-access-mode"
+                          type="radio"
+                          onChange={() => setBranchAccessMode('selected')}
+                        />
+                        <span>
+                          <span className="font-medium">เฉพาะสาขาที่เลือก</span>
+                          <span className="block text-xs text-slate-500">จำกัดข้อมูลตามรายการสาขาที่เลือกด้านล่าง</span>
+                        </span>
+                      </label>
+                    </div>
+                    {branchAccessMode === 'selected' ? (
+                      <div className="mt-3 border-t border-slate-100 pt-3">
+                        <div className="mb-2 text-xs font-semibold text-slate-600">เลือกสาขาอย่างน้อย 1 สาขา</div>
+                        <div className="grid gap-2">
+                          {data?.branches.map((branch) => (
+                            <label key={branch.id} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                              <input checked={form.branchIds.includes(branch.id)} type="checkbox" className="rounded border-slate-300 text-slate-800 focus:ring-blue-500" onChange={() => toggleFormArray('branchIds', branch.id)} />
+                              <span>{branch.name}</span>
+                              <span className="font-mono text-xs text-slate-400">{branch.code}</span>
+                            </label>
+                          ))}
+                          {data?.branches.length === 0 ? <span className="text-sm text-slate-500">ยังไม่มีสาขาที่เปิดใช้งาน</span> : null}
+                        </div>
+                        <div className="mt-2 text-xs text-slate-500">เลือกแล้ว {form.branchIds.length} สาขา</div>
+                      </div>
+                    ) : (
+                      <div className="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">ระบบจะบันทึกเป็นสิทธิ์ทุกสาขาให้อัตโนมัติ</div>
+                    )}
                   </div>
 
                   {formError ? <p className="md:col-span-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</p> : null}

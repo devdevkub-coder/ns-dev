@@ -4,6 +4,14 @@ import { describe, expect, it } from 'vitest'
 const costPoolSource = readFileSync(new URL('./CostPoolPageClient.tsx', import.meta.url), 'utf8')
 const allocatorSource = readFileSync(new URL('./CostAllocatorPageClient.tsx', import.meta.url), 'utf8')
 const handlerSource = readFileSync(new URL('../../app/api/dual-costing/cost-pool/handler.ts', import.meta.url), 'utf8')
+const allocatorRouteSource = readFileSync(new URL('../../app/api/dual-costing/cost-allocator/route.ts', import.meta.url), 'utf8')
+const reverseRouteSource = readFileSync(new URL('../../app/api/dual-costing/cost-allocation-ledger/reverse/route.ts', import.meta.url), 'utf8')
+const relatedCostItemSources = [
+  '../../app/api/sales/bills/route.ts',
+  '../daily/PaymentApprovalPageClient.tsx',
+  '../trading/TradingDashboardPageClient.tsx',
+  '../../lib/server/trading-sales-bill-allocation-correction.ts',
+].map((path) => readFileSync(new URL(path, import.meta.url), 'utf8'))
 
 describe('Cost Pool wording and export contract', () => {
   it('keeps every date filter the same h-9 height as the other filter controls', () => {
@@ -21,6 +29,7 @@ describe('Cost Pool wording and export contract', () => {
     }
     expect(costPoolSource).toContain("toLocaleString('th-TH')} รายการ")
     expect(costPoolSource).not.toContain('รายการต้นทุน')
+    expect(costPoolSource).not.toMatch(/(?:ล็อต|ลอท|\blot\b)/i)
     expect(costPoolSource).not.toContain('จับคู่แล้วรวม')
     expect(costPoolSource).not.toContain('คงเหลือพร้อมใช้รวม')
   })
@@ -31,7 +40,21 @@ describe('Cost Pool wording and export contract', () => {
     expect(allocatorSource).toContain('รายการในกลุ่มต้นทุนของสินค้าที่เลือก')
     expect(allocatorSource).not.toContain('รายการต้นทุน')
     expect(allocatorSource).toContain("if (type === 'Opening_Purchase') return 'ยอดยกมา — บิลซื้อ'")
-    expect(allocatorSource).not.toMatch(/(?:ล็อต|\\blot\\b)/i)
+    expect(allocatorSource).not.toMatch(/(?:ล็อต|ลอท|\blot\b)/i)
+  })
+
+  it('uses item wording in allocation errors shown to users', () => {
+    expect(allocatorRouteSource).toContain('ไม่มีรายการที่พร้อมยืนยันการจัดสรร')
+    expect(reverseRouteSource).toContain('รายการเดิมยังระบุรายการ Cost Pool ไม่ชัดเจน')
+    expect(reverseRouteSource).toContain('ไม่พบรายการ Cost Pool ครบทั้งการจับคู่')
+    expect(reverseRouteSource).toContain('รายการ Cost Pool อยู่นอกสาขาที่อนุญาต')
+    expect(reverseRouteSource).not.toContain('รายการต้นทุน')
+  })
+
+  it('does not reintroduce the deprecated cost-item wording on related active surfaces', () => {
+    for (const source of relatedCostItemSources) {
+      expect(source).not.toContain('รายการต้นทุน')
+    }
   })
 
   it('exports the actual counterparty data under the ผู้ขาย label without renaming the wire key', () => {

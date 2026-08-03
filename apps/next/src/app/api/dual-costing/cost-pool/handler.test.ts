@@ -73,6 +73,24 @@ describe('Cost Pool supplier display contract', () => {
     ])
   })
 
+  it('prefers the PO supplier for a PB-backed PO cost row', async () => {
+    mocks.purchaseBillItemsFindMany.mockResolvedValue([
+      { line_no: 1, purchase_bill_id: 1n, source_snapshot: { poBuyId: 'POB-001' } },
+    ])
+    mocks.stockPoolEntriesFindMany.mockResolvedValue([
+      entry({ source_line_id: '1', source_ref_id: '1' }),
+    ])
+
+    const { rows } = await getCostPoolRowsData({ showAvailableOnly: false })
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      counterparty: 'ผู้ขาย PO',
+      sourceNo: 'POB-001',
+      sourceType: 'PO_Buy',
+    })
+  })
+
   it('uses an em dash for Production, Regrade, and Opening rows instead of source-type text', async () => {
     mocks.stockPoolEntriesFindMany.mockResolvedValue([
       entry({ pool_key: 'SCP-PROD', source_ref_no: 'PROD-001', source_ref_type: 'PO2', source_type: 'Production' }),
