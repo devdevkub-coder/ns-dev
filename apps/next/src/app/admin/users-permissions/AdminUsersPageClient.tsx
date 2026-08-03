@@ -687,7 +687,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
             } : user),
           }
         : current)
-      if (active && previousUser?.accountStatus === 'pending') {
+      if (active && (previousUser?.accountStatus === 'pending' || previousUser?.accountStatus === 'disabled')) {
         setTemporaryPasswordResult(null)
         setActivationUser({
           ...previousUser,
