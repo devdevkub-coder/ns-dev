@@ -586,8 +586,8 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
       .flatMap((role) => role.permissionIds),
   ), [data?.roles, form.roleIds])
 
-  const employeeRoles = useMemo(() => (
-    (data?.roles ?? []).filter((role) => role.active && role.isEmployeeRole)
+  const assignableRoles = useMemo(() => (
+    (data?.roles ?? []).filter((role) => role.active)
   ), [data?.roles])
   const roleFilterOptions = useMemo(() => [
     { id: 'all', label: 'ทุกหน้าที่งาน' },
@@ -1685,9 +1685,10 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                   </div>
 
                   <div className="rounded-xl border border-slate-100 bg-white p-4">
-                    <div className="mb-2 text-sm font-medium text-slate-700">หน้าที่งาน <span aria-hidden="true" className="ml-1 text-red-600">*</span></div>
+                    <div className="mb-1 text-sm font-medium text-slate-700">หน้าที่งาน / Role <span aria-hidden="true" className="ml-1 text-red-600">*</span></div>
+                    <div className="mb-2 text-xs text-slate-500">ดึงจาก Role ที่ใช้งานอยู่ในหน้า Roles &amp; Permissions และใช้สิทธิ์ของ Role นี้เป็นสิทธิ์ตั้งต้น</div>
                     <div className="space-y-2">
-                      {employeeRoles.map((role) => (
+                      {assignableRoles.map((role) => (
                         <label key={role.id} className="flex items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
                           <input
                             checked={form.roleIds.includes(role.id)}
@@ -1706,11 +1707,11 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                           </span>
                         </label>
                       ))}
-                      {employeeRoles.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มีหน้าที่งานที่ใช้งานได้</p> : null}
+                      {assignableRoles.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มี Role ที่ใช้งานได้</p> : null}
                     </div>
                   </div>
 
-                  {!isUsersPage ? <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
+                  <div className="md:col-span-2 rounded-xl border border-slate-100 bg-white p-4">
                     <div className="flex items-baseline justify-between gap-3 border-b border-slate-100 pb-1">
                       <div className="text-xs font-bold uppercase tracking-wider text-slate-500">สิทธิ์รายหน้า</div>
                       <div className="text-xs text-slate-500">ตามหน้าที่งาน / อนุญาตเพิ่ม / ปิดสิทธิ์</div>
@@ -1745,7 +1746,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                         </div>
                       ))}
                     </div>
-                  </div> : null}
+                  </div>
 
                   <div className="rounded-xl border border-slate-100 bg-white p-4">
                     <div className="mb-3 border-b border-slate-100 pb-2">
