@@ -86,6 +86,10 @@ export function WeightTicketAttachmentGrid({
   }
 
   const closeChooser = useCallback(() => {
+    if (openFrameRef.current !== null) {
+      cancelFrame(openFrameRef.current)
+      openFrameRef.current = null
+    }
     setChooserVisible(false)
     if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current)
     closeTimerRef.current = window.setTimeout(() => {
@@ -129,12 +133,13 @@ export function WeightTicketAttachmentGrid({
   useEffect(() => {
     if (!chooserMounted) return
     const previousOverflow = document.body.style.overflow
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : triggerRef.current
+    const restoreFocus = triggerRef.current
     const getFocusableElements = () => Array.from(chooserRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? [])
     const focusFirstElement = () => (getFocusableElements()[0] ?? chooserRef.current)?.focus()
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
+        event.stopPropagation()
         closeChooser()
         return
       }
@@ -166,15 +171,15 @@ export function WeightTicketAttachmentGrid({
     }
 
     document.body.style.overflow = 'hidden'
-    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('keydown', handleKeyDown, true)
     document.addEventListener('focusin', handleFocusIn)
     focusFirstElement()
 
     return () => {
-      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('keydown', handleKeyDown, true)
       document.removeEventListener('focusin', handleFocusIn)
       document.body.style.overflow = previousOverflow
-      if (previousFocus?.isConnected) previousFocus.focus()
+      if (restoreFocus?.isConnected) restoreFocus.focus()
     }
   }, [chooserMounted, closeChooser])
 

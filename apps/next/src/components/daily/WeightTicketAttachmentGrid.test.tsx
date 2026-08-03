@@ -208,17 +208,36 @@ describe('WeightTicketAttachmentGrid', () => {
     }
   })
 
-  it('closes with Escape or backdrop and restores trigger focus after the slide', () => {
+  it('does not reopen when cancelled before the opening animation frame', () => {
+    vi.useFakeTimers()
+    renderGrid()
+
+    try {
+      click(uploadTrigger())
+      click(container.querySelector('[data-image-source-action="camera"]'))
+      act(() => vi.runOnlyPendingTimers())
+
+      expect(container.querySelector('[data-testid="attachment-source-dialog"]')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('closes with Escape or backdrop, keeps the parent dialog open, and restores trigger focus after the slide', () => {
     vi.useFakeTimers()
     const { onAppend } = renderGrid()
     const trigger = uploadTrigger()
     if (!(trigger instanceof HTMLButtonElement)) throw new Error('Expected upload trigger')
+    const parentKeyDown = vi.fn()
+    container.addEventListener('keydown', parentKeyDown)
 
     try {
-      trigger.focus()
       click(trigger)
-      act(() => document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' })))
+      const chooser = container.querySelector<HTMLElement>('[data-testid="attachment-source-dialog"]')
+      if (!chooser) throw new Error('Expected source chooser')
+      act(() => chooser.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' })))
       expect(container.querySelector('[data-testid="attachment-source-dialog"]')?.className).toContain('translate-y-full')
+      expect(parentKeyDown).not.toHaveBeenCalled()
       act(() => vi.advanceTimersByTime(400))
       expect(container.querySelector('[data-testid="attachment-source-dialog"]')).toBeNull()
       expect(document.activeElement).toBe(trigger)
@@ -237,6 +256,7 @@ describe('WeightTicketAttachmentGrid', () => {
       expect(container.querySelector('[data-testid="attachment-source-dialog"]')).toBeNull()
       expect(document.activeElement).toBe(trigger)
     } finally {
+      container.removeEventListener('keydown', parentKeyDown)
       vi.useRealTimers()
     }
   })
