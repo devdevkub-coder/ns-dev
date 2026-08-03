@@ -2324,7 +2324,7 @@ export function WeightTicketFormCore({
                                   {!isCollapsed ? (
                                     <>
                                       <div className="grid grid-cols-3 items-start gap-2 sm:gap-4">
-                                        <FieldBlock error={showError(`line-${lot.id}-gross`)} label="น้ำหนักรวม (กก. / ลัง) *">
+                                        <FieldBlock error={showError(`line-${lot.id}-gross`)} label="น้ำหนักรวม (กก. / ลัง) *" labelClassName="min-h-10 leading-5 sm:min-h-0">
                                           <Input
                                             id={`weight-gross-${lot.id}`}
                                             disabled={!hasSelectedProduct}
@@ -2335,7 +2335,7 @@ export function WeightTicketFormCore({
                                             onChange={(event) => updateLine(lot.id, (current) => ({ ...current, grossWeight: normalizeDecimalInput(event.target.value) }))}
                                           />
                                         </FieldBlock>
-                                        <FieldBlock error={showError(`line-${lot.id}-container`)} label="หักภาชนะ(กก.)">
+                                        <FieldBlock error={showError(`line-${lot.id}-container`)} label="หักภาชนะ (กก.)" labelClassName="min-h-10 leading-5 sm:min-h-0">
                                           <Input
                                             id={`weight-container-${lot.id}`}
                                             disabled={!hasSelectedProduct}
@@ -2346,7 +2346,7 @@ export function WeightTicketFormCore({
                                             onChange={(event) => updateLine(lot.id, (current) => ({ ...current, containerDeductionWeight: normalizeDecimalInput(event.target.value) }))}
                                           />
                                         </FieldBlock>
-                                        <FieldBlock label="น้ำหนักหลังหักภาชนะ">
+                                        <FieldBlock label="น้ำหนักหลังหักภาชนะ" labelClassName="min-h-10 leading-5 sm:min-h-0">
                                           <Input
                                             disabled
                                             value={formatWeight(lotNetBeforeImpurityWeight)}

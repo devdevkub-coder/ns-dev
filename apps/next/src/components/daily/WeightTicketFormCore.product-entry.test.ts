@@ -289,6 +289,26 @@ describe('weight-ticket product editor behavior', () => {
     expect(productInput?.getAttribute('aria-expanded')).toBe('true')
   })
 
+  it('reserves equal mobile label height for all three product-entry weight inputs', async () => {
+    await renderForm()
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('#weight-ticket-add-product')?.click()
+      await Promise.resolve()
+    })
+
+    const weightLabels = Array.from(container.querySelectorAll<HTMLLabelElement>('label')).filter((label) => (
+      /^(น้ำหนักรวม \(กก\. \/ ลัง\)|หักภาชนะ \(กก\.\)|น้ำหนักหลังหักภาชนะ)/.test(label.textContent?.trim() ?? '')
+    ))
+
+    expect(weightLabels).toHaveLength(3)
+    for (const label of weightLabels) {
+      expect(label.className).toContain('min-h-10')
+      expect(label.className).toContain('leading-5')
+      expect(label.className).toContain('sm:min-h-0')
+    }
+  })
+
   it('still focuses the first invalid field after saving an incomplete product entry', async () => {
     await renderForm()
 

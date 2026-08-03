@@ -4,6 +4,15 @@
 
 ติดตามงานดึงหน้ากลุ่ม `รายการประจำวัน` จาก legacy source เข้าสู่ Next.js พร้อม API, DB wiring, validation, permission guard และ reconciliation เบื้องต้น
 
+## WTI/WTO chooser scroll-lock follow-up — 2026-08-03
+
+Status: local implementation, browser proof, broad validation and fresh acceptance review complete; final SIT sync and publish are in progress.
+
+- ล็อก scroll container ของฟอร์มที่ครอบ attachment tile ตลอดอายุ image source chooser พร้อมคืนตำแหน่งเดิมและ focus แบบ `preventScroll` หลัง animation ปิด เพื่อตัดอาการเนื้อหาด้านหลังขยับ.
+- ทำ label ของช่อง `น้ำหนักรวม`, `หักภาชนะ` และ `น้ำหนักหลังหักภาชนะ` สูงเท่ากันบนมือถือ โดยคง input `h-10`, ความกว้าง grid, read-only calculation และ payload เดิม.
+- Focused regression suites ผ่าน `34/34`; Codex Browser ที่ viewport `449x1032` วัด input ทั้งสามสูง `40px` และเริ่มที่ top เดียวกัน รวมถึงพิสูจน์ repeated live open/close รักษา form scroller ที่ `82 -> 82` เมื่อแยก locator actionability auto-scroll ออกจาก application behavior.
+- Targeted/workspace lint, workspace type-check, SIT-env Webpack build `331/331` routes, diff review และ fresh-context acceptance ผ่านแล้ว; ขั้นตอนที่เหลือคือ fetch/recheck `sit-origin/main`, commit/push และยืนยัน remote SHA.
+
 ## WTI/WTO responsive form follow-up — 2026-08-03
 
 Status: completed and published to `sit-origin/main` at `7fbac4350471dd0a9770c3f4b592a8b3eef1128f`; remote SHA verified.

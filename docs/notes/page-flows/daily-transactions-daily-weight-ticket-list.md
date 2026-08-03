@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-07-19
+updated: 2026-08-03
 route: /daily/weight-ticket-list
 ---
 
@@ -76,7 +76,8 @@ User decision updated on 2026-07-11: WTO draft/save must not reserve stock. The 
 - ช่องแนบรูปของ WTI/WTO ทุกบริบท—รูปรถ, รูปเต๋า/สินค้า และรูปสินค้าที่ปนมา—ใช้ source chooser เดียวกัน เมื่อกด tile `เพิ่มรูป` ให้เปิดแผงจากด้านล่างและเลือกได้ชัดเจนระหว่าง `ถ่ายรูป` กับ `เลือกจากแกลเลอรี`; กล้องใช้ native file capture ฝั่งหลังครั้งละ 1 รูป ส่วนแกลเลอรีเลือกได้หลายรูป แล้วส่งไฟล์ทั้งสองทางเข้าสู่ upload/preview/save contract เดิม
 - source chooser ใช้ transform-only slide 400ms จังหวะเดียวกับ mobile product editor ไม่มี opacity effect มี visible dismiss action เพียง `ยกเลิก`, ปิดด้วย backdrop/Escape ได้ และคืน focus ไป tile เดิม; browser/desktop ที่ไม่รองรับ `capture` อาจ fallback เป็น native file picker โดยต้องไม่ทำให้การแนบรูปหรือ validation เดิมเสีย
 - Responsive follow-up 2026-08-03: source chooser ต้องเต็มความกว้างแบบ edge-to-edge เมื่อ viewport ต่ำกว่า `sm` และจำกัดความกว้าง/จัดกึ่งกลางเฉพาะตั้งแต่ `sm` ขึ้นไป เพื่อไม่ให้พื้นเอกสารสีขาวโผล่เป็นขอบข้างจนดูเหมือนแผงลอยหรือยกขึ้นจากหน้า
-- ช่อง `น้ำหนักรวม`, `หักภาชนะ` และ `น้ำหนักหลังหักภาชนะ` ของแต่ละเต๋าต้องอยู่แถวเดียวกันทุก breakpoint; ช่องที่สามยังเป็นค่าคำนวณ read-only และสูตร น้ำหนัก หน่วย validation รวมถึง payload เดิมต้องไม่เปลี่ยน
+- Scroll-stability follow-up 2026-08-03: ระหว่าง source chooser เปิดและช่วงสไลด์ปิด ต้องล็อกทั้ง body และ scroll container ของฟอร์มที่ครอบ tile รูป เก็บ/คืนตำแหน่งเดิม และย้าย/คืน focus แบบ `preventScroll`; เนื้อหาด้านหลังต้องไม่ขยับเมื่อเปิดหรือปิดด้วย `ยกเลิก`, backdrop หรือ `Escape`.
+- ช่อง `น้ำหนักรวม`, `หักภาชนะ` และ `น้ำหนักหลังหักภาชนะ` ของแต่ละเต๋าต้องอยู่แถวเดียวกันทุก breakpoint; บนมือถือ label ทั้งสามจองพื้นที่สองบรรทัดเท่ากันเพื่อให้ช่องกรอกสูง 40px เริ่มบนแนวเดียวกัน ช่องที่สามยังเป็นค่าคำนวณ read-only และสูตร น้ำหนัก หน่วย validation รวมถึง payload เดิมต้องไม่เปลี่ยน
 
 What is what: source chooser เป็นเพียงทางเลือกนำรูปเข้าสู่ฟอร์ม ไม่ใช่กล้องหรือคลังรูปใหม่ในระบบ และแถวช่องน้ำหนักเป็น presentation ของข้อมูลเต๋าเดิม. Why it has to be like this: ผู้ใช้หน้างานต้องเลือกถ่ายหลักฐานทันทีหรือใช้รูปเดิมได้โดยไม่เดาพฤติกรรม file picker ของแต่ละเครื่อง ขณะที่หลักฐานทั้งหมดต้องยังผ่านสิทธิ์ ชนิดไฟล์ ขนาดไฟล์ storage reference และประวัติเอกสารชุดเดิม; การวางค่าน้ำหนักสามช่องในแถวเดียวช่วยลดพื้นที่แนวตั้งโดยไม่เปลี่ยน business contract
 - หน้า list แสดง WTI/WTO และส่ง context ประเภทเอกสารไปหน้า create/edit ให้ถูกต้อง

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ChangeEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Camera, ImagePlus, Images, Trash2 } from 'lucide-react'
 import { useActionConfirmation } from '@/components/ui/FormSafetyProvider'
@@ -10,6 +10,7 @@ import { recordImageDelivery } from '@/lib/client-image-delivery-telemetry'
 const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp'
 const SOURCE_CHOOSER_TRANSITION_MS = 400
 const focusableSelector = 'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+const scrollableOverflow = /^(auto|overlay|scroll)$/
 
 function requestFrame(callback: FrameRequestCallback) {
   if (typeof window.requestAnimationFrame === 'function') return window.requestAnimationFrame(callback)
@@ -19,6 +20,31 @@ function requestFrame(callback: FrameRequestCallback) {
 function cancelFrame(frameId: number) {
   if (typeof window.cancelAnimationFrame === 'function') window.cancelAnimationFrame(frameId)
   else window.clearTimeout(frameId)
+}
+
+function getScrollableAncestors(element: HTMLElement | null) {
+  const ancestors: HTMLElement[] = []
+  let current = element?.parentElement ?? null
+
+  while (current && current !== document.body) {
+    const style = window.getComputedStyle(current)
+    const scrollsHorizontally = scrollableOverflow.test(style.overflowX) && current.scrollWidth > current.clientWidth
+    const scrollsVertically = scrollableOverflow.test(style.overflowY) && current.scrollHeight > current.clientHeight
+    if (scrollsHorizontally || scrollsVertically) ancestors.push(current)
+    current = current.parentElement
+  }
+
+  return ancestors
+}
+
+function captureScrollLocks(element: HTMLElement | null) {
+  return getScrollableAncestors(element).map((scrollElement) => ({
+    element: scrollElement,
+    overflowX: scrollElement.style.overflowX,
+    overflowY: scrollElement.style.overflowY,
+    scrollLeft: scrollElement.scrollLeft,
+    scrollTop: scrollElement.scrollTop,
+  }))
 }
 
 export type WeightTicketAttachmentPreview = {
@@ -75,12 +101,24 @@ export function WeightTicketAttachmentGrid({
   const chooserRef = useRef<HTMLDivElement>(null)
   const openFrameRef = useRef<number | null>(null)
   const closeTimerRef = useRef<number | null>(null)
+  const pendingPointerScrollLocksRef = useRef<ReturnType<typeof captureScrollLocks> | null>(null)
+  const scrollLocksRef = useRef<ReturnType<typeof captureScrollLocks> | null>(null)
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null)
   const [chooserMounted, setChooserMounted] = useState(false)
   const [chooserVisible, setChooserVisible] = useState(false)
 
-  function openChooser() {
+  function captureTriggerScroll() {
+    if (!disabled) {
+      pendingPointerScrollLocksRef.current = captureScrollLocks(triggerRef.current)
+    }
+  }
+
+  function openChooser(event: ReactMouseEvent<HTMLButtonElement>) {
     if (disabled) return
+    scrollLocksRef.current = event.detail > 0
+      ? pendingPointerScrollLocksRef.current ?? captureScrollLocks(triggerRef.current)
+      : captureScrollLocks(triggerRef.current)
+    pendingPointerScrollLocksRef.current = null
     setPortalTarget(triggerRef.current?.closest<HTMLElement>('[role="dialog"]') ?? document.body)
     setChooserMounted(true)
   }
@@ -130,12 +168,20 @@ export function WeightTicketAttachmentGrid({
     if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current)
   }, [])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!chooserMounted) return
     const previousOverflow = document.body.style.overflow
     const restoreFocus = triggerRef.current
+    const scrollLocks = scrollLocksRef.current ?? captureScrollLocks(restoreFocus)
+    const restoreScrollPositions = () => {
+      for (const { element, scrollLeft, scrollTop } of scrollLocks) {
+        element.scrollLeft = scrollLeft
+        element.scrollTop = scrollTop
+      }
+    }
     const getFocusableElements = () => Array.from(chooserRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? [])
-    const focusFirstElement = () => (getFocusableElements()[0] ?? chooserRef.current)?.focus()
+    const focusWithoutScroll = (element: HTMLElement | null | undefined) => element?.focus({ preventScroll: true })
+    const focusFirstElement = () => focusWithoutScroll(getFocusableElements()[0] ?? chooserRef.current)
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -152,17 +198,16 @@ export function WeightTicketAttachmentGrid({
 
       if (!chooserRef.current?.contains(document.activeElement)) {
         event.preventDefault()
-        if (event.shiftKey) last.focus()
-        else first.focus()
+        focusWithoutScroll(event.shiftKey ? last : first)
         return
       }
 
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault()
-        last.focus()
+        focusWithoutScroll(last)
       } else if (!event.shiftKey && document.activeElement === last) {
         event.preventDefault()
-        first.focus()
+        focusWithoutScroll(first)
       }
     }
     const handleFocusIn = (event: FocusEvent) => {
@@ -171,15 +216,26 @@ export function WeightTicketAttachmentGrid({
     }
 
     document.body.style.overflow = 'hidden'
+    for (const { element } of scrollLocks) {
+      element.style.overflowX = 'hidden'
+      element.style.overflowY = 'hidden'
+    }
     document.addEventListener('keydown', handleKeyDown, true)
     document.addEventListener('focusin', handleFocusIn)
     focusFirstElement()
+    restoreScrollPositions()
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown, true)
       document.removeEventListener('focusin', handleFocusIn)
       document.body.style.overflow = previousOverflow
-      if (restoreFocus?.isConnected) restoreFocus.focus()
+      for (const { element, overflowX, overflowY } of scrollLocks) {
+        element.style.overflowX = overflowX
+        element.style.overflowY = overflowY
+      }
+      if (restoreFocus?.isConnected) focusWithoutScroll(restoreFocus)
+      restoreScrollPositions()
+      scrollLocksRef.current = null
     }
   }, [chooserMounted, closeChooser])
 
@@ -232,6 +288,8 @@ export function WeightTicketAttachmentGrid({
         )}
         disabled={disabled}
         type="button"
+        onPointerDown={captureTriggerScroll}
+        onPointerCancel={() => { pendingPointerScrollLocksRef.current = null }}
         onClick={openChooser}
       >
         <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">

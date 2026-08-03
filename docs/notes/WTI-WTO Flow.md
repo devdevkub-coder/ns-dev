@@ -13,10 +13,16 @@ tags:
   - decision
 status: draft
 created: 2026-06-11
-updated: 2026-07-23
+updated: 2026-08-03
 ---
 
 # WTI/WTO Flow / Flow ใบรับ-ส่งของ
+
+## Attachment chooser scroll stability and weight-field alignment (2026-08-03)
+
+- ตัวเลือกแหล่งรูปของรูปรถ รูปสินค้า/เต๋า และรูปสิ่งเจือปนใน WTI/WTO ต้องเปิดทับฟอร์มโดยไม่เลื่อนเนื้อหาด้านหลัง: ก่อนเปิดให้เก็บตำแหน่งของ scroll container ที่ครอบ tile รูป ล็อก container เหล่านั้นตลอดช่วงเปิดและ animation ปิด 400ms ใช้ focus แบบ `preventScroll` และคืนทั้งตำแหน่งกับ focus เดิมเมื่อปิดด้วยปุ่ม `ยกเลิก`, backdrop หรือ `Escape`.
+- กฎนี้แก้เฉพาะ interaction ของ chooser; การถ่ายรูป กล้องหลัง แกลเลอรีหลายรูป validation ตลอดจน API, Database, Storage และ cache contract เดิมต้องไม่เปลี่ยน.
+- บนมือถือ label ของ `น้ำหนักรวม (กก. / ลัง)`, `หักภาชนะ (กก.)` และ `น้ำหนักหลังหักภาชนะ` ต้องจองความสูงสองบรรทัดเท่ากัน เพื่อให้ช่อง `h-10` ทั้งสามเริ่มบนแนวเดียวกัน; ช่องน้ำหนักหลังหักภาชนะยังเป็นค่าคำนวณ read-only ตามสูตรเดิม.
 
 ## Form exit safety (2026-07-30)
 

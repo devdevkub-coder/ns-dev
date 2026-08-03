@@ -261,6 +261,78 @@ describe('WeightTicketAttachmentGrid', () => {
     }
   })
 
+  it('keeps nested form scroll fixed while the chooser is open and restores it without focus scrolling', () => {
+    vi.useFakeTimers()
+    renderGrid()
+    const trigger = uploadTrigger()
+    if (!(trigger instanceof HTMLButtonElement)) throw new Error('Expected upload trigger')
+    const nestedScrollContainer = trigger.parentElement
+    if (!(nestedScrollContainer instanceof HTMLElement)) throw new Error('Expected nested scroll container')
+    nestedScrollContainer.style.overflowY = 'auto'
+    Object.defineProperties(nestedScrollContainer, {
+      clientHeight: { configurable: true, value: 320 },
+      scrollHeight: { configurable: true, value: 900 },
+    })
+    nestedScrollContainer.scrollTop = 137
+    const nativeFocus = HTMLElement.prototype.focus
+    const focusSpy = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function focus(this: HTMLElement, options?: FocusOptions) {
+      nativeFocus.call(this, options)
+      if (this.textContent?.includes('ถ่ายรูป')) nestedScrollContainer.scrollTop = 240
+    })
+
+    try {
+      act(() => trigger.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })))
+      nestedScrollContainer.scrollTop = 240
+      act(() => trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })))
+
+      expect(nestedScrollContainer.style.overflowY).toBe('hidden')
+      expect(nestedScrollContainer.scrollTop).toBe(137)
+      expect(document.activeElement?.textContent).toContain('ถ่ายรูป')
+      expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true })
+
+      nestedScrollContainer.scrollTop = 240
+      click(button('ยกเลิก'))
+      act(() => vi.advanceTimersByTime(400))
+
+      expect(nestedScrollContainer.style.overflowY).toBe('auto')
+      expect(nestedScrollContainer.scrollTop).toBe(137)
+      expect(document.activeElement).toBe(trigger)
+      expect(focusSpy.mock.calls.at(-1)?.[0]).toEqual({ preventScroll: true })
+    } finally {
+      focusSpy.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('captures fresh scroll when a cancelled pointer gesture is followed by keyboard activation', () => {
+    vi.useFakeTimers()
+    renderGrid()
+    const trigger = uploadTrigger()
+    if (!(trigger instanceof HTMLButtonElement)) throw new Error('Expected upload trigger')
+    const nestedScrollContainer = trigger.parentElement
+    if (!(nestedScrollContainer instanceof HTMLElement)) throw new Error('Expected nested scroll container')
+    nestedScrollContainer.style.overflowY = 'auto'
+    Object.defineProperties(nestedScrollContainer, {
+      clientHeight: { configurable: true, value: 320 },
+      scrollHeight: { configurable: true, value: 900 },
+    })
+    nestedScrollContainer.scrollTop = 137
+
+    try {
+      act(() => trigger.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })))
+      act(() => trigger.dispatchEvent(new MouseEvent('pointercancel', { bubbles: true })))
+      nestedScrollContainer.scrollTop = 222
+      click(trigger)
+
+      expect(nestedScrollContainer.scrollTop).toBe(222)
+      click(button('ยกเลิก'))
+      act(() => vi.advanceTimersByTime(400))
+      expect(nestedScrollContainer.scrollTop).toBe(222)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps the chooser inside the document modal and does not animate opacity', () => {
     renderGrid()
     click(uploadTrigger())
