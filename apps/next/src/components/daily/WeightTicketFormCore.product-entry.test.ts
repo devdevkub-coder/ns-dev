@@ -128,6 +128,11 @@ describe('weight-ticket mobile product workspace contract', () => {
     expect(formSource).toContain('"grid min-w-0 grid-cols-2 gap-3 sm:gap-4"')
   })
 
+  it('keeps all three lot weight controls in one row', () => {
+    expect(formSource).toContain('grid grid-cols-3 items-start gap-2 sm:gap-4')
+    expect(formSource).not.toMatch(/<div className="col-span-2 sm:col-span-1">\s*<FieldBlock label="น้ำหนักหลังหักภาชนะ">/)
+  })
+
   it('uses collapsible mobile cards for impurity entries', () => {
     expect(formSource).toContain('const [collapsedImpurityIds, setCollapsedImpurityIds] = useState<Record<string, boolean>>({})')
     expect(formSource).toContain('function toggleImpurityCollapsed(impurityId: string)')

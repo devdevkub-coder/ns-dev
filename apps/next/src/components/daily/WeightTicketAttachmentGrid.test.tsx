@@ -276,6 +276,17 @@ describe('WeightTicketAttachmentGrid', () => {
     expect(document.activeElement?.textContent).toContain('ถ่ายรูป')
   })
 
+  it('keeps the source chooser edge-to-edge on narrow mobile screens', () => {
+    renderGrid()
+    click(uploadTrigger())
+
+    const chooser = container.querySelector<HTMLElement>('[data-testid="attachment-source-dialog"]')
+    expect(chooser).not.toBeNull()
+    expect(chooser?.classList.contains('w-full')).toBe(true)
+    expect(chooser?.classList.contains('max-w-lg')).toBe(false)
+    expect(chooser?.classList.contains('sm:max-w-lg')).toBe(true)
+  })
+
   it('does not open the chooser when disabled', () => {
     renderGrid({ disabled: true })
     const trigger = uploadTrigger()

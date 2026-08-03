@@ -2323,7 +2323,7 @@ export function WeightTicketFormCore({
                                   </div>
                                   {!isCollapsed ? (
                                     <>
-                                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 items-start">
+                                      <div className="grid grid-cols-3 items-start gap-2 sm:gap-4">
                                         <FieldBlock error={showError(`line-${lot.id}-gross`)} label="น้ำหนักรวม (กก. / ลัง) *">
                                           <Input
                                             id={`weight-gross-${lot.id}`}
@@ -2346,14 +2346,12 @@ export function WeightTicketFormCore({
                                             onChange={(event) => updateLine(lot.id, (current) => ({ ...current, containerDeductionWeight: normalizeDecimalInput(event.target.value) }))}
                                           />
                                         </FieldBlock>
-                                        <div className="col-span-2 sm:col-span-1">
-                                          <FieldBlock label="น้ำหนักหลังหักภาชนะ">
-                                            <Input
-                                              disabled
-                                              value={formatWeight(lotNetBeforeImpurityWeight)}
-                                            />
-                                          </FieldBlock>
-                                        </div>
+                                        <FieldBlock label="น้ำหนักหลังหักภาชนะ">
+                                          <Input
+                                            disabled
+                                            value={formatWeight(lotNetBeforeImpurityWeight)}
+                                          />
+                                        </FieldBlock>
                                       </div>
                                       <FieldBlock error={showError(`line-${lot.id}-images`)} label="รูปภาพประกอบ*">
                                         <AttachmentProfileGrid

@@ -280,7 +280,7 @@ export function WeightTicketAttachmentGrid({
             aria-labelledby={chooserTitleId}
             aria-modal="true"
             className={cn(
-              'w-full max-w-lg overflow-hidden rounded-t-[1.5rem] bg-white shadow-2xl transition-transform duration-[400ms] ease-[cubic-bezier(.32,.72,0,1)] dark:bg-slate-900',
+              'w-full sm:max-w-lg overflow-hidden rounded-t-[1.5rem] bg-white shadow-2xl transition-transform duration-[400ms] ease-[cubic-bezier(.32,.72,0,1)] dark:bg-slate-900',
               chooserVisible ? 'translate-y-0' : 'translate-y-full',
             )}
             data-testid="attachment-source-dialog"
