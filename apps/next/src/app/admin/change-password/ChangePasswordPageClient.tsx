@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { useUnsavedChangesGuard } from '@/components/ui/FormSafetyProvider'
 import { Input } from '@/components/ui/Input'
-import { changePasswordSchema } from '@/lib/auth'
+import { changePasswordSchema, firstPasswordChangeSchema } from '@/lib/auth'
 import { acknowledgePasswordChanged, PASSWORD_UPDATE_ERROR } from '@/lib/auth-client-contract'
 import { getSupabaseClient } from '@/lib/supabase'
 
@@ -98,7 +98,9 @@ export function ChangePasswordPageClient() {
     setMessage(null)
     setFieldErrors({})
 
-    const parsed = changePasswordSchema.safeParse({ confirmPassword, currentPassword, password })
+    const parsed = user?.mustChangePassword
+      ? firstPasswordChangeSchema.safeParse({ confirmPassword, password })
+      : changePasswordSchema.safeParse({ confirmPassword, currentPassword, password })
 
     if (!parsed.success) {
       setFieldErrors(issueMap(parsed.error.issues))
@@ -111,22 +113,24 @@ export function ChangePasswordPageClient() {
       return
     }
 
-    if (!user?.email) {
+    if (!user?.mustChangePassword && !user?.email) {
       setError('ไม่พบ email ของผู้ใช้ปัจจุบัน จึงยืนยัน password เดิมไม่ได้')
       return
     }
 
     setIsLoading(true)
-    const { error: verifyError } = await supabase.auth.signInWithPassword({
-      email: user.email,
-      password: parsed.data.currentPassword,
-    })
+    if (!user?.mustChangePassword) {
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      })
 
-    if (verifyError) {
-      setIsLoading(false)
-      setFieldErrors({ currentPassword: 'Password เดิมไม่ถูกต้อง' })
-      setError('Password เดิมไม่ถูกต้อง')
-      return
+      if (verifyError) {
+        setIsLoading(false)
+        setFieldErrors({ currentPassword: 'Password เดิมไม่ถูกต้อง' })
+        setError('Password เดิมไม่ถูกต้อง')
+        return
+      }
     }
 
     const { error: updateError } = await supabase.auth.updateUser({ password: parsed.data.password })
@@ -195,15 +199,18 @@ export function ChangePasswordPageClient() {
             </div>
           ) : null}
 
-          <PasswordField
-            autoComplete="current-password"
-            disabled={isLoading || isFetchingUser}
-            error={fieldErrors.currentPassword}
-            label="รหัสผ่านเดิม"
-            showPassword={showPassword}
-            value={currentPassword}
-            onChange={setCurrentPassword}
-          />
+          {!user?.mustChangePassword ? (
+            <PasswordField
+              autoComplete="current-password"
+              disabled={isLoading || isFetchingUser}
+              error={fieldErrors.currentPassword}
+              label="รหัสผ่านเดิม"
+              showPassword={showPassword}
+              value={currentPassword}
+              onChange={setCurrentPassword}
+              onToggleVisibility={() => setShowPassword((current) => !current)}
+            />
+          ) : null}
 
           <PasswordField
             autoComplete="new-password"
@@ -214,6 +221,7 @@ export function ChangePasswordPageClient() {
             showPassword={showPassword}
             value={password}
             onChange={setPassword}
+            onToggleVisibility={() => setShowPassword((current) => !current)}
           />
 
           <PasswordField
@@ -224,13 +232,8 @@ export function ChangePasswordPageClient() {
             showPassword={showPassword}
             value={confirmPassword}
             onChange={setConfirmPassword}
+            onToggleVisibility={() => setShowPassword((current) => !current)}
           />
-
-          <label className="inline-flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
-            <input checked={showPassword} className="size-4 rounded border-slate-300 text-slate-900 focus:ring-blue-500 focus:border-blue-500" onChange={(event) => setShowPassword(event.target.checked)} type="checkbox" />
-            {showPassword ? <EyeOff className="size-4 text-slate-500" /> : <Eye className="size-4 text-slate-500" />}
-            แสดงรหัสผ่าน
-          </label>
 
           {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 animate-fade-in">{error}</div> : null}
           {message ? <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700 animate-fade-in">{message}</div> : null}
@@ -278,6 +281,7 @@ function PasswordField(props: {
   error?: string
   label: string
   onChange: (value: string) => void
+  onToggleVisibility: () => void
   showPassword: boolean
   value: string
 }) {
@@ -285,16 +289,30 @@ function PasswordField(props: {
     <label className="block text-sm font-medium text-slate-700">
       {props.label} <span className="text-red-600">*</span>
       {props.description ? <span className="ml-1 text-xs font-normal text-slate-500">({props.description})</span> : null}
-      <Input
-        autoComplete={props.autoComplete}
-        aria-invalid={Boolean(props.error)}
-        className={`mt-1.5 h-9 focus:ring-blue-500 focus:border-blue-500 ${props.error ? 'border-red-400 bg-red-50 focus:border-red-400' : ''}`}
-        disabled={props.disabled}
-        required
-        type={props.showPassword ? 'text' : 'password'}
-        value={props.value}
-        onChange={(event) => props.onChange(event.target.value)}
-      />
+      <span className="relative mt-1.5 block">
+        <Input
+          autoComplete={props.autoComplete}
+          aria-invalid={Boolean(props.error)}
+          className={`h-9 pr-10 focus:ring-blue-500 focus:border-blue-500 ${props.error ? 'border-red-400 bg-red-50 focus:border-red-400' : ''}`}
+          disabled={props.disabled}
+          required
+          type={props.showPassword ? 'text' : 'password'}
+          value={props.value}
+          onChange={(event) => props.onChange(event.target.value)}
+        />
+        <button
+          aria-label={props.showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+          className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-slate-500 hover:text-slate-700 disabled:opacity-50"
+          disabled={props.disabled}
+          onClick={(event) => {
+            event.preventDefault()
+            props.onToggleVisibility()
+          }}
+          type="button"
+        >
+          {props.showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+        </button>
+      </span>
       {props.error ? <span className="mt-1 block text-xs text-red-700">{props.error}</span> : null}
     </label>
   )
