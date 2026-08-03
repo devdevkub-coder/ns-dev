@@ -197,11 +197,6 @@ const statusUpdateSchema = z.object({
   activatedAt: z.string().nullable(),
 })
 
-const inviteResultSchema = z.object({
-  mode: z.enum(['invite', 'reset']),
-  sent: z.boolean(),
-})
-
 const temporaryPasswordResultSchema = z.object({
   issuedAt: z.string(),
   temporaryPassword: z.string().min(12),
@@ -970,25 +965,12 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
           body: JSON.stringify({ url: editingUser.profileImageUrl }),
         }).catch(() => undefined)
       }
-      let inviteErrorMessage: string | null = null
-
       if (!editingUser) {
         setStatusFilter('all')
-        try {
-          const inviteResponse = await fetch(`/api/admin/users/${encodeURIComponent(savedUser.id)}/invite`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ redirectTo: `${window.location.origin}/reset-password` }),
-          })
-          await readJsonResponse(inviteResponse, inviteResultSchema, 'สร้างผู้ใช้แล้ว แต่ส่งคำเชิญไม่สำเร็จ')
-          setNotice(`สร้างผู้ใช้และส่งคำเชิญไปที่ ${form.email.trim()} แล้ว`)
-        } catch (caught) {
-          inviteErrorMessage = getErrorMessage(caught, 'สร้างผู้ใช้แล้ว แต่ส่งคำเชิญไม่สำเร็จ สามารถส่งอีกครั้งจากเมนูจัดการ')
-        }
+        setNotice(`สร้างผู้ใช้ ${form.email.trim()} แล้ว สามารถสร้างรหัสผ่านชั่วคราวจากเมนูจัดการได้`)
       }
 
       await loadData()
-      if (inviteErrorMessage) setError(inviteErrorMessage)
     } catch (caught) {
       if (uploadedProfileImageUrl) {
         void fetch('/api/admin/users/profile-image', {
