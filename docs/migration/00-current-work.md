@@ -1,34 +1,17 @@
 # 00 Current Work
 
-## Active WTI/WTO mobile layout follow-up — 2026-08-03
+## Awaiting next requested batch — 2026-08-03
 
-Objective: แก้ source chooser ของรูปภาพไม่ให้เหลือขอบขาวด้านข้างบนมือถือ และจัดช่อง `น้ำหนักรวม`, `หักภาชนะ`, `น้ำหนักหลังหักภาชนะ` ให้อยู่แถวเดียวกัน โดยไม่เปลี่ยนกล้อง/แกลเลอรี การอัปโหลด สูตรคำนวณ validation API DB หรือ storage contract.
+Latest completed checkpoint: WTI/WTO responsive lot-entry and image-source chooser follow-up.
 
-Working state:
-
-- Branch: `codex/weight-ticket-camera-gallery-20260803`
-- Worktree: `C:\new-ns-scrap-erp-worktrees\weight-ticket-camera-gallery-20260803`
-- Base and latest fetched SIT: `sit-origin/main` at `766bcfd36`; behind/ahead `0/0` before commit.
-- Write areas: `WeightTicketAttachmentGrid`, `WeightTicketFormCore`, focused regression tests, WTI/WTO flow note และ daily-transactions tracker.
-- Main workspace remains untouched because it contains unrelated dirty work.
-
-Preserved decisions:
-
-- กล้องหลังเลือกครั้งละหนึ่งรูป, gallery เลือกหลายรูป และ upload/preview/save contract เดิม.
-- source chooser ยังใช้ transform-only slide 400ms ไม่มี opacity และจำกัด `max-w-lg` ตั้งแต่ breakpoint `sm` ขึ้นไป.
-- ช่องน้ำหนักที่สามยังเป็นค่าคำนวณ read-only; สูตร หน่วย validation payload API DB และ storage ไม่เปลี่ยน.
-
-Current proof:
-
-- RED regression runs reproduced both prior layout defects.
-- Focused attachment and product-entry suites pass `31/31`.
-- Targeted ESLint passes; workspace lint passes with `0` errors and `10` existing warnings.
-- Workspace type-check passes; SIT-env Webpack production build passes and generates `331/331` routes.
-- `git diff --check`, conflict-marker scan และ sensitive/manifest diff scan pass.
-- Dependency audit still reports existing advisories; this batch does not change package manifests or lockfiles.
-- Fresh independent acceptance audit returned `ACCEPTED` after the active-handoff correction.
+- Commit `7fbac4350471dd0a9770c3f4b592a8b3eef1128f` was pushed to `sit-origin/main` by normal fast-forward and the remote SHA was verified.
+- ช่อง `น้ำหนักรวม`, `หักภาชนะ` และ `น้ำหนักหลังหักภาชนะ` ของแต่ละเต๋าอยู่แถวเดียวกันทุก breakpoint; calculated/read-only behavior and business contracts remain unchanged.
+- Image source chooser is edge-to-edge below `sm` and retains centered `max-w-lg` from `sm` upward; camera/gallery behavior and transform-only 400ms motion remain unchanged.
+- Focused suites pass `31/31`; targeted ESLint, workspace lint, workspace type-check, SIT-env Webpack build `331/331`, `git diff --check` and independent acceptance pass.
+- Dependency audit advisories remain an existing dependency-upgrade concern; this UI batch did not change manifests or lockfiles.
+- No Plane issue mapping is known for this follow-up, so no issue state/comment/upload was attempted.
 
 Immediate next tasks:
 
-1. Commit the scoped batch, fetch/compare `sit-origin/main` again, integrate if it advanced, then push without force and verify the remote SHA.
-2. Report Plane through REST only if an assigned issue mapping is confirmed; no issue mapping is currently known for this follow-up.
+1. Wait for the next user-requested business/UI batch.
+2. If an assigned Plane issue mapping is provided, complete its REST-only reporting workflow before claiming that issue workflow complete.

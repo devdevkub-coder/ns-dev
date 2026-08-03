@@ -6,7 +6,7 @@
 
 ## WTI/WTO responsive form follow-up — 2026-08-03
 
-Status: implementation, local validation and independent acceptance complete; pending final SIT synchronization/push.
+Status: completed and published to `sit-origin/main` at `7fbac4350471dd0a9770c3f4b592a8b3eef1128f`; remote SHA verified.
 
 - จัดช่อง `น้ำหนักรวม`, `หักภาชนะ` และ `น้ำหนักหลังหักภาชนะ` ของแต่ละเต๋าให้อยู่แถวเดียวกันทุก breakpoint โดยคงค่าคำนวณ read-only และ business contract เดิม
 - ทำ image source chooser ให้เต็มความกว้างเมื่อ viewport ต่ำกว่า `sm` เพื่อตัดขอบขาวด้านข้างที่ดูเหมือนแผงลอย; ตั้งแต่ `sm` ขึ้นไปยังใช้ `max-w-lg` จัดกึ่งกลางเหมือนเดิม
