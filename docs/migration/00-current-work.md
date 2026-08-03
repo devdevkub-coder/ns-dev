@@ -1,3 +1,7 @@
+# Production Temporary-Password Login Hotfix 2026-08-03
+
+Root cause: users with `must_change_password = true` were blocked by the proxy before `POST /api/auth/login-complete`, so temporary-password login returned HTTP 403. The proxy now allows login completion, then redirects the authenticated user to `/admin/change-password` as intended. Validation: targeted proxy lint, workspace type-check, and `git diff --check` passed.
+
 # Foreign Receipt Settlement FX Follow-up 2026-07-31
 
 Objective: ให้ foreign SB receipt คำนวณ cash applied/AR settlement/FX gain จาก facts ที่ persist แล้ว, แยก FX fact ตามสาขา และคง THB consumer เดิมโดยไม่สร้าง GL, fallback หรือ hardcode.

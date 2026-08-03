@@ -20,7 +20,10 @@ function jsonError(message: string, status: number) {
 }
 
 function isPasswordChangeAllowedPath(pathname: string) {
-  return pathname === '/admin/change-password' || pathname === '/api/auth/me' || pathname === '/api/auth/password-changed'
+  return pathname === '/admin/change-password'
+    || pathname === '/api/auth/login-complete'
+    || pathname === '/api/auth/me'
+    || pathname === '/api/auth/password-changed'
 }
 
 export async function proxy(request: NextRequest) {
