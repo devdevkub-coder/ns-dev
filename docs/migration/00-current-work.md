@@ -10,6 +10,7 @@ Working state:
 - Integration worktree: `C:\new-ns-scrap-erp-worktrees\sit-main-integration-20260801`
 - Local source before merge: `85e26807d`; first fetched SIT source: `63f455a7f`.
 - First semantic merge completed in `f985ac0`; the additional `sit-origin/main` commit `33e01ceb1` is now merged without conflict. It splits Master Data role permissions and adds migration `20260803100000_split_master_data_permissions.sql`.
+- The pre-push fetch then found `c1f4a327b`, which serializes Payment Approval `bigint` response values; it is merged without conflict and keeps `assertJsonSafe` after serialization.
 - Primary workspace remains untouched because it contains unrelated dirty work. SIT secrets remain only in ignored env files and must not enter Git.
 
 Preserved decisions:
@@ -34,10 +35,11 @@ Current proof:
 - Workspace lint passes with `0` errors and `10` existing warnings; workspace TypeScript passes with an 8 GB Node heap.
 - SIT-env Webpack production build passes and generates `331` routes.
 - The build gate caught and removed one duplicate-import merge regression in `LineSettingsPageClient.tsx`; fresh type-check, lint, and build all pass after that correction.
+- After merging `c1f4a327b`, focused daily serialization coverage passes `5/5`, the changed route passes ESLint, workspace TypeScript passes, and the final SIT-env Webpack build again generates `331` routes.
 - `git diff --check` and conflict-marker scans pass. The new permission migration is present in Git but has not been applied to a database by this integration batch.
 
 Immediate next tasks:
 
-1. Commit the validated duplicate-import merge correction and this handoff checkpoint.
-2. Complete the independent acceptance gate, then fetch and compare `sit-origin/main` again; if it advanced, merge the new commits before publication.
+1. Commit the validated Payment Approval merge layer and this handoff checkpoint.
+2. Complete the independent acceptance gate, then fetch and compare `sit-origin/main` once more; if it advanced, merge the new commits before publication.
 3. Push `HEAD` to `sit-origin/main` without force, verify remote SHA/deployment, and report the assigned Plane issue through REST only when the issue mapping is confirmed.

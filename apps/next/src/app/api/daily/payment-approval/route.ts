@@ -42,6 +42,19 @@ type ApprovalDestinationOption = {
   paymentMethod: string
 }
 
+function serializePaymentApprovalJson<T>(value: T): T {
+  if (typeof value === 'bigint') return value.toString() as T
+  if (Array.isArray(value)) return value.map((item) => serializePaymentApprovalJson(item)) as T
+  if (!value || typeof value !== 'object') return value
+
+  const prototype = Object.getPrototypeOf(value)
+  if (prototype !== Object.prototype && prototype !== null) return value
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, serializePaymentApprovalJson(item)]),
+  ) as T
+}
+
 function normalizeSupplierBankAccounts(params: {
   paymentMethods: ActivePaymentMethod[]
   rows:
@@ -585,8 +598,9 @@ export async function GET(request: Request) {
       expenseRows: attachBranch(expenseRows),
       pettyReturnRows: attachBranch(pettyReturnRows),
     }
-    assertJsonSafe(payload, 'payment-approval.GET')
-    return NextResponse.json(payload)
+    const jsonPayload = serializePaymentApprovalJson(payload)
+    assertJsonSafe(jsonPayload, 'payment-approval.GET')
+    return NextResponse.json(jsonPayload)
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     console.error('[payment-approval] GET failed', caught instanceof Error ? caught.message : caught)
