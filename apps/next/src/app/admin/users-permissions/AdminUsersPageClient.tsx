@@ -1500,8 +1500,8 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                   >
                     <Mail aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-blue-700 dark:text-blue-300" />
                     <span>
-                      <span className="block text-sm font-semibold text-blue-950 dark:text-blue-100">ส่งลิงก์ตั้งรหัสผ่าน</span>
-                      <span className="mt-1 block text-xs text-blue-700 dark:text-blue-300">แนะนำ · ผู้ใช้ตั้งรหัสผ่านเองจากอีเมล</span>
+                      <span className="block text-sm font-semibold text-blue-950 dark:text-blue-100">ส่งลิงก์ให้ตั้งรหัสผ่าน</span>
+                      <span className="mt-1 block text-xs text-blue-700 dark:text-blue-300">ผู้ใช้ตั้งเองจากอีเมล</span>
                     </span>
                   </button>
                   <button
@@ -1513,7 +1513,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     <KeyRound aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-slate-700 dark:text-slate-200" />
                     <span>
                       <span className="block text-sm font-semibold">สร้างรหัสผ่านชั่วคราว</span>
-                      <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">แสดงให้ Admin ครั้งเดียว และบังคับเปลี่ยนหลัง Login</span>
+                      <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">แจ้งให้ผู้ใช้ใช้ครั้งแรก แล้วเปลี่ยนทันที</span>
                     </span>
                   </button>
                   <p className="rounded-md bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500 dark:bg-slate-800/70 dark:text-slate-400">
@@ -1524,7 +1524,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     type="button"
                     onClick={() => setActivationUser(null)}
                   >
-                    ไว้ภายหลัง
+                    ปิด
                   </button>
                 </div>
               )}
