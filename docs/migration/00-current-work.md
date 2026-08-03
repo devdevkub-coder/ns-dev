@@ -7,6 +7,11 @@ Checkpoint: `FCD-RCP-FX-07` ถึง `FCD-RCP-FX-16` เสร็จแล้�
 Validation: focused unit/consumer/P&L tests `33/33`, dev-target write integration `2/2`, lint, type-check, build และ `git diff --check` ผ่าน. Browser UAT และ SIT promotion ยังไม่ได้ทำใน batch นี้.
 
 Immediate next task: review/commit batch นี้; promote code และ apply migration บน SIT หรือทำ browser UAT เฉพาะเมื่อได้รับคำสั่งแยก.
+# Admin Temporary Password Reactivation Fix 2026-08-03
+
+Objective: ให้ผู้ใช้ที่ถูกปิดใช้งานแล้วเปิดกลับมาใหม่ (`disabled → active`) เห็นตัวเลือกส่งลิงก์ตั้งรหัสผ่านหรือสร้างรหัสผ่านชั่วคราวเหมือนผู้ใช้ใหม่ (`pending → active`).
+
+Checkpoint: ปรับเงื่อนไขใน `AdminUsersPageClient.tsx` ให้เปิด activation dialog สำหรับทั้ง `pending` และ `disabled`. Validation: workspace lint ผ่านโดยมี 10 warnings เดิม, workspace type-check ผ่าน, และ `git diff --check` ผ่าน. พร้อม commit/push ไป `sit-origin/main`; ไม่แตะ Production.
 
 # Active FCD Foreign Receipt Batch 2026-07-30
 
