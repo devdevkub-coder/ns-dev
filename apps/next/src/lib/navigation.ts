@@ -175,6 +175,34 @@ const exactPathPermissions: Record<string, string> = {
   '/reports': REPORT_PAGE_PERMISSIONS.reportsIndex,
 }
 
+const masterDataPagePermissions: Record<string, string> = {
+  '/master-data/account-subtypes': 'master.account_subtypes.view',
+  '/master-data/accounts': 'master.accounts.view',
+  '/master-data/asset-categories': 'master.asset_categories.view',
+  '/master-data/bank-names': 'master.bank_names.view',
+  '/master-data/beneficiaries': 'master.beneficiaries.view',
+  '/master-data/branches': 'master.branches.view',
+  '/master-data/channels': 'master.channels.view',
+  '/master-data/currencies': 'master.currencies.view',
+  '/master-data/customers': 'master.customers.view',
+  '/master-data/departments': 'master.departments.view',
+  '/master-data/directors': 'master.directors.view',
+  '/master-data/expense-categories': 'master.expense_categories.view',
+  '/master-data/expense-types': 'master.expense_types.view',
+  '/master-data/impurities': 'master.impurities.view',
+  '/master-data/machine-types': 'master.machine_types.view',
+  '/master-data/machines': 'master.machines.view',
+  '/master-data/payment-methods': 'master.payment_methods.view',
+  '/master-data/product-types': 'master.product_types.view',
+  '/master-data/product-units': 'master.product_units.view',
+  '/master-data/production-lines': 'master.production_lines.view',
+  '/master-data/products': 'master.products.view',
+  '/master-data/remittance-purposes': 'master.remittance_purposes.view',
+  '/master-data/salespersons': 'master.salespersons.view',
+  '/master-data/suppliers': 'master.suppliers.view',
+  '/master-data/warehouses': 'master.warehouses.view',
+}
+
 const prefixPathPermissions: Array<[string, string]> = [
   ['/api/master-data/customers/', 'master.customers.update'],
   ['/api/master-data/products/', 'master.products.update'],
@@ -220,6 +248,8 @@ const prefixPathPermissions: Array<[string, string]> = [
 
 export function permissionForPath(pathname: string) {
   const normalizedPath = pathname.endsWith('/') && pathname !== '/' ? pathname.slice(0, -1) : pathname
+  const masterDataPagePermission = masterDataPagePermissions[normalizedPath]
+  if (masterDataPagePermission) return masterDataPagePermission
   const exactPermission = exactPathPermissions[normalizedPath]
 
   if (exactPermission) {
@@ -494,6 +524,7 @@ export function sidebarPermissionSections(permissions: PermissionCatalogEntry[])
       if (!requiredPermissionCode) continue
 
       const requiredPermission = permissionByCode.get(requiredPermissionCode)
+        ?? (page.section === 'master-data' || page.section === 'company-data' ? permissionByCode.get('master.reference.view') : undefined)
       if (!requiredPermission) continue
 
       const actions = permissions.filter((permission) => (
